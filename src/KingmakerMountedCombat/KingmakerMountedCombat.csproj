@@ -109,6 +109,7 @@
     <Compile Include="BuildIdentity.cs" />
     <Compile Include="Domain\ActorAllocationLifetime.cs" />
     <Compile Include="Domain\PairedActivation.cs" />
+    <Compile Include="Domain\PairedActivationSnapshot.cs" />
     <Compile Include="Domain\ScopedEnumerator.cs" />
     <Compile Include="Domain\NativeLoadWorld.cs" />
     <Compile Include="Integration\PairedActivationLifecycle.cs" />

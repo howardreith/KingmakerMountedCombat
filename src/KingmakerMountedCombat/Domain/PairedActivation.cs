@@ -20,6 +20,17 @@ namespace KingmakerMountedCombat.Domain
             private bool nativeForfeitSettled;
             private float nativeForfeitStandardAdded;
 
+            internal PairedActorSnapshot Capture() => new PairedActorSnapshot(Granted, Prepared, Ended,
+                StandardSpent, MoveSpent, SwiftSpent, nativeForfeitRecorded, nativeForfeitSettled, nativeForfeitStandardAdded);
+
+            internal static ActorState Restore(TActor actor, PairedActorSnapshot saved) => new ActorState
+            {
+                Actor = actor, Granted = saved.Granted, Prepared = saved.Prepared, Ended = saved.Ended,
+                StandardSpent = saved.StandardObserved, MoveSpent = saved.MoveObserved, SwiftSpent = saved.SwiftObserved,
+                nativeForfeitRecorded = saved.ForfeitRecorded, nativeForfeitSettled = saved.ForfeitSettled,
+                nativeForfeitStandardAdded = saved.ForfeitStandardAdded
+            };
+
             public void RecordNativeStandardForfeit(float before, float after)
             {
                 if (!Granted || !Prepared || !Ended || nativeForfeitRecorded || after < before)
@@ -48,7 +59,7 @@ namespace KingmakerMountedCombat.Domain
         }
 
         private readonly HashSet<TBoundary> boundaries = new HashSet<TBoundary>();
-        public Guid EncounterId { get; } = Guid.NewGuid();
+        public Guid EncounterId { get; }
         public long Sequence { get; private set; }
         public TBoundary Boundary { get; private set; }
         public TActor Principal { get; }
@@ -62,11 +73,34 @@ namespace KingmakerMountedCombat.Domain
         public bool Open => Rider != null && Rider.Prepared && Mount.Prepared && !Ending && !Suspended;
         public string Identity => EncounterId.ToString("N") + ":" + Sequence;
 
-        public PairedActivation(TActor principal, TActor partner)
+        public PairedActivation(TActor principal, TActor partner) : this(principal, partner, Guid.NewGuid()) { }
+
+        private PairedActivation(TActor principal, TActor partner, Guid encounterId)
         {
             Principal = principal ?? throw new ArgumentNullException(nameof(principal));
             Partner = partner ?? throw new ArgumentNullException(nameof(partner));
             if (ReferenceEquals(principal, partner)) throw new ArgumentException("Two distinct native actors are required.");
+            EncounterId = encounterId;
+        }
+
+        public PairedActivationSnapshot Capture() => new PairedActivationSnapshot(EncounterId, Sequence,
+            Ending, Finalized, Split, Suspended, Rider?.Capture(), Mount?.Capture());
+
+        public static PairedActivation<TActor, TBoundary> Restore(PairedActivationSnapshot saved,
+            TActor principal, TActor partner, TBoundary boundary)
+        {
+            if (saved == null) throw new ArgumentNullException(nameof(saved));
+            if ((saved.Sequence > 0) != (boundary != null))
+                throw new ArgumentException("A saved activation needs exactly its rebound native boundary.");
+            var restored = new PairedActivation<TActor, TBoundary>(principal, partner, saved.EncounterId)
+            {
+                Sequence = saved.Sequence, Boundary = boundary, Ending = saved.Ending,
+                Finalized = saved.Finalized, Split = saved.Split, Suspended = saved.Suspended,
+                Rider = saved.Rider == null ? null : ActorState.Restore(principal, saved.Rider),
+                Mount = saved.Mount == null ? null : ActorState.Restore(partner, saved.Mount)
+            };
+            if (boundary != null) restored.boundaries.Add(boundary);
+            return restored;
         }
 
         public bool Begin(TBoundary boundary)

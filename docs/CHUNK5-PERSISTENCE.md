@@ -12,7 +12,7 @@ The matching native header-write barrier captures one game-thread snapshot befor
 
 Restoration belongs to the selected archive's actual load enumeration and newly deserialized Player object. Native `PlayerState.PostLoad` precedes publication of `Player.GameId`; preview.7 fixes the failed early campaign check by binding semantic restoration to that new world, then requiring the selected header's campaign/area before presentation. Early actor callbacks restore current native debt; a separate validated attachment path restores the eligible existing actors and owned controls without acquisition, a Mount cast or a new activation.
 
-Duplicate callbacks, canceled ownership and replacement-world bindings have component regressions. Actual preview.7 cold-load qualification is pending. Native combat state and turn controllers are recreated on load, so P02 must restore participation and legitimate remaining work before a preparation refresh; a visual remount cannot provide that guarantee.
+Duplicate callbacks, canceled ownership and replacement-world bindings have component regressions. P01-load-B now passes20/0 native and outer validation on preview.7: semantic actor restoration2, presentation1, three facts/two slots, no duplicates/Mount cast, usable ordinary movement and rider attack in a fresh process. Native combat state and turn controllers are recreated on load, so P02 must restore participation and legitimate remaining work before a preparation refresh; a visual remount cannot provide that guarantee.
 
 ## Isolation and native evidence
 
@@ -25,9 +25,9 @@ Cold-load input is the actual prior PASS archive, copied after source-run owners
 | isolation-C, preview.2 | PASS 14/0; real native enumeration/load of the isolated fixture, no writes |
 | P01-save-D, preview.6/source `f81749ddf97c4f9cd2eb9402d3df06954d9a89f5` | PASS 23/0 and outer PASS; real Manual write, pair/control/debt retention, movement and ordinary rider attack |
 | P01-load-A, same preview.6 in fresh PID 15624 | FAIL 1/1 before attachment; early actor binding rejected the not-yet-published campaign ID |
-| Preview.7 cold retry | TODO; source fix and offline tests complete, package qualification awaits the decision below |
+| P01-load-B, preview.7/source `9da3e0551c4c97f456690776a6465cf9983d4e6e` | PASS20/0 native and outer PASS; fresh PID13092 restored the same pair/controls once and completed ordinary movement/attack |
 
-P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`, under `runtime-staging/persistence-20260920-chunk5-P01-save-D/Saved Games/Manual_300_KMC_P01.zks`. Its native player clock matches the metadata snapshot. The save process PID 16336 exited normally; a separate process loaded those archive bytes. No duplicate companion was spawned. Cold-load movement/attack has not passed.
+P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`, under `runtime-staging/persistence-20260920-chunk5-P01-save-D/Saved Games/Manual_300_KMC_P01.zks`. Its native player clock matches the metadata snapshot. The save process PID 16336 exited normally; a separate process loaded those archive bytes. No duplicate companion was spawned. Cold-load movement and an ordinary native rider attack pass on preview.7; preview.6 wrote the source under the unchanged schema. P01 must still be rerun end to end on the exact final candidate.
 
 Earlier failures remain in the journal and immutable evidence: save-A exposed global JSON defaults; save-B exposed the diagnostic pointer-mode call; save-C exposed a paused fixture readiness wait. Distinct fixes produced save-D's native PASS. No failed run is relabeled.
 
@@ -37,7 +37,9 @@ Source `ac7f0dba34460bf5cab3989e4be80a1f73f9c28b`, version `0.1.0-chunk5-preview
 
 Package validation FAIL: the DLL is 4,197,376 bytes, 3,072 bytes over the existing 4 MiB entry cap. The `p01-load-world` ZIP SHA256 `28662023a2805830d74ea704e8f5e98d5256521d85577066b1e59b29e2c99629` is frozen and unqualified. No native preview.7 run occurred. A tested proposal raises only the DLL cap to 5 MiB, retaining the ZIP/Info.json limits and all allowlists, identity and runtime guards. The owner approved this exact DLL-only change; [AGENTS.md](../AGENTS.md) records the narrow exception. The proposal passed 11 checks and rejected both oversized DLL and Info fixtures offline. The full existing harness passes253/0, including the DLL, Info and compressed-ZIP boundaries against the actual validator; log analysis-cache/chunk5-persistence/harness7-cap5.txt. Gameplay source/DLL are unchanged.
 
-Next, use a new qualified package identifier, suite8 and `20260920-chunk5-P01-load-B` from the exact save-D archive. Do not overwrite the failed qualifier. Then continue to combat continuity automatically.
+Qualified p01-load-world-cap5 ZIP56561480e811540d7bd3301f64f7f2feef2d475623bc42e02011e089762a16fc / manifestd000ea32440a20ff2d7e83af6f9e0551533ab38ee58e36a7c1930252b3ce4391 contains the exact unchanged preview.7 DLL. Suite8 SHAb922c2c66c76b0982873bd52a345891201ef5bc2d945d8985aba5ea76bdc26b9 admitted fresh intake. P01-load-B passes from save-D. Next is the smallest spent-action/paired-turn cold slice.
+
+Development preview.8 now has immutable paired-activation snapshots and an explicit rebind that preserves encounter/sequence, completed preparations, ended actors, suspension/split and condition-forfeiture bookkeeping. New actor/boundary references cannot create a grant; two later true activations still prepare once and discard prior commitments. Components412/0 and source22/0 PASS. This domain layer is not yet connected to native combat serialization/restoration. Intermediate DLL864fedef410074daa5bf14518738dda1fe99ea58dd2c7e92ad3a0b19ae8d8e86, MVID2c95ec90-f1ff-4a6d-b092-f2ee6a3f2ad7; no preview.8 package/native run.
 
 ## Required final qualification
 
@@ -56,7 +58,7 @@ Keep paired activation true and both legacy authorities/overlay false. Current a
 
 ## Human state, removal and manual review
 
-Host DESKTOP-SRJJ623. Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, saves/settings/caches/foreign Mods were restored after each completed transaction. Latest full restoration: `2026-09-20T19:23:46.0587175Z`, after normal P01-load-A exit; source archive unchanged. No game/lock remains. Separate preview.37/preview.13 backups are retained. Fresh actual intake is required before another transaction; historical snapshots are not rollback authority.
+Host DESKTOP-SRJJ623. Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, saves/settings/caches/foreign Mods were restored after each completed transaction. Latest full restoration: `2026-09-20T20:19:07.2823584Z`, after normal P01-load-B exit; source archive unchanged. Native process13092 ran20:18:02.0857424-20:18:54.4836970Z; the archive came from an earlier, fully exited process. No game/lock remains. Separate preview.37/preview.13 backups are retained. Fresh actual intake is required before another transaction; historical snapshots are not rollback authority.
 
 Prepare-to-Disable/removal implementation and native qualification are TODO. Permanent custom Horse acquisition dependencies remain separate from transient pair metadata. Arbitrary DLL deletion is not certified. No permanent candidate installation, main merge or public release is authorized.
 

@@ -43,6 +43,7 @@
     <Compile Include="ActorAllocationLifetimeTests.cs" />
     <Compile Include="PairedActivationTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedActivation.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedActivationSnapshot.cs" />
     <Compile Include="ManualReviewBoundaryGuardTests.cs" />
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="PersistenceSaveAuthorizationTests.cs" />

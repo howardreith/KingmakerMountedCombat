@@ -7,6 +7,10 @@ namespace KingmakerMountedCombat.Tests
     {
         internal static void Register(TestRunner runner)
         {
+            runner.Run("saved paired remainder binds new actors without granting a new activation", RestoreRemainder);
+            runner.Run("saved ended actors and condition settlement cannot act or settle twice", RestoreForfeiture);
+            runner.Run("saved suspension and split retain the current participation identity", RestoreSuspension);
+            runner.Run("invalid saved grants and absent boundary fail without fabricating readiness", RestoreRejectsInvalid);
             runner.Run("paired grants require each native boundary and exactly one preparation", ThreeActivations);
             runner.Run("pair observations and selection cannot mint grants", ObservationsAreNotGrants);
             runner.Run("split preserves actor debt and rejects further paired grants", SplitRetainsDebt);
@@ -20,6 +24,89 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native condition End settles only its observed forfeiture once", NativeForfeitSettlement);
             runner.Run("native condition settlement preserves other debt and new grants carry no settlement", NativeForfeitConservation);
         }
+        private static void RestoreRemainder()
+        {
+            var original = new PairedActivation<object, object>(new object(), new object());
+            var oldBoundary = new object(); Prepare(original, oldBoundary);
+            original.Mount.Observe(0f, 1.5f, 0f);
+            var snapshot = original.Capture();
+            original.EndActor(original.Partner);
+            var rider = new object(); var mount = new object(); var current = new object();
+            var restored = PairedActivation<object, object>.Restore(snapshot, rider, mount, current);
+            TestRunner.Equal(original.Identity, restored.Identity, "load retains encounter and activation identity");
+            TestRunner.Equal(true, restored.CanAddress(rider, current), "unused rider work survives");
+            TestRunner.Equal(true, restored.CanAddress(mount, current), "snapshot is independent of later original End");
+            TestRunner.Equal(1.5f, restored.Mount.MoveSpent, "movement commitment survives");
+            TestRunner.Equal(false, restored.CanAddress(original.Principal, current), "old actor cannot address new world");
+            TestRunner.Equal(false, restored.CanAddress(rider, oldBoundary), "old process boundary is retired");
+            TestRunner.Equal(false, restored.Begin(current), "restored boundary cannot be begun again");
+            TestRunner.Equal(false, restored.BeginActorPreparation(rider, current), "completed rider preparation cannot replay");
+            TestRunner.Equal(false, restored.BeginActorPreparation(mount, current), "completed mount preparation cannot replay");
+            for (var sequence = 2; sequence <= 3; sequence++)
+            {
+                restored.EndActor(rider); restored.EndActor(mount); restored.FinalizeActivation();
+                current = new object(); Prepare(restored, current);
+                TestRunner.Equal((long)sequence, restored.Sequence, "true next activation advances once");
+                TestRunner.Equal(0f, restored.Mount.MoveSpent, "old commitment cannot starve next grant");
+                TestRunner.Equal(false, restored.BeginActorPreparation(mount, current), "new grant is still exactly once");
+            }
+        }
+
+        private static void RestoreForfeiture()
+        {
+            var original = new PairedActivation<object, object>(new object(), new object());
+            Prepare(original, new object()); original.EndActor(original.Partner);
+            original.Mount.RecordNativeStandardForfeit(2f, 6f);
+            original.Mount.Observe(18f, 3f, 0f);
+            var current = new object();
+            var restored = PairedActivation<object, object>.Restore(original.Capture(), new object(), new object(), current);
+            TestRunner.Equal(false, restored.CanAddress(restored.Partner, current), "ended partner remains ended");
+            TestRunner.Equal(true, restored.CanAddress(restored.Principal, current), "rider is not conservatively forfeited");
+            TestRunner.Equal(14f, restored.Mount.SettleNativeStandardForfeit(18f, 6f), "only outstanding native settlement survives");
+            var again = PairedActivation<object, object>.Restore(restored.Capture(), new object(), new object(), new object());
+            TestRunner.Equal(18f, again.Mount.SettleNativeStandardForfeit(18f, 6f), "load cannot replay a settled credit");
+            TestRunner.Equal(18f, again.Mount.StandardSpent, "historical observation is preserved separately from current debt");
+        }
+
+        private static void RestoreSuspension()
+        {
+            var original = new PairedActivation<object, object>(new object(), new object());
+            var boundary = new object(); Prepare(original, boundary); original.Suspend(boundary);
+            var restoredBoundary = new object();
+            var restored = PairedActivation<object, object>.Restore(original.Capture(), new object(), new object(), restoredBoundary);
+            TestRunner.Equal(false, restored.CanAddress(restored.Principal, restoredBoundary), "suspended grant stays closed");
+            TestRunner.Equal(false, restored.Resume(restoredBoundary), "resume requires the actual later boundary");
+            var resumedBoundary = new object();
+            TestRunner.Equal(true, restored.Resume(resumedBoundary), "same-round native resume uses saved grant");
+            TestRunner.Equal(original.Identity, restored.Identity, "resume does not create an activation");
+            TestRunner.Equal(false, restored.BeginActorPreparation(restored.Partner, resumedBoundary), "resume cannot repeat round effects");
+            restored.Detach();
+            var split = PairedActivation<object, object>.Restore(restored.Capture(), new object(), new object(), new object());
+            TestRunner.Equal(true, split.Split, "split participation survives");
+            TestRunner.Equal(false, split.Begin(new object()), "split cannot grant another paired activation");
+        }
+
+        private static void RestoreRejectsInvalid()
+        {
+            var armed = new PairedActivation<object, object>(new object(), new object());
+            var restored = PairedActivation<object, object>.Restore(armed.Capture(), new object(), new object(), null);
+            TestRunner.Equal(armed.Identity, restored.Identity, "unstarted encounter is not a new identity");
+            TestRunner.Equal(0L, restored.Sequence, "unstarted encounter creates no grant");
+            TestRunner.Equal(false, restored.Open, "no readiness without native preparation");
+            var rejected = false;
+            try { new PairedActorSnapshot(false, true, false, 0f, 0f, 0f, false, false, 0f); }
+            catch (ArgumentException) { rejected = true; }
+            TestRunner.Equal(true, rejected, "prepared actor without grant is rejected");
+            rejected = false;
+            try { new PairedActorSnapshot(true, true, false, float.NaN, 0f, 0f, false, false, 0f); }
+            catch (ArgumentException) { rejected = true; }
+            TestRunner.Equal(true, rejected, "nonfinite debt is rejected");
+            Prepare(armed, new object()); rejected = false;
+            try { PairedActivation<object, object>.Restore(armed.Capture(), new object(), new object(), null); }
+            catch (ArgumentException) { rejected = true; }
+            TestRunner.Equal(true, rejected, "active grant cannot silently become an unstarted activation");
+        }
+
         private static void Prepare(PairedActivation<object, object> pair, object boundary)
         {
             TestRunner.Equal(true, pair.Begin(boundary), "native boundary");
