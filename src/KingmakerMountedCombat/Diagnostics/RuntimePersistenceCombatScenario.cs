@@ -359,6 +359,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             rejectedRider = MountedPersistenceService.CaptureActor(rider);
             rejectedMount = MountedPersistenceService.CaptureActor(mount);
+            Write("spent-work-input-before", CombatObservation());
             var before = controls.CaptureSnapshot().DispatchAcceptedCount;
             if (rejectedRider.Standard > 0) Check(!TryPrimaryInput(false), "P02-spent-rider-standard-rejected");
             if (rejectedMount.Standard > 0) Check(!TryPrimaryInput(true), "P02-spent-mount-standard-rejected");

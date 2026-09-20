@@ -92,7 +92,7 @@ function Assert-KmcPersistenceScenarioEvidence {
     $required=@('usable-continuation-complete')
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent')){$required+=@('movement-dispatched','movement-completed')}
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','between-partner-orders')){$required+=@('attack-dispatched','attack-delivered')}
-    if($isCombat-and$checkpoint-cne'partial-movement'){$required+='spent-work-rejected'}
+    if($isCombat-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
     if($isCombat-and$isWrite){
         $required+=@('partial-movement-dispatched','partial-movement-completed')
         if($checkpoint-cin @('rider-spent','exhausted')){$required+=@('setup-rider-attack-dispatched','setup-rider-attack-delivered')}
