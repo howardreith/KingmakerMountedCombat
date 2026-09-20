@@ -29,6 +29,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted combat range rejects invalid measurements", RejectsInvalidRange);
             runner.Run("mounted combat diagnostic placement admits the exact observed small radius", DiagnosticPlacementAdmitsObservedRadius);
             runner.Run("mounted combat diagnostic placement rejects insufficient radius and projection drift", DiagnosticPlacementRejectsUnsafeBounds);
+            runner.Run("unrelated Charge fixture rejects its native-valid point inside the rider spawn bound", DiagnosticSpawnPreservesRiderReference);
+            runner.Run("diagnostic spawn range retains exact limits and rejects invalid distances", DiagnosticSpawnBounds);
             runner.Run("mounted combat diagnostic placement refreshes exact Mammoth actor drift", DiagnosticPlacementRefreshesObservedMammothDrift);
             runner.Run("mounted combat approach placement starts outside exact pair range", DiagnosticApproachPlacementStartsOutsideRange);
             runner.Run("mounted combat approach evidence preserves mount-only pathfinding", ApproachEvidencePreservesMountAuthority);
@@ -408,6 +410,25 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 !MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(2.37020588f, 0.05f),
                 "A diagnostic target without bounded positive separation was accepted.");
+        }
+
+        private static void DiagnosticSpawnPreservesRiderReference()
+        {
+            // CO: a native-valid point nine metres from the unrelated caster
+            // was only 1.9383593 metres from the rider after earlier real moves.
+            TestRunner.True(!MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(1.9383593f),
+                "The unrelated caster's range displaced the diagnostic rider-relative bound.");
+            TestRunner.True(MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(9f),
+                "An ordinary bounded diagnostic target was rejected.");
+        }
+
+        private static void DiagnosticSpawnBounds()
+        {
+            TestRunner.True(MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(3f), "Exact minimum changed.");
+            TestRunner.True(MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(20f), "Exact maximum changed.");
+            foreach (var distance in new[] { 2.999f, 20.001f, -1f, float.NaN, float.PositiveInfinity, float.NegativeInfinity })
+                TestRunner.True(!MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(distance),
+                    "An out-of-bounds or invalid diagnostic distance was accepted.");
         }
 
         private static void DiagnosticPlacementRefreshesObservedMammothDrift()

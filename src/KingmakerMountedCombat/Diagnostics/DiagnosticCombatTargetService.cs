@@ -26,8 +26,6 @@ namespace KingmakerMountedCombat.Diagnostics
         IGlobalRulebookHandler<RuleDealDamage>,
         IDisposable
     {
-        private const float MinimumPlacementDistance = 3f;
-        private const float MaximumPlacementDistance = 20f;
         private const int DiagnosticDurabilityTemporaryHitPoints = 128;
         private const int RepeatedNativeSequenceTemporaryHitPoints = 4096;
         private const string DiagnosticDurabilitySource = "KMC diagnostic target durability";
@@ -1007,7 +1005,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var delta = targetPosition - riderPosition;
             delta.y = 0f;
-            if (delta.magnitude < MinimumPlacementDistance || delta.magnitude > MaximumPlacementDistance)
+            if (!MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(delta.magnitude))
             {
                 throw new InvalidOperationException("Diagnostic target placement is outside the bounded rider-relative range.");
             }

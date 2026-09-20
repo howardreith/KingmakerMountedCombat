@@ -22,6 +22,8 @@ namespace KingmakerMountedCombat.Domain
         public const float DiagnosticApproachExtension = 2.0f;
         public const float DiagnosticPlacementTolerance = 0.06f;
         public const float MinimumDiagnosticApproachDisplacement = 0.5f;
+        public const float MinimumDiagnosticSpawnDistance = 3f;
+        public const float MaximumDiagnosticSpawnDistance = 20f;
         public const float NativeAdmissionEpsilon = 0.001f;
         public const float MaximumNativeExecutorRadiusAdjustment = 0.75f;
         // The delegated command targets a world point, not the hostile unit. Requiring
@@ -84,6 +86,12 @@ namespace KingmakerMountedCombat.Domain
 
             targetDistance = stoppingRadius - DiagnosticRangeInset;
             return true;
+        }
+
+        public static bool IsWithinDiagnosticSpawnBounds(float riderDistance)
+        {
+            return !float.IsNaN(riderDistance) && !float.IsInfinity(riderDistance) &&
+                riderDistance >= MinimumDiagnosticSpawnDistance && riderDistance <= MaximumDiagnosticSpawnDistance;
         }
 
         public static bool IsBoundedDiagnosticTargetDistance(

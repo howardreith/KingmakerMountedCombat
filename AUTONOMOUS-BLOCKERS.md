@@ -1,8 +1,8 @@
-# Active Chunk 4 - sustained RT partner dispatch, 2026-09-20 UTC
+# Active Chunk 4 - bounded Charge control fixture, 2026-09-20 UTC
 
-IN PROGRESS. Published source44 `800d26ef3cfef322222a8a3085b266c2eff2710f` completes CM sustained melee with native50/0 and4/0 children; its outer validator rejects new schema27. CM also shows a fourth full rider routine selected while the Horse is ready and idle, delaying the Horse's next routine by6sec. Candidate `0.1.0-chunk4-preview.45` gives the waiting eligible partner priority in the paired path's RT ordinary intent and admits schema27 only for its two RT roots. Native budgets, modes, ranged reach, TB ordering and all safety guards remain authoritative.
+IN PROGRESS. Published source45 `ffd77919cda670f66f296e42fa630e5a27e887a9` passes CN sustained melee: native/outer50/0, four cases with three full rider and Horse routines each, matched cadence and pure repeated input. CO RT Charge passes mounted rider rejection/recovery, unmounted rider Charge and mounted Horse rejection, then fails because its unrelated-actor target candidate is only1.938m from the rider, below the unchanged3m fixture minimum. Candidate `0.1.0-chunk4-preview.46` makes the existing candidate search honor the same3-20m spawn bound. No gameplay, native Charge geometry, clocks, footprint or assertion limits change.
 
-All90 transactions restored actual human pairedpreview37 and protected data. Next: package/publish45/fresh suite, then CN focused sustained melee to qualify the repair, followed by exact-final Charge, other new roots and final regression. CL's original lost-trace failure remains FAIL; CF41's separate native arrival interruption remains unexplained. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All92 transactions independently restored actual preview37 and protected data. Next: commit/package/publish46/fresh suite; CP Charge RT first, then CQ Charge TB, CR sustained melee, CS obstruction and remaining exact-final roots/regression. CF41 native arrival uncertainty and visual/physical-input gaps remain explicit. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 ## Combined milestone disposition — 2026-09-08

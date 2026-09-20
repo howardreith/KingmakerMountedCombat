@@ -327,15 +327,23 @@ namespace KingmakerMountedCombat.Diagnostics
             var attempts = new JArray();
             observations["chargePlacement-" + Chunk4ChargeId] = new JObject {
                 ["origin"] = CapturePosition(chunk4ChargeActor.Position),
+                ["riderPosition"] = CapturePosition(rider.Position),
                 ["nativeOriginProjection"] = CapturePosition(ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, chunk4ChargeActor.Position)),
                 ["attempts"] = attempts
             };
             return FindWalkablePoint(chunk4ChargeActor.Position, 9f, 0.5f, point => {
                 var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, point);
                 var blocked = Chunk4ChargeLandingBlocked(point, 0.5f);
+                // An unrelated caster can be far from the pair after earlier
+                // native movement. Keep the target service's rider-relative
+                // fixture bound while searching, before attempting a spawn.
+                var riderDistance = HorizontalDistance(rider.Position, point);
+                var withinFixtureBounds = MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance);
                 attempts.Add(new JObject { ["point"] = CapturePosition(point),
-                    ["nativeTrace"] = CapturePosition(endpoint), ["landingBlockedEstimate"] = blocked });
-                return endpoint == point && (chunk4ChargeActor.View.MovementAgent.AvoidanceDisabled || !blocked);
+                    ["nativeTrace"] = CapturePosition(endpoint), ["landingBlockedEstimate"] = blocked,
+                    ["riderDistance"] = riderDistance, ["withinFixtureBounds"] = withinFixtureBounds });
+                return withinFixtureBounds && endpoint == point &&
+                    (chunk4ChargeActor.View.MovementAgent.AvoidanceDisabled || !blocked);
             });
         }
 
