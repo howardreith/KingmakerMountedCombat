@@ -47,6 +47,14 @@ $result.status='FAIL';Write-KmcJsonAtomic $resultPath $result
 Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture} 'Failed native source admitted'
 $result.status='PASS';$result.workingRestored=$false;Write-KmcJsonAtomic $resultPath $result
 Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture} 'Unrestored native source admitted'
+$result.status='PASS';$result.workingRestored=$true;$result.scenario='persistence-p02-save'
+Write-KmcJsonAtomic $resultPath $result
+Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture} 'Mismatched P02 ownership admitted'
+Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p02-save';transactionToken=('a'*64)})
+$p02=Get-KmcPersistenceSource -SourceRunId $sourceId -ExpectedSha256 $hash -Fixture $fixture
+if($p02.descriptor.sha256-cne$hash){throw 'P02 actual archive identity changed'};$passes++
+$result.scenario='unrecognized-save';Write-KmcJsonAtomic $resultPath $result
+Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture} 'Unrecognized save scenario admitted'
 if((Get-KmcSha256 $path)-cne$hash){throw 'Read-only source inspection mutated archive'};$passes++
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

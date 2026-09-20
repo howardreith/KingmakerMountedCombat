@@ -62,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private PersistenceIsolationBootstrap persistenceBootstrap;
         private readonly MountedPersistenceService persistence;
         private RuntimePersistenceScenario persistenceEngine;
+        private NativeModeTransitionProbe persistenceMode;
         private bool fixtureLoaderStarted;
         private bool fixtureIdentityVerified;
         private bool fixtureScenarioCompleted;
@@ -504,6 +505,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
                     saveAuthorization.BindPersistenceScope(persistenceBootstrap.Authority);
                 }
+                if (request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load")
+                {
+                    // Test configuration only, chosen before reading the selected archive.
+                    persistenceMode = new NativeModeTransitionProbe(true);
+                    persistenceMode.DispatchTemporaryValueIfRequired();
+                }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();
                 return;
@@ -663,10 +670,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 CollectEngineErrors(boundaryEngine.Errors, "Boundary");
                 boundaryEngine = null;
             }
-            else if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p01-load")
+            else if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p01-load" ||
+                request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load")
             {
                 if (persistenceEngine == null)
-                    persistenceEngine = new RuntimePersistenceScenario(request, relationship, nativeControls, persistence, diagnosticSettings, logger);
+                    persistenceEngine = new RuntimePersistenceScenario(request, relationship, nativeControls, persistence, combat, diagnosticSettings, logger);
                 persistenceEngine.Update();
                 if (!persistenceEngine.Completed) return;
                 subscenarioResults = new[] { persistenceEngine.Result };
@@ -913,6 +921,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             disposed = true;
             persistenceEngine?.Dispose();
+            persistenceMode?.Dispose();
             manualReviewSession?.Dispose();
             manualReviewSession = null;
             lifecycleEngine?.Dispose();

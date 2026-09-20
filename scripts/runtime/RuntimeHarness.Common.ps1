@@ -3672,7 +3672,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-distance-door-interaction', 'mounted-pair-selection',
         'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
-        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load', 'lifecycle-suite', 'combat-lifecycle-suite',
+        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load', 'lifecycle-suite', 'combat-lifecycle-suite',
         'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
@@ -13003,7 +13003,7 @@ function New-KmcRuntimeResultV2 {
     }
     else {
         $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
-            [string]$Request.scenario -notin @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite')) {
+            [string]$Request.scenario -notin @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite')) {
             [string]$Request.scenario
         } else { 'observe-mount-diagnostic-availability' }
         $fallbackErrors = if (@($Errors).Count -eq 0) { @('Runtime game result was unavailable or invalid.') } else { @($Errors) }

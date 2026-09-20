@@ -15,7 +15,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class PersistenceIsolationBootstrap
     {
         internal const string Scenario = "persistence-isolation";
-        internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load";
+        internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
+            value == "persistence-p02-save" || value == "persistence-p02-load";
         internal PersistenceSaveAuthorization Authority => authority;
         private const string HarmonyId = "KingmakerMountedCombat.PersistenceIsolation";
         private readonly RuntimeRequest request;
@@ -53,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     new PersistenceSaveEntry { FileName = fixture.FileName, InternalName = fixture.InternalName,
                         SaveType = "Manual", Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
-                if (request.Scenario == "persistence-p01-save") entries.Add(new PersistenceSaveEntry
+                if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p02-save") entries.Add(new PersistenceSaveEntry
                 {
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
                     Writable = true

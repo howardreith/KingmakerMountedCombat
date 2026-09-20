@@ -89,7 +89,7 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $request @($commonRequired + @('saveAccessAllowed','saveName')) 'runtime request v1'
 }
 elseif ($schemaVersion -eq 2) {
-    $extra=@(if($request.scenario -ceq 'persistence-p01-load'){'persistenceLoad'})
+    $extra=@(if($request.scenario -cin @('persistence-p01-load','persistence-p02-load')){'persistenceLoad'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($extra.Count -gt 0){
         $d=$request.persistenceLoad
@@ -131,7 +131,7 @@ $missionScenarios = @(
     'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
     'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
-$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
+$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }

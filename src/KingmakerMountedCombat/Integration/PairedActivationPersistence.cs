@@ -14,7 +14,7 @@ namespace KingmakerMountedCombat.Integration
             .Concat(new[] { activation?.Principal, activation?.Partner, armedRider, armedMount, pendingSplitMount })
             .Where(u => u != null).Distinct();
 
-        internal bool HasUnsettledPreparation => nativePreparationCommands.Count != 0 ||
+        internal bool HasUnsettledPreparation => nativePreparationCommands.Values.Any(command => command != null && !command.IsFinished) ||
             preparingConfusionActor != null || resumingContext != null;
 
         internal void CapturePersistence(SavedCombatData saved)

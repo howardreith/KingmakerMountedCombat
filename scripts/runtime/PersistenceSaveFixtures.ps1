@@ -13,8 +13,8 @@ function Get-KmcPersistenceSource {
     Assert-KmcDirectoryTreeCloneable $root 'owned persistence source'
     $owner=Read-KmcJson (Join-Path $root 'owner.json')
     $result=Read-KmcJson (Join-Path $lab ('runtime-evidence/'+$SourceRunId+'/runtime-result.json'))
-    if($owner.runId-cne$SourceRunId-or$owner.scenario-cne'persistence-p01-save'-or$result.status-cne'PASS'-or
-        $result.runId-cne$SourceRunId-or$result.scenario-cne'persistence-p01-save'-or
+    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p01-save','persistence-p02-save')-or$result.status-cne'PASS'-or
+        $result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or
         $result.modsRestored-ne$true-or$result.workingRestored-ne$true-or
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $path=Join-Path $root 'Saved Games/Manual_300_KMC_P01.zks'
@@ -50,13 +50,14 @@ function Get-KmcPersistenceSource {
 
 function Assert-KmcPersistenceScenarioEvidence {
     param($Request,$Manifest,[string]$Status,$GameResult)
-    if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load') -or $Status-cne'PASS'){return}
+    if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load') -or $Status-cne'PASS'){return}
     $artifact=@($Manifest.artifacts|Where-Object relativePath -CEQ 'persistence-observations.jsonl')
     if($artifact.Count-ne1-or$artifact[0].kind-cne'persistence-evidence'){throw 'P01 has no exact observation artifact.'}
     $path=Join-Path $Request.evidenceRoot 'persistence-observations.jsonl'
     if((Get-KmcSha256 $path)-cne$artifact[0].sha256){throw 'P01 observations changed.'}
     $rows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
-    if($rows.Count-lt6-or$rows.Count-gt20){throw 'P01 observation count is invalid.'}
+    if($rows.Count-lt6-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
+    $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load')
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
     foreach($row in $rows){
@@ -70,11 +71,25 @@ function Assert-KmcPersistenceScenarioEvidence {
     }
     $attack=@($rows|Where-Object kind -CEQ 'attack-delivered')[0]
     if($attack.detail.rules-lt1-or$attack.detail.rolls-lt1){throw 'P01 has no actual ordinary attack outcome.'}
+    if($isCombat){
+        $refresh=@($rows|Where-Object kind -CEQ 'next-paired-activation')
+        if($refresh.Count-ne2-or$refresh[1].detail.sequence-ne($refresh[0].detail.sequence+1)){
+            throw 'P02 did not observe two successive real paired activations.'
+        }
+        $continuation=@($rows|Where-Object kind -CEQ 'movement-completed')[0]
+        if($continuation.mount.Move-le0-or$continuation.rider.Move-ne0){
+            throw 'P02 lost native transport expenditure or taxed the rider.'
+        }
+    }
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
-    if($Request.scenario-ceq'persistence-p01-save'){
+    if($Request.scenario-cin @('persistence-p01-save','persistence-p02-save')){
         $written=@($rows|Where-Object kind -CEQ 'native-write-complete')
         if($written.Count-ne1){throw 'P01 save has no real completion observation.'}
         $d=$written[0].detail
+        if($isCombat-and($null-eq$d.snapshot.Combat-or$d.snapshot.Combat.Current.ActorId-cne$d.snapshot.Rider.Id-or
+            $d.snapshot.Combat.Paired.Activation.Sequence-lt1-or$d.snapshot.Mount.Move-le0-or$d.snapshot.Rider.Standard-ne0)){
+            throw 'P02 actual archive lacks the partial-movement native remainder and paired activation.'
+        }
         $archive=Join-Path $root 'Manual_300_KMC_P01.zks'
         if($d.path-cne$archive-or$d.nativeType-cne'Manual'-or$d.nativeCallback-ne$true-or$d.operation-cne'None'-or
             (Get-KmcSha256 $archive)-cne$d.sha256-or(Get-Item $archive).Length-ne$d.length-or

@@ -23,7 +23,7 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     // Two native processes, one archive. The load variant may inspect metadata,
     // but never creates/acquires a companion or invokes any Mount operation.
-    internal sealed class RuntimePersistenceScenario : IDisposable
+    internal sealed partial class RuntimePersistenceScenario : IDisposable
     {
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
@@ -48,21 +48,23 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disposed;
         internal bool Completed { get; private set; }
         internal RuntimeSubscenarioResult Result { get; private set; }
-        private bool Cold => request.Scenario == "persistence-p01-load";
+        private bool Cold => request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load";
+        private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load";
+        private readonly MountedCombatController combat;
 
         internal RuntimePersistenceScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
-            NativeMountedControlService controls, MountedPersistenceService persistence,
+            NativeMountedControlService controls, MountedPersistenceService persistence, MountedCombatController combat,
             DiagnosticSettings settings, IModLogger logger)
         {
             this.request = request; this.relationship = relationship; this.controls = controls;
-            this.persistence = persistence; this.settings = settings; this.logger = logger;
+            this.persistence = persistence; this.combat = combat; this.settings = settings; this.logger = logger;
             evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
         }
 
         internal void Update()
         {
             if (Completed) return;
-            try { Advance(); }
+            try { if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };

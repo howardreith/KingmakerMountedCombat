@@ -72,7 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "ui-selection-portrait-actionbar",
             "camera-follow-and-command-routing",
             "fixture-intake",
-            "persistence-isolation", "persistence-p01-save", "persistence-p01-load",
+            "persistence-isolation", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load",
             "lifecycle-suite",
             "combat-lifecycle-suite",
             "chunk4-traversal-core", "chunk4-traversal-slope", "chunk4-area-cleanup", "movement-suite",
@@ -268,7 +268,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateSaveBackedRequest(List<string> errors)
         {
-            if (Scenario == "persistence-p01-load")
+            if (Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load")
             {
                 if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");
                 else
@@ -493,7 +493,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "persistence-p01-save", "persistence-p01-load",
+            "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load",
                     "C4-LIFE-rider-incapacitation",
         "C4-LIFE-rider-death-live-command",
         "C4-LIFE-mount-death-live-command",
