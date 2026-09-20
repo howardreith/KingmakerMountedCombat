@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Integration
         private Vector3 anchorLocalOffset;
         private Vector3 localEulerRotation;
         private bool configured;
+        private int lastNativeUpdateFrame = -1;
         private MovementSynchronizationTelemetryAccumulator telemetry = new MovementSynchronizationTelemetryAccumulator();
         private MovementPositionPhaseTracker positionPhaseTracker = new MovementPositionPhaseTracker();
         private MovementYawPhaseTracker yawPhaseTracker = new MovementYawPhaseTracker();
@@ -36,6 +37,10 @@ namespace KingmakerMountedCombat.Integration
         public double MaximumRotationResidualDegrees => telemetry.MaximumPreCorrectionRotationResidualDegrees;
 
         public long SampleCount => telemetry.SampleCount;
+
+        public long NativeMovementControllerUpdateCount { get; private set; }
+
+        public long NativeMovingTickCount { get; private set; }
 
         public long CorrectionCount => telemetry.CorrectionCount;
 
@@ -100,6 +105,8 @@ namespace KingmakerMountedCombat.Integration
         public double MaximumLateUpdatePostCorrectionRotationResidualDegrees => telemetry.MaximumLateUpdatePostCorrectionRotationResidualDegrees;
 
         public MovementYawPhaseObservation LatestYawObservation => telemetry.LatestYawObservation;
+
+        public MovementSynchronizationSample FirstPhaseViolation => telemetry.FirstPhaseViolation;
 
         public MovementPositionPhaseObservation LatestPositionObservation => telemetry.LatestPositionObservation;
 
@@ -287,6 +294,9 @@ namespace KingmakerMountedCombat.Integration
             anchorLocalOffset = offset;
             localEulerRotation = eulerRotation;
             configured = true;
+            lastNativeUpdateFrame = -1;
+            NativeMovementControllerUpdateCount = 0L;
+            NativeMovingTickCount = 0L;
             telemetry = new MovementSynchronizationTelemetryAccumulator();
             positionPhaseTracker = new MovementPositionPhaseTracker();
             yawPhaseTracker = new MovementYawPhaseTracker();
@@ -305,8 +315,25 @@ namespace KingmakerMountedCombat.Integration
 
         public override void TickMovement(float deltaTime)
         {
+            NativeMovingTickCount++;
             UpdateVelocity();
+            SynchronizeNativeUpdateOnce();
+        }
+
+        internal void BeginNativeMovementUpdate()
+        {
+            if (!configured) return;
+            NativeMovementControllerUpdateCount++;
+            SynchronizeNativeUpdateOnce();
+        }
+
+        private void SynchronizeNativeUpdateOnce()
+        {
+            if (!configured || lastNativeUpdateFrame == Time.frameCount) return;
+            // TickMovement is skipped for a stopped actor, while native slow
+            // rotation still advances. Observe before either operation begins.
             Synchronize(MovementSynchronizationPhase.Update);
+            lastNativeUpdateFrame = Time.frameCount;
         }
 
         public override void UpdateVelocity()

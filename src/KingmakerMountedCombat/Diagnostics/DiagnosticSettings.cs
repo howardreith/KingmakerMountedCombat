@@ -4,7 +4,10 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         public DiagnosticSettings()
         {
-            EnableUnsafeMovementExperiment = false;
+            EnableUnsafeMovementExperiment = true;
+            EnableUnifiedMountedTurn = false;
+            EnablePairedCommandScheduler = false;
+            EnableDiagnosticOverlay = false;
             MaximumAnchorResidualWorldUnits = 0.10d;
             TelemetryIntervalSeconds = 0.10d;
             RiderOffsetX = 0f;
@@ -14,6 +17,19 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         public bool EnableUnsafeMovementExperiment { get; set; }
+
+        public bool EnableUnifiedMountedTurn { get; set; }
+
+        public bool EnablePairedCommandScheduler { get; set; }
+
+        // Developer-only coherent lifecycle. The two retired experimental paths
+        // are bypassed whenever this path is selected; all defaults remain false.
+        public bool EnablePairedActivation { get; set; }
+
+        internal bool UseLegacyUnifiedTurn => EnableUnifiedMountedTurn && !EnablePairedActivation;
+        internal bool UsePairedTurnControls => EnablePairedActivation || EnableUnifiedMountedTurn;
+
+        public bool EnableDiagnosticOverlay { get; set; }
 
         public double MaximumAnchorResidualWorldUnits { get; set; }
 

@@ -108,6 +108,13 @@ function Assert-RuntimeArtifactManifest {
             ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
+            ($relativePath -ceq 'combat-scenario-evidence.jsonl' -and $kind -ceq 'combat-evidence') -or
+            ($relativePath -ceq 'horse-native-asset-audit.json' -and $kind -ceq 'horse-asset-audit') -or
+            ($relativePath -ceq 'horse-companion-blueprint-registration.json' -and $kind -ceq 'horse-companion-blueprint-registration') -or
+            ($relativePath -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
+            ($relativePath -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
+            ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
+            ($relativePath -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
         if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or
@@ -149,15 +156,35 @@ function Assert-FixtureEcho {
 function Assert-SubscenarioResults {
     param($Game)
     $missionScenarios = @(
-        'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
+        'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
+        'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
-        'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup', 'mounted-pair-open-ground',
-        'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
+        'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup',
+        'mounted-pair-combat-start-retained', 'mounted-pair-combat-end-retained',
+        'mounted-pair-rider-death-cleanup', 'mounted-pair-mount-death-cleanup',
+        'mounted-pair-rider-incapacitated-cleanup', 'mounted-pair-mount-incapacitated-cleanup',
+        'mounted-pair-rider-native-incapacitated-cleanup', 'mounted-pair-mount-native-incapacitated-cleanup',
+        'mounted-pair-companion-removal-cleanup', 'mounted-pair-view-destroyed-cleanup', 'mounted-pair-exception-cleanup',
+        'mounted-pair-slope', 'mounted-pair-open-ground',
+        'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-distance-door-interaction', 'mounted-pair-selection',
         'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
-        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety'
+        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety',
+        'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
+        'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
+        'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
+        'camera-follow-and-command-routing', 'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb',
+        'mounted-rider-melee-miss-rt', 'mounted-mammoth-primary-hit-rt', 'mounted-mammoth-primary-hit-tb',
+        'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
+        'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
+        'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
+        'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb',
+        'mounted-rider-melee-invalid-target', 'mounted-rider-melee-target-death',
+        'mounted-rider-melee-cleanup', 'non-mounted-melee-control'
     )
+    $missionScenarios += @(Get-KmcPhase3dHorseRuntimeRows)
     if ($null -eq $Game.subscenarioResults -or $Game.subscenarioResults -is [string]) { throw 'Runtime game-result subscenarioResults must be an array.' }
     $items = @($Game.subscenarioResults)
     if ($items.Count -eq 0) { throw 'Runtime game-result contains no named subscenarios.' }
@@ -200,7 +227,7 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $game $commonRequired 'runtime game result v1'
 }
 elseif ($schemaVersion -eq 2) {
-    $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
+    $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','suppressedWorkingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
     Assert-KmcExactProperties $game @($commonRequired + $v2Fields) 'runtime game result v2'
 }
 else { throw 'Runtime game-result request schema is unsupported.' }
@@ -243,19 +270,30 @@ if ($schemaVersion -eq 1) {
 Assert-FixtureEcho $game.fixture $request.fixture
 Assert-RuntimeArtifactManifest $request $game.evidenceManifestSha256
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
-    [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
+    [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.suppressedWorkingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game
 $validatedArtifactManifest = Read-KmcJson (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'runtime-artifacts.json')
 Assert-KmcLifecycleScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcMovementScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcBoundaryScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults -GameResult $game -VerifyLiveWorkingIdentity:$VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $ExpectedLiveWorkingPath
+Assert-KmcCombatScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcHorseNativeAssetAuditEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
     $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
-        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne 0 -or
-        [int]$game.saveRequestCount -ne 0) { throw 'Save-backed PASS crossed its exact scenario-bound load/save quota.' }
+        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne 0) {
+        throw 'Save-backed PASS crossed its exact scenario-bound load/save quota.'
+    }
+    $expectedSuppressedSaves = if ([string]$game.scenario -ceq 'native-save-clean-dismount') { 1 } else { 0 }
+    if ([int]$game.suppressedWorkingSaveRequestCount -ne $expectedSuppressedSaves -or
+        [int]$game.saveRequestCount -ne $expectedSuppressedSaves) {
+        throw 'Save-backed PASS crossed its exact suppressed-save request quota.'
+    }
     if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or
         [string]$game.currentGameMode -cne 'Default') { throw 'Save-backed PASS did not restore its exact game-mode and diagnostic-setting boundary.' }
     if ([int]$game.subscenarioFailCount -ne 0 -or [int]$game.assertionFailCount -ne 0) { throw 'PASS runtime game result contains subscenario failures.' }

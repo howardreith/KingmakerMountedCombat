@@ -1,0 +1,456 @@
+using System;
+using System.Linq;
+using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.RuleSystem;
+using Kingmaker.RuleSystem.Rules.Damage;
+using Kingmaker.UI.Selection;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
+using KingmakerMountedCombat.Domain;
+using Newtonsoft.Json.Linq;
+using TurnBased.Controllers;
+using UnityEngine;
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    internal sealed partial class Phase3dHorseScenarioTranche
+    {
+        internal static bool IsChunk4NativeLifeScenario(string scenario) => scenario == "chunk4-rider-incapacitation-tb" ||
+            scenario == "chunk4-rider-death-tb" || scenario == "chunk4-mount-death-tb";
+        private bool IsChunk4NativeLife => IsChunk4NativeLifeScenario(request.Scenario);
+        private bool Chunk4LifeIncapacitation => request.Scenario == "chunk4-rider-incapacitation-tb";
+        private bool Chunk4LifeMount => request.Scenario == "chunk4-mount-death-tb";
+        private bool Chunk4LifePermanent => !Chunk4LifeMount && !Chunk4LifeIncapacitation;
+        private UnitEntityData Chunk4LifeSubject => Chunk4LifeMount ? horse : rider;
+        private UnitEntityData Chunk4LifeSurvivor => Chunk4LifeMount ? rider : horse;
+        private string Chunk4LifeId => Chunk4LifeIncapacitation ? "C4-LIFE-rider-incapacitation" :
+            Chunk4LifeMount ? "C4-LIFE-mount-death-live-command" : "C4-LIFE-rider-death-live-command";
+        private int chunk4LifeStage;
+        private bool chunk4LifeMountInput;
+        private UnitMoveTo chunk4LifeMove;
+        private UnitAttack chunk4LifeFirst;
+        private UnitAttack chunk4LifeLive;
+        private TurnController chunk4LifeTurn;
+        private TurnController chunk4LifeUnrelatedTurn;
+        private int chunk4LifeUnrelatedCount;
+        private int chunk4LifeSurvivorTurns;
+        private JObject chunk4LifeCurrentSuccessor;
+        private int chunk4LifeRiderGrants;
+        private int chunk4LifeMountGrants;
+        private JObject chunk4LifeEvidence;
+        private PairedConditionObserver chunk4LifeObserver;
+        private Chunk4IncomingRuleObserver chunk4IncomingObserver;
+        private NativeDeathPolicyLease chunk4DeathPolicy;
+
+        private void BeginChunk4NativeLife()
+        {
+            if (!settings.EnablePairedActivation || settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
+                settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
+                throw new InvalidOperationException("Native life fixture requires the accepted paired authority.");
+            CaptureIdleFixturePartyForCleanup();
+            chunk4LifeEvidence = new JObject { ["level"] = "NATIVE INTEGRATION", ["caseId"] = Chunk4LifeId, ["mode"] = "TB",
+                ["inputKind"] = "native-primary-controls-and-labelled-native-damage-effect", ["damageDispatches"] = 0,
+                ["incapacitation"] = Chunk4LifeIncapacitation, ["subject"] = Chunk4LifeSubject.UniqueId,
+                ["survivor"] = Chunk4LifeSurvivor.UniqueId, ["unrelatedTurns"] = new JArray(), ["successorTurns"] = new JArray() };
+            observations["chunk4NativeLife"] = chunk4LifeEvidence;
+            chunk4DeathPolicy = new NativeDeathPolicyLease(Chunk4LifePermanent);
+            chunk4LifeEvidence["nativeDeathPolicy"] = chunk4DeathPolicy.Capture();
+            observations["chunk4NativeEffectInventory"] = Chunk4NativeEffectInventory.Capture(rider, horse);
+            if (!Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.IsEssentialForGame ||
+                Chunk4LifeSubject == Game.Instance.Player.MainCharacter.Value ||
+                Chunk4LifeSubject.Descriptor.State.Immortality || Chunk4LifeIncapacitation && !Chunk4LifeSubject.Descriptor.State.AllowDyingCondition)
+                throw new InvalidOperationException("Disposable actor's real life policy does not permit the requested native life stimulus.");
+            ordinaryAttackTrace = new NativeOrdinaryAttackTrace(rider, horse, combat, () => relationship.State.ToString());
+            allocationTrace = new NativeActorAllocationTrace(rider, horse, combat);
+            allocationTrace.BeginEncounter(Chunk4LifeId);
+            chunk4LifeObserver = new PairedConditionObserver(rider, horse, true);
+            chunk4IncomingObserver = new Chunk4IncomingRuleObserver(rider, horse);
+            chunk4IncomingObserver.BeginCase(Chunk4LifeId);
+            pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
+            step = Phase3dHorseStep.Phase3gControls; ResetLeafClock();
+        }
+
+        private JObject CaptureChunk4LifeState() => new JObject {
+            ["live"] = CaptureOrdinaryLiveState(), ["identity"] = combat.PairedActivationIdentity,
+            ["split"] = combat.PairedActivationSplit, ["finalized"] = combat.PairedActivationFinalized,
+            ["riderEnded"] = combat.PairedActorEnded(rider), ["mountEnded"] = combat.PairedActorEnded(horse),
+            ["playerCombat"] = Game.Instance.Player.IsInCombat, ["riderCombat"] = rider.IsInCombat, ["mountCombat"] = horse.IsInCombat,
+            ["tbActive"] = CombatController.IsInTurnBasedCombat(), ["tbInitialized"] = Game.Instance.TurnBasedCombatController.Initialized,
+            ["actorRecords"] = combat.TrackedActorAllocations, ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
+            ["privatePartner"] = combat.PairedPartnerContext?.Unit.UniqueId,
+            ["pairCommand"] = combat.HasActiveCommand, ["pairIntent"] = combat.HasStockAttackIntent,
+            ["pairMovement"] = combat.HasActiveGroundMovement,
+            ["attachmentResidue"] = relationship.Runtime.HasPresentationAttachmentResidue,
+            ["attachmentRestoreVerified"] = relationship.Runtime.PresentationAttachmentRestoreVerified,
+            ["poseRestoreVerified"] = relationship.Runtime.PoseBaselineRestoreVerified,
+            ["rider"] = CaptureChunk4LifeActor(rider), ["mount"] = CaptureChunk4LifeActor(horse),
+            ["riderGrants"] = allocationTrace.GrantCount(rider), ["mountGrants"] = allocationTrace.GrantCount(horse),
+            ["currentActor"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit.UniqueId,
+            ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks
+        };
+        private static JObject CaptureChunk4LifeActor(UnitEntityData actor) => new JObject {
+            ["id"] = actor.UniqueId, ["inState"] = actor.IsInState,
+            ["inGame"] = actor.IsInGame, ["directlyControllable"] = actor.IsDirectlyControllable,
+            ["commandsEmpty"] = actor.Commands.Empty, ["effectiveAiEnabled"] = actor.IsAIEnabled,
+            ["handsBusyAnimation"] = actor.AreHandsBusyWithAnimation,
+            ["handsUpdateScheduled"] = Game.Instance.HandsEquipmentController.IsUpdateScheduledFor(actor),
+            ["lifeState"] = actor.Descriptor.State.LifeState.ToString(), ["conscious"] = actor.Descriptor.State.IsConscious,
+            ["dead"] = actor.Descriptor.State.IsDead, ["finallyDead"] = actor.Descriptor.State.IsFinallyDead,
+            ["damage"] = actor.Damage, ["hp"] = actor.Stats.HitPoints.ModifiedValue,
+            ["characterLevel"] = actor.Descriptor.Progression.CharacterLevel, ["nonLethalDamage"] = actor.DamageNonLethal,
+            ["temporaryHp"] = actor.Stats.TemporaryHitPoints.ModifiedValue, ["constitution"] = actor.Stats.Constitution.ModifiedValue,
+            ["activeView"] = actor.View != null && actor.View.gameObject.activeInHierarchy,
+            ["enabledRenderers"] = actor.View == null ? 0 : actor.View.GetComponentsInChildren<Renderer>(true)
+                .Count(renderer => renderer.enabled && renderer.gameObject.activeInHierarchy),
+            ["parent"] = actor.View?.transform.parent?.name
+        };
+
+        private void TickChunk4NativeLife()
+        {
+            var game = Game.Instance; var controller = game.TurnBasedCombatController; var turn = controller.CurrentTurn;
+            chunk4LifeEvidence["stage"] = chunk4LifeStage;
+            chunk4LifeEvidence["progress"] = CaptureChunk4LifeState();
+            if (chunk4LifeStage < 10) chunk4DeathPolicy.VerifyEffective();
+            if (game.IsPaused) { game.IsPaused = false; return; }
+            if (chunk4LifeStage == 0)
+            {
+                if (!Chunk4PairedPlayIdle) return;
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                if (relationship.State != RelationshipState.Mounted)
+                {
+                    if (!chunk4LifeMountInput) chunk4LifeMountInput = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "life-pre-combat-mount");
+                    return;
+                }
+                if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
+                if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
+                if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
+                chunk4LifeEvidence["mountedBeforeCombat"] = !game.Player.IsInCombat;
+                BeginTarget(6f, Chunk4LifeId); ruleProbe.Arm(target, false);
+                chunk4LifeStage = 1; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 1)
+            {
+                if (!IsCombatReady(true) || !CombatController.IsInTurnBasedCombat()) return;
+                if (turn?.Unit != rider || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
+                { TryEndPhase3gFixtureTurn(turn); return; }
+                if (!Chunk4PairedPlayIdle) return;
+                chunk4LifeTurn = turn;
+                using (var input = new NativeOrdinaryAttackInput(FindPairedControlPoint(0.75f, "life-native-adjacency")))
+                {
+                    input.Predict(); var cycles = 0;
+                    while ((turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && cycles++ < 8) { input.Click(button: 1); input.Predict(); }
+                    if (!input.Click()) return;
+                }
+                chunk4LifeMove = horse.Commands.Move as UnitMoveTo;
+                if (chunk4LifeMove?.Executor != horse) throw new InvalidOperationException("Native life setup lost the real mover.");
+                chunk4LifeStage = 2; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 2)
+            {
+                if (!chunk4LifeMove.IsFinished || !Chunk4PairedPlayIdle) return;
+                if (chunk4LifeMove.Result != UnitCommand.ResultType.Success || rider.CombatState.Cooldown.MoveAction != 0)
+                    throw new InvalidOperationException("Life fixture native positioning failed or taxed rider Move.");
+                TryEndPhase3gFixtureTurn(turn);
+                if (!ReferenceEquals(phase3gEndedTurn, chunk4LifeTurn)) return;
+                chunk4LifeStage = 3; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 3)
+            {
+                if (turn == null || ReferenceEquals(turn, chunk4LifeTurn)) return;
+                if (turn.Unit != rider) { TryEndPhase3gFixtureTurn(turn); return; }
+                if (!Chunk4PairedPlayIdle || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
+                if (combat.PairedPartnerContext?.Unit != horse || rider.CombatState.Cooldown.StandardAction != 0 || horse.CombatState.Cooldown.StandardAction != 0)
+                    throw new InvalidOperationException("Life fixture lacks fresh independent native preparation.");
+                chunk4LifeTurn = turn;
+                chunk4LifeEvidence["beforeActions"] = CaptureChunk4LifeState();
+                ordinaryAttackTrace.BeginCase(Chunk4LifeId + "-first-primary");
+                if (!targetService.BeginExpectedAttackDispatch(target)) throw new InvalidOperationException("Life target cannot accept the legal setup Primary.");
+                if (!TryNativeAbilityTargetClick(Chunk4LifeMount || Chunk4LifeIncapacitation ? nativeControls.MountPrimaryAbility : nativeControls.RiderPrimaryAbility,
+                    target, "life-first-primary")) throw new InvalidOperationException("Life fixture first native Primary was rejected.");
+                chunk4LifeStage = 4; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 4)
+            {
+                var firstMount = Chunk4LifeMount || Chunk4LifeIncapacitation;
+                if (chunk4LifeFirst == null) chunk4LifeFirst = firstMount ? ordinaryAttackTrace.LastStartedMountAttack : ordinaryAttackTrace.LastStartedRiderAttack;
+                if (chunk4LifeFirst == null || !chunk4LifeFirst.IsFinished || !Chunk4PairedPlayIdle || !chunk4IncomingObserver.AllAttacksResolved) return;
+                if (chunk4LifeFirst.Result != UnitCommand.ResultType.Success || chunk4LifeFirst.GetAttackIndex() != 1 ||
+                    chunk4LifeFirst.Executor.CombatState.Cooldown.StandardAction != 6)
+                    throw new InvalidOperationException("Life fixture requires a real completed and spent Primary before live interruption.");
+                chunk4LifeEvidence["firstPrimary"] = CaptureOrdinaryCommand(chunk4LifeFirst);
+                ordinaryAttackTrace.BeginCase(Chunk4LifeId + "-live-primary");
+                if (!TryNativeAbilityTargetClick(firstMount ? nativeControls.RiderPrimaryAbility : nativeControls.MountPrimaryAbility,
+                    target, "life-second-primary")) throw new InvalidOperationException("Life fixture second native Primary was rejected.");
+                chunk4LifeStage = 5; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 5)
+            {
+                var liveRider = Chunk4LifeMount || Chunk4LifeIncapacitation;
+                if (chunk4LifeLive == null) chunk4LifeLive = liveRider ? ordinaryAttackTrace.LastStartedRiderAttack : ordinaryAttackTrace.LastStartedMountAttack;
+                if (chunk4LifeLive == null || !chunk4LifeLive.IsStarted || chunk4LifeLive.TimeSinceStart <= 0) return;
+                if (chunk4LifeLive.IsFinished || !combat.HasActiveCommand || !ReferenceEquals(turn, chunk4LifeTurn) || relationship.State != RelationshipState.Mounted)
+                    throw new InvalidOperationException("Native life stimulus missed the live paired command window.");
+                var subject = Chunk4LifeSubject;
+                var difficulty = game.Player.Difficulty.DamageToParty;
+                var deathThreshold = subject.Stats.HitPoints.ModifiedValue + subject.Stats.Constitution.ModifiedValue;
+                var desiredDamage = Chunk4LifeIncapacitation ? subject.Stats.HitPoints.ModifiedValue + 1 : deathThreshold + 1;
+                var needed = desiredDamage - subject.Damage + subject.Stats.TemporaryHitPoints.ModifiedValue;
+                if (!target.IsPlayersEnemy || target.IsPlayerFaction || difficulty <= 0 || float.IsNaN(difficulty) || float.IsInfinity(difficulty) || needed <= 0)
+                    throw new InvalidOperationException("Life stimulus lacks its exact native enemy, finite difficulty or positive damage window.");
+                var requested = checked((int)Math.Ceiling((needed + 1d) / difficulty));
+                if (Chunk4LifeIncapacitation && subject.Damage + requested * difficulty - subject.Stats.TemporaryHitPoints.ModifiedValue >= deathThreshold)
+                    throw new InvalidOperationException("Native difficulty leaves no safe incapacitation window below death.");
+                chunk4LifeEvidence["beforeDamage"] = CaptureChunk4LifeState();
+                chunk4LifeEvidence["liveCommandBefore"] = CaptureOrdinaryCommand(chunk4LifeLive);
+                var roster = controller.SortedUnits.Where(unit => unit != null && unit.IsInState &&
+                    unit.IsInCombat && !unit.Descriptor.State.IsDead).ToArray();
+                var principalIndex = Array.FindIndex(roster, unit => ReferenceEquals(unit, turn.Unit));
+                if (principalIndex < 0 || roster.Count(unit => unit == rider) != 1 || roster.Count(unit => unit == horse) != 1 ||
+                    roster.Select(unit => unit.UniqueId).Distinct(StringComparer.Ordinal).Count() != roster.Length)
+                    throw new InvalidOperationException("Life fixture lacks its exact native roster and current principal.");
+                var mountIndex = Array.IndexOf(roster, horse);
+                chunk4LifeEvidence["eligibleRosterBeforeDamage"] = new JArray(roster.Select(unit => unit.UniqueId));
+                chunk4LifeEvidence["principalRosterIndex"] = principalIndex;
+                // Native ChooseNextUnit advances from the current actor and wraps.
+                // The roster's first entry is not necessarily the next turn.
+                chunk4LifeEvidence["unrelatedOrderBefore"] = new JArray(Enumerable.Range(1, roster.Length - 1)
+                    .Select(offset => roster[(principalIndex + offset) % roster.Length])
+                    .Where(unit => unit != rider && unit != horse).Select(unit => unit.UniqueId));
+                chunk4LifeEvidence["successorOrderBefore"] = new JArray(Enumerable.Range(1, roster.Length - 1)
+                    .Select(offset => roster[(principalIndex + offset) % roster.Length])
+                    // The mount's paired grant already consumed its later native
+                    // slot in this round. Existing participation exclusion ends
+                    // at native round wrap, so an earlier roster slot is retained.
+                    .Where(unit => unit != subject && (unit != horse || mountIndex < principalIndex))
+                    .Select(unit => unit.UniqueId));
+                chunk4LifeEvidence["sameRoundMountExcluded"] = subject == rider && mountIndex > principalIndex;
+                if (((JArray)chunk4LifeEvidence["unrelatedOrderBefore"]).Count < 2)
+                    throw new InvalidOperationException("Life fixture lacks two unrelated native successor actors.");
+                chunk4LifeRiderGrants = allocationTrace.GrantCount(rider); chunk4LifeMountGrants = allocationTrace.GrantCount(horse);
+                chunk4LifeEvidence["allocationSequenceBeforeDamage"] = (int?)allocationTrace.Capture()["events"].Last?["sequence"] ?? 0;
+                chunk4LifeEvidence["source"] = target.UniqueId; chunk4LifeEvidence["requestedDamage"] = requested;
+                chunk4LifeEvidence["damageToParty"] = difficulty; chunk4LifeEvidence["deathThreshold"] = deathThreshold;
+                chunk4LifeEvidence["damageDispatches"] = 1;
+                var damage = Rulebook.Trigger(new RuleDealDamage(target, subject,
+                    new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
+                chunk4LifeEvidence["nativeDamage"] = damage.Damage;
+                chunk4LifeEvidence["nativeDamageBeforeDifficulty"] = damage.DamageBeforeDifficulty;
+                chunk4LifeEvidence["afterDamage"] = CaptureChunk4LifeState();
+                if (game.Player.Difficulty.DamageToParty != difficulty || damage.DamageBeforeDifficulty != requested ||
+                    subject.Damage < desiredDamage || Chunk4LifeIncapacitation && subject.Damage >= deathThreshold)
+                    throw new InvalidOperationException("Native damage did not reach its requested life window under unchanged difficulty.");
+                chunk4LifeStage = 6; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 6)
+            {
+                var subject = Chunk4LifeSubject;
+                var reached = Chunk4LifeIncapacitation ? !subject.Descriptor.State.IsConscious && !subject.Descriptor.State.IsDead : subject.Descriptor.State.IsDead;
+                if (!reached || relationship.State != RelationshipState.Unmounted || combat.PairedPartnerContext != null ||
+                    combat.PairedActivationIdentity != null && !combat.PairedActivationSplit || combat.HasActiveCommand || combat.HasStockAttackIntent || combat.HasActiveGroundMovement ||
+                    !rider.Commands.Empty || !horse.Commands.Empty || !chunk4IncomingObserver.AllAttacksResolved) return;
+                if (Chunk4LifePermanent && !subject.Descriptor.State.IsFinallyDead)
+                    throw new InvalidOperationException("Native damage did not produce permanent rider death under the selected native policy.");
+                if (turn == null) return;
+                if (ReferenceEquals(turn, chunk4LifeTurn))
+                {
+                    // A conscious surviving principal may still need the ordinary
+                    // player End input. Cleanup must already have settled first.
+                    if (turn.Unit.Descriptor.State.IsConscious)
+                    {
+                        if (chunk4LifeEvidence["survivorEndBefore"] == null) chunk4LifeEvidence["survivorEndBefore"] = CaptureChunk4LifeState();
+                        TryEndPhase3gFixtureTurn(turn);
+                        if (ReferenceEquals(phase3gEndedTurn, turn)) chunk4LifeEvidence["survivorEndInput"] = true;
+                    }
+                    return;
+                }
+                if (turn.Unit == rider || turn.Unit == horse || relationship.Runtime.HasPresentationAttachmentResidue ||
+                    !relationship.Runtime.PresentationAttachmentRestoreVerified || !Chunk4LifeSurvivor.Descriptor.State.IsConscious ||
+                    !Chunk4LifeSurvivor.IsInState || (int)CaptureChunk4LifeActor(Chunk4LifeSurvivor)["enabledRenderers"] < 1)
+                    throw new InvalidOperationException("Native life cleanup retained presentation, participation or an invisible surviving actor.");
+                var survivorKey = Chunk4LifeMount ? "rider" : "mount";
+                if (Chunk4LifeSurvivor.Damage != (int)chunk4LifeEvidence["beforeDamage"][survivorKey]["damage"])
+                    throw new InvalidOperationException("Targeted native life stimulus changed the independent partner's health.");
+                chunk4LifeEvidence["afterCleanup"] = CaptureChunk4LifeState();
+                chunk4LifeEvidence["liveCommandAfter"] = CaptureOrdinaryCommand(chunk4LifeLive);
+                chunk4LifeStage = 7; ResetLeafClock();
+            }
+            if (chunk4LifeStage == 7)
+            {
+                if (Chunk4LifeIncapacitation ? Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.State.IsDead :
+                    !Chunk4LifeSubject.Descriptor.State.IsDead || Chunk4LifePermanent && !Chunk4LifeSubject.Descriptor.State.IsFinallyDead)
+                    throw new InvalidOperationException("The native life result changed before unrelated turn completion.");
+                if (turn == null) return;
+                if (!ReferenceEquals(turn, chunk4LifeUnrelatedTurn))
+                {
+                    var successors = (JArray)chunk4LifeEvidence["successorTurns"];
+                    var expected = (JArray)chunk4LifeEvidence["successorOrderBefore"];
+                    if (successors.Count >= expected.Count || (string)expected[successors.Count] != turn.Unit.UniqueId || turn.Unit == Chunk4LifeSubject)
+                        throw new InvalidOperationException("Native life cleanup changed the actual cyclic successor order.");
+                    chunk4LifeUnrelatedTurn = turn;
+                    chunk4LifeCurrentSuccessor = new JObject { ["actor"] = turn.Unit.UniqueId, ["round"] = controller.RoundNumber,
+                        ["frame"] = Time.frameCount, ["turn"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(turn), ["survivor"] = turn.Unit == Chunk4LifeSurvivor,
+                        ["endInput"] = false, ["state"] = CaptureChunk4LifeState() };
+                    successors.Add(chunk4LifeCurrentSuccessor);
+                    if (turn.Unit == Chunk4LifeSurvivor)
+                    {
+                        if (++chunk4LifeSurvivorTurns != 1 || controller.RoundNumber <= (int)chunk4LifeEvidence["beforeDamage"]["round"])
+                            throw new InvalidOperationException("The survivor received an extra turn without a new native round.");
+                    }
+                    else
+                    {
+                        if ((string)chunk4LifeEvidence["unrelatedOrderBefore"][chunk4LifeUnrelatedCount] != turn.Unit.UniqueId)
+                            throw new InvalidOperationException("Native life cleanup changed unrelated participation.");
+                        ((JArray)chunk4LifeEvidence["unrelatedTurns"]).Add(new JObject { ["actor"] = turn.Unit.UniqueId,
+                            ["round"] = controller.RoundNumber, ["frame"] = Time.frameCount });
+                        chunk4LifeUnrelatedCount++;
+                    }
+                    ResetLeafClock();
+                }
+                if (allocationTrace.GrantCount(rider) != chunk4LifeRiderGrants + (Chunk4LifeMount ? chunk4LifeSurvivorTurns : 0) ||
+                    allocationTrace.GrantCount(horse) != chunk4LifeMountGrants + (Chunk4LifeMount ? 0 : chunk4LifeSurvivorTurns) ||
+                    combat.PairedPartnerContext != null || combat.PairedActivationIdentity != null &&
+                        (!combat.PairedActivationSplit || combat.PairedActivationIdentity != (string)chunk4LifeEvidence["beforeDamage"]["identity"]))
+                    throw new InvalidOperationException("Native life cleanup issued an unsolicited preparation or private context.");
+                if (chunk4LifeUnrelatedCount < 2)
+                {
+                    TryEndPhase3gFixtureTurn(turn);
+                    if (ReferenceEquals(phase3gEndedTurn, turn)) chunk4LifeCurrentSuccessor["endInput"] = true;
+                    return;
+                }
+                if (Chunk4LifeIncapacitation ? Chunk4LifeSubject.Descriptor.State.IsConscious || Chunk4LifeSubject.Descriptor.State.IsDead :
+                    !Chunk4LifeSubject.Descriptor.State.IsDead)
+                    throw new InvalidOperationException("The observed native life result did not persist through unrelated turns.");
+                chunk4LifeEvidence["finalLife"] = CaptureChunk4LifeState();
+                chunk4LifeEvidence["nativeRecoveryExpected"] = !Chunk4LifeSubject.Descriptor.State.IsFinallyDead;
+                chunk4LifeStage = 8; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 8)
+            {
+                var source = game.Player.MainCharacter.Value;
+                if (source == null || !source.Descriptor.State.IsConscious || !target.IsPlayersEnemy ||
+                    target.Descriptor.IsEssentialForGame || target.Descriptor.State.Immortality || target == source)
+                    throw new InvalidOperationException("Life encounter completion requires the exact disposable enemy and a conscious native source.");
+                var requested = checked(target.Stats.HitPoints.ModifiedValue + target.Stats.Constitution.ModifiedValue +
+                    target.Stats.TemporaryHitPoints.ModifiedValue - target.Damage + 16);
+                chunk4LifeEvidence["enemyBeforeDamage"] = CaptureChunk4LifeActor(target);
+                var damage = Rulebook.Trigger(new RuleDealDamage(source, target,
+                    new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
+                chunk4LifeEvidence["enemyDamageDispatches"] = 1;
+                chunk4LifeEvidence["enemyNativeDamage"] = damage.Damage;
+                chunk4LifeEvidence["enemyDamageSource"] = source.UniqueId;
+                if (target.Damage < target.Stats.HitPoints.ModifiedValue + target.Stats.Constitution.ModifiedValue)
+                    throw new InvalidOperationException("Native effect did not defeat the disposable encounter target.");
+                chunk4LifeStage = 9; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 9)
+            {
+                // The identity is allowed to retain accounting while split. It
+                // must retire after actual native combat exit, before harness cleanup.
+                if (!target.Descriptor.State.IsDead || targetService.LifeTransitionCount < 1 || game.Player.IsInCombat ||
+                    rider.IsInCombat || horse.IsInCombat || CombatController.IsInTurnBasedCombat() || controller.Initialized ||
+                    combat.PairedActivationIdentity != null || combat.PairedPartnerContext != null || combat.TrackedActorAllocations != 0 ||
+                    !rider.Commands.Empty || !horse.Commands.Empty || !chunk4IncomingObserver.AllAttacksResolved) return;
+                if ((bool)chunk4LifeEvidence["nativeRecoveryExpected"] && !Chunk4LifeSubject.Descriptor.State.IsConscious) return;
+                VerifyChunk4NativeLifeExit();
+                chunk4LifeEvidence["nativeEncounterExit"] = CaptureChunk4LifeState();
+                chunk4LifeEvidence["enemyAfterDeath"] = CaptureChunk4LifeActor(target);
+                chunk4LifeEvidence["enemyLifeTransitions"] = targetService.LifeTransitionCount;
+                chunk4DeathPolicy.Dispose();
+                chunk4LifeEvidence["nativeDeathPolicy"] = chunk4DeathPolicy.Capture();
+                chunk4LifeStage = 10; ResetLeafClock(); return;
+            }
+            if (chunk4LifeStage == 10)
+            {
+                if (game.TimeController.GameTime.Ticks - (long)chunk4LifeEvidence["nativeEncounterExit"]["gameTicks"] < TimeSpan.TicksPerSecond / 4) return;
+                VerifyChunk4NativeLifeExit();
+                if (game.Player.IsInCombat || controller.Initialized || combat.TrackedActorAllocations != 0 ||
+                    combat.PairedActivationIdentity != null || combat.PairedPartnerContext != null ||
+                    combat.HasActiveCommand || combat.HasStockAttackIntent || combat.HasActiveGroundMovement ||
+                    !rider.Commands.Empty || !horse.Commands.Empty ||
+                    relationship.State != RelationshipState.Unmounted || relationship.Runtime.HasPresentationAttachmentResidue)
+                    throw new InvalidOperationException("Restoring native difficulty revived pair ownership or encounter state.");
+                // Native recovery may still be animating or updating equipment.
+                // Preserve every ownership/command assertion above and the existing
+                // 30-second leaf deadline; observe readiness without advancing it.
+                chunk4LifeEvidence["postExitReadinessElapsedSeconds"] = leafClock.Elapsed.TotalSeconds;
+                if (!Chunk4PairedPlayIdle)
+                {
+                    if (chunk4LifeEvidence["postExitReadinessFirstPending"] == null)
+                        chunk4LifeEvidence["postExitReadinessFirstPending"] = CaptureChunk4LifeState();
+                    return;
+                }
+                chunk4LifeEvidence["afterPolicyRestore"] = CaptureChunk4LifeState();
+                chunk4LifeEvidence["nativeLifeEvents"] = chunk4LifeObserver.Capture();
+                chunk4LifeEvidence["nativeRules"] = chunk4IncomingObserver.Capture();
+                chunk4LifeEvidence["allocationTrace"] = allocationTrace.Capture();
+                observations["ordinaryTrace"] = ordinaryAttackTrace.Capture();
+                AddRow(Chunk4LifeId, true, "Native damage interrupted a live pair command; independent costs, unrelated turns, native death/recovery policy and encounter retirement were preserved.", chunk4LifeEvidence);
+                BeginCleanup();
+            }
+        }
+
+        // Only the exact native damage/life event authorizes this fixture's
+        // changed control/selection expectation. Other actors keep their contract.
+        internal UnitEntityData NativeLifeFinalDeathSubject
+        {
+            get
+            {
+                if (!IsChunk4NativeLife || Chunk4LifeIncapacitation || chunk4LifeEvidence == null ||
+                    (int?)chunk4LifeEvidence["damageDispatches"] != 1 || ((int?)chunk4LifeEvidence["nativeDamage"] ?? 0) <= 0) return null;
+                var subject = Chunk4LifeSubject;
+                if (!subject.IsInState || !subject.Descriptor.State.IsDead || !subject.Descriptor.State.IsFinallyDead ||
+                    subject.Descriptor.State.IsConscious || subject.IsDirectlyControllable) return null;
+                var observed = chunk4LifeObserver?.Capture() ?? chunk4LifeEvidence["nativeLifeEvents"] as JObject;
+                var events = observed?["events"] as JArray;
+                return events != null && events.OfType<JObject>().Any(item => (string)item["kind"] == "native-life-state" &&
+                    (string)item["actor"] == subject.UniqueId && (string)item["lifeState"] == "Dead" &&
+                    item["nativeSource"] is JArray sources && sources.OfType<JObject>().Any(source => (string)source["token"] == "06009164" &&
+                        (string)source["assemblyMvid"] == "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7")) ? subject : null;
+            }
+        }
+
+        private void VerifyChunk4NativeLifeExit()
+        {
+            var subject = Chunk4LifeSubject;
+            var recovered = (bool)chunk4LifeEvidence["nativeRecoveryExpected"];
+            var events = (JArray)chunk4LifeObserver.Capture()["events"];
+            var returns = events.OfType<JObject>().Where(item => (string)item["kind"] == "native-life-state" &&
+                (string)item["actor"] == subject.UniqueId && (string)item["lifeState"] == "Conscious").ToArray();
+            if (!recovered)
+            {
+                if (!subject.Descriptor.State.IsDead || !subject.Descriptor.State.IsFinallyDead || returns.Length != 0)
+                    throw new InvalidOperationException("Native permanent death was lost or the rider was resurrected.");
+            }
+            else
+            {
+                var expectedDamage = Math.Max(0, subject.Stats.HitPoints.ModifiedValue -
+                    Math.Max(1, subject.Descriptor.Progression.CharacterLevel) - subject.DamageNonLethal);
+                if (!subject.Descriptor.State.IsConscious || subject.Descriptor.State.IsDead || subject.Descriptor.State.IsFinallyDead ||
+                    subject.Damage != expectedDamage || returns.Length != 1 ||
+                    (int)returns[0]["frame"] <= (int)chunk4LifeEvidence["unrelatedTurns"][1]["frame"])
+                    throw new InvalidOperationException("Nonfinal life result lacks exactly one correctly timed native recovery and health result.");
+                var source = returns[0]["nativeSource"].OfType<JObject>().ToArray();
+                foreach (var token in new[] { "0600918e", "06009191", "06009164" })
+                    if (!source.Any(item => (string)item["token"] == token &&
+                        (string)item["assemblyMvid"] == "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"))
+                        throw new InvalidOperationException("Recovery was not attributed to the exact native automatic recovery controller.");
+            }
+            var survivor = CaptureChunk4LifeActor(Chunk4LifeSurvivor);
+            if (!(bool)survivor["conscious"] || !(bool)survivor["inState"] || (int)survivor["enabledRenderers"] < 1 ||
+                (int)survivor["damage"] != (int)chunk4LifeEvidence["beforeDamage"][Chunk4LifeMount ? "rider" : "mount"]["damage"])
+                throw new InvalidOperationException("Native encounter completion changed or hid the independent survivor.");
+        }
+
+        private void CleanupChunk4NativeLife()
+        {
+            if (chunk4DeathPolicy != null)
+            {
+                try { chunk4DeathPolicy.Dispose(); }
+                finally { chunk4LifeEvidence["nativeDeathPolicy"] = chunk4DeathPolicy.Capture(); }
+            }
+            if (chunk4LifeObserver != null) { chunk4LifeEvidence["nativeLifeEvents"] = chunk4LifeObserver.Capture(); chunk4LifeObserver.Dispose(); chunk4LifeObserver = null; }
+            if (chunk4IncomingObserver != null) { observations["chunk4IncomingRules"] = chunk4IncomingObserver.Capture(); chunk4IncomingObserver.Dispose(); chunk4IncomingObserver = null; }
+        }
+    }
+}

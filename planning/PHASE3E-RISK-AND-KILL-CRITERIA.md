@@ -1,0 +1,117 @@
+# Phase 3E Risk and Kill-Criteria Register
+
+Status: PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY
+
+## Final kill-criterion decision — 2026-09-05
+
+K9 is `FAIL` and is decisive. On the final permitted repair cycle, audited dev.12 rerun `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun` executed one correct Horse-owned scheduler lease, later reached another native rider turn, and then observed `ChooseNextUnit` retain the redundant Horse. The fail-closed coordinator did not mutate pending/current turn state; it disabled unified mode for the runtime transition and cleaned the mounted relationship. Continuing would require another turn-completion architecture cycle beyond the user's budget.
+
+K10 is also `FAIL` for the comprehensive same-package Gate 2 path, but is supporting rather than controlling: the first fresh process stopped before scheduler admission on the inherited one-frame out-of-combat Mount race, while the rerun reached and passed Mount Primary before K9. This does not invalidate deterministic dev.4 scheduler A/B; it means the broader Horse traversal did not become repeatably qualified.
+
+K1-K8 and K11 did not fire in the qualified minimal scheduler slice. K12 is not asserted: this mission proves that the authorized pair-local scheduler and compliant rider-shell ownership boundary cannot repair native pair-aware turn selection, not that every conceivable future design must replace the complete global controller. Any future broader controller/roster architecture requires a new user decision.
+
+The bounded fallback is package-bound to clean guarded-published commit `16ccc71cabde70398130386f0e9e9380e1110495`, version `0.1.0-phase3e-fallback.1`. ZIP/manifest/DLL SHA-256 are `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698` / `43e783839fcb1c25c064c9f9f58934bb158f94ca6d7f81da332907789f2c0881` / `5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f`, MVID `57f442aa-fc22-4277-810b-3328300e37e7`. Both experimental gates default false; suite12, package validation, guarded WhatIf purity, and an independent post-WhatIf audit pass. This disposition does not authorize another repair cycle.
+
+## Dev.11 runtime disposition and final repair-budget state
+
+Immutable audited dev.11 run `20260905T051700Z-phase3e-dev11-horse-tb-gate2` positively proves the production post-Tick seam: one exact mounted Horse candidate was skipped, unrelated native roster unit `b6628a77-4962-47a4-a17c-88d9836fc9d5` remained next, no Horse turn was emitted, and architecture fallback stayed zero. K9's dev.10 early-recursion defect is repaired. The run's timeout occurred only because the exact directly controllable unrelated unit correctly awaited player end-turn input.
+
+Dev.12 is conservatively repair cycle 2/2. It adds no production architecture and cannot affect a normal user session. The exact Horse TB diagnostic alone may send `ForceToEnd(false)` to a pre-captured, idle, directly controllable fixture roster turn after two stable frames and at most once per turn reference. The existing non-pair AI lease must own a non-pair candidate; an explicit unmounted spent-ledger transition may authorize the other pair actor. Mounted Horse, foreign, hostile, busy, duplicate, pending-next, UI-blocked, or resource-mutating cases fail closed. Ordered schema-6 evidence is mandatory. K8 remains unfired because production does not alter unrelated processing; K9 remains `IN PROGRESS` until the comprehensive run proves complete natural traversal and no stuck/duplicate/skip. Another non-isolatable K9 result exhausts the budget and triggers the authorized fallback disposition.
+
+## Dev.10 completion defect and repair-budget state
+
+Immutable audited dev.10 `20260905T030300Z-phase3e-dev10-horse-tb-gate2` proves one narrowly attributable K9-class defect: the old `ChooseNextUnit` postfix recursively invoked the native selector before `CombatController.Tick` cleared the ended rider turn, causing stock to choose the same Horse again and KMC to enter fallback. It does not prove a scheduler-command, resource, ownership, or cleanup failure because no Horse scheduler lease existed.
+
+Dev.11 consumes repair cycle 1 of the authorized maximum 2. It moves only the exact native re-invocation to a `CombatController.Tick` postfix, requires a cleared current turn and the exact active mount in `m_NextUnit`, preserves reentry/reference/replacement guards, and leaves all other candidates untouched. Offline gates pass `22/Release/316/18/242/402`. K9 is `IN PROGRESS`, not fired: one fresh process must prove unrelated order, later rider selection, scheduler execution, and non-stuck completion. K1-K8 and K10-K12 remain unfired. Any repeated non-isolatable turn duplication/skip/deadlock after the remaining repair allowance triggers the bounded pivot disposition; it does not authorize a global controller replacement.
+
+## Dev.9 result and dev.10 setup risk control
+
+Clean published/package/suite identities are `f9082b166cd4958281d97707aac90e1c8a7f8ed4` / `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0`. Full-continuity WhatIf and the live run's independent restoration audit passed. Run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` proves stock visited, admitted, started, and successfully terminated the exact rider native Mount shell. Its relationship transition was then rejected by the preexisting, intentional `MountedPairCandidate.Validate` outside-combat rule. No mount-owned scheduler lease or command was created; therefore K1-K12 are not reached, no scheduler repair cycle is consumed, and combat Mount remains a later-tranche `TODO` rather than an architecture failure.
+
+Dev.10 is one diagnostic-setup correction required by the authorized qualification order. It reuses the qualified native out-of-combat Horse Mount path before target creation, permits the existing reversible diagnostic AI leases to remain valid only for either their legacy unmounted setup state or the reference-exact mounted pair, and enters TB through the native mode transition before waiting for a natural rider turn. It must not change production relationship admission, scheduler eligibility, command routing, resources, turn state, runtime defaults, or any combat-Mount assertion. Source-order tests must prove both AI leases validate before the target is created and no direct `StartTurn` call or combat Mount input exists on the pre-mounted path. One clean package/run is the only authorized next runtime checkpoint.
+
+## Dev.8/dev.9 attribution
+
+Audited dev.8 failed its diagnostic admission assertion because an exact native click-created rider Mount shell carried stock `CreatedByPlayer=false`. It failed before a scheduler lease or one post-admission native frame. Exact assembly inspection proves `OnClick -> CreateCastCommand -> UnitCommands.Run` does not assign that field; the shell had `AiAction==null` and exact click/cast event provenance. This is an incorrect diagnostic-origin predicate, not K4 foreign adoption, K8 non-pair effect, K9 turn deadlock, or another scheduler kill criterion.
+
+Dev.9 is a bounded diagnostic/evidence correction. It does not consume either authorized scheduler repair cycle because scheduler production is byte-source unchanged and was never reached. The KMC mount-attack lease continues to require explicit `CreatedByPlayer=true`; only the stock rider ability shell requires false plus exact native events and no AI action. K1-K12 remain unfired.
+
+## Architecture budget
+
+Authorized budget:
+
+- one exact command-lifecycle observation checkpoint;
+- one primary paired-scheduler implementation;
+- at most two narrowly attributable scheduler repair cycles;
+- one controlled rider-owned scheduling-shell investigation only after an evidenced primary kill criterion.
+
+An observation build may add fields/counters but no command drive. A repair cycle may correct one native-order predicate, one start predicate, one terminal/slot restoration defect, or one turn-completion defect. A global controller replacement is not authorized.
+
+The one observation checkpoint is consumed. Dev.1 proved positive exact stock enumeration (`2,485` encounters, all stock false) with the mount awake/in `AwakeUnits`, rider exact current, rider status `Preparing`, and zero scheduler drives. Option A is selected as the one primary implementation.
+
+## Controlling risks and kill criteria
+
+| ID | Criterion | Current status | Required disposition |
+|---|---|---|---|
+| K1 | Command advances only by permanently changing `CurrentTurn.Unit`. | TODO | Immediate primary pivot; permanent substitution prohibited. |
+| K2 | A bounded temporary substitution emits duplicate turn, UI, initiative, or new-round effects that cannot be isolated. | TODO | Kill substitution path; evaluate next authorized option only. |
+| K3 | Exact mount command is double-ticked in one Unity frame. | TODO | Stop package; attribute native versus KMC drive. One bounded repair allowed if source ordering is exact. |
+| K4 | Advancing arbitrary AI/non-KMC commands is required. | TODO | Kill primary; per-unit broad advancement is prohibited. |
+| K5 | Native lifecycle cannot finish without bypassing rule, weapon, target, or animation ownership. | TODO | Kill primary; evaluate scheduling shell only if child remains wholly mount-owned. |
+| K6 | Mount resource ownership/cardinality cannot remain exact. | TODO | Kill architecture; do not compensate by manual refund/charge. |
+| K7 | Rider resources are consumed or refreshed by scheduling. | TODO | Stop and repair if narrowly attributable; otherwise kill. |
+| K8 | Unrelated units' command processing changes. | TODO | Kill broad seam and restore fallback. |
+| K9 | Turn completion skips, duplicates, or deadlocks a combatant. | FAIL | Final dev.12 rerun retained the exact redundant Horse after later rider work; repair budget 2/2 is exhausted. |
+| K10 | Fresh-process A/B results remain nondeterministic. | FAIL | Same dev.12 package diverged at Mount intake versus post-Mount-Primary K9; preserve both results. |
+| K11 | Cleanup leaves command, slot, queue, lease, turn, movement, or presentation residue. | TODO | One narrow terminal/cleanup repair permitted; repeated residue kills primary. |
+| K12 | Only a broad global `TurnController` replacement can satisfy the contract. | TODO | `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`. |
+
+## Tranche risks
+
+| ID | Risk | Control | Gate |
+|---|---|---|---|
+| R1 | Stock never enumerates a mounted mount because it is absent from `AwakeUnits`. | One observation-only reference-exact encounter checkpoint. | Select A only on positive encounter; otherwise evaluate supplied-command seam B. |
+| R2 | Equality extension still fails because rider turn remains `Preparing`. | Preserve exact status observation; allow pair eligibility at Preparing only for the first exact lease without writing status. | Vertical slice must start within bounded actionable frames. |
+| R3 | Postfix turns an unrelated false result into true after native forced-finish/queue effects. | Recheck exact lease plus all preserved hard gates and require nonterminal exact slot identity. | Component mutation tests plus runtime no-override controls. |
+| R4 | Stock tick and explicit KMC tick both advance the lease. | Record encounter/drive source and last Unity frame; permit only one path per frame. | K3 cardinality gate. |
+| R5 | `UnitCommands.Run` replaces paired Move/Standard state. | Register before admission, snapshot slots/queue, require exact post-admission identity, refuse foreign residue. | Slot-replacement component/runtime rows. |
+| R6 | Wrapper/child split obscures gameplay ownership. | Record both top-level scheduler command and child actor/weapon/rule identities. | One-chain cardinality gate. |
+| R7 | Native `TurnController` ignores mount start/end events, leaving UI/completion stale. | Keep UI rider-owned; explicit pair lease feeds only pair-aware completion policy. Never relabel mount event as rider event. | sequencing/end-turn/next-round rows. |
+| R8 | Existing `ContinueActing` patch retains a rider turn forever on nominal but unusable mount actions. | Require live exact pair action eligibility or active lease, not nominal cooldown alone. | mount-only, rider-only, both-spent, invalid-target rows. |
+| R9 | Existing `PrepareExactMountLedger` duplicates native new-round effects. | Reference-exact rider-turn generation guard; one mount initialization per natural rider turn. | next-round-reset-once and native-event cardinality. |
+| R10 | Movement is scheduled twice by `ExactTurnMovementAdapter` and the new service. | Existing adapter remains sole movement authority until a failed exact movement row proves otherwise. | movement drive/source telemetry. |
+| R11 | Scheduler accidentally adopts AoO/free commands. | Exact registration origin and explicit `UnitAttackOfOpportunity`/free rejection. | component tests and ordinary/AoO isolation controls. |
+| R12 | Lifecycle boundary occurs during native command callback. | Reentrancy guard, latched interrupt request, exact terminal cleanup after callback. | cancellation, interruption, mode, death, save/area rows. |
+| R13 | Persistent state contaminates campaign saves. | Plain runtime service only; no `UnitPart`, fact, blueprint state, serializer field, or save payload. | source inspection and save cleanup row. |
+| R14 | Persistent setting auto-flips after transient fault. | Gate is read-only during fault; log and fail closed for current lease only. | exception cleanup/fallback test. |
+| R15 | Phase 3D RT/presentation behavior regresses. | Do not rewrite existing controller paths; run only applicable seam regressions after scheduler stability. | focused RT, Horse, Mammoth checks. |
+
+Runtime disposition: R1 is `PASS` and closed; stock does enumerate the exact active mount command. R2 is confirmed as a real simultaneous false input and remains an active vertical-slice gate. No K1-K12 criterion fired during observation.
+
+Dev.2 offline disposition: the primary Option A source contains no current-turn/unit/status substitution, explicit command start/tick, global unit advancement, cooldown write, AoO adoption, or serialized lease. Exact-reference/component and source-boundary tests pass, including one-drive-per-frame and fault cleanup. This does not close K1-K12 at runtime; all remain live gates for the fresh-process vertical slice. No runtime repair cycle has been consumed.
+
+Dev.2 runtime attribution: immutable run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` exercised one exact native lifecycle successfully and fired no K1-K12 criterion. It retained rider current identity, mount executor/weapon/rule/resource ownership, one drive per frame, one start/terminal/charge, no foreign/AoO/AI adoption, and exact restoration. The sole `FAIL 69/1` was the diagnostic's incorrect subtraction of admission frame from start frame across a native `WaitingForUI` interval. Dev.3 changes that measurement to first eligible grant and adds a three-frame rejection mutation. This consumes no scheduler repair cycle and grants no runtime PASS until fresh dev.3 A/B.
+
+Dev.3 runtime attribution: immutable run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` is outer `FAIL`, game `PASS 70/0`, and repeats every K1-K12-safe lifecycle fact with one-frame grant-to-start and exact audited restoration. Its outer validator had a latent schema-55/56 assumption that action-actor `CanActInCombat` must be false; dev.21/dev.2/dev.3 all record true. Dev.4 corrects only that external predicate and its synthetic mutation. Direct validation and harness `241/0` pass. No kill criterion or scheduler repair cycle fired.
+
+Dev.4 Gate 1 disposition: fresh same-package A/B `20260904T133300Z-phase3e-dev4-mammoth-tb-passA` and `20260904T140400Z-phase3e-dev4-mammoth-tb-passB` pass `70/0` each after independent audit-before-read restoration. Both use Option A without any current-turn substitution, explicit command tick/start, broad unit advance, rider resource mutation, foreign/AI/AoO adoption, duplicate frame drive, nondeterminism, or cleanup residue. Mount command, weapon, rule, animation, target, result, and Standard ownership remain exact. No K1-K12 criterion and no scheduler repair cycle fired. K9 turn-completion behavior remains an explicit Gate 2 test rather than an inferred PASS.
+
+Dev.5 Horse TB disposition: immutable run `20260904T155035Z-phase3e-dev5-horse-tb-gate2` encountered one foreign unmounted-Horse AI `UnitAttack` before Mount input. The rider stayed exact actionable current for all `2,520` sampled frames and the scheduler never registered, leased, or drove the foreign command. Therefore K4 did not fire; the runtime confirms the exclusion rather than requiring AI advancement. Dev.6 repairs only the diagnostic target-introduction race by acquiring the existing reversible Horse-AI lease before target creation. No production path, scheduler repair cycle, or kill criterion is consumed.
+
+Dev.6 Horse TB disposition: immutable run `20260904T174752Z-phase3e-dev6-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`, after independent audit-before-read proved exact external restoration. The pre-target Horse AI lease acquired, held raw/effective AI false and an empty command container for two stable frames, and restored exactly. Before diagnostic rider-turn preparation, however, the rider owned one foreign AI Standard `UnitAttack`; native preparation removed that command but left native hands busy. The genuine rider-owned Mount `UnitUseAbility` was admitted to the rider Move slot with exact rider executor, Horse target, legal proximity, and `CanStart=true`, yet remained unstarted for the 30-second leaf while `executorHandsBusy=true`. It completed only after cleanup restored RT, where KMC correctly refused the relationship transition because the mode had changed. No mounted pair, scheduler lease, mount command, attack/rule/damage chain, resource transition, or turn-completion behavior ran. K4 still did not fire: no foreign command was adopted or advanced by KMC. No K1-K12 criterion or scheduler repair cycle is consumed.
+
+Dev.7 Horse TB disposition: clean guarded-published commit/package/suite are `412fa949be558718200781df8221bd4b6f22af3c` / `4e6249211a496574a660935205711276319b80a3a819656acde3effc833f32fa` / `bb7ee7fe14bf3a9e8711b51234dc0f1f2e3cd24b653ba290c49114e22f9ea5d3`. Immutable audited run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`. Both exact reversible AI leases, empty pair containers, hands/equipment readiness, natural ability visibility, selection, target, memory, adjacency, current rider identity, and unused ledgers passed. The exact native click-created rider Move-slot Mount shell still remained unstarted for 30 seconds despite every recorded `ShouldStartCommand` predicate passing; it completed only after the cleanup mode lease restored RT. Earlier prose incorrectly equated native click origin with `CreatedByPlayer=true`. No scheduler lease or mount-owned action existed, so K1-K12 remain unfired and the repair budget remains untouched.
+
+Dev.8 risk control is one comprehensive diagnostic correction, not another architecture attempt. Exact inspection proves the old direct `StartTurn(rider)` did not own or clear native `m_NextUnit`; native `TickTime` does. Dev.8 removes that direct call from combat-Mount entry, waits for the natural rider turn, gates on exact pending-unit/UI-count/AwakeUnits/view/mode/nausea/hands/equipment predicates, and passively records stock eligibility for the exact rider shell before any scheduler extension. It cannot grant eligibility or mutate a turn. If the comprehensive trace still shows a stock-eligible command with every native start predicate true and no start, no further piecemeal observation package is permitted without a new evidenced plan. This guard prevents diagnostic churn while preserving the two authorized scheduler repair cycles for actual scheduler defects.
+
+Dev.7 risk control is diagnostic-only and independently actionable. It acquires a separate reversible rider AI lease after the validated Horse lease and before the sole hostile creation, validates both actors' empty-command/AI-disabled surfaces for two stable frames, and preserves `Preparing` as the exact player-input state while requiring native rider hands and equipment readiness before Mount admission. Cleanup binds exact restoration of both leases. Complete offline gates pass `22/Release/315/18/241/388`, PowerShell/JSON parsers `26/0` / `7/0`, and diff. Runtime K9 and every Gate 2 row remain TODO until a fresh clean-package process supplies direct evidence.
+
+## Stop and fallback rules
+
+When a kill criterion fires, record the exact package, run ID, source/assembly identities, pre/post state, restoration audit, rejected theory, and why the remaining primary option is unsafe. Historical evidence remains immutable.
+
+If Options A-C fail, the authorized rider-owned shell may be investigated once. It succeeds only if the shell consumes no rider action/rule/weapon/animation ownership and advances exactly one mount-owned child with exact cancellation and cleanup. If it also fails, package the already accepted safe behavior with `EnableUnifiedMountedTurn=false` by default and make no unified-TB claim.
+
+## Non-kill ordinary failures
+
+Compile errors, a test assertion exposing a local defect, an observation schema mistake, and one narrowly attributable start/order/terminal/completion defect are not automatically kill criteria. They must remain inside the stated package/repair budget and may never be “fixed” by weakening assertions, thresholds, allowlists, restoration gates, or ownership rules.

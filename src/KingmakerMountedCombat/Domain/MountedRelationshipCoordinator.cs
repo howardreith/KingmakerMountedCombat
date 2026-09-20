@@ -108,7 +108,7 @@ namespace KingmakerMountedCombat.Domain
             var cleanupFailed = false;
             if (originalException != null)
             {
-                errors.Add(originalException.GetType().Name + ": " + originalException.Message);
+                errors.Add(DescribeException(originalException));
             }
 
             if (presentationAttached)
@@ -121,7 +121,7 @@ namespace KingmakerMountedCombat.Domain
                 catch (Exception exception)
                 {
                     cleanupFailed = true;
-                    errors.Add("RestorePresentation: " + exception.GetType().Name + ": " + exception.Message);
+                    errors.Add("RestorePresentation: " + DescribeException(exception));
                 }
             }
 
@@ -135,7 +135,7 @@ namespace KingmakerMountedCombat.Domain
                 catch (Exception exception)
                 {
                     cleanupFailed = true;
-                    errors.Add("RestoreMovementAuthority: " + exception.GetType().Name + ": " + exception.Message);
+                    errors.Add("RestoreMovementAuthority: " + DescribeException(exception));
                 }
             }
 
@@ -149,6 +149,23 @@ namespace KingmakerMountedCombat.Domain
             State = !cleanupFailed && !hasResidue ? RelationshipState.Unmounted : RelationshipState.Faulted;
             var transitionSucceeded = originalException == null && State == RelationshipState.Unmounted;
             return new TransitionResult(transitionSucceeded, State, trigger, errors, movementAuthorityAcquired, presentationAttached);
+        }
+
+        private static string DescribeException(Exception exception)
+        {
+            const int maximumDepth = 8;
+            var parts = new List<string>();
+            var current = exception;
+            for (var depth = 0; current != null && depth < maximumDepth; depth++)
+            {
+                parts.Add(current.GetType().Name + ": " + current.Message);
+                current = current.InnerException;
+            }
+            if (current != null)
+            {
+                parts.Add("additional inner exceptions omitted");
+            }
+            return string.Join(" <- ", parts);
         }
 
         private void ThrowIfInvalidatedDuringMount()

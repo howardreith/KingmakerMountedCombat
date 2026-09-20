@@ -18,28 +18,37 @@ Harmony:      exact installed legacy Harmony12 compatibility surface
 
 It must never become part of, or a required dependency of, Kingmaker Buff Planner, Tabletop Added Rules, Gunslinger, Call of the Wild, Wrath of the Righteous, or another gameplay mod.
 
-## Phase 1 scope
+## Active Chunk 4: sustained play and core safety
 
-Phase 1 has three deliverables:
+The owner's September 20 acceptance authorizes committing the accepted work, merging it into the default branch, publishing an alpha prerelease and installing the exact tested package into local UMM. This supersedes historical no-merge/no-release/no-permanent-installation limits for this delivery only. Preserve the tested payload, back up actual installed preview.37 through the guarded deployment helper, and retain human saves/settings and foreign Mods. No new gameplay or Chunk 5 implementation is authorized by delivery.
 
-1. exact Kingmaker/Wrath mounted-subsystem contract and dependency mapping;
-2. an architecture decision supported by evidence;
-3. when the pre-code gate passes, a single-rider/single-mount, out-of-combat, movement-only vertical slice with safe cleanup.
+The owner's Chunk 4 mission supersedes the completed milestone and historical stop instructions below. Start from reviewed documentation `e6d89bff8c44ecbc21104b733703be9401c3671e` and qualified gameplay source `ec5d44e6eddc9839d273176b345f7c9701520450` on the existing integration branch. Preserve actual installed preview.37 and current human data; preview.13 is a separate backup, never the restoration target.
 
-Phase 1 excludes:
+Chunk 4 native engineering gates now PASS on preview.54/source `429377d707a9976be65639e0c27954d8b4ff3717`: 31 new exact-candidate roots include Charge safety, sustained combat, incoming targeting, native rider death, traversal/session cleanup and final paired/A05/A10/Horse/Mammoth regression. The owner accepted this scope for alpha testing; visual/physical-input and HUMAN PLAY checks remain TODO in the [single report](docs/CHUNK4-PLAYABILITY.md). Preserve required paired configuration and distinct native budgets. Human preview.37 and actual data were restored after qualification; the newly authorized alpha delivery is separate. Full mounted Charge remains missing for Chunk 6. Chunk 5 persistence is roadmap only. Historical evidence remains in the report and journal.
 
-- full combat action economy;
-- rider or mount attacks;
-- mounted charge;
-- mounted feats and Cavalier content;
-- ranged mounted combat;
-- enemy/AI riders;
-- multiple mount species;
-- broad animation production;
-- save persistence of a mounted relationship;
-- public release publication.
+## Historical combined actor-allocation and paired-activation mission
 
-Do not silently expand scope.
+The owner's combined milestone supersedes the separate-turn and scheduler prohibitions below. Continue from reviewed `45e3d276754257f4513342d5bce7626dd609d252` / Chunk 2 source `c804ba052760063f747cde83265e660916984d72` on the existing integration branch. Implement one rider-principal activation for the exact pair mounted before combat, with complete exactly-once native preparation, partner command admission, completion and participation ownership. A single developer configuration may select this authority; incompatible legacy paths must not run alongside it. Native per-actor costs and unrelated actors remain authoritative. Mid-combat mounting remains unsupported.
+
+First prove three complete paired activations in both pre-pair initiative arrangements, then close supported A01-A09 and exact-candidate A05/A10 in this mission. Source/tests, narrow verified hooks, guarded temporary runs, coherent commits, guarded branch publication and private packaging are authorized. Preserve actual human preview.13 and current external state; no permanent installation, main merge, public release, persistence or content expansion. [Active milestone report](docs/PAIRED-ACTIVATION-MILESTONE.md).
+
+## Historical Chunk 2 mission
+
+The owner's Chunk 2 mission supersedes the historical Chunk 1 execution limits below for actor allocations and movement conservation. Preserve reviewed `b3f063337644215312de97d9736892212777ac1c`, local intake `aa0bdc41110923a0aae3bd1ac49322e5f2b75c02` and legitimate descendants on the existing integration branch. Accepted Chunk 1 source is `a8745640e18ce068e412b4e360c7b0a3d46c738a`, preview.13. [Active report](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+
+Scoped native preparation/command/lifecycle repairs, tests, minimal fixture registration, coherent commits, guarded publication, private packages and temporary runtime transactions are authorized. Keep separate native turns, one pair, existing profiles and all three experimental flags false. Preserve working native attacks/prediction/range repair and the CRPG transport preset. No permanent installation, main merge, release, full scheduler, persistence or content expansion.
+
+Establish grant/refresh and callback order before repair, with both initiative orders over three complete native rounds and unmounted controls. Native actors charge once; corrections precede dependent callbacks; selection/global rounds/relationships cannot create entitlement. Retire records at safe encounter/session/destruction boundaries. No measured readiness/initiative/cooldown resets. Native End Turn input may exercise real boundaries. A01-A09 plus exact-candidate A10 are mandatory; missing native evidence is BLOCKED, not complete. Maintain one concise Chunk 2 report. Snapshot/restore actual preview.13 and current human state, never historical preview.7 pins. Owner-reported preview.13 human play is accepted separately without requiring repetition.
+
+## Historical Chunk 1 completion plan and scope
+
+Phase 1 is completed historical evidence. Its final ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`; Architecture B was selected, no K1-K12 criterion fired, and the frozen evidence/package identities remain authoritative. Do not rewrite, rebuild in place, relabel, or reinterpret that evidence.
+
+The owner's 2026-09-06 Chunk 1 mission supersedes historical Phase 2/3 scope and branch restrictions. Work on `codex/mounted-combat-phase3f-playable-core`, preserving reviewed ancestor `1d2b8c3ccad14009653af9dc6420ee9af7b2e804` and legitimate descendants. See [CURRENT.md](CURRENT.md) for exact baseline, active candidate and gates, and [Phase 3H evidence](docs/PHASE3H-IMPLEMENTATION.md) for history. The revised plan is local evidence at `C:\Dev\KingmakerMountedCombatLab\handoffs\Kingmaker_Mounted_Combat_Revised_Project_Plan.docx`.
+
+Chunk 1 authorizes ordinary stationary attack correctness, scoped prediction/routing/native attack and minimal allocation repairs, fixture/protocol changes, coherent commits, guarded branch publication, private packaging and temporary transactional runtime validation. Preserve the native UnitAttack-derived sequence, native planning/effects/costs, explicit single Primary, one pair and existing Horse/Mammoth profiles. Keep `EnableUnifiedMountedTurn=false`, `EnablePairedCommandScheduler=false`, `EnableDiagnosticOverlay=false`. Mount transport spends mount resources; carried motion alone adds no rider Move cost or tabletop melee restriction.
+
+The seven-chunk roadmap is: ordinary attacks; actor allocations; pair-aware activations; sustained combat/UX; persistence; remaining combat features; multiple pairs/profiles/release. Only Chunk 1 is active. Do not implement the full scheduler, new content/art/profiles, persistence, feats, charge or casting here. No main merge, release or permanent installation is authorized.
 
 ## Required architecture
 
@@ -59,7 +68,7 @@ Harmony patches, UMM callbacks, and UI handlers must delegate to services. Do no
 
 ## Contract-first rule
 
-Do not write the mounted relationship implementation until `planning/ASSEMBLY-CONTRACT-MATRIX.md` and `planning/MOUNTED-SUBSYSTEM-DEPENDENCY-GRAPH.md` establish:
+Retain the established relationship architecture and historical contract evidence in `planning/ASSEMBLY-CONTRACT-MATRIX.md` and `planning/MOUNTED-SUBSYSTEM-DEPENDENCY-GRAPH.md`. Verify exact installed signatures and call order for newly touched integration boundaries, covering the relevant:
 
 - the exact Wrath responsibilities being studied;
 - the exact Kingmaker candidate hooks or their absence;
@@ -73,6 +82,8 @@ Do not write the mounted relationship implementation until `planning/ASSEMBLY-CO
 - confidence and evidence for each claim.
 
 A guessed class name from Wrath is not a Kingmaker contract.
+
+For Chunk 1, reproduce matched unmounted-enabled, mounted-ordinary and mounted-Primary conditions on one exact build. Trace prediction through native mode selection, admission, start, planning, delivery, completion and costs before choosing a repair. Prediction must be read-only; execution revalidates. Do not force full mode, manufacture attacks, clear cooldowns or advance turns inside certified behavior. Two equivalent failed traces require a different hypothesis or a missing observation next. Keep historical failures intact. Native integration qualifies gameplay; component checks and assembly contracts cannot prove callback ordering. HUMAN PLAY and safe mod-absent certification may remain pending; missing mandatory native evidence means BLOCKED, not complete.
 
 ## Code and test style
 
@@ -93,8 +104,9 @@ A guessed class name from Wrath is not a Kingmaker contract.
 - The harness must prove source validation and `-WhatIf` purity before live use.
 - Live `Mods` staging must be transactional, locked, recoverable, and restored exactly.
 - Only `KMC_AUTOMATION_WORKING` may be mutable. `KMC_AUTOMATION_BASELINE` and all other saves are protected.
-- The prototype must mount only a specifically validated controllable rider and larger active companion in a disposable fixture.
-- The mounted relationship is runtime-only in Phase 1. It must clear or safely dismount on invalidation, combat start, area unload/transition, view detach, death, mod disable, exception recovery, and process exit where observable.
+- Use the currently qualified disposable working fixture and validated controllable pair. Native mod-absent controls require a rider/save without permanent KMC references; never strip custom content from a save.
+- Snapshot actual intake installation, caches/settings and protected saves. Never restore historical pins over newer human state. Do not launch over a human session, kill unrelated processes, hot-replace DLLs or alter foreign mods. Stop on authentication, updates, cloud conflicts or unexpected dialogs.
+- The relationship remains runtime-only and nonserialized; preserve current lifecycle cleanup and accepted combat retention contracts. Do not delete UnifiedMountedTurnCoordinator: active movement accounting still uses it with the experimental flags false.
 - Never claim runtime qualification from compilation, detached reflection, a main-menu load, or a screenshot alone.
 
 ## Wrath and asset restrictions
@@ -108,11 +120,11 @@ A guessed class name from Wrath is not a Kingmaker contract.
 
 ## Git and publication
 
-- Work on `codex/mounted-combat-feasibility`.
+- Work on `codex/mounted-combat-phase3f-playable-core`.
 - Commit coherent checkpoints.
 - Never reset, clean, restore, rebase, force-push, or discard unknown state.
 - Use only the project-owned guarded push helper after it passes tests.
-- Do not create a public release.
+- Do not merge to `main` or create a public release.
 
 ## Durable records
 
@@ -135,6 +147,22 @@ docs/PHASE-1-IMPLEMENTATION-REPORT.md
 docs/PHASE-1-QUALIFICATION.md
 docs/PHASE-2-RECOMMENDATION.md
 docs/PHASE-2-MISSION-DRAFT.md
+planning/MOUNTED-COMBAT-PHASE-2-MASTER-MISSION.md
+planning/PHASE-2-CONTRACT-MATRIX.md
+planning/PHASE-2-RISK-AND-KILL-CRITERIA.md
+planning/PHASE-2-RUNTIME-SCENARIO-MATRIX.md
+planning/PRESENTATION-POSE-STRATEGY.md
+planning/PERSISTENCE-UNINSTALL-POLICY.md
+planning/PLAYER-ACTION-UI-CONTRACT.md
+planning/COMBAT-ACTION-ECONOMY-CONTRACT.md
+planning/TARGETING-REACH-CHARGE-CONTRACT.md
+planning/DIAGNOSTIC-TARGET-POLICY.md
+docs/PHASE-2A-PRESENTATION-REPORT.md
+docs/PHASE-2A-MANUAL-REVIEW.md
+docs/PHASE-2-COMBAT-IMPLEMENTATION-REPORT.md
+docs/PHASE-2-QUALIFICATION.md
+docs/PRIVATE-ALPHA-PLAYTEST.md
+docs/PHASE-3-EXPANSION-MISSION-DRAFT.md
 ```
 
 Every meaningful checkpoint records:

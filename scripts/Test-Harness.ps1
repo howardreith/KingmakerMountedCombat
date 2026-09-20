@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
 
 $repoRoot = Get-KmcRepositoryRoot
+$currentProductVersion = [string]((Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json') | ConvertFrom-Json).productVersion)
 $testParent = [IO.Path]::GetFullPath((Join-Path $repoRoot 'obj\harness-tests'))
 $testRoot = Assert-KmcChildPath (Join-Path $testParent ([Guid]::NewGuid().ToString('N'))) $testParent 'harness test root'
 $runtimeEvidenceParent = [IO.Path]::GetFullPath((Join-Path (Get-KmcLabRoot) 'runtime-evidence'))
@@ -28,6 +29,12 @@ function Invoke-HarnessTest {
 
 function Assert-Test([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
+}
+
+function Assert-TestThrows([scriptblock]$Body, [string]$Message) {
+    $threw = $false
+    try { & $Body | Out-Null } catch { $threw = $true }
+    if (-not $threw) { throw $Message }
 }
 
 function New-TestSaveArchive {
@@ -84,7 +91,7 @@ function New-TestPendingWorkingRequalification {
     New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE'
     New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING'
     foreach ($foreignName in @(
-        'Manual_3_PERSONAL.zks','Manual_4_KBP.zks','Manual_5_KMG.zks','Auto_1.zks','Quick_1.zks'
+        'Manual_3_PERSONAL.zks','Manual_4_KBP.zks','Manual_5_KMG.zks','Auto_1.zks','Quick_1.zks','Quick_3.zks'
     )) {
         [IO.File]::WriteAllText((Join-Path $saveRoot $foreignName), "protected-$foreignName")
     }
@@ -178,6 +185,97 @@ function New-TestAuthorizedProtectedSaveEpoch {
     }
 }
 
+function New-TestPreparedChainedProtectedSaveEpoch {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $parentEpoch = New-TestAuthorizedProtectedSaveEpoch $Name
+    $fixture = $parentEpoch.fixture
+    $legacyScript = Join-Path $repoRoot 'scripts\runtime\New-KmcProtectedSaveContinuityAuthority.ps1'
+    & $legacyScript `
+        -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $parentEpoch.epochId `
+        -ExpectedCurrentQualificationSha256 $parentEpoch.qualificationSha256 `
+        -ExpectedBaselineSha256 $fixture.baselineSha256 `
+        -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+        -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+        -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+        -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+        -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+        -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+        -AutoSaveName $parentEpoch.autoName -ExpectedAutoSaveSha256 $parentEpoch.autoSha256 `
+        -ExpectedAutoSaveLength $parentEpoch.autoLength -ExpectedAutoSaveLastWriteTimeUtcTicks $parentEpoch.autoTicks `
+        -QuickSaveName $parentEpoch.quickName -ExpectedQuickSaveSha256 $parentEpoch.quickSha256 `
+        -ExpectedQuickSaveLength $parentEpoch.quickLength -ExpectedQuickSaveLastWriteTimeUtcTicks $parentEpoch.quickTicks `
+        -Confirm:$false | Out-Null
+    $parentAuthorityPath = Join-Path (Join-Path $fixture.stateRoot 'protected-save-authorities') ($parentEpoch.epochId + '.json')
+    $parentAuthority = Get-Item -LiteralPath $parentAuthorityPath -Force
+    $parentAuthoritySha256 = Get-KmcSha256 $parentAuthorityPath
+
+    $metadataOnlyPath = Join-Path $fixture.saveRoot 'Quick_3.zks'
+    $metadataOnlyPrior = Get-Item -LiteralPath $metadataOnlyPath -Force
+    $metadataOnlyPriorLength = [long]$metadataOnlyPrior.Length
+    $metadataOnlyPriorTicks = [long]$metadataOnlyPrior.LastWriteTimeUtc.Ticks
+    $knownPath = $parentEpoch.quickPath
+    $knownPrior = Get-Item -LiteralPath $knownPath -Force
+    $knownPriorLength = [long]$knownPrior.Length
+    $knownPriorTicks = [long]$knownPrior.LastWriteTimeUtc.Ticks
+    [IO.File]::AppendAllText($knownPath, '-explicit-user-known-prior-transition')
+    [IO.File]::AppendAllText($metadataOnlyPath, '-explicit-user-metadata-only-transition')
+    $knownCurrent = Get-Item -LiteralPath $knownPath -Force
+    $metadataOnlyCurrent = Get-Item -LiteralPath $metadataOnlyPath -Force
+    $transitions = @(
+        [ordered]@{
+            priorPath=$parentEpoch.quickName;priorLength=$knownPriorLength
+            priorLastWriteTimeUtcTicks=$knownPriorTicks;priorSha256=$parentEpoch.quickSha256
+            priorHashStatus='AVAILABLE-PARENT-CONTENT-PIN';currentPath=$parentEpoch.quickName
+            currentLength=[long]$knownCurrent.Length;currentLastWriteTimeUtcTicks=[long]$knownCurrent.LastWriteTimeUtc.Ticks
+            currentSha256=(Get-KmcSha256 $knownPath);transitionReason='explicit user-attested external Kingmaker activity'
+        },
+        [ordered]@{
+            priorPath='Quick_3.zks';priorLength=$metadataOnlyPriorLength
+            priorLastWriteTimeUtcTicks=$metadataOnlyPriorTicks;priorSha256=$null
+            priorHashStatus='UNAVAILABLE-SCHEMA-V1-METADATA-ONLY';currentPath='Quick_3.zks'
+            currentLength=[long]$metadataOnlyCurrent.Length;currentLastWriteTimeUtcTicks=[long]$metadataOnlyCurrent.LastWriteTimeUtc.Ticks
+            currentSha256=(Get-KmcSha256 $metadataOnlyPath);transitionReason='explicit user-attested external Kingmaker activity'
+        }
+    )
+    return [pscustomobject]@{
+        fixture=$fixture;parentEpoch=$parentEpoch
+        epochId=('chained-epoch-' + $Name)
+        parentAuthorityPath=$parentAuthorityPath;parentAuthoritySha256=$parentAuthoritySha256
+        parentAuthorityLength=[long]$parentAuthority.Length
+        parentAuthorityTicks=[long]$parentAuthority.LastWriteTimeUtc.Ticks
+        metadataOnlyPath=$metadataOnlyPath;knownPath=$knownPath
+        transitions=$transitions
+        transitionsJson=(ConvertTo-Json -InputObject $transitions -Depth 10 -Compress)
+    }
+}
+
+function New-TestCommittedChainedProtectedSaveEpoch {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $prepared = New-TestPreparedChainedProtectedSaveEpoch $Name
+    $fixture = $prepared.fixture
+    $scriptPath = Join-Path $repoRoot 'scripts\runtime\New-KmcChainedProtectedSaveContinuityAuthority.ps1'
+    & $scriptPath `
+        -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $prepared.epochId `
+        -ExpectedCurrentQualificationSha256 $prepared.parentEpoch.qualificationSha256 `
+        -ExpectedBaselineSha256 $fixture.baselineSha256 `
+        -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+        -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+        -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+        -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+        -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+        -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+        -ParentAuthorityPath $prepared.parentAuthorityPath `
+        -ExpectedParentAuthorityEpochId $prepared.parentEpoch.epochId `
+        -ExpectedParentAuthoritySha256 $prepared.parentAuthoritySha256 `
+        -AuthorizedTransitionsJson $prepared.transitionsJson -Confirm:$false | Out-Null
+    $authorityPath = Join-Path (Join-Path $fixture.stateRoot 'protected-save-authorities') ($prepared.epochId + '.json')
+    $authority = Read-KmcJson $authorityPath
+    $prepared | Add-Member -NotePropertyName authorityPath -NotePropertyValue $authorityPath
+    $prepared | Add-Member -NotePropertyName authoritySha256 -NotePropertyValue (Get-KmcSha256 $authorityPath)
+    $prepared | Add-Member -NotePropertyName protectedSavePinSetSha256 -NotePropertyValue ([string]$authority.currentProtectedSavePinsSha256)
+    return $prepared
+}
+
 function Set-TestRuntimeLockOwnerDead {
     param([Parameter(Mandatory = $true)][string]$Path)
     $payload = Read-KmcJson $Path
@@ -231,6 +329,29 @@ function New-TestLifecycleUnitEvidence {
     }
 }
 
+function New-TestCombatLifecycleBoundaryExercise {
+    param([Parameter(Mandatory = $true)][string]$Row,[Parameter(Mandatory = $true)][bool]$Observed)
+    if (-not $Observed) {
+        return [ordered]@{observed=$false;row=$Row;actorRole=$null;actorId=$null;invocationPath=$null;relationshipStateAfterBoundary=$null;deliveries=@()}
+    }
+    $role='pair';$actorId=$null;$path=$null;$state='Unmounted';$deliveries=@()
+    switch -CaseSensitive ($Row) {
+        'mounted-pair-combat-start-retained' {$path='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';$state='Mounted';$deliveries=@([ordered]@{boundary='CombatStarted';source='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})}
+        'mounted-pair-combat-end-retained' {$path='IPartyCombatHandler.HandlePartyCombatStateChanged(true/false)';$state='Mounted';$deliveries=@([ordered]@{boundary='CombatStarted';source='IPartyCombatHandler.HandlePartyCombatStateChanged(true)';stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true},[ordered]@{boundary='CombatEnded';source='IPartyCombatHandler.HandlePartyCombatStateChanged(false)';stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})}
+        'mounted-pair-rider-death-cleanup' {$role='rider';$actorId='rider-id';$path='IUnitHandler.HandleUnitDeath';$deliveries=@([ordered]@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Death';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-mount-death-cleanup' {$role='mount';$actorId='mount-id';$path='IUnitHandler.HandleUnitDeath';$deliveries=@([ordered]@{boundary='UnitDeath';source='IUnitHandler.HandleUnitDeath';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Death';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-rider-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='relationship.Dismount(Incapacitated)'}
+        'mounted-pair-mount-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='relationship.Dismount(Incapacitated)'}
+        'mounted-pair-rider-native-incapacitated-cleanup' {$role='rider';$actorId='rider-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true;cleanupErrors=@()})}
+        'mounted-pair-mount-native-incapacitated-cleanup' {$role='mount';$actorId='mount-id';$path='UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged';$deliveries=@([ordered]@{boundary='UnitIncapacitated';source='IUnitLifeStateChanged.HandleUnitLifeStateChanged';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='Incapacitated';cleanupAttempted=$true;cleanupSucceeded=$true;cleanupErrors=@()})}
+        'mounted-pair-companion-removal-cleanup' {$role='mount';$actorId='mount-id';$path='IPartyHandler.HandleCompanionRemoved';$deliveries=@([ordered]@{boundary='PartyRemoved';source='IPartyHandler.HandleCompanionRemoved';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='CompanionInvalidated';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-view-destroyed-cleanup' {$role='rider';$actorId='rider-id';$path='IUnitHandler.HandleUnitDestroyed';$deliveries=@([ordered]@{boundary='ViewDetachedOrUnitDestroyed';source='IUnitHandler.HandleUnitDestroyed';stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger='ViewDetached';cleanupAttempted=$true;cleanupSucceeded=$true})}
+        'mounted-pair-exception-cleanup' {$path='relationship.Dismount(Exception)'}
+        default { throw "Unknown test combat lifecycle row: $Row" }
+    }
+    return [ordered]@{observed=$true;row=$Row;actorRole=$role;actorId=$actorId;invocationPath=$path;relationshipStateAfterBoundary=$state;deliveries=@($deliveries)}
+}
+
 function New-TestLifecycleEvidenceRecord {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -246,6 +367,7 @@ function New-TestLifecycleEvidenceRecord {
     )
     $expectedTrigger = Get-KmcLifecycleExpectedCleanupTrigger $Row
     $invocationPath = Get-KmcLifecycleInvocationPath $Row
+    $claimLimit = Get-KmcLifecycleClaimLimit $Row $(if($Row -cin (Get-KmcNativeIncapacitationRuntimeRows)){7}else{0})
     $cleanup = if ($WithCleanup) {
         [ordered]@{trigger=$expectedTrigger;result='PASS';succeeded=$true;state='Unmounted';movementAuthorityResidual=$false;presentationResidual=$false;errors=@()}
     } else {
@@ -257,14 +379,16 @@ function New-TestLifecycleEvidenceRecord {
     if ($Phase -ceq 'row-finish' -and $Row -cne 'mounted-pair-cleanup-idempotent') { $frame = [int]$Sequence }
     $originalParent = 'Scene/Units/Rider'
     $currentParent = if ($mounted) { 'Scene/Mount/KMC_RiderPositionAnchor' } else { $originalParent }
-    return [ordered]@{
-        schemaVersion=2;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
+    $isNativeIncapacitation=@(Get-KmcNativeIncapacitationRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
+    $isCombatLifecycle=$isNativeIncapacitation -or @(Get-KmcCombatLifecycleRuntimeRows | Where-Object { $_ -ceq $Row }).Count -eq 1
+    $record=[ordered]@{
+        schemaVersion=$(if($isNativeIncapacitation){7}elseif($isCombatLifecycle){3}else{2});runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;phase=$Phase
         utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch;commit=[string]$Request.commit
         productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
         sequence=$Sequence;frame=$frame;relationshipState=$RelationshipState
         triggerScope=[ordered]@{
-            expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=$false
-            claimLimit='Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.'
+            expectedCleanupTrigger=$expectedTrigger;invocationPath=$invocationPath;nativeDeliveryObserved=($isNativeIncapacitation -and $Phase -cin @('cleanup-next-frame','row-finish','engine-finalization'))
+            claimLimit=$claimLimit
         }
         rowStatus=$RowStatus
         assertionPassCount=$AssertionPassCount;assertionFailCount=$AssertionFailCount;cleanup=$cleanup
@@ -289,8 +413,39 @@ function New-TestLifecycleEvidenceRecord {
             riderLocalScaleMatchesOriginal=$true;attachmentParent=$(if($mounted){'KMC_RiderPositionAnchor'}else{$null})
             sourceAnchor=$(if($mounted){'Spine'}else{$null});riskState=$(if($mounted){'active and internally consistent'}else{'none'})
         }
-        recordErrors=@($RecordErrors)
     }
+    if ($isCombatLifecycle) {
+        $record.pose=[ordered]@{
+            profileId=$(if($mounted){'medium-humanoid-mammoth-v1'}else{$null})
+            boneInventory=$(if($mounted){'Pelvis,L_Up_leg,L_leg,L_foot,R_Up_leg,R_leg,R_foot'}else{$null})
+            configured=$mounted;healthy=$mounted;frameApplied=$mounted
+            baselineRestoreVerified=$(if($mounted){$false}elseif($Phase -ceq 'pre-mount'){$Sequence -gt 0}else{$restored})
+            componentCount=$(if($mounted){1}else{0});boneCount=$(if($mounted){7}else{0});applicationFrameCount=$(if($mounted){1}else{0})
+            footTargetClampCount=0;maximumFootTargetResidualWorldUnits=0.0;maximumKneeTargetResidualWorldUnits=0.0
+            maximumSegmentLengthResidualWorldUnits=0.0;maximumApplyMicroseconds=$(if($mounted){1.0}else{0.0})
+            averageApplyMicroseconds=$(if($mounted){1.0}else{0.0});failure=$null
+        }
+        $observed=$Phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
+        $record.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row $Row -Observed:$observed
+    }
+    if ($isNativeIncapacitation) {
+        $observed=$Phase -cin @('cleanup-next-frame','row-finish','engine-finalization')
+        $role=if($Row -ceq 'mounted-pair-rider-native-incapacitated-cleanup'){'rider'}else{'mount'}
+        $record.actorLifeTransition=[ordered]@{
+            actorRole=$role;actorId=$(if($role -ceq 'rider'){'rider-id'}else{'mount-id'})
+            mutationProperty='UnitEntityData.Damage';mutationIssued=$observed
+            lifeStateBefore='Conscious';lifeStateAfter=$(if($observed){'Conscious'}else{$null})
+            consciousBefore=$true;awakeBefore=$true;inAwakeUnitsBefore=$true
+            consciousAfter=$observed;awakeAfter=$true;inAwakeUnitsAfter=$true;deadAfter=$false;finallyDeadAfter=$false
+            damageBefore=0;requestedDamage=101;damageAfter=$(if($observed){93}else{0});damageImmediatelyAfterMutation=$(if($observed){101}else{0})
+            hitPoints=100;constitution=14;nativeDeliveryCount=$(if($observed){1}else{0})
+            nativeLifeObservationCount=$(if($observed){1}else{0});nativeObservedActorId=$(if($observed){if($role -ceq 'rider'){'rider-id'}else{'mount-id'}}else{$null})
+            nativePreviousLifeState=$(if($observed){'Conscious'}else{$null});nativeCurrentLifeState=$(if($observed){'Unconscious'}else{$null})
+            postDeliveryRecoveryObserved=$observed
+        }
+    }
+    $record.recordErrors=@($RecordErrors)
+    return $record
 }
 
 function Write-TestLifecycleEvidence {
@@ -370,6 +525,7 @@ function New-TestBoundaryCleanupEvidence {
         [switch]$Suppressed
     )
     $expectedTrigger = Get-KmcBoundaryExpectedCleanupTrigger $Row
+    if ($Row -ceq 'native-mode-transition-cleanup') { $expectedTrigger = 'TurnBasedModeChanged' }
     $phases = @(Get-KmcBoundaryExpectedPhases $Row)
     $captured = -not $Suppressed -and [Array]::IndexOf($phases,$Phase) -ge [Array]::IndexOf($phases,'cleanup-latch')
     return [ordered]@{
@@ -393,7 +549,7 @@ function New-TestBoundaryFreshWorldEvidence {
         [Parameter(Mandatory = $true)][string]$Phase,
         [switch]$Suppressed
     )
-    $observed = -not $Suppressed -and $Row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety') -and
+    $observed = -not $Suppressed -and $Row -cin @('mounted-pair-load-safety','mounted-pair-area-transition-safety','native-area-clean-dismount') -and
         $Phase -cin @('fresh-world','row-result')
     $value = [ordered]@{
         observed=$observed
@@ -427,11 +583,18 @@ function New-TestBoundaryEvidenceRecord {
     $phaseIndex = [Array]::IndexOf($phases,$Phase)
     $cleanupIndex = [Array]::IndexOf($phases,'cleanup-latch')
     $load = $Row -ceq 'mounted-pair-load-safety'
-    $area = $Row -ceq 'mounted-pair-area-transition-safety'
+    $nativeSave = $Row -ceq 'native-save-clean-dismount'
+    $nativeArea = $Row -ceq 'native-area-clean-dismount'
+    $nativeMode = $Row -ceq 'native-mode-transition-cleanup'
+    $nativeDisable = $Row -ceq 'presentation-residue-and-uninstall-safety'
+    $nativeRow = $nativeSave -or $nativeArea -or $nativeMode -or $nativeDisable
+    $area = $Row -ceq 'mounted-pair-area-transition-safety' -or $nativeArea
     $loadDispatched = -not $Suppressed -and $load -and $phaseIndex -ge $cleanupIndex
-    $areaDispatched = -not $Suppressed -and $area -and $Phase -cin @('loading-start','loading-stop','fresh-world','row-result')
+    $areaDispatched = -not $Suppressed -and $area -and $(if($nativeArea){$phaseIndex -ge $cleanupIndex}else{$Phase -cin @('loading-start','loading-stop','fresh-world','row-result')})
+    $nativeDispatched = -not $Suppressed -and $nativeRow -and $phaseIndex -ge $cleanupIndex
+    $saveDispatched = $nativeSave -and $nativeDispatched
     $preBoundaryIndex = [Array]::IndexOf($phases,'pre-boundary')
-    $descriptorVerified = if (-not $Suppressed -and $Row -cin @('mounted-pair-save-safety','mounted-pair-load-safety') -and
+    $descriptorVerified = if (-not $Suppressed -and $Row -cin @('mounted-pair-save-safety','mounted-pair-load-safety','native-save-clean-dismount') -and
         $phaseIndex -ge $preBoundaryIndex) { $true } else { $null }
     $working = $Request.fixture.working
     $postInitialLength = [long]$working.length + 7L
@@ -462,13 +625,32 @@ function New-TestBoundaryEvidenceRecord {
     $loadDelta = if ($loadDispatched) { 1L } else { 0L }
     $loadingStart = -not $Suppressed -and ($load -or $area) -and $Phase -cin @('loading-start','loading-stop','fresh-world','row-result')
     $loadingStop = -not $Suppressed -and ($load -or $area) -and $Phase -cin @('loading-stop','fresh-world','row-result')
-    $callback = -not $Suppressed -and $load -and $Phase -cin @('loading-stop','fresh-world','row-result')
+    $callback = -not $Suppressed -and (($load -and $Phase -cin @('loading-stop','fresh-world','row-result')) -or
+        ($nativeSave -and $Phase -cin @('post-boundary','row-result')))
     $frame = [long]($Sequence + 1L)
     $rowResult = $Phase -ceq 'row-result'
     $recordErrors = [object[]]::new(0)
     if ($Suppressed) { $recordErrors = [object[]]@('Suppressed after a prior boundary failure.') }
+    $expectedCleanup = Get-KmcBoundaryExpectedCleanupTrigger $Row
+    if ($nativeMode) { $expectedCleanup = 'TurnBasedModeChanged' }
+    $nativeDeliveries = New-Object 'Collections.Generic.List[object]'
+    if ($nativeDispatched) {
+        $boundary = if($nativeSave){'SaveRequest'}elseif($nativeArea){'AreaBeginUnload'}elseif($nativeMode){'TurnBasedEnabled'}else{'ModDisable'}
+        $nativeSource = if($nativeSave){'SaveManager.SaveRoutine Harmony12 prefix'}elseif($nativeArea){'ISceneHandler.OnAreaBeginUnloading'}elseif($nativeMode){'ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(True)'}else{'UnityModManager.ModEntry.OnToggle(false)/shutdown'}
+        $nativeDeliveries.Add([ordered]@{sequence=101;boundary=$boundary;source=$nativeSource;stateBefore='Mounted';stateAfter='Unmounted';cleanupTrigger=$expectedCleanup;cleanupAttempted=$true;cleanupSucceeded=$true})
+    }
+    if ($nativeArea -and $Phase -cin @('fresh-world','row-result')) {
+        $nativeDeliveries.Add([ordered]@{sequence=102;boundary='AreaScenesLoaded';source='IAreaLoadingStagesHandler.OnAreaScenesLoaded';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})
+        $nativeDeliveries.Add([ordered]@{sequence=103;boundary='AreaDidLoad';source='ISceneHandler.OnAreaDidLoad';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})
+        $nativeDeliveries.Add([ordered]@{sequence=104;boundary='AreaLoadingComplete';source='IAreaLoadingStagesHandler.OnAreaLoadingComplete';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger=$null;cleanupAttempted=$false;cleanupSucceeded=$true})
+    }
+    if ($nativeMode -and $Phase -cin @('post-boundary','row-result')) {
+        $nativeDeliveries.Add([ordered]@{sequence=102;boundary='RealtimeEnabled';source='ITurnBasedModeEnabledHandler.HandleTurnBasedModeStateChanged(False)';stateBefore='Unmounted';stateAfter='Unmounted';cleanupTrigger='RealtimeModeChanged';cleanupAttempted=$true;cleanupSucceeded=$true})
+    }
+    $modeRestored = $nativeMode -and $Phase -cin @('post-boundary','row-result')
+    $disableFinished = $nativeDisable -and $Phase -cin @('post-boundary','row-result')
     return [ordered]@{
-        schemaVersion=1;artifactKind='boundary-scenario-evidence';runId=[string]$Request.runId;scenario=[string]$Request.scenario
+        schemaVersion=2;artifactKind='boundary-scenario-evidence';runId=[string]$Request.runId;scenario=[string]$Request.scenario
         row=$Row;phase=$Phase;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
         branch=[string]$Request.branch;commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
         dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;sequence=$Sequence;rowIndex=$RowIndex;frame=$frame
@@ -477,8 +659,9 @@ function New-TestBoundaryEvidenceRecord {
         assertionPassCount=$(if($rowResult){$(if($Suppressed){0}else{$AssertionPassCount})}else{$null})
         assertionFailCount=$(if($rowResult){$(if($Suppressed){1}else{0})}else{$null})
         triggerScope=[ordered]@{
-            expectedCleanupTrigger=(Get-KmcBoundaryExpectedCleanupTrigger $Row);invocationPath=(Get-KmcBoundaryInvocationPath $Row)
-            nativeDeliveryObserved=($loadDelta -gt 0L);stockSaveRoutineInvoked=$false;realWorkingLoadDispatched=$loadDispatched
+            expectedCleanupTrigger=$expectedCleanup;invocationPath=(Get-KmcBoundaryInvocationPath $Row)
+            nativeDeliveryObserved=(($loadDelta -gt 0L)-or$nativeDispatched);stockSaveRoutineInvoked=$saveDispatched;realWorkingSaveDispatched=$saveDispatched
+            realWorkingLoadDispatched=$loadDispatched
             realAreaReloadDispatched=$areaDispatched;claimLimit=(Get-KmcBoundaryClaimLimit $Row)
         }
         workingIdentity=[ordered]@{
@@ -487,9 +670,9 @@ function New-TestBoundaryEvidenceRecord {
             area=[string]$working.area;requestLength=[long]$working.length;requestLastWriteTimeUtcTicks=[long]$working.lastWriteTimeUtcTicks
             requestSha256=[string]$working.sha256;postInitialLoadLength=$postInitialLength
             postInitialLoadLastWriteTimeUtcTicks=$postInitialTicks;postInitialLoadSha256=$postInitialSha
-            preDispatchLength=$(if($loadDispatched){$postInitialLength}else{$null})
-            preDispatchLastWriteTimeUtcTicks=$(if($loadDispatched){$postInitialTicks}else{$null})
-            preDispatchSha256=$(if($loadDispatched){$postInitialSha}else{$null})
+            preDispatchLength=$(if($loadDispatched -or ($nativeSave -and $phaseIndex -ge $preBoundaryIndex)){$postInitialLength}else{$null})
+            preDispatchLastWriteTimeUtcTicks=$(if($loadDispatched -or ($nativeSave -and $phaseIndex -ge $preBoundaryIndex)){$postInitialTicks}else{$null})
+            preDispatchSha256=$(if($loadDispatched -or ($nativeSave -and $phaseIndex -ge $preBoundaryIndex)){$postInitialSha}else{$null})
             observedLength=$observedLength;observedLastWriteTimeUtcTicks=$observedTicks
             observedSha256=$observedSha;observedSource=$source;matchesPostInitialLoad=$matchesPostInitial
             descriptorVerified=$descriptorVerified
@@ -509,11 +692,25 @@ function New-TestBoundaryEvidenceRecord {
             unauthorizedWritesBefore=0;unauthorizedWritesAfter=0;unauthorizedWritesDelta=0
             baselineLoadsBefore=0;baselineLoadsAfter=0;baselineLoadsDelta=0
             fatalViolationsBefore=0;fatalViolationsAfter=0;fatalViolationsDelta=0
+            suppressedWorkingWritesBefore=0;suppressedWorkingWritesAfter=$(if($saveDispatched){1}else{0});suppressedWorkingWritesDelta=$(if($saveDispatched){1}else{0})
+            oneShotWorkingWriteSuppressionArmed=$false
         }
         loading=[ordered]@{observed=$loadingStart;startObserved=$loadingStart;stopObserved=$loadingStop;callbackObserved=$callback}
         relationship=(New-TestBoundaryRelationshipEvidence $Phase -Suppressed:$Suppressed -RestoreHistory:($RowIndex -gt 0))
         cleanup=(New-TestBoundaryCleanupEvidence $Row $Phase $frame -Suppressed:$Suppressed)
         freshWorld=(New-TestBoundaryFreshWorldEvidence $Request $Row $Phase -Suppressed:$Suppressed)
+        nativeLifecycle=[ordered]@{baselineSequence=100;deliveryCount=$nativeDeliveries.Count;deliveries=$nativeDeliveries.ToArray()}
+        nativeMode=[ordered]@{
+            executed=$nativeMode;originalValue=$(if($nativeMode){$false}else{$null});temporaryValue=$(if($nativeMode){$true}else{$null});originalRawCacheHadValue=$(if($nativeMode){$true}else{$null})
+            persistedValueBefore=$(if($nativeMode){'False'}else{$null});persistedValueAfter=$(if($modeRestored){'False'}else{$null});temporaryDeliveryAttempted=$(if($nativeMode){$nativeDispatched}else{$null})
+            restoreDeliveryCompleted=$(if($nativeMode){$modeRestored}else{$null});persistedValueUnchanged=$(if($nativeMode){$modeRestored}else{$null})
+        }
+        modDisable=[ordered]@{
+            executed=($nativeDisable -and $phaseIndex -ge $preBoundaryIndex);overlayPresentBeforeDisable=$(if($nativeDisable -and $phaseIndex -ge $preBoundaryIndex){$true}else{$null});overlayObjectCountBeforeDisable=$(if($nativeDisable -and $phaseIndex -ge $preBoundaryIndex){1}else{$null})
+            disableCallbackSucceeded=$(if($nativeDisable -and $nativeDispatched){$true}else{$null});overlayReferenceAbsentImmediately=$(if($nativeDisable -and $nativeDispatched){$true}else{$null});overlayPresentOnDisabledFrame=$(if($disableFinished){$false}else{$null})
+            overlayObjectCountOnDisabledFrame=$(if($disableFinished){0}else{$null});reenableCallbackSucceeded=$(if($disableFinished){$true}else{$null});overlayPresentAfterReenable=$(if($disableFinished){$true}else{$null})
+            overlayObjectCountAfterReenable=$(if($disableFinished){1}else{$null})
+        }
         recordErrors=$recordErrors
     }
 }
@@ -630,7 +827,9 @@ function New-TestMovementTelemetryRecord {
         riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');riderCommandCount=0;mountCommandCount=1
         riderActiveCommandTypes=@();mountActiveCommandTypes=@('Kingmaker.UnitLogic.Commands.UnitMoveTo');mountIsReallyMoving=$true
         mountVelocity=$vector;mountSpeed=3.0;mountMoveDirection=$vector;mountPathId=1;mountPathFailed=$false;mountRepathNeeded=$false
-        mountPathError=0;mountPathErrorLog=$null;mountPathPointCount=2;mountPathLength=5.0;synchronizationPhase='Update'
+        mountPathError=0;mountPathErrorLog=$null;mountPathPointCount=2;mountPathLength=5.0
+        astarPathPresent=$true;astarGraphUpdatesQueued=$false;unityFrameCount=120;tileHandlerLastUpdateFrame=119
+        unityFrameStrictlyAfterTileHandlerLastUpdate=$true;synchronizationPhase='Update'
         synchronizationSampleCount=6;synchronizationCorrectionCount=2;initialConfigurationSynchronizationSampleCount=1
         initialConfigurationSynchronizationCorrectionCount=1;updateSynchronizationSampleCount=3;updateSynchronizationCorrectionCount=1
         lateUpdateSynchronizationSampleCount=2;lateUpdateSynchronizationCorrectionCount=0;preCorrectionPositionResidualWorldUnits=0.0
@@ -704,6 +903,7 @@ function Get-TestMovementScreenshotMilestones {
             if ($DoorApproachSkipped) { return @('door-control','door-mounted','door-mounted','dismounted') }
             return @('door-control','door-control','door-mounted','door-mounted','dismounted')
         }
+        'mounted-distance-door-interaction' { return @('door-mounted','dismounted') }
         'mounted-pair-open-ground' { return @('mounted-idle','moving','stopped','dismounted') }
         'mounted-pair-stop-start' { return @('mounted-idle','moving','stopped','restarted','dismounted') }
         'mounted-pair-turns-and-corners' { return @('mounted-idle','moving','corner','corner','dismounted') }
@@ -711,6 +911,16 @@ function Get-TestMovementScreenshotMilestones {
         'mounted-pair-party-formation' { return @('mounted-idle','formation','formation','dismounted') }
         'mounted-pair-pause-unpause' { return @('mounted-idle','moving','paused','dismounted') }
         'mounted-pair-destination-cancel' { return @('mounted-idle','moving','cancelled','dismounted') }
+        'pose-idle' { return @('mounted-idle','pose-idle','dismounted') }
+        'pose-walk-run' { return @('mounted-idle','pose-walk','pose-stopped','pose-run','dismounted') }
+        'pose-turn-stop' { return @('mounted-idle','pose-stop-motion','pose-stopped','pose-turn','pose-reversal','pose-stopped','dismounted') }
+        'pose-doorway-formation' {
+            if ($DoorApproachSkipped) { return @('door-control','door-mounted','door-mounted','formation','formation','dismounted') }
+            return @('door-control','door-control','door-mounted','door-mounted','formation','formation','dismounted')
+        }
+        'pose-equipment-variants' { return @('mounted-idle','pose-equipment','dismounted') }
+        'ui-selection-portrait-actionbar' { return @('mounted-idle','ui-rider','ui-mount-normalized','ui-away','ui-back','dismounted') }
+        'camera-follow-and-command-routing' { return @('mounted-idle','camera-moving','camera-away','camera-back','dismounted') }
         default { throw "No test screenshot contract exists for movement row $Row." }
     }
 }
@@ -719,7 +929,7 @@ function New-TestMovementScreenshotRecords {
     param([Parameter(Mandatory = $true)][string]$Row, [bool]$DoorApproachSkipped = $false)
     $counts = @{}
     $records = New-Object 'Collections.Generic.List[object]'
-    $rowToken = $Row.Substring('mounted-pair-'.Length)
+    $rowToken = if ($Row.StartsWith('mounted-pair-', [StringComparison]::Ordinal)) { $Row.Substring('mounted-pair-'.Length) } else { $Row }
     foreach ($milestone in @(Get-TestMovementScreenshotMilestones $Row $DoorApproachSkipped)) {
         $count = if ($counts.ContainsKey($milestone)) { [int]$counts[$milestone] + 1 } else { 1 }
         $counts[$milestone] = $count
@@ -747,6 +957,9 @@ function New-TestMovementRowRecord {
         attachmentLeaseActive=$true;attachmentRestoreVerified=$false;attachmentResidue=$true;riderParentMatchesAttachment=$true
         riderParent='MastodonPet/KMC_RiderPositionAnchor';attachmentParent='KMC_RiderPositionAnchor';sourceAnchor='Spine'
         attachmentRiskState='active and internally consistent'
+        poseConfigured=$true;poseHealthy=$true;poseFrameApplied=$true;poseBaselineRestoreVerified=$false
+        poseComponentCount=1;poseBoneCount=7;poseProfileId='medium-humanoid-mammoth-v1'
+        poseBoneInventory='Pelvis,L_Up_leg,L_leg,L_foot,R_Up_leg,R_leg,R_foot';poseFailure=$null
     }
     $after = [ordered]@{
         trigger='Manual';relationshipState='Unmounted';hasMountedResidual=$false;riderStockAgentEnabled=$true;mountStockAgentEnabled=$true
@@ -754,16 +967,44 @@ function New-TestMovementRowRecord {
         riderSelected=$true;mountSelected=$false;selectedUnitIds=@('movement-rider');paused=$false;riderForbidRotation=$false
         attachmentLeaseActive=$false;attachmentRestoreVerified=$true;attachmentResidue=$false;riderParentMatchesAttachment=$false
         riderParent='Area/Units/Rider';attachmentParent=$null;sourceAnchor=$null;attachmentRiskState='none'
+        poseConfigured=$false;poseHealthy=$false;poseFrameApplied=$false;poseBaselineRestoreVerified=$true
+        poseComponentCount=0;poseBoneCount=0;poseProfileId=$null;poseBoneInventory=$null;poseFailure=$null
     }
-    $formation = $Row -ceq 'mounted-pair-party-formation'
-    $doorway = $Row -ceq 'mounted-pair-doorway'
+    $poseIdle = $Row -ceq 'pose-idle'
+    $poseWalkRun = $Row -ceq 'pose-walk-run'
+    $poseTurnStop = $Row -ceq 'pose-turn-stop'
+    $poseDoorway = $Row -ceq 'pose-doorway-formation'
+    $poseEquipment = $Row -ceq 'pose-equipment-variants'
+    $uiPresentation = $Row -ceq 'ui-selection-portrait-actionbar'
+    $cameraPresentation = $Row -ceq 'camera-follow-and-command-routing'
+    $distanceDoor = $Row -ceq 'mounted-distance-door-interaction'
+    $formation = $Row -ceq 'mounted-pair-party-formation' -or $poseDoorway
+    $doorway = $Row -ceq 'mounted-pair-doorway' -or $poseDoorway -or $distanceDoor
     $stopStart = $Row -ceq 'mounted-pair-stop-start'
-    $turns = $Row -ceq 'mounted-pair-turns-and-corners'
+    $turns = $Row -ceq 'mounted-pair-turns-and-corners' -or $poseTurnStop
     $selection = $Row -ceq 'mounted-pair-selection'
     $pause = $Row -ceq 'mounted-pair-pause-unpause'
     $cancel = $Row -ceq 'mounted-pair-destination-cancel'
-    $waypointCount = if ($doorway -or $turns) { 3 } elseif ($stopStart) { 2 } else { 1 }
-    $endpointQualifiedWaypointCount = if ($cancel) { 0 } elseif ($stopStart) { 1 } else { $waypointCount }
+    $waypointCount = if ($poseIdle -or $poseEquipment -or $uiPresentation) { 0 }
+        elseif ($distanceDoor) { 1 }
+        elseif ($poseDoorway) { 4 }
+        elseif ($doorway -or $turns) { 3 }
+        elseif ($stopStart -or $poseWalkRun) { 2 }
+        else { 1 }
+    $endpointQualifiedWaypointCount = if ($cancel) { 0 } elseif ($stopStart) { 1 } elseif ($poseTurnStop) { 2 } else { $waypointCount }
+    $equipmentEvidence = @()
+    if ($poseEquipment) {
+        $equipmentEvidence = @([ordered]@{index=0;isOriginal=$true;isEmpty=$true;primaryType=$null;primaryBlueprintGuid=$null;secondaryType=$null;secondaryBlueprintGuid=$null;oneHandedWeapon=$false;twoHandedWeapon=$false;shield=$false;poseHealthy=$true;poseFrameCount=12})
+    }
+    $uiEvidence = @()
+    if ($uiPresentation) {
+        $uiEvidence = @(
+            [ordered]@{phase='rider-selected';expectedUnitId='movement-rider';isExactlySelected=$true;actionBarSelectedUnitId='movement-rider';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null},
+            [ordered]@{phase='mount-selection-normalized-to-rider';expectedUnitId='movement-rider';isExactlySelected=$true;actionBarSelectedUnitId='movement-rider';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null},
+            [ordered]@{phase='selection-away';expectedUnitId='movement-non-pair';isExactlySelected=$true;actionBarSelectedUnitId='movement-non-pair';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null},
+            [ordered]@{phase='selection-back';expectedUnitId='movement-rider';isExactlySelected=$true;actionBarSelectedUnitId='movement-rider';actionBarActive=$true;actionBarOwned=$true;portraitControllerCount=1;portraitSelected=$true;selectionCircleCount=1;selectionCircleSelected=$true;error=$null}
+        )
+    }
     return [ordered]@{
         schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario;row=$Row;branch=[string]$Request.branch
         commit=[string]$Request.commit;productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256
@@ -821,20 +1062,46 @@ function New-TestMovementRowRecord {
         updateSynchronizationCorrectionCount=1;lateUpdateSynchronizationCorrectionCount=1;maximumStationaryDriftWorldUnits=0.01
         maximumStuckSeconds=0.1;oscillationCount=0;unexpectedRepathCount=0;commandReplacementCount=0;selectionLossCount=0
         waypointCount=$waypointCount;endpointQualifiedWaypointCount=$endpointQualifiedWaypointCount
-        maximumCompletedLegFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
-        maximumCompletedLegBestTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.4})
-        maximumTurnDegrees=$(if($turns){90.0}else{0.0});nonPairInterferenceCount=0
-        nonPairUnitId=$(if($selection -or $formation){'movement-non-pair'}else{$null});mountFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
+        maximumCompletedLegFinalTargetDistanceWorldUnits=$(if($endpointQualifiedWaypointCount -eq 0){0.0}else{0.5})
+        maximumCompletedLegBestTargetDistanceWorldUnits=$(if($endpointQualifiedWaypointCount -eq 0){0.0}else{0.4})
+        maximumTurnDegrees=$(if($turns){90.0}elseif($poseWalkRun){86.0}else{0.0});nonPairInterferenceCount=0
+        nonPairUnitId=$(if($selection -or $formation -or $uiPresentation -or $cameraPresentation){'movement-non-pair'}else{$null});mountFinalTargetDistanceWorldUnits=$(if($cancel){0.0}else{0.5})
         nonPairBestTargetDistanceWorldUnits=$(if($formation){0.4}else{0.0});nonPairFinalTargetDistanceWorldUnits=$(if($formation){0.5}else{0.0})
         minimumPairNonPairSeparationWorldUnits=$(if($formation){3.0}else{0.0});requiredPairNonPairSeparationWorldUnits=$(if($formation){2.0}else{0.0})
-        unmountedDoorControlPassed=$doorway;doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel){1}else{0})
-        restartCompleted=$stopStart;selectionMountNormalized=$selection;selectionSwitchedAway=$selection;selectionSwitchedBack=$selection
+        unmountedDoorControlPassed=$doorway
+        doorFixtureLeaseCaptured=$distanceDoor;doorFixtureOriginalOpen=$distanceDoor
+        doorFixtureOriginalEnabled=$false;doorFixtureDisableOnOpen=$distanceDoor
+        doorFixtureTemporaryEnableUsed=$distanceDoor;doorFixtureRestored=$distanceDoor
+        doorDisableNavmeshCutWhenOpen=$distanceDoor;doorNavmeshCutPresent=$distanceDoor;doorNavmeshCutEnabled=$false
+        doorInitialNavmeshCutRequiresUpdate=$(if($distanceDoor){$true}else{$null})
+        doorFinalNavmeshCutRequiresUpdate=$false;doorTraversalReadinessQualified=$distanceDoor
+        doorTraversalReadinessObservationCount=$(if($distanceDoor){2}else{0})
+        doorTraversalReadinessElapsedSeconds=$(if($distanceDoor){0.25}else{0.0})
+        doorApproachSkipped=$false;stopCommandIssuedCount=$(if($stopStart -or $cancel -or $poseTurnStop){1}else{0})
+        restartCompleted=$stopStart;selectionMountNormalized=($selection -or $cameraPresentation);selectionSwitchedAway=$selection;selectionSwitchedBack=$selection
         formationSelectionNormalized=$formation;pauseEntered=$pause;pauseObservationSeconds=$(if($pause){1.1}else{0.0})
         pauseMaximumDriftWorldUnits=$(if($pause){0.01}else{0.0});pauseExited=$pause
         destinationCancelCommandAbsent=$cancel;destinationCancelRelationshipPreserved=$cancel
+        poseProfileId='medium-humanoid-mammoth-v1';poseBoneInventory='Pelvis,L_Up_leg,L_leg,L_foot,R_Up_leg,R_leg,R_foot'
+        poseObservationCount=12;poseHealthyObservationCount=12;poseFrameAppliedObservationCount=12;poseApplicationFrameCount=12
+        poseFootTargetClampCount=0;poseMaximumFootTargetResidualWorldUnits=0.0;poseMaximumKneeTargetResidualWorldUnits=0.0
+        poseMaximumSegmentLengthResidualWorldUnits=0.0;poseMaximumApplyMicroseconds=100.0;poseAverageApplyMicroseconds=50.0
+        poseMaximumPelvisLocalFrameDeltaWorldUnits=0.01;poseMaximumLeftFootLocalFrameDeltaWorldUnits=0.01
+        poseMaximumRightFootLocalFrameDeltaWorldUnits=0.01;poseMaximumComponentCount=1;poseMaximumBoneCount=7;poseFailure=$null
+        walkMovingSampleCount=$(if($poseWalkRun){5}else{0});runMovingSampleCount=$(if($poseWalkRun){5}else{0})
+        walkMaximumSpeedWorldUnitsPerSecond=$(if($poseWalkRun){1.0}else{0.0});runMaximumSpeedWorldUnitsPerSecond=$(if($poseWalkRun){2.0}else{0.0})
+        equipmentSets=$equipmentEvidence;uiObservations=$uiEvidence;uiRiderPortraitSelected=$uiPresentation;uiRiderSelectionCircleSelected=$uiPresentation
+        uiRiderActionBarOwned=$uiPresentation;uiMountNormalized=$uiPresentation;uiAwayOwned=$uiPresentation;uiBackOwned=$uiPresentation;uiOverlayRendered=$uiPresentation
+        uiOverlayRepaintCountBefore=0;uiOverlayRepaintCountAfter=$(if($uiPresentation){1}else{0});uiOverlayLabel=$(if($uiPresentation){'Dismount'}else{$null});uiOverlayEnabled=$uiPresentation
+        uiOverlayVisible=$uiPresentation;uiOverlayButtonActivationCount=0;uiObservationFailure=$null
+        cameraFollowAccepted=$cameraPresentation;cameraObservationCount=$(if($cameraPresentation){12}else{0});cameraMinimumTargetResidualWorldUnits=$(if($cameraPresentation){0.1}else{1.0})
+        cameraMaximumTargetResidualWorldUnits=$(if($cameraPresentation){1.0}else{1.0});cameraFinalTargetResidualWorldUnits=$(if($cameraPresentation){0.2}else{1.0})
+        cameraMinimumRigResidualWorldUnits=$(if($cameraPresentation){4.0}else{1.0});cameraMaximumRigResidualWorldUnits=$(if($cameraPresentation){8.0}else{1.0})
+        cameraAwayObserved=$cameraPresentation;cameraBackObserved=$cameraPresentation
         cleanupTrigger='Manual';cleanupSucceeded=$true;cleanupResult='state=Unmounted'
         cleanupResidual=$false;cleanupBefore=$before;cleanupAfter=$after
         selectionCoverage='SelectionManager.SelectedUnits only; active portrait and camera-follow state are not asserted.'
+        poseCoverage='Exact supported seven-bone profile and baseline cleanup; subjective visual acceptability remains manual-review-only.'
         formationCoverage='Stock group-command recipients and corpulence clearance only; formation-slot persistence is not asserted.'
         door=$(if($doorway){'Area/Door'}else{$null});doorNear=[ordered]@{x=1.0;y=2.0;z=3.0};doorFar=[ordered]@{x=4.0;y=2.0;z=3.0}
         screenshots=@(New-TestMovementScreenshotRecords $Row $false);screenshotCaptureErrors=@();errors=@()
@@ -870,10 +1137,735 @@ function Write-TestMovementEvidence {
     return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts.ToArray()
 }
 
+function New-TestCombatEvidenceRecord {
+    param([Parameter(Mandatory = $true)]$Request)
+    $rider = 'combat-rider'
+    $mount = 'combat-mount'
+    $target = 'combat-target'
+    $isMammoth = [string]$Request.scenario -cin @('mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb')
+    $isHumanPlay = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-human-play-path-rt','mounted-rider-melee-human-play-path-tb')
+    $isReach = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-hit-rt','mounted-rider-melee-hit-tb',
+        'mounted-mammoth-primary-hit-rt','mounted-mammoth-primary-hit-tb',
+        'mounted-rider-melee-human-play-path-rt','mounted-rider-melee-human-play-path-tb')
+    $isMovementToAttack = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-move-to-attack-rt','mounted-rider-melee-move-to-attack-tb')
+    $isCancellation = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb')
+    $isInterruption = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-command-interrupt-rt','mounted-rider-melee-command-interrupt-tb')
+    $isCombatEnd = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-combat-end-rt','mounted-rider-melee-combat-end-tb')
+    $isTermination = $isCancellation -or $isInterruption -or $isCombatEnd
+    $isApproach = $isMovementToAttack -or $isTermination
+    $isTurnBased = [string]$Request.scenario -cin @(
+        'mounted-rider-melee-hit-tb','mounted-mammoth-primary-hit-tb','mounted-rider-melee-move-to-attack-tb',
+        'mounted-rider-melee-command-cancel-tb','mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-tb','mounted-rider-melee-human-play-path-tb')
+    $isMiss = [string]$Request.scenario -ceq 'mounted-rider-melee-miss-rt'
+    $isUnifiedMammothTurn = $isMammoth -and $isTurnBased
+    $requiresDurability = $isMammoth -or $isApproach -or ($isHumanPlay -and $isTurnBased)
+    $actor = if ($isMammoth) { $mount } else { $rider }
+    $actorRole = if ($isMammoth) { 'mount' } else { 'rider' }
+    $action = if ($isMammoth) { 'MountPrimaryNatural' } else { 'RiderMelee' }
+    $record = [ordered]@{
+        schemaVersion=$(if ($isUnifiedMammothTurn) { 56 } elseif ($isHumanPlay) { if ($isTurnBased) { 52 } else { 48 } } elseif ($isCombatEnd) { if ($isTurnBased) { 41 } else { 40 } } elseif ($isTermination) { if ($isTurnBased) { 39 } else { 38 } } elseif ($isMovementToAttack) { if ($isTurnBased) { 54 } else { 53 } } elseif ($isReach) { if ($isTurnBased) { 43 } else { 42 } } elseif ($isTurnBased) { 27 } else { 26 });artifactKind='combat-scenario-evidence';runId=[string]$Request.runId
+        scenario=[string]$Request.scenario;row=[string]$Request.scenario;rowIndex=0;sequence=0;frame=30
+        utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
+        commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
+        dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS';mode=$(if ($isTurnBased) { 'turn-based' } else { 'real-time' })
+        action=$action;expectedActor=$actorRole;riderId=$rider;mountId=$mount;targetId=$target;clickAccepted=$true
+        targetProvisioning=[ordered]@{
+            targetBlueprintId='e7aa96d15a45238438ae4cfb476f6bb9';runtimeGroupId=('KMC.RuntimeHostile.'+[string]$Request.runId)
+            blueprintEmptyHandWeaponBlueprintId='11111111111111111111111111111111';targetNativeSingleAttackWeaponBlueprintId='11111111111111111111111111111111'
+            targetNativeSingleAttackSlot='PrimaryHand';targetPrimaryMainAttacks=1;targetSecondaryMainAttacks=0
+            additionalLimbCountBefore=0;additionalLimbCountAfter=0;noWeaponProvisioningMutation=$true
+            targetPrimaryHandHasItem=$false;targetWeaponUsesEmptyHandFallback=$true
+            targetNativeSingleAttackWeaponIsNatural=$true;targetNativeSingleAttackWeaponIsMelee=$true
+            noLoot=$true;rawAiDisabled=$true;sleeplessBefore=$false;sleeplessLeaseAcquired=$true
+            temporaryHitPointsBefore=0;temporaryHitPointsAfterProvisioning=$(if ($requiresDurability) { 128 } else { 0 })
+            durabilityLeaseAmount=$(if ($requiresDurability) { 128 } else { 0 });durabilityLeaseAcquired=$requiresDurability
+            bidirectionalHostility=$true;noExperienceReward=$true
+        }
+        targetLife=[ordered]@{
+            immediatelyAfterCreation=[ordered]@{
+                observed=$true;lifeState='Conscious';conscious=$true;dead=$false;finallyDead=$false
+                damage=0;nonLethalDamage=0;hitPoints=100;constitution=14;forceKill=$false;markedForDeath=$false
+            }
+            atActivation=[ordered]@{
+                observed=$true;lifeState='Conscious';conscious=$true;dead=$false;finallyDead=$false
+                damage=0;nonLethalDamage=0;hitPoints=100;constitution=14;forceKill=$false;markedForDeath=$false
+            }
+            lastObserved=[ordered]@{
+                observed=$true;lifeState='Conscious';conscious=$true;dead=$false;finallyDead=$false
+                damage=$(if ($isMiss -or $isTermination) { 0 } else { 10 });nonLethalDamage=0;hitPoints=100;constitution=14
+                forceKill=$false;markedForDeath=$false
+            }
+            transitionCount=0
+            firstTransition=[ordered]@{
+                observed=$false;previousLifeState=$null;currentLifeState=$null
+                snapshot=[ordered]@{
+                    observed=$false;lifeState=$null;conscious=$false;dead=$false;finallyDead=$false
+                    damage=0;nonLethalDamage=0;hitPoints=0;constitution=0;forceKill=$false;markedForDeath=$false
+                }
+            }
+        }
+        targetIncomingRules=[ordered]@{
+            dispatchMarkerSet=$true;attackRuleCount=$(if ($isTermination) { 0 } else { 1 });damageRuleCount=$(if ($isMiss -or $isTermination) { 0 } else { 1 })
+            preDispatchAttackRuleCount=0;preDispatchDamageRuleCount=0
+            firstAttack=[ordered]@{
+                observed=(-not $isTermination);beforeExpectedDispatch=$false;initiatorId=$(if ($isTermination) { $null } else { $actor })
+                initiatorBlueprintId=$(if ($isTermination) { $null } else { '22222222222222222222222222222222' })
+                initiatorIsPlayerFaction=(-not $isTermination);initiatorIsPlayersEnemy=$false
+                initiatorGroupId=$(if ($isTermination) { $null } else { 'player-group' });initiatorGroupIsPlayerParty=(-not $isTermination)
+                initiatorSharesRiderGroup=(-not $isTermination);initiatorSharesMountGroup=(-not $isTermination)
+                initiatorDirectlyControllable=(-not $isTermination);initiatorEffectiveAiEnabled=$false
+                initiatorRawAiEnabled=$false;initiatorCommandsEmpty=$false
+                weaponBlueprintId=$(if ($isTermination) { $null } else { '33333333333333333333333333333333' })
+                isAttackOfOpportunity=$false;isCharge=$false
+            }
+            firstDamage=$(if ($isMiss -or $isTermination) {
+                [ordered]@{
+                    observed=$false;beforeExpectedDispatch=$false;initiatorId=$null;initiatorBlueprintId=$null
+                    initiatorIsPlayerFaction=$false;initiatorIsPlayersEnemy=$false;damage=0;isFake=$false;isDot=$false
+                    attackRollPresent=$false;weaponBlueprintId=$null;sourceAbilityBlueprintId=$null;sourceAreaBlueprintId=$null
+                }
+            } else {
+                [ordered]@{
+                    observed=$true;beforeExpectedDispatch=$false;initiatorId=$actor
+                    initiatorBlueprintId='22222222222222222222222222222222'
+                    initiatorIsPlayerFaction=$true;initiatorIsPlayersEnemy=$false;damage=10;isFake=$false;isDot=$false
+                    attackRollPresent=$true;weaponBlueprintId='33333333333333333333333333333333'
+                    sourceAbilityBlueprintId=$null;sourceAreaBlueprintId=$null
+                }
+            })
+        }
+        nonPairPartyAiLease=[ordered]@{
+            acquired=$true;groupId='player-group';groupIsPlayerParty=$true;riderSharesGroup=$true
+            mountSharesGroup=$true;memberCount=1;activeValidationPassed=$true;restored=$true;lastError=$null
+            members=@([ordered]@{
+                unitId='combat-non-pair';blueprintId='44444444444444444444444444444444'
+                directlyControllable=$true;inState=$true;commandsEmptyBefore=$true
+                rawAiBefore=$true;effectiveAiBefore=$true;commandsEmptyDuring=$true
+                rawAiDuring=$false;effectiveAiDuring=$false;commandsEmptyAfter=$true
+                rawAiAfter=$true;effectiveAiAfter=$true
+            })
+        }
+        targetBrainLease=[ordered]@{
+            brainActiveBefore=$true;leaseAcquired=$true;effectiveAiEnabledDuring=$true
+            validationCount=7;violationObserved=$false;suppressedAtClick=$true;suppressedAtOutcome=$true
+            brainActiveAfterRelease=$true;leaseReleased=$true
+        }
+        pairApproachRadius=4.0;targetDistanceAtClick=$(if ($isApproach) { 6.0 } else { 3.9 })
+        riderPositionAtClick=[ordered]@{x=0.0;y=0.0;z=0.0}
+        mountPositionAtClick=[ordered]@{x=0.1;y=0.0;z=0.0}
+        targetPositionAtClick=[ordered]@{x=$(if ($isApproach) { 6.1 } else { 4.0 });y=0.0;z=0.0}
+        combatEntry=[ordered]@{
+            memoryQueued=$true;playerGroupMemoryContainsTarget=$true;targetGroupMemoryContainsRider=$true
+            riderInCombat=$true;mountInCombat=$true;targetInCombat=$true;playerInCombat=$true
+            riderPrepared=$true;riderAwake=$true;targetAwake=$true;defaultGameMode=$true
+            riderInitiative=$(if ($isMammoth) { 4.99591351 } else { 0.0 })
+            actionActorId=$actor;actionActorPrepared=$true;actionActorCanActInCombat=$true
+            actionActorInitiative=$(if ($isUnifiedMammothTurn) { 4.99591351 } else { 0.0 })
+            gameDeltaTime=0.01
+            memoryRemovedAtCleanup=$true
+            nativeJoin=[ordered]@{
+                riderInGame=$true;mountInGame=$true;targetInGame=$true
+                riderConscious=$true;mountConscious=$true;targetConscious=$true
+                riderIgnoredByCombat=$false;mountIgnoredByCombat=$false;targetIgnoredByCombat=$false
+                playerGroupContainsRider=$true;playerGroupContainsMount=$true;targetGroupContainsTarget=$true
+                playerGroupEnemiesContainsTarget=$true;targetGroupEnemiesContainsRider=$true
+                riderNotInFogOfWar=$true;targetNotInFogOfWar=$true
+                riderNotInStealthAmbush=$true;targetNotInStealthAmbush=$true
+            }
+        }
+        dispatch=[ordered]@{
+            originalPaused=$true;unpausedForRealTime=(-not $isTurnBased);pausedAtClick=$false
+            equipmentControllerAvailable=$true;equipmentUpdateScheduled=$false;pauseRestored=$true
+        }
+        resources=[ordered]@{
+            riderStandardBefore=0.0;riderStandardAfter=$(if ($isMammoth -or $isTermination) { 0.0 } else { 5.5 });riderMoveBefore=$(if ($isHumanPlay -and $isTurnBased) { 0.5 } else { 0.0 });riderMoveAfter=$(if (($isApproach -or $isHumanPlay) -and $isTurnBased) { 3.0 } else { 0.0 })
+            mountStandardBefore=0.0;mountStandardAfter=$(if ($isMammoth) { 5.5 } else { 0.0 });mountMoveBefore=0.0;mountMoveAfter=0.0
+        }
+        command=[ordered]@{
+            action=$action;actorId=$actor;targetId=$target;result=$(if ($isTermination) { 'Interrupt' } else { 'Success' });childAttackStartCount=$(if ($isTermination) { 0 } else { 1 })
+            repathCount=0;riderStandardCharged=(-not $isMammoth);nativeAttackRuleObserved=(-not $isTermination);terminalReason=$(if ($isTermination) { 'Interrupt' } else { 'completed' })
+            pairRangeSatisfiedAtStart=(-not $isTermination);pairDistanceAtStart=$(if ($isTermination) { 0.0 } else { 3.9 });pairApproachRadiusAtStart=$(if ($isTermination) { 0.0 } else { 4.0 })
+            nativeExecutorDistanceAtStart=$(if ($isTermination) { 0.0 } else { 4.1 });nativeAdmissionRadiusAtStart=$(if ($isTermination) { 0.0 } else { 4.101 });nativeAdmissionAdjusted=(-not $isTermination)
+        }
+        rules=[ordered]@{
+            forcedD20=$(if ($isTermination) { $null } elseif ($isMiss) { 1 } else { 20 });forcedD20Count=$(if ($isTermination) { 0 } else { 1 });attackRuleCount=$(if ($isTermination) { 0 } else { 1 });attackRollCount=$(if ($isTermination) { 0 } else { 1 })
+            damageRuleCount=$(if ($isMiss -or $isTermination) { 0 } else { 1 });unexpectedPairAttackCount=0
+            totalDamage=$(if ($isMiss -or $isTermination) { 0 } else { 10 });lastInitiatorId=$(if ($isTermination) { $null } else { $actor });lastTargetId=$(if ($isTermination) { $null } else { $target })
+            lastAttackResult=$(if ($isTermination) { $null } elseif ($isMiss) { 'Miss' } else { 'Hit' });lastAttackHit=$(if ($isTermination) { $null } else { -not $isMiss })
+        }
+        movement=[ordered]@{
+            authoritativeMover='mount';repathCount=0;riderDisplacementAtOutcome=$(if ($isApproach) { 1.0 } else { 0.0 });mountDisplacementAtOutcome=$(if ($isApproach) { 1.0 } else { 0.0 })
+            targetDisplacementAtOutcome=0.0;riderStockAgentEnabledAtEnd=$true;mountStockAgentEnabledAtEnd=$true
+            riderAvoidanceDisabledAtEnd=$false;mountAvoidanceDisabledAtEnd=$false
+        }
+        pose=[ordered]@{
+            profileId='medium-humanoid-mammoth-v1';healthyAtOutcome=$true;configuredAtEnd=$false
+            attachmentLeaseAtEnd=$false;residueAtEnd=$false
+        }
+        cleanup=[ordered]@{
+            targetRemoved=$true;targetEntityRemoved=$true;runtimeGroupRemoved=$true;runtimeFactionRemoved=$true
+            durabilityLeaseReleased=$true;brainLeaseReleased=$true;sleeplessLeaseReleased=$true;nonPairPartyAiLeaseRestored=$true
+            relationshipClean=$true;combatCleared=$true;relationshipState='Unmounted'
+            residualState=$false;presentationResidual=$false
+        }
+        selection=@($rider);assertionPassCount=25;assertionFailCount=0;errors=@()
+    }
+    $record.dispatch.actionActorCanActInCombat = $true
+    $record.dispatch.actionActorHandsBusy = $false
+    if ($isUnifiedMammothTurn) {
+        $record.combatEntry.actionActorSharedTurnAdmitted = $true
+        $record.combatEntry.actionActorActionable = $true
+        $record.dispatch.actionActorSharedTurnAdmitted = $true
+        $record.dispatch.actionActorCanDispatch = $true
+        $record.pairedScheduler = [ordered]@{
+            enabled=$true;activeLeaseAtOutcome=$true;stateAtOutcome='Completed'
+            activeLeaseAfterCleanup=$false;stateAfterCleanup='Disposed'
+            riderId=$rider;mountId=$mount;relationshipGeneration=1
+            turnIdentity='turn@1234abcd';turnRound=1
+            commandIdentity='command@5678efab'
+            commandType='KingmakerMountedCombat.Integration.MountedPairAttackCommand'
+            actionOrigin='MountPrimaryNatural';targetId=$target
+            weaponBlueprintId='33333333333333333333333333333333'
+            expectedResourceOwnerId=$mount;expectedRuleInitiatorId=$mount
+            creationFrame=100;admissionFrame=100;firstGrantFrame=411;lastDrivenFrame=422
+            startObservedFrame=412;driveCount=12;startObservationCount=1
+            terminalObservationCount=1;interruptCount=0;resourceChargeObservationCount=1
+            duplicateFrameDriveCount=0;cleanupCount=1;foreignCommandAdoptionCount=0
+            riderRemainedCurrent=$true;exactExecutorRetained=$true;exactSlotRetained=$true
+            mountStandardAvailableBefore=$true;mountStandardAvailableAfter=$false
+            riderStandardAvailableBefore=$true;riderStandardAvailableAfter=$true
+            mountStandardCooldownBefore=0.0;mountStandardCooldownAfter=5.5
+            riderStandardCooldownBefore=0.0;riderStandardCooldownAfter=0.0
+            terminalResult='Success';firstObservedTurnStatus='Preparing'
+            lastObservedTurnStatus='Preparing';preparingObserved=$true
+            actingObserved=$false;endingObserved=$false;lastRejection='None'
+            cleanupReason='native terminal slot removal';faultReason=$null
+        }
+    }
+    $record.command.commandOwnerId = $actor
+    $record.command.resourceOwnerId = $actor
+    $record.command.actionStandardCharged = -not $isTermination
+    $record.command.riderStandardCharged = -not $isMammoth -and -not $isTermination
+    $record.command.attackWeaponBlueprintId = '33333333333333333333333333333333'
+    $record.command.attackWeaponIsNatural = $isMammoth
+    $record.command.attackWeaponIsRanged = $false
+    $record.command.attackWeaponSlot = if ($isMammoth) { 'PrimaryHand' } else { 'EquippedMelee' }
+    if ($isReach) {
+        $record.reach = [ordered]@{
+            riderWeaponBlueprintId='33333333333333333333333333333333'
+            mountWeaponBlueprintId='55555555555555555555555555555555'
+            riderWeaponRange=2.0;mountWeaponRange=2.0;mountCorpulence=1.0;targetCorpulence=1.0
+            riderStoppingRadius=4.0;mountStoppingRadius=4.0;initialDistance=6.0
+            riderProbeRadiusAtInitial=4.0;mountProbeRadiusAtInitial=4.0
+            riderOutsideAtInitial=$true;mountOutsideAtInitial=$true;dispatchDistance=3.9
+            riderWithinAtDispatch=$true;mountWithinAtDispatch=$true
+            riderCanAttackTarget=$true;mountCanAttackTarget=$true
+            targetCanAttackRider=$true;targetCanAttackMount=$true
+            inputsUnchangedAtDispatch=$true;actionRadiusMatches=$true
+        }
+    }
+    if ($isHumanPlay) {
+        $record.admission = [ordered]@{
+            armedThroughPlayerFacingCombatController=$true;overlayActivationWorldClickSuppressed=$true
+            armedActionRetainedAfterOverlayClick=$true;directClickedUnitView=$true
+            feedback='Mounted pair command accepted: RiderMelee.';rejectionCodes=@()
+        }
+    }
+    if ($isApproach) {
+        $record.movementToAttack = [ordered]@{
+            requestedTargetDistance=6.0;approachRequiredAtStart=$true;delegatedMoveStartCount=1
+            delegatedMoveTickCount=$(if ($isTurnBased -and -not $isTermination) { 12 } else { 0 });delegatedMoveExecutorId=$mount;delegatedMoveExecutorIsExactMount=$true
+            wrapperCommandRetainedThroughoutApproach=$true;delegatedMoveNeverQueuedOnMount=$true
+            delegatedMoveOwnedByMountMoveSlot=$true;mountMoveSlotUnreplacedThroughoutApproach=$true
+            mountQueueEmptyThroughoutApproach=$true;delegatedMoveFinishedSuccessfully=(-not $isTermination)
+            mountMoveSlotRestoredAfterApproach=$true;delegatedMoveDrivenByStockController=(-not $isTurnBased)
+            delegatedMoveDrivenByRiderTurnAdapter=$isTurnBased;delegatedMoveProgressObservationCount=12
+            riderStockAgentSuppressedThroughoutApproach=$true;mountStockAgentAuthoritativeThroughoutApproach=$true
+            poseHealthyThroughoutApproach=$true;commandObservationCount=12;runtimeObservationCount=12
+            selectionRetainedDuringApproach=$true;uiCoherentDuringApproach=$true
+            initialPairDistance=6.0;pairDistanceAtAttackStart=$(if ($isTermination) { 0.0 } else { 3.9 })
+            riderDisplacementAtAttackStart=$(if ($isTermination) { 0.0 } else { 2.0 });mountDisplacementAtAttackStart=$(if ($isTermination) { 0.0 } else { 2.0 })
+            targetDisplacementAtAttackStart=0.0
+        }
+        if ($isMovementToAttack) {
+            $record.movementToAttack['delegatedMoveStoppedAtLegalRange'] = $false
+            $record.movementToAttack['delegatedMoveResultBeforeLegalRangeStop'] = '<not-stopped>'
+            $record.movementToAttack['delegatedMovePairDistanceAtLegalRangeStop'] = 0.0
+        }
+    }
+    if ($isTermination) {
+        $record.commandTermination = [ordered]@{
+            kind=$(if ($isCancellation) { 'player-stop' } elseif ($isInterruption) { 'native-wrapper-interrupt' } else { 'party-combat-end' })
+            trigger=$(if ($isCancellation) { 'SelectionManagerBase.Stop' } elseif ($isInterruption) { 'UnitCommands.InterruptAll' } else { 'IPartyCombatHandler.HandlePartyCombatStateChanged(false)' })
+            delivered=$true;repeatedIdempotently=$true;wrapperPresentBefore=$true;delegatedMovePresentBefore=$true
+            riderQueueEmptyBefore=$true;mountQueueEmptyBefore=$true;childAttackNotStartedBefore=$true
+            pairDistanceAtTrigger=5.0;riderDisplacementAtTrigger=1.0;mountDisplacementAtTrigger=1.0;targetDisplacementAtTrigger=0.0
+            wrapperAbsentAfter=$true;delegatedMoveAbsentAfter=$true;riderQueueEmptyAfter=$true;mountQueueEmptyAfter=$true
+            mountAgentStoppedAfter=$true;activeCommandClearedAfter=$true;relationshipPreservedAfter=$true
+            selectionRetainedAfter=$true;uiCoherentAfter=$true
+        }
+        if ($isCombatEnd) {
+            $record.commandTermination.lifecycleDeliveryCount = 2
+            $record.commandTermination.lifecycleDeliveriesExact = $true
+        }
+    }
+    if ($isTurnBased) {
+        $record.turnBased = [ordered]@{
+            requested=$true;originalEnabled=$false;temporaryEnabled=$true;originalRawCacheHadValue=$true
+            enabledAtMount=(-not $isHumanPlay);controllerInitialized=$true;rosterContainsRider=$true
+            rosterContainsMount=$true;rosterContainsTarget=$true
+            expectedTurnActor=$(if ($isUnifiedMammothTurn) { 'rider' } else { $actorRole })
+            nativeActionActorTurnStarted=(-not $isUnifiedMammothTurn)
+            currentTurnUnitIdAtDispatch=$(if ($isUnifiedMammothTurn) { $rider } else { $actor })
+            currentTurnActingAtDispatch=(-not $isUnifiedMammothTurn);roundNumberAtDispatch=1
+            currentTurnUnitIdAtOutcome=$(if ($isUnifiedMammothTurn) { $rider } else { $actor })
+            currentTurnActingAtOutcome=$(if ($isUnifiedMammothTurn) { $false } else { -not $isMammoth })
+            actionActorTurnEndedAfterCommand=($isMammoth -and -not $isUnifiedMammothTurn)
+            restoreDeliveryCompleted=$true;modeRestored=$true;persistedValueUnchanged=$true
+        }
+        if ($isUnifiedMammothTurn) {
+            $record.turnBased.unifiedMountedTurn = $true
+            $record.turnBased.expectedTurnPrincipal = 'rider'
+            $record.turnBased.expectedActionActor = 'mount'
+            $record.turnBased.nativeTurnPrincipalStarted = $true
+            $record.turnBased.actionActorSharedTurnAdmitted = $true
+            $record.turnBased.pairMountedBeforeEnable = $false
+            $record.turnBased.pairRetainedAfterEnable = $false
+            $record.turnBased.pairRetainedAfterRealtimeRestore = $false
+            $record.turnBased.presentationAfterEnable = '<not-observed>'
+            $record.turnBased.presentationAfterRealtimeRestore = '<not-observed>'
+            $record.turnBased.mountAiLeaseReassertionArmedCount = 0
+            $record.turnBased.mountAiLeaseReassertionAttemptCount = 0
+            $record.turnBased.mountAiLeaseReassertionMutationCount = 0
+            $record.turnBased.mountAiLeaseReassertionSuccessCount = 0
+            $record.turnBased.mountAiLeaseReassertionResult = 'not-requested'
+            $record.turnBased.riderUiLeaseRestoreArmedCount = 0
+            $record.turnBased.riderUiLeaseRestoreAttemptCount = 0
+            $record.turnBased.riderUiLeaseRestoreMutationCount = 0
+            $record.turnBased.riderUiLeaseRestoreSuccessCount = 0
+            $record.turnBased.riderUiLeaseRestoreResult = 'not-requested'
+            $record.turnBased.presentationDuringMammothTurn = '<not-observed>'
+            $record.turnBased.presentationAfterNativeMammothGroundInput = '<not-observed>'
+            $record.turnBased.nativeMammothTurnStarted = $false
+            $record.turnBased.nativeMammothTurnUiObserved = $false
+            $record.turnBased.nativeMammothGroundInputStarted = $false
+            $record.turnBased.nativeMammothGroundInputCompleted = $false
+            $record.turnBased.nativeMammothGroundSelectionRetained = $false
+            $record.turnBased.nativeMammothGroundUiObservedAfterInput = $false
+            $record.turnBased.nativeMammothGroundCommandFinished = $false
+            $record.turnBased.nativeMammothGroundCommandResult = '<not-observed>'
+            $record.turnBased.nativeMammothGroundRawMoveSlotState = '<not-observed>'
+            $record.turnBased.nativeMammothGroundInterruptSource = '<not-observed>'
+            $record.turnBased.nativeMammothPhysicalPointerQualification = 'manual-required'
+            $record.turnBased.nativeMammothGroundEnoughCloseAtTerminal = $false
+            $record.turnBased.nativeMammothGroundAgentReallyMovingAtTerminal = $false
+            $record.turnBased.nativeMammothGroundAgentWantsToMoveAtTerminal = $false
+            $record.turnBased.mammothNativeGroundDisplacement = 0.0
+            $record.turnBased.mammothNativeGroundRemainingDistance = 0.0
+            $record.turnBased.mammothNativeMoveBefore = 0.0
+            $record.turnBased.mammothNativeMoveAfter = 0.0
+            $record.turnBased.riderMoveBeforeMammothNativeGroundInput = 0.0
+            $record.turnBased.riderMoveAfterMammothNativeGroundInput = 0.0
+        }
+        if ($isHumanPlay) {
+            $record.turnBased.pairMountedBeforeEnable = $true
+            $record.turnBased.pairRetainedAfterEnable = $true
+            $record.turnBased.pairRetainedAfterRealtimeRestore = $true
+            $record.turnBased.mountAiLeaseReassertionArmedCount = 1
+            $record.turnBased.mountAiLeaseReassertionAttemptCount = 1
+            $record.turnBased.mountAiLeaseReassertionMutationCount = 1
+            $record.turnBased.mountAiLeaseReassertionSuccessCount = 1
+            $record.turnBased.mountAiLeaseReassertionResult = 'reasserted'
+            $record.turnBased.riderUiLeaseRestoreArmedCount = 1
+            $record.turnBased.riderUiLeaseRestoreAttemptCount = 1
+            $record.turnBased.riderUiLeaseRestoreMutationCount = 1
+            $record.turnBased.riderUiLeaseRestoreSuccessCount = 1
+            $record.turnBased.riderUiLeaseRestoreResult = 'reselected-rider'
+            $presentation = 'mode=Default;turnBased=True;riderViewExact=True;riderViewActiveSelf=True;riderViewActiveInHierarchy=True;riderParent=KMC_RiderPositionAnchor;riderSibling=0;riderRendererCount=3;riderEnabledRendererCount=3;mountViewExact=True;mountViewActiveSelf=True;mountViewActiveInHierarchy=True;poseLease=True;attachmentLease=True;replacementReleased=False;riderSelected=True;observationScope=full-ui;actionBarOwner=' + $rider + ';actionBarActive=True;actionBarEnabled=True;actionBarActiveSelf=True;actionBarActiveInHierarchy=True;actionBarReactiveActive=True;actionBarCanUseAbilities=True;actionBarSectionShown=True;portraitOwnerCount=2;portraitActiveOwnerCount=1;portraitActive=True;portraitSelected=True;cameraOn=False;cameraOwner=' + $rider + ';selectedUnit=' + $rider + ';turnUnit=' + $rider + ';turnStatus=Acting;turnUnitDirectlyControllable=True;turnCanMove=True;turnCanEndNoActing=False;pointerInGui=False;pointerControllerAvailable=True;pointerMode=Default;riderCommands=0;mountCommands=0;riderAiEnabled=False;mountAiEnabled=False'
+            $record.turnBased.presentationAfterEnable = $presentation
+            $record.turnBased.presentationAfterRealtimeRestore = $presentation.Replace('turnBased=True','turnBased=False')
+            $record.turnBased.presentationDuringMammothTurn = $presentation.Replace('actionBarOwner=' + $rider,'actionBarOwner=' + $mount).Replace('selectedUnit=' + $rider,'selectedUnit=' + $mount).Replace('turnUnit=' + $rider,'turnUnit=' + $mount)
+            $record.turnBased.presentationAfterNativeMammothGroundInput = $record.turnBased.presentationDuringMammothTurn.Replace('turnCanMove=True','turnCanMove=False').Replace('turnCanEndNoActing=False','turnCanEndNoActing=True')
+            $record.turnBased.nativeMammothTurnStarted = $true
+            $record.turnBased.nativeMammothTurnUiObserved = $true
+            $record.turnBased.nativeMammothGroundInputStarted = $true
+            $record.turnBased.nativeMammothGroundInputCompleted = $true
+            $record.turnBased.nativeMammothGroundSelectionRetained = $true
+            $record.turnBased.nativeMammothGroundUiObservedAfterInput = $true
+            $record.turnBased.nativeMammothGroundCommandFinished = $true
+            $record.turnBased.nativeMammothGroundCommandResult = 'Success'
+            $record.turnBased.nativeMammothGroundRawMoveSlotState = 'empty'
+            $record.turnBased.nativeMammothGroundInterruptSource = '<not-interrupted>'
+            $record.turnBased.nativeMammothPhysicalPointerQualification = 'manual-required'
+            $record.turnBased.nativeMammothGroundEnoughCloseAtTerminal = $true
+            $record.turnBased.nativeMammothGroundAgentReallyMovingAtTerminal = $false
+            $record.turnBased.nativeMammothGroundAgentWantsToMoveAtTerminal = $false
+            $record.turnBased.mammothNativeGroundDisplacement = 1.5
+            $record.turnBased.mammothNativeGroundRemainingDistance = 0.0
+            $record.turnBased.mammothNativeMoveBefore = 0.0
+            $record.turnBased.mammothNativeMoveAfter = 1.5
+            $record.turnBased.riderMoveBeforeMammothNativeGroundInput = 0.0
+            $record.turnBased.riderMoveAfterMammothNativeGroundInput = 0.0
+            $record.groundMovement = [ordered]@{
+                requested=$true;destination=[ordered]@{x=2.0;y=0.0;z=0.0};result='Success'
+                driveCount=12;executorId=$mount;executorIsExactMount=$true
+                usedRiderTurnAdapter=$true;slotRestored=$true
+                riderMoveBefore=0.0;riderMoveAfter=2.0;mountMoveBefore=0.0;mountMoveAfter=0.0
+                riderDisplacement=2.0;mountDisplacement=2.0;targetDisplacement=0.0
+                pairRetained=$true;selectionRetained=$true;poseHealthy=$true
+            }
+        }
+    }
+    return $record
+}
+
+function New-TestMovementDoorReadinessRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$Sequence
+    )
+    return [ordered]@{
+        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario
+        row='mounted-distance-door-interaction';branch=[string]$Request.branch;commit=[string]$Request.commit
+        productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
+        sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        kind='door-traversal-readiness';door='Area/Door';doorOpen=$true;disableNavmeshCutWhenOpen=$true
+        navmeshCutPresent=$true;navmeshCutEnabled=$false;initialNavmeshCutRequiresUpdate=$true
+        finalNavmeshCutRequiresUpdate=$false;astarPathPresent=$true;astarGraphUpdatesQueued=$true
+        unityFrameCount=120;tileHandlerLastUpdateFrame=119;unityFrameStrictlyAfterTileHandlerLastUpdate=$true
+        observationCount=2;elapsedSeconds=0.25;ready=$true
+    }
+}
+
+function New-TestMovementPathReplacementRecord {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)][long]$Sequence
+    )
+    return [ordered]@{
+        schemaVersion=1;runId=[string]$Request.runId;scenario=[string]$Request.scenario
+        row='mounted-distance-door-interaction';branch=[string]$Request.branch;commit=[string]$Request.commit
+        productVersion=[string]$Request.productVersion;dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid
+        sequence=$Sequence;utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o')
+        kind='navigation-path-replacement';replacementIndex=1;previousPathId=8;newPathId=9
+        previousPathFirstObservedFrame=120;replacementObservedFrame=121;tileHandlerLastUpdateFrame=120
+        previousPathFirstObservedNotNewerThanTileUpdateFrame=$true
+        astarPathPresent=$true;astarGraphUpdatesQueued=$false;agentRepathNeeded=$false
+        pathFailed=$false;pathError=$false;commandReferenceRetained=$true
+        commandType='Kingmaker.UnitLogic.Commands.UnitMoveTo'
+    }
+}
+
+function Write-TestCombatEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Record,
+        [switch]$OmitManifestRecord,
+        [string]$ManifestKind='combat-evidence'
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $path = Join-Path $EvidenceRoot 'combat-scenario-evidence.jsonl'
+    [IO.File]::WriteAllText($path, ($Record | ConvertTo-Json -Compress -Depth 15) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $artifacts = if ($OmitManifestRecord) { @() } else {
+        @([ordered]@{relativePath='combat-scenario-evidence.jsonl';kind=$ManifestKind;length=(Get-Item -LiteralPath $path).Length;sha256=(Get-KmcSha256 $path)})
+    }
+    return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
+}
+
+function New-TestCombatControlEvidenceRecords {
+    param([Parameter(Mandatory = $true)]$Request)
+    $rows = @(Get-KmcCombatControlRuntimeRows)
+    $paths = @{
+        'mounted-rider-melee-invalid-target' = 'ClickUnitHandler.OnClick -> MountedCombatController.TryHandleUnitClick -> MountedCombatActionEvaluator.Evaluate'
+        'mounted-rider-melee-target-death' = 'UnitEntityData.Damage -> mounted command liveness -> UnitCommand.Interrupt'
+        'mounted-rider-melee-cleanup' = 'MountedRelationshipCoordinator.Dismount(Exception) -> MountedCombatController.HandleDismounting'
+        'non-mounted-melee-control' = 'MountedCombatController.Arm/TryHandleUnitClick -> NotHandled stock delegation'
+    }
+    $records = New-Object 'Collections.Generic.List[object]'
+    for ($index = 0; $index -lt $rows.Count; $index++) {
+        $row = [string]$rows[$index]
+        $observations = [ordered]@{
+            controlKind=$row;riderArmed=$false;mountArmed=$false;riderInvalidRejected=$false
+            mountInvalidRejected=$false;armedCleared=$false;activeCommandAbsent=$false
+            combatActionsHidden=$false;armRejectedUnmounted=$false;controllerNotHandledUnmounted=$false
+            riderAgentUnchangedNonMounted=$false;mountAgentUnchangedNonMounted=$false;commandAccepted=$false
+            targetDamageBefore=0;targetDamageRequested=0;targetDamageAfter=0
+            targetLifeTransitionObserved=$false;targetDeadOrFinallyDead=$false;commandInterrupted=$false
+            cleanupTrigger=$(if ($row -ceq 'mounted-rider-melee-cleanup') { 'Exception' } else { 'none' })
+            firstCleanupSucceeded=$false;repeatedCleanupSucceeded=$false;childAttackStartCount=0
+            attackRuleCount=0;attackRollCount=0;damageRuleCount=0;unexpectedPairAttackCount=0
+            forcedD20Count=0;relationshipPreservedAfterTargetDeath=$false;resourcesUnchanged=$true
+        }
+        switch -CaseSensitive ($row) {
+            'mounted-rider-melee-invalid-target' {
+                $observations.riderArmed=$true;$observations.mountArmed=$true
+                $observations.riderInvalidRejected=$true;$observations.mountInvalidRejected=$true
+                $observations.armedCleared=$true;$observations.activeCommandAbsent=$true
+            }
+            'mounted-rider-melee-target-death' {
+                $observations.commandAccepted=$true;$observations.targetDamageRequested=115
+                $observations.targetDamageAfter=115;$observations.targetLifeTransitionObserved=$true
+                $observations.targetDeadOrFinallyDead=$true;$observations.commandInterrupted=$true
+                $observations.relationshipPreservedAfterTargetDeath=$true
+            }
+            'mounted-rider-melee-cleanup' {
+                $observations.commandAccepted=$true;$observations.commandInterrupted=$true
+                $observations.firstCleanupSucceeded=$true;$observations.repeatedCleanupSucceeded=$true
+            }
+            'non-mounted-melee-control' {
+                $observations.activeCommandAbsent=$true;$observations.combatActionsHidden=$true
+                $observations.armRejectedUnmounted=$true;$observations.controllerNotHandledUnmounted=$true
+                $observations.riderAgentUnchangedNonMounted=$true;$observations.mountAgentUnchangedNonMounted=$true
+            }
+        }
+        $records.Add([ordered]@{
+            schemaVersion=1;artifactKind='combat-core-control-evidence';runId=[string]$Request.runId
+            scenario=[string]$Request.scenario;row=$row;rowIndex=$index;sequence=$index;frame=(20+$index)
+            utcTimestamp=[DateTimeOffset]::UtcNow.ToUniversalTime().ToString('o');branch=[string]$Request.branch
+            commit=[string]$Request.commit;productVersion=[string]$Request.productVersion
+            dllSha256=[string]$Request.dllSha256;dllMvid=[string]$Request.dllMvid;status='PASS'
+            riderId='combat-control-rider';mountId='combat-control-mount';targetId=('combat-control-target-'+$index)
+            mountedAtExercise=($row -cne 'non-mounted-melee-control');productionPath=[string]$paths[$row]
+            observations=$observations
+            resources=[ordered]@{
+                riderStandardBefore=0.0;riderStandardAfter=0.0;riderMoveBefore=0.0;riderMoveAfter=0.0
+                mountStandardBefore=0.0;mountStandardAfter=0.0;mountMoveBefore=0.0;mountMoveAfter=0.0
+            }
+            cleanup=[ordered]@{
+                targetRemoved=$true;relationshipClean=$true;combatCleared=$true;agentsRestored=$true
+                pauseRestored=$true;runtimeLockOrDeploymentCreated=$false;residualState=$false
+            }
+            assertionPassCount=12;assertionFailCount=0;errors=@()
+        })
+    }
+    return $records.ToArray()
+}
+
+function Write-TestCombatControlEvidence {
+    param(
+        [Parameter(Mandatory = $true)][string]$EvidenceRoot,
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Records
+    )
+    New-Item -ItemType Directory -Path $EvidenceRoot -Force | Out-Null
+    $path = Join-Path $EvidenceRoot 'combat-scenario-evidence.jsonl'
+    $jsonLines = @($Records | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 15 })
+    [IO.File]::WriteAllText($path, ($jsonLines -join [Environment]::NewLine) + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false)))
+    $artifacts = @([ordered]@{
+        relativePath='combat-scenario-evidence.jsonl';kind='combat-evidence'
+        length=(Get-Item -LiteralPath $path).Length;sha256=(Get-KmcSha256 $path)
+    })
+    return New-TestArtifactManifest -EvidenceRoot $EvidenceRoot -RunId $Request.runId -Scenario $Request.scenario -Artifacts $artifacts
+}
+
+function Copy-TestJsonValue {
+    param([Parameter(Mandatory = $true)]$Value)
+    return ($Value | ConvertTo-Json -Compress -Depth 20 | ConvertFrom-Json)
+}
+
+function Remove-TestCombatWakeLeaseFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    if ($null -ne $Record.combatEntry) {
+        $Record.combatEntry.PSObject.Properties.Remove('targetAwake')
+    }
+    $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessBefore')
+    $Record.targetProvisioning.PSObject.Properties.Remove('sleeplessLeaseAcquired')
+    $Record.cleanup.PSObject.Properties.Remove('sleeplessLeaseReleased')
+    Remove-TestCombatLifeFields $Record
+    Remove-TestCombatNativeJoinFields $Record
+}
+
+function Remove-TestCombatNativeJoinFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    if ($null -ne $Record.combatEntry) {
+        $Record.combatEntry.PSObject.Properties.Remove('nativeJoin')
+    }
+}
+
+function Remove-TestCombatLifeFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('targetLife')
+    Remove-TestCombatIncomingRuleFields $Record
+}
+
+function Remove-TestCombatIncomingRuleFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('targetIncomingRules')
+    Remove-TestCombatNonPairPartyAiLeaseFields $Record
+}
+
+function Remove-TestCombatIncomingActorContextFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    foreach ($name in @(
+        'initiatorGroupId','initiatorGroupIsPlayerParty','initiatorSharesRiderGroup','initiatorSharesMountGroup',
+        'initiatorDirectlyControllable','initiatorEffectiveAiEnabled','initiatorRawAiEnabled','initiatorCommandsEmpty')) {
+        $Record.targetIncomingRules.firstAttack.PSObject.Properties.Remove($name)
+    }
+    Remove-TestCombatNonPairPartyAiLeaseFields $Record
+}
+
+function Remove-TestCombatNonPairPartyAiLeaseFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('nonPairPartyAiLease')
+    if ($null -ne $Record.cleanup) {
+        $Record.cleanup.PSObject.Properties.Remove('nonPairPartyAiLeaseRestored')
+    }
+    Remove-TestCombatDurabilityLeaseFields $Record
+}
+
+function Remove-TestCombatDurabilityLeaseFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    foreach ($name in @(
+        'temporaryHitPointsBefore','temporaryHitPointsAfterProvisioning',
+        'durabilityLeaseAmount','durabilityLeaseAcquired')) {
+        $Record.targetProvisioning.PSObject.Properties.Remove($name)
+    }
+    foreach ($name in @('riderDisplacementAtOutcome','mountDisplacementAtOutcome','targetDisplacementAtOutcome')) {
+        $Record.movement.PSObject.Properties.Remove($name)
+    }
+    $Record.cleanup.PSObject.Properties.Remove('durabilityLeaseReleased')
+    Remove-TestCombatBrainLeaseFields $Record
+
+    if ([long]$Record.schemaVersion -lt 20 -and
+        $null -ne $Record.dispatch.PSObject.Properties['actionActorCanActInCombat']) {
+        $Record.dispatch | Add-Member -NotePropertyName riderCanActInCombat -NotePropertyValue $Record.dispatch.actionActorCanActInCombat
+        $Record.dispatch | Add-Member -NotePropertyName riderHandsBusy -NotePropertyValue $Record.dispatch.actionActorHandsBusy
+        $Record.dispatch.PSObject.Properties.Remove('actionActorCanActInCombat')
+        $Record.dispatch.PSObject.Properties.Remove('actionActorHandsBusy')
+        foreach ($name in @(
+            'commandOwnerId','resourceOwnerId','actionStandardCharged','attackWeaponBlueprintId',
+            'attackWeaponIsNatural','attackWeaponIsRanged','attackWeaponSlot')) {
+            $Record.command.PSObject.Properties.Remove($name)
+        }
+    }
+    if ([long]$Record.schemaVersion -lt 21 -and
+        $null -ne $Record.PSObject.Properties['turnBased'] -and
+        $null -ne $Record.turnBased.PSObject.Properties['nativeActionActorTurnStarted']) {
+        $Record.turnBased | Add-Member -NotePropertyName nativeRiderTurnStarted -NotePropertyValue $Record.turnBased.nativeActionActorTurnStarted
+        $Record.turnBased.PSObject.Properties.Remove('expectedTurnActor')
+        $Record.turnBased.PSObject.Properties.Remove('nativeActionActorTurnStarted')
+        $Record.turnBased.PSObject.Properties.Remove('actionActorTurnEndedAfterCommand')
+    }
+}
+
+function Remove-TestCombatBrainLeaseFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $Record.PSObject.Properties.Remove('targetBrainLease')
+    if ($null -ne $Record.cleanup) {
+        $Record.cleanup.PSObject.Properties.Remove('brainLeaseReleased')
+    }
+    Remove-TestCombatActionActorReadinessFields $Record
+}
+
+function Remove-TestCombatActionActorReadinessFields {
+    param([Parameter(Mandatory = $true)]$Record)
+    $sharedTurnRecord = $null -ne $Record.PSObject.Properties['turnBased'] -and
+        $null -ne $Record.turnBased.PSObject.Properties['unifiedMountedTurn']
+    if ($sharedTurnRecord) {
+        $Record.PSObject.Properties.Remove('pairedScheduler')
+        $Record.dispatch.actionActorCanActInCombat = $true
+        $Record.turnBased.expectedTurnActor = 'mount'
+        $Record.turnBased.nativeActionActorTurnStarted = $true
+        $Record.turnBased.currentTurnUnitIdAtDispatch = [string]$Record.mountId
+        $Record.turnBased.currentTurnActingAtDispatch = $true
+        $Record.turnBased.currentTurnUnitIdAtOutcome = [string]$Record.mountId
+        $Record.turnBased.currentTurnActingAtOutcome = $false
+        $Record.turnBased.actionActorTurnEndedAfterCommand = $true
+        foreach ($name in @(
+            'unifiedMountedTurn','expectedTurnPrincipal','expectedActionActor',
+            'nativeTurnPrincipalStarted','actionActorSharedTurnAdmitted')) {
+            $Record.turnBased.PSObject.Properties.Remove($name)
+        }
+        foreach ($name in @(
+            'pairMountedBeforeEnable','pairRetainedAfterEnable','pairRetainedAfterRealtimeRestore',
+            'presentationAfterEnable','presentationAfterRealtimeRestore',
+            'mountAiLeaseReassertionArmedCount','mountAiLeaseReassertionAttemptCount',
+            'mountAiLeaseReassertionMutationCount','mountAiLeaseReassertionSuccessCount',
+            'mountAiLeaseReassertionResult','riderUiLeaseRestoreArmedCount',
+            'riderUiLeaseRestoreAttemptCount','riderUiLeaseRestoreMutationCount',
+            'riderUiLeaseRestoreSuccessCount','riderUiLeaseRestoreResult',
+            'presentationDuringMammothTurn','presentationAfterNativeMammothGroundInput',
+            'nativeMammothTurnStarted','nativeMammothTurnUiObserved',
+            'nativeMammothGroundInputStarted','nativeMammothGroundInputCompleted',
+            'nativeMammothGroundSelectionRetained','nativeMammothGroundUiObservedAfterInput',
+            'nativeMammothGroundCommandFinished','nativeMammothGroundCommandResult',
+            'nativeMammothGroundRawMoveSlotState','nativeMammothGroundInterruptSource',
+            'nativeMammothPhysicalPointerQualification','nativeMammothGroundEnoughCloseAtTerminal',
+            'nativeMammothGroundAgentReallyMovingAtTerminal','nativeMammothGroundAgentWantsToMoveAtTerminal',
+            'mammothNativeGroundDisplacement','mammothNativeGroundRemainingDistance',
+            'mammothNativeMoveBefore','mammothNativeMoveAfter',
+            'riderMoveBeforeMammothNativeGroundInput','riderMoveAfterMammothNativeGroundInput')) {
+            $Record.turnBased.PSObject.Properties.Remove($name)
+        }
+    }
+    $Record.PSObject.Properties.Remove('reach')
+    if ($null -ne $Record.combatEntry) {
+        foreach ($name in @(
+            'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative',
+            'actionActorSharedTurnAdmitted','actionActorActionable')) {
+            $Record.combatEntry.PSObject.Properties.Remove($name)
+        }
+    }
+    if ($null -ne $Record.dispatch) {
+        foreach ($name in @('actionActorSharedTurnAdmitted','actionActorCanDispatch')) {
+            $Record.dispatch.PSObject.Properties.Remove($name)
+        }
+    }
+}
+
+function Remove-TestCombatLegalRangeStopFields {
+    param([Parameter(Mandatory=$true)]$Record)
+    foreach ($name in @(
+        'delegatedMoveStoppedAtLegalRange','delegatedMoveResultBeforeLegalRangeStop',
+        'delegatedMovePairDistanceAtLegalRangeStop')) {
+        $Record.movementToAttack.PSObject.Properties.Remove($name)
+    }
+}
+
 New-Item -ItemType Directory -Path $testRoot | Out-Null
 try {
     $emptyRoot = Join-Path $testRoot 'empty-root'
     New-Item -ItemType Directory -Path $emptyRoot -Force | Out-Null
+    Invoke-HarnessTest 'source validation failure terminates a calling script' {
+        $source = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'Validate-Source.ps1')
+        $tokens=$null; $parseErrors=$null
+        $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$parseErrors)
+        $failure=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.IfStatementAst] -and
+            $node.Clauses[0].Item1.Extent.Text -ceq '$failures.Count -gt 0'},$true))
+        Assert-Test ($parseErrors.Count -eq 0 -and $failure.Count -eq 1) 'source validation failure boundary changed'
+        $probe=Join-Path $testRoot 'source-validation-failure.ps1'
+        [IO.File]::WriteAllText($probe, $failure[0].Extent.Text)
+        $failures=@('intentional mismatch'); $passes=0
+        # Invoke the actual failure branch from a child script, as build/package/
+        # runtime do. A child exit code alone must not let the caller continue.
+        Assert-TestThrows { & $probe } 'source failure returned to its caller instead of terminating'
+    }
+
+    Invoke-HarnessTest 'packaged DLL requires the exact compiled product version' {
+        $source=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'Validate-Package.ps1')
+        $tokens=$null; $parseErrors=$null
+        $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$parseErrors)
+        $check=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.IfStatementAst] -and
+            $node.Clauses[0].Item1.Extent.Text -like '*identity.informationalVersion*'},$true))
+        Assert-Test ($parseErrors.Count -eq 0 -and $check.Count -eq 1) 'compiled package version boundary changed'
+        $validate=[scriptblock]::Create($check[0].Extent.Text)
+        $expectedProductVersion=$currentProductVersion
+        $identity=[pscustomobject]@{informationalVersion='stale-build'}
+        Assert-TestThrows { & $validate } 'package admitted stale compiled identity'
+        $identity.informationalVersion=$null
+        Assert-TestThrows { & $validate } 'package admitted absent compiled identity'
+        $identity.informationalVersion=$currentProductVersion
+        & $validate
+    }
+
     Invoke-HarnessTest 'tree manifest represents an empty root' {
         $emptyManifest = Get-KmcDirectoryManifest $emptyRoot
         Assert-Test ($emptyManifest.fileCount -eq 0 -and $emptyManifest.directoryCount -eq 0 -and $emptyManifest.totalBytes -eq 0) 'empty tree totals are not exact'
@@ -886,6 +1878,21 @@ try {
     }
     Invoke-HarnessTest 'stable no-game-process wait accepts consecutive empty samples' {
         Assert-Test (Wait-KmcStableNoKingmakerProcess -StableSamples 2 -IntervalMilliseconds 1 -TimeoutSeconds 1) 'stable empty process interval was not accepted'
+    }
+    Invoke-HarnessTest 'offline-cloud bootstrap is one-way and never accepts an observed online state' {
+        Assert-Test ((Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage '[AppID 640820] [offlineMode=true]' -HistoricalMessage $null) -ceq 'current-session') 'current offline-cloud evidence was rejected'
+        Assert-Test ((Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage $null -HistoricalMessage '[AppID 640820] [offlineMode=true]' -AllowHistoricalBootstrap) -ceq 'historical-bootstrap-only') 'bounded historical bootstrap evidence was rejected'
+        Assert-TestThrows { Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage $null -HistoricalMessage '[AppID 640820] [offlineMode=true]' } 'normal Steam safety accepted missing current-session cloud evidence'
+        Assert-TestThrows { Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage '[AppID 640820] [offlineMode=false]' -HistoricalMessage '[AppID 640820] [offlineMode=true]' -AllowHistoricalBootstrap } 'bootstrap accepted an observed online cloud state'
+        Assert-TestThrows { Get-KmcOfflineCloudEvidenceDisposition -CurrentSessionMessage $null -HistoricalMessage '[AppID 640820] [offlineMode=false]' -AllowHistoricalBootstrap } 'bootstrap accepted historical online cloud state'
+    }
+    Invoke-HarnessTest 'offline-cloud bootstrap is no-save-only and postflight remains strict' {
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        Assert-Test ($launcherSource.Contains("if(`$BootstrapOfflineCloudEvidence -and `$isSaveBacked)")) 'launcher does not reject bootstrap for every save-backed scenario'
+        Assert-Test ($launcherSource.Contains("throw '-BootstrapOfflineCloudEvidence is restricted to the no-save mod-load-smoke scenario.'")) 'launcher does not expose the exact no-save-only rejection'
+        Assert-Test ($launcherSource.Contains('Assert-KmcSteamSafety $SteamPath -AllowMissingCurrentSessionCloudState:$BootstrapOfflineCloudEvidence')) 'launcher does not scope relaxed preflight evidence to the explicit bootstrap switch'
+        Assert-Test ($launcherSource.Contains('try{if($processExited){[void](Assert-KmcSteamSafety $SteamPath)}}')) 'launcher postflight does not require strict current-session Steam evidence'
+        Assert-Test (@([regex]::Matches($launcherSource, 'Assert-KmcSteamSafety \$SteamPath')).Count -eq 3) 'launcher Steam-safety call surface changed without updating the bootstrap proof'
     }
 
     $manifestRoot = Join-Path $testRoot 'manifest'
@@ -1011,6 +2018,37 @@ try {
         Assert-Test ($recoverySource.Contains("Assert-KmcManifestMatchesState (Get-KmcDirectoryManifest `$recordedReady) `$modsState 'staged'")) 'recovery wrapper does not prove the unactivated staged tree when live Mods is absent'
         Assert-Test (-not $transactionCommonSource.Contains('throw new AggregateException')) 'Mods entry rollback still uses invalid PowerShell throw-new syntax'
         Assert-Test ($transactionCommonSource.Contains('if ($workingFile.LastWriteTimeUtc.Ticks -ne [long]$state.workingLastWriteTimeUtcTicks)')) 'unchanged Working restoration still rewrites an already exact timestamp'
+    }
+
+    Invoke-HarnessTest 'exact Phase 3F fallback and UMM cache restore after transactional replacement' {
+        $installedLive = Join-Path $testRoot 'installed-fallback-game\Mods'
+        New-Item -ItemType Directory -Path $installedLive -Force | Out-Null
+        $fallbackPackage = Join-Path (Get-KmcLabRoot) 'artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip'
+        Assert-Test ((Get-KmcSha256 $fallbackPackage) -ceq '9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698') 'frozen fallback package changed'
+        Expand-Archive -LiteralPath $fallbackPackage -DestinationPath $installedLive
+        $installedRoot = Join-Path $installedLive 'KingmakerMountedCombat'
+        Copy-Item -LiteralPath (Join-Path $installedRoot 'KingmakerMountedCombat.dll') -Destination (Join-Path $installedRoot 'KingmakerMountedCombat.dll.65229.cache')
+        New-Item -ItemType Directory -Path (Join-Path $installedLive 'UnrelatedMod') | Out-Null
+        [IO.File]::WriteAllText((Join-Path $installedLive 'UnrelatedMod\settings.xml'), 'foreign settings stay byte-exact')
+        $installedBefore = Get-KmcDirectoryManifest $installedLive
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'installed-fallback-test'
+        $installedState = $null
+        try {
+            $installedState = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $installedLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging
+            Assert-Test (-not (Test-Path -LiteralPath (Join-Path $installedRoot 'KingmakerMountedCombat.dll.65229.cache'))) 'prior UMM cache entered candidate deployment'
+            Assert-Test ([IO.File]::ReadAllText((Join-Path $installedLive 'UnrelatedMod\settings.xml')) -ceq 'foreign settings stay byte-exact') 'foreign settings changed in candidate clone'
+        }
+        finally {
+            if ($null -ne $installedState) {
+                [void](Restore-KmcModsTransaction -Lock $lock -StatePath $installedState -LiveModsRoot $installedLive -BackupRoot $backup -StagingRoot $staging)
+            }
+            Close-KmcRuntimeLock $lock
+        }
+        Assert-Test ((Get-KmcDirectoryManifest $installedLive).digest -ceq $installedBefore.digest) 'starting installation/cache/foreign settings were not restored exactly'
+        [IO.File]::AppendAllText((Join-Path $installedRoot 'Info.json'), 'changed')
+        $rejected = $false
+        try { [void](Assert-KmcPhase3fStartingInstallation -KmcRoot $installedRoot) } catch { $rejected = $true }
+        Assert-Test $rejected 'modified incumbent was accepted as the exact fallback'
     }
 
     Invoke-HarnessTest 'case-insensitive existing KMC collision is rejected before live mutation' {
@@ -1631,6 +2669,7 @@ try {
             ExpectedProtectedQuickSaveName=$epoch.quickName;ExpectedProtectedQuickSaveSha256=$epoch.quickSha256
         }
         $validated = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments
+        Assert-Test ([int]$validated.schemaVersion -eq 1) 'schema-v1 protected-save authority no longer validates through the compatibility entry point'
         Assert-Test ([string]$validated.sha256 -ceq $authoritySha256) 'protected-save authority validation returned the wrong authority SHA-256'
         $wrongHashArguments = @{}
         foreach ($key in $continuityArguments.Keys) { $wrongHashArguments[$key] = $continuityArguments[$key] }
@@ -1644,6 +2683,229 @@ try {
         $threw = $false
         try { Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments | Out-Null } catch { $threw = $true }
         Assert-Test $threw 'protected-save authority accepted subsequent metadata drift in another protected save'
+    }
+
+    Invoke-HarnessTest 'schema-v2 chained authority WhatIf is pure and preserves immutable schema-v1 history' {
+        $prepared = New-TestPreparedChainedProtectedSaveEpoch 'schema-v2-whatif'
+        $fixture = $prepared.fixture
+        $scriptPath = Join-Path $repoRoot 'scripts\runtime\New-KmcChainedProtectedSaveContinuityAuthority.ps1'
+        $stateBefore = Get-KmcDirectoryManifest $fixture.stateRoot
+        $savesBefore = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $parentBefore = Get-Item -LiteralPath $prepared.parentAuthorityPath -Force
+        $output = @(& $scriptPath `
+            -SaveRoot $fixture.saveRoot -StateRoot $fixture.stateRoot -EpochId $prepared.epochId `
+            -ExpectedCurrentQualificationSha256 $prepared.parentEpoch.qualificationSha256 `
+            -ExpectedBaselineSha256 $fixture.baselineSha256 `
+            -ExpectedSupersededWorkingSha256 $fixture.supersededWorkingSha256 `
+            -ExpectedRevisedWorkingSha256 $fixture.revisedWorkingSha256 `
+            -PriorSaveTransactionStatePath $fixture.priorSaveTransactionStatePath `
+            -ExpectedPriorSaveTransactionRunId $fixture.priorSaveTransactionRunId `
+            -ExpectedPriorSaveTransactionStateSha256 $fixture.priorSaveTransactionStateSha256 `
+            -ExpectedPriorSaveMetadataDigest $fixture.priorSaveMetadataDigest `
+            -ParentAuthorityPath $prepared.parentAuthorityPath `
+            -ExpectedParentAuthorityEpochId $prepared.parentEpoch.epochId `
+            -ExpectedParentAuthoritySha256 $prepared.parentAuthoritySha256 `
+            -AuthorizedTransitionsJson $prepared.transitionsJson -WhatIf 6>&1)
+        Assert-Test (($output -join "`n") -like '*Schema-v2 protected-save continuity authority WhatIf PASS*') 'schema-v2 authority WhatIf did not report PASS'
+        Assert-KmcSaveMetadataInventoriesEqual -Before $savesBefore -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -Description 'schema-v2 authority WhatIf saves'
+        Assert-Test ((Get-KmcDirectoryManifest $fixture.stateRoot).digest -ceq $stateBefore.digest) 'schema-v2 authority WhatIf changed runtime state'
+        Assert-Test (-not (Test-Path -LiteralPath (Join-Path (Join-Path $fixture.stateRoot 'protected-save-authorities') ($prepared.epochId + '.json')))) 'schema-v2 authority WhatIf created its epoch'
+        $parentAfter = Get-Item -LiteralPath $prepared.parentAuthorityPath -Force
+        Assert-Test ((Get-KmcSha256 $prepared.parentAuthorityPath) -ceq $prepared.parentAuthoritySha256 -and
+            $parentAfter.Length -eq $parentBefore.Length -and
+            $parentAfter.LastWriteTimeUtc.Ticks -eq $parentBefore.LastWriteTimeUtc.Ticks) 'schema-v2 authority WhatIf changed the immutable schema-v1 parent'
+    }
+
+    Invoke-HarnessTest 'schema-v2 chain preserves history, replaces exact pins, and agrees before and under lock' {
+        $epoch = New-TestCommittedChainedProtectedSaveEpoch 'schema-v2-commit'
+        $fixture = $epoch.fixture
+        $continuityArguments = @{
+            SaveRoot=$fixture.saveRoot;StateRoot=$fixture.stateRoot;QualificationPath=$fixture.qualificationPath
+            ExpectedCurrentQualificationSha256=$epoch.parentEpoch.qualificationSha256
+            ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256
+            PriorSaveTransactionStatePath=$fixture.priorSaveTransactionStatePath
+            ExpectedPriorSaveTransactionRunId=$fixture.priorSaveTransactionRunId
+            ExpectedPriorSaveTransactionStateSha256=$fixture.priorSaveTransactionStateSha256
+            ExpectedPriorSaveMetadataDigest=$fixture.priorSaveMetadataDigest
+            ProtectedSaveContinuityAuthorityPath=$epoch.authorityPath
+            ExpectedProtectedSaveContinuityEpochId=$epoch.epochId
+            ExpectedProtectedSaveContinuityAuthoritySha256=$epoch.authoritySha256
+            ExpectedProtectedSavePinSetSha256=$epoch.protectedSavePinSetSha256
+        }
+        $preflight = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments
+        Assert-Test ([int]$preflight.schemaVersion -eq 2) 'schema-v2 compatibility entry point returned the wrong schema'
+        $runtimeShapeArguments = @{}
+        foreach ($key in $continuityArguments.Keys) { $runtimeShapeArguments[$key] = $continuityArguments[$key] }
+        $runtimeShapeArguments.ExpectedProtectedAutoSaveName = ''
+        $runtimeShapeArguments.ExpectedProtectedAutoSaveSha256 = ''
+        $runtimeShapeArguments.ExpectedProtectedQuickSaveName = ''
+        $runtimeShapeArguments.ExpectedProtectedQuickSaveSha256 = ''
+        $runtimeShape = Assert-KmcQualifiedWorkingProtectedSaveContinuity @runtimeShapeArguments
+        Assert-Test ([int]$runtimeShape.schemaVersion -eq 2 -and
+            [string]$runtimeShape.protectedSavePinSetSha256 -ceq $epoch.protectedSavePinSetSha256) 'schema-v2 compatibility entry point rejected the runtime launcher explicit-empty legacy parameter shape'
+        $record = $preflight.record
+        Assert-Test ([string]$record.parentAuthority.path -ceq [IO.Path]::GetFullPath($epoch.parentAuthorityPath)) 'schema-v2 parent path is not exact'
+        Assert-Test ([string]$record.parentAuthority.epochId -ceq $epoch.parentEpoch.epochId) 'schema-v2 parent epoch is not exact'
+        Assert-Test ([string]$record.parentAuthority.sha256 -ceq $epoch.parentAuthoritySha256) 'schema-v2 parent hash is not exact'
+        Assert-Test (@($record.authorizedProtectedTransitions).Count -eq 2) 'schema-v2 authority does not contain exactly two authorized transitions'
+        $metadataOnly = @($record.authorizedProtectedTransitions | Where-Object { [string]$_.currentPath -ceq 'Quick_3.zks' })
+        $known = @($record.authorizedProtectedTransitions | Where-Object { [string]$_.currentPath -ceq $epoch.parentEpoch.quickName })
+        Assert-Test ($metadataOnly.Count -eq 1 -and $null -eq $metadataOnly[0].priorSha256 -and
+            [string]$metadataOnly[0].priorHashStatus -ceq 'UNAVAILABLE-SCHEMA-V1-METADATA-ONLY' -and
+            [long]$metadataOnly[0].priorLength -eq [long]$epoch.transitions[1].priorLength -and
+            [long]$metadataOnly[0].priorLastWriteTimeUtcTicks -eq [long]$epoch.transitions[1].priorLastWriteTimeUtcTicks) 'schema-v2 metadata-only prior evidence is not exact'
+        Assert-Test ($known.Count -eq 1 -and [string]$known[0].priorSha256 -ceq $epoch.parentEpoch.quickSha256 -and
+            [string]$known[0].currentSha256 -ceq [string]$epoch.transitions[0].currentSha256) 'schema-v2 known prior/current replacement hashes are not exact'
+        $parentRecord = Read-KmcJson $epoch.parentAuthorityPath
+        $superseded = @($parentRecord.authorizedProtectedTransitions | Where-Object { [string]$_.fileName -ceq $epoch.parentEpoch.quickName })
+        Assert-Test ($superseded.Count -eq 1 -and [string]$superseded[0].currentSha256 -ceq $epoch.parentEpoch.quickSha256) 'schema-v2 chain did not preserve the superseded protected pin in immutable history'
+        Assert-Test (@($record.writableSaveNames).Count -eq 1 -and [string]@($record.writableSaveNames)[0] -ceq 'KMC_AUTOMATION_WORKING') 'schema-v2 authority grants more than Working-only write authority'
+        Assert-Test (@($record.currentProtectedSavePins | Where-Object { [string]$_.path -in @('Quick_3.zks',$epoch.parentEpoch.quickName) }).Count -eq 2) 'schema-v2 quicksaves are not retained as protected content pins'
+
+        $lock = Open-KmcRuntimeLock -StateRoot $fixture.stateRoot -RunId 'schema-v2-under-lock'
+        try { $underLock = Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments }
+        finally { Close-KmcRuntimeLock $lock }
+        Assert-Test (($preflight.record | ConvertTo-Json -Depth 30 -Compress) -ceq ($underLock.record | ConvertTo-Json -Depth 30 -Compress)) 'schema-v2 preflight and under-lock validation disagree'
+
+        $quickBytes = [IO.File]::ReadAllBytes($epoch.metadataOnlyPath)
+        $quickTicks = (Get-Item -LiteralPath $epoch.metadataOnlyPath -Force).LastWriteTimeUtc
+        $before = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        [IO.File]::AppendAllText($epoch.metadataOnlyPath, '-forbidden-protected-write')
+        $threw = $false
+        try { Assert-KmcSaveWriteAllowlist -Before $before -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -WorkingPath $fixture.workingPath | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'schema-v2 protected quicksave was treated as writable'
+        [IO.File]::WriteAllBytes($epoch.metadataOnlyPath, $quickBytes)
+        [IO.File]::SetLastWriteTimeUtc($epoch.metadataOnlyPath, $quickTicks)
+
+        $workingBytes = [IO.File]::ReadAllBytes($fixture.workingPath)
+        $workingTicks = (Get-Item -LiteralPath $fixture.workingPath -Force).LastWriteTimeUtc
+        $before = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        [IO.File]::AppendAllText($fixture.workingPath, '-authorized-working-only-write')
+        $allowlist = Assert-KmcSaveWriteAllowlist -Before $before -After (Get-KmcSaveMetadataInventory $fixture.saveRoot) -WorkingPath $fixture.workingPath
+        Assert-Test ([bool]$allowlist.workingChanged -and @($allowlist.changedPaths).Count -eq 1) 'Working-only write authorization rejected exact Working mutation'
+        [IO.File]::WriteAllBytes($fixture.workingPath, $workingBytes)
+        [IO.File]::SetLastWriteTimeUtc($fixture.workingPath, $workingTicks)
+        [void](Assert-KmcQualifiedWorkingProtectedSaveContinuity @continuityArguments)
+        $parentAfter = Get-Item -LiteralPath $epoch.parentAuthorityPath -Force
+        Assert-Test ((Get-KmcSha256 $epoch.parentAuthorityPath) -ceq $epoch.parentAuthoritySha256 -and
+            $parentAfter.Length -eq $epoch.parentAuthorityLength -and
+            $parentAfter.LastWriteTimeUtc.Ticks -eq $epoch.parentAuthorityTicks) 'schema-v2 creation or validation mutated historical authority'
+    }
+
+    Invoke-HarnessTest 'schema-v2 rejects incomplete, false, renamed, replaced, linked, or extra transition evidence' {
+        $prepared = New-TestPreparedChainedProtectedSaveEpoch 'schema-v2-rejections'
+        $fixture = $prepared.fixture
+        $pair = Assert-KmcFixturePair -SaveRoot $fixture.saveRoot -QualificationPath $fixture.qualificationPath
+        $parentArguments = @{
+            Path=$prepared.parentAuthorityPath;StateRoot=$fixture.stateRoot;SaveRoot=$fixture.saveRoot
+            QualificationPath=$fixture.qualificationPath;ExpectedEpochId=$prepared.parentEpoch.epochId
+            ExpectedAuthoritySha256=$prepared.parentAuthoritySha256
+            ExpectedCurrentQualificationSha256=$prepared.parentEpoch.qualificationSha256
+            ExpectedPriorSaveTransactionStatePath=$fixture.priorSaveTransactionStatePath
+            ExpectedPriorSaveTransactionRunId=$fixture.priorSaveTransactionRunId
+            ExpectedPriorSaveTransactionStateSha256=$fixture.priorSaveTransactionStateSha256
+            ExpectedPriorSaveMetadataDigest=$fixture.priorSaveMetadataDigest
+            ExpectedSupersededWorkingSha256=$fixture.supersededWorkingSha256;CurrentPair=$pair
+        }
+        $parent = Read-KmcHistoricalProtectedSaveContinuityAuthorityV1 @parentArguments
+        $inventory = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $recordArguments = @{
+            CurrentPair=$pair;ParentAuthority=$parent;CurrentInventory=$inventory;SaveRoot=$fixture.saveRoot
+            QualificationPath=$fixture.qualificationPath;CurrentQualificationSha256=$prepared.parentEpoch.qualificationSha256
+            EpochId=$prepared.epochId;AuthorizedAtUtc='2026-08-15T00:00:00.0000000+00:00'
+        }
+        $goodTransitions = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json $prepared.transitionsJson)
+        $goodRecord = New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $goodTransitions
+        [void](Assert-KmcChainedProtectedSaveContinuityLiveState -Record $goodRecord -SaveRoot $fixture.saveRoot -LiveInventory $inventory)
+        $assertRejected = {
+            param([scriptblock]$Action,[string]$Message)
+            $rejected = $false
+            try { & $Action | Out-Null } catch { $rejected = $true }
+            Assert-Test $rejected $Message
+        }
+        $copySpecs = { return @((ConvertTo-Json -InputObject @($prepared.transitions) -Depth 10 -Compress) | ConvertFrom-Json) }
+
+        $specs = & $copySpecs
+        $knownIndex = if ([string]$specs[0].priorHashStatus -ceq 'AVAILABLE-PARENT-CONTENT-PIN') { 0 } else { 1 }
+        $specs[$knownIndex].priorSha256 = $null
+        $specs[$knownIndex].priorHashStatus = 'UNAVAILABLE-SCHEMA-V1-METADATA-ONLY'
+        & $assertRejected { ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress) } 'schema-v2 accepted metadata-only prior status where the parent has a known hash'
+
+        $wrongParent = @{}
+        foreach ($key in $parentArguments.Keys) { $wrongParent[$key] = $parentArguments[$key] }
+        $wrongParent.ExpectedAuthoritySha256 = '0' * 64
+        & $assertRejected { Read-KmcHistoricalProtectedSaveContinuityAuthorityV1 @wrongParent } 'schema-v2 accepted metadata-only evidence without the exact parent authority hash'
+
+        foreach ($field in @('priorLength','priorLastWriteTimeUtcTicks')) {
+            $specs = & $copySpecs
+            $metadataIndex = if ([string]$specs[0].priorPath -ceq 'Quick_3.zks') { 0 } else { 1 }
+            $specs[$metadataIndex].$field = [long]$specs[$metadataIndex].$field + 1
+            $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+            & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } "schema-v2 accepted mismatched metadata-only prior $field"
+        }
+        $specs = & $copySpecs
+        $specs[0].currentSha256 = $null
+        & $assertRejected { ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress) } 'schema-v2 accepted a null current hash'
+
+        $specs = & $copySpecs
+        $knownIndex = if ([string]$specs[0].priorHashStatus -ceq 'AVAILABLE-PARENT-CONTENT-PIN') { 0 } else { 1 }
+        $specs[$knownIndex].priorSha256 = '0' * 64
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } 'schema-v2 accepted an incorrect known prior hash'
+
+        $specs = & $copySpecs
+        $specs[0].currentLength = [long]$specs[0].currentLength + 1
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } 'schema-v2 accepted a current length mismatch'
+        $specs = & $copySpecs
+        $specs[0].currentLastWriteTimeUtcTicks = [long]$specs[0].currentLastWriteTimeUtcTicks + 1
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed } 'schema-v2 accepted a current timestamp mismatch'
+        $specs = & $copySpecs
+        $specs[0].currentPath = 'Quick_2.zks'
+        & $assertRejected { ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress) } 'schema-v2 accepted a renamed current path'
+
+        $specs = & $copySpecs
+        $specs[0].currentSha256 = '0' * 64
+        $parsed = @(ConvertFrom-KmcProtectedSaveTransitionSpecificationsJson -Json (ConvertTo-Json -InputObject @($specs) -Depth 10 -Compress))
+        $wrongHashRecord = New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions $parsed
+        & $assertRejected { Assert-KmcChainedProtectedSaveContinuityLiveState -Record $wrongHashRecord -SaveRoot $fixture.saveRoot -LiveInventory $inventory } 'schema-v2 accepted a current content-hash mismatch'
+
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @recordArguments -Transitions @($goodTransitions[0]) } 'schema-v2 accepted omission of one authorized transition'
+
+        $knownBytes = [IO.File]::ReadAllBytes($prepared.knownPath)
+        $knownTicks = (Get-Item -LiteralPath $prepared.knownPath -Force).LastWriteTimeUtc
+        $replacement = [byte[]]$knownBytes.Clone()
+        $replacement[0] = $replacement[0] -bxor 1
+        [IO.File]::WriteAllBytes($prepared.knownPath, $replacement)
+        [IO.File]::SetLastWriteTimeUtc($prepared.knownPath, $knownTicks)
+        & $assertRejected { Assert-KmcChainedProtectedSaveContinuityLiveState -Record $goodRecord -SaveRoot $fixture.saveRoot -LiveInventory (Get-KmcSaveMetadataInventory $fixture.saveRoot) } 'schema-v2 accepted same-metadata byte replacement'
+        [IO.File]::WriteAllBytes($prepared.knownPath, $knownBytes)
+        [IO.File]::SetLastWriteTimeUtc($prepared.knownPath, $knownTicks)
+
+        $linkBytes = [IO.File]::ReadAllBytes($prepared.metadataOnlyPath)
+        $linkTicks = (Get-Item -LiteralPath $prepared.metadataOnlyPath -Force).LastWriteTimeUtc
+        $linkTarget = Join-Path $fixture.root 'schema-v2-hardlink-target.bin'
+        [IO.File]::WriteAllBytes($linkTarget, $linkBytes)
+        [IO.File]::SetLastWriteTimeUtc($linkTarget, $linkTicks)
+        [IO.File]::Delete($prepared.metadataOnlyPath)
+        New-Item -ItemType HardLink -Path $prepared.metadataOnlyPath -Target $linkTarget | Out-Null
+        & $assertRejected { Assert-KmcChainedProtectedSaveContinuityLiveState -Record $goodRecord -SaveRoot $fixture.saveRoot -LiveInventory (Get-KmcSaveMetadataInventory $fixture.saveRoot) } 'schema-v2 accepted hard-link substitution'
+        [IO.File]::Delete($prepared.metadataOnlyPath)
+        [IO.File]::Delete($linkTarget)
+        [IO.File]::WriteAllBytes($prepared.metadataOnlyPath, $linkBytes)
+        [IO.File]::SetLastWriteTimeUtc($prepared.metadataOnlyPath, $linkTicks)
+
+        [IO.File]::AppendAllText((Join-Path $fixture.saveRoot 'Manual_3_PERSONAL.zks'), '-unlisted-third-transition')
+        $driftInventory = Get-KmcSaveMetadataInventory $fixture.saveRoot
+        $driftArguments = @{}
+        foreach ($key in $recordArguments.Keys) { $driftArguments[$key] = $recordArguments[$key] }
+        $driftArguments.CurrentInventory = $driftInventory
+        & $assertRejected { New-KmcChainedProtectedSaveContinuityAuthorityRecord @driftArguments -Transitions $goodTransitions } 'schema-v2 accepted an unlisted third changed path'
+        $parentAfter = Get-Item -LiteralPath $prepared.parentAuthorityPath -Force
+        Assert-Test ((Get-KmcSha256 $prepared.parentAuthorityPath) -ceq $prepared.parentAuthoritySha256 -and
+            $parentAfter.Length -eq $prepared.parentAuthorityLength -and
+            $parentAfter.LastWriteTimeUtc.Ticks -eq $prepared.parentAuthorityTicks) 'schema-v2 rejection tests mutated historical authority'
     }
 
     Invoke-HarnessTest 'Working requalification rejects every incorrect explicit pin' {
@@ -3077,6 +4339,135 @@ try {
         finally { Close-KmcRuntimeLock $lock }
     }
 
+    Invoke-HarnessTest 'qualification-suite inventory admits stable between-suite drift and freezes exact in-suite state' {
+        $root=Join-Path $testRoot 'suite-inventory'
+        $saves=Join-Path $root 'saves';$mods=Join-Path $root 'mods'
+        New-Item -ItemType Directory -Path $saves,$mods|Out-Null
+        [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-one')
+        $bagOfTricks=Join-Path $mods 'BagOfTricks'
+        New-Item -ItemType Directory -Path $bagOfTricks|Out-Null
+        [IO.File]::WriteAllText((Join-Path $bagOfTricks 'Settings.xml'),'first')
+        [IO.Directory]::SetLastWriteTimeUtc($bagOfTricks,[datetime]'2026-01-01T00:00:00Z')
+        Start-Sleep -Milliseconds 1000
+        $suiteOneSave=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
+        $suiteOneMods=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
+        [void](Assert-KmcQualificationTreeInventorySchema -Inventory $suiteOneSave -ExpectedScope save-root -ExpectedRoot $saves -Description 'suite-one saves')
+        [void](Assert-KmcQualificationTreeInventorySchema -Inventory $suiteOneMods -ExpectedScope mods-root -ExpectedRoot $mods -Description 'suite-one Mods')
+        Start-Sleep -Milliseconds 1000
+        $suiteOneSaveSecond=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
+        $suiteOneModsSecond=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual $suiteOneSaveSecond -Description 'stable double-scan saves')
+        try { [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual $suiteOneModsSecond -Description 'stable double-scan Mods') }
+        catch {
+            $changed=@(Get-KmcQualificationInventoryDifferences -Before $suiteOneMods -After $suiteOneModsSecond)
+            throw "stable double-scan Mods changed at: $($changed -join ', ')."
+        }
+        [IO.File]::WriteAllText((Join-Path $saves 'Foreign.zks'),'foreign-two')
+        [IO.File]::WriteAllText((Join-Path $bagOfTricks 'Settings.xml'),'second')
+        [IO.Directory]::SetLastWriteTimeUtc($bagOfTricks,[datetime]'2026-01-01T00:00:01Z')
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'in-suite saves' } 'in-suite foreign save drift was accepted'
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteOneMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'in-suite Mods' } 'in-suite foreign Mods drift was accepted'
+        Start-Sleep -Milliseconds 1000
+        $suiteTwoSave=Get-KmcQualificationTreeInventory -Root $saves -Scope save-root
+        $suiteTwoMods=Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root
+        Start-Sleep -Milliseconds 1000
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteTwoSave -Actual (Get-KmcQualificationTreeInventory -Root $saves -Scope save-root) -Description 'new stable suite saves')
+        [void](Assert-KmcQualificationTreeInventoriesEqual -Expected $suiteTwoMods -Actual (Get-KmcQualificationTreeInventory -Root $mods -Scope mods-root) -Description 'new stable suite Mods')
+        Assert-Test ([string]$suiteOneSave.digest-cne[string]$suiteTwoSave.digest -and [string]$suiteOneMods.digest-cne[string]$suiteTwoMods.digest) 'between-suite drift did not produce a new exact admission identity'
+    }
+
+    Invoke-HarnessTest 'suite admission double-scans before append-only commit and WhatIf remains read-only' {
+        $source=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\New-KmcQualificationSuiteSnapshot.ps1')
+        $saveFirst=$source.IndexOf('$saveFirst=Get-KmcQualificationTreeInventory',[StringComparison]::Ordinal)
+        $sleep=$source.IndexOf('Start-Sleep -Milliseconds $StabilityIntervalMilliseconds',[StringComparison]::Ordinal)
+        $saveSecond=$source.IndexOf('$saveSecond=Get-KmcQualificationTreeInventory',[StringComparison]::Ordinal)
+        $equality=$source.IndexOf("-Description 'qualification-suite double-scan save inventory'",[StringComparison]::Ordinal)
+        $shouldProcess=$source.IndexOf('$PSCmdlet.ShouldProcess($snapshotPath',[StringComparison]::Ordinal)
+        $write=$source.IndexOf('Write-KmcJsonCreateNewDurable -Path $snapshotPath',[StringComparison]::Ordinal)
+        Assert-Test ($source.Contains('$requestedWhatIf=[bool]$WhatIfPreference') -and $source.Contains('$WhatIfPreference=$false') -and
+            $saveFirst-ge0-and$sleep-gt$saveFirst-and$saveSecond-gt$sleep-and$equality-gt$saveSecond-and$shouldProcess-gt$equality-and$write-gt$shouldProcess) 'suite admission does not double-scan and validate before ShouldProcess and append-only write'
+        Assert-Test ($source.Contains("foreignSavesWritable=`$false") -and $source.Contains("foreignModsWritable=`$false") -and
+            $source.Contains("writableSaveNames=@('KMC_AUTOMATION_WORKING')")) 'suite snapshot grants foreign write authority'
+    }
+
+    Invoke-HarnessTest 'qualification-suite inventory rejects add remove rename replacement metadata and links' {
+        $root=Join-Path $testRoot 'suite-drift-kinds';New-Item -ItemType Directory -Path $root|Out-Null
+        $file=Join-Path $root 'Foreign.zks';[IO.File]::WriteAllText($file,'abcd')
+        $original=Get-KmcQualificationTreeInventory -Root $root -Scope save-root
+        [IO.File]::WriteAllText((Join-Path $root 'Added.zks'),'x')
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'added path' } 'added path passed'
+        Remove-Item -LiteralPath (Join-Path $root 'Added.zks')
+        Move-Item -LiteralPath $file -Destination (Join-Path $root 'Renamed.zks')
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'rename' } 'rename passed'
+        Move-Item -LiteralPath (Join-Path $root 'Renamed.zks') -Destination $file
+        $ticks=(Get-Item $file).LastWriteTimeUtc.Ticks;[IO.File]::WriteAllText($file,'wxyz');(Get-Item $file).LastWriteTimeUtc=[DateTime]::new($ticks,[DateTimeKind]::Utc)
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'same length and timestamp replacement' } 'same-length hash replacement passed'
+        [IO.File]::WriteAllText($file,'abcd');(Get-Item $file).LastWriteTimeUtc=[DateTime]::new($ticks+10000000,[DateTimeKind]::Utc)
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'timestamp drift' } 'timestamp drift passed'
+        Remove-Item -LiteralPath $file
+        Assert-TestThrows { Assert-KmcQualificationTreeInventoriesEqual $original (Get-KmcQualificationTreeInventory $root save-root) 'removed path' } 'removed path passed'
+        [IO.File]::WriteAllText($file,'abcd')
+        $hard=Join-Path $root 'Hard.zks';New-Item -ItemType HardLink -Path $hard -Target $file|Out-Null
+        Assert-TestThrows { Get-KmcQualificationTreeInventory -Root $root -Scope save-root } 'hard link passed suite inventory'
+    }
+
+    Invoke-HarnessTest 'A/B identity cannot cross qualification-suite snapshots' {
+        [void](Assert-KmcSameQualificationSuiteIdentity -First ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}) -Second ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}))
+        Assert-TestThrows { Assert-KmcSameQualificationSuiteIdentity -First ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}) -Second ([pscustomobject]@{suiteId='suite-b';snapshotSha256=('a'*64)}) } 'A/B suite-ID mismatch passed'
+        Assert-TestThrows { Assert-KmcSameQualificationSuiteIdentity -First ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('a'*64)}) -Second ([pscustomobject]@{suiteId='suite-a';snapshotSha256=('b'*64)}) } 'A/B snapshot-hash mismatch passed'
+        Assert-Test ((Get-KmcQualificationSuiteDriftDisposition -ExternalStateExact $false -PermanentFixtureExact $true -TransactionActive $false -PriorProcessRestorationProven $true)-ceq'close-suite-and-restart-fresh-ab') 'between-run drift does not force an automatic fresh-suite A/B restart'
+        Assert-Test ((Get-KmcQualificationSuiteDriftDisposition -ExternalStateExact $false -PermanentFixtureExact $true -TransactionActive $true -PriorProcessRestorationProven $false)-ceq'stop-unproven-active-transaction-drift') 'active-transaction drift was treated as ordinary between-suite activity'
+        Assert-Test ((Get-KmcQualificationSuiteDriftDisposition -ExternalStateExact $true -PermanentFixtureExact $false -TransactionActive $false -PriorProcessRestorationProven $true)-ceq'stop-kmc-fixture-drift') 'KMC fixture drift was admitted by suite restart'
+    }
+
+
+    Invoke-HarnessTest 'qualification-suite historical authority hashes are immutable' {
+        $state=Join-Path $testRoot 'suite-history-state';$authorityRoot=Join-Path $state 'protected-save-authorities';New-Item -ItemType Directory -Path $authorityRoot -Force|Out-Null
+        $one=Join-Path $authorityRoot 'one.json';$two=Join-Path $authorityRoot 'two.json';[IO.File]::WriteAllText($one,'one');[IO.File]::WriteAllText($two,'two')
+        $history=[pscustomobject]@{protectedSaveAuthorities=@([pscustomobject]@{classification='historical-suite-authority';path=$one;sha256=Get-KmcSha256 $one;epochId='one';schemaVersion=1},[pscustomobject]@{classification='historical-transition-authority';path=$two;sha256=Get-KmcSha256 $two;epochId='two';schemaVersion=2});modsAuthorities=@([pscustomobject]@{classification='historical-suite-authority';digest=('a'*64);description='immutable historical Mods digest'})}
+        [void](Assert-KmcQualificationSuiteHistoricalAuthorities -History $history -StateRoot $state)
+        [IO.File]::WriteAllText($one,'eno')
+        Assert-TestThrows { Assert-KmcQualificationSuiteHistoricalAuthorities -History $history -StateRoot $state } 'modified historical authority passed its immutable hash'
+    }
+
+    Invoke-HarnessTest 'combined transaction durably binds one qualification-suite snapshot' {
+        $root=Join-Path $testRoot 'suite-transaction-binding';$state=Join-Path $root 'state';$mods=Join-Path $root 'mods';$saves=Join-Path $root 'saves'
+        New-Item -ItemType Directory -Path $state,$mods,$saves|Out-Null
+        $lock=Open-KmcRuntimeLock -StateRoot $state -RunId suite-bound-transaction
+        try{
+            $path=New-KmcRunTransactionState -Lock $lock -Mode save-backed-v3-suite -LiveModsRoot $mods -SaveRoot $saves -StateRoot $state -ModsBefore (Get-KmcDirectoryManifest $mods) -SavesBefore (Get-KmcSaveMetadataInventory $saves) -QualificationSuiteSnapshotPath (Join-Path $state 'qualification-suite-snapshots\suite-a.json') -QualificationSuiteId suite-a -QualificationSuiteSnapshotSha256 ('a'*64)
+            $record=Read-KmcRunTransactionState -StatePath $path -Lock $lock
+            Assert-Test ([long]$record.schemaVersion-eq2 -and [string]$record.mode-ceq'save-backed-v3-suite' -and [string]$record.qualificationSuiteId-ceq'suite-a' -and [string]$record.qualificationSuiteSnapshotSha256-ceq('a'*64)) 'combined transaction lost suite binding'
+        }finally{Close-KmcRuntimeLock $lock}
+        $legacyLock=Open-KmcRuntimeLock -StateRoot $state -RunId historical-schema-one
+        try{
+            $legacyPath=New-KmcRunTransactionState -Lock $legacyLock -Mode save-backed-v2 -LiveModsRoot $mods -SaveRoot $saves -StateRoot $state -ModsBefore (Get-KmcDirectoryManifest $mods) -SavesBefore (Get-KmcSaveMetadataInventory $saves)
+            Assert-Test ([long](Read-KmcRunTransactionState -StatePath $legacyPath -Lock $legacyLock).schemaVersion-eq1) 'historical combined transaction schema was rewritten'
+        }finally{Close-KmcRuntimeLock $legacyLock}
+        $incompleteLock=Open-KmcRuntimeLock -StateRoot $state -RunId incomplete-suite-binding
+        try{Assert-TestThrows { New-KmcRunTransactionState -Lock $incompleteLock -Mode save-backed-v3-suite -LiveModsRoot $mods -SaveRoot $saves -StateRoot $state -ModsBefore (Get-KmcDirectoryManifest $mods) -SavesBefore (Get-KmcSaveMetadataInventory $saves) -QualificationSuiteId suite-a } 'incomplete suite binding was accepted'}finally{Close-KmcRuntimeLock $incompleteLock}
+    }
+
+    Invoke-HarnessTest 'qualified Working recovery is exact KMC-only and WhatIf-pure' {
+        $root=Join-Path $testRoot 'qualified-working-recovery';$saves=Join-Path $root 'saves';$state=Join-Path $root 'state';$backup=Join-Path $root 'backups';$staging=Join-Path $root 'staging'
+        New-Item -ItemType Directory -Path $saves,$state,$backup,$staging|Out-Null
+        $baselinePath=Join-Path $saves 'Manual_1_KMC_AUTOMATION_BASELINE.zks';$workingPath=Join-Path $saves 'Manual_2_KMC_AUTOMATION_WORKING.zks';$foreignPath=Join-Path $saves 'Manual_3_KBP_AUTOMATION_WORKING.zks'
+        New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE';New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING';[IO.File]::WriteAllText($foreignPath,'foreign-owned')
+        $qualificationPath=Join-Path $state 'fixture-qualification.json';$pair=Assert-KmcFixturePair -SaveRoot $saves -QualificationPath $qualificationPath -InitializeQualification
+        $lock=Open-KmcRuntimeLock -StateRoot $state -RunId 'qualified-backup-source'
+        try{$saveState=Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $pair -SaveRoot $saves -StateRoot $state -BackupRoot $backup -StagingRoot $staging -Scenario fixture-intake;[void](Restore-KmcWorkingSaveTransaction -Lock $lock -StatePath $saveState -SaveRoot $saves -BackupRoot $backup -StagingRoot $staging)}finally{Close-KmcRuntimeLock $lock}
+        $authority=[pscustomobject]@{baseline=$pair.baseline;working=$pair.working}
+        New-TestSaveArchive -Path $workingPath -Name 'KMC_AUTOMATION_WORKING' -ExtraEntry
+        $driftHash=Get-KmcSha256 $workingPath;$foreignHash=Get-KmcSha256 $foreignPath
+        $whatIf=Invoke-KmcQualifiedWorkingFixtureRecovery -RunId recovery-whatif -SaveRoot $saves -StateRoot $state -BackupRoot $backup -QualificationPath $qualificationPath -HistoricalAuthority $authority -WhatIf
+        Assert-Test ([string]$whatIf.status-ceq'what-if' -and (Get-KmcSha256 $workingPath)-ceq$driftHash -and (Get-KmcSha256 $foreignPath)-ceq$foreignHash -and -not(Test-Path (Join-Path $state 'fixture-recoveries'))) 'fixture-recovery WhatIf mutated state'
+        $result=Invoke-KmcQualifiedWorkingFixtureRecovery -RunId recovery-commit -SaveRoot $saves -StateRoot $state -BackupRoot $backup -QualificationPath $qualificationPath -HistoricalAuthority $authority -Confirm:$false
+        $recovered=Assert-KmcFixturePair -SaveRoot $saves -QualificationPath $qualificationPath
+        Assert-Test ([string]$result.status-ceq'recovered' -and [string]$recovered.working.sha256-ceq[string]$pair.working.sha256 -and (Get-KmcSha256 $foreignPath)-ceq$foreignHash -and (Test-Path -LiteralPath $result.quarantinePath)) 'qualified recovery did not restore only exact Working'
+        New-TestSaveArchive -Path $baselinePath -Name 'KMC_AUTOMATION_BASELINE' -ExtraEntry
+        Assert-TestThrows { Invoke-KmcQualifiedWorkingFixtureRecovery -RunId baseline-must-stop -SaveRoot $saves -StateRoot $state -BackupRoot $backup -QualificationPath $qualificationPath -HistoricalAuthority $authority -Confirm:$false } 'changed Baseline was automatically repaired without a qualified Baseline backup contract'
+    }
+
     Invoke-HarnessTest 'schema-v2 fixture payload exposes no save path and Working-only authorization' {
         $payloadRoot = Join-Path $testRoot 'payload-saves'
         New-Item -ItemType Directory -Path $payloadRoot | Out-Null
@@ -3088,6 +4479,120 @@ try {
         Assert-Test ([string]$payload.writeAuthorization.mode -ceq 'working-only' -and [string]$payload.writeAuthorization.allowedInternalName -ceq 'KMC_AUTOMATION_WORKING' -and $payload.writeAuthorization.baselineImmutable) 'fixture payload write authorization differs'
     }
 
+    Invoke-HarnessTest 'manual review fixture payload is path-free and read-only' {
+        $payloadRoot = Join-Path $testRoot 'manual-review-payload-saves'
+        New-Item -ItemType Directory -Path $payloadRoot | Out-Null
+        New-TestSaveArchive -Path (Join-Path $payloadRoot 'Manual_1_KMC_AUTOMATION_BASELINE.zks') -Name 'KMC_AUTOMATION_BASELINE'
+        New-TestSaveArchive -Path (Join-Path $payloadRoot 'Manual_2_KMC_AUTOMATION_WORKING.zks') -Name 'KMC_AUTOMATION_WORKING'
+        $payload = New-KmcRuntimeFixturePayload (Get-KmcValidatedFixturePair $payloadRoot) -ReadOnly
+        Assert-Test (@($payload.Keys).Count -eq 3) 'read-only fixture payload property count differs'
+        Assert-Test (@($payload.baseline.Keys + $payload.working.Keys | Where-Object { $_ -in @('path','kind','schemaVersion') }).Count -eq 0) 'read-only fixture payload disclosed a host path or guard-only field'
+        Assert-Test ([string]$payload.writeAuthorization.mode -ceq 'read-only' -and
+            $null -eq $payload.writeAuthorization.allowedInternalName -and
+            $null -eq $payload.writeAuthorization.allowedFileName -and
+            $payload.writeAuthorization.baselineImmutable) 'manual review fixture payload is not exact read-only authorization'
+    }
+
+    Invoke-HarnessTest 'manual review launcher delegates only to the guarded transactional runtime path' {
+        $manualLauncherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerManualReview.ps1')
+        $runtimeLauncherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $manualSessionSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeManualReviewSession.cs')
+        Assert-Test ($manualLauncherSource.Contains("Scenario = 'manual-visual-review'") -and
+            $manualLauncherSource.Contains("Invoke-KingmakerRuntimeScenario.ps1") -and
+            $manualLauncherSource.Contains('$requestedWhatIf = [bool]$WhatIfPreference') -and
+            $manualLauncherSource.Contains('$WhatIfPreference = $false') -and
+            $manualLauncherSource.Contains('QualificationSuiteSnapshotPath') -and
+            $manualLauncherSource.Contains('ExpectedQualificationSuiteId') -and
+            $manualLauncherSource.Contains('ExpectedQualificationSuiteSnapshotSha256') -and
+            $manualLauncherSource.Contains('ExpectedPackageSha256') -and
+            $manualLauncherSource.Contains('ExpectedPackageManifestSha256') -and
+            $manualLauncherSource.Contains('ExpectedDllSha256') -and
+            $manualLauncherSource.Contains('ExpectedBranch') -and
+            $manualLauncherSource.Contains('ExpectedCommit') -and
+            $manualLauncherSource.Contains("if (`$requestedWhatIf) { `$invoke['WhatIf'] = `$true }") -and
+            -not $manualLauncherSource.Contains('Start-Process') -and -not $manualLauncherSource.Contains('Stop-Process')) 'manual launcher does not exclusively delegate to the guarded runtime launcher'
+        Assert-Test ($runtimeLauncherSource.Contains('New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview') -and
+            $runtimeLauncherSource.Contains("'waiting-for-manual-review-ready'") -and
+            $runtimeLauncherSource.Contains("'manual-review-ready'") -and
+            $runtimeLauncherSource.Contains('Kingmaker process attribution changed during manual review') -and
+            $runtimeLauncherSource.Contains('Restore-KmcRuntimeTransactions') -and
+            $runtimeLauncherSource.Contains("visualAcceptance='PENDING'") -and
+            -not $runtimeLauncherSource.Contains('Stop-Process')) 'guarded runtime launcher lacks exact interactive READY, pending-acceptance, wait, or restoration boundaries'
+        Assert-Test ($manualSessionSource.Contains('if (!ValidateReadOnlyBoundary())') -and
+            $manualSessionSource.Contains('saveAuthorization.AuthorizedWriteCount != 0') -and
+            $manualSessionSource.Contains('game.Player.MainCharacter.Value == null') -and
+            $manualSessionSource.Contains('relationship.MountAutomationPair()') -and
+            $manualSessionSource.Contains('VisualAcceptance = "PENDING"') -and
+            $manualSessionSource.Contains('ManualReviewBoundaryDecision.BeginProcessTeardown') -and
+            $manualSessionSource.Contains('ManualReviewFixtureBoundary.Invalid') -and
+            $manualSessionSource.Contains('Application.Quit();')) 'in-game manual review session lacks exact read-only, mount, pending-acceptance, or failure-quit behavior'
+    }
+
+    Invoke-HarnessTest 'manual review request READY and restored-result validators bind exact read-only evidence' {
+        $manualEvidence = Join-Path $runtimeEvidenceTestRoot 'manual-review-validator'
+        New-Item -ItemType Directory -Path $manualEvidence | Out-Null
+        $manualFixture = [ordered]@{
+            baseline = [ordered]@{internalName='KMC_AUTOMATION_BASELINE';fileName='Manual_1_KMC_AUTOMATION_BASELINE.zks';sha256=('a'*64);length=101L;lastWriteTimeUtcTicks=638907120000000000L;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Fixture';area='0123456789abcdef0123456789abcdef'}
+            working = [ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('b'*64);length=202L;lastWriteTimeUtcTicks=638907120010000000L;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Fixture';area='0123456789abcdef0123456789abcdef'}
+            writeAuthorization = [ordered]@{mode='read-only';allowedInternalName=$null;allowedFileName=$null;baselineImmutable=$true}
+        }
+        $manualRequest = [ordered]@{
+            schemaVersion=2;runId='manual-review-validator';scenario='manual-visual-review';branch='codex/mounted-combat-phase2-alpha';
+            commit=('c'*40);productVersion=$currentProductVersion;dllSha256=('d'*64);dllMvid='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+            transactionToken=('e'*64);evidenceRoot=$manualEvidence;fixture=$manualFixture
+            qualificationSuite=[ordered]@{suiteId='manual-suite';snapshotSha256=('f'*64)}
+        }
+        $manualRequestPath = Join-Path $manualEvidence 'runtime-request.json'
+        Write-KmcJsonAtomic $manualRequestPath $manualRequest
+        $requestValidated = $false
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $manualRequestPath
+        $requestValidated = $true
+        Assert-Test $requestValidated 'read-only manual review request validator did not pass exact schema-v2 evidence'
+
+        $manualManifest = [ordered]@{schemaVersion=2;branch=$manualRequest.branch;commit=$manualRequest.commit;version=$manualRequest.productVersion;dllSha256=$manualRequest.dllSha256;dllMvid=$manualRequest.dllMvid;worktreeClean=$true;qualificationEligible=$true}
+        $manualManifestPath = Join-Path $manualEvidence 'package.manifest.json'
+        Write-KmcJsonAtomic $manualManifestPath $manualManifest
+        $ready = [ordered]@{
+            schemaVersion=1;evidenceKind='manual-visual-review-ready';runId=$manualRequest.runId;scenario=$manualRequest.scenario;status='READY';
+            branch=$manualRequest.branch;commit=$manualRequest.commit;productVersion=$manualRequest.productVersion;dllSha256=$manualRequest.dllSha256;dllMvid=$manualRequest.dllMvid;
+            transactionToken=$manualRequest.transactionToken;readyAtUtc='2026-08-15T14:00:01Z';loadedModId='KingmakerMountedCombat';gameVersion='2.1.7b';
+            processId=4242;currentGameMode='Default';loadedAreaGuid=$manualFixture.working.area;fixtureIdentityVerified=$true;
+            workingInternalName='KMC_AUTOMATION_WORKING';workingFileName=$manualFixture.working.fileName;saveWriteMode='read-only';
+            loadRequestCount=1;saveRequestCount=0;authorizedLoadCount=1;authorizedWriteCount=0;unauthorizedLoadCount=0;unauthorizedWriteCount=0;
+            relationshipState='Mounted';movementExperimentEnabled=$true;riderId='rider-id';mountId='mount-id';mountBlueprintGuid='e7aa96d15a45238438ae4cfb476f6bb9';
+            selectedUnitIds=@('rider-id');actionLabel='Dismount';actionVisible=$true;actionEnabled=$true;poseProfileId='medium-humanoid-mammoth-v1';
+            poseHealthy=$true;poseFrameApplied=$true;poseBoneCount=7;poseComponentCount=1;visualAcceptance='PENDING'
+        }
+        $readyPath = Join-Path $manualEvidence 'manual-review-ready.json'
+        Write-KmcJsonAtomic $readyPath $ready
+        $readyValidated = $false
+        & (Join-Path $PSScriptRoot 'runtime\Test-KmcManualReviewReady.ps1') -ReadyPath $readyPath -RequestPath $manualRequestPath -PackageManifestPath $manualManifestPath -ExpectedProcessId 4242 -NotBeforeUtc ([DateTimeOffset]'2026-08-15T14:00:00Z')
+        $readyValidated = $true
+        Assert-Test $readyValidated 'manual review READY validator did not pass exact evidence'
+
+        $manualResult = [ordered]@{
+            schemaVersion=1;evidenceKind='manual-visual-review-session';runId=$manualRequest.runId;scenario=$manualRequest.scenario;status='PASS';
+            branch=$manualRequest.branch;commit=$manualRequest.commit;productVersion=$manualRequest.productVersion;dllSha256=$manualRequest.dllSha256;dllMvid=$manualRequest.dllMvid;
+            transactionToken=$manualRequest.transactionToken;startedAtUtc='2026-08-15T14:00:00Z';completedAtUtc='2026-08-15T14:05:00Z';
+            reviewReady=$true;readyAtUtc=$ready.readyAtUtc;readyEvidenceSha256=(Get-KmcSha256 $readyPath);visualAcceptance='PENDING';processExited=$true;
+            modsRestored=$true;saveProtectionPassed=$true;baselineImmutable=$true;workingRestored=$true;saveWriteAllowlistPassed=$true;
+            restoredSaveInventoryDigest=('f'*64);errors=@()
+        }
+        $manualResultPath = Join-Path $manualEvidence 'manual-review-result.json'
+        Write-KmcJsonAtomic $manualResultPath $manualResult
+        $resultValidated = $false
+        & (Join-Path $PSScriptRoot 'runtime\Test-KmcManualReviewResult.ps1') -ResultPath $manualResultPath -RequestPath $manualRequestPath
+        $resultValidated = $true
+        Assert-Test $resultValidated 'manual review restored-result validator did not pass exact evidence'
+
+        $ready.visualAcceptance = 'ACCEPTED'
+        [IO.File]::WriteAllText($readyPath, ($ready | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+        $rejected = $false
+        try { & (Join-Path $PSScriptRoot 'runtime\Test-KmcManualReviewReady.ps1') -ReadyPath $readyPath -RequestPath $manualRequestPath -PackageManifestPath $manualManifestPath -ExpectedProcessId 4242 -NotBeforeUtc ([DateTimeOffset]'2026-08-15T14:00:00Z') | Out-Null }
+        catch { $rejected = $true }
+        Assert-Test $rejected 'manual review READY validator accepted fabricated visual acceptance'
+    }
+
     Invoke-HarnessTest 'runtime request bytes are bound to the launched process' {
         $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
         $hostSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs')
@@ -3096,7 +4601,7 @@ try {
         Assert-Test ($hostSource.Contains('ComputeSha256(requestBytes)')) 'in-process host does not hash the exact bytes it deserializes'
     }
 
-    Invoke-HarnessTest 'runtime launcher continuity pins fail closed before approval, lock, or staging' {
+    Invoke-HarnessTest 'runtime launcher suite pins fail closed before approval, lock, staging, and evidence' {
         $pinNames = @(
             'ExpectedCurrentQualificationSha256','ExpectedSupersededWorkingSha256','PriorSaveTransactionStatePath',
             'ExpectedPriorSaveTransactionRunId','ExpectedPriorSaveTransactionStateSha256','ExpectedPriorSaveMetadataDigest',
@@ -3122,6 +4627,25 @@ try {
             ExpectedProtectedQuickSaveSha256 = '1' * 64
         }
         [void](Assert-KmcRuntimeContinuityPinCombination @allPinArguments)
+        $v2PinNames = @($pinNames | Where-Object {
+            $_ -cnotin @('ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256','ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256')
+        }) + @('ExpectedProtectedSavePinSetSha256')
+        $v2PinArguments = @{}
+        foreach ($key in $allPinArguments.Keys) {
+            if ($key -cnotin @('ExpectedProtectedAutoSaveName','ExpectedProtectedAutoSaveSha256','ExpectedProtectedQuickSaveName','ExpectedProtectedQuickSaveSha256')) {
+                $v2PinArguments[$key] = $allPinArguments[$key]
+            }
+        }
+        $v2PinArguments.BoundContinuityPinNames = $v2PinNames
+        $v2PinArguments.ExpectedProtectedSavePinSetSha256 = '2' * 64
+        [void](Assert-KmcRuntimeContinuityPinCombination @v2PinArguments)
+        $dualModeArguments = @{}
+        foreach ($key in $allPinArguments.Keys) { $dualModeArguments[$key] = $allPinArguments[$key] }
+        $dualModeArguments.BoundContinuityPinNames = @($pinNames + 'ExpectedProtectedSavePinSetSha256')
+        $dualModeArguments.ExpectedProtectedSavePinSetSha256 = '2' * 64
+        $threw = $false
+        try { Assert-KmcRuntimeContinuityPinCombination @dualModeArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'save-backed runtime pin gate accepted simultaneous schema-v1 and schema-v2 pin modes'
         $missingArguments = @{}
         foreach ($key in $allPinArguments.Keys) { $missingArguments[$key] = $allPinArguments[$key] }
         $missingArguments.BoundContinuityPinNames = @($pinNames | Where-Object { $_ -cne 'ExpectedPriorSaveMetadataDigest' })
@@ -3137,11 +4661,35 @@ try {
         try { Assert-KmcRuntimeContinuityPinCombination @noSaveArguments | Out-Null } catch { $threw = $true }
         Assert-Test $threw 'no-save runtime pin gate accepted an explicitly bound empty continuity pin'
 
+        $artifactPinNames = @('ExpectedPackageSha256','ExpectedPackageManifestSha256','ExpectedDllSha256','ExpectedBranch','ExpectedCommit')
+        $artifactPinArguments = @{
+            IsManualReview=$true;BoundArtifactPinNames=$artifactPinNames
+            ExpectedPackageSha256='3'*64;ExpectedPackageManifestSha256='4'*64;ExpectedDllSha256='5'*64
+            ExpectedBranch='codex/mounted-combat-phase2-alpha';ExpectedCommit='6'*40
+        }
+        [void](Assert-KmcManualReviewArtifactPinCombination @artifactPinArguments)
+        $missingArtifactArguments = @{}
+        foreach ($key in $artifactPinArguments.Keys) { $missingArtifactArguments[$key] = $artifactPinArguments[$key] }
+        $missingArtifactArguments.BoundArtifactPinNames = @($artifactPinNames | Where-Object { $_ -cne 'ExpectedDllSha256' })
+        $threw = $false
+        try { Assert-KmcManualReviewArtifactPinCombination @missingArtifactArguments | Out-Null } catch { $threw = $true }
+        Assert-Test $threw 'manual-review artifact gate accepted a syntactically missing DLL pin'
+        $threw = $false
+        try {
+            Assert-KmcManualReviewArtifactPinCombination -IsManualReview $false `
+                -BoundArtifactPinNames @('ExpectedCommit') -ExpectedCommit ('6'*40) | Out-Null
+        } catch { $threw = $true }
+        Assert-Test $threw 'non-manual runtime gate accepted a manual-review artifact pin'
+
         $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
-        foreach ($pinName in $pinNames) {
+        foreach ($pinName in @($pinNames + 'ExpectedProtectedSavePinSetSha256')) {
             Assert-Test ($launcherSource -cmatch ('\$' + [regex]::Escape($pinName) + '(?:\s|,)')) "runtime launcher does not expose $pinName"
         }
-        $pinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcRuntimeContinuityPinCombination', [StringComparison]::Ordinal)
+        foreach ($suitePinName in @('QualificationSuiteSnapshotPath','ExpectedQualificationSuiteId','ExpectedQualificationSuiteSnapshotSha256')) {
+            Assert-Test ($launcherSource -cmatch ('\$' + [regex]::Escape($suitePinName) + '(?:\s|,)')) "runtime launcher does not expose $suitePinName"
+        }
+        $pinGateIndex = $launcherSource.IndexOf('if($isSaveBacked -and ($boundSuitePinNames.Count-ne3', [StringComparison]::Ordinal)
+        $artifactPinGateIndex = $launcherSource.IndexOf('[void](Assert-KmcManualReviewArtifactPinCombination', [StringComparison]::Ordinal)
         $validateSourceIndex = $launcherSource.IndexOf("& (Join-Path `$repoRoot 'scripts\Validate-Source.ps1')", [StringComparison]::Ordinal)
         $shouldProcessIndex = $launcherSource.IndexOf("if(-not `$PSCmdlet.ShouldProcess", [StringComparison]::Ordinal)
         $lockIndex = $launcherSource.IndexOf('    $lock=Open-KmcRuntimeLock', [StringComparison]::Ordinal)
@@ -3150,9 +4698,14 @@ try {
         $enterModsIndex = $launcherSource.IndexOf('    [void](Enter-KmcModsTransaction', [StringComparison]::Ordinal)
         $continuityCalls = @([regex]::Matches(
             $launcherSource,
-            '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualifiedWorkingProtectedSaveContinuity'))
+            '(?m)^\s*\$(?:preflightContinuity|whatIfContinuity|lockedContinuity)=Assert-KmcQualificationSuiteContinuity'))
+        $postRestorationAuditIndex = $launcherSource.IndexOf('[void](Assert-KmcQualificationSuiteContinuity', $combinedStateIndex, [StringComparison]::Ordinal)
         Assert-Test ($pinGateIndex -ge 0 -and $pinGateIndex -lt $validateSourceIndex -and $pinGateIndex -lt $shouldProcessIndex) `
             'runtime launcher does not reject incomplete/no-save pin combinations before validation or ShouldProcess'
+        Assert-Test ($artifactPinGateIndex -gt $pinGateIndex -and $artifactPinGateIndex -lt $validateSourceIndex -and
+            $launcherSource.Contains("(Get-KmcSha256 `$PackagePath)-cne`$ExpectedPackageSha256") -and
+            $launcherSource.Contains("(Get-KmcSha256 `$packageManifestPath)-cne`$ExpectedPackageManifestSha256")) `
+            'runtime launcher does not bind manual package/manifest/DLL/branch/commit pins before approval'
         Assert-Test ($continuityCalls.Count -eq 3) 'runtime launcher does not perform exactly preflight, WhatIf, and locked continuity proofs'
         Assert-Test ($continuityCalls[0].Index -lt $shouldProcessIndex -and
             $continuityCalls[1].Index -gt $shouldProcessIndex -and $continuityCalls[1].Index -lt $lockIndex -and
@@ -3161,6 +4714,9 @@ try {
         Assert-Test ($combinedStateIndex -gt $continuityCalls[2].Index -and
             $enterSaveIndex -gt $combinedStateIndex -and $enterModsIndex -gt $enterSaveIndex) `
             'runtime launcher can stage durable run state, Mods, or Working before locked continuity succeeds'
+        Assert-Test ($postRestorationAuditIndex -gt $enterModsIndex -and
+            $launcherSource.IndexOf("Qualification-suite post-restoration audit failed", $postRestorationAuditIndex, [StringComparison]::Ordinal) -gt $postRestorationAuditIndex) `
+            'runtime launcher does not re-prove the exact suite snapshot after restoration and before evidence credit'
         Assert-Test ($launcherSource.Contains('Recovery can restore an interrupted transaction, but never confers')) `
             'runtime launcher does not state that recovery never confers runtime admission'
 
@@ -3196,10 +4752,97 @@ try {
         Assert-Test ($serviceSource.Contains('RetryFailedCleanupOrThrow();')) 'faulted lifecycle cleanup is not retried or escalated into the fail-closed update boundary'
     }
 
+    Invoke-HarnessTest 'combat lifecycle source preserves valid combat entry and fails closed on invalidation' {
+        $subscriberSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs')
+        $engineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
+        Assert-Test ($subscriberSource.Contains('if (inCombat) { Observe(NativeLifecycleBoundary.CombatStarted') -and
+            -not $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.CombatStarted')) 'combat start does not retain a valid mounted pair'
+        Assert-Test ($subscriberSource.Contains('else { combat.Cancel("party combat ended"); Observe(NativeLifecycleBoundary.CombatEnded')) 'combat end does not cancel active combat work while retaining the pair'
+        Assert-Test ($subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitIncapacitated') -and
+            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.UnitDeath') -and
+            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.PartyRemoved') -and
+            $subscriberSource.Contains('Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed')) 'pair invalidation is missing an exact fail-closed cleanup boundary'
+        Assert-Test ($engineSource.Contains('"combat-lifecycle-suite"') -and
+            $engineSource.Contains('? 7') -and
+            $engineSource.Contains(': IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2') -and
+            $engineSource.Contains('BoundaryExercise = IsCombatLifecycleRow') -and
+            $engineSource.Contains('UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged') -and
+            $subscriberSource.Contains('NativePairLifeStateObservation')) 'combat lifecycle diagnostics do not preserve schema-v2-v6 history while binding native schema-v7 cleanup diagnostics'
+    }
+
+    Invoke-HarnessTest 'mounted rider grounding repair is exact-token, exact-pair, and runtime-probed' {
+        $patchSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
+        $serviceSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
+        $engineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs')
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));')) 'grounding repair does not pin the exact Kingmaker method token and parameter list'
+        Assert-Test ($patchSource.Contains('!PatchBridge.Service.TrySuppressRiderGroundPlacement(__instance)')) 'grounding prefix does not delegate its exact-instance decision to the relationship service'
+        Assert-Test ($serviceSource.Contains('MountedRiderGroundingPolicy.ShouldSuppress(') -and $serviceSource.Contains('RiderGroundPlacementSuppressionCount++;')) 'relationship service does not apply and count the exact active-rider policy'
+        Assert-Test ($engineSource.Contains('rider.View.ForcePlaceAboveGround();') -and $engineSource.Contains('suppressionCountAfter == suppressionCountBefore + 1L')) 'camera qualification does not deterministically exercise the exact grounding repair'
+        # Chunk4 AW requires an entry observation even when native TickMovement
+        # is skipped. Permit only that exact, pair-guarded entry hook; this is a
+        # source contract, not evidence of gameplay or callback delivery.
+        Assert-Test (([regex]::Matches($patchSource,'PatchExact\(typeof\(UnitMoveController\)')).Count -eq 1 -and
+            $patchSource.Contains('PatchExact(typeof(UnitMoveController), "Tick", 0x06009183, Type.EmptyTypes, nameof(PatchMethods.NativeMovementUpdatePrefix));') -and
+            $patchSource.Contains('NativeMovementUpdatePrefix() => PatchBridge.Service?.BeginNativeMovementUpdate();') -and
+            $serviceSource.Contains('if (disposed || coordinator.State != RelationshipState.Mounted ||') -and
+            $serviceSource.Contains('!runtime.IsExactCapturedView(runtime.Rider) || !runtime.IsExactCapturedView(runtime.Mount)) return;') -and
+            $serviceSource.Contains('runtime.MovementAgent?.BeginNativeMovementUpdate();')) 'movement entry hook escaped its exact pair/view contract'
+    }
+
+    Invoke-HarnessTest 'legacy experimental isolation leaves default native opportunity emission intact' {
+        $patchSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
+        $controllerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs')
+        $policySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs')
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));')) 'opportunity isolation does not bind the exact Kingmaker method token and signature'
+        Assert-Test ($patchSource.Contains('PatchBridge.Combat.ShouldSuppressStockOpportunityAttack(__instance?.Unit, target)') -and
+            $patchSource.Contains('__result = false;')) 'opportunity prefix does not fail closed through the mounted combat controller'
+        Assert-Test ($controllerSource.Contains('MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(') -and
+            $controllerSource.Contains('relationship.State == RelationshipState.Mounted,') -and
+            $controllerSource.Contains('HasActiveCommand,') -and
+            $controllerSource.Contains('attacker != null && attacker == relationship.Rider,') -and
+            $controllerSource.Contains('attacker != null && attacker == relationship.Mount,')) 'opportunity isolation is not constrained to an active exact mounted-pair command'
+        Assert-Test ($policySource.Contains('return experimentalIsolationEnabled && relationshipMounted') -and
+            $controllerSource -match 'target != null,\s*settings\.UseLegacyUnifiedTurn\);' -and
+            $policySource.Contains('(attackerIsExactRider || attackerIsExactMount)') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Disengage"')) 'opportunity isolation changed the broad engagement lifecycle instead of the exact attack emission seam'
+    }
+
+    Invoke-HarnessTest 'explicit mounted opportunity feature remains absent and default-off' {
+        $productionSource = @(
+            Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' |
+                Sort-Object FullName |
+                ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        Assert-Test (-not $productionSource.Contains('new UnitAttackOfOpportunity') -and
+            -not $productionSource.Contains('IsAttackOfOpportunity = true') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Engage"') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "Disengage"') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitCombatState), "ShouldAttackOnDisengage"')) `
+            'production synthesizes mounted opportunities or patches broad engagement ownership despite the default-off stretch disposition'
+    }
+
+    Invoke-HarnessTest 'basic mounted charge feature remains absent and default-off' {
+        $productionSource = @(
+            Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' |
+                Sort-Object FullName |
+                ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        # Native identity inspection and safe refusal are authorized in Chunk 4.
+        # This scope guard still forbids manufacturing Charge execution/state;
+        # the new native scenarios, not this source inventory, qualify behavior.
+        Assert-Test (-not $productionSource.Contains('new AbilityCustomCharge') -and
+            -not $productionSource.Contains('IsCharge = true') -and
+            -not $productionSource.Contains('ChargeBuff') -and
+            -not $productionSource.Contains('IsCharging = true') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitAttack), "set_IsCharge"') -and
+            -not $patchSource.Contains('PatchExact(typeof(AbilityCustomCharge)')) `
+            'production enables a charge surface or patches stock charge ownership despite the default-off stretch disposition'
+    }
+
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
         $source = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeLifecycleScenarioEngine.cs')
         $evidenceGate = $source.IndexOf('if (!TryWriteEvidence("pre-mount", null, null))', [StringComparison]::Ordinal)
-        $mountCall = $source.IndexOf('var mounted = relationship.MountAutomationPair();', [StringComparison]::Ordinal)
+        $mountCall = $source.IndexOf('mounted = relationship.MountAutomationPair();', [StringComparison]::Ordinal)
         Assert-Test ($evidenceGate -ge 0 -and $mountCall -gt $evidenceGate) 'valid-pair mounting is not gated by durable pre-mount evidence'
         Assert-Test ($source.Contains('stream.Flush(true);')) 'lifecycle JSONL records are not durably flushed before their handles close'
         Assert-Test ($source.Contains('Post-cleanup verification threw')) 'post-cleanup observation is not converted to a bounded failed row'
@@ -3215,7 +4858,7 @@ try {
             writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
         }
         $recomputeEvidence = Join-Path $runtimeEvidenceTestRoot 'recompute-evidence'
-        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.0.1-feasibility';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
+        $v2Request=[pscustomobject]@{runId='recompute-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion=$currentProductVersion;dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$recomputeEvidence;fixture=$fixture}
         $recomputeManifestHash = New-TestArtifactManifest -EvidenceRoot $recomputeEvidence -RunId $v2Request.runId -Scenario $v2Request.scenario
         $game=[pscustomobject]@{status='PASS';fixture=$fixture;evidenceManifestSha256=$recomputeManifestHash;subscenarioTotal=99;subscenarioPassCount=0;subscenarioFailCount=99;assertionPassCount=0;assertionFailCount=99;subscenarioResults=@([pscustomobject]@{name='observe-mount-diagnostic-availability';status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()})}
         $final=New-KmcRuntimeResultV2 -Request $v2Request -ValidatedGameResult $game -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 ('d'*64)
@@ -3226,13 +4869,54 @@ try {
 
     Invoke-HarnessTest 'schema-v2 fallback creates and binds a validated orchestration artifact manifest' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'fallback-evidence'
-        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion='0.0.1-feasibility';dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+        $fallbackRequest=[pscustomobject]@{runId='fallback-test';scenario='fixture-intake';branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion=$currentProductVersion;dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
         $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @('synthetic missing game result')
         $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
         Assert-Test ([string]$final.status -ceq 'FAIL') 'missing game result did not force final FAIL'
         Assert-Test ((Get-KmcSha256 $manifestPath) -ceq [string]$final.evidenceManifestSha256) 'fallback result did not bind the independently created orchestration manifest'
         $manifest = Read-KmcJson $manifestPath
         Assert-Test ($manifest.artifacts -is [Array] -and @($manifest.artifacts).Count -eq 0) 'fallback orchestration manifest is not an exact empty artifact array'
+    }
+
+    Invoke-HarnessTest 'combat fallback preserves original launcher error without weakening strict evidence validation' {
+        $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'combat-fallback-evidence'
+        $fallbackFixture = [ordered]@{
+            baseline=[ordered]@{internalName='KMC_AUTOMATION_BASELINE';fileName='Manual_1_KMC_AUTOMATION_BASELINE.zks';sha256=('11'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
+            working=[ordered]@{internalName='KMC_AUTOMATION_WORKING';fileName='Manual_2_KMC_AUTOMATION_WORKING.zks';sha256=('22'*32);length=1;lastWriteTimeUtcTicks=1;gameId='11111111-2222-3333-4444-555555555555';gameName='KMC Test Campaign';area='0123456789abcdef0123456789abcdef'}
+            writeAuthorization=[ordered]@{mode='working-only';allowedInternalName='KMC_AUTOMATION_WORKING';allowedFileName='Manual_2_KMC_AUTOMATION_WORKING.zks';baselineImmutable=$true}
+        }
+        $fallbackRequest=[pscustomobject]@{runId='combat-fallback-test';scenario='combat-core-control-suite';branch='codex/mounted-combat-phase2-alpha';commit=('0'*40);productVersion=$currentProductVersion;dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=$fallbackFixture}
+        $originalError = 'synthetic attributed launcher failure'
+        $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $false -BaselineImmutable $false -WorkingRestored $false -SaveWriteAllowlistPassed $false -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @($originalError)
+        Assert-Test ([string]$final.status -ceq 'FAIL' -and @($final.errors).Count -eq 1 -and [string]$final.errors[0] -ceq $originalError) 'combat fallback masked or replaced the original launcher error'
+        $manifestPath = Join-Path $fallbackEvidence 'runtime-artifacts.json'
+        $manifest = Read-KmcJson $manifestPath
+        Assert-Test ($manifest.artifacts -is [Array] -and @($manifest.artifacts).Count -eq 0 -and
+            (Get-KmcSha256 $manifestPath) -ceq [string]$final.evidenceManifestSha256) 'combat fallback did not bind one exact empty incomplete manifest'
+        $strictRejected = $false
+        try { Get-KmcValidatedOrchestrationArtifactManifestHash $fallbackRequest | Out-Null }
+        catch { $strictRejected = $true }
+        Assert-Test $strictRejected 'ordinary combat artifact validation accepted the incomplete fallback manifest'
+    }
+
+    Invoke-HarnessTest 'runtime launcher durably records its first attributed error before process-exit handling' {
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $catchIndex = $launcherSource.IndexOf("stage='launcher-error-waiting-for-process-exit'", [StringComparison]::Ordinal)
+        $finallyIndex = $launcherSource.IndexOf('finally{', $catchIndex, [StringComparison]::Ordinal)
+        Assert-Test ($catchIndex -ge 0 -and $finallyIndex -gt $catchIndex -and
+            $launcherSource.Contains('launcherErrorAtUtc') -and $launcherSource.Contains('launcherErrors')) 'launcher does not preserve the original caught error before bounded exit handling'
+    }
+
+    Invoke-HarnessTest 'runtime launcher waits boundedly for process identity metadata before exact validation' {
+        $launcherSource = Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'runtime\Invoke-KingmakerRuntimeScenario.ps1')
+        $captureIndex = $launcherSource.IndexOf('$capturedProcessPath=$null', [StringComparison]::Ordinal)
+        $metadataDeadlineIndex = $launcherSource.IndexOf('while([DateTimeOffset]::UtcNow-lt$launchDeadline-and[string]::IsNullOrWhiteSpace($capturedProcessPath))', [StringComparison]::Ordinal)
+        $exactPathIndex = $launcherSource.IndexOf('[string]::Equals($capturedProcessPath,[IO.Path]::GetFullPath($gameExecutable)', [StringComparison]::Ordinal)
+        $exactHashIndex = $launcherSource.IndexOf('(Get-KmcSha256 $capturedProcessPath)-cne$expectedGameExecutableHash', [StringComparison]::Ordinal)
+        $waitingIndex = $launcherSource.IndexOf("'waiting-for-game-result'", [StringComparison]::Ordinal)
+        Assert-Test ($captureIndex -ge 0 -and $metadataDeadlineIndex -gt $captureIndex -and
+            $exactPathIndex -gt $metadataDeadlineIndex -and $exactHashIndex -gt $exactPathIndex -and
+            $waitingIndex -gt $exactHashIndex -and -not $launcherSource.Contains('$process.Path.Equals(')) 'launcher does not boundedly await process metadata before exact path/hash admission'
     }
 
     $validPackageSource = Join-Path $testRoot 'valid-package\KingmakerMountedCombat'
@@ -3272,7 +4956,7 @@ try {
     $request = [ordered]@{
         schemaVersion = 1; runId = 'schema-test'; scenario = 'mod-load-smoke'
         branch = 'codex/mounted-combat-feasibility'; commit = '0123456789abcdef0123456789abcdef01234567'
-        productVersion = '0.0.1-feasibility'; dllSha256 = ('ab' * 32)
+        productVersion = $currentProductVersion; dllSha256 = ('ab' * 32)
         dllMvid = '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'
         transactionToken = ('cd' * 32)
         evidenceRoot = (Join-Path $runtimeEvidenceTestRoot 'schema-test')
@@ -3347,11 +5031,1974 @@ try {
         schemaVersion=2;runId='schema-v2-test';scenario='mounted-pair-create-and-clear';branch=$request.branch;commit=$request.commit
         productVersion=$request.productVersion;dllSha256=$request.dllSha256;dllMvid=$request.dllMvid;transactionToken=$request.transactionToken
         evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'schema-v2-test');fixture=$v2Fixture
+        qualificationSuite=[ordered]@{suiteId='schema-v2-suite';snapshotSha256=('9'*64)}
     }
     Write-KmcJsonAtomic $v2RequestPath $v2Request
     Invoke-HarnessTest 'runtime request schema accepts exact save-backed fixture payload' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
     }
+
+    Invoke-HarnessTest 'runtime request schema accepts focused Horse native-controls aggregate' {
+        $v2Request.scenario = 'horse-native-controls-ux-suite'
+        $v2Request.runId = 'schema-v2-horse-native-controls-ux-suite'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+        $v2Request.scenario = 'mounted-pair-create-and-clear'
+        $v2Request.runId = 'schema-v2-test'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+    }
+
+    Invoke-HarnessTest 'runtime request reader admits exact ground comparison and rejects unknown variants' {
+        try {
+            $v2Request.scenario = 'chunk4-ground-arrival-rt'
+            $v2Request.runId = 'schema-v2-ground-arrival'
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            foreach($unknown in @('chunk4-ground-arrival-tb','chunk4-ground-arrival-rt-unknown')){
+                $v2Request.scenario = $unknown
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath } catch { $rejected=$true }
+                Assert-Test $rejected 'unknown ground scenario was admitted'
+            }
+        }
+        finally {
+            $v2Request.scenario = 'mounted-pair-create-and-clear'
+            $v2Request.runId = 'schema-v2-test'
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
+    Invoke-HarnessTest 'paired native loop result has exactly one registered runtime row' {
+        $rows = @(Get-KmcPhase3dHorseRuntimeRows)
+        Assert-Test (@($rows | Where-Object { $_ -ceq 'P01-three-paired-activations' }).Count -eq 1) 'paired result row is missing or duplicated'
+        Assert-Test (@($rows | Where-Object { $_ -ceq 'P01-three-paired-activations-unknown' }).Count -eq 0) 'unknown paired result row was admitted'
+    }
+
+    Invoke-HarnessTest 'runtime request schema accepts every exact native lifecycle row' {
+        foreach ($nativeRow in @(
+            'native-save-clean-dismount',
+            'native-area-clean-dismount',
+            'native-mode-transition-cleanup',
+            'presentation-residue-and-uninstall-safety')) {
+            $v2Request.scenario = $nativeRow
+            $v2Request.runId = 'schema-v2-' + $nativeRow
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+        }
+        $v2Request.scenario = 'mounted-pair-create-and-clear'
+        $v2Request.runId = 'schema-v2-test'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+    }
+
+    Invoke-HarnessTest 'runtime request schema accepts exact combat and native-incapacitation lifecycle rows' {
+        foreach ($lifecycleScenario in @('combat-lifecycle-suite') + @(Get-KmcCombatLifecycleRuntimeRows) + @(Get-KmcNativeIncapacitationRuntimeRows)) {
+            $v2Request.scenario = $lifecycleScenario
+            $v2Request.runId = 'schema-v2-' + $lifecycleScenario
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+        }
+        $v2Request.scenario = 'mounted-pair-create-and-clear'
+        $v2Request.runId = 'schema-v2-test'
+        $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+        Write-KmcJsonAtomic $v2RequestPath $v2Request
+    }
+
+    $combatRequestPath = Join-Path $testRoot 'runtime-request-combat.json'
+
+    Invoke-HarnessTest 'combat target source uses isolated group exact native primary raw AI no-loot and zero weapon mutation' {
+        $targetSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticCombatTargetService.cs'))
+        $dispatchLedgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\ExpectedAttackDispatchLedger.cs'))
+        $targetLifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\DiagnosticCombatTargetLifecycle.cs'))
+        $nonPairLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticNonPairPartyAiLease.cs'))
+        $scopedAiLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedDiagnosticAiLease.cs'))
+        $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
+        $ruleProbeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MountedCombatRuleProbe.cs'))
+        $nativeModeProbeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeModeTransitionProbe.cs'))
+        $patchControllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $spatialPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
+        $resolverSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeSingleAttackWeaponResolver.cs'))
+        $policySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatAction.cs'))
+        $stabilizationPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs'))
+        $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
+        $pairRuntimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
+        $lifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs'))
+        $detachIndex = $targetSource.IndexOf('target.GroupId = runtimeGroupId;', [StringComparison]::Ordinal)
+        $factionIndex = $targetSource.IndexOf('target.Descriptor.SwitchFactions(runtimeFaction, true);', [StringComparison]::Ordinal)
+        $groupIndex = $targetSource.IndexOf('runtimeGroup = target.Group;', [StringComparison]::Ordinal)
+        $groupSnapshotIndex = $targetSource.IndexOf('var groupsBeforeSpawn = groupsController.Groups.Where', [StringComparison]::Ordinal)
+        $spawnIndex = $targetSource.IndexOf('target = game.EntityCreator.SpawnUnit', [StringComparison]::Ordinal)
+        Assert-Test ($groupSnapshotIndex -ge 0 -and $spawnIndex -gt $groupSnapshotIndex -and
+            $detachIndex -gt $spawnIndex -and $factionIndex -gt $detachIndex -and $groupIndex -gt $factionIndex) 'diagnostic target can contaminate its spawn group faction cache before dedicated-group isolation'
+        Assert-Test ($targetSource.Contains('groupsBeforeSpawn.Contains(spawnGroup)') -and
+            $targetSource.Contains('spawnGroup.IsPlayerParty || !spawnGroup.Empty()')) 'diagnostic target can dispose an unowned or non-empty pre-existing spawn group'
+        Assert-Test ($targetSource.Contains('!(bool)AiBackingField.GetValue(target)') -and
+            -not $targetSource.Contains('!target.IsAIEnabled')) 'diagnostic target still relies on the always-true non-controllable IsAIEnabled facade instead of its pinned backing state'
+        Assert-Test ($targetSource.Contains('target.Inventory == null || !target.Inventory.HasLoot') -and
+            -not $targetSource.Contains('target.Inventory.Items.Count == 0')) 'diagnostic target confuses stock non-loot body inventory with loot-bearing inventory'
+        Assert-Test ($targetSource.Contains('expectedTarget == null || expectedTarget != target') -and
+            $targetSource.Contains('target.IsInFogOfWar = false;') -and
+            $targetSource.Contains('target.View.SetVisible(true, true);') -and
+            $targetSource.Contains('TargetVisibleForPlayer = target.IsVisibleForPlayer;')) 'diagnostic player-click visibility is not exact-target-only, explicit, and independently verified'
+        Assert-Test ($targetSource.Contains('ExpectedAttackDispatchLedger expectedAttackDispatchLedger') -and
+            $targetSource.Contains('public int ExpectedAttackDispatchMarkCount => expectedAttackDispatchLedger.MarkCount;') -and
+            $targetSource.Contains('return expectedAttackDispatchLedger.Mark();') -and
+            -not $targetSource.Contains('expectedAttackDispatchStarted ||') -and
+            $dispatchLedgerSource.Contains('Started = true;') -and
+            $dispatchLedgerSource.Contains('MarkCount++;')) 'diagnostic expected-dispatch boundary still rejects a second independently validated action or lost its sticky pre-dispatch classification'
+        Assert-Test ($targetSource.Contains('combatMemoryObserverGroup = rider.Group;') -and
+            $targetSource.Contains('combatMemoryTargetGroup = target.Group;') -and
+            $targetSource.Contains('targetSleeplessBefore = target.Sleepless;') -and
+            $targetSource.Contains('target.Sleepless = true;') -and
+            $targetSource.Contains('TargetSleeplessLeaseAcquired = !targetSleeplessBefore && targetSleeplessLeaseActive;') -and
+            $targetSource.Contains('!targetSleeplessLeaseActive || !combatMemoryTarget.Sleepless') -and
+            $targetSource.Contains('current.Sleepless = targetSleeplessBefore;') -and
+            $targetSource.Contains('TargetSleeplessLeaseReleased = current.Sleepless == targetSleeplessBefore;') -and
+            $targetSource.Contains('combatMemoryObserverGroup.Memory.Add(combatMemoryTarget)') -and
+            $targetSource.Contains('combatMemoryTargetGroup.Memory.Add(combatMemoryObserver)') -and
+            $targetSource.Contains('observedTarget.LastDetectTime = game.TimeController.GameTime;') -and
+            $targetSource.Contains('observedRider.LastDetectTime = game.TimeController.GameTime;') -and
+            $targetSource.Contains('if (!combatMemoryObserver.IsAwake)') -and
+            $targetSource.Contains('combatMemoryObserver.Wake();') -and
+            $targetSource.Contains('if (!combatMemoryTarget.IsAwake)') -and
+            $targetSource.Contains('combatMemoryTarget.Wake();') -and
+            $targetSource.Contains('combatMemoryObserverGroup.Memory.Remove(combatMemoryTarget);') -and
+            $targetSource.Contains('combatMemoryTargetGroup.Memory.Remove(combatMemoryObserver);') -and
+            -not $targetSource.Contains('memoryController.AddToMemory(') -and
+            $engineSource.Contains('targetService.RefreshBidirectionalCombatMemoryLease()') -and
+            $engineSource.Contains('";targetAwake=" + (target != null && target.IsAwake)') -and
+            $engineSource.Contains('";targetInFog=" + (target != null && target.IsInFogOfWar)') -and
+            $engineSource.Contains('";targetFactionPeaceful=" + (target?.Faction != null && target.Faction.Peaceful)')) 'diagnostic target does not own a deterministic exact-group native combat-memory/sleepless lease with bounded acquisition, refresh, timeout evidence, and symmetric cleanup'
+        Assert-Test ($targetSource.Contains('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;') -and
+            $targetSource.Contains('var nativePrimary = NativeSingleAttackWeaponResolver.Resolve(target);') -and
+            $targetSource.Contains('NoWeaponProvisioningMutation = AdditionalLimbCountAfter == AdditionalLimbCountBefore') -and
+            -not $targetSource.Contains('AddAdditionalLimb(')) 'diagnostic target does not resolve its stock empty-hand weapon through native single-attack order without body mutation'
+        $sourceWeaponIndex = $targetSource.IndexOf('var blueprintPrimary = blueprint.Body?.EmptyHandWeapon;', [StringComparison]::Ordinal)
+        $runtimeFactionCreateIndex = $targetSource.IndexOf('runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();', [StringComparison]::Ordinal)
+        Assert-Test ($sourceWeaponIndex -ge 0 -and $runtimeFactionCreateIndex -gt $sourceWeaponIndex) 'diagnostic target mutates transient Unity state before validating the exact Mammoth empty-hand weapon source'
+        Assert-Test ($resolverSource.Contains('Rulebook.Trigger(new RuleCalculateAttacksCount(unit))') -and
+            $resolverSource.Contains('NativeSingleAttackSlotPolicy.Select(') -and
+            $resolverSource.Contains('body.PrimaryHand != null && body.PrimaryHand.HasWeapon') -and
+            $resolverSource.Contains('body.SecondaryHand != null && body.SecondaryHand.HasWeapon')) 'native single-attack resolver is not bound to exact hand attack counts and HasWeapon semantics'
+        $primaryPolicyIndex = $policySource.IndexOf('primaryHasWeapon && primaryMainAttacks > 0', [StringComparison]::Ordinal)
+        $secondaryPolicyIndex = $policySource.IndexOf('secondaryHasWeapon && secondaryMainAttacks > 0', [StringComparison]::Ordinal)
+        $limbPolicyIndex = $policySource.IndexOf('additionalLimbHasWeapon[index]', [StringComparison]::Ordinal)
+        Assert-Test ($primaryPolicyIndex -ge 0 -and $secondaryPolicyIndex -gt $primaryPolicyIndex -and $limbPolicyIndex -gt $secondaryPolicyIndex) 'project single-attack policy diverges from native primary-secondary-additional ordering'
+        Assert-Test ($controllerSource.Contains('NativeSingleAttackWeaponResolver.Resolve(mount)') -and
+            $controllerSource.Contains('NativePrimaryNaturalAttackPolicy.IsExact(') -and
+            $policySource.Contains('kind == NativeSingleAttackSlotKind.PrimaryHand') -and
+            $policySource.Contains('kind == NativeSingleAttackSlotKind.AdditionalLimb && additionalLimbIndex == 0') -and
+            $commandSource.Contains('NativePrimaryNaturalAttackPolicy.IsExact(') -and
+            $commandSource.Contains('childAttack.PlannedAttack.Hand != expectedMountPrimary.Slot') -and
+            $commandSource.Contains('childAttack.PlannedAttack.Weapon != expectedMountPrimary.Weapon') -and
+            $commandSource.Contains('? expectedMountPrimary?.Kind.ToString()') -and
+            -not $commandSource.Contains('mount.Body.AdditionalLimbs.FirstOrDefault')) 'mount primary action does not retain and verify the exact primary-hand or first-additional-limb native natural attack across click and child initialization'
+        Assert-Test ($engineSource.Contains('var expectedActionSelectionUnit = UsesDistinctSharedTurnPrincipal') -and
+            $engineSource.Contains('? rider') -and
+            $engineSource.Contains('SelectionManager.Instance.SelectUnit(expectedActionSelectionUnit.View, true, true, false);') -and
+            $engineSource.Contains('selected[0] == expectedActionSelectionUnit') -and
+            $engineSource.Contains('Exactly the policy-required selection principal owned player selection at dispatch.')) 'combat diagnostic does not preserve rider-principal selection for a mount-owned shared-turn primary action'
+        Assert-Test ($commandSource.Contains('initialNativeAdmissionState = childAttack.EvaluateCurrentNativeAdmission();') -and
+            $commandSource.Contains('initialNativeAdmissionState != MountedPairNativeAdmissionState.Admitted') -and
+            $commandSource.Contains('if (!childAttack.TryPrepareNativeStartAdmission())') -and
+            $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(mount.Position, target.Position)') -and
+            $singleAttackSource.Contains('GeometryUtils.MechanicsDistance(rider.Position, target.Position)') -and
+            $singleAttackSource.Contains('GeometryUtils.SqrMechanicsDistance(ApproachPoint, Executor.Position)') -and
+            $singleAttackSource.Contains('LastNativeAdmissionState = IsUnitEnoughClose') -and
+            $singleAttackSource.Contains('MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(') -and
+            $patchControllerSource.Contains('attack.TryCalculateNativeApproachRadius(unit, out radius)') -and
+            $spatialPolicySource.Contains('MaximumNativeExecutorRadiusAdjustment = 0.75f') -and
+            $spatialPolicySource.Contains('NativeAdmissionEpsilon = 0.001f') -and
+            -not $singleAttackSource.Contains('rider.HasLOS(target)')) 'mounted reach does not gate approach on the Mammoth origin and exact native child admission before a bounded rider-executor bridge'
+        $placementRefreshIndex = $engineSource.IndexOf('RetainDiagnosticTargetPlacementAtDispatch()', [StringComparison]::Ordinal)
+        $placementCaptureIndex = $engineSource.IndexOf('targetDistanceAtClick = HorizontalDistance(mountPositionAtClick, targetPositionAtClick);', [StringComparison]::Ordinal)
+        Assert-Test ($placementRefreshIndex -ge 0 -and $placementCaptureIndex -gt $placementRefreshIndex -and
+            $engineSource.Contains('MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(') -and
+            $engineSource.Contains('target.Translocate(refreshedPoint, null);') -and
+            $engineSource.Contains('MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(')) 'combat diagnostic does not repair and revalidate exact observed actor-specific target-placement drift before evidence capture'
+        Assert-Test ($commandSource.Contains('MountedTargetTerminationPolicy.Decide(') -and
+            $commandSource.Contains('childAttack.IsActed && childAttack.LastAttackRule != null') -and
+            $commandSource.Contains('!targetState.IsFinallyDead && hostile && actionActor.CanAttack(attackTarget)') -and
+            $commandSource.Contains('attackTarget != null && attackTarget.IsInState') -and
+            $commandSource.Contains('childAttack != null && childAttack.IsFinished')) 'target liveness must preserve in-state/hostility admission and native released/finished lifecycle without invented success'
+        Assert-Test ($ruleProbeSource.Contains('IGlobalRulebookHandler<RuleAttackWithWeapon>') -and
+            $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleAttackRoll>') -and
+            $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleRollDice>') -and
+            $ruleProbeSource.Contains('IGlobalRulebookHandler<RuleDealDamage>') -and
+            $ruleProbeSource.Contains('subscription = EventBus.Subscribe(this);') -and
+            -not $ruleProbeSource.Contains('IRulebookHandler<')) 'combat Rulebook probe is not registered through the exact global Rulebook subscriber surface'
+        Assert-Test ($commandSource.Contains('class MountedPairAttackCommand : MountedPairSingleAttack') -and
+            $commandSource.Contains('return base.OnAction();') -and
+            $commandSource.Contains('base.OnTick();') -and
+            -not $singleAttackSource.Contains('IgnoreCooldown(') -and
+            -not $commandSource.Contains('childAttack.Tick();') -and
+            -not $commandSource.Contains('SetIsActed(true);')) 'owned native sequence must retain the native acted/cost transition without a free child or duplicate tick'
+        $terminalPolicyIndex = $singleAttackSource.IndexOf('NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(', [StringComparison]::Ordinal)
+        $nativeAttackTickIndex = $singleAttackSource.IndexOf('base.OnTick();', $terminalPolicyIndex, [StringComparison]::Ordinal)
+        Assert-Test ($terminalPolicyIndex -ge 0 -and $nativeAttackTickIndex -gt $terminalPolicyIndex -and
+            $policySource.Contains('public static bool ShouldAwaitNativeAnimation(') -and
+            $policySource.Contains('attackCount > 0') -and
+            $policySource.Contains('completedAttackCount == attackCount') -and
+            $policySource.Contains('!hasPlannedAttack') -and
+            $singleAttackSource.Contains('CombatController.IsInTurnBasedCombat()') -and
+            $singleAttackSource.Contains('Result == ResultType.Success') -and
+            $singleAttackSource.Contains('LastAttackRule != null') -and
+            $singleAttackSource.Contains('GetAttackIndex()') -and
+            -not $singleAttackSource.Contains('ForceFinishForTurnBased(')) 'mounted child can enter native UnitAttack nonexistent-next-attack interruption after exact turn-based terminal success'
+        Assert-Test ($targetSource.Contains('groupsController.Groups.Remove(runtimeGroup);') -and
+            $targetSource.Contains('runtimeGroup.Dispose();') -and
+            $targetSource.Contains('!runtimeGroup.Empty()')) 'project-owned transient combat group is not removed only after exact empty-group proof'
+        $nonPairLeaseAcquireIndex = $targetSource.IndexOf('nonPairPartyAiLease.Acquire(rider, mount);', [StringComparison]::Ordinal)
+        $nonPairTargetSpawnIndex = $targetSource.IndexOf('target = game.EntityCreator.SpawnUnit', [StringComparison]::Ordinal)
+        $nonPairTargetRemovalIndex = $targetSource.IndexOf('var nonPairPartyAiClean = targetRemoved && groupRemoved && RuntimeFactionRemoved', [StringComparison]::Ordinal)
+        Assert-Test ($nonPairLeaseAcquireIndex -ge 0 -and $nonPairTargetSpawnIndex -gt $nonPairLeaseAcquireIndex -and
+            $nonPairTargetRemovalIndex -gt $nonPairTargetSpawnIndex -and
+            $targetSource.Contains('nonPairPartyAiLease.RestoreAndVerify()') -and
+            $targetSource.Contains('!nonPairPartyAiLease.ValidateActive()') -and
+            $nonPairLeaseSource.Contains('group.Count') -and
+            $nonPairLeaseSource.Contains('group[index]') -and
+            $nonPairLeaseSource.Contains('unit.Commands.Empty') -and
+            $nonPairLeaseSource.Contains('unit.IsDirectlyControllable') -and
+            $nonPairLeaseSource.Contains('AiBackingField.GetValue(unit)') -and
+            -not $nonPairLeaseSource.Contains('.Commands.Interrupt') -and
+            -not $nonPairLeaseSource.Contains('.Commands.Clear') -and
+            $scopedAiLeaseSource.Contains('CommandsEmptyBefore') -and
+            $scopedAiLeaseSource.Contains('RawAiDuring') -and
+            $scopedAiLeaseSource.Contains('public void Restore(IEnumerable<TUnit> currentUnits)')) 'diagnostic combat does not lease the exact non-pair player group before target creation, preserve empty commands, validate raw/effective AI suppression, and restore after target removal'
+        Assert-Test ($targetSource.Contains('runtimeFactionDestroyPending = true;') -and
+            $targetSource.Contains('runtimeFactionDestroyPending = false;') -and
+            $targetSource.Contains('UnityEngine.Object.Destroy(runtimeFaction);')) 'runtime faction destruction is not retained and verified across the deferred Unity destruction boundary'
+        $prepareTargetIndex = $targetSource.IndexOf('public bool PrepareForPlayerClick(UnitEntityData expectedTarget)', [StringComparison]::Ordinal)
+        $targetInterruptIndex = $targetSource.IndexOf('target.Commands.InterruptAll();', $prepareTargetIndex, [StringComparison]::Ordinal)
+        $targetFinishedDrainIndex = $targetSource.IndexOf('target.Commands.RemoveFinishedAndUpdateQueue();', $prepareTargetIndex, [StringComparison]::Ordinal)
+        $targetStopIndex = $targetSource.IndexOf('target.View.AgentASP.Stop();', $prepareTargetIndex, [StringComparison]::Ordinal)
+        $targetStoppedGateIndex = $targetSource.IndexOf('TargetAgentStoppedAtClick = !target.View.AgentASP.WantsToMove', [StringComparison]::Ordinal)
+        $targetCleanupRetryIndex = $targetSource.IndexOf('if (State == DiagnosticCombatTargetState.DestroyRequested)', [StringComparison]::Ordinal)
+        $targetCleanupConfirmIndex = $targetSource.IndexOf('return lifecycle.ConfirmRemoved(lifecycle.TargetId, true);', [StringComparison]::Ordinal)
+        Assert-Test ($prepareTargetIndex -ge 0 -and $targetInterruptIndex -gt $prepareTargetIndex -and
+            $targetFinishedDrainIndex -gt $targetInterruptIndex -and $targetStopIndex -gt $targetFinishedDrainIndex -and
+            $targetStoppedGateIndex -gt $targetStopIndex -and
+            $targetSource.Contains('TargetCommandsEmptyAtClick = target.Commands.Empty;') -and
+            $targetSource.Contains('TargetAgentEnabledAtClick = target.View.AgentASP.enabled;') -and
+            $targetSource.Contains('target.View.AgentASP.Speed == 0f') -and
+            $targetSource.Contains('target.View.AgentASP.Velocity.sqrMagnitude == 0f') -and
+            $targetCleanupRetryIndex -ge 0 -and $targetCleanupConfirmIndex -gt $targetCleanupRetryIndex) 'diagnostic target does not clear and prove the exact residual movement path before click or retry deferred zero-residue lifecycle confirmation'
+        $combatValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
+        $prepareClickIndex = $engineSource.IndexOf('targetService.PrepareForPlayerClick(target)', [StringComparison]::Ordinal)
+        $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
+        Assert-Test ($prepareClickIndex -ge 0 -and $nativeClickIndex -gt $prepareClickIndex -and
+            $engineSource.Contains('if (!clickAccepted || combat.ArmedAction != MountedCombatActionKind.None || !combat.HasActiveCommand)')) 'combat runtime does not prepare exact target visibility and stop immediately after a rejected Harmony click'
+        Assert-Test ($controllerSource.Contains('DescribeActiveCommandReadiness()') -and
+            $controllerSource.Contains('commands.Standard == command') -and
+            $controllerSource.Contains('commands.Queue.Contains(command)') -and
+            $controllerSource.Contains('actionActor.AreHandsBusyWithAnimation') -and
+            $controllerSource.Contains('handsEquipment.IsUpdateScheduledFor(actionActor)') -and
+            $controllerSource.Contains('actionActor.CombatState.HasCooldownForCommand(command)') -and
+            $engineSource.Contains('Command readiness: " + combat.DescribeActiveCommandReadiness()')) 'combat timeout does not preserve exact native command admission and start-gate evidence'
+        Assert-Test ($controllerSource.Contains('actionActor.Commands.Run(command);') -and
+            $controllerSource.Contains('command.Executor != actionActor') -and
+            $controllerSource.Contains('!actionActor.Commands.Contains(command) &&') -and
+            $controllerSource.Contains('!actionActor.Commands.Queue.Contains(command)')) 'combat click accepts a command that the exact action actor native UnitCommands neither owns nor queues'
+        $pauseCaptureIndex = $engineSource.IndexOf('originalPause = Game.Instance.IsPaused;', [StringComparison]::Ordinal)
+        $memoryQueueIndex = $engineSource.IndexOf('targetService.QueueBidirectionalCombatMemory(rider, target)', [StringComparison]::Ordinal)
+        $realTimeUnpauseIndex = $engineSource.IndexOf('game.IsPaused = false;', [StringComparison]::Ordinal)
+        $nativeJoinIndex = $engineSource.IndexOf('new DiagnosticNativeCombatJoinReadinessSnapshot(', [StringComparison]::Ordinal)
+        $nativeEntryIndex = $engineSource.IndexOf('new DiagnosticCombatEntryReadinessSnapshot(', [StringComparison]::Ordinal)
+        $nativeDispatchIndex = $engineSource.IndexOf('new DiagnosticCombatDispatchReadinessSnapshot(', [StringComparison]::Ordinal)
+        $nativeClickAfterPauseIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', [StringComparison]::Ordinal)
+        Assert-Test ($pauseCaptureIndex -ge 0 -and $memoryQueueIndex -gt $pauseCaptureIndex -and
+            $realTimeUnpauseIndex -gt $memoryQueueIndex -and $nativeJoinIndex -gt $realTimeUnpauseIndex -and
+            $nativeEntryIndex -gt $nativeJoinIndex -and
+            $nativeDispatchIndex -gt $nativeEntryIndex -and
+            $nativeClickAfterPauseIndex -gt $nativeDispatchIndex -and
+            $engineSource.Contains('if (!dispatchReadiness.AllPassed)') -and
+            $engineSource.Contains('RestorePause();') -and
+            -not $engineSource.Contains('target.JoinCombat();') -and
+            -not $engineSource.Contains('rider.JoinCombat();') -and
+            -not $engineSource.Contains('mount.JoinCombat();')) 'real-time combat does not lease native memory, await native combat entry, unpause, await exact dispatch readiness, and restore pause without manual JoinCombat'
+        Assert-Test ($engineSource.Contains('MemoryEnemiesContain(rider, target)') -and
+            $engineSource.Contains('MemoryEnemiesContain(target, rider)') -and
+            $engineSource.Contains('(bool)riderState.IsIgnoredByCombat') -and
+            $engineSource.Contains('(bool)mountState.IsIgnoredByCombat') -and
+            $engineSource.Contains('(bool)targetState.IsIgnoredByCombat') -and
+            $engineSource.Contains('nativeJoinReadiness?.FailureSummary') -and
+            $engineSource.Contains('Every exact native UnitCombatJoinController eligibility gate remained healthy at dispatch.')) 'native combat-entry diagnosis does not bind the exact in-game, conscious, ignored, group, enemy-list, fog, and ambush gates before dispatch'
+        $realTimeModeProbeIndex = $engineSource.IndexOf('realTimeBaselineModeProbe = new NativeModeTransitionProbe(false);', [StringComparison]::Ordinal)
+        $realTimeModeDispatchIndex = $engineSource.IndexOf('realTimeBaselineModeProbe.DispatchTemporaryValueIfRequired();', [StringComparison]::Ordinal)
+        $modeProbeIndex = $engineSource.IndexOf('turnBasedModeProbe = new NativeModeTransitionProbe(true);', [StringComparison]::Ordinal)
+        $modeDispatchIndex = $engineSource.IndexOf('turnBasedModeProbe.DispatchTemporaryValueIfRequired();', [StringComparison]::Ordinal)
+        $turnBasedMountIndex = $engineSource.IndexOf('private void AwaitTurnBasedModeAndMount()', [StringComparison]::Ordinal)
+        $turnBasedMountEndIndex = $engineSource.IndexOf('private void ResolveAndMountPair()', $turnBasedMountIndex, [StringComparison]::Ordinal)
+        $turnBasedMountBody = if ($turnBasedMountIndex -ge 0 -and $turnBasedMountEndIndex -gt $turnBasedMountIndex) {
+            $engineSource.Substring($turnBasedMountIndex, $turnBasedMountEndIndex - $turnBasedMountIndex)
+        } else { '' }
+        $turnRosterIndex = $engineSource.IndexOf('turnRosterContainsTarget = ContainsTurnRosterUnit(turnController, target);', [StringComparison]::Ordinal)
+        $nativeActionActorTurnIndex = $engineSource.IndexOf('turnController.StartTurn(TurnPrincipal);', [StringComparison]::Ordinal)
+        $turnDispatchIndex = $engineSource.IndexOf('turnBasedReadiness = CaptureTurnBasedReadiness(turnController);', $nativeActionActorTurnIndex, [StringComparison]::Ordinal)
+        $nativeClickIndex = $engineSource.IndexOf('new ClickUnitHandler().OnClick(', $turnDispatchIndex, [StringComparison]::Ordinal)
+        $actingAfterDispatchIndex = $engineSource.IndexOf('if (IsTurnBasedRow && !nativeActionActorTurnActingObservedAfterDispatch)', [StringComparison]::Ordinal)
+        $beginCleanupIndex = $engineSource.IndexOf('private void BeginCleanup()', [StringComparison]::Ordinal)
+        $transitionRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedTransitionLease();', $beginCleanupIndex, [StringComparison]::Ordinal)
+        $awaitRealtimeRestoreIndex = $engineSource.IndexOf('private void AwaitTurnBasedRealtimeRestore()', $transitionRestoreIndex, [StringComparison]::Ordinal)
+        $describeRealtimeRestoreIndex = $engineSource.IndexOf('private string DescribeTurnBasedRestoreState()', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
+        $awaitRealtimeRestoreBody = if ($awaitRealtimeRestoreIndex -ge 0 -and $describeRealtimeRestoreIndex -gt $awaitRealtimeRestoreIndex) {
+            $engineSource.Substring($awaitRealtimeRestoreIndex, $describeRealtimeRestoreIndex - $awaitRealtimeRestoreIndex)
+        } else { '' }
+        $nativeRealtimePauseIndex = $engineSource.IndexOf('game.CurrentMode == GameModeType.Pause && game.IsPaused && !originalPause', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
+        $nativeRealtimePauseObservedIndex = $engineSource.IndexOf('nativeRealtimePauseObserved = true;', $nativeRealtimePauseIndex, [StringComparison]::Ordinal)
+        $realtimeTransitionUnpauseIndex = $engineSource.IndexOf('game.IsPaused = false;', $nativeRealtimePauseObservedIndex, [StringComparison]::Ordinal)
+        $realtimeUnpauseRequestedIndex = $engineSource.IndexOf('realtimeUnpauseRequested = true;', $realtimeTransitionUnpauseIndex, [StringComparison]::Ordinal)
+        $realtimePresentationIndex = $engineSource.IndexOf('presentationAfterRealtimeRestore = relationship.CapturePresentationObservation();', $awaitRealtimeRestoreIndex, [StringComparison]::Ordinal)
+        $relationshipCleanupIndex = $engineSource.IndexOf('private void BeginRelationshipCleanup()', $realtimePresentationIndex, [StringComparison]::Ordinal)
+        $cleanupDestroyIndex = $engineSource.IndexOf('targetRemoved = targetService.DestroyAndVerify();', $relationshipCleanupIndex, [StringComparison]::Ordinal)
+        $modeRestoreIndex = $engineSource.IndexOf('RestoreTurnBasedMode();', $cleanupDestroyIndex, [StringComparison]::Ordinal)
+        $cameraCaptureIndex = $engineSource.IndexOf('cameraFollowerSnapshot = CombatCameraFollowerSnapshot.TryCapture(', [StringComparison]::Ordinal)
+        $cameraFollowIndex = $engineSource.IndexOf('Game.Instance.CameraController.Follower.Follow(rider)', $cameraCaptureIndex, [StringComparison]::Ordinal)
+        $mountPairIndex = $engineSource.IndexOf('var mounted = relationship.MountAutomationPair();', $cameraFollowIndex, [StringComparison]::Ordinal)
+        $cameraRestoreIndex = $engineSource.IndexOf('RestoreCameraFollower();', $modeRestoreIndex, [StringComparison]::Ordinal)
+        Assert-Test ($realTimeModeProbeIndex -ge 0 -and $realTimeModeDispatchIndex -gt $realTimeModeProbeIndex -and
+            $modeProbeIndex -gt $realTimeModeDispatchIndex -and $modeDispatchIndex -gt $modeProbeIndex -and
+            $turnBasedMountIndex -gt $modeDispatchIndex -and $turnRosterIndex -gt $turnBasedMountIndex -and
+            $nativeActionActorTurnIndex -gt $turnRosterIndex -and $turnDispatchIndex -gt $nativeActionActorTurnIndex -and
+            $nativeClickIndex -gt $turnDispatchIndex -and $actingAfterDispatchIndex -gt $nativeClickIndex -and
+            $beginCleanupIndex -gt $turnDispatchIndex -and $transitionRestoreIndex -gt $beginCleanupIndex -and
+            $awaitRealtimeRestoreIndex -gt $transitionRestoreIndex -and
+            $nativeRealtimePauseIndex -gt $awaitRealtimeRestoreIndex -and
+            $nativeRealtimePauseObservedIndex -gt $nativeRealtimePauseIndex -and
+            $realtimeTransitionUnpauseIndex -gt $nativeRealtimePauseObservedIndex -and
+            $realtimeUnpauseRequestedIndex -gt $realtimeTransitionUnpauseIndex -and
+            $realtimePresentationIndex -gt $realtimeUnpauseRequestedIndex -and
+            $relationshipCleanupIndex -gt $realtimePresentationIndex -and $cleanupDestroyIndex -gt $relationshipCleanupIndex -and
+            $modeRestoreIndex -gt $cleanupDestroyIndex -and $cameraCaptureIndex -gt $realTimeModeDispatchIndex -and
+            $cameraFollowIndex -gt $cameraCaptureIndex -and $mountPairIndex -gt $cameraFollowIndex -and
+            $cameraRestoreIndex -gt $modeRestoreIndex -and
+            $nativeModeProbeSource.Contains('public NativeModeTransitionProbe(bool temporaryValue)') -and
+            $nativeModeProbeSource.Contains('TemporaryValue = requestedTemporaryValue ?? !OriginalValue;') -and
+            $nativeModeProbeSource.Contains('public bool TransitionRequired => OriginalValue != TemporaryValue;') -and
+            $nativeModeProbeSource.Contains('public bool TemporaryValueIsCurrent => setting.CurrentValue == TemporaryValue;') -and
+            $nativeModeProbeSource.Contains('public bool CurrentValue => setting.CurrentValue;') -and
+            $nativeModeProbeSource.Contains('public bool? CurrentRawCacheValue => (bool?)cachedField.GetValue(setting);') -and
+            $nativeModeProbeSource.Contains('public void DispatchTemporaryValueIfRequired()') -and
+            $turnBasedMountBody.Contains('!turnBasedModeProbe.TemporaryValueIsCurrent') -and
+            -not $turnBasedMountBody.Contains('!CombatController.IsInTurnBasedCombat()') -and
+            $engineSource.Contains('CombatController.IsInTurnBasedCombat()') -and
+            $engineSource.Contains('turnController != null && turnController.Initialized') -and
+            $engineSource.Contains('foreach (var unit in controller.SortedUnits)') -and
+            $engineSource.Contains('var currentTurnIsPrincipal = currentTurn?.Unit == TurnPrincipal;') -and
+            $spatialPolicySource.Contains('public static bool CanIssueRiderAction(') -and
+            $spatialPolicySource.Contains('public static bool CanIssueAction(') -and
+            $spatialPolicySource.Contains('public static bool CanIssueSharedAction(') -and
+            $spatialPolicySource.Contains('(currentUnitIsExactActor && (actorTurnIsPreparing || actorTurnIsActing))') -and
+            $spatialPolicySource.Contains('unifiedMountedTurn ? currentUnitIsExactRider : currentUnitIsExactActionActor') -and
+            $controllerSource.Contains('var actionActorTurn = MountedPairTurnPolicy.CanIssueSharedAction(') -and
+            $controllerSource.Contains('settings.UsePairedTurnControls,') -and
+            $controllerSource.Contains('turn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
+            $controllerSource.Contains('turn != null && turn.IsActing') -and
+            $engineSource.Contains('MountedPairTurnPolicy.CanIssueSharedAction(') -and
+            $engineSource.Contains('UsesDistinctSharedTurnPrincipal,') -and
+            $engineSource.Contains('currentTurn.Status == TurnBased.Controllers.TurnController.TurnStatus.Preparing') -and
+            $engineSource.Contains('currentTurn != null && currentTurn.IsActing') -and
+            $engineSource.Contains('currentTurnActingAtDispatch = currentTurn.IsActing;') -and
+            $engineSource.Contains('currentTurn.Status != TurnController.TurnStatus.Preparing') -and
+            $engineSource.Contains('currentTurnActingAtOutcome = currentTurn != null && currentTurn.IsActing') -and
+            -not $controllerSource.Contains('turn.ForceToEnd(false);') -and
+            $engineSource.Contains('step = CombatEngineStep.AwaitTurnBasedRealtimeRestore;') -and
+            $engineSource.Contains('game.CurrentMode != GameModeType.Default') -and
+            $engineSource.Contains('DescribeTurnBasedRestoreState()') -and
+            $engineSource.Contains('nativeRealtimePauseObserved && realtimeUnpauseRequested') -and
+            $engineSource.Contains('relationship.NativeTurnBasedExitUiLeaseRestoreAttemptCount == 0') -and
+            $engineSource.Contains('relationship.NativeTurnBasedExitUiLeaseRestoreMutationCount == 1') -and
+            $engineSource.Contains('relationship.NativeTurnBasedExitUiLeaseRestoreResult, "reselected-rider"') -and
+            -not $awaitRealtimeRestoreBody.Contains('game.Player.IsInCombat') -and
+            $engineSource.Contains('IsMammothPrimaryRow || IsApproachRow || IsMountedBeforeModeTransitionRow') -and
+            $engineSource.Contains('private string presentationAfterRealtimeRestore = "<not-observed>";') -and
+            $lifecycleSource.Contains('service.ObserveNativeTurnBasedModeChanged(enabled);') -and
+            $relationshipSource.Contains('NativeTurnBasedExitAiLeasePolicy.Classify(') -and
+            $relationshipSource.Contains('controller != null && controller.Initialized,') -and
+            $relationshipSource.Contains('runtime.ReassertMountAiLeaseAfterNativeTurnBasedExit()') -and
+            $stabilizationPolicySource.Contains('NativeTurnBasedExitAiLeaseDisposition.AwaitNativeControllerClear') -and
+            $stabilizationPolicySource.Contains('!relationshipMounted || !mountAiLeaseOwned') -and
+            $relationshipSource.Contains('NativeTurnBasedExitUiLeasePolicy.Classify(') -and
+            $relationshipSource.Contains('selection.SelectUnit(rider.View, true, true, false);') -and
+            $stabilizationPolicySource.Contains('NativeTurnBasedExitUiLeaseDisposition.AwaitNativeRealtimeBoundary') -and
+            $stabilizationPolicySource.Contains('!relationshipMounted || !exactCapturedRiderView') -and
+            $pairRuntimeSource.Contains('mount.IsAIEnabled = false;') -and
+            $pairRuntimeSource.Contains('return !(bool)MammothAiBackingField.GetValue(mount);') -and
+            $engineSource.Contains('IsRiderUiOwnershipCoherent(presentationAfterTurnBasedEnable, false)') -and
+            $engineSource.Contains('IsRiderUiOwnershipCoherent(presentationAfterRealtimeRestore, false)') -and
+            $engineSource.Contains('observation.IndexOf("cameraOn=" + expectedCameraOn') -and
+            $engineSource.Contains('settingCurrent=') -and
+            $engineSource.Contains(';rawCache=') -and
+            $engineSource.Contains(';controllerInitialized=') -and
+            $engineSource.Contains('turnBasedRestoreDeliveryCompleted &&') -and
+            $engineSource.Contains('turnBasedOriginalEnabled,') -and
+            $engineSource.Contains('turnBasedTemporaryEnabled,') -and
+            $engineSource.Contains('turnBasedOriginalRawCacheHadValue,') -and
+            $engineSource.Contains('turnBasedRestoreDeliveryCompleted,') -and
+            $engineSource.Contains('private sealed class CombatCameraFollowerSnapshot') -and
+            $engineSource.Contains('exactUnit.FieldType != typeof(UnitEntityData)') -and
+            $engineSource.Contains('cameraFollowerRestored = cameraFollowerSnapshot.IsCurrent;') -and
+            $engineSource.Contains('realTimeBaselineModeProbe.DispatchRestoreAndRestoreRawCache();') -and
+            $engineSource.Contains('turnBasedPersistedUnchanged &&') -and
+            $engineSource.Contains('realTimePersistedUnchanged;')) 'combat rows do not lease exact native mode and camera state, observe a bounded Default-mode TB-to-RT checkpoint before relationship cleanup, admit the exact turn principal and action actor, and restore every captured lease after cleanup'
+        Assert-Test ($engineSource.Contains('CleanupTimeoutSeconds = 10.0d') -and
+            $engineSource.Contains('rowClock.Elapsed.TotalSeconds - cleanupStartedAtSeconds < CleanupTimeoutSeconds')) 'combat cleanup does not retain an independent bounded drain after a row deadline'
+        Assert-Test ($engineSource.Contains('SchemaVersion = UsesPairedMammothActivation ? 57 : UsesDistinctSharedTurnPrincipal') -and
+            $engineSource.Contains('? 56') -and
+            $engineSource.Contains(': IsHumanPlayRow') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 52 : 48)') -and
+            $engineSource.Contains(': IsCommandTerminationRow') -and
+            $engineSource.Contains('? IsCombatEndTerminationRow') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 41 : 40)') -and
+            $engineSource.Contains(': (IsTurnBasedRow ? 39 : 38)') -and
+            $engineSource.Contains(': IsMovementToAttackRow') -and
+            $engineSource.Contains('? (IsTurnBasedRow ? 54 : 53)') -and
+            $engineSource.Contains(': (IsTurnBasedRow ? 27 : 26)') -and
+            $engineSource.Contains('Mode = IsTurnBasedRow ? "turn-based" : "real-time"') -and
+            $engineSource.Contains('TurnBased = IsTurnBasedRow') -and
+            $engineSource.Contains('CombatEntry = CombatEntryEvidence.From(') -and
+            $engineSource.Contains('DiagnosticCombatActionActorReadinessSnapshot') -and
+            $engineSource.Contains('actionActor.CombatState.Cooldown.Initiative') -and
+            $targetLifecycleSource.Contains('actorInitiative <= MaximumPreparedInitiative + InitiativeTolerance') -and
+            $targetLifecycleSource.Contains('(turnBased || Math.Abs(actorInitiative) <= InitiativeTolerance)') -and
+            $engineSource.Contains('TerminalReason = value.TerminalReason') -and
+            $engineSource.Contains('Dispatch = CombatDispatchEvidence.From(') -and
+            $combatValidatorSource.Contains("'memoryQueued','playerGroupMemoryContainsTarget','targetGroupMemoryContainsRider'") -and
+            $combatValidatorSource.Contains("'targetAwake'") -and
+            $combatValidatorSource.Contains("'defaultGameMode','memoryRemovedAtCleanup'") -and
+            $combatValidatorSource.Contains("'actionActorId','actionActorPrepared','actionActorCanActInCombat','actionActorInitiative'") -and
+            $combatValidatorSource.Contains("'actionActorSharedTurnAdmitted','actionActorActionable'") -and
+            $combatValidatorSource.Contains("[string]`$record.combatEntry.actionActorId -cne `$expectedActorId") -and
+            $combatValidatorSource.Contains("-not `$turnBasedScenario -and [Math]::Abs(`$actionActorInitiative) -gt 0.000001") -and
+            $combatValidatorSource.Contains("@('actionActorCanActInCombat','actionActorHandsBusy')") -and
+            $combatValidatorSource.Contains("'actionActorSharedTurnAdmitted','actionActorCanDispatch'") -and
+            $combatValidatorSource.Contains("'equipmentControllerAvailable','equipmentUpdateScheduled','pauseRestored'") -and
+            $combatValidatorSource.Contains("[string]`$record.command.terminalReason -cne 'completed'") -and
+            $combatValidatorSource.Contains("'controllerInitialized','rosterContainsRider','rosterContainsMount','rosterContainsTarget'") -and
+            $combatValidatorSource.Contains("'unifiedMountedTurn','expectedTurnPrincipal','expectedActionActor'") -and
+            $combatValidatorSource.Contains("[string]`$record.turnBased.currentTurnUnitIdAtDispatch -cne `$expectedActorId") -and
+            $combatValidatorSource.Contains("`$record.turnBased.persistedValueUnchanged -ne `$true") -and
+            $ruleProbeSource.Contains('LastAttackHit = evt.IsHit;') -and
+            $engineSource.Contains('IsNativeAcMissReason(ruleProbe.LastAttackResult)') -and
+            $combatValidatorSource.Contains("'lastAttackHit'") -and
+            $combatValidatorSource.Contains("`$record.rules.lastAttackHit -ne `$false") -and
+            $combatValidatorSource.Contains("@('Miss','DodgeAC','ArmorAC','ShieldAC')") -and
+            $combatValidatorSource.Contains("'sleeplessBefore','sleeplessLeaseAcquired'") -and
+            $combatValidatorSource.Contains("'sleeplessLeaseReleased'") -and
+            $combatValidatorSource.Contains("'temporaryHitPointsBefore','temporaryHitPointsAfterProvisioning'") -and
+            $combatValidatorSource.Contains("'durabilityLeaseAmount','durabilityLeaseAcquired'") -and
+            $combatValidatorSource.Contains("'durabilityLeaseReleased'") -and
+            $combatValidatorSource.Contains("'brainActiveBefore','leaseAcquired','effectiveAiEnabledDuring','violationObserved'") -and
+            $combatValidatorSource.Contains("'suppressedAtClick','suppressedAtOutcome','brainActiveAfterRelease','leaseReleased'") -and
+            $combatValidatorSource.Contains("'brainLeaseReleased'") -and
+            $combatValidatorSource.Contains("'riderDisplacementAtOutcome','mountDisplacementAtOutcome','targetDisplacementAtOutcome'") -and
+            $combatValidatorSource.Contains("'playerGroupEnemiesContainsTarget','targetGroupEnemiesContainsRider'") -and
+            $combatValidatorSource.Contains("'riderIgnoredByCombat','mountIgnoredByCombat','targetIgnoredByCombat'") -and
+            $engineSource.Contains('TargetLife = CombatTargetLifeEvidence.From(targetService)') -and
+            $targetSource.Contains('IUnitLifeStateChanged') -and
+            $targetSource.Contains('LifeImmediatelyAfterCreation = DiagnosticTargetLifeSnapshot.Capture(target);') -and
+            $targetSource.Contains('LifeAtActivation = DiagnosticTargetLifeSnapshot.Capture(target);') -and
+            $engineSource.Contains('targetService.CaptureCurrentLife(target)') -and
+            $targetSource.Contains('FirstLifeTransition = new DiagnosticTargetLifeTransition(') -and
+            $combatValidatorSource.Contains("'immediatelyAfterCreation','atActivation','lastObserved','transitionCount','firstTransition'") -and
+            $engineSource.Contains('TargetIncomingRules = CombatTargetIncomingRulesEvidence.From(targetService)') -and
+            $targetSource.Contains('IGlobalRulebookHandler<RuleAttackWithWeapon>') -and
+            $targetSource.Contains('IGlobalRulebookHandler<RuleDealDamage>') -and
+            $targetSource.Contains('PreDispatchIncomingAttackRuleCount++') -and
+            $targetSource.Contains('PreDispatchIncomingDamageRuleCount++') -and
+            $combatValidatorSource.Contains("'dispatchMarkerSet','attackRuleCount','damageRuleCount','preDispatchAttackRuleCount'") -and
+            $combatValidatorSource.Contains('initiatorDirectlyControllable') -and
+            $engineSource.Contains('NonPairPartyAiLease = CombatNonPairPartyAiLeaseEvidence.From(targetService)') -and
+            $engineSource.Contains('NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored') -and
+            $engineSource.Contains('TargetBrainLease = CombatTargetBrainLeaseEvidence.From(targetService)') -and
+            $combatValidatorSource.Contains("'acquired','groupId','groupIsPlayerParty','riderSharesGroup','mountSharesGroup','memberCount'") -and
+            $combatValidatorSource.Contains("'commandsEmptyBefore','rawAiBefore','effectiveAiBefore'") -and
+            $combatValidatorSource.Contains('command-preserving non-pair party AI suppression') -and
+            $combatValidatorSource.Contains('zero pre-dispatch interference') -and
+            $combatValidatorSource.Contains("'commandOwnerId','resourceOwnerId','actionStandardCharged'") -and
+            $combatValidatorSource.Contains("'attackWeaponBlueprintId','attackWeaponIsNatural','attackWeaponIsRanged','attackWeaponSlot'") -and
+            $commandSource.Contains('Executor == actionActor') -and
+            $commandSource.Contains('CommandOwnerId = Executor?.UniqueId') -and
+            $commandSource.Contains('ResourceOwnerId = actionActor.UniqueId') -and
+            $commandSource.Contains('retainedAttackWeaponBlueprintId = childAttack.PlannedAttack.Weapon.Blueprint.AssetGuid;') -and
+            $commandSource.Contains('AttackWeaponBlueprintId = retainedAttackWeaponBlueprintId') -and
+            $commandSource.Contains('mount.Commands.Run(delegatedMove);') -and
+            $commandSource.Contains('mount.Commands.GetCommand(UnitCommand.CommandType.Move)') -and
+            $commandSource.Contains('IsExactRawMoveSlotLifecycle(') -and
+            $commandSource.Contains('mount.Commands.Queue.Count == 0') -and
+            $commandSource.Contains('commands.RemoveFinishedAndUpdateQueue();') -and
+            -not $commandSource.Contains('mount.Commands.InterruptMove()') -and
+            $commandSource.Contains('delegatedMoveStoppedAtLegalRange = true;') -and
+            $commandSource.Contains('GeometryUtils.MechanicsDistance(mount.Position, attackTarget.Position)') -and
+            $commandSource.Contains('StopDelegatedMove(false);') -and
+            $commandSource.Contains('DelegatedMoveResultBeforeLegalRangeStop') -and
+            $commandSource.Contains('WrapperCommandRetainedThroughoutApproach = wrapperCommandRetainedThroughoutApproach') -and
+            $engineSource.Contains('MountedCombatApproachSnapshot(') -and
+            $engineSource.Contains('MovementToAttack = IsApproachRow') -and
+            $combatValidatorSource.Contains("'requestedTargetDistance','approachRequiredAtStart','delegatedMoveStartCount'") -and
+            $combatValidatorSource.Contains("'delegatedMoveStoppedAtLegalRange','delegatedMoveResultBeforeLegalRangeStop'") -and
+            $combatValidatorSource.Contains('one retained rider wrapper and one manually driven Mammoth approach')) 'schema-v26-v29 combat evidence does not bind actor-specific readiness, command/resource ownership, movement-to-attack continuity, retained exact weapon identity, target durability and brain lease, native IsHit, target and AI isolation, turn identity, cleanup, and restoration'
+        Assert-Test ($targetSource.Contains('DiagnosticDurabilityTemporaryHitPoints = 128') -and
+            $targetSource.Contains('temporaryHitPoints.AddModifier(') -and
+            $targetSource.Contains('(Fact)null') -and
+            $targetSource.Contains('ModifierDescriptor.UntypedStackable') -and
+            $targetSource.Contains('targetDurabilityModifier.Remove()') -and
+            $targetSource.Contains('temporaryHitPoints.ModifiedValue == TargetTemporaryHitPointsBefore') -and
+            $engineSource.Contains('IsMammothPrimaryRow || IsApproachRow || IsMountedBeforeModeTransitionRow)')) 'Mammoth, mounted-approach, and exact TB human-transition diagnostic targets do not acquire and exactly release their bounded scenario-only temporary-hit-point durability lease'
+        $durabilityAcquireIndex = $targetSource.IndexOf('AcquireTargetDurabilityLease(target, requireDurabilityLease);', [StringComparison]::Ordinal)
+        $targetActivationIndex = $targetSource.IndexOf('lifecycle.Activate("pending:" + runId, safety.AllPassed && durabilityPolicyPassed)', [StringComparison]::Ordinal)
+        $durabilityReleaseIndex = $targetSource.IndexOf('var durabilityLeaseClean = ReleaseTargetDurabilityLease(current);', [StringComparison]::Ordinal)
+        $targetDestroyIndex = $targetSource.IndexOf('current.Destroy();', [StringComparison]::Ordinal)
+        $outcomeLifeCaptureIndex = $engineSource.IndexOf('targetService.CaptureCurrentLife(target)', [StringComparison]::Ordinal)
+        $terminalActionAssertionIndex = $engineSource.IndexOf('assertions.Check(outcome.Action == AttackAction', [StringComparison]::Ordinal)
+        Assert-Test ($durabilityAcquireIndex -ge 0 -and $targetActivationIndex -gt $durabilityAcquireIndex -and
+            $durabilityReleaseIndex -ge 0 -and $targetDestroyIndex -gt $durabilityReleaseIndex -and
+            $outcomeLifeCaptureIndex -ge 0 -and $terminalActionAssertionIndex -gt $outcomeLifeCaptureIndex) 'Mammoth diagnostic durability acquisition precedes activation, exact release precedes target destruction, and outcome life is captured before terminal assertions'
+        $brainAcquireIndex = $targetSource.IndexOf('AcquireTargetBrainLease(target);', [StringComparison]::Ordinal)
+        $brainValidateIndex = $targetSource.IndexOf('ValidateTargetBrainLeaseActive(target)', [StringComparison]::Ordinal)
+        $brainReleaseIndex = $targetSource.IndexOf('brainLeaseClean = ReleaseTargetBrainLease(current);', [StringComparison]::Ordinal)
+        $targetStopIndex = $targetSource.IndexOf('current.View?.StopMoving();', [StringComparison]::Ordinal)
+        Assert-Test ($brainAcquireIndex -gt $durabilityAcquireIndex -and
+            $brainValidateIndex -gt $brainAcquireIndex -and $targetActivationIndex -gt $brainValidateIndex -and
+            $targetSource.Contains('!ValidateTargetBrainLeaseActive(combatMemoryTarget)') -and
+            $targetSource.Contains('TargetBrainSuppressedAtClick = ValidateTargetBrainLeaseActive(target);') -and
+            $targetSource.Contains('TargetBrainSuppressedAtOutcome = ValidateTargetBrainLeaseActive(target);') -and
+            $targetSource.Contains('current.IsBrainActive = targetBrainActiveBefore;') -and
+            $targetStopIndex -ge 0 -and $brainReleaseIndex -gt $targetStopIndex -and
+            $targetDestroyIndex -gt $brainReleaseIndex -and
+            -not $targetSource.Contains('IsDirectlyControllable =')) 'diagnostic target brain lease is not exact, continuously validated, target-only, reversible, and released immediately before target destruction'
+        foreach ($field in @('TargetEntityRemoved','RuntimeGroupRemoved','RuntimeFactionRemoved')) {
+            $jsonField = [char]::ToLowerInvariant($field[0]) + $field.Substring(1)
+            Assert-Test ($engineSource.Contains("$field =") -and
+                $combatValidatorSource.Contains("'$jsonField'")) "combat cleanup evidence does not bind exact $field state"
+        }
+        Assert-Test ($engineSource.Contains('SleeplessLeaseReleased = targetSleeplessLeaseReleased') -and
+            $combatValidatorSource.Contains("'sleeplessLeaseReleased'")) 'combat cleanup evidence does not bind exact target sleepless-lease restoration'
+        Assert-Test ($engineSource.Contains('NonPairPartyAiLeaseRestored = targetNonPairPartyAiLeaseRestored') -and
+            $combatValidatorSource.Contains("'nonPairPartyAiLeaseRestored'")) 'combat cleanup evidence does not bind exact non-pair party AI restoration'
+        Assert-Test ($engineSource.Contains('DurabilityLeaseReleased = targetDurabilityLeaseReleased') -and
+            $combatValidatorSource.Contains("'durabilityLeaseReleased'")) 'combat cleanup evidence does not bind exact target durability-lease restoration'
+        Assert-Test ($engineSource.Contains('BrainLeaseReleased = targetBrainLeaseReleased') -and
+            $combatValidatorSource.Contains("'brainLeaseReleased'")) 'combat cleanup evidence does not bind exact target brain-lease restoration'
+        Assert-Test ($engineSource.Contains('TargetProvisioning = targetProvisioning ?? new CombatTargetProvisioningEvidence()') -and
+            $combatValidatorSource.Contains("'targetProvisioning'") -and
+            $combatValidatorSource.Contains("'noWeaponProvisioningMutation'") -and
+            $combatValidatorSource.Contains("'targetNativeSingleAttackSlot'")) 'combat evidence does not bind exact native weapon selection and zero provisioning mutation'
+    }
+
+    Invoke-HarnessTest 'core combat-control source is exact ordered production-path and residue-closed' {
+        $controlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatControlScenarioEngine.cs'))
+        $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $controllerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $hostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+        $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
+        $rowsIndex = $controlSource.IndexOf('private static readonly string[] Rows', [StringComparison]::Ordinal)
+        $invalidIndex = $controlSource.IndexOf('InvalidTargetRow,', $rowsIndex, [StringComparison]::Ordinal)
+        $deathIndex = $controlSource.IndexOf('TargetDeathRow,', $rowsIndex, [StringComparison]::Ordinal)
+        $cleanupIndex = $controlSource.IndexOf('CleanupRow,', $rowsIndex, [StringComparison]::Ordinal)
+        $nonMountedIndex = $controlSource.IndexOf('NonMountedRow', $rowsIndex, [StringComparison]::Ordinal)
+        Assert-Test ($invalidIndex -ge 0 -and $deathIndex -gt $invalidIndex -and
+            $cleanupIndex -gt $deathIndex -and $nonMountedIndex -gt $cleanupIndex) 'core combat-control row order is not exact'
+        Assert-Test ($controlSource.Contains('new ClickUnitHandler().OnClick(null, Vector3.zero, 0, false, false)') -and
+            $controlSource.Contains('combat.TryHandleUnitClick(') -and
+            $controlSource.Contains('MountedCombatClickResult.NotHandled')) 'invalid and non-mounted controls bypass the production click/controller seams'
+        Assert-Test ($controlSource.Contains('target.Damage = observations.TargetDamageRequested;') -and
+            $controlSource.Contains('relationship.Dismount(CleanupTrigger.Exception)') -and
+            $controlSource.Contains('combat.Cancel("control cleanup repeat")')) 'target-death or repeated exception cleanup does not use the bounded production seam'
+        $livePairIndex = $commandSource.IndexOf('RequireLiveExactPair();', [StringComparison]::Ordinal)
+        $targetInvalidationIndex = $commandSource.IndexOf('TryEndExpectedTargetInvalidation()', $livePairIndex, [StringComparison]::Ordinal)
+        Assert-Test ($livePairIndex -ge 0 -and $targetInvalidationIndex -gt $livePairIndex -and
+            $commandSource.Contains('MountedTargetTerminationPolicy.Decide(') -and
+            $commandSource.Contains('transaction.Cancel("Expected target invalidation: " + reason)') -and
+            $commandSource.Contains('childAttack.IsActed && childAttack.LastAttackRule != null') -and
+            $commandSource.Contains('Result == ResultType.Success && LastAttackRule != null') -and
+            $commandSource.Contains('GetAttackIndex() == AllAttacks.Count && AllAttacks.Count > 0') -and
+            $commandSource.Contains('Exact mounted pair invariant failed:')) 'expected target invalidation lost pair validation, native terminal authority, or cancellation'
+        $acceptedTargetIndex = $controlSource.IndexOf('combat.HasActivePreChildCommandForTarget(target)', [StringComparison]::Ordinal)
+        $cleanupMutationIndex = $controlSource.IndexOf('relationship.Dismount(CleanupTrigger.Exception)', [StringComparison]::Ordinal)
+        $targetMutationIndex = $controlSource.IndexOf('target.Damage = observations.TargetDamageRequested;', [StringComparison]::Ordinal)
+        Assert-Test ($commandSource.Contains('HasAcceptedTargetBeforeChildAttack(UnitEntityData exactTarget)') -and
+            $controllerSource.Contains('activeCommand.HasAcceptedTargetBeforeChildAttack(exactTarget)') -and
+            $controlSource.Contains('case ControlStep.AwaitPreChildCommand:') -and
+            $acceptedTargetIndex -ge 0 -and $cleanupMutationIndex -gt $acceptedTargetIndex -and
+            $targetMutationIndex -gt $acceptedTargetIndex) 'target-death and cleanup controls can mutate before the exact active command admits its target'
+        Assert-Test ($controlSource.Contains('outcomeAtExerciseStart = combat.LastOutcome;') -and
+            $controlSource.Contains('ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart)')) 'non-mounted control does not distinguish unchanged historical outcome evidence from a new command outcome'
+        Assert-Test ($controllerSource.Contains('activeCommand = command;') -and
+            $controllerSource.Contains('LastOutcome = null;') -and
+            $controlSource.Contains('assertions.Check(combat.LastOutcome == null,') -and
+            -not $controlSource.Contains('assertions.Check(ReferenceEquals(combat.LastOutcome, outcomeAtExerciseStart),')) 'active command admission does not require the controller-cleared terminal outcome after a prior completed row'
+        Assert-Test ($controlSource.Contains('observations.AttackRuleCount == 0') -and
+            $controlSource.Contains('observations.AttackRollCount == 0') -and
+            $controlSource.Contains('observations.DamageRuleCount == 0') -and
+            $controlSource.Contains('observations.UnexpectedPairAttackCount == 0') -and
+            $controlSource.Contains('observations.ForcedD20Count == 0')) 'core controls do not fail closed on any unexpected attack chain'
+        $controlHostIndex = $hostSource.IndexOf('RuntimeCombatControlScenarioEngine.SupportsScenario(request.Scenario)', [StringComparison]::Ordinal)
+        $attackHostIndex = $hostSource.IndexOf('RuntimeCombatScenarioEngine.SupportsScenario(request.Scenario)', [StringComparison]::Ordinal)
+        Assert-Test ($controlHostIndex -ge 0 -and $attackHostIndex -gt $controlHostIndex -and
+            $hostSource.Contains('combatControlEngine.Dispose()')) 'runtime host does not isolate or dispose the control engine before attack schemas'
+        $publisherStart = $hostSource.IndexOf('private static string PublishRuntimeArtifactManifest(RuntimeRequest request)', [StringComparison]::Ordinal)
+        $publisherEnd = $hostSource.IndexOf('private static void AddRuntimeArtifactIfPresent', $publisherStart, [StringComparison]::Ordinal)
+        $publisherSource = if ($publisherStart -ge 0 -and $publisherEnd -gt $publisherStart) {
+            $hostSource.Substring($publisherStart, $publisherEnd - $publisherStart)
+        } else { '' }
+        Assert-Test ($publisherSource.Contains('WriteJsonReplacingAtomic(manifestPath, manifest);') -and
+            $hostSource.Contains('File.Replace(temporary, path, null, true);') -and
+            $hostSource.Contains('Runtime artifact manifest is a reparse point.') -and
+            $publisherSource -notmatch 'if\s*\(File\.Exists\(manifestPath\)\)\s*\{\s*return ComputeSha256\(manifestPath\)') 'game finalization can silently reuse a stale orchestration-created artifact manifest'
+        Assert-Test $projectSource.Contains('Diagnostics\RuntimeCombatControlScenarioEngine.cs') 'combat-control engine is absent from the exact production project'
+    }
+
+    $combatRequest = Copy-TestJsonValue $v2Request
+    $combatRequest.runId = 'combat-evidence-test'
+    $combatRequest.scenario = 'mounted-rider-melee-hit-rt'
+    $combatRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $combatRequest.runId
+    Write-KmcJsonAtomic $combatRequestPath $combatRequest
+    $combatRecord = New-TestCombatEvidenceRecord $combatRequest
+    $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
+    $combatManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+    $combatSubresult = [ordered]@{name=$combatRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and combat evidence accept exact stationary rider hit' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $combatRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $combatManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+    }
+
+    Invoke-HarnessTest 'reach capture is isolated to exact stationary rider and Mammoth qualification rows' {
+        $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        Assert-Test (($engineSource | Select-String -Pattern 'if \(IsReachQualificationRow\)\s*\{\s*CaptureInitialReachEvidence\(\);\s*\}' -AllMatches).Matches.Count -eq 1 -and
+            ($engineSource | Select-String -Pattern 'if \(IsReachQualificationRow\)\s*\{\s*CaptureDispatchReachEvidence\(\);\s*\}' -AllMatches).Matches.Count -eq 1 -and
+            $engineSource.Contains('string.Equals(currentRow, RiderHitRealTime, StringComparison.Ordinal)') -and
+            $engineSource.Contains('string.Equals(currentRow, RiderHitTurnBased, StringComparison.Ordinal)') -and
+            $engineSource.Contains('string.Equals(currentRow, MammothPrimaryHitRealTime, StringComparison.Ordinal)') -and
+            $engineSource.Contains('string.Equals(currentRow, MammothPrimaryHitTurnBased, StringComparison.Ordinal)')) `
+            'reach capture can contaminate a historical movement, miss, termination, or lifecycle evidence schema'
+    }
+
+    $controlRequestPath = Join-Path $testRoot 'runtime-request-combat-control.json'
+    $controlRequest = Copy-TestJsonValue $combatRequest
+    $controlRequest.runId = 'combat-core-control-evidence-test'
+    $controlRequest.scenario = 'combat-core-control-suite'
+    $controlRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $controlRequest.runId
+    Write-KmcJsonAtomic $controlRequestPath $controlRequest
+    $controlRecords = @(New-TestCombatControlEvidenceRecords $controlRequest)
+    [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $controlRecords)
+    $controlManifest = Read-KmcJson (Join-Path $controlRequest.evidenceRoot 'runtime-artifacts.json')
+    $controlSubresults = @($controlRecords | ForEach-Object {
+        [ordered]@{name=[string]$_.row;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
+    })
+
+    Invoke-HarnessTest 'runtime request and exact four-row core combat controls pass' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $controlRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $controlRequest -Manifest $controlManifest -Status 'PASS' -SubscenarioResults $controlSubresults
+    }
+
+    Invoke-HarnessTest 'core combat controls reject missing extra reordered or cross-identity rows' {
+        $cases = @(
+            { param($rows) return @($rows | Select-Object -First 3) },
+            { param($rows) return @($rows + (Copy-TestJsonValue $rows[3])) },
+            { param($rows) $swap=$rows[0];$rows[0]=$rows[1];$rows[1]=$swap;return $rows },
+            { param($rows) $rows[2].riderId='different-rider';return $rows },
+            { param($rows) $rows[3].targetId=[string]$rows[2].targetId;return $rows }
+        )
+        foreach ($mutate in $cases) {
+            $candidate = @(Copy-TestJsonValue $controlRecords)
+            $candidate = @(& $mutate $candidate)
+            [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $controlRequest.evidenceRoot 'runtime-artifacts.json')
+            $rejected = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $controlRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults $controlSubresults }
+            catch { $rejected = $true }
+            Assert-Test $rejected 'combat-control validator accepted a missing, extra, reordered, or identity-mismatched row'
+        }
+    }
+
+    Invoke-HarnessTest 'core combat controls reject behavior resource rule cleanup and production contradictions' {
+        $cases = @(
+            { param($rows) $rows[0].observations.riderInvalidRejected=$false;return $rows },
+            { param($rows) $rows[1].observations.attackRuleCount=1;return $rows },
+            { param($rows) $rows[2].resources.riderStandardAfter=1.0;return $rows },
+            { param($rows) $rows[2].observations.cleanupTrigger='Manual';return $rows },
+            { param($rows) $rows[3].productionPath='stock';return $rows },
+            { param($rows) $rows[3].cleanup.residualState=$true;return $rows },
+            { param($rows) $rows[3].mountedAtExercise=$true;return $rows }
+        )
+        foreach ($mutate in $cases) {
+            $candidate = @(Copy-TestJsonValue $controlRecords)
+            $candidate = @(& $mutate $candidate)
+            [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $controlRequest.evidenceRoot 'runtime-artifacts.json')
+            $rejected = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $controlRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults $controlSubresults }
+            catch { $rejected = $true }
+            Assert-Test $rejected 'combat-control validator accepted a behavior, resource, rule, cleanup, or production contradiction'
+        }
+    }
+
+    [void](Write-TestCombatControlEvidence -EvidenceRoot $controlRequest.evidenceRoot -Request $controlRequest -Records $controlRecords)
+
+    $turnBasedRequestPath = Join-Path $testRoot 'runtime-request-combat-turn-based.json'
+    $turnBasedRequest = Copy-TestJsonValue $combatRequest
+    $turnBasedRequest.runId = 'combat-evidence-turn-based-test'
+    $turnBasedRequest.scenario = 'mounted-rider-melee-hit-tb'
+    $turnBasedRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $turnBasedRequest.runId
+    Write-KmcJsonAtomic $turnBasedRequestPath $turnBasedRequest
+    $turnBasedRecord = New-TestCombatEvidenceRecord $turnBasedRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $turnBasedRecord)
+    $turnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+    $turnBasedSubresult = [ordered]@{name=$turnBasedRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v27 evidence accept exact native stationary rider turn' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $turnBasedRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $turnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    $humanPlayRequestPath = Join-Path $testRoot 'runtime-request-combat-human-play.json'
+    $humanPlayRequest = Copy-TestJsonValue $combatRequest
+    $humanPlayRequest.runId = 'combat-evidence-human-play-test'
+    $humanPlayRequest.scenario = 'mounted-rider-melee-human-play-path-rt'
+    $humanPlayRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $humanPlayRequest.runId
+    Write-KmcJsonAtomic $humanPlayRequestPath $humanPlayRequest
+    $humanPlayRecord = New-TestCombatEvidenceRecord $humanPlayRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayRequest.evidenceRoot -Request $humanPlayRequest -Record $humanPlayRecord)
+    $humanPlayManifest = Read-KmcJson (Join-Path $humanPlayRequest.evidenceRoot 'runtime-artifacts.json')
+    $humanPlaySubresult = [ordered]@{name=$humanPlayRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v48 evidence accept the ordinary RT player-click rider melee path' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayRequest -Manifest $humanPlayManifest -Status 'PASS' -SubscenarioResults @($humanPlaySubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v44 human-play evidence semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayRecord
+        $historical.schemaVersion = 44
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayRequest.evidenceRoot -Request $humanPlayRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlaySubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayRequest.evidenceRoot -Request $humanPlayRequest -Record $humanPlayRecord)
+    }
+
+    $humanPlayTurnRequestPath = Join-Path $testRoot 'runtime-request-combat-human-play-turn-based.json'
+    $humanPlayTurnRequest = Copy-TestJsonValue $humanPlayRequest
+    $humanPlayTurnRequest.runId = 'combat-evidence-human-play-turn-based-test'
+    $humanPlayTurnRequest.scenario = 'mounted-rider-melee-human-play-path-tb'
+    $humanPlayTurnRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $humanPlayTurnRequest.runId
+    Write-KmcJsonAtomic $humanPlayTurnRequestPath $humanPlayTurnRequest
+    $humanPlayTurnRecord = New-TestCombatEvidenceRecord $humanPlayTurnRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+    $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    $humanPlayTurnSubresult = [ordered]@{name=$humanPlayTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v52 evidence accept native Mammoth terminal-source observations with an explicit physical-pointer manual gate' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $humanPlayTurnRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $humanPlayTurnManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v51 native Mammoth terminal-source semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayTurnRecord
+        $historical.schemaVersion = 51
+        $historical.turnBased.PSObject.Properties.Remove('nativeMammothPhysicalPointerQualification')
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+    }
+
+    Invoke-HarnessTest 'historical schema-v50 native Mammoth terminal evidence semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayTurnRecord
+        $historical.schemaVersion = 50
+        $historical.turnBased.PSObject.Properties.Remove('nativeMammothPhysicalPointerQualification')
+        foreach ($name in @('nativeMammothGroundInterruptSource','nativeMammothGroundEnoughCloseAtTerminal',
+            'nativeMammothGroundAgentReallyMovingAtTerminal','nativeMammothGroundAgentWantsToMoveAtTerminal')) {
+            $historical.turnBased.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+    }
+
+    Invoke-HarnessTest 'historical schema-v49 native Mammoth control evidence semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayTurnRecord
+        $historical.schemaVersion = 49
+        $historical.turnBased.PSObject.Properties.Remove('nativeMammothPhysicalPointerQualification')
+        foreach ($name in @('presentationAfterNativeMammothGroundInput','nativeMammothGroundUiObservedAfterInput',
+            'nativeMammothGroundCommandFinished','nativeMammothGroundCommandResult',
+            'nativeMammothGroundRawMoveSlotState','mammothNativeGroundRemainingDistance',
+            'nativeMammothGroundInterruptSource','nativeMammothGroundEnoughCloseAtTerminal',
+            'nativeMammothGroundAgentReallyMovingAtTerminal','nativeMammothGroundAgentWantsToMoveAtTerminal')) {
+            $historical.turnBased.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+    }
+
+    Invoke-HarnessTest 'historical schema-v47 human-play evidence semantics remain valid' {
+        $historical = Copy-TestJsonValue $humanPlayTurnRecord
+        $historical.schemaVersion = 47
+        $historical.turnBased.PSObject.Properties.Remove('nativeMammothPhysicalPointerQualification')
+        foreach ($name in @('presentationDuringMammothTurn','presentationAfterNativeMammothGroundInput',
+            'nativeMammothTurnStarted','nativeMammothTurnUiObserved',
+            'nativeMammothGroundInputStarted','nativeMammothGroundInputCompleted','nativeMammothGroundSelectionRetained',
+            'nativeMammothGroundUiObservedAfterInput','nativeMammothGroundCommandFinished',
+            'nativeMammothGroundCommandResult','nativeMammothGroundRawMoveSlotState',
+            'nativeMammothGroundInterruptSource','nativeMammothGroundEnoughCloseAtTerminal',
+            'nativeMammothGroundAgentReallyMovingAtTerminal','nativeMammothGroundAgentWantsToMoveAtTerminal',
+            'mammothNativeGroundDisplacement','mammothNativeGroundRemainingDistance','mammothNativeMoveBefore','mammothNativeMoveAfter',
+            'riderMoveBeforeMammothNativeGroundInput','riderMoveAfterMammothNativeGroundInput')) {
+            $historical.turnBased.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $historical)
+        $historicalManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $historicalManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+    }
+
+    Invoke-HarnessTest 'schema-v52 evidence rejects native-control transition lease-isolation completion-observation movement or manual-boundary contradictions' {
+        $cases = @(
+            { param($record) $record.turnBased.pairRetainedAfterEnable=$false;return $record },
+            { param($record) $record.turnBased.presentationAfterEnable=$record.turnBased.presentationAfterEnable.Replace('actionBarOwner=combat-rider','actionBarOwner=combat-mount');return $record },
+            { param($record) $record.turnBased.presentationAfterRealtimeRestore=$record.turnBased.presentationAfterRealtimeRestore.Replace('riderViewActiveInHierarchy=True','riderViewActiveInHierarchy=False');return $record },
+            { param($record) $record.turnBased.enabledAtMount=$true;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionArmedCount=0;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionAttemptCount=2;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionMutationCount=0;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionSuccessCount=0;return $record },
+            { param($record) $record.turnBased.mountAiLeaseReassertionResult='reassertion-failed';return $record },
+            { param($record) $record.turnBased.riderUiLeaseRestoreArmedCount=0;return $record },
+            { param($record) $record.turnBased.riderUiLeaseRestoreAttemptCount=2;return $record },
+            { param($record) $record.turnBased.riderUiLeaseRestoreMutationCount=0;return $record },
+            { param($record) $record.turnBased.riderUiLeaseRestoreSuccessCount=0;return $record },
+            { param($record) $record.turnBased.riderUiLeaseRestoreResult='selection-restore-failed';return $record },
+            { param($record) $record.groundMovement.executorId='wrong-mount';return $record },
+            { param($record) $record.groundMovement.mountMoveAfter=1.0;return $record },
+            { param($record) $record.groundMovement.usedRiderTurnAdapter=$false;return $record },
+            { param($record) $record.groundMovement.slotRestored=$false;return $record },
+            { param($record) $record.admission.overlayActivationWorldClickSuppressed=$false;return $record },
+            { param($record) $record.admission.armedActionRetainedAfterOverlayClick=$false;return $record },
+            { param($record) $record.admission.directClickedUnitView=$false;return $record },
+            { param($record) $record.admission.rejectionCodes=@('OutsideSupportedRange');return $record },
+            { param($record) $record.turnBased.nativeMammothTurnUiObserved=$false;return $record },
+            { param($record) $record.turnBased.presentationDuringMammothTurn=$record.turnBased.presentationDuringMammothTurn.Replace('actionBarCanUseAbilities=True','actionBarCanUseAbilities=False');return $record },
+            { param($record) $record.turnBased.presentationDuringMammothTurn=$record.turnBased.presentationDuringMammothTurn.Replace('selectedUnit=combat-mount','selectedUnit=combat-rider');return $record },
+            { param($record) $record.turnBased.nativeMammothGroundInputCompleted=$false;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundUiObservedAfterInput=$false;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundCommandFinished=$false;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundCommandResult='Interrupted';return $record },
+            { param($record) $record.turnBased.nativeMammothGroundRawMoveSlotState='replacement:wrong';return $record },
+            { param($record) $record.turnBased.nativeMammothGroundInterruptSource='Kingmaker.View.UnitEntityView.OnMovementInterrupted';return $record },
+            { param($record) $record.turnBased.nativeMammothPhysicalPointerQualification='automated';return $record },
+            { param($record) $record.turnBased.nativeMammothGroundEnoughCloseAtTerminal=$false;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundAgentReallyMovingAtTerminal=$true;return $record },
+            { param($record) $record.turnBased.nativeMammothGroundAgentWantsToMoveAtTerminal=$true;return $record },
+            { param($record) $record.turnBased.presentationAfterNativeMammothGroundInput=$record.turnBased.presentationAfterNativeMammothGroundInput.Replace('actionBarCanUseAbilities=True','actionBarCanUseAbilities=False');return $record },
+            { param($record) $record.turnBased.mammothNativeGroundDisplacement=0.0;return $record },
+            { param($record) $record.turnBased.mammothNativeMoveAfter=0.0;return $record },
+            { param($record) $record.turnBased.riderMoveAfterMammothNativeGroundInput=1.0;return $record }
+        )
+        foreach ($mutate in $cases) {
+            $candidate = Copy-TestJsonValue $humanPlayTurnRecord
+            $candidate = & $mutate $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($humanPlayTurnSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw 'schema-v52 validator accepted a native-control transition lease-isolation completion-observation movement ownership or manual-boundary contradiction'
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+        $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    }
+
+    Invoke-HarnessTest 'schema-v52 preserves an exact pointer-over-UI pre-action FAIL with observation sentinels and no fabricated action-actor identity' {
+        $failureRecord = Copy-TestJsonValue $humanPlayTurnRecord
+        $failureRecord.status = 'FAIL'
+        $failureRecord.assertionPassCount = 40
+        $failureRecord.assertionFailCount = 1
+        $failureRecord.errors = @('native Mammoth command ended before rider action admission')
+        $failureRecord.turnBased.presentationAfterEnable = '<not-observed>'
+        $failureRecord.turnBased.presentationAfterNativeMammothGroundInput = '<not-observed>'
+        $failureRecord.turnBased.presentationDuringMammothTurn = $failureRecord.turnBased.presentationDuringMammothTurn.Replace('pointerInGui=False','pointerInGui=True')
+        $failureRecord.turnBased.nativeMammothTurnUiObserved = $false
+        $failureRecord.turnBased.nativeMammothGroundInputStarted = $false
+        $failureRecord.turnBased.nativeMammothGroundInputCompleted = $false
+        $failureRecord.combatEntry.actionActorId = $null
+        $failureRecord.combatEntry.actionActorPrepared = $false
+        $failureRecord.combatEntry.actionActorCanActInCombat = $false
+        $failureRecord.combatEntry.actionActorInitiative = [single]::MaxValue
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $failureRecord)
+        $failureManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        $failureSubresult = [ordered]@{
+            name=$humanPlayTurnRequest.scenario;status='FAIL';assertionPassCount=40;assertionFailCount=1
+            errors=@('native Mammoth command ended before rider action admission')
+        }
+        Assert-KmcCombatScenarioEvidence -Request $humanPlayTurnRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $humanPlayTurnRequest.evidenceRoot -Request $humanPlayTurnRequest -Record $humanPlayTurnRecord)
+        $humanPlayTurnManifest = Read-KmcJson (Join-Path $humanPlayTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    }
+
+    $missRequestPath = Join-Path $testRoot 'runtime-request-combat-miss.json'
+    $missRequest = Copy-TestJsonValue $combatRequest
+    $missRequest.runId = 'combat-evidence-miss-test'
+    $missRequest.scenario = 'mounted-rider-melee-miss-rt'
+    $missRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $missRequest.runId
+    Write-KmcJsonAtomic $missRequestPath $missRequest
+    $missRecord = New-TestCombatEvidenceRecord $missRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $missRecord)
+    $missManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+    $missSubresult = [ordered]@{name=$missRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and combat evidence accept exact stationary rider miss' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $missRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $missManifest -Status 'PASS' -SubscenarioResults @($missSubresult)
+    }
+
+    $mammothRequestPath = Join-Path $testRoot 'runtime-request-combat-mammoth.json'
+    $mammothRequest = Copy-TestJsonValue $combatRequest
+    $mammothRequest.runId = 'combat-evidence-mammoth-test'
+    $mammothRequest.scenario = 'mounted-mammoth-primary-hit-rt'
+    $mammothRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $mammothRequest.runId
+    Write-KmcJsonAtomic $mammothRequestPath $mammothRequest
+    $mammothRecord = New-TestCombatEvidenceRecord $mammothRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $mammothRecord)
+    $mammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+    $mammothSubresult = [ordered]@{name=$mammothRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v26 evidence accept exact stationary Mammoth primary with independent rider initiative' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $mammothManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+    }
+
+    Invoke-HarnessTest 'mounted reach validator rejects a Mammoth action outside its independent boundary' {
+        $candidate = Copy-TestJsonValue $mammothRecord
+        $candidate.reach.mountWithinAtDispatch = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $candidate)
+        $candidateManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'mounted reach validator accepted a Mammoth action outside its exact boundary'
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $mammothRecord)
+        $mammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+    }
+
+    $mammothTurnRequestPath = Join-Path $testRoot 'runtime-request-combat-mammoth-turn-based.json'
+    $mammothTurnRequest = Copy-TestJsonValue $mammothRequest
+    $mammothTurnRequest.runId = 'combat-evidence-mammoth-turn-based-test'
+    $mammothTurnRequest.scenario = 'mounted-mammoth-primary-hit-tb'
+    $mammothTurnRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $mammothTurnRequest.runId
+    Write-KmcJsonAtomic $mammothTurnRequestPath $mammothTurnRequest
+    $mammothTurnRecord = New-TestCombatEvidenceRecord $mammothTurnRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $mammothTurnRecord)
+    $mammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    $mammothTurnSubresult = [ordered]@{name=$mammothTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v56 evidence accept one leased Mammoth command on the rider-owned shared turn' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $mammothTurnRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $mammothTurnManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'schema-v56 rejects fabricated scheduler ownership lifecycle resource or shared-turn identity' {
+        $cases = @(
+            { param($record) $record.turnBased.currentTurnUnitIdAtDispatch=$record.mountId;return $record },
+            { param($record) $record.turnBased.nativeActionActorTurnStarted=$true;return $record },
+            { param($record) $record.turnBased.actionActorSharedTurnAdmitted=$false;return $record },
+            { param($record) $record.combatEntry.actionActorCanActInCombat=$false;return $record },
+            { param($record) $record.combatEntry.actionActorSharedTurnAdmitted=$false;return $record },
+            { param($record) $record.dispatch.actionActorSharedTurnAdmitted=$false;return $record },
+            { param($record) $record.resources.riderStandardAfter=5.5;return $record },
+            { param($record) $record.pairedScheduler.enabled=$false;return $record },
+            { param($record) $record.pairedScheduler.riderRemainedCurrent=$false;return $record },
+            { param($record) $record.pairedScheduler.expectedRuleInitiatorId=$record.riderId;return $record },
+            { param($record) $record.pairedScheduler.startObservationCount=2;return $record },
+            { param($record) $record.pairedScheduler.resourceChargeObservationCount=0;return $record },
+            { param($record) $record.pairedScheduler.duplicateFrameDriveCount=1;return $record },
+            { param($record) $record.pairedScheduler.startObservedFrame=$record.pairedScheduler.firstGrantFrame+3;return $record },
+            { param($record) $record.pairedScheduler.faultReason='invariant failure';return $record }
+        )
+        foreach ($mutate in $cases) {
+            $candidate = Copy-TestJsonValue $mammothTurnRecord
+            $candidate = & $mutate $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw 'schema-v56 validator accepted a scheduler, shared-principal, or independent-ledger contradiction'
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $mammothTurnRecord)
+        $mammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    }
+
+    Invoke-HarnessTest 'historical schema-v55 shared-turn evidence retains its complete emitted property set' {
+        $historical55 = Copy-TestJsonValue $mammothTurnRecord
+        $historical55.schemaVersion = 55
+        $historical55.PSObject.Properties.Remove('pairedScheduler')
+        $historical55.turnBased.currentTurnActingAtDispatch = $true
+        $historical55.turnBased.currentTurnActingAtOutcome = $true
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $historical55)
+        $historical55Manifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $historical55Manifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $mammothTurnRecord)
+        $mammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    }
+
+    $moveAttackRequestPath = Join-Path $testRoot 'runtime-request-combat-move-attack.json'
+    $moveAttackRequest = Copy-TestJsonValue $combatRequest
+    $moveAttackRequest.runId = 'combat-evidence-move-attack-test'
+    $moveAttackRequest.scenario = 'mounted-rider-melee-move-to-attack-rt'
+    $moveAttackRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $moveAttackRequest.runId
+    Write-KmcJsonAtomic $moveAttackRequestPath $moveAttackRequest
+    $moveAttackRecord = New-TestCombatEvidenceRecord $moveAttackRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $moveAttackRecord)
+    $moveAttackManifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
+    $moveAttackSubresult = [ordered]@{name=$moveAttackRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v34 evidence accept durable exact raw-slot stock-driven real-time rider movement-to-attack' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $moveAttackManifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
+    }
+
+    $moveAttackTurnRequestPath = Join-Path $testRoot 'runtime-request-combat-move-attack-turn-based.json'
+    $moveAttackTurnRequest = Copy-TestJsonValue $moveAttackRequest
+    $moveAttackTurnRequest.runId = 'combat-evidence-move-attack-turn-based-test'
+    $moveAttackTurnRequest.scenario = 'mounted-rider-melee-move-to-attack-tb'
+    $moveAttackTurnRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $moveAttackTurnRequest.runId
+    Write-KmcJsonAtomic $moveAttackTurnRequestPath $moveAttackTurnRequest
+    $moveAttackTurnRecord = New-TestCombatEvidenceRecord $moveAttackTurnRequest
+    [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $moveAttackTurnRecord)
+    $moveAttackTurnManifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+    $moveAttackTurnSubresult = [ordered]@{name=$moveAttackTurnRequest.scenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+
+    Invoke-HarnessTest 'runtime request and schema-v35 evidence accept durable exact raw-slot rider-turn-driven movement-to-attack' {
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $moveAttackTurnRequestPath
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $moveAttackTurnManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+    }
+
+    $terminationFixtures = @{}
+    foreach ($terminationScenario in @(
+        'mounted-rider-melee-command-cancel-rt',
+        'mounted-rider-melee-command-cancel-tb',
+        'mounted-rider-melee-command-interrupt-rt',
+        'mounted-rider-melee-command-interrupt-tb',
+        'mounted-rider-melee-combat-end-rt',
+        'mounted-rider-melee-combat-end-tb')) {
+        $terminationRequestPath = Join-Path $testRoot ("runtime-request-{0}.json" -f $terminationScenario)
+        $terminationRequest = Copy-TestJsonValue $combatRequest
+        $terminationRequest.runId = 'combat-evidence-' + $terminationScenario + '-test'
+        $terminationRequest.scenario = $terminationScenario
+        $terminationRequest.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $terminationRequest.runId
+        Write-KmcJsonAtomic $terminationRequestPath $terminationRequest
+        $terminationRecord = New-TestCombatEvidenceRecord $terminationRequest
+        [void](Write-TestCombatEvidence -EvidenceRoot $terminationRequest.evidenceRoot -Request $terminationRequest -Record $terminationRecord)
+        $terminationManifest = Read-KmcJson (Join-Path $terminationRequest.evidenceRoot 'runtime-artifacts.json')
+        $terminationSubresult = [ordered]@{name=$terminationScenario;status='PASS';assertionPassCount=25;assertionFailCount=0;errors=@()}
+        $terminationFixtures[$terminationScenario] = [pscustomobject]@{
+            RequestPath=$terminationRequestPath
+            Request=$terminationRequest
+            Record=$terminationRecord
+            Manifest=$terminationManifest
+            Subresult=$terminationSubresult
+        }
+
+        Invoke-HarnessTest ("runtime request and exact command-termination evidence accept {0}" -f $terminationScenario) {
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $terminationRequestPath
+            Assert-KmcCombatScenarioEvidence -Request $terminationRequest -Manifest $terminationManifest -Status 'PASS' -SubscenarioResults @($terminationSubresult)
+        }
+    }
+
+    Invoke-HarnessTest 'command termination source binds exact cancellation interruption combat-end and post-state gates' {
+        $engineSource = Get-Content -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs') -Raw
+        $controllerSource = Get-Content -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs') -Raw
+        Assert-Test -Condition ($engineSource.Contains('selection.Stop();') -and
+            $engineSource.Contains('riderCommands.InterruptAll();') -and
+            $engineSource.Contains('lifecycle.HandlePartyCombatStateChanged(false);') -and
+            $engineSource.Contains('item.Boundary == NativeLifecycleBoundary.CombatEnded') -and
+            $engineSource.Contains('terminationLifecycleDeliveryCount == 2 && terminationLifecycleDeliveriesExact') -and
+            $engineSource.Contains('riderDisplacement < 0.75f || mountDisplacement < 0.75f') -and
+            $engineSource.Contains('currentPairDistance <= pairApproachRadius + MountedCombatSpatialPolicy.RangeTolerance') -and
+            $engineSource.Contains('riderCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Standard) == null') -and
+            $engineSource.Contains('mountCommands.GetCommand(Kingmaker.UnitLogic.Commands.Base.UnitCommand.CommandType.Move) == null') -and
+            $engineSource.Contains('mountAgentStoppedAfterTermination = agent != null && !agent.WantsToMove && !agent.IsReallyMoving') -and
+            $engineSource.Contains('relationshipPreservedAfterTermination && selectionRetainedAfterTermination') -and
+            $engineSource.Contains('outcome.ChildAttackStartCount == 0 && !outcome.NativeAttackRuleObserved') -and
+            $engineSource.Contains('!outcome.ActionStandardCharged && !outcome.RiderStandardCharged') -and
+            $engineSource.Contains('IsCommandTerminationRow ? (int?)null') -and
+            $engineSource.Contains('ruleProbe.ForcedD20Count == 0 && ruleProbe.AttackRuleCount == 0') -and
+            $controllerSource.Contains('finishedCommandPendingSweep = command;') -and
+            $controllerSource.Contains('if (commands.Queue.Count != 0)') -and
+            $controllerSource.Contains('commands.RemoveFinishedAndUpdateQueue();')) -Message `
+            'command termination source does not bind the exact cancellation, interruption, combat-end delivery, progress, command-slot, agent, ownership, resource, zero-rule, relationship, selection, and UI gates'
+    }
+
+    Invoke-HarnessTest 'combat-end termination validator requires its exact repeated lifecycle ledger delivery' {
+        $fixture = $terminationFixtures['mounted-rider-melee-combat-end-tb']
+        $mutations = @(
+            @{name='missing lifecycle count';apply={param($value) $value.commandTermination.PSObject.Properties.Remove('lifecycleDeliveryCount')}},
+            @{name='wrong lifecycle count';apply={param($value) $value.commandTermination.lifecycleDeliveryCount=1}},
+            @{name='inexact lifecycle ledger';apply={param($value) $value.commandTermination.lifecycleDeliveriesExact=$false}},
+            @{name='wrong combat-end kind';apply={param($value) $value.commandTermination.kind='native-wrapper-interrupt'}},
+            @{name='wrong combat-end trigger';apply={param($value) $value.commandTermination.trigger='UnitCommands.InterruptAll'}}
+        )
+        foreach ($mutation in $mutations) {
+            $value = Copy-TestJsonValue $fixture.Record
+            & $mutation.apply $value
+            [void](Write-TestCombatEvidence -EvidenceRoot $fixture.Request.evidenceRoot -Request $fixture.Request -Record $value)
+            $manifest = Read-KmcJson (Join-Path $fixture.Request.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $fixture.Request -Manifest $manifest -Status 'PASS' -SubscenarioResults @($fixture.Subresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("combat-end termination validator accepted mutation: " + [string]$mutation.name)
+        }
+    }
+
+    Invoke-HarnessTest 'command termination validator rejects cancellation interruption ownership resource and cleanup mutations' {
+        $baseFixture = $terminationFixtures['mounted-rider-melee-command-cancel-tb']
+        $mutations = @(
+            @{name='missing termination evidence';apply={param($value) $value.PSObject.Properties.Remove('commandTermination')}},
+            @{name='wrong kind';apply={param($value) $value.commandTermination.kind='native-wrapper-interrupt'}},
+            @{name='wrong trigger';apply={param($value) $value.commandTermination.trigger='UnitCommands.InterruptAll'}},
+            @{name='not delivered';apply={param($value) $value.commandTermination.delivered=$false}},
+            @{name='not idempotent';apply={param($value) $value.commandTermination.repeatedIdempotently=$false}},
+            @{name='wrapper absent before';apply={param($value) $value.commandTermination.wrapperPresentBefore=$false}},
+            @{name='move absent before';apply={param($value) $value.commandTermination.delegatedMovePresentBefore=$false}},
+            @{name='rider queue occupied before';apply={param($value) $value.commandTermination.riderQueueEmptyBefore=$false}},
+            @{name='mount queue occupied before';apply={param($value) $value.commandTermination.mountQueueEmptyBefore=$false}},
+            @{name='child started before';apply={param($value) $value.commandTermination.childAttackNotStartedBefore=$false}},
+            @{name='insufficient rider movement';apply={param($value) $value.commandTermination.riderDisplacementAtTrigger=0.74}},
+            @{name='insufficient mount movement';apply={param($value) $value.commandTermination.mountDisplacementAtTrigger=0.74}},
+            @{name='trigger inside range';apply={param($value) $value.commandTermination.pairDistanceAtTrigger=4.05}},
+            @{name='target moved';apply={param($value) $value.commandTermination.targetDisplacementAtTrigger=0.051}},
+            @{name='wrapper remains after';apply={param($value) $value.commandTermination.wrapperAbsentAfter=$false}},
+            @{name='move remains after';apply={param($value) $value.commandTermination.delegatedMoveAbsentAfter=$false}},
+            @{name='rider queue remains after';apply={param($value) $value.commandTermination.riderQueueEmptyAfter=$false}},
+            @{name='mount queue remains after';apply={param($value) $value.commandTermination.mountQueueEmptyAfter=$false}},
+            @{name='mount agent moving after';apply={param($value) $value.commandTermination.mountAgentStoppedAfter=$false}},
+            @{name='active wrapper remains';apply={param($value) $value.commandTermination.activeCommandClearedAfter=$false}},
+            @{name='relationship lost';apply={param($value) $value.commandTermination.relationshipPreservedAfter=$false}},
+            @{name='selection lost';apply={param($value) $value.commandTermination.selectionRetainedAfter=$false}},
+            @{name='UI incoherent';apply={param($value) $value.commandTermination.uiCoherentAfter=$false}},
+            @{name='successful terminal result';apply={param($value) $value.command.result='Success'}},
+            @{name='child attack started';apply={param($value) $value.command.childAttackStartCount=1}},
+            @{name='native attack observed';apply={param($value) $value.command.nativeAttackRuleObserved=$true}},
+            @{name='attack rule emitted';apply={param($value) $value.rules.attackRuleCount=1}},
+            @{name='attack roll emitted';apply={param($value) $value.rules.attackRollCount=1}},
+            @{name='damage emitted';apply={param($value) $value.rules.damageRuleCount=1}},
+            @{name='deterministic roll armed';apply={param($value) $value.rules.forcedD20=20}},
+            @{name='unrelated forced roll observed';apply={param($value) $value.rules.forcedD20Count=1}},
+            @{name='rider Standard charged';apply={param($value) $value.resources.riderStandardAfter=1.0}},
+            @{name='action Standard charged flag';apply={param($value) $value.command.actionStandardCharged=$true}},
+            @{name='rider Standard charged flag';apply={param($value) $value.command.riderStandardCharged=$true}},
+            @{name='Mammoth Standard charged';apply={param($value) $value.resources.mountStandardAfter=1.0}},
+            @{name='turn rider Move uncharged';apply={param($value) $value.resources.riderMoveAfter=0.0}},
+            @{name='terminated move reported post-arrival tick';apply={param($value) $value.movementToAttack.delegatedMoveTickCount=1}},
+            @{name='delegated move reported successful';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$true}},
+            @{name='attack-start distance populated';apply={param($value) $value.movementToAttack.pairDistanceAtAttackStart=3.9}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $baseFixture.Record
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $baseFixture.Request.evidenceRoot -Request $baseFixture.Request -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $baseFixture.Request.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $baseFixture.Request -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($baseFixture.Subresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("command termination validator accepted mutation: " + [string]$mutation.name)
+        }
+
+        $interruptFixture = $terminationFixtures['mounted-rider-melee-command-interrupt-rt']
+        $crossScenario = Copy-TestJsonValue $baseFixture.Record
+        $crossScenario.runId = $interruptFixture.Request.runId
+        $crossScenario.scenario = $interruptFixture.Request.scenario
+        $crossScenario.row = $interruptFixture.Request.scenario
+        [void](Write-TestCombatEvidence -EvidenceRoot $interruptFixture.Request.evidenceRoot -Request $interruptFixture.Request -Record $crossScenario)
+        $crossManifest = Read-KmcJson (Join-Path $interruptFixture.Request.evidenceRoot 'runtime-artifacts.json')
+        $crossThrew = $false
+        try { Assert-KmcCombatScenarioEvidence -Request $interruptFixture.Request -Manifest $crossManifest -Status 'PASS' -SubscenarioResults @($interruptFixture.Subresult) }
+        catch { $crossThrew = $true }
+        Assert-Test $crossThrew 'command termination validator accepted cancellation evidence under the interruption row'
+    }
+
+    Invoke-HarnessTest 'historical schema-v36 and schema-v37 termination evidence semantics remain valid' {
+        foreach ($scenario in @('mounted-rider-melee-command-cancel-rt','mounted-rider-melee-command-cancel-tb')) {
+            $fixture = $terminationFixtures[$scenario]
+            $legacy = Copy-TestJsonValue $fixture.Record
+            $legacy.schemaVersion = if ($scenario -ceq 'mounted-rider-melee-command-cancel-tb') { 37 } else { 36 }
+            $legacy.resources.riderStandardAfter = 5.5
+            $legacy.command.actionStandardCharged = $true
+            $legacy.command.riderStandardCharged = $true
+            $legacy.rules.forcedD20 = 20
+            if ($legacy.schemaVersion -eq 37) { $legacy.movementToAttack.delegatedMoveTickCount = 12 }
+            [void](Write-TestCombatEvidence -EvidenceRoot $fixture.Request.evidenceRoot -Request $fixture.Request -Record $legacy)
+            $manifest = Read-KmcJson (Join-Path $fixture.Request.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcCombatScenarioEvidence -Request $fixture.Request -Manifest $manifest -Status 'PASS' -SubscenarioResults @($fixture.Subresult)
+        }
+    }
+
+    Invoke-HarnessTest 'movement-to-attack validator rejects mover command resource range and continuity mutations' {
+        $legalRangeStop = Copy-TestJsonValue $moveAttackTurnRecord
+        $legalRangeStop.movementToAttack.delegatedMoveFinishedSuccessfully = $false
+        $legalRangeStop.movementToAttack.delegatedMoveStoppedAtLegalRange = $true
+        $legalRangeStop.movementToAttack.delegatedMoveResultBeforeLegalRangeStop = 'None'
+        $legalRangeStop.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop = 3.9
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legalRangeStop)
+        $legalRangeStopManifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legalRangeStopManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+
+        $mutations = @(
+            @{name='missing movement evidence';apply={param($value) $value.PSObject.Properties.Remove('movementToAttack')}},
+            @{name='approach not required';apply={param($value) $value.movementToAttack.approachRequiredAtStart=$false}},
+            @{name='duplicate delegated move';apply={param($value) $value.movementToAttack.delegatedMoveStartCount=2}},
+            @{name='delegated move did not tick';apply={param($value) $value.movementToAttack.delegatedMoveTickCount=0}},
+            @{name='wrong delegated executor';apply={param($value) $value.movementToAttack.delegatedMoveExecutorId='combat-rider'}},
+            @{name='wrapper command replaced';apply={param($value) $value.movementToAttack.wrapperCommandRetainedThroughoutApproach=$false}},
+            @{name='delegated move entered mount queue';apply={param($value) $value.movementToAttack.delegatedMoveNeverQueuedOnMount=$false}},
+            @{name='delegated move absent from Mammoth Move slot';apply={param($value) $value.movementToAttack.delegatedMoveOwnedByMountMoveSlot=$false}},
+            @{name='Mammoth Move slot replaced';apply={param($value) $value.movementToAttack.mountMoveSlotUnreplacedThroughoutApproach=$false}},
+            @{name='Mammoth command queue changed';apply={param($value) $value.movementToAttack.mountQueueEmptyThroughoutApproach=$false}},
+            @{name='delegated move did not finish';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$false}},
+            @{name='delegated move reports duplicate terminal boundary';apply={param($value) $value.movementToAttack.delegatedMoveStoppedAtLegalRange=$true;$value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='None';$value.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop=3.9}},
+            @{name='legal range stop has wrong native result';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$false;$value.movementToAttack.delegatedMoveStoppedAtLegalRange=$true;$value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='Interrupt';$value.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop=3.9}},
+            @{name='legal range stop is outside pair radius';apply={param($value) $value.movementToAttack.delegatedMoveFinishedSuccessfully=$false;$value.movementToAttack.delegatedMoveStoppedAtLegalRange=$true;$value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='None';$value.movementToAttack.delegatedMovePairDistanceAtLegalRangeStop=4.051}},
+            @{name='native success has legal stop residue';apply={param($value) $value.movementToAttack.delegatedMoveResultBeforeLegalRangeStop='None'}},
+            @{name='Mammoth Move slot not restored';apply={param($value) $value.movementToAttack.mountMoveSlotRestoredAfterApproach=$false}},
+            @{name='wrong turn drive mode';apply={param($value) $value.movementToAttack.delegatedMoveDrivenByStockController=$true}},
+            @{name='no observed movement progress';apply={param($value) $value.movementToAttack.delegatedMoveProgressObservationCount=0}},
+            @{name='rider stock pathfinding active';apply={param($value) $value.movementToAttack.riderStockAgentSuppressedThroughoutApproach=$false}},
+            @{name='Mammoth pathfinding unavailable';apply={param($value) $value.movementToAttack.mountStockAgentAuthoritativeThroughoutApproach=$false}},
+            @{name='approach pose unhealthy';apply={param($value) $value.movementToAttack.poseHealthyThroughoutApproach=$false}},
+            @{name='selection changed';apply={param($value) $value.movementToAttack.selectionRetainedDuringApproach=$false}},
+            @{name='UI changed';apply={param($value) $value.movementToAttack.uiCoherentDuringApproach=$false}},
+            @{name='initial target in range';apply={param($value) $value.targetDistanceAtClick=4.0;$value.movementToAttack.initialPairDistance=4.0}},
+            @{name='attack started outside range';apply={param($value) $value.movementToAttack.pairDistanceAtAttackStart=4.051}},
+            @{name='mount did not approach';apply={param($value) $value.movementToAttack.mountDisplacementAtAttackStart=0.0}},
+            @{name='target moved';apply={param($value) $value.movementToAttack.targetDisplacementAtAttackStart=0.051}},
+            @{name='durability lease absent';apply={param($value) $value.targetProvisioning.temporaryHitPointsAfterProvisioning=0;$value.targetProvisioning.durabilityLeaseAmount=0;$value.targetProvisioning.durabilityLeaseAcquired=$false}},
+            @{name='target killed before outcome';apply={param($value) $value.targetLife.lastObserved.lifeState='Dead';$value.targetLife.lastObserved.conscious=$false;$value.targetLife.lastObserved.dead=$true;$value.targetLife.lastObserved.finallyDead=$true;$value.targetLife.transitionCount=1;$value.targetLife.firstTransition.observed=$true;$value.targetLife.firstTransition.previousLifeState='Conscious';$value.targetLife.firstTransition.currentLifeState='Dead';$value.targetLife.firstTransition.snapshot=$value.targetLife.lastObserved}},
+            @{name='Mammoth Move charged';apply={param($value) $value.resources.mountMoveAfter=2.0}},
+            @{name='rider Move not charged in turn mode';apply={param($value) $value.resources.riderMoveAfter=0.0}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $moveAttackTurnRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("movement-to-attack validator accepted mutation: " + [string]$mutation.name)
+        }
+    }
+
+    Invoke-HarnessTest 'historical schema-v32 and schema-v33 movement evidence remains valid without the later durability lease' {
+        $legacyMove32 = Copy-TestJsonValue $moveAttackRecord
+        $legacyMove32.schemaVersion = 32
+        Remove-TestCombatLegalRangeStopFields $legacyMove32
+        $legacyMove32.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove32.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove32.targetProvisioning.durabilityLeaseAcquired = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $legacyMove32)
+        $legacyMove32Manifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $legacyMove32Manifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
+
+        $legacyMove33 = Copy-TestJsonValue $moveAttackTurnRecord
+        $legacyMove33.schemaVersion = 33
+        Remove-TestCombatLegalRangeStopFields $legacyMove33
+        $legacyMove33.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove33.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove33.targetProvisioning.durabilityLeaseAcquired = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legacyMove33)
+        $legacyMove33Manifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legacyMove33Manifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v28 through schema-v31 movement evidence shapes remain valid' {
+        $legacyMove30 = Copy-TestJsonValue $moveAttackRecord
+        $legacyMove30.schemaVersion = 30
+        Remove-TestCombatLegalRangeStopFields $legacyMove30
+        $legacyMove30.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove30.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove30.targetProvisioning.durabilityLeaseAcquired = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $legacyMove30)
+        $legacyMove30Manifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $legacyMove30Manifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
+
+        $legacyMove31 = Copy-TestJsonValue $moveAttackTurnRecord
+        $legacyMove31.schemaVersion = 31
+        Remove-TestCombatLegalRangeStopFields $legacyMove31
+        $legacyMove31.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove31.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove31.targetProvisioning.durabilityLeaseAcquired = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legacyMove31)
+        $legacyMove31Manifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legacyMove31Manifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+
+        $legacyMove28 = Copy-TestJsonValue $moveAttackRecord
+        $legacyMove28.schemaVersion = 28
+        Remove-TestCombatLegalRangeStopFields $legacyMove28
+        $legacyMove28.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove28.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove28.targetProvisioning.durabilityLeaseAcquired = $false
+        $legacyMove28.movementToAttack.delegatedMoveTickCount = 12
+        foreach ($name in @(
+            'delegatedMoveOwnedByMountMoveSlot','mountMoveSlotUnreplacedThroughoutApproach',
+            'mountQueueEmptyThroughoutApproach','delegatedMoveFinishedSuccessfully',
+            'mountMoveSlotRestoredAfterApproach','delegatedMoveDrivenByStockController',
+            'delegatedMoveDrivenByRiderTurnAdapter','delegatedMoveProgressObservationCount')) {
+            $legacyMove28.movementToAttack.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackRequest.evidenceRoot -Request $moveAttackRequest -Record $legacyMove28)
+        $legacyMove28Manifest = Read-KmcJson (Join-Path $moveAttackRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackRequest -Manifest $legacyMove28Manifest -Status 'PASS' -SubscenarioResults @($moveAttackSubresult)
+
+        $legacyMove29 = Copy-TestJsonValue $moveAttackTurnRecord
+        $legacyMove29.schemaVersion = 29
+        Remove-TestCombatLegalRangeStopFields $legacyMove29
+        $legacyMove29.targetProvisioning.temporaryHitPointsAfterProvisioning = 0
+        $legacyMove29.targetProvisioning.durabilityLeaseAmount = 0
+        $legacyMove29.targetProvisioning.durabilityLeaseAcquired = $false
+        $legacyMove29.movementToAttack.delegatedMoveTickCount = 12
+        foreach ($name in @(
+            'delegatedMoveOwnedByMountMoveSlot','mountMoveSlotUnreplacedThroughoutApproach',
+            'mountQueueEmptyThroughoutApproach','delegatedMoveFinishedSuccessfully',
+            'mountMoveSlotRestoredAfterApproach','delegatedMoveDrivenByStockController',
+            'delegatedMoveDrivenByRiderTurnAdapter','delegatedMoveProgressObservationCount')) {
+            $legacyMove29.movementToAttack.PSObject.Properties.Remove($name)
+        }
+        [void](Write-TestCombatEvidence -EvidenceRoot $moveAttackTurnRequest.evidenceRoot -Request $moveAttackTurnRequest -Record $legacyMove29)
+        $legacyMove29Manifest = Read-KmcJson (Join-Path $moveAttackTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $moveAttackTurnRequest -Manifest $legacyMove29Manifest -Status 'PASS' -SubscenarioResults @($moveAttackTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v24 and schema-v25 evidence remain valid without action-actor entry fields' {
+        $legacyMammoth24 = Copy-TestJsonValue $mammothRecord
+        $legacyMammoth24.schemaVersion = 24
+        $legacyMammoth24.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatActionActorReadinessFields $legacyMammoth24
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $legacyMammoth24)
+        $legacyMammothManifest24 = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $legacyMammothManifest24 -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+
+        $legacyMammothTurn25 = Copy-TestJsonValue $mammothTurnRecord
+        $legacyMammothTurn25.schemaVersion = 25
+        $legacyMammothTurn25.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatActionActorReadinessFields $legacyMammothTurn25
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $legacyMammothTurn25)
+        $legacyMammothTurnManifest25 = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $legacyMammothTurnManifest25 -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v22 and schema-v23 evidence remain valid without target brain-lease fields' {
+        $legacyMammoth22 = Copy-TestJsonValue $mammothRecord
+        $legacyMammoth22.schemaVersion = 22
+        $legacyMammoth22.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatBrainLeaseFields $legacyMammoth22
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $legacyMammoth22)
+        $legacyMammothManifest22 = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $legacyMammothManifest22 -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+
+        $legacyMammothTurn23 = Copy-TestJsonValue $mammothTurnRecord
+        $legacyMammothTurn23.schemaVersion = 23
+        $legacyMammothTurn23.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatBrainLeaseFields $legacyMammothTurn23
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $legacyMammothTurn23)
+        $legacyMammothTurnManifest23 = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $legacyMammothTurnManifest23 -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v20 and schema-v21 Mammoth evidence remain valid' {
+        $legacyMammoth = Copy-TestJsonValue $mammothRecord
+        $legacyMammoth.schemaVersion = 20
+        $legacyMammoth.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatDurabilityLeaseFields $legacyMammoth
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $legacyMammoth)
+        $legacyMammothManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $legacyMammothManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult)
+
+        $legacyMammothTurn = Copy-TestJsonValue $mammothTurnRecord
+        $legacyMammothTurn.schemaVersion = 21
+        $legacyMammothTurn.combatEntry.riderInitiative = 0.0
+        Remove-TestCombatDurabilityLeaseFields $legacyMammothTurn
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $legacyMammothTurn)
+        $legacyMammothTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $legacyMammothTurnManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+    }
+
+    Invoke-HarnessTest 'Mammoth primary validator rejects actor command resource weapon duplicate and turn mutations' {
+        $mutations = @(
+            @{name='rider actor';apply={param($value) $value.command.actorId='combat-rider'}},
+            @{name='rider command owner';apply={param($value) $value.command.commandOwnerId='combat-rider'}},
+            @{name='rider resource owner';apply={param($value) $value.command.resourceOwnerId='combat-rider'}},
+            @{name='action cost absent';apply={param($value) $value.command.actionStandardCharged=$false}},
+            @{name='rider charged flag';apply={param($value) $value.command.riderStandardCharged=$true}},
+            @{name='rider Standard consumed';apply={param($value) $value.resources.riderStandardAfter=5.5}},
+            @{name='Mammoth Standard unconsumed';apply={param($value) $value.resources.mountStandardAfter=0.0}},
+            @{name='Mammoth Move consumed';apply={param($value) $value.resources.mountMoveAfter=3.0}},
+            @{name='wrong action-actor entry identity';apply={param($value) $value.combatEntry.actionActorId='combat-rider'}},
+            @{name='action actor not prepared';apply={param($value) $value.combatEntry.actionActorPrepared=$false}},
+            @{name='action actor cannot act';apply={param($value) $value.combatEntry.actionActorCanActInCombat=$false}},
+            @{name='Mammoth real-time initiative not ready';apply={param($value) $value.combatEntry.actionActorInitiative=1.0}},
+            @{name='rider initiative outside native prepared range';apply={param($value) $value.combatEntry.riderInitiative=6.01}},
+            @{name='wrong rule initiator';apply={param($value) $value.rules.lastInitiatorId='combat-rider'}},
+            @{name='wrong incoming initiator';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorId='combat-rider'}},
+            @{name='duplicate rider attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
+            @{name='wrong weapon';apply={param($value) $value.command.attackWeaponBlueprintId='44444444444444444444444444444444'}},
+            @{name='non-natural weapon';apply={param($value) $value.command.attackWeaponIsNatural=$false}},
+            @{name='ranged weapon';apply={param($value) $value.command.attackWeaponIsRanged=$true}},
+            @{name='wrong slot';apply={param($value) $value.command.attackWeaponSlot='EquippedMelee'}},
+            @{name='pre-existing temporary HP';apply={param($value) $value.targetProvisioning.temporaryHitPointsBefore=1}},
+            @{name='wrong temporary HP after';apply={param($value) $value.targetProvisioning.temporaryHitPointsAfterProvisioning=127}},
+            @{name='wrong durability amount';apply={param($value) $value.targetProvisioning.durabilityLeaseAmount=127}},
+            @{name='durability acquisition absent';apply={param($value) $value.targetProvisioning.durabilityLeaseAcquired=$false}},
+            @{name='durability release absent';apply={param($value) $value.cleanup.durabilityLeaseReleased=$false}},
+            @{name='target brain prior inactive';apply={param($value) $value.targetBrainLease.brainActiveBefore=$false}},
+            @{name='target brain lease absent';apply={param($value) $value.targetBrainLease.leaseAcquired=$false}},
+            @{name='target effective AI claim false';apply={param($value) $value.targetBrainLease.effectiveAiEnabledDuring=$false}},
+            @{name='target brain validation count too low';apply={param($value) $value.targetBrainLease.validationCount=4}},
+            @{name='target brain violation';apply={param($value) $value.targetBrainLease.violationObserved=$true}},
+            @{name='target brain unsuppressed at click';apply={param($value) $value.targetBrainLease.suppressedAtClick=$false}},
+            @{name='target brain unsuppressed at outcome';apply={param($value) $value.targetBrainLease.suppressedAtOutcome=$false}},
+            @{name='target brain prior state not restored';apply={param($value) $value.targetBrainLease.brainActiveAfterRelease=$false}},
+            @{name='target brain lease not released';apply={param($value) $value.targetBrainLease.leaseReleased=$false}},
+            @{name='target brain cleanup absent';apply={param($value) $value.cleanup.brainLeaseReleased=$false}},
+            @{name='target life transition';apply={param($value) $value.targetLife.transitionCount=1}},
+            @{name='rider displacement';apply={param($value) $value.movement.riderDisplacementAtOutcome=0.051}},
+            @{name='Mammoth displacement';apply={param($value) $value.movement.mountDisplacementAtOutcome=0.051}},
+            @{name='target displacement';apply={param($value) $value.movement.targetDisplacementAtOutcome=0.051}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $mammothRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $mammothRequest.evidenceRoot -Request $mammothRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $mammothRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $mammothRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($mammothSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("Mammoth primary validator accepted mutation: " + [string]$mutation.name)
+        }
+
+        $turnMutations = @(
+            @{name='wrong expected principal';apply={param($value) $value.turnBased.expectedTurnActor='mount'}},
+            @{name='fabricated native action-actor turn';apply={param($value) $value.turnBased.nativeActionActorTurnStarted=$true}},
+            @{name='mount dispatch turn';apply={param($value) $value.turnBased.currentTurnUnitIdAtDispatch='combat-mount'}},
+            @{name='mount outcome turn';apply={param($value) $value.turnBased.currentTurnUnitIdAtOutcome='combat-mount'}},
+            @{name='fabricated Mammoth turn end';apply={param($value) $value.turnBased.actionActorTurnEndedAfterCommand=$true}},
+            @{name='scheduler observed Ending';apply={param($value) $value.pairedScheduler.endingObserved=$true}}
+        )
+        foreach ($mutation in $turnMutations) {
+            $candidate = Copy-TestJsonValue $mammothTurnRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("Mammoth primary turn validator accepted mutation: " + [string]$mutation.name)
+        }
+
+        $boundedTurnInitiative = Copy-TestJsonValue $mammothTurnRecord
+        $boundedTurnInitiative.combatEntry.actionActorInitiative = 3.0
+        $boundedTurnInitiative.combatEntry.riderInitiative = 3.0
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $boundedTurnInitiative)
+        $boundedTurnManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $boundedTurnManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult)
+
+        $mismatchedSharedInitiative = Copy-TestJsonValue $boundedTurnInitiative
+        $mismatchedSharedInitiative.combatEntry.riderInitiative = 5.0
+        [void](Write-TestCombatEvidence -EvidenceRoot $mammothTurnRequest.evidenceRoot -Request $mammothTurnRequest -Record $mismatchedSharedInitiative)
+        $mismatchedSharedInitiativeManifest = Read-KmcJson (Join-Path $mammothTurnRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcCombatScenarioEvidence -Request $mammothTurnRequest -Manifest $mismatchedSharedInitiativeManifest -Status 'PASS' -SubscenarioResults @($mammothTurnSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'shared-turn schema accepted divergent rider and Mammoth initiative values'
+    }
+
+    Invoke-HarnessTest 'combat miss validator accepts only exact native AC-selected miss reasons' {
+        foreach ($reason in @('Miss','DodgeAC','ArmorAC','ShieldAC')) {
+            $candidate = Copy-TestJsonValue $missRecord
+            $candidate.rules.lastAttackResult = $reason
+            [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($missSubresult)
+        }
+    }
+
+    Invoke-HarnessTest 'historical schema-v4 and schema-v5 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 4
+        Remove-TestCombatWakeLeaseFields $legacyRealTime
+        $legacyRealTime.rules.PSObject.Properties.Remove('lastAttackHit')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 5
+        Remove-TestCombatWakeLeaseFields $legacyTurnBased
+        $legacyTurnBased.rules.PSObject.Properties.Remove('lastAttackHit')
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v6 and schema-v7 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 6
+        Remove-TestCombatWakeLeaseFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 7
+        Remove-TestCombatWakeLeaseFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v8 and schema-v9 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 8
+        Remove-TestCombatLifeFields $legacyRealTime
+        Remove-TestCombatNativeJoinFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 9
+        Remove-TestCombatLifeFields $legacyTurnBased
+        Remove-TestCombatNativeJoinFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v10 and schema-v11 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 10
+        Remove-TestCombatLifeFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 11
+        Remove-TestCombatLifeFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v12 and schema-v13 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 12
+        Remove-TestCombatIncomingRuleFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 13
+        Remove-TestCombatIncomingRuleFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v14 and schema-v15 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 14
+        Remove-TestCombatIncomingActorContextFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 15
+        Remove-TestCombatIncomingActorContextFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'historical schema-v16 and schema-v17 combat evidence remain valid' {
+        $legacyRealTime = Copy-TestJsonValue $combatRecord
+        $legacyRealTime.schemaVersion = 16
+        Remove-TestCombatNonPairPartyAiLeaseFields $legacyRealTime
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRealTime)
+        $legacyRealTimeManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyRealTimeManifest -Status 'PASS' -SubscenarioResults @($combatSubresult)
+
+        $legacyTurnBased = Copy-TestJsonValue $turnBasedRecord
+        $legacyTurnBased.schemaVersion = 17
+        Remove-TestCombatNonPairPartyAiLeaseFields $legacyTurnBased
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $legacyTurnBased)
+        $legacyTurnBasedManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $legacyTurnBasedManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult)
+    }
+
+    Invoke-HarnessTest 'combat miss validator rejects hit damage and identity mutations' {
+        $mutations = @(
+            @{name='forced hit';apply={param($value) $value.rules.forcedD20=20}},
+            @{name='damage event';apply={param($value) $value.rules.damageRuleCount=1}},
+            @{name='positive damage';apply={param($value) $value.rules.totalDamage=1}},
+            @{name='native hit true';apply={param($value) $value.rules.lastAttackHit=$true}},
+            @{name='native hit missing';apply={param($value) $value.rules.PSObject.Properties.Remove('lastAttackHit')}},
+            @{name='native hit null';apply={param($value) $value.rules.lastAttackHit=$null}},
+            @{name='hit result';apply={param($value) $value.rules.lastAttackResult='Hit'}},
+            @{name='critical-hit result';apply={param($value) $value.rules.lastAttackResult='CriticalHit'}},
+            @{name='unknown result';apply={param($value) $value.rules.lastAttackResult='Unknown'}},
+            @{name='mirror-image result';apply={param($value) $value.rules.lastAttackResult='MirrorImage'}},
+            @{name='concealment result';apply={param($value) $value.rules.lastAttackResult='Concealment'}},
+            @{name='parried result';apply={param($value) $value.rules.lastAttackResult='Parried'}},
+            @{name='wrong initiator';apply={param($value) $value.rules.lastInitiatorId='combat-mount'}},
+            @{name='duplicate roll';apply={param($value) $value.rules.attackRollCount=2}},
+            @{name='incoming attack wrong initiator';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorId='combat-mount'}},
+            @{name='pre-dispatch incoming attack';apply={param($value) $value.targetIncomingRules.preDispatchAttackRuleCount=1;$value.targetIncomingRules.firstAttack.beforeExpectedDispatch=$true}},
+            @{name='incoming damage observed on miss';apply={param($value) $value.targetIncomingRules.damageRuleCount=1}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $missRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($missSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("combat miss validator accepted mutation: " + [string]$mutation.name)
+        }
+    }
+
+    Invoke-HarnessTest 'schema-v13 preserves a structured pre-combat turn-based FAIL' {
+        $failureRecord = Copy-TestJsonValue $turnBasedRecord
+        $failureRecord.schemaVersion = 13
+        Remove-TestCombatIncomingRuleFields $failureRecord
+        $failureRecord.status = 'FAIL'
+        $failureRecord.assertionPassCount = 10
+        $failureRecord.assertionFailCount = 1
+        $failureRecord.errors = @('bounded pre-combat mode deadline')
+        $failureRecord.turnBased.enabledAtMount = $false
+        $failureRecord.turnBased.controllerInitialized = $false
+        $failureRecord.turnBased.rosterContainsRider = $false
+        $failureRecord.turnBased.rosterContainsMount = $false
+        $failureRecord.turnBased.rosterContainsTarget = $false
+        $failureRecord.turnBased.nativeRiderTurnStarted = $false
+        $failureRecord.turnBased.currentTurnUnitIdAtDispatch = $null
+        $failureRecord.turnBased.currentTurnActingAtDispatch = $false
+        $failureRecord.turnBased.roundNumberAtDispatch = -1
+        $failureRecord.turnBased.currentTurnUnitIdAtOutcome = $null
+        $failureRecord.turnBased.currentTurnActingAtOutcome = $false
+        [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $failureRecord)
+        $failureManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+        $failureSubresult = [ordered]@{
+            name=$turnBasedRequest.scenario;status='FAIL';assertionPassCount=10;assertionFailCount=1
+            errors=@('bounded pre-combat mode deadline')
+        }
+        Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
+    }
+
+    Invoke-HarnessTest 'schema-v12 preserves an exact observed target death transition' {
+        $failureRecord = Copy-TestJsonValue $missRecord
+        $failureRecord.schemaVersion = 12
+        Remove-TestCombatIncomingRuleFields $failureRecord
+        $failureRecord.status = 'FAIL'
+        $failureRecord.assertionPassCount = 20
+        $failureRecord.assertionFailCount = 1
+        $failureRecord.errors = @('target life changed before native combat entry')
+        $failureRecord.combatEntry.nativeJoin.targetConscious = $false
+        $failureRecord.targetLife.lastObserved.lifeState = 'Dead'
+        $failureRecord.targetLife.lastObserved.conscious = $false
+        $failureRecord.targetLife.lastObserved.dead = $true
+        $failureRecord.targetLife.lastObserved.finallyDead = $true
+        $failureRecord.targetLife.lastObserved.damage = 120
+        $failureRecord.targetLife.transitionCount = 1
+        $failureRecord.targetLife.firstTransition.observed = $true
+        $failureRecord.targetLife.firstTransition.previousLifeState = 'Conscious'
+        $failureRecord.targetLife.firstTransition.currentLifeState = 'Dead'
+        $failureRecord.targetLife.firstTransition.snapshot = Copy-TestJsonValue $failureRecord.targetLife.lastObserved
+        [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $failureRecord)
+        $failureManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+        $failureSubresult = [ordered]@{
+            name=$missRequest.scenario;status='FAIL';assertionPassCount=20;assertionFailCount=1
+            errors=@('target life changed before native combat entry')
+        }
+        Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
+    }
+
+    Invoke-HarnessTest 'schema-v16 preserves exact pre-dispatch third-party attack and damage actor context' {
+        $failureRecord = Copy-TestJsonValue $missRecord
+        $failureRecord.schemaVersion = 16
+        Remove-TestCombatNonPairPartyAiLeaseFields $failureRecord
+        $failureRecord.status = 'FAIL'
+        $failureRecord.assertionPassCount = 20
+        $failureRecord.assertionFailCount = 1
+        $failureRecord.errors = @('target received third-party damage before expected rider dispatch')
+        $failureRecord.combatEntry.nativeJoin.targetConscious = $false
+        $failureRecord.targetLife.lastObserved.lifeState = 'Dead'
+        $failureRecord.targetLife.lastObserved.conscious = $false
+        $failureRecord.targetLife.lastObserved.dead = $true
+        $failureRecord.targetLife.lastObserved.finallyDead = $true
+        $failureRecord.targetLife.lastObserved.damage = 15
+        $failureRecord.targetLife.transitionCount = 1
+        $failureRecord.targetLife.firstTransition.observed = $true
+        $failureRecord.targetLife.firstTransition.previousLifeState = 'Conscious'
+        $failureRecord.targetLife.firstTransition.currentLifeState = 'Dead'
+        $failureRecord.targetLife.firstTransition.snapshot = Copy-TestJsonValue $failureRecord.targetLife.lastObserved
+        $failureRecord.targetIncomingRules.dispatchMarkerSet = $false
+        $failureRecord.targetIncomingRules.attackRuleCount = 1
+        $failureRecord.targetIncomingRules.damageRuleCount = 1
+        $failureRecord.targetIncomingRules.preDispatchAttackRuleCount = 1
+        $failureRecord.targetIncomingRules.preDispatchDamageRuleCount = 1
+        $failureRecord.targetIncomingRules.firstAttack.beforeExpectedDispatch = $true
+        $failureRecord.targetIncomingRules.firstAttack.initiatorId = 'combat-third-party'
+        $failureRecord.targetIncomingRules.firstAttack.initiatorBlueprintId = '44444444444444444444444444444444'
+        $failureRecord.targetIncomingRules.firstAttack.initiatorEffectiveAiEnabled = $true
+        $failureRecord.targetIncomingRules.firstAttack.initiatorRawAiEnabled = $true
+        $failureRecord.targetIncomingRules.firstDamage.observed = $true
+        $failureRecord.targetIncomingRules.firstDamage.beforeExpectedDispatch = $true
+        $failureRecord.targetIncomingRules.firstDamage.initiatorId = 'combat-third-party'
+        $failureRecord.targetIncomingRules.firstDamage.initiatorBlueprintId = '44444444444444444444444444444444'
+        $failureRecord.targetIncomingRules.firstDamage.initiatorIsPlayerFaction = $true
+        $failureRecord.targetIncomingRules.firstDamage.damage = 15
+        $failureRecord.targetIncomingRules.firstDamage.attackRollPresent = $true
+        $failureRecord.targetIncomingRules.firstDamage.weaponBlueprintId = '55555555555555555555555555555555'
+        [void](Write-TestCombatEvidence -EvidenceRoot $missRequest.evidenceRoot -Request $missRequest -Record $failureRecord)
+        $failureManifest = Read-KmcJson (Join-Path $missRequest.evidenceRoot 'runtime-artifacts.json')
+        $failureSubresult = [ordered]@{
+            name=$missRequest.scenario;status='FAIL';assertionPassCount=20;assertionFailCount=1
+            errors=@('target received third-party damage before expected rider dispatch')
+        }
+        Assert-KmcCombatScenarioEvidence -Request $missRequest -Manifest $failureManifest -Status 'FAIL' -SubscenarioResults @($failureSubresult)
+    }
+
+    Invoke-HarnessTest 'turn-based combat validator rejects mode roster turn and restoration mutations' {
+        $mutations = @(
+            @{name='wrong evidence schema';apply={param($value) $value.schemaVersion=4;$value.PSObject.Properties.Remove('turnBased')}},
+            @{name='wrong mode';apply={param($value) $value.mode='real-time'}},
+            @{name='real-time unpause claim';apply={param($value) $value.dispatch.unpausedForRealTime=$true}},
+            @{name='original mode enabled';apply={param($value) $value.turnBased.originalEnabled=$true}},
+            @{name='temporary mode disabled';apply={param($value) $value.turnBased.temporaryEnabled=$false}},
+            @{name='mode absent at mount';apply={param($value) $value.turnBased.enabledAtMount=$false}},
+            @{name='controller uninitialized';apply={param($value) $value.turnBased.controllerInitialized=$false}},
+            @{name='rider absent from roster';apply={param($value) $value.turnBased.rosterContainsRider=$false}},
+            @{name='mount absent from roster';apply={param($value) $value.turnBased.rosterContainsMount=$false}},
+            @{name='target absent from roster';apply={param($value) $value.turnBased.rosterContainsTarget=$false}},
+            @{name='native rider turn not started';apply={param($value) $value.turnBased.nativeActionActorTurnStarted=$false}},
+            @{name='wrong dispatch turn identity';apply={param($value) $value.turnBased.currentTurnUnitIdAtDispatch='combat-mount'}},
+            @{name='dispatch turn not acting';apply={param($value) $value.turnBased.currentTurnActingAtDispatch=$false}},
+            @{name='negative round';apply={param($value) $value.turnBased.roundNumberAtDispatch=-1}},
+            @{name='wrong outcome turn identity';apply={param($value) $value.turnBased.currentTurnUnitIdAtOutcome='combat-target'}},
+            @{name='outcome turn not acting';apply={param($value) $value.turnBased.currentTurnActingAtOutcome=$false}},
+            @{name='restore callback incomplete';apply={param($value) $value.turnBased.restoreDeliveryCompleted=$false}},
+            @{name='mode not restored';apply={param($value) $value.turnBased.modeRestored=$false}},
+            @{name='persisted mode changed';apply={param($value) $value.turnBased.persistedValueUnchanged=$false}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $turnBasedRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $turnBasedRequest.evidenceRoot -Request $turnBasedRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $turnBasedRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $turnBasedRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($turnBasedSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("turn-based combat validator accepted mutation: " + [string]$mutation.name)
+        }
+    }
+
+    Invoke-HarnessTest 'combat validator retains non-qualifying schema-v1 evidence compatibility' {
+        $legacyRecord = Copy-TestJsonValue $combatRecord
+        $legacyRecord.schemaVersion = 1
+        $legacyRecord.PSObject.Properties.Remove('reach')
+        Remove-TestCombatWakeLeaseFields $legacyRecord
+        $legacyRecord.PSObject.Properties.Remove('combatEntry')
+        $legacyRecord.PSObject.Properties.Remove('dispatch')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
+        $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
+    }
+
+    Invoke-HarnessTest 'combat validator retains non-qualifying schema-v2 evidence compatibility' {
+        $legacyRecord = Copy-TestJsonValue $combatRecord
+        $legacyRecord.schemaVersion = 2
+        $legacyRecord.PSObject.Properties.Remove('reach')
+        Remove-TestCombatWakeLeaseFields $legacyRecord
+        $legacyRecord.PSObject.Properties.Remove('combatEntry')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
+        $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
+    }
+
+    Invoke-HarnessTest 'combat validator retains non-qualifying schema-v3 evidence compatibility' {
+        $legacyRecord = Copy-TestJsonValue $combatRecord
+        $legacyRecord.schemaVersion = 3
+        $legacyRecord.PSObject.Properties.Remove('reach')
+        Remove-TestCombatWakeLeaseFields $legacyRecord
+        $legacyRecord.command.PSObject.Properties.Remove('terminalReason')
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $legacyRecord)
+        $legacyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $legacyManifest -Status 'FAIL'
+    }
+
+    Invoke-HarnessTest 'combat validator rejects duplicate rules action cost and actor mutations' {
+        $mutations = @(
+            @{name='duplicate attack';apply={param($value) $value.rules.attackRuleCount=2}},
+            @{name='duplicate damage';apply={param($value) $value.rules.damageRuleCount=2}},
+            @{name='unexpected pair attack';apply={param($value) $value.rules.unexpectedPairAttackCount=1}},
+            @{name='native hit false';apply={param($value) $value.rules.lastAttackHit=$false}},
+            @{name='wrong command actor';apply={param($value) $value.command.actorId='combat-mount'}},
+            @{name='non-completed terminal reason';apply={param($value) $value.command.terminalReason='InvalidOperationException: target-conscious'}},
+            @{name='memory not queued';apply={param($value) $value.combatEntry.memoryQueued=$false}},
+            @{name='player memory absent';apply={param($value) $value.combatEntry.playerGroupMemoryContainsTarget=$false}},
+            @{name='target memory absent';apply={param($value) $value.combatEntry.targetGroupMemoryContainsRider=$false}},
+            @{name='native combat absent';apply={param($value) $value.combatEntry.targetInCombat=$false}},
+            @{name='target not awake';apply={param($value) $value.combatEntry.targetAwake=$false}},
+            @{name='native join rider not in game';apply={param($value) $value.combatEntry.nativeJoin.riderInGame=$false}},
+            @{name='native join target unconscious';apply={param($value) $value.combatEntry.nativeJoin.targetConscious=$false}},
+            @{name='native join target ignored';apply={param($value) $value.combatEntry.nativeJoin.targetIgnoredByCombat=$true}},
+            @{name='native join player enemy list absent';apply={param($value) $value.combatEntry.nativeJoin.playerGroupEnemiesContainsTarget=$false}},
+            @{name='native join target ambush';apply={param($value) $value.combatEntry.nativeJoin.targetNotInStealthAmbush=$false}},
+            @{name='native join Boolean coercion';apply={param($value) $value.combatEntry.nativeJoin.targetInGame='true'}},
+            @{name='initiative unprepared';apply={param($value) $value.combatEntry.riderPrepared=$false}},
+            @{name='initiative pending';apply={param($value) $value.combatEntry.riderInitiative=1.0}},
+            @{name='game delta stopped';apply={param($value) $value.combatEntry.gameDeltaTime=0.0}},
+            @{name='memory cleanup residue';apply={param($value) $value.combatEntry.memoryRemovedAtCleanup=$false}},
+            @{name='pair start range absent';apply={param($value) $value.command.pairRangeSatisfiedAtStart=$false}},
+            @{name='pair start outside radius';apply={param($value) $value.command.pairDistanceAtStart=4.051}},
+            @{name='native executor outside admission';apply={param($value) $value.command.nativeExecutorDistanceAtStart=4.2}},
+            @{name='native admission expansion escape';apply={param($value) $value.command.nativeAdmissionRadiusAtStart=4.751}},
+            @{name='native adjustment flag mismatch';apply={param($value) $value.command.nativeAdmissionAdjusted=$false}},
+            @{name='dispatch stayed paused';apply={param($value) $value.dispatch.pausedAtClick=$true}},
+            @{name='dispatch initiative unavailable';apply={param($value) $value.dispatch.actionActorCanActInCombat=$false}},
+            @{name='dispatch hands busy';apply={param($value) $value.dispatch.actionActorHandsBusy=$true}},
+            @{name='dispatch equipment pending';apply={param($value) $value.dispatch.equipmentUpdateScheduled=$true}},
+            @{name='pause not restored';apply={param($value) $value.dispatch.pauseRestored=$false}},
+            @{name='missing rider Standard cost';apply={param($value) $value.resources.riderStandardAfter=0.0}},
+            @{name='mount Standard cost';apply={param($value) $value.resources.mountStandardAfter=5.0}},
+            @{name='delegated movement';apply={param($value) $value.command.repathCount=1;$value.movement.repathCount=1}},
+            @{name='insufficient pair radius';apply={param($value) $value.pairApproachRadius=0.17;$value.targetDistanceAtClick=0.06}},
+            @{name='target placement drift';apply={param($value) $value.targetDistanceAtClick=1.0}},
+            @{name='reach evidence absent';apply={param($value) $value.PSObject.Properties.Remove('reach')}},
+            @{name='reach rider blueprint malformed';apply={param($value) $value.reach.riderWeaponBlueprintId='not-a-blueprint'}},
+            @{name='reach rider radius formula mismatch';apply={param($value) $value.reach.riderStoppingRadius=4.1}},
+            @{name='reach Mammoth radius formula mismatch';apply={param($value) $value.reach.mountStoppingRadius=4.1}},
+            @{name='reach initial distance inside rider boundary';apply={param($value) $value.reach.initialDistance=4.05}},
+            @{name='reach initial rider probe admitted';apply={param($value) $value.reach.riderOutsideAtInitial=$false}},
+            @{name='reach initial Mammoth probe admitted';apply={param($value) $value.reach.mountOutsideAtInitial=$false}},
+            @{name='reach dispatch distance mismatch';apply={param($value) $value.reach.dispatchDistance=3.8}},
+            @{name='reach rider targetability absent';apply={param($value) $value.reach.riderCanAttackTarget=$false}},
+            @{name='reach Mammoth targetability absent';apply={param($value) $value.reach.mountCanAttackTarget=$false}},
+            @{name='reach target cannot attack rider';apply={param($value) $value.reach.targetCanAttackRider=$false}},
+            @{name='reach target cannot attack Mammoth';apply={param($value) $value.reach.targetCanAttackMount=$false}},
+            @{name='reach inputs mutated';apply={param($value) $value.reach.inputsUnchangedAtDispatch=$false}},
+            @{name='reach action radius mismatch';apply={param($value) $value.reach.actionRadiusMatches=$false}},
+            @{name='reach rider outside at dispatch';apply={param($value) $value.reach.riderWithinAtDispatch=$false}},
+            @{name='pose failure';apply={param($value) $value.pose.healthyAtOutcome=$false}},
+            @{name='target native weapon source';apply={param($value) $value.targetProvisioning.blueprintEmptyHandWeaponBlueprintId='22222222222222222222222222222222'}},
+            @{name='target native slot';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackSlot='AdditionalLimb'}},
+            @{name='target native source classification';apply={param($value) $value.targetProvisioning.targetWeaponUsesEmptyHandFallback=$false}},
+            @{name='target native type';apply={param($value) $value.targetProvisioning.targetNativeSingleAttackWeaponIsNatural=$false}},
+            @{name='target weapon mutation';apply={param($value) $value.targetProvisioning.additionalLimbCountAfter=1;$value.targetProvisioning.noWeaponProvisioningMutation=$false}},
+            @{name='target provisioning loot';apply={param($value) $value.targetProvisioning.noLoot=$false}},
+            @{name='target unexpectedly sleepless before lease';apply={param($value) $value.targetProvisioning.sleeplessBefore=$true}},
+            @{name='target sleepless lease absent';apply={param($value) $value.targetProvisioning.sleeplessLeaseAcquired=$false}},
+            @{name='target sleepless lease coercion';apply={param($value) $value.targetProvisioning.sleeplessLeaseAcquired='true'}},
+            @{name='target life absent';apply={param($value) $value.PSObject.Properties.Remove('targetLife')}},
+            @{name='target life creation unobserved';apply={param($value) $value.targetLife.immediatelyAfterCreation.observed=$false}},
+            @{name='target life creation dead';apply={param($value) $value.targetLife.immediatelyAfterCreation.lifeState='Dead';$value.targetLife.immediatelyAfterCreation.conscious=$false;$value.targetLife.immediatelyAfterCreation.dead=$true}},
+            @{name='target life activation unconscious';apply={param($value) $value.targetLife.atActivation.lifeState='Unconscious';$value.targetLife.atActivation.conscious=$false}},
+            @{name='target life inconsistent projection';apply={param($value) $value.targetLife.lastObserved.dead=$true}},
+            @{name='target life transition count coercion';apply={param($value) $value.targetLife.transitionCount='0'}},
+            @{name='target life transition sentinel mismatch';apply={param($value) $value.targetLife.firstTransition.observed=$true}},
+            @{name='target incoming rules absent';apply={param($value) $value.PSObject.Properties.Remove('targetIncomingRules')}},
+            @{name='target dispatch marker absent';apply={param($value) $value.targetIncomingRules.dispatchMarkerSet=$false}},
+            @{name='target pre-dispatch attack interference';apply={param($value) $value.targetIncomingRules.preDispatchAttackRuleCount=1;$value.targetIncomingRules.firstAttack.beforeExpectedDispatch=$true}},
+            @{name='target incoming attack duplicate';apply={param($value) $value.targetIncomingRules.attackRuleCount=2}},
+            @{name='target incoming attack wrong initiator';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorId='combat-mount'}},
+            @{name='target incoming attack missing group';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorGroupId=$null}},
+            @{name='target incoming attack outside party group';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorGroupIsPlayerParty=$false}},
+            @{name='target incoming attack different rider group';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorSharesRiderGroup=$false}},
+            @{name='target incoming attack indirect actor';apply={param($value) $value.targetIncomingRules.firstAttack.initiatorDirectlyControllable=$false}},
+            @{name='target pre-dispatch damage interference';apply={param($value) $value.targetIncomingRules.preDispatchDamageRuleCount=1;$value.targetIncomingRules.firstDamage.beforeExpectedDispatch=$true}},
+            @{name='target incoming damage wrong initiator';apply={param($value) $value.targetIncomingRules.firstDamage.initiatorId='combat-mount'}},
+            @{name='non-pair party AI lease absent';apply={param($value) $value.PSObject.Properties.Remove('nonPairPartyAiLease')}},
+            @{name='non-pair party AI lease not acquired';apply={param($value) $value.nonPairPartyAiLease.acquired=$false}},
+            @{name='non-pair party AI lease wrong group';apply={param($value) $value.nonPairPartyAiLease.groupId='different-player-group'}},
+            @{name='non-pair party AI lease non-player group';apply={param($value) $value.nonPairPartyAiLease.groupIsPlayerParty=$false}},
+            @{name='non-pair party AI lease rider group mismatch';apply={param($value) $value.nonPairPartyAiLease.riderSharesGroup=$false}},
+            @{name='non-pair party AI lease mount group mismatch';apply={param($value) $value.nonPairPartyAiLease.mountSharesGroup=$false}},
+            @{name='non-pair party AI lease member count mismatch';apply={param($value) $value.nonPairPartyAiLease.memberCount=2}},
+            @{name='non-pair party AI lease active validation failed';apply={param($value) $value.nonPairPartyAiLease.activeValidationPassed=$false}},
+            @{name='non-pair party AI lease restore failed';apply={param($value) $value.nonPairPartyAiLease.restored=$false}},
+            @{name='non-pair party AI lease unexpected error';apply={param($value) $value.nonPairPartyAiLease.lastError='AI lease drift'}},
+            @{name='non-pair party AI lease member is rider';apply={param($value) $value.nonPairPartyAiLease.members[0].unitId='combat-rider'}},
+            @{name='non-pair party AI lease member indirect';apply={param($value) $value.nonPairPartyAiLease.members[0].directlyControllable=$false}},
+            @{name='non-pair party AI lease member absent';apply={param($value) $value.nonPairPartyAiLease.members[0].inState=$false}},
+            @{name='non-pair party AI lease command before acquisition';apply={param($value) $value.nonPairPartyAiLease.members[0].commandsEmptyBefore=$false}},
+            @{name='non-pair party AI lease command during lease';apply={param($value) $value.nonPairPartyAiLease.members[0].commandsEmptyDuring=$false}},
+            @{name='non-pair party AI lease raw AI active during lease';apply={param($value) $value.nonPairPartyAiLease.members[0].rawAiDuring=$true}},
+            @{name='non-pair party AI lease effective AI active during lease';apply={param($value) $value.nonPairPartyAiLease.members[0].effectiveAiDuring=$true}},
+            @{name='non-pair party AI lease command after restore';apply={param($value) $value.nonPairPartyAiLease.members[0].commandsEmptyAfter=$false}},
+            @{name='non-pair party AI lease raw AI restore mismatch';apply={param($value) $value.nonPairPartyAiLease.members[0].rawAiAfter=$false}},
+            @{name='non-pair party AI lease effective AI restore mismatch';apply={param($value) $value.nonPairPartyAiLease.members[0].effectiveAiAfter=$false}},
+            @{name='target residue';apply={param($value) $value.cleanup.targetRemoved=$false}},
+            @{name='target entity residue';apply={param($value) $value.cleanup.targetEntityRemoved=$false}},
+            @{name='target group residue';apply={param($value) $value.cleanup.runtimeGroupRemoved=$false}},
+            @{name='target faction residue';apply={param($value) $value.cleanup.runtimeFactionRemoved=$false}},
+            @{name='target sleepless lease residue';apply={param($value) $value.cleanup.sleeplessLeaseReleased=$false}},
+            @{name='target sleepless cleanup coercion';apply={param($value) $value.cleanup.sleeplessLeaseReleased='true'}},
+            @{name='non-pair party AI lease cleanup residue';apply={param($value) $value.cleanup.nonPairPartyAiLeaseRestored=$false}},
+            @{name='non-pair party AI lease cleanup coercion';apply={param($value) $value.cleanup.nonPairPartyAiLeaseRestored='true'}}
+        )
+        foreach ($mutation in $mutations) {
+            $candidate = Copy-TestJsonValue $combatRecord
+            & $mutation.apply $candidate
+            [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $candidate)
+            $candidateManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $candidateManifest -Status 'PASS' -SubscenarioResults @($combatSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw ("combat validator accepted mutation: " + [string]$mutation.name)
+        }
+    }
+
+    Invoke-HarnessTest 'combat artifact must be exact manifested immutable content' {
+        [void](Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord -OmitManifestRecord)
+        $emptyManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        $unmanifestedRejected = $false
+        try { Assert-KmcKnownRuntimeArtifactsManifested $combatRequest.evidenceRoot $emptyManifest }
+        catch { $unmanifestedRejected = $true }
+        Assert-Test $unmanifestedRejected 'known combat artifact was accepted without a manifest record'
+
+        $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
+        Add-Content -LiteralPath (Join-Path $combatRequest.evidenceRoot 'combat-scenario-evidence.jsonl') -Value ' '
+        $hashRejected = $false
+        try { Get-KmcValidatedOrchestrationArtifactManifestHash $combatRequest | Out-Null }
+        catch { $hashRejected = $true }
+        Assert-Test $hashRejected 'combat evidence byte mutation passed manifest validation'
+
+        $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord -ManifestKind 'scenario-evidence'
+        $wrongKindManifest = Read-KmcJson (Join-Path $combatRequest.evidenceRoot 'runtime-artifacts.json')
+        $kindRejected = $false
+        try { Assert-KmcCombatScenarioEvidence -Request $combatRequest -Manifest $wrongKindManifest -Status 'PASS' -SubscenarioResults @($combatSubresult) }
+        catch { $kindRejected = $true }
+        Assert-Test $kindRejected 'combat artifact passed under the wrong manifest kind'
+    }
+
+    $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
 
     $v2GameResultPath = Join-Path $testRoot 'runtime-game-result-v2.json'
     $lifecycleEvidencePath = Join-Path $v2Request.evidenceRoot 'lifecycle-scenario-evidence.jsonl'
@@ -3373,7 +7020,7 @@ try {
         ummVersion='0.28.2.0';ummSha256=[string]$ummAssembly.sha256;harmony12Version='1.2.0.1';harmony12Sha256=[string]$harmonyAssembly.sha256
         relationshipState='Unmounted';movementExperimentEnabled=$false;processId=$PID;currentGameMode='Default';loadedAreaPresent=$true
         saveRequestCount=0;loadRequestCount=1;frameCount=10;elapsedSeconds=1.0;errors=@();fixture=$v2Fixture;fixtureIdentityVerified=$true
-        baselineLoadRequestCount=0;workingLoadRequestCount=1;workingSaveRequestCount=0;unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0
+        baselineLoadRequestCount=0;workingLoadRequestCount=1;workingSaveRequestCount=0;suppressedWorkingSaveRequestCount=0;unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0
         subscenarioTotal=1;subscenarioPassCount=1;subscenarioFailCount=0;assertionPassCount=3;assertionFailCount=0;evidenceManifestSha256=$v2EvidenceManifestHash;subscenarioResults=@($v2Subscenario)
     }
     Write-KmcJsonAtomic $v2GameResultPath $v2GameResult
@@ -3626,18 +7273,179 @@ try {
         Assert-Test $threw 'lifecycle-suite PASS accepted fewer than the exact eight ordered rows'
     }
 
+    Invoke-HarnessTest 'combat-lifecycle-suite binds exact superseding boundary semantics and preserves schema-v2 history' {
+        $combatLifecycleRows=@(Get-KmcCombatLifecycleRuntimeRows)
+        $combatLifecycleRequest=[pscustomobject][ordered]@{
+            runId='combat-lifecycle-suite-test';scenario='combat-lifecycle-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'combat-lifecycle-suite-test')
+        }
+        $records=New-Object 'Collections.Generic.List[object]';$sequence=0
+        foreach($row in $combatLifecycleRows) {
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'pre-mount' 'Unmounted'))
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'mounted-next-frame' 'Mounted'))
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'cleanup-next-frame' 'Unmounted' -WithCleanup))
+            $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest ($sequence++) $row 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'PASS' -AssertionPassCount 1 -AssertionFailCount 0))
+        }
+        $records.Add((New-TestLifecycleEvidenceRecord $combatLifecycleRequest $sequence $combatLifecycleRows[-1] 'engine-finalization' 'Unmounted' -WithCleanup))
+        $valid=$records.ToArray()
+        $subresults=@($combatLifecycleRows|ForEach-Object{[pscustomobject][ordered]@{name=$_;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}})
+        [void](Write-TestLifecycleEvidence -EvidenceRoot $combatLifecycleRequest.evidenceRoot -Request $combatLifecycleRequest -Records $valid)
+        $manifest=Read-KmcJson (Join-Path $combatLifecycleRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcLifecycleScenarioEvidence -Request $combatLifecycleRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults
+
+        $candidate=Copy-TestJsonValue $valid
+        $candidate[0].schemaVersion=2
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted historical schema-v2 semantics'
+
+        $candidate=Copy-TestJsonValue $valid
+        $cleanupRecord=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-combat-start-retained' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $cleanupRecord.boundaryExercise.relationshipStateAfterBoundary='Unmounted'
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat-start retention accepted an Unmounted boundary state'
+
+        $candidate=Copy-TestJsonValue $valid
+        $deathRecord=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-mount-death-cleanup' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $deathRecord.boundaryExercise.actorRole='rider'
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'mount death accepted rider actor ownership'
+
+        $candidate=Copy-TestJsonValue $valid
+        $endRecord=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-combat-end-retained' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $endRecord.boundaryExercise.deliveries=@($endRecord.boundaryExercise.deliveries[0])
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat end accepted a missing end delivery'
+
+        $candidate=Copy-TestJsonValue $valid
+        $pendingCleanup=@($candidate|Where-Object{[string]$_.row -ceq 'mounted-pair-exception-cleanup' -and [string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $pendingCleanup.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row 'mounted-pair-exception-cleanup' -Observed:$false
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted pending evidence after cleanup'
+
+        $candidate=Copy-TestJsonValue $valid
+        $prePose=@($candidate|Where-Object{[string]$_.phase -ceq 'pre-mount'})[0]
+        $prePose.pose.profileId='medium-humanoid-mammoth-v1'
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted an active pose identity before mount'
+
+        $candidate=Copy-TestJsonValue $valid
+        $mountedPose=@($candidate|Where-Object{[string]$_.phase -ceq 'mounted-next-frame'})[0]
+        $mountedPose.pose.profileId=$null
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted a missing mounted Mammoth pose identity'
+
+        $candidate=Copy-TestJsonValue $valid
+        $restoredPose=@($candidate|Where-Object{[string]$_.phase -ceq 'cleanup-next-frame'})[0]
+        $restoredPose.pose.baselineRestoreVerified=$false
+        Assert-TestLifecycleEvidenceRejected $combatLifecycleRequest $candidate $subresults 'combat lifecycle accepted unverified pose restoration after cleanup'
+
+        $historical=Copy-TestJsonValue $validLifecycleRecords
+        Assert-Test ([long]$historical[0].schemaVersion -eq 2 -and $null -eq $historical[0].PSObject.Properties['boundaryExercise']) 'historical schema-v2 lifecycle evidence shape was rewritten'
+    }
+
+    Invoke-HarnessTest 'native incapacitation rows bind real actor transition and exact EventBus cleanup' {
+        foreach($row in @(Get-KmcNativeIncapacitationRuntimeRows)) {
+            $nativeRequest=[pscustomobject][ordered]@{
+                runId=('native-incap-test-' + $row);scenario=$row;branch=$v2Request.branch;commit=$v2Request.commit
+                productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+                evidenceRoot=(Join-Path $runtimeEvidenceTestRoot ('native-incap-test-' + $row))
+            }
+            $records=@(
+                (New-TestLifecycleEvidenceRecord $nativeRequest 0 $row 'pre-mount' 'Unmounted'),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 1 $row 'mounted-next-frame' 'Mounted'),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 2 $row 'cleanup-next-frame' 'Unmounted' -WithCleanup),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 3 $row 'row-finish' 'Unmounted' -WithCleanup -RowStatus 'PASS' -AssertionPassCount 4 -AssertionFailCount 0),
+                (New-TestLifecycleEvidenceRecord $nativeRequest 4 $row 'engine-finalization' 'Unmounted' -WithCleanup))
+            $subresult=[pscustomobject][ordered]@{name=$row;status='PASS';assertionPassCount=4;assertionFailCount=0;errors=@()}
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $records)
+            $manifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($subresult)
+
+            $omittedEmptyCleanupErrors=Copy-TestJsonValue $records
+            foreach($successfulRecord in @($omittedEmptyCleanupErrors|Where-Object{[string]$_.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')})) {
+                [void]$successfulRecord.boundaryExercise.deliveries[0].PSObject.Properties.Remove('cleanupErrors')
+            }
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $omittedEmptyCleanupErrors)
+            $omittedManifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $omittedManifest -Status 'PASS' -SubscenarioResults @($subresult)
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].boundaryExercise.deliveries[0].cleanupErrors=@('impossible successful cleanup error')
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted cleanup errors on a successful delivery'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.lifeStateAfter='Dead'
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted a Dead outcome'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.nativeCurrentLifeState='Dead'
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted a native Conscious-to-Dead callback'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.damageImmediatelyAfterMutation=100
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted an inexact immediate damage write'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].actorLifeTransition.nativeDeliveryCount=2
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted duplicate EventBus delivery'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[2].boundaryExercise.deliveries[0].source='synthetic-handler'
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted a synthetic lifecycle source'
+
+            $candidate=Copy-TestJsonValue $records
+            $candidate[1].actorLifeTransition.mutationIssued=$true
+            Assert-TestLifecycleEvidenceRejected $nativeRequest $candidate @($subresult) 'native incapacitation accepted mutation before the mounted evidence boundary'
+
+            $cleanupFailed=Copy-TestJsonValue $records
+            foreach($failedRecord in @($cleanupFailed|Where-Object{[string]$_.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')})) {
+                $failedRecord.actorLifeTransition.nativeLifeObservationCount=2
+                $failedRecord.boundaryExercise.deliveries[0].stateAfter='Faulted'
+                $failedRecord.boundaryExercise.deliveries[0].cleanupSucceeded=$false
+                $failedRecord.boundaryExercise.deliveries[0].cleanupErrors=@('RestoreMovementAuthority: diagnostic failure')
+            }
+            $cleanupFailed[3].rowStatus='FAIL';$cleanupFailed[3].assertionPassCount=47;$cleanupFailed[3].assertionFailCount=2
+            $cleanupFailed[3].recordErrors=@('Native cleanup faulted before retry.')
+            $cleanupFailed[4].recordErrors=@('native cleanup diagnostic')
+            $cleanupFailedSubresult=[pscustomobject][ordered]@{name=$row;status='FAIL';assertionPassCount=47;assertionFailCount=2;errors=@('Native cleanup faulted before retry.')}
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $cleanupFailed)
+            $cleanupFailedManifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $cleanupFailedManifest -Status 'FAIL' -SubscenarioResults @($cleanupFailedSubresult)
+
+            $failed=Copy-TestJsonValue $records
+            foreach($failedRecord in @($failed|Where-Object{[string]$_.phase -cin @('cleanup-next-frame','row-finish','engine-finalization')})) {
+                $failedRecord.actorLifeTransition.lifeStateAfter='Conscious'
+                $failedRecord.actorLifeTransition.consciousAfter=$true
+                $failedRecord.actorLifeTransition.damageAfter=101
+                $failedRecord.actorLifeTransition.nativeDeliveryCount=0
+                $failedRecord.actorLifeTransition.nativeLifeObservationCount=0
+                $failedRecord.actorLifeTransition.nativeObservedActorId=$null
+                $failedRecord.actorLifeTransition.nativePreviousLifeState=$null
+                $failedRecord.actorLifeTransition.nativeCurrentLifeState=$null
+                $failedRecord.actorLifeTransition.postDeliveryRecoveryObserved=$false
+                $failedRecord.triggerScope.nativeDeliveryObserved=$false
+                $failedRecord.boundaryExercise=New-TestCombatLifecycleBoundaryExercise -Row $row -Observed:$false
+                $failedRecord.cleanup.trigger='Exception'
+            }
+            $failed[3].rowStatus='FAIL';$failed[3].assertionPassCount=44;$failed[3].assertionFailCount=1
+            $failed[3].recordErrors=@('Lifecycle row exceeded its 15 second monotonic deadline.')
+            $failed[4].recordErrors=@('native probe timeout')
+            $failedSubresult=[pscustomobject][ordered]@{
+                name=$row;status='FAIL';assertionPassCount=44;assertionFailCount=1
+                errors=@('Lifecycle row exceeded its 15 second monotonic deadline.')
+            }
+            [void](Write-TestLifecycleEvidence -EvidenceRoot $nativeRequest.evidenceRoot -Request $nativeRequest -Records $failed)
+            $failedManifest=Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcLifecycleScenarioEvidence -Request $nativeRequest -Manifest $failedManifest -Status 'FAIL' -SubscenarioResults @($failedSubresult)
+        }
+    }
+
     $boundaryRow = 'mounted-pair-load-safety'
     $boundaryRequest = [pscustomobject][ordered]@{
         schemaVersion=2;runId='boundary-individual-test';scenario=$boundaryRow;branch=$v2Request.branch;commit=$v2Request.commit
         productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
         transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-individual-test')
-        fixture=$v2Fixture
+        fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
     }
     $boundarySubresult = [pscustomobject][ordered]@{
         name=$boundaryRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()
     }
     $boundaryGameAggregates = [pscustomobject][ordered]@{
-        workingLoadRequestCount=2;workingSaveRequestCount=0;unauthorizedLoadRequestCount=0
+        workingLoadRequestCount=2;workingSaveRequestCount=0;suppressedWorkingSaveRequestCount=0;unauthorizedLoadRequestCount=0
         unauthorizedSaveRequestCount=0;baselineLoadRequestCount=0
     }
 
@@ -3647,6 +7455,81 @@ try {
         $manifest = Read-KmcJson (Join-Path $boundaryRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcBoundaryScenarioEvidence -Request $boundaryRequest -Manifest $manifest -Status 'PASS' `
             -SubscenarioResults @($boundarySubresult) -GameResult $boundaryGameAggregates
+    }
+    Invoke-HarnessTest 'native lifecycle observation detail is optional bounded text' {
+        $nativeLifecycle = [pscustomobject][ordered]@{
+            baselineSequence=100;deliveryCount=1;deliveries=@([pscustomobject][ordered]@{
+                sequence=101;boundary='GameModeStarted';source='IGameModeHandler.OnGameModeStart(FullScreenUi)'
+                stateBefore='Mounted';stateAfter='Mounted';cleanupTrigger=$null
+                cleanupAttempted=$false;cleanupSucceeded=$true
+                detail='mode=FullScreenUi;relationship=Mounted;riderViewExact=True'
+            })
+        }
+        Assert-KmcBoundaryNativeLifecycleEvidence $nativeLifecycle
+        $nativeLifecycle.deliveries[0].detail = 42
+        $threw = $false
+        try { Assert-KmcBoundaryNativeLifecycleEvidence $nativeLifecycle } catch { $threw = $true }
+        Assert-Test $threw 'native lifecycle validator accepted a non-string observation detail'
+        $nativeLifecycle.deliveries[0].detail = 'x' * 8193
+        $threw = $false
+        try { Assert-KmcBoundaryNativeLifecycleEvidence $nativeLifecycle } catch { $threw = $true }
+        Assert-Test $threw 'native lifecycle validator accepted an unbounded observation detail'
+    }
+    Invoke-HarnessTest 'PASS native lifecycle boundary rows require independent delivery and restoration evidence' {
+        foreach ($nativeRow in @(Get-KmcNativeLifecycleBoundaryRuntimeRows)) {
+            $nativeRequest = [pscustomobject][ordered]@{
+                schemaVersion=2;runId=('native-boundary-' + $nativeRow);scenario=$nativeRow;branch=$v2Request.branch;commit=$v2Request.commit
+                productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+                transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot ('native-boundary-' + $nativeRow))
+                fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
+            }
+            $nativeSubresult = [pscustomobject][ordered]@{name=$nativeRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
+            $nativeAggregates = [pscustomobject][ordered]@{
+                workingLoadRequestCount=1;workingSaveRequestCount=0
+                suppressedWorkingSaveRequestCount=$(if($nativeRow -ceq 'native-save-clean-dismount'){1}else{0})
+                unauthorizedLoadRequestCount=0;unauthorizedSaveRequestCount=0;baselineLoadRequestCount=0
+            }
+            $nativeRecords = New-TestBoundaryPassRecords $nativeRequest @($nativeRow)
+            [void](Write-TestBoundaryEvidence $nativeRequest.evidenceRoot $nativeRequest $nativeRecords)
+            $nativeManifest = Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+            Assert-KmcBoundaryScenarioEvidence -Request $nativeRequest -Manifest $nativeManifest -Status 'PASS' `
+                -SubscenarioResults @($nativeSubresult) -GameResult $nativeAggregates
+
+            $terminal = @($nativeRecords | Where-Object { [string]$_.phase -ceq 'row-result' })[0]
+            $terminal.nativeLifecycle.deliveries[0].cleanupSucceeded = $false
+            Assert-TestBoundaryEvidenceRejected $nativeRequest $nativeRecords @($nativeSubresult) `
+                "native boundary accepted a failed native cleanup delivery: $nativeRow"
+        }
+    }
+    Invoke-HarnessTest 'Chunk 4 area accepts pre-mutation intake and requires paired authority throughout measurement' {
+        $nativeRow = 'native-area-clean-dismount'
+        $nativeRequest = [pscustomobject][ordered]@{
+            schemaVersion=2;runId='chunk4-boundary-configuration';scenario='chunk4-area-cleanup';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'chunk4-boundary-configuration')
+            fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
+        }
+        $nativeSubresult = [pscustomobject][ordered]@{name=$nativeRow;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()}
+        $nativeRecords = @(New-TestBoundaryPassRecords $nativeRequest @($nativeRow))
+        foreach ($record in $nativeRecords) {
+            $record['pairedConfiguration'] = [ordered]@{
+                enablePairedActivation=($record.phase -cne 'row-start');enableUnifiedMountedTurn=$false
+                enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false
+            }
+        }
+        [void](Write-TestBoundaryEvidence $nativeRequest.evidenceRoot $nativeRequest $nativeRecords)
+        $manifest = Read-KmcJson (Join-Path $nativeRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcBoundaryScenarioEvidence -Request $nativeRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($nativeSubresult)
+        foreach ($phase in @('mounted','pre-boundary','cleanup-latch','loading-start','loading-stop','fresh-world','row-result')) {
+            $mutated = $nativeRecords | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+            @($mutated | Where-Object phase -ceq $phase)[0].pairedConfiguration.enablePairedActivation = $false
+            Assert-TestBoundaryEvidenceRejected $nativeRequest $mutated @($nativeSubresult) ('Unpaired measured phase accepted: ' + $phase)
+        }
+        foreach ($flag in @('enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
+            $mutated = $nativeRecords | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+            $mutated[0].pairedConfiguration.$flag = $true
+            Assert-TestBoundaryEvidenceRejected $nativeRequest $mutated @($nativeSubresult) ('Incompatible intake authority accepted: ' + $flag)
+        }
     }
     Invoke-HarnessTest 'PASS boundary scenario rejects missing and unmanifested evidence' {
         $records = New-TestBoundaryPassRecords $boundaryRequest @($boundaryRow)
@@ -3772,7 +7655,7 @@ try {
         $liveRequest = [pscustomobject][ordered]@{
             schemaVersion=2;runId='boundary-live-identity-test';scenario=$boundaryRow;branch=$v2Request.branch;commit=$v2Request.commit
             productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
-            transactionToken=$v2Request.transactionToken;evidenceRoot=$liveRoot;fixture=$v2Fixture
+            transactionToken=$v2Request.transactionToken;evidenceRoot=$liveRoot;fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
         }
         $records = New-TestBoundaryPassRecords $liveRequest @($boundaryRow)
         foreach ($record in $records) {
@@ -3836,7 +7719,7 @@ try {
             schemaVersion=2;runId='boundary-suite-test';scenario='boundary-suite';branch=$v2Request.branch;commit=$v2Request.commit
             productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
             transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-suite-test')
-            fixture=$v2Fixture
+            fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
         }
         $suiteRecords = New-TestBoundaryPassRecords $suiteRequest $suiteRows
         $suiteSubresults = @($suiteRows | ForEach-Object { [pscustomobject][ordered]@{name=$_;status='PASS';assertionPassCount=12;assertionFailCount=0;errors=@()} })
@@ -3862,7 +7745,7 @@ try {
             schemaVersion=2;runId='boundary-failure-test';scenario='boundary-suite';branch=$v2Request.branch;commit=$v2Request.commit
             productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
             transactionToken=$v2Request.transactionToken;evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'boundary-failure-test')
-            fixture=$v2Fixture
+            fixture=$v2Fixture;qualificationSuite=$v2Request.qualificationSuite
         }
         $failureRecords = New-Object 'Collections.Generic.List[object]'
         $failureRecords.Add((New-TestBoundaryEvidenceRecord $failureRequest $rows[0] 'row-start' 0 0))
@@ -3900,6 +7783,169 @@ try {
         [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest $telemetry $scenario)
         $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+    }
+    Invoke-HarnessTest 'PASS distance-door validator requires ordinary input, exact door identity, and strict post-open traversal' {
+        $doorRow = 'mounted-distance-door-interaction'
+        $doorRequest = [pscustomobject][ordered]@{
+            runId='distance-door-evidence-test';scenario=$doorRow;branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'distance-door-evidence-test')
+        }
+        $doorSubresult = [pscustomobject][ordered]@{name=$doorRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
+        $doorTelemetry = @((New-TestMovementTelemetryRecord $doorRequest $doorRow 0))
+        $doorRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 3
+        $doorRowRecord.unexpectedRepathCount = 1
+        $doorScenario = @(
+            (New-TestMovementDoorReadinessRecord $doorRequest 0),
+            (New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true),
+            (New-TestMovementPathReplacementRecord $doorRequest 2),
+            $doorRowRecord)
+        [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $doorScenario)
+        $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
+
+        $attributedReplacements = New-Object 'Collections.Generic.List[object]'
+        for ($replacementIndex = 1; $replacementIndex -le 5; $replacementIndex++) {
+            $replacement = New-TestMovementPathReplacementRecord $doorRequest (1 + $replacementIndex)
+            $replacement.replacementIndex = $replacementIndex
+            $replacement.previousPathId = 7 + $replacementIndex
+            $replacement.newPathId = 8 + $replacementIndex
+            $replacement.previousPathFirstObservedFrame = 100 + (10 * $replacementIndex)
+            $replacement.tileHandlerLastUpdateFrame = $replacement.previousPathFirstObservedFrame
+            $replacement.replacementObservedFrame = $replacement.tileHandlerLastUpdateFrame + 2
+            $attributedReplacements.Add($replacement)
+        }
+        $attributedRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 7
+        $attributedRowRecord.unexpectedRepathCount = 5
+        $attributedScenario = @(
+            (New-TestMovementDoorReadinessRecord $doorRequest 0),
+            (New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true)) +
+            @($attributedReplacements.ToArray()) + @($attributedRowRecord)
+        [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $attributedScenario)
+        $attributedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $attributedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
+
+        foreach ($mutation in @('missing-control','missing-door','wrong-waypoint','wrong-target','non-strict','extra-interaction-leg',
+            'missing-fixture-lease','wrong-original-state','missing-temporary-enable','fixture-not-restored',
+            'missing-readiness','pending-cut','missing-astar','invalid-graph-queue','readiness-row-mismatch',
+            'readiness-frame-coherence','invalid-tile-frame','missing-replacement','replacement-count-mismatch',
+            'replacement-frame-coherence','replacement-command-lost','replacement-path-error')) {
+            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 3
+            $rowRecord.unexpectedRepathCount = 1
+            $readiness = New-TestMovementDoorReadinessRecord $doorRequest 0
+            $probe = New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true
+            $replacement = New-TestMovementPathReplacementRecord $doorRequest 2
+            switch ($mutation) {
+                'missing-control' { $rowRecord.unmountedDoorControlPassed = $false }
+                'missing-door' { $rowRecord.door = $null }
+                'wrong-waypoint' { $rowRecord.waypointCount = 2; $rowRecord.endpointQualifiedWaypointCount = 2 }
+                'wrong-target' { $probe.requested.x = 3.5; $probe.endpoint.x = 3.5 }
+                'non-strict' { $probe.strictDoor = $false }
+                'extra-interaction-leg' { $rowRecord.screenshots = @(New-TestMovementScreenshotRecords 'mounted-pair-doorway' $true) }
+                'missing-fixture-lease' { $rowRecord.doorFixtureLeaseCaptured = $false }
+                'wrong-original-state' { $rowRecord.doorFixtureOriginalEnabled = $true }
+                'missing-temporary-enable' { $rowRecord.doorFixtureTemporaryEnableUsed = $false }
+                'fixture-not-restored' { $rowRecord.doorFixtureRestored = $false }
+                'pending-cut' { $readiness.finalNavmeshCutRequiresUpdate = $true }
+                'missing-astar' { $readiness.astarPathPresent = $false }
+                'invalid-graph-queue' { $readiness.astarGraphUpdatesQueued = $null }
+                'readiness-row-mismatch' { $readiness.door = 'Area/OtherDoor' }
+                'readiness-frame-coherence' { $readiness.unityFrameStrictlyAfterTileHandlerLastUpdate = $false }
+                'invalid-tile-frame' { $readiness.tileHandlerLastUpdateFrame = 'not-a-frame' }
+                'replacement-count-mismatch' { $rowRecord.unexpectedRepathCount = 2 }
+                'replacement-frame-coherence' { $replacement.previousPathFirstObservedNotNewerThanTileUpdateFrame = $false }
+                'replacement-command-lost' { $replacement.commandReferenceRetained = $false }
+                'replacement-path-error' { $replacement.pathError = $true }
+            }
+            if ($mutation -ceq 'missing-readiness') {
+                $probe.sequence = 0L
+                $replacement.sequence = 1L
+                $rowRecord.sequence = 2L
+                $records = @($probe,$replacement,$rowRecord)
+            }
+            elseif ($mutation -ceq 'missing-replacement') {
+                $rowRecord.sequence = 2L
+                $records = @($readiness,$probe,$rowRecord)
+            }
+            else {
+                $records = @($readiness,$probe,$replacement,$rowRecord)
+            }
+            [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $records)
+            $mutatedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $mutatedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } catch { $threw = $true }
+            Assert-Test $threw "PASS distance-door evidence accepted mutation $mutation"
+        }
+
+        $unattributedReplacements = New-Object 'Collections.Generic.List[object]'
+        for ($replacementIndex = 1; $replacementIndex -le 3; $replacementIndex++) {
+            $replacement = New-TestMovementPathReplacementRecord $doorRequest (1 + $replacementIndex)
+            $replacement.replacementIndex = $replacementIndex
+            $replacement.previousPathId = 7 + $replacementIndex
+            $replacement.newPathId = 8 + $replacementIndex
+            $replacement.previousPathFirstObservedFrame = 200 + (10 * $replacementIndex)
+            $replacement.tileHandlerLastUpdateFrame = $replacement.previousPathFirstObservedFrame - 1
+            $replacement.replacementObservedFrame = $replacement.previousPathFirstObservedFrame + 1
+            $replacement.previousPathFirstObservedNotNewerThanTileUpdateFrame = $false
+            $unattributedReplacements.Add($replacement)
+        }
+        $unattributedRowRecord = New-TestMovementRowRecord $doorRequest $doorRow 5
+        $unattributedRowRecord.unexpectedRepathCount = 3
+        $unattributedScenario = @(
+            (New-TestMovementDoorReadinessRecord $doorRequest 0),
+            (New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true)) +
+            @($unattributedReplacements.ToArray()) + @($unattributedRowRecord)
+        [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $doorTelemetry $unattributedScenario)
+        $unattributedManifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $unattributedManifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } catch { $threw = $true }
+        Assert-Test $threw 'PASS distance-door evidence accepted excessive healthy but non-frame-attributed path replacements'
+    }
+    Invoke-HarnessTest 'doorway attributes only retained healthy paths spanning a native tile update' {
+        $doorRow = 'mounted-pair-doorway'
+        $doorRequest = [pscustomobject][ordered]@{
+            runId='doorway-path-refresh-test';scenario=$doorRow;branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'doorway-path-refresh-test')
+        }
+        $doorSubresult = [pscustomobject][ordered]@{name=$doorRow;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()}
+        $telemetry = @((New-TestMovementTelemetryRecord $doorRequest $doorRow 0))
+        foreach ($mutation in @('none','stale-tile','lost-command','path-error','repath-needed','queued-graph','missing-astar')) {
+            $records = New-Object 'Collections.Generic.List[object]'
+            $records.Add((New-TestMovementPathProbeRecord $doorRequest $doorRow 0 'DoorNear' $false))
+            $records.Add((New-TestMovementPathProbeRecord $doorRequest $doorRow 1 'DoorFar' $true))
+            $records.Add((New-TestMovementPathProbeRecord $doorRequest $doorRow 2 'DoorNear' $true))
+            for ($index = 1; $index -le 7; $index++) {
+                $replacement = New-TestMovementPathReplacementRecord $doorRequest ($index + 2)
+                $replacement.row = $doorRow
+                $replacement.replacementIndex = $index
+                $replacement.previousPathId = 7 + $index
+                $replacement.newPathId = 8 + $index
+                $replacement.previousPathFirstObservedFrame = 100 + 10 * $index
+                $replacement.tileHandlerLastUpdateFrame = $replacement.previousPathFirstObservedFrame
+                $replacement.replacementObservedFrame = $replacement.tileHandlerLastUpdateFrame + 2
+                switch ($mutation) {
+                    'stale-tile' { $replacement.tileHandlerLastUpdateFrame--; $replacement.previousPathFirstObservedNotNewerThanTileUpdateFrame=$false }
+                    'lost-command' { $replacement.commandReferenceRetained=$false }
+                    'path-error' { $replacement.pathError=$true }
+                    'repath-needed' { $replacement.agentRepathNeeded=$true }
+                    'queued-graph' { $replacement.astarGraphUpdatesQueued=$true }
+                    'missing-astar' { $replacement.astarPathPresent=$false }
+                }
+                $records.Add($replacement)
+            }
+            $rowRecord = New-TestMovementRowRecord $doorRequest $doorRow 10
+            $rowRecord.unexpectedRepathCount = 7
+            $records.Add($rowRecord)
+            [void](Write-TestMovementEvidence $doorRequest.evidenceRoot $doorRequest $telemetry $records.ToArray())
+            $manifest = Read-KmcJson (Join-Path $doorRequest.evidenceRoot 'runtime-artifacts.json')
+            if ($mutation -ceq 'none') {
+                Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult)
+            }
+            else {
+                Assert-TestThrows { Assert-KmcMovementScenarioEvidence -Request $doorRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($doorSubresult) } "Doorway accepted excessive unattributed paths: $mutation"
+            }
+        }
     }
     Invoke-HarnessTest 'PASS movement telemetry requires exact row-aware pause and game-mode coherence' {
         $pauseRow = 'mounted-pair-pause-unpause'
@@ -3987,6 +8033,19 @@ try {
         [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
         $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
         Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+    }
+    Invoke-HarnessTest 'movement telemetry rejects invalid TileHandler frame identity or relation' {
+        foreach ($mutation in @('invalid-frame','incoherent-relation')) {
+            $telemetry = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            if ($mutation -ceq 'invalid-frame') { $telemetry.tileHandlerLastUpdateFrame = 'not-a-frame' }
+            else { $telemetry.unityFrameStrictlyAfterTileHandlerLastUpdate = $false }
+            $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) } catch { $threw = $true }
+            Assert-Test $threw "movement telemetry accepted TileHandler frame mutation $mutation"
+        }
     }
     Invoke-HarnessTest 'PASS movement validator rejects calibrated residual threshold mutation' {
         $telemetry = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0))
@@ -4689,6 +8748,174 @@ try {
         try { Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray() } catch { $threw=$true }
         Assert-Test $threw 'movement-suite PASS accepted reordered row evidence'
     }
+    Invoke-HarnessTest 'PASS movement validator permits only corrected InitialConfiguration residuals before calibration' {
+        $scenario = @((New-TestMovementPathProbeRecord $movementRequest $movementRow 0),(New-TestMovementRowRecord $movementRequest $movementRow 1))
+        $newCorrectedInitialConfiguration = {
+            $value = New-TestMovementTelemetryRecord $movementRequest $movementRow 0
+            $value.synchronizationPhase = 'InitialConfiguration'
+
+            $value.latestViewCurrentPositionResidualWorldUnits = 10.0
+            $value.latestEntityRawCurrentPositionResidualWorldUnits = 10.0
+            $value.latestEntityPhaseAdjustedPositionResidualWorldUnits = 10.0
+            $value.latestEntityRawPositionLagBoundWorldUnits = 0.0
+            $value.latestEntityRawPositionLagExcessWorldUnits = 10.0
+            $value.latestEntityPositionAuthorityAgeSteps = $null
+            $value.latestPositionPhaseLagObserved = $false
+            $value.latestPositionPhaseLagPermitted = $false
+            $value.latestPositionPhaseLagViolation = $false
+            $value.latestPositionRecoveryRequiredBeforeSample = $false
+            $value.latestPositionRecoveryUpdateObserved = $false
+            $value.latestPositionRecoverySatisfied = $false
+            $value.latestPositionRecoveryViolation = $false
+            $value.latestPositionRecoveryPendingAfterSample = $false
+            $value.latestPositionStationaryAuthority = $false
+            $value.latestStationaryPositionCorrectionViolation = $false
+            $value.preCorrectionPositionResidualWorldUnits = 10.0
+            $value.preCorrectionRawCurrentPositionResidualWorldUnits = 10.0
+            $value.preCorrectionViewCurrentPositionResidualWorldUnits = 10.0
+            $value.postCorrectionPositionResidualWorldUnits = 0.0
+            $value.maximumPreCorrectionPositionResidualWorldUnits = 10.0
+            $value.maximumPreCorrectionRawCurrentPositionResidualWorldUnits = 10.0
+            $value.maximumInitialConfigurationPreCorrectionPositionResidualWorldUnits = 10.0
+
+            $value.latestViewCurrentYawResidualDegrees = 170.0
+            $value.latestFullViewCurrentRotationResidualDegrees = 170.0
+            $value.latestEntityRawCurrentYawResidualDegrees = 170.0
+            $value.latestEntityPhaseAdjustedYawResidualDegrees = 170.0
+            $value.latestEntityRawLagBoundDegrees = 0.0
+            $value.latestEntityRawLagExcessDegrees = 170.0
+            $value.latestEntityYawAuthorityAgeSteps = $null
+            $value.latestPhaseLagObserved = $false
+            $value.latestPhaseLagPermitted = $false
+            $value.latestPhaseLagViolation = $false
+            $value.latestRecoveryRequiredBeforeSample = $false
+            $value.latestRecoveryUpdateObserved = $false
+            $value.latestRecoverySatisfied = $false
+            $value.latestRecoveryViolation = $false
+            $value.latestRecoveryPendingAfterSample = $false
+            $value.latestStationaryAuthority = $false
+            $value.latestStationaryYawCorrectionViolation = $false
+            $value.preCorrectionRotationResidualDegrees = 170.0
+            $value.postCorrectionRotationResidualDegrees = 0.0
+            $value.maximumPreCorrectionRotationResidualDegrees = 170.0
+            return $value
+        }
+
+        $telemetry = & $newCorrectedInitialConfiguration
+        [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+        $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult)
+
+        foreach ($mutation in @('uncorrected-position','uncorrected-rotation','calibrated-position','calibrated-rotation')) {
+            $telemetry = & $newCorrectedInitialConfiguration
+            switch ($mutation) {
+                'uncorrected-position' {
+                    $telemetry.postCorrectionPositionResidualWorldUnits = 0.100001
+                    $telemetry.maximumPostCorrectionPositionResidualWorldUnits = 0.100001
+                }
+                'uncorrected-rotation' {
+                    $telemetry.postCorrectionRotationResidualDegrees = 0.100001
+                    $telemetry.maximumPostCorrectionRotationResidualDegrees = 0.100001
+                }
+                'calibrated-position' {
+                    $telemetry.synchronizationPhase = 'Update'
+                    $telemetry.latestPositionPhaseLagObserved = $true
+                    $telemetry.latestPositionPhaseLagViolation = $true
+                    $telemetry.latestPositionStationaryAuthority = $true
+                    $telemetry.latestStationaryPositionCorrectionViolation = $true
+                }
+                'calibrated-rotation' {
+                    $telemetry.synchronizationPhase = 'Update'
+                    $telemetry.latestPhaseLagObserved = $true
+                    $telemetry.latestPhaseLagViolation = $true
+                    $telemetry.latestStationaryAuthority = $true
+                    $telemetry.latestStationaryYawCorrectionViolation = $true
+                }
+            }
+            [void](Write-TestMovementEvidence $movementRequest.evidenceRoot $movementRequest @($telemetry) $scenario)
+            $manifest = Read-KmcJson (Join-Path $movementRequest.evidenceRoot 'runtime-artifacts.json')
+            $threw = $false
+            try { Assert-KmcMovementScenarioEvidence -Request $movementRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults @($movementSubresult) }
+            catch { $threw = $true }
+            Assert-Test $threw "movement telemetry accepted unsafe InitialConfiguration mutation $mutation"
+        }
+    }
+    Invoke-HarnessTest 'presentation-suite requires exact pose UI camera path and cleanup evidence' {
+        $suiteRows = @(Get-KmcPresentationRuntimeRows)
+        $suiteRequest = [pscustomobject][ordered]@{
+            runId='presentation-suite-evidence-test';scenario='presentation-suite';branch=$v2Request.branch;commit=$v2Request.commit
+            productVersion=$v2Request.productVersion;dllSha256=$v2Request.dllSha256;dllMvid=$v2Request.dllMvid
+            evidenceRoot=(Join-Path $runtimeEvidenceTestRoot 'presentation-suite-evidence-test')
+        }
+        $telemetry = New-Object 'Collections.Generic.List[object]'
+        $scenario = New-Object 'Collections.Generic.List[object]'
+        $subresults = New-Object 'Collections.Generic.List[object]'
+        $scenarioSequence = 0
+        for ($index = 0; $index -lt $suiteRows.Count; $index++) {
+            $row = $suiteRows[$index]
+            $telemetry.Add((New-TestMovementTelemetryRecord $suiteRequest $row $index))
+            if ($row -ceq 'pose-doorway-formation') {
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorNear' $false))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorFar' $true))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'DoorNear' $true))
+                $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++) 'Generic' $false))
+            }
+            else {
+                $probeCount = switch ($row) {
+                    'pose-walk-run' { 2; break }
+                    'pose-turn-stop' { 3; break }
+                    'camera-follow-and-command-routing' { 1; break }
+                    default { 0; break }
+                }
+                for ($probeIndex = 0; $probeIndex -lt $probeCount; $probeIndex++) {
+                    $scenario.Add((New-TestMovementPathProbeRecord $suiteRequest $row ($scenarioSequence++)))
+                }
+            }
+            $scenario.Add((New-TestMovementRowRecord $suiteRequest $row ($scenarioSequence++)))
+            $subresults.Add([pscustomobject][ordered]@{name=$row;status='PASS';assertionPassCount=20;assertionFailCount=0;errors=@()})
+        }
+        [void](Write-TestMovementEvidence $suiteRequest.evidenceRoot $suiteRequest $telemetry.ToArray() $scenario.ToArray())
+        $manifest = Read-KmcJson (Join-Path $suiteRequest.evidenceRoot 'runtime-artifacts.json')
+        Assert-KmcMovementScenarioEvidence -Request $suiteRequest -Manifest $manifest -Status 'PASS' -SubscenarioResults $subresults.ToArray()
+
+        $stationarySource = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'movement-row-result' -and [string]$_.row -ceq 'pose-idle' })[0]
+        $stationaryRecord = $stationarySource | ConvertTo-Json -Depth 20 -Compress | ConvertFrom-Json
+        $stationaryRecord.updateSynchronizationSampleCount = 0
+        $stationaryRecord.updateSynchronizationCorrectionCount = 0
+        Assert-KmcMovementScenarioRecord $stationaryRecord $suiteRequest ([long]$stationaryRecord.sequence) $suiteRows $true $manifest
+
+        $movingSource = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'movement-row-result' -and [string]$_.row -ceq 'pose-walk-run' })[0]
+        $movingRecord = $movingSource | ConvertTo-Json -Depth 20 -Compress | ConvertFrom-Json
+        $movingRecord.updateSynchronizationSampleCount = 0
+        $movingRecord.updateSynchronizationCorrectionCount = 0
+        $threw = $false
+        try { Assert-KmcMovementScenarioRecord $movingRecord $suiteRequest ([long]$movingRecord.sequence) $suiteRows $true $manifest } catch { $threw = $true }
+        Assert-Test $threw 'PASS moving presentation row accepted LateUpdate-only synchronization coverage'
+
+        $mutationCases = @(
+            @('pose-idle','poseMaximumPelvisLocalFrameDeltaWorldUnits',0.150001),
+            @('pose-idle','maximumTurnDegrees',1.0),
+            @('pose-walk-run','runMovingSampleCount',0),
+            @('pose-walk-run','maximumTurnDegrees',0.0),
+            @('pose-turn-stop','stopCommandIssuedCount',0),
+            @('pose-doorway-formation','formationSelectionNormalized',$false),
+            @('pose-equipment-variants','equipmentSets',@()),
+            @('ui-selection-portrait-actionbar','uiOverlayRendered',$false),
+            @('camera-follow-and-command-routing','cameraBackObserved',$false)
+        )
+        foreach ($mutation in $mutationCases) {
+            $record = @($scenario.ToArray() | Where-Object { [string]$_.kind -ceq 'movement-row-result' -and [string]$_.row -ceq [string]$mutation[0] })[0]
+            $property = [string]$mutation[1]
+            $original = $record[$property]
+            try {
+                $record[$property] = $mutation[2]
+                $threw = $false
+                try { Assert-KmcMovementScenarioRecord $record $suiteRequest ([long]$record.sequence) $suiteRows $true $manifest } catch { $threw = $true }
+                Assert-Test $threw "PASS presentation row accepted semantic mutation $($mutation[0])/$property"
+            }
+            finally { $record[$property] = $original }
+        }
+    }
     Invoke-HarnessTest 'movement source binds telemetry to rows and finalizes destroyed-view cleanup failures' {
         $writerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementTelemetryWriter.cs'))
         $engineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
@@ -4730,9 +8957,9 @@ try {
         $telemetryProducerNames = @([regex]::Matches($writerBlock, '(?m)^\s{16}([A-Za-z_]\w*)\s*(?:=|,)') |
             ForEach-Object { $_.Groups[1].Value })
         $telemetryFixtureNames = @((New-TestMovementTelemetryRecord $movementRequest $movementRow 0).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($telemetryProducerNames.Count -eq 217 -and $telemetryFixtureNames.Count -eq 217 -and
+        Assert-Test ($telemetryProducerNames.Count -eq 222 -and $telemetryFixtureNames.Count -eq 222 -and
             @($telemetryProducerNames | Where-Object { [Array]::IndexOf($telemetryFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($telemetryFixtureNames | Where-Object { [Array]::IndexOf($telemetryProducerNames, $_) -lt 0 }).Count -eq 0) 'movement telemetry fixture/validator field set is not the exact 217-field producer schema'
+            @($telemetryFixtureNames | Where-Object { [Array]::IndexOf($telemetryProducerNames, $_) -lt 0 }).Count -eq 0) 'movement telemetry fixture/validator field set is not the exact 222-field producer schema'
 
         $rowPayloadMarker = $engineSource.IndexOf('kind = "movement-row-result"', [StringComparison]::Ordinal)
         $rowStart = $engineSource.LastIndexOf('WriteEvidence(new', $rowPayloadMarker, [StringComparison]::Ordinal)
@@ -4743,16 +8970,26 @@ try {
             ForEach-Object { $_.Groups[1].Value })
         $rowProducerNames = @($rowOwnedNames + $rowPayloadNames)
         $rowFixtureNames = @((New-TestMovementRowRecord $movementRequest $movementRow 1).Keys | ForEach-Object { [string]$_ })
-        Assert-Test ($rowPayloadNames.Count -eq 150 -and $rowProducerNames.Count -eq 161 -and $rowFixtureNames.Count -eq 161 -and
+        Assert-Test ($rowPayloadNames.Count -eq 212 -and $rowProducerNames.Count -eq 223 -and $rowFixtureNames.Count -eq 223 -and
             @($rowProducerNames | Where-Object { [Array]::IndexOf($rowFixtureNames, $_) -lt 0 }).Count -eq 0 -and
-            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 161-field producer schema'
+            @($rowFixtureNames | Where-Object { [Array]::IndexOf($rowProducerNames, $_) -lt 0 }).Count -eq 0) 'movement row fixture/validator field set is not the exact 223-field producer schema'
         $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
         Assert-Test ($runtimeSource.Contains('riderAvoidanceWasDisabled = riderStockAgent.AvoidanceDisabled;') -and
-            $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled != riderAvoidanceWasDisabled')) 'runtime does not verify its counted avoidance lease restores the captured effective state'
+            $runtimeSource.Contains('riderStockAgent.AvoidanceDisabled = false;') -and
+            $runtimeSource.IndexOf('avoidanceLeaseOwned = false;', $runtimeSource.IndexOf('riderStockAgent.AvoidanceDisabled = false;', [StringComparison]::Ordinal), [StringComparison]::Ordinal) -gt
+                $runtimeSource.IndexOf('riderStockAgent.AvoidanceDisabled = false;', [StringComparison]::Ordinal) -and
+            $runtimeSource.Contains('AvoidanceRestorationExpectation.Matches(')) 'runtime does not release its counted avoidance lease once before validating captured state plus native consciousness'
         Assert-Test ($engineSource.Contains('Post-cleanup verification threw')) 'post-cleanup Unity observation exceptions are not recorded as failed evidence'
         Assert-Test ($engineSource.Contains('CompleteRemainingAsNotRun("Further movement was suppressed because post-cleanup verification could not prove restoration."')) 'destroyed-view cleanup failures can still loop instead of bounded finalization'
         Assert-Test ($engineSource.Contains('RiderStateRestored()') -and $engineSource.Contains('MountStateRestored()')) 'destroyed Unity view/agent checks are not fail-closed'
         Assert-Test ($engineSource.Contains('assertions.FailureCount != failuresBeforeCleanupVerification')) 'failed cleanup restoration checks do not suppress the remaining suite rows'
+        $cleanupVerifyStart = $engineSource.IndexOf('private void VerifyCleanupAndFinishRow()', [StringComparison]::Ordinal)
+        $cleanupVerifyEnd = $engineSource.IndexOf('private void FinishRowAfterCaptures()', $cleanupVerifyStart, [StringComparison]::Ordinal)
+        $cleanupVerifyBlock = $engineSource.Substring($cleanupVerifyStart, $cleanupVerifyEnd - $cleanupVerifyStart)
+        $postFrameCaptureIndex = $cleanupVerifyBlock.IndexOf('cleanupAfter = CleanupStateEvidence.Capture', [StringComparison]::Ordinal)
+        $cleanupAssertionsIndex = $cleanupVerifyBlock.IndexOf('var failuresBeforeCleanupVerification', [StringComparison]::Ordinal)
+        Assert-Test ($cleanupVerifyBlock.Contains('if (frameNumber <= cleanupFrame)') -and
+            $postFrameCaptureIndex -gt 0 -and $cleanupAssertionsIndex -gt $postFrameCaptureIndex) 'movement row publishes transition-frame cleanup evidence instead of recapturing after deferred Unity destruction'
         $beginRowStart = $engineSource.IndexOf('private void BeginRow()', [StringComparison]::Ordinal)
         $beginRowEnd = $engineSource.IndexOf('private void AdvanceCurrentRow()', $beginRowStart, [StringComparison]::Ordinal)
         $beginRowBlock = $engineSource.Substring($beginRowStart, $beginRowEnd - $beginRowStart)
@@ -4827,11 +9064,2791 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'private-alpha stabilization is pair-local, view-safe, and preserves native action ownership' {
+        $lifecycleSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedLifecycleSubscriber.cs'))
+        $runtimeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\KingmakerMountedPairRuntime.cs'))
+        $attachmentSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\ScopedTransformAttachmentLease.cs'))
+        $stabilizationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedStabilizationPolicy.cs'))
+        $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
+        $doorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDoorInteractionCommand.cs'))
+        $playerActionSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionController.cs'))
+        $overlaySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionOverlay.cs'))
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $turnPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
+        $ledgerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeLifecycleDeliveryLedger.cs'))
+        $combatEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        $movementEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeMovementScenarioEngine.cs'))
+        $movementTelemetrySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\MovementTelemetryWriter.cs'))
+        $automationHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+        $movementValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1'))
+
+        Assert-Test ($stabilizationSource.Contains('string.Equals(exactModeName, "FullScreenUi", StringComparison.Ordinal)') -and
+            $stabilizationSource.Contains('string.Equals(exactModeName, "EscMode", StringComparison.Ordinal)') -and
+            $stabilizationSource.Contains('return MountedGameModeDisposition.PreserveNonWorldUi;') -and
+            $lifecycleSource.Contains('MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString())')) `
+            'character, map, or menu modes are still treated as generic cleanup boundaries'
+        Assert-Test ($ledgerSource.Contains('public string Detail { get; set; }') -and
+            $lifecycleSource.Contains('Observe(boundary, source, service.CapturePresentationObservation(false))') -and
+            $lifecycleSource.Contains('Cleanup(boundary, source, CleanupTrigger.GameModeBoundary, service.CapturePresentationObservation(false))') -and
+            $runtimeSource.Contains('observationScope=') -and
+            $runtimeSource.Contains('includeUiOwnership ? "full-ui" : "mode-lightweight"') -and
+            $runtimeSource.Contains('actionBarOwner=') -and
+            $runtimeSource.Contains('actionBarReactiveActive=') -and
+            $runtimeSource.Contains('actionBarCanUseAbilities=') -and
+            $runtimeSource.Contains('turnUnitDirectlyControllable=') -and
+            $runtimeSource.Contains('pointerInGui=') -and
+            $runtimeSource.Contains('riderCommands=') -and
+            $runtimeSource.Contains('mountCommands=') -and
+            $runtimeSource.Contains('portraitOwnerCount=') -and
+            $runtimeSource.Contains('portraitActiveOwnerCount=') -and
+            $runtimeSource.Contains('cameraOwner=') -and
+            -not $lifecycleSource.Contains('source + ";" + service.CapturePresentationObservation()')) `
+            'presentation telemetry changes canonical native lifecycle source identities'
+        Assert-Test ($lifecycleSource.Contains('MountedViewAttachmentPolicy.Classify(') -and
+            $lifecycleSource.Contains('CleanupTrigger.ViewReplaced') -and
+            $runtimeSource.Contains('ReleaseReplacementRiderViewFromOwnedAnchor') -and
+            $attachmentSource.Contains('public bool ReleaseInheritedReplacement(') -and
+            $attachmentSource.Contains('setParent(replacement, originalParent, true);')) `
+            'polymorph/view replacement does not release the stock replacement before KMC anchor cleanup'
+        $replacementRelease = $runtimeSource.IndexOf('ReleaseReplacementRiderViewFromOwnedAnchor', [StringComparison]::Ordinal)
+        $poseRestore = $runtimeSource.IndexOf('poseAdapter.Deconfigure();', $replacementRelease, [StringComparison]::Ordinal)
+        $attachmentRestore = $runtimeSource.IndexOf('riderAttachmentLease.Restore();', $poseRestore, [StringComparison]::Ordinal)
+        Assert-Test ($replacementRelease -ge 0 -and $poseRestore -gt $replacementRelease -and $attachmentRestore -gt $poseRestore) `
+            'stock replacement release is not ordered before old-view pose and attachment restoration'
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC') -and
+            $patchSource.Contains('nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix)') -and
+            $patchSource.Contains('TryAdmitGroundCommand(unit)') -and
+            $combatSource.Contains('CompleteGroundCommandAdmission') -and
+            $combatSource.Contains('activeRiderTurnGroundMove') -and
+            $combatSource.Contains('DriveRiderTurnGroundMovement();') -and
+            $combatSource.Contains('command.TickApproaching();') -and
+            $combatSource.Contains('command.Tick();') -and
+            $combatSource.Contains('LastGroundMoveUsedRiderTurnAdapter = true;') -and
+            $combatSource.Contains('LastGroundMoveSlotRestored = commands != null') -and
+            $combatSource.Contains('MountedPairTurnPolicy.CanDriveRiderGroundMovement(') -and
+            $turnPolicySource.Contains('public static bool CanDriveRiderGroundMovement(') -and
+            $combatSource.Contains('requestedUnit != relationship.Rider') -and
+            $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal) -gt
+                $combatSource.IndexOf('requestedUnit != relationship.Rider', [StringComparison]::Ordinal) -and
+            -not $patchSource.Contains('PatchBridge.Combat?.Cancel("ground command")') -and
+            $turnPolicySource.Contains('public static bool CanAdmitRiderGroundMovement(')) `
+            'turn-based rider ground clicks do not retain exact Mammoth Move-slot ownership and rider-turn accounting'
+        Assert-Test ($turnPolicySource.Contains('public static bool ShouldPreserveIndependentMountTurn(') -and
+            $stabilizationSource.Contains('public static class MountedTurnSelectionPolicy') -and
+            $relationshipSource.Contains('MountedTurnSelectionPolicy.Classify(') -and
+            $relationshipSource.Contains('MountedSelectionDisposition.PreserveNativeMountTurn') -and
+            $relationshipSource.Contains('MountedTurnSelectionPolicy.CanUseNativeMountTurnGroundCommand(') -and
+            -not $patchSource.Contains('CombatController), "StartTurn"') -and
+            -not $patchSource.Contains('StartTurnPostfix') -and
+            -not $combatSource.Contains('ShouldEndMountTurn')) `
+            'private-alpha stabilization still suppresses the Mammoth native turn'
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCommands), "Run", 0x060026B2') -and
+            $patchSource.Contains('nameof(PatchMethods.UnitCommandRunPrefix)') -and
+            $combatSource.Contains('MountedStockAttackPolicy.ShouldReject(') -and
+            $combatSource.Contains('command.GetType() == typeof(UnitAttack)') -and
+            $stabilizationSource.Contains('Mounted ranged attacks are not supported in this private alpha.') -and
+            $stabilizationSource.Contains('relationshipMounted && (ownerIsExactRider || ownerIsExactMount) &&') -and
+            $stabilizationSource.Contains('commandIsExactStockUnitAttack;')) `
+            'mounted stock attack rejection is not exact-pair-local at the native UnitCommands admission seam'
+        Assert-Test ($stabilizationSource.Contains('public static class MountedInteractionRoutingPolicy') -and
+            $stabilizationSource.Contains('relationshipMounted && commandOwnerIsExactRider &&') -and
+            $combatSource.Contains('command.GetType() == typeof(UnitInteractWithObject)') -and
+            $combatSource.Contains('stockInteraction.Interaction.GetType() == typeof(StandardDoor)') -and
+            $patchSource.Contains('TryRouteMountedDoorInteraction(__instance, ref cmd)') -and
+            $doorSource.Contains('new UnitMoveTo(door.transform.position, GetDoorApproachRadius())') -and
+            $doorSource.Contains('mount.Commands.Run(delegatedMove);') -and
+            $doorSource.Contains('door.Interact(rider);') -and
+            $doorSource.Contains('interactionCount != 0') -and
+            $doorSource.Contains('mountMoveSlotRestored = mount.Commands != null') -and
+            -not $doorSource.Contains('rider.Commands.Run(') -and
+            -not $doorSource.Contains('door.Interact(mount)')) `
+            'distant door routing is not exact StandardDoor-only with Mammoth path and rider interaction ownership'
+        Assert-Test ($movementEngineSource.Contains('string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal)') -and
+            $movementEngineSource.Contains('new ClickMapObjectHandler().OnClick(') -and
+            $movementEngineSource.Contains('clickAccepted && combat.HasActiveDoorInteraction') -and
+            $movementEngineSource.Contains('outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1') -and
+            $movementEngineSource.Contains('outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored') -and
+            $movementEngineSource.Contains('MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(') -and
+            $movementEngineSource.Contains('RestoreDistanceDoorFixtureLease()') -and
+            $movementEngineSource.Contains('MountedDistanceDoorFixturePolicy.IsExactlyRestored(') -and
+            $stabilizationSource.Contains('public static class MountedDistanceDoorTraversalReadinessPolicy') -and
+            $movementEngineSource.Contains('distanceDoorNavmeshCut.RequiresUpdate()') -and
+            $movementEngineSource.Contains('MountedDistanceDoorTraversalReadinessPolicy.IsReady(') -and
+            $movementEngineSource.Contains('kind = "door-traversal-readiness"') -and
+            $movementEngineSource.Contains('astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued') -and
+            $movementTelemetrySource.Contains('astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued') -and
+            $movementEngineSource.Contains('tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame') -and
+            $movementTelemetrySource.Contains('tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame') -and
+            $movementEngineSource.Contains('kind = "navigation-path-replacement"') -and
+            $movementEngineSource.Contains('previousPathFirstObservedNotNewerThanTileUpdateFrame') -and
+            $movementEngineSource.Contains('commandReferenceRetained = currentCommandAtReplacement != null') -and
+            $movementEngineSource.Contains('DoorTraversalReadinessTimeoutSeconds') -and
+            -not $movementEngineSource.Contains('TileHandlerHelper') -and
+            -not $movementEngineSource.Contains('.ForceUpdate()') -and
+            $movementEngineSource.Contains('string.Equals(row, "mounted-distance-door-interaction", StringComparison.Ordinal)') -and
+            $movementEngineSource.Contains('BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted")') -and
+            $automationHostSource.Contains('new RuntimeMovementScenarioEngine(') -and
+            $automationHostSource.Contains('request, relationship, playerAction, combat, diagnosticSettings,') -and
+            $automationHostSource.Contains('logger, request.EvidenceRoot);')) `
+            'distance-door runtime proof bypasses ordinary map-object input, exact one-shot interaction, or strict post-open traversal'
+        Assert-Test ($movementEngineSource.Contains('var tileFrameAttributedRefresh =') -and
+            $movementEngineSource.Contains('navigationUnattributedRepaths <= MaximumUnexpectedRepaths') -and
+            $movementEngineSource.Contains('rowUnattributedRepaths <= MaximumUnexpectedRepaths * Math.Max(1, rowWaypointCount)') -and
+            $movementEngineSource.Contains('unexpectedRepathCount = rowUnexpectedRepaths') -and
+            $movementValidatorSource.Contains('$rowUnattributedPathReplacements = @($rowPathReplacements | Where-Object') -and
+            $movementValidatorSource.Contains('excessive unattributed path replacements')) `
+            'distance-door TileHandler refresh classification does not preserve raw telemetry and independently reject excessive unattributed churn'
+        Assert-Test ($combatEngineSource.Contains('playerAction.ArmCombatActionFromOverlay(AttackAction)') -and
+            $combatEngineSource.Contains('ArmedThroughPlayerFacingCombatController = humanPlayArmedThroughPlayerAction') -and
+            $combatEngineSource.Contains('OverlayActivationWorldClickSuppressed = humanPlayPropagatedWorldClickSuppressed') -and
+            $combatEngineSource.Contains('? (IsTurnBasedRow ? 52 : 48)') -and
+            $combatEngineSource.Contains('ObserveNativeMammothTurnControls(turnController)') -and
+            $combatEngineSource.Contains('IsNativeTurnUiStructurallyInteractable(') -and
+            $combatEngineSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(nativeMammothGroundDestination, false);') -and
+            $combatEngineSource.Contains('nativeMammothGroundCommand.Executor == mount') -and
+            $combatEngineSource.Contains('nativeMammothPhysicalPointerQualification = "manual-required"') -and
+            $combatEngineSource.Contains('presentationAfterTurnBasedEnable = "<not-observed>"') -and
+            $combatEngineSource.Contains('presentationAfterNativeMammothGroundInput = "<not-observed>"') -and
+            $automationHostSource.Contains('request, relationship, playerAction, combat, lifecycle')) `
+            'human-play qualification bypasses the exact player-facing combat-action controller before its native unit click'
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A') -and
+            $patchSource.Contains('nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix)') -and
+            $patchSource.Contains('RuntimeAutomationHost.ObserveCombatCooldownTick(') -and
+            $automationHostSource.Contains('active?.combatEngine?.ObserveCombatCooldownTick(') -and
+            $combatEngineSource.Contains('step != CombatEngineStep.AwaitCombatFrame || unit == null || unit != AttackActor') -and
+            $combatEngineSource.Contains('initiativeTickObservation.Observe(') -and
+            -not $patchSource.Contains('Cooldown.Initiative =')) `
+            'initiative diagnosis does not remain an exact actor-scoped observation-only native cooldown probe'
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC') -and
+            $patchSource.Contains('nameof(PatchMethods.CommandInterruptPrefix)') -and
+            $patchSource.Contains('PatchBridge.Combat?.ObserveCommandInterrupt(__instance);') -and
+            $combatSource.Contains('ReferenceEquals(command, observedNativeMountTurnMove)') -and
+            $combatSource.Contains('new System.Diagnostics.StackTrace(1, false)') -and
+            $combatSource.Contains('DescribeNativeMountTurnMoveInterruptState(command as UnitMoveTo)') -and
+            $combatSource.Contains('commandApproachRadius=') -and
+            $combatSource.Contains('agentApproachRadius=') -and
+            $combatSource.Contains('mechanicsToTarget=') -and
+            $combatSource.Contains('targetToPathEnd=') -and
+            $combatSource.Contains('turnUnitExact=') -and
+            $patchSource.Contains('PatchExact(typeof(UnitMovementAgent), "CompleteMovement", 0x060018B0, Type.EmptyTypes, nameof(PatchMethods.CompleteMovementPrefix));') -and
+            $patchSource.Contains('PatchExact(typeof(UnitCommand), "get_IsUnitEnoughClose", 0x06002784, Type.EmptyTypes, null, nameof(PatchMethods.IsUnitEnoughClosePostfix));') -and
+            $patchSource.Contains('TryCompleteNativeMountTurnMoveAtReachedPathEnd(__instance)') -and
+            $patchSource.Contains('ShouldTreatNativeMountTurnMoveAsEnoughClose(__instance)') -and
+            $combatSource.Contains('MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(') -and
+            $combatSource.Contains('command.GetType() == typeof(UnitMoveTo)') -and
+            $combatSource.Contains('agent.Stop();') -and
+            $combatEngineSource.Contains('combat.BeginNativeMountTurnMoveObservation(nativeMammothGroundCommand);') -and
+            $combatEngineSource.Contains('nativeMammothGroundInterruptSource = combat.LastNativeMountTurnMoveInterruptSource;')) `
+            'native Mammoth terminal diagnosis mutates or observes commands beyond the one exact armed stock move'
+        Assert-Test ($stabilizationSource.Contains('public sealed class MountedOverlayWorldInputGuard') -and
+            $stabilizationSource.Contains('private const int MaximumPropagationFrameDelta = 2;') -and
+            $overlaySource.Contains('ArmRiderPrimaryFromOverlay()') -and
+            $playerActionSource.Contains('internal bool ArmRiderPrimaryFromOverlay()') -and
+            $playerActionSource.IndexOf('ObserveOverlayButtonActivation();',
+                $playerActionSource.IndexOf('internal bool ArmRiderPrimaryFromOverlay()', [StringComparison]::Ordinal),
+                [StringComparison]::Ordinal) -lt
+                $playerActionSource.IndexOf('return combat.ArmRiderPrimary();', [StringComparison]::Ordinal) -and
+            $playerActionSource.Contains('combat.MarkPlayerFacingOverlayActivation(Time.frameCount);') -and
+            $combatSource.Contains('overlayWorldInputGuard.TryConsumePropagatedWorldClick(Time.frameCount)') -and
+            $combatSource.IndexOf('TrySuppressPropagatedOverlayWorldClick()', [StringComparison]::Ordinal) -lt
+                $combatSource.IndexOf('var action = ArmedAction;', [StringComparison]::Ordinal) -and
+            $combatSource.IndexOf('TrySuppressPropagatedOverlayWorldClick()',
+                $combatSource.IndexOf('public bool TryAdmitGroundCommand', [StringComparison]::Ordinal),
+                [StringComparison]::Ordinal) -lt
+                $combatSource.IndexOf('Cancel("ground command");', [StringComparison]::Ordinal)) `
+            'overlay combat-button activation can leak a same-click unit/ground command into the world'
+        Assert-Test (-not $patchSource.Contains('Renderer.enabled') -and
+            -not $patchSource.Contains('GameObject.SetActive') -and
+            -not $runtimeSource.Contains('renderer.enabled = true')) `
+            'stabilization introduced a broad renderer or GameObject enabling patch'
+        Assert-Test ($stabilizationSource.Contains('MountedCleanupFeedbackPolicy') -and
+            $stabilizationSource.Contains('case CleanupTrigger.SaveRequested:') -and
+            $stabilizationSource.Contains('case CleanupTrigger.AreaUnloading:') -and
+            $stabilizationSource.Contains('case CleanupTrigger.ViewReplaced:') -and
+            $playerActionSource.Contains('MountedCleanupFeedbackPolicy.Describe(transition.Trigger.Value)')) `
+            'intentional save, area, and body/view cleanup does not retain its exact player-facing reason'
+    }
+
     $v2ResultPath = Join-Path $testRoot 'runtime-result-v2.json'
     $v2Final = New-KmcRuntimeResultV2 -Request ([pscustomobject]$v2Request) -ValidatedGameResult ([pscustomobject]$v2GameResult) -StartedAtUtc $gameStarted -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('33'*32) -GameResultSha256 (Get-KmcSha256 $v2GameResultPath)
     Write-KmcJsonAtomic $v2ResultPath $v2Final
     Invoke-HarnessTest 'runtime result schema accepts recomputed restored save-backed PASS' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1') -ResultPath $v2ResultPath -RequestPath $v2RequestPath
+    }
+
+    Invoke-HarnessTest 'runtime final-result validator accepts exact manifested combat evidence' {
+        $combatManifestHash = Write-TestCombatEvidence -EvidenceRoot $combatRequest.evidenceRoot -Request $combatRequest -Record $combatRecord
+        $combatGameResult = Copy-TestJsonValue $v2GameResult
+        foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid','transactionToken')) {
+            $combatGameResult.$name = $combatRequest.$name
+        }
+        $combatGameResult.evidenceManifestSha256 = $combatManifestHash
+        $combatGameResult.subscenarioTotal = 1
+        $combatGameResult.subscenarioPassCount = 1
+        $combatGameResult.subscenarioFailCount = 0
+        $combatGameResult.assertionPassCount = 25
+        $combatGameResult.assertionFailCount = 0
+        $combatGameResult.subscenarioResults = @($combatSubresult)
+        $combatGameResultPath = Join-Path $combatRequest.evidenceRoot 'runtime-game-result.json'
+        Write-KmcJsonAtomic $combatGameResultPath $combatGameResult
+        $combatResult = New-KmcRuntimeResultV2 -Request ([pscustomobject]$combatRequest) -ValidatedGameResult ([pscustomobject]$combatGameResult) -StartedAtUtc $gameStarted -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('44'*32) -GameResultSha256 (Get-KmcSha256 $combatGameResultPath)
+        $combatResultPath = Join-Path $testRoot 'runtime-result-combat.json'
+        Write-KmcJsonAtomic $combatResultPath $combatResult
+        & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1') -ResultPath $combatResultPath -RequestPath $combatRequestPath
+    }
+
+    Invoke-HarnessTest 'horse native-asset audit uses exact Kingmaker view-load and summoned-pony contracts' {
+        $horseAuditSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseNativeAssetAuditService.cs')
+        Assert-Test ($horseAuditSource.Contains('new[] { typeof(bool) }, null);') -and
+            $horseAuditSource.Contains('load.Invoke(prefab, new object[] { false })') -and
+            -not $horseAuditSource.Contains('BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null')) `
+            'horse audit does not bind the exact WeakResourceLink Load(Boolean) runtime contract'
+        Assert-Test ($horseAuditSource.Contains('SummonedPonyBlueprintGuid = "3f95557fc806db741b500a5735990841"') -and
+            $horseAuditSource.Contains('SummonedPonyPrefabGuid = "447d2907feec82545b3773fbb4709588"') -and
+            $horseAuditSource.Contains('"pony-reference-scan-complete"')) `
+            'horse audit does not distinguish the exact summoned pony from a completed negative reverse-reference scan'
+        Assert-Test ($horseAuditSource.Contains('["portraitDiscovery"] = new JObject()') -and
+            $horseAuditSource.Contains('"exact-native-horse-portrait-absent"') -and
+            $horseAuditSource.Contains('"native-portrait-search-complete"')) `
+            'horse audit does not preserve the bounded native Horse/Pony portrait and icon search contract'
+        Assert-Test ($horseAuditSource.Contains('["schemaVersion"] = 3') -and
+            $horseAuditSource.Contains('["kmcRuntimeBlueprints"] = new JArray()') -and
+            $horseAuditSource.Contains('runtimeValues.Contains(item.Value)') -and
+            $horseAuditSource.Contains('ReferenceEquals(item.Value, expectation.Value)') -and
+            $horseAuditSource.Contains('"kmc-runtime-blueprints-exact-self-owned"') -and
+            $horseAuditSource.Contains('"reserved-kmc-guids-unclaimed-by-stock"') -and
+            $horseAuditSource.Contains('NativeMountedControlService.MountAbilityGuid')) `
+            'horse audit does not distinguish reference-identical KMC runtime definitions from its stock portrait/asset projection'
+        $horseBlueprintSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs')
+        $nativeControlSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs')
+        Assert-Test ($horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, UnitGuid);') -and
+            $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, FeatureGuid);') -and
+            $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, UpgradeGuid);') -and
+            $horseBlueprintSource.Contains('AssertReservedGuidAbsent(library, blueprintList, PortraitGuid);') -and
+            $nativeControlSource.Contains('AssertGuidAbsent(library, guid);')) `
+            'KMC Horse/native-control production registration no longer rejects pre-existing deterministic-GUID collisions'
+    }
+
+    Invoke-HarnessTest 'horse native-controls UX repairs are exact-pair scoped and preserve historical schema' {
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $animationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedAnimationAdapter.cs'))
+        $horsePrimaryAnimationSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorsePrimaryAttackAnimationAdapter.cs'))
+        $attackCommandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $ikSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDollRoomIkAdapter.cs'))
+        $horseBlueprintSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs'))
+        $nativeControlSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
+        $horseScenarioSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
+        $runtimeLauncherSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Invoke-KingmakerRuntimeScenario.ps1'))
+        $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
+        $runtimeGameResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
+        $runtimeResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1'))
+        $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
+
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
+            $patchSource.Contains('PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));') -and
+            $patchSource.Contains('PatchBridge.Animation?.RestoreExactDelegatedMountLocomotion(__instance);') -and
+            $patchSource.Contains('PatchBridge.Animation?.SupplyExactHorsePrimaryAnimation(__instance);') -and
+            $animationSource.Contains('combat.TryGetExactRiderTurnDelegatedMoveForAnimation(mount, out move, out source)') -and
+            $animationSource.Contains('combat.TryGetExactHorsePrimaryAnimationContext(attack, out command, out horse)') -and
+            $animationSource.Contains('horsePrimaryAttackAnimation.SupplyExact(command, attack, horse);') -and
+            $horsePrimaryAnimationSource.Contains('relationship.State == RelationshipState.Mounted') -and
+            $horsePrimaryAnimationSource.Contains('command.Action == MountedCombatActionKind.MountPrimaryNatural') -and
+            $horsePrimaryAnimationSource.Contains('HorseCompanionBlueprintService.UnitGuid') -and
+            $horsePrimaryAnimationSource.Contains('.OfType<UnitAnimationActionSpecialAttack>()') -and
+            $horsePrimaryAnimationSource.Contains('if (actions.Length != 1)') -and
+            $horsePrimaryAnimationSource.Contains('attack.AnimationHandle = handle;') -and
+            $projectSource.Contains('Compile Include="Integration\HorsePrimaryAttackAnimationAdapter.cs"') -and
+            -not $animationSource.Contains('catch') -and
+            -not $horsePrimaryAnimationSource.Contains('catch')) `
+            'Horse locomotion or primary-animation repair is not exact-token, exact-context, single-native-action, or exception-transparent'
+
+        $childInitIndex = $attackCommandSource.IndexOf('base.Init(executor);', [StringComparison]::Ordinal)
+        $directAnimationIndex = $attackCommandSource.IndexOf('horsePrimaryAttackAnimation.SupplyExact(this, childAttack.PlannedAttack, mount);', [StringComparison]::Ordinal)
+        $childValidationIndex = $attackCommandSource.IndexOf('if (childAttack.PlannedAttack == null || childAttack.AllAttacks.Count == 0 ||', [StringComparison]::Ordinal)
+        Assert-Test ($childInitIndex -ge 0 -and
+            $directAnimationIndex -gt $childInitIndex -and
+            $childValidationIndex -gt $directAnimationIndex -and
+            $attackCommandSource.Contains('if (action == MountedCombatActionKind.MountPrimaryNatural)') -and
+            $horsePrimaryAnimationSource.Contains('if (!IsExactHorsePrimaryContext(command, attack, horse))') -and
+            $horsePrimaryAnimationSource.Contains('command.HasRecordedHorsePrimaryAnimation(attack.AnimationHandle)') -and
+            $horsePrimaryAnimationSource.Contains('if (command.HasAnyRecordedHorsePrimaryAnimation)') -and
+            $horsePrimaryAnimationSource.Contains('command.RefreshStockCreatedHorsePrimaryAnimation(attack.AnimationHandle, stockAction);') -and
+            $horsePrimaryAnimationSource.Contains('HandleRefreshCount++;') -and
+            $horsePrimaryAnimationSource.Contains('command.RecordHorsePrimaryAnimation(attack.AnimationHandle, stockAction, "stock-created");') -and
+            $horsePrimaryAnimationSource.Contains('HandleAdoptCount++;') -and
+            $attackCommandSource.Contains('!ReferenceEquals(horsePrimaryAnimationAction, animationAction)') -and
+            $attackCommandSource.Contains('horsePrimaryAnimationHandleSource = "stock-created";')) `
+            'Horse primary animation does not bind once after stock child initialization and safely follow a later reference-distinct exact stock Bite handle'
+
+        Assert-Test ($patchSource.Contains('PatchExact(typeof(IKController), "SetupIkSystem", 0x0600156C, new[] { typeof(Character) }, nameof(PatchMethods.DollRoomIkSetupPrefix));') -and
+            $patchSource.Contains('PatchExact(typeof(IKController), "SetupFbbik", 0x0600156D, Type.EmptyTypes, nameof(PatchMethods.DollRoomFbbikPrefix), nameof(PatchMethods.DollRoomFbbikPostfix));') -and
+            $ikSource.Contains('relationship.State != RelationshipState.Mounted') -and
+            $ikSource.Contains('(!ReferenceEquals(unit, rider) && !ReferenceEquals(unit, mount))') -and
+            $ikSource.Contains('controller.CharacterUnitEntity = unit.View;') -and
+            $ikSource.Contains('(ReferenceEquals(unit, rider) || ReferenceEquals(unit, mount))') -and
+            -not $ikSource.Contains('catch')) `
+            'DollRoom IK attribution repair is not exact mounted-pair scoped or still hides a stock exception'
+
+        Assert-Test ($horseBlueprintSource.Contains('internal const string PortraitGuid = "6874a165bf8bda3531ee4e2abc10c899";') -and
+            $horseBlueprintSource.Contains('new PortraitData(null, small, medium, large)') -and
+            $horseBlueprintSource.Contains('ImageConversion.LoadImage(texture, bytes, true)') -and
+            $horseBlueprintSource.Contains('KingmakerMountedCombat.Assets.MountSaddleIcon.png') -and
+            $horseBlueprintSource.Contains('public Sprite MountSaddleIcon => mountSaddleIcon;') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitLarge.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitMedium.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorsePortraitSmall.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\HorseIcon.png"') -and
+            $projectSource.Contains('EmbeddedResource Include="Assets\MountSaddleIcon.png"') -and
+            $nativeControlSource.Contains('var saddleIcon = horseCompanion.MountSaddleIcon;') -and
+            $nativeControlSource.Contains('"KMC_MountCompanionAbility"') -and
+            $nativeControlSource.Contains('"KMC_DismountAbility"') -and
+            $nativeControlSource.Contains('saddleIcon);') -and
+            $nativeControlSource.Contains('horseIcon);')) `
+            'Horse portrait/identity art and the original saddle-oriented Mount/Dismount art are not segregated on exact embedded KMC surfaces'
+
+        Assert-Test ($horseScenarioSource.Contains('Game.Instance?.SelectedAbilityHandler') -and
+            $horseScenarioSource.Contains('handler.SetAbility(data);') -and
+            $horseScenarioSource.Contains('handler.GetPriority(targetObject, targetPosition);') -and
+            $horseScenarioSource.Contains('handler.GetTarget(targetObject, targetPosition, data);') -and
+            $horseScenarioSource.Contains('handler.OnClick(targetObject, targetPosition, 0, false, false);') -and
+            $horseScenarioSource.Contains('handler.DropAbility();') -and
+            $horseScenarioSource.Contains('dollRoomPhaseStartedAtSeconds') -and
+            $horseScenarioSource.Contains('observations["mountedRiderOutcome"] = CaptureMountedOutcome(') -and
+            $horseScenarioSource.Contains('mountedRiderOutcome,') -and
+            $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
+            $horseScenarioSource.Contains('if (includeAnimation)') -and
+            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 8 : 4') -and
+            $horseScenarioSource.Contains('"legacy-overlay-default-hidden"') -and
+            $horseScenarioSource.Contains('"legacy-overlay-debug-fallback"') -and
+            $horseScenarioSource.Contains('DollRoomSimpleAvatarField.MetadataToken == 0x04002F58') -and
+            $horseScenarioSource.Contains('"simple-unit-view"') -and
+            $runtimeLauncherSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeRequestValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeGameResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
+            $runtimeGameResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')') -and
+            $runtimeResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')')) `
+            'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded overlay/DollRoom observation, changes historical schema-v4 output, or is missing from an independent runtime/artifact allowlist'
+    }
+
+    Invoke-HarnessTest 'horse native-asset audit validator binds exact manifested evidence and subscenario totals' {
+        $horseRoot = Join-Path $runtimeEvidenceTestRoot 'horse-native-audit-validator'
+        New-Item -ItemType Directory -Path $horseRoot -Force | Out-Null
+        $horseRequest = [pscustomobject]@{
+            runId='horse-native-audit-validator';scenario='horse-native-asset-audit';branch='codex/mounted-combat-phase3-horse'
+            commit=('1'*40);productVersion='0.1.0-phase3a-dev.2';evidenceRoot=$horseRoot
+        }
+        $horseBody = [ordered]@{
+            disableHands=$false;emptyHandWeapon=$null;primaryHand=$null;secondaryHand=$null
+            additionalLimbs=@();additionalSecondaryLimbs=@()
+        }
+        $horseView = [ordered]@{
+            rootName='HorseRiding';viewType='Kingmaker.View.UnitEntityView'
+            rootLocalPosition=[ordered]@{x=0;y=0;z=0};rootLocalRotation=[ordered]@{x=0;y=0;z=0;w=1};rootLocalScale=[ordered]@{x=1;y=1;z=1}
+            transformCount=122;transformNames=@('Chest','L_Stirrup','R_Stirrup');importantTransforms=@();boneNames=@();meshNames=@();materialNames=@()
+            componentTypes=@('Kingmaker.View.UnitMovementAgent');colliders=@([ordered]@{type='UnityEngine.CapsuleCollider'})
+            movementAgents=@([ordered]@{type='Kingmaker.View.UnitMovementAgent'});animatorControllers=@();animationClips=@('Idle','Walk','Run')
+            animationActions=@('Idle|Synthetic');viewCorpulence=0.75;selectionRelatedComponents=@()
+        }
+        $horseRecord = [ordered]@{
+            name='CR1_HorseRiding';assetGuid='9e9e75c484e68734487e609714565202';type='Kingmaker.Blueprints.BlueprintUnit'
+            size='Large';sizeValue=5;prefabAssetId='5e0b93738ad54dd4ba101b3513ac4590';prefabResourceName='HorseRiding.prefab'
+            strength=16;dexterity=14;constitution=15;intelligence=2;wisdom=12;charisma=6;speedFeet=50
+            componentTypes=@('Kingmaker.UnitLogic.FactLogic.AddClassLevels');body=$horseBody;view=$horseView
+        }
+        $ponyRecord = [ordered]@{
+            name='PonySummoned';assetGuid='3f95557fc806db741b500a5735990841';type='Kingmaker.Blueprints.BlueprintUnit'
+            size='Medium';sizeValue=4;prefabAssetId='447d2907feec82545b3773fbb4709588';prefabResourceName='Pony_02'
+            strength=13;dexterity=13;constitution=14;intelligence=2;wisdom=11;charisma=4;speedFeet=40
+            componentTypes=@('Kingmaker.UnitLogic.FactLogic.AddClassLevels');body=$horseBody;view=$horseView
+        }
+        $kmcGuidByRole = [ordered]@{
+            'horse-unit'='4016c7db400ab721ff125aef9e65e202'
+            'horse-feature'='7db7c50677e39f09feef56f3831fc723'
+            'horse-upgrade'='98e651899e6278d938de77af1d69bd32'
+            'horse-portrait'='6874a165bf8bda3531ee4e2abc10c899'
+            'mount-ability'='f053faad986631688defa003cd7bda0e'
+            'dismount-ability'='3af2b81f4d72bbb30501fa730fcdf36e'
+            'rider-primary-ability'='27364df661b3c121eabb97a31aa73a83'
+            'mount-primary-ability'='f88a50d6fdbebbd709c3e323d2f52f5e'
+        }
+        $kmcRuntimeBlueprints = @($kmcGuidByRole.GetEnumerator() | ForEach-Object {
+            [ordered]@{
+                role=[string]$_.Key;assetGuid=[string]$_.Value;matchingGuidCount=1;exactReferenceCount=1
+                foreignCollisionCount=0;exactSelfOwned=$true
+                blueprint=[ordered]@{name=('KMC_'+$_.Key);assetGuid=[string]$_.Value;type='Kingmaker.Blueprints.BlueprintScriptableObject'}
+            }
+        })
+        $reserved = @($kmcGuidByRole.Values | ForEach-Object {
+            [ordered]@{assetGuid=[string]$_;resolved=$false;blueprint=$null}
+        })
+        $horseArtifact = [ordered]@{
+            schemaVersion=3;evidenceKind='horse-asset-audit';runId=$horseRequest.runId;scenario=$horseRequest.scenario
+            branch=$horseRequest.branch;commit=$horseRequest.commit;productVersion=$horseRequest.productVersion;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            loadedBlueprintCount=100;stockBlueprintCount=92;resourceNameCount=100;kmcRuntimeBlueprints=$kmcRuntimeBlueprints
+            reservedGuidCollisions=$reserved;exactHorse=$horseRecord
+            ponyDiscovery=[ordered]@{resourceMatches=@([ordered]@{assetId='pony';resourceName='Pony.prefab'});candidateUnits=@($horseRecord,$ponyRecord);ponyCandidateUnits=@($ponyRecord);reverseReferences=@();reverseReferenceTruncated=$false}
+            portraitDiscovery=[ordered]@{blueprintPortraitCount=1;namedHorsePonyBlueprintPortraits=@();horsePonyUnitPortraitOwners=@();horsePonyIconOwners=@();exactNativeHorsePortrait=$null}
+            stockCompanionBaseline=[ordered]@{feature=[ordered]@{};unit=[ordered]@{};upgrade=[ordered]@{};addPet=[ordered]@{}}
+            companionSelections=@([ordered]@{assetGuid='selection'});ranger=[ordered]@{class='RangerClass'};paladin=[ordered]@{class='PaladinClass'}
+            assertions=@([ordered]@{name='synthetic-contract';status='PASS';detail='Synthetic validator contract.'})
+            assertionPassCount=1;assertionFailCount=0;errors=@();status='PASS'
+        }
+        $horsePath = Join-Path $horseRoot 'horse-native-asset-audit.json'
+        Write-KmcJsonDurable -Path $horsePath -Value $horseArtifact
+        $horseArtifactRecord = [ordered]@{
+            relativePath='horse-native-asset-audit.json';kind='horse-asset-audit'
+            length=(Get-Item -LiteralPath $horsePath).Length;sha256=(Get-KmcSha256 $horsePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $horseRoot -RunId $horseRequest.runId -Scenario $horseRequest.scenario -Artifacts @($horseArtifactRecord))
+        $horseManifest = Read-KmcJson (Join-Path $horseRoot 'runtime-artifacts.json')
+        $horseSubresult = [pscustomobject]@{name='horse-native-asset-audit';status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
+        Assert-KmcHorseNativeAssetAuditEvidence -Request $horseRequest -Manifest $horseManifest -Status PASS -SubscenarioResults @($horseSubresult)
+    }
+
+    Invoke-HarnessTest 'horse companion registration validator binds exact production snapshots and lease restoration' {
+        $horseBlueprintSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\HorseCompanionBlueprintService.cs')
+        $horseRegistrationAuditSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionBlueprintRegistrationAuditService.cs')
+        $horseRegistrationScenarioPolicySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs')
+        Assert-Test ($horseRegistrationAuditSource.Contains('HorseCompanionRegistrationScenarioPolicy.SupportsScenario(request.Scenario)') -and
+            $horseRegistrationScenarioPolicySource.Contains('phase3d-unified-combat-rt-suite') -and
+            $horseRegistrationScenarioPolicySource.Contains('phase3d-unified-combat-tb-suite') -and
+            $horseRegistrationScenarioPolicySource.Contains('phase3d-horse-presentation-suite') -and
+            $horseRegistrationScenarioPolicySource.Contains('StringComparison.Ordinal')) `
+            'horse registration prerequisite does not admit the exact Phase 3D parent scenarios through the closed ordinal policy'
+        Assert-Test ($horseBlueprintSource.Contains('DisableHands = true,') -and
+            $horseBlueprintSource.Contains('AdditionalLimbs = new[] { bite, hoof, hoof },') -and
+            -not $horseBlueprintSource.Contains('AdditionalLimbs = new[] { hoof, hoof },') -and
+            $horseRegistrationAuditSource.Contains('body != null && body.DisableHands && body.EmptyHandWeapon == null') -and
+            $horseRegistrationAuditSource.Contains('body.AdditionalLimbs != null && body.AdditionalLimbs.Length == 3')) `
+            'horse companion does not retain the exact no-hands Bite/Hoof/Hoof topology that stock UnitAttack enumerates once each'
+        $registrationRoot = Join-Path $runtimeEvidenceTestRoot 'horse-companion-registration-validator'
+        New-Item -ItemType Directory -Path $registrationRoot -Force | Out-Null
+        $registrationRequest = [pscustomobject]@{
+            runId='horse-companion-registration-validator';scenario='horse-companion-blueprint-registration';branch='codex/mounted-combat-phase3-horse'
+            commit=('2'*40);productVersion=$currentProductVersion;evidenceRoot=$registrationRoot
+        }
+        $initial = [ordered]@{
+            state=1;failure=$null;unitGuid='4016c7db400ab721ff125aef9e65e202';featureGuid='7db7c50677e39f09feef56f3831fc723'
+            upgradeGuid='98e651899e6278d938de77af1d69bd32';rangerSelectionGuid='ee63330662126374e8785cc901941ac7'
+            rangerOriginalOptionCount=7;rangerCurrentOptionCount=8;rangerAppendOwned=$true;rangerSelectionDesired=$true
+            nativeViewAssetId='5e0b93738ad54dd4ba101b3513ac4590';companionClassGuid=('3'*32)
+            initialClassLevels=0;stockMammothInitialClassLevels=0;stockDogInitialClassLevels=0
+            stockMammothAllowDyingConditionComponent=$true;stockDogAllowDyingConditionComponent=$true;horseAllowDyingConditionComponent=$true
+            levelRankGuid='1670990255e4fe948a863bafd5dbda5d';upgradeLevel=4;biteGuid=('4'*32);biteName='Bite1d4'
+            hoofGuid='b0e472a49ff2a294f93faa3ab757a4a5';hoofName='Hoof1d4';naturalAttackCount=3
+            unitComponentCount=2;upgradeComponentCount=2;strength=16;dexterity=13;constitution=15
+            intelligence=2;wisdom=12;charisma=6;speedFeet=50;size='Large'
+        }
+        $disabled = [ordered]@{}
+        $reenabled = [ordered]@{}
+        foreach ($pair in $initial.GetEnumerator()) { $disabled[$pair.Key]=$pair.Value; $reenabled[$pair.Key]=$pair.Value }
+        $disabled.rangerCurrentOptionCount=7;$disabled.rangerAppendOwned=$false;$disabled.rangerSelectionDesired=$false
+        $requiredAssertions = @(
+            'registration-state','initialized-blueprint-library','exact-library-identities','add-pet-contract',
+            'companion-class-contract','native-dying-condition-contract','native-view-size-speed','base-ability-scores','natural-attack-loadout',
+            'rank-four-upgrade','localization-contract','ranger-append','exact-disable-restore','exact-reenable-append'
+        )
+        $assertions = @($requiredAssertions | ForEach-Object { [ordered]@{name=$_;status='PASS';detail="Synthetic exact contract for $_."} })
+        $registrationArtifact = [ordered]@{
+            schemaVersion=1;evidenceKind='horse-companion-blueprint-registration';runId=$registrationRequest.runId
+            scenario=$registrationRequest.scenario;branch=$registrationRequest.branch;commit=$registrationRequest.commit
+            productVersion=$registrationRequest.productVersion;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            initial=$initial;selectionDisabled=$disabled;selectionReenabled=$reenabled;assertions=$assertions
+            assertionPassCount=$assertions.Count;assertionFailCount=0;errors=@();status='PASS'
+        }
+        $registrationPath = Join-Path $registrationRoot 'horse-companion-blueprint-registration.json'
+        Write-KmcJsonDurable -Path $registrationPath -Value $registrationArtifact
+        $registrationRecord = [ordered]@{
+            relativePath='horse-companion-blueprint-registration.json';kind='horse-companion-blueprint-registration'
+            length=(Get-Item -LiteralPath $registrationPath).Length;sha256=(Get-KmcSha256 $registrationPath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $registrationRoot -RunId $registrationRequest.runId -Scenario $registrationRequest.scenario -Artifacts @($registrationRecord))
+        $registrationManifest = Read-KmcJson (Join-Path $registrationRoot 'runtime-artifacts.json')
+        $registrationSubresult = [pscustomobject]@{
+            name='horse-companion-blueprint-registration';status='PASS';assertionPassCount=$assertions.Count;assertionFailCount=0;errors=@()
+        }
+        Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $registrationRequest -Manifest $registrationManifest -Status PASS -SubscenarioResults @($registrationSubresult)
+
+        $registrationArtifact.selectionDisabled.rangerCurrentOptionCount = 8
+        Write-KmcJsonAtomic -Path $registrationPath -Value $registrationArtifact
+        $registrationRecord.length=(Get-Item -LiteralPath $registrationPath).Length
+        $registrationRecord.sha256=(Get-KmcSha256 $registrationPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $registrationRoot -RunId $registrationRequest.runId -Scenario $registrationRequest.scenario -Artifacts @($registrationRecord))
+        $mutatedManifest = Read-KmcJson (Join-Path $registrationRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $registrationRequest -Manifest $mutatedManifest -Status PASS -SubscenarioResults @($registrationSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion registration validator accepted a false seven-option restore snapshot'
+    }
+
+    Invoke-HarnessTest 'horse companion unmounted validator binds runtime behavior and exact cleanup' {
+        $unmountedEngineSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs')
+        Assert-Test ($unmountedEngineSource.Contains('private const float TargetDistance = 4.0f;') -and
+            $unmountedEngineSource.Contains('FindWalkablePoint(owner.Position, TargetDistance, 0.45f)') -and
+            -not $unmountedEngineSource.Contains('FindWalkablePoint(horse.Position, TargetDistance, 0.45f)')) `
+            'horse companion combat target is not derived from the exact owner-relative placement authority'
+        Assert-Test ($unmountedEngineSource.Contains('private const double LifecycleTimeoutSeconds = 60.0;') -and
+            $unmountedEngineSource.Contains('var lifecyclePhase = step == EngineStep.AwaitMountedLifecycleTargetRemoval ||') -and
+            $unmountedEngineSource.Contains('step == EngineStep.AwaitLifecycleCombatEntry ||') -and
+            $unmountedEngineSource.Contains('step == EngineStep.AwaitDeath ||') -and
+            $unmountedEngineSource.Contains('step == EngineStep.AwaitDirectDamage ||') -and
+            $unmountedEngineSource.Contains('HorseCompanionScenarioDeadlinePolicy.Evaluate(') -and
+            $unmountedEngineSource.Contains('lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;') -and
+            $unmountedEngineSource.IndexOf('lifecycleStartedAtSeconds = clock.Elapsed.TotalSeconds;', [StringComparison]::Ordinal) -lt
+                $unmountedEngineSource.IndexOf('step = EngineStep.AwaitDeath;', [StringComparison]::Ordinal) -and
+            $unmountedEngineSource.Contains('lifecycleExpired ? "lifecycle-deadline" : "bounded-deadline"')) `
+            'horse companion lifecycle verification does not have an independent exact bounded deadline'
+        Assert-Test ($unmountedEngineSource.Contains('private const double RealTimeAttackTimeoutSeconds = 20.0;') -and
+            $unmountedEngineSource.Contains('observations["realTimeAttackAtDispatch"] = CaptureRealTimeAttackState(realTimeAttack);') -and
+            $unmountedEngineSource.Contains('observations["realTimeAttackAtDeadline"] = diagnostic;') -and
+            $unmountedEngineSource.Contains('observations["realTimePreDispatchStandardType"] = preDispatchStandard?.GetType().FullName;') -and
+            $unmountedEngineSource.Contains('horse.Commands.InterruptAll(false);') -and
+            $unmountedEngineSource.Contains('expectedDispatchStarted && ReferenceEquals(horse.Commands.Standard, realTimeAttack)') -and
+            $unmountedEngineSource.Contains('ReferenceEquals(horse.Commands.Standard, command)') -and
+            $unmountedEngineSource.Contains('observations["realTimeForcedD20Count"] = ruleProbe.ForcedD20Count;') -and
+            $unmountedEngineSource.Contains('observations["realTimeUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;') -and
+            $unmountedEngineSource.Contains('observations["turnBasedForcedD20Count"] = ruleProbe.ForcedD20Count;') -and
+            $unmountedEngineSource.Contains('observations["turnBasedUnexpectedPairAttackCount"] = ruleProbe.UnexpectedPairAttackCount;') -and
+            $unmountedEngineSource.Contains('ruleProbe.DamageRuleCount == 1 && ruleProbe.ForcedD20Count >= 1 &&')) `
+            'horse companion RT attack leaf lost its bounded native-merge repair or exact command-identity diagnostic'
+        $preTargetIsolationIndex = $unmountedEngineSource.IndexOf(
+            'private void AwaitUnmountedAttackOwnerAiIsolation()', [StringComparison]::Ordinal)
+        $preTargetPrepareIndex = $unmountedEngineSource.IndexOf(
+            'if (!PrepareUnmountedAttackOwnerAiIsolation())', $preTargetIsolationIndex, [StringComparison]::Ordinal)
+        $preTargetSpawnIndex = $unmountedEngineSource.IndexOf(
+            'targetService = new DiagnosticCombatTargetService(logger);', $preTargetIsolationIndex, [StringComparison]::Ordinal)
+        $combatEntryIndex = $unmountedEngineSource.IndexOf(
+            'private void AwaitCombatEntry()', [StringComparison]::Ordinal)
+        $prepareIsolationIndex = $unmountedEngineSource.IndexOf(
+            'private bool PrepareUnmountedAttackOwnerAiIsolation()', [StringComparison]::Ordinal)
+        $validateIsolationIndex = $unmountedEngineSource.IndexOf(
+            'private bool ValidateUnmountedAttackOwnerAiIsolation()', [StringComparison]::Ordinal)
+        $prepareIsolationBody = if ($prepareIsolationIndex -ge 0 -and $validateIsolationIndex -gt $prepareIsolationIndex) {
+            $unmountedEngineSource.Substring(
+                $prepareIsolationIndex, $validateIsolationIndex - $prepareIsolationIndex)
+        } else { '' }
+        Assert-Test ($unmountedEngineSource.Contains('private ScopedDiagnosticAiLease<UnitEntityData> unmountedAttackOwnerAiLease;') -and
+            $unmountedEngineSource.Contains('private const double UnmountedAttackOwnerAiSettleTimeoutSeconds = 5.0;') -and
+            $unmountedEngineSource.Contains('case EngineStep.AwaitUnmountedAttackOwnerAiIsolation:') -and
+            $unmountedEngineSource.Contains('step = EngineStep.AwaitUnmountedAttackOwnerAiIsolation;') -and
+            $unmountedEngineSource.Contains('private void AwaitUnmountedAttackOwnerAiIsolation()') -and
+            $preTargetIsolationIndex -ge 0 -and
+            $preTargetPrepareIndex -gt $preTargetIsolationIndex -and
+            $preTargetSpawnIndex -gt $preTargetPrepareIndex -and
+            $combatEntryIndex -gt $preTargetSpawnIndex -and
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (!PrepareUnmountedAttackOwnerAiIsolation())'))).Count -eq 1 -and
+            $prepareIsolationIndex -ge 0 -and
+            $validateIsolationIndex -gt $prepareIsolationIndex -and
+            -not $prepareIsolationBody.Contains('InterruptAll(false)') -and
+            $unmountedEngineSource.Contains('private bool PrepareUnmountedAttackOwnerAiIsolation()') -and
+            $unmountedEngineSource.Contains('owner.Commands.RemoveFinishedAndUpdateQueue();') -and
+            $unmountedEngineSource.Contains('UnmountedAttackOwnerAiSettleTimeoutSeconds)') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.Acquire(new[] { owner });') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.ValidateActive(new[] { owner });') -and
+            $unmountedEngineSource.Contains('private bool RestoreUnmountedAttackOwnerAiIsolation()') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.Restore(new[] { owner });') -and
+            $unmountedEngineSource.Contains('unmountedAttackOwnerAiLease.LastRestoreVerified') -and
+            $unmountedEngineSource.Contains('targetClean && horseClean && attackOwnerAiClean')) `
+            'horse companion unmounted attack control lost bounded pre-target owner-AI isolation or restoration without weakening the pair-wide duplicate-chain probe'
+        Assert-Test ($unmountedEngineSource.Contains('private const double TurnBasedTurnAcquisitionTimeoutSeconds = 20.0;') -and
+            $unmountedEngineSource.Contains('private const double TurnBasedAttackTimeoutSeconds = 20.0;') -and
+            $unmountedEngineSource.Contains('private const double MountedAlphaAdmissionTimeoutSeconds = 20.0;') -and
+            $unmountedEngineSource.Contains('observations["nativeTbHorseExpectedDispatchMarkDelta"] =') -and
+            $unmountedEngineSource.Contains('targetService.ExpectedAttackDispatchMarkCount - dispatchMarkCountBefore == 1') -and
+            $unmountedEngineSource.Contains('step = EngineStep.AwaitMountedAlphaAdmission;') -and
+            $unmountedEngineSource.Contains('private void AwaitMountedAlphaAdmission()') -and
+            $unmountedEngineSource.Contains('var availability = playerAction.GetAvailability();') -and
+            $unmountedEngineSource.Contains('availability.Action == MountedPlayerActionKind.Mount') -and
+            $unmountedEngineSource.Contains('"target-selected-mount-admission-deadline"') -and
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }'))).Count -eq 5 -and
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('horse.Commands.InterruptAll(false);'))).Count -ge 2 -and
+            $unmountedEngineSource.Contains('var nativeTurn = controller.CurrentTurn;') -and
+            $unmountedEngineSource.Contains('turnBasedNativeTurnStableFrames++') -and
+            $unmountedEngineSource.Contains('if (turnBasedNativeTurnStableFrames < 2)') -and
+            $unmountedEngineSource.Contains('mountedNativeTurnStableFrames++') -and
+            $unmountedEngineSource.Contains('if (mountedNativeTurnStableFrames < 2)') -and
+            $unmountedEngineSource.Contains('if (turnBasedStartTurnRequestCount < 2)') -and
+            $unmountedEngineSource.Contains('turnBasedStableReadyFrames++') -and
+            $unmountedEngineSource.Contains('if (turnBasedStableReadyFrames < 2)') -and
+            $unmountedEngineSource.Contains('game.IsPaused || horse.Commands == null || !horse.Commands.Empty ||') -and
+            $unmountedEngineSource.Contains('game.HandsEquipmentController.IsUpdateScheduledFor(horse) || !horse.HasStandardAction() ||') -and
+            $unmountedEngineSource.Contains('ReferenceEquals(controller.CurrentTurn, turn) &&') -and
+            $unmountedEngineSource.Contains('ReferenceEquals(horse.Commands.Standard, turnBasedAttack)') -and
+            -not $unmountedEngineSource.Contains('exactHealthyPendingCommand') -and
+            -not $unmountedEngineSource.Contains('mountedPostMoveTurnReassertions == 0') -and
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('controller.StartTurn(horse);'))).Count -eq 4 -and
+            $unmountedEngineSource.Contains('controller.StartTurn(horse);') -and
+            $unmountedEngineSource.Contains('turnBasedAttack.Result == UnitCommand.ResultType.Success') -and
+            $unmountedEngineSource.Contains('observations["turnBasedAttackAtDeadline"] = CaptureTurnBasedAttackState(turnBasedAttack);') -and
+            $unmountedEngineSource.Contains('observations["turnBasedAttackAtTerminal"] = terminal;')) `
+            'horse companion TB attack leaf lost exact stock readiness, Standard-slot admission, success, or bounded diagnostics'
+        $unmountedRoot = Join-Path $runtimeEvidenceTestRoot 'horse-companion-unmounted-validator'
+        New-Item -ItemType Directory -Path $unmountedRoot -Force | Out-Null
+        $unmountedRequest = [pscustomobject]@{
+            runId='horse-companion-unmounted-validator';scenario='horse-companion-unmounted-suite';branch='codex/mounted-combat-phase3-horse'
+            commit=('5'*40);productVersion=$currentProductVersion;dllSha256=('6'*64)
+            dllMvid='11111111-2222-3333-4444-555555555555';evidenceRoot=$unmountedRoot
+        }
+        $required = @(
+            'eligible-owner','native-ranger-level-up-commit','feature-activation','creation-and-ownership','party-control-surface',
+            'rank-progression-and-upgrade','native-view-size-statistics','horse-selection','stock-movement-command',
+            'unmounted-party-movement','transient-combat-target','bite-and-hoof-full-attack','expected-attack-boundary',
+            'real-time-natural-attack','turn-based-roster','turn-based-horse-control','turn-based-natural-attack',
+            'stock-lifecycle-admission','ordinary-stock-damage-lifecycle','death-ownership','death-and-recovery',
+            'direct-damage-control-disposition','direct-damage-control-recovery',
+            'respec-runtime-cleanup','respec-and-uninstall-surface',
+            'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
+        )
+        $unmountedAssertions = @($required | ForEach-Object { [ordered]@{name=$_;status='PASS';detail="Synthetic exact contract for $_."} })
+        $biteGuid = ('7'*32)
+        $newHorseLifeSnapshot = {
+            param([string]$LifeState,[bool]$Conscious,[bool]$Dead,[int]$Damage,[bool]$InAwakeUnits)
+            [ordered]@{
+                lifeState=$LifeState;isConscious=$Conscious;isDead=$Dead;stateIsDead=$Dead;isFinallyDead=$false
+                damage=$Damage;nonLethalDamage=0;hitPoints=40;temporaryHitPoints=0;constitution=19;negativeHitPointThreshold=59
+                allowDyingCondition=$true;masterAllowDyingCondition=$true;immortality=$false;regeneration=$false
+                ferocity=$false;halfOrcFerocity=$false;dualCompanionPartPresent=$false;dualCompanionPartDead=$false
+                dualCompanionPairId=$null;isInState=$true;inStateUnits=$true;inAwakeUnits=$InAwakeUnits
+                isAwake=$InAwakeUnits;isSleeping=(-not $InAwakeUnits);awakeTimer=$(if($InAwakeUnits){1.0}else{-1.0})
+                sleepless=$false;viewPresent=$true;viewActive=$true;animatorPresent=$true;animatorLayerCount=1
+                animatorStateFullPathHash=1;animatorStateShortNameHash=2;animatorStateNormalizedTime=0.5
+                animatorInTransition=$false;ownerPetExact=$true;masterExact=$true;ownerPetId='horse';masterId='owner'
+                controllableRosterContainsHorse=$true;controllableRosterCount=2;groupIsPlayerParty=$true
+            }
+        }
+        $lifeConscious = & $newHorseLifeSnapshot 'Conscious' $true $false 0 $true
+        $lifeDead = & $newHorseLifeSnapshot 'Dead' $false $true 60 $true
+        $lifeDirectImmediate = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $true
+        $lifeDirectAfter = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $false
+        $stockLifecycleAttacks = @(
+            [ordered]@{sequence=1;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=30;horseLifeStateAfter='Conscious'},
+            [ordered]@{sequence=2;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=60;horseLifeStateAfter='Dead'}
+        )
+        $unmountedObservations = [ordered]@{
+            originalPause=$false;originalTurnBased=$false;originalSelectionCount=1
+            saveLoadAutomationScope='CONTRACT-ONLY: synthetic guarded boundary.';ownerId='owner';ownerBlueprintGuid=('8'*32)
+            nativeRangerCommitCount=4;huntersBondSelectionLevel=4;rangerCompanionSelectionLevel=4
+            horseFactRankAtCommit=1;horsePresentAtNativeCommit=$true;horseFeatureSourceGuid=('3'*32)
+            horseId='horse';horseBlueprintGuid='4016c7db400ab721ff125aef9e65e202';characterLevel=1;expectedCharacterLevel=2
+            experience=9000;expectedExperience=9000;rank=1;upgradeRank=0
+            activationDefaultBuildContextPresent=$false;activationCharacterLevelAfterNativeTry=1;activationExperienceAfterNativeTry=9000
+            deferredNativeAttempts=0;defaultBuildContextWaitFrames=0;lastDeferredDefaultBuildContextPresent=$false
+            deferredCharacterLevelBefore=1;deferredCharacterLevelAfter=1;deferredExperienceBefore=9000;deferredExperienceAfter=9000
+            nativeClassProgressionSynchronized=$false;nativeManualLevelingReady=$true
+            nativeProgressionDisposition='native-manual-leveling-ready';deferredProgressionSynchronized=$true
+            runtimeSize='Large';speedFeet=50;hitPoints=40;armorClass=18;movementDisplacement=1.8
+            movementRemainingDistance=0.1;ownerDisplacementDuringHorseMove=0.0;targetOwnerDistance=4.0;targetHorseDistance=2.0
+            fullAttackWeaponGuids=@($biteGuid,'b0e472a49ff2a294f93faa3ab757a4a5','b0e472a49ff2a294f93faa3ab757a4a5')
+            realTimePreDispatchStandardType='Kingmaker.UnitLogic.Commands.UnitAttack';realTimePreDispatchStandardRunning=$true
+            realTimePreDispatchStandardAiActionPresent=$true;realTimePreDispatchStandardTargetExact=$true
+            realTimeAttackAtDispatch=[ordered]@{plannedWeaponGuid=$biteGuid;commandReferenceInStandardSlot=$true;commandContained=$true;commandCanStart=$true}
+            realTimeAttackWeaponGuid=$biteGuid;realTimeAttackRules=1;realTimeAttackRolls=1;realTimeDamageRules=1
+            realTimeForcedD20Count=4;realTimeUnexpectedPairAttackCount=0;realTimeDamage=8
+            turnBasedAttackWeaponGuid=$biteGuid;turnBasedAttackRules=1;turnBasedAttackRolls=1;turnBasedDamageRules=1
+            turnBasedForcedD20Count=4;turnBasedUnexpectedPairAttackCount=0;turnBasedDamage=7
+            turnBasedPostDispatchStartTurnRequestCount=0
+            targetCleanupExact=$true;lethalDamage=60;recoveredDamage=0;finalPause=$false;finalTurnBased=$false;finalSelectionCount=1
+            unrelatedPartyPetsPreserved=$true;relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
+            stockLifecycleBefore=$lifeConscious;stockLifecycleAttacks=$stockLifecycleAttacks;stockLifecycleAttackCount=2
+            maximumStockLifecycleAttacks=40
+            stockLifecycleAttackRules=2;stockLifecycleAttackRolls=2;stockLifecycleDamageRules=2
+            stockLifecycleForcedD20Count=2;stockLifecycleRuleDamage=60;stockLifecycleTransitionEventCount=1
+            stockLifecycleTransitionActorId='horse';stockLifecycleTransitionPreviousLifeState='Conscious'
+            stockLifecycleTransitionCurrentLifeState='Dead';stockLifecycleAfter=$lifeDead;stockLifecycleRecovery=$lifeConscious
+            directDamageBefore=$lifeConscious;directDamageImmediatelyAfterMutation=$lifeDirectImmediate
+            directDamageDisposition='direct-mutation-left-native-awake-schedule-without-life-event'
+            directDamageTransitionEventCount=0;directDamageAfterObservation=$lifeDirectAfter
+            directDamageTimeline=@([ordered]@{secondsSinceMutation=1.0;lifeState='Conscious';damage=60;inAwakeUnits=$false;isAwake=$false;isSleeping=$true;awakeTimer=-1.0})
+            directDamageRecovery=$lifeConscious
+        }
+        $unmountedArtifact = [ordered]@{
+            schemaVersion=4;evidenceKind='horse-companion-unmounted';runId=$unmountedRequest.runId;scenario=$unmountedRequest.scenario
+            branch=$unmountedRequest.branch;commit=$unmountedRequest.commit;productVersion=$unmountedRequest.productVersion
+            dllSha256=$unmountedRequest.dllSha256;dllMvid=$unmountedRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='PASS';assertions=$unmountedAssertions;observations=$unmountedObservations
+            assertionPassCount=$unmountedAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        $unmountedPath = Join-Path $unmountedRoot 'horse-companion-unmounted.json'
+        Write-KmcJsonDurable -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord = [ordered]@{
+            relativePath='horse-companion-unmounted.json';kind='horse-companion-unmounted'
+            length=(Get-Item -LiteralPath $unmountedPath).Length;sha256=(Get-KmcSha256 $unmountedPath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $unmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $unmountedSubresult = [pscustomobject]@{
+            name='horse-companion-unmounted-suite';status='PASS';assertionPassCount=$unmountedAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $unmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult)
+
+        $unmountedArtifact.observations.maximumStockLifecycleAttacks = 39
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted an inexact stock lifecycle attack budget'
+
+        $unmountedArtifact.observations.maximumStockLifecycleAttacks = 40
+        $unmountedArtifact.observations.realTimePreDispatchStandardTargetExact = $false
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted an inexact pre-dispatch target identity'
+
+        $unmountedArtifact.observations.realTimePreDispatchStandardTargetExact = $true
+        $unmountedArtifact.observations.experience = 8999
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted an inexact native manual-leveling XP handoff'
+
+        $unmountedArtifact.observations.experience = 9000
+        $unmountedArtifact.observations.targetOwnerDistance = 2.99
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted an owner-relative target below the diagnostic floor'
+
+        $unmountedArtifact.observations.targetOwnerDistance = 4.0
+        $unmountedArtifact.observations.realTimeForcedD20Count = 0
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted zero forced D20 observations'
+
+        $unmountedArtifact.observations.realTimeForcedD20Count = 4
+        $unmountedArtifact.observations.turnBasedUnexpectedPairAttackCount = 1
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted a duplicate pair attack observation'
+
+        $unmountedArtifact.observations.turnBasedUnexpectedPairAttackCount = 0
+        $unmountedArtifact.observations.turnBasedPostDispatchStartTurnRequestCount = 1
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted a post-dispatch turn restart'
+
+        $unmountedArtifact.observations.turnBasedPostDispatchStartTurnRequestCount = 0
+        $unmountedArtifact.observations.horseRemoved = $false
+        Write-KmcJsonAtomic -Path $unmountedPath -Value $unmountedArtifact
+        $unmountedRecord.length=(Get-Item -LiteralPath $unmountedPath).Length
+        $unmountedRecord.sha256=(Get-KmcSha256 $unmountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $unmountedRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($unmountedRecord))
+        $mutatedUnmountedManifest = Read-KmcJson (Join-Path $unmountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $unmountedRequest -Manifest $mutatedUnmountedManifest -Status PASS -SubscenarioResults @($unmountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse companion unmounted validator accepted residual horse state'
+    }
+
+    Invoke-HarnessTest 'horse mounted alpha validator binds target action profile routing attacks and cleanup' {
+        $mountedRoot = Join-Path $runtimeEvidenceTestRoot 'horse-mounted-alpha-validator'
+        New-Item -ItemType Directory -Path $mountedRoot -Force | Out-Null
+        $mountedRequest = [pscustomobject]@{
+            runId='horse-mounted-alpha-validator';scenario='horse-mounted-alpha-suite';branch='codex/mounted-combat-phase3-horse'
+            commit=('9'*40);productVersion=$currentProductVersion;dllSha256=('a'*64)
+            dllMvid='22222222-3333-4444-5555-666666666666';evidenceRoot=$mountedRoot
+        }
+        $baseRequired = @(
+            'eligible-owner','native-ranger-level-up-commit','feature-activation','creation-and-ownership','party-control-surface',
+            'rank-progression-and-upgrade','native-view-size-statistics','horse-selection','stock-movement-command',
+            'unmounted-party-movement','transient-combat-target','bite-and-hoof-full-attack','expected-attack-boundary',
+            'real-time-natural-attack','turn-based-roster','turn-based-horse-control','turn-based-natural-attack',
+            'stock-lifecycle-admission','ordinary-stock-damage-lifecycle','death-ownership','death-and-recovery',
+            'direct-damage-control-disposition','direct-damage-control-recovery',
+            'respec-runtime-cleanup','respec-and-uninstall-surface',
+            'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
+        )
+        $mountedRequired = @($baseRequired + @(
+            'target-selected-mount-action','independent-horse-mounted-profile','horse-pose-calibration',
+            'mounted-real-time-command-routing','mounted-real-time-movement',
+            'mounted-transient-combat-target','horse-pair-retained-in-turn-based-transition',
+            'mounted-rider-turn-ground-admission','mounted-turn-based-rider-movement',
+            'mounted-rider-primary-admission','mounted-rider-primary-outcome',
+            'mounted-horse-primary-admission','mounted-horse-primary-outcome',
+            'mounted-explicit-dismount-dispatch','mounted-explicit-dismount-restoration'
+        ))
+        $mountedAssertions = @($mountedRequired | ForEach-Object { [ordered]@{name=$_;status='PASS';detail="Synthetic exact mounted contract for $_."} })
+        $biteGuid = ('7'*32)
+        $newHorseLifeSnapshot = {
+            param([string]$LifeState,[bool]$Conscious,[bool]$Dead,[int]$Damage,[bool]$InAwakeUnits)
+            [ordered]@{
+                lifeState=$LifeState;isConscious=$Conscious;isDead=$Dead;stateIsDead=$Dead;isFinallyDead=$false
+                damage=$Damage;nonLethalDamage=0;hitPoints=40;temporaryHitPoints=0;constitution=19;negativeHitPointThreshold=59
+                allowDyingCondition=$true;masterAllowDyingCondition=$true;immortality=$false;regeneration=$false
+                ferocity=$false;halfOrcFerocity=$false;dualCompanionPartPresent=$false;dualCompanionPartDead=$false
+                dualCompanionPairId=$null;isInState=$true;inStateUnits=$true;inAwakeUnits=$InAwakeUnits
+                isAwake=$InAwakeUnits;isSleeping=(-not $InAwakeUnits);awakeTimer=$(if($InAwakeUnits){1.0}else{-1.0})
+                sleepless=$false;viewPresent=$true;viewActive=$true;animatorPresent=$true;animatorLayerCount=1
+                animatorStateFullPathHash=1;animatorStateShortNameHash=2;animatorStateNormalizedTime=0.5
+                animatorInTransition=$false;ownerPetExact=$true;masterExact=$true;ownerPetId='horse';masterId='owner'
+                controllableRosterContainsHorse=$true;controllableRosterCount=2;groupIsPlayerParty=$true
+            }
+        }
+        $lifeConscious = & $newHorseLifeSnapshot 'Conscious' $true $false 0 $true
+        $lifeDead = & $newHorseLifeSnapshot 'Dead' $false $true 60 $true
+        $lifeDirectImmediate = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $true
+        $lifeDirectAfter = & $newHorseLifeSnapshot 'Conscious' $true $false 60 $false
+        $stockLifecycleAttacks = @(
+            [ordered]@{sequence=1;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=30;horseLifeStateAfter='Conscious'},
+            [ordered]@{sequence=2;result='Success';attackRules=1;attackRolls=1;damageRules=1;forcedD20Count=1;damage=30;horseDamageAfter=60;horseLifeStateAfter='Dead'}
+        )
+        $mountedObservations = [ordered]@{
+            originalPause=$false;originalTurnBased=$false;originalSelectionCount=1
+            saveLoadAutomationScope='CONTRACT-ONLY: synthetic guarded boundary.';ownerId='owner';ownerBlueprintGuid=('8'*32)
+            nativeRangerCommitCount=4;huntersBondSelectionLevel=4;rangerCompanionSelectionLevel=4
+            horseFactRankAtCommit=1;horsePresentAtNativeCommit=$true;horseFeatureSourceGuid=('3'*32)
+            horseId='horse';horseBlueprintGuid='4016c7db400ab721ff125aef9e65e202';characterLevel=1;expectedCharacterLevel=2
+            experience=9000;expectedExperience=9000;rank=1;upgradeRank=0
+            activationDefaultBuildContextPresent=$false;activationCharacterLevelAfterNativeTry=1;activationExperienceAfterNativeTry=9000
+            deferredNativeAttempts=0;defaultBuildContextWaitFrames=0;lastDeferredDefaultBuildContextPresent=$false
+            deferredCharacterLevelBefore=1;deferredCharacterLevelAfter=1;deferredExperienceBefore=9000;deferredExperienceAfter=9000
+            nativeClassProgressionSynchronized=$false;nativeManualLevelingReady=$true
+            nativeProgressionDisposition='native-manual-leveling-ready';deferredProgressionSynchronized=$true
+            runtimeSize='Large';speedFeet=50;hitPoints=40;armorClass=18;movementDisplacement=1.8
+            movementRemainingDistance=0.1;ownerDisplacementDuringHorseMove=0.0;targetOwnerDistance=4.0;targetHorseDistance=2.0
+            fullAttackWeaponGuids=@($biteGuid,'b0e472a49ff2a294f93faa3ab757a4a5','b0e472a49ff2a294f93faa3ab757a4a5')
+            realTimePreDispatchStandardType='Kingmaker.UnitLogic.Commands.UnitAttack';realTimePreDispatchStandardRunning=$true
+            realTimePreDispatchStandardAiActionPresent=$true;realTimePreDispatchStandardTargetExact=$true
+            realTimeAttackAtDispatch=[ordered]@{plannedWeaponGuid=$biteGuid;commandReferenceInStandardSlot=$true;commandContained=$true;commandCanStart=$true}
+            realTimeAttackWeaponGuid=$biteGuid;realTimeAttackRules=1;realTimeAttackRolls=1;realTimeDamageRules=1
+            realTimeForcedD20Count=4;realTimeUnexpectedPairAttackCount=0;realTimeDamage=8
+            turnBasedAttackWeaponGuid=$biteGuid;turnBasedAttackRules=1;turnBasedAttackRolls=1;turnBasedDamageRules=1
+            turnBasedForcedD20Count=4;turnBasedUnexpectedPairAttackCount=0;turnBasedDamage=7
+            turnBasedPostDispatchStartTurnRequestCount=0
+            targetCleanupExact=$true;lethalDamage=60;recoveredDamage=0;finalPause=$false;finalTurnBased=$false;finalSelectionCount=1
+            unrelatedPartyPetsPreserved=$true;relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
+            stockLifecycleBefore=$lifeConscious;stockLifecycleAttacks=$stockLifecycleAttacks;stockLifecycleAttackCount=2
+            maximumStockLifecycleAttacks=40
+            stockLifecycleAttackRules=2;stockLifecycleAttackRolls=2;stockLifecycleDamageRules=2
+            stockLifecycleForcedD20Count=2;stockLifecycleRuleDamage=60;stockLifecycleTransitionEventCount=1
+            stockLifecycleTransitionActorId='horse';stockLifecycleTransitionPreviousLifeState='Conscious'
+            stockLifecycleTransitionCurrentLifeState='Dead';stockLifecycleAfter=$lifeDead;stockLifecycleRecovery=$lifeConscious
+            directDamageBefore=$lifeConscious;directDamageImmediatelyAfterMutation=$lifeDirectImmediate
+            directDamageDisposition='direct-mutation-left-native-awake-schedule-without-life-event'
+            directDamageTransitionEventCount=0;directDamageAfterObservation=$lifeDirectAfter
+            directDamageTimeline=@([ordered]@{secondsSinceMutation=1.0;lifeState='Conscious';damage=60;inAwakeUnits=$false;isAwake=$false;isSleeping=$true;awakeTimer=-1.0})
+            directDamageRecovery=$lifeConscious
+        }
+        $mountedObservations.unmountedTargetCleanupExact = $true
+        $mountedObservations.mountTargetArmDelta = 1
+        $mountedObservations.mountTargetClickDelta = 1
+        $mountedObservations.mountTargetFeedback = 'Mounted exact Horse.'
+        $mountedObservations.horseProfileId = 'medium-humanoid-horse-v1'
+        $mountedObservations.horsePoseProfileId = 'medium-humanoid-horse-v1'
+        $mountedObservations.horseSourceAnchor = 'Chest'
+        $mountedObservations.horsePresentationAtMount = 'poseLease=True;attachmentLease=True'
+        $mountedObservations.horsePoseCalibration = [ordered]@{
+            candidateCount=3;candidateId='phase3d-horse-root-minus-0.08'
+            dev23PelvisPositionOffset=[ordered]@{x=0.0;y=0.02;z=-0.02}
+            selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.17;z=-0.02}
+            selectedMountRootPositionOffset=[ordered]@{x=0.0;y=-0.08;z=0.0}
+            dev23LeftFootTargetFromThigh=[ordered]@{x=-0.305;y=-0.46;z=0.044}
+            selectedLeftFootTargetFromThigh=[ordered]@{x=-0.15;y=-0.62;z=0.11}
+            dev23RightFootTargetFromThigh=[ordered]@{x=0.305;y=-0.46;z=0.044}
+            selectedRightFootTargetFromThigh=[ordered]@{x=0.15;y=-0.62;z=0.11}
+            dev23LeftKneeHintFromThigh=[ordered]@{x=-0.38;y=-0.12;z=0.26}
+            selectedLeftKneeHintFromThigh=[ordered]@{x=-0.16;y=-0.16;z=0.16}
+            dev23RightKneeHintFromThigh=[ordered]@{x=0.38;y=-0.12;z=0.26}
+            selectedRightKneeHintFromThigh=[ordered]@{x=0.16;y=-0.16;z=0.16}
+            crossedStirrupAssignment=$false;pelvisFromChestMountLocal=[ordered]@{x=0;y=0.2;z=0}
+            leftFootFromAssignedStirrupMountLocal=[ordered]@{x=0.1;y=0.1;z=0.1}
+            rightFootFromAssignedStirrupMountLocal=[ordered]@{x=-0.1;y=0.1;z=0.1}
+            leftFootToAssignedStirrup=0.2;rightFootToAssignedStirrup=0.2
+            poseApplicationFrameCount=4;footTargetClampCount=0;maximumFootTargetResidualWorldUnits=0.001
+            maximumKneeTargetResidualWorldUnits=0.001;maximumSegmentLengthResidualWorldUnits=0.00001
+            maximumApplyMicroseconds=100.0;averageApplyMicroseconds=50.0
+        }
+        $mountedObservations.mountedRealTimeRiderDisplacement = 1.8
+        $mountedObservations.mountedRealTimeHorseDisplacement = 1.8
+        $mountedObservations.mountedRealTimeRemaining = 0.1
+        $mountedObservations.horsePresentationAfterTurnBasedRestore = 'turnBased=False;poseLease=True;attachmentLease=True'
+        $mountedObservations.mountedTurnRiderDisplacement = 1.2
+        $mountedObservations.mountedTurnHorseDisplacement = 1.2
+        $mountedObservations.mountedTurnTargetDisplacement = 0.0
+        $mountedObservations.mountedTurnDriveCount = 4
+        $mountedObservations.mountedTurnPostDispatchReassertions = 0
+        $mountedObservations.mountedRiderOutcome = [ordered]@{
+            action='RiderMelee';actorId='owner';commandOwnerId='owner';resourceOwnerId='owner';targetId='mounted-target'
+            result='Success';childAttackStartCount=1;repathCount=1;attackWeaponBlueprintId=('b'*32)
+            attackWeaponIsNatural=$false;attackWeaponIsRanged=$false;attackWeaponSlot='EquippedMelee';delegatedMoveExecutorId='horse'
+            delegatedMoveExecutorIsExactMount=$true;riderStandardCharged=$true;actionStandardCharged=$true;terminalReason=$null
+        }
+        $mountedObservations.mountedRiderAttackRules = 1
+        $mountedObservations.mountedRiderAttackRolls = 1
+        $mountedObservations.mountedRiderDamageRules = 1
+        $mountedObservations.mountedHorseOutcome = [ordered]@{
+            action='MountPrimaryNatural';actorId='horse';commandOwnerId='horse';resourceOwnerId='horse';targetId='mounted-target'
+            result='Success';childAttackStartCount=1;repathCount=0;attackWeaponBlueprintId=$biteGuid
+            attackWeaponIsNatural=$true;attackWeaponIsRanged=$false;attackWeaponSlot='AdditionalLimb';delegatedMoveExecutorId=$null
+            delegatedMoveExecutorIsExactMount=$false;riderStandardCharged=$false;actionStandardCharged=$true;terminalReason=$null
+        }
+        $mountedObservations.mountedHorseAttackRules = 1
+        $mountedObservations.mountedHorseAttackRolls = 1
+        $mountedObservations.mountedHorseDamageRules = 1
+        $mountedObservations.mountedTargetCleanupExact = $true
+        $mountedArtifact = [ordered]@{
+            schemaVersion=4;evidenceKind='horse-mounted-alpha';runId=$mountedRequest.runId;scenario=$mountedRequest.scenario
+            branch=$mountedRequest.branch;commit=$mountedRequest.commit;productVersion=$mountedRequest.productVersion
+            dllSha256=$mountedRequest.dllSha256;dllMvid=$mountedRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='PASS';assertions=$mountedAssertions;observations=$mountedObservations
+            assertionPassCount=$mountedAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        $mountedPath = Join-Path $mountedRoot 'horse-mounted-alpha.json'
+        Write-KmcJsonDurable -Path $mountedPath -Value $mountedArtifact
+        $mountedRecord = [ordered]@{
+            relativePath='horse-mounted-alpha.json';kind='horse-mounted-alpha'
+            length=(Get-Item -LiteralPath $mountedPath).Length;sha256=(Get-KmcSha256 $mountedPath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $mountedRoot -RunId $mountedRequest.runId -Scenario $mountedRequest.scenario -Artifacts @($mountedRecord))
+        $mountedManifest = Read-KmcJson (Join-Path $mountedRoot 'runtime-artifacts.json')
+        $mountedSubresult = [pscustomobject]@{
+            name='horse-mounted-alpha-suite';status='PASS';assertionPassCount=$mountedAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        Assert-KmcHorseCompanionUnmountedEvidence -Request $mountedRequest -Manifest $mountedManifest -Status PASS -SubscenarioResults @($mountedSubresult)
+
+        $mountedArtifact.observations.mountedTurnPostDispatchReassertions = 1
+        Write-KmcJsonAtomic -Path $mountedPath -Value $mountedArtifact
+        $mountedRecord.length=(Get-Item -LiteralPath $mountedPath).Length
+        $mountedRecord.sha256=(Get-KmcSha256 $mountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $mountedRoot -RunId $mountedRequest.runId -Scenario $mountedRequest.scenario -Artifacts @($mountedRecord))
+        $mountedManifest = Read-KmcJson (Join-Path $mountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $mountedRequest -Manifest $mountedManifest -Status PASS -SubscenarioResults @($mountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse mounted alpha validator accepted a post-dispatch rider-turn restart'
+
+        $mountedArtifact.observations.mountedTurnPostDispatchReassertions = 0
+        $mountedArtifact.observations.mountedHorseOutcome.resourceOwnerId = 'owner'
+        Write-KmcJsonAtomic -Path $mountedPath -Value $mountedArtifact
+        $mountedRecord.length=(Get-Item -LiteralPath $mountedPath).Length
+        $mountedRecord.sha256=(Get-KmcSha256 $mountedPath)
+        [void](New-TestArtifactManifest -EvidenceRoot $mountedRoot -RunId $mountedRequest.runId -Scenario $mountedRequest.scenario -Artifacts @($mountedRecord))
+        $mountedManifest = Read-KmcJson (Join-Path $mountedRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseCompanionUnmountedEvidence -Request $mountedRequest -Manifest $mountedManifest -Status PASS -SubscenarioResults @($mountedSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'horse mounted alpha validator accepted rider resource ownership for Horse primary'
+    }
+
+    Invoke-HarnessTest 'horse native-controls UX validator binds physical targeting animation pose and cleanup' {
+        $nativeRoot = Join-Path $runtimeEvidenceTestRoot 'horse-native-controls-ux-validator'
+        New-Item -ItemType Directory -Path $nativeRoot -Force | Out-Null
+        $nativeRequest = [pscustomobject]@{
+            runId='horse-native-controls-ux-validator';scenario='horse-native-controls-ux-suite'
+            branch='codex/mounted-combat-phase3c-native-controls';commit=('c'*40)
+            productVersion=$currentProductVersion;dllSha256=('d'*64)
+            dllMvid='33333333-4444-5555-6666-777777777777';evidenceRoot=$nativeRoot
+        }
+        $nativeRequired = @(
+            'original-horse-portrait-and-icon','legacy-overlay-default-hidden','legacy-overlay-debug-fallback',
+            'native-mount-ability-present-no-slot-overwrite',
+            'native-control-disable-reenable','native-control-save-load-presence',
+            'native-saddle-up-invalid-target','native-saddle-up-target-valid-horse',
+            'native-mounted-control-surface','inventory-horse-preview-no-ik-exception',
+            'mounted-turn-based-rider-movement','human-input-tb-rider-primary-rider-turn',
+            'human-input-tb-target-click-admitted','human-input-tb-horse-primary-horse-turn',
+            'horse-primary-animation-tb','human-input-rt-rider-primary','human-input-rt-horse-primary',
+            'mounted-rider-primary-outcome','mounted-horse-primary-outcome','native-dismount-ability',
+            'entity-and-target-restoration','mode-pause-selection-restoration','non-horse-isolation'
+        )
+        $nativeAssertions = @($nativeRequired | ForEach-Object {
+            [ordered]@{name=$_;status='PASS';detail="Synthetic exact native UX contract for $_."}
+        })
+        $newControlSnapshot = {
+            param([bool]$Suspended,[int]$FactCount)
+            [ordered]@{
+                registered=$true;enabled=$true;serializationSuspended=$Suspended;exactFactCount=$FactCount
+                duplicateFactCount=0;managedHotbarSlotCount=0;targetSelectionStartCount=1
+                targetSelectionEndCount=1;nativeCastRequestCount=1;nativeRefusalCount=0
+                dispatchAcceptedCount=1;dispatchRejectedCount=0
+            }
+        }
+        $newClick = {
+            param([string]$Ability,[string]$Caster,[string]$Clicked,[string]$Resolved,[bool]$Accepted)
+            [ordered]@{
+                abilityGuid=$Ability;casterId=$Caster;clickedTargetId=$Clicked;resolvedTargetId=$Resolved
+                priority='Ability';clicked=$Accepted;targetSelectionStartDelta=1;targetSelectionEndDelta=1
+                nativeCastRequestDelta=$(if($Accepted){1}else{0});nativeRefusalDelta=$(if($Accepted){0}else{1})
+                dispatchAcceptedDelta=$(if($Accepted){1}else{0});dispatchRejectedDelta=0
+            }
+        }
+        $newOutcome = {
+            param([string]$Action,[string]$Actor,[bool]$Natural,[bool]$Animation)
+            [ordered]@{
+                action=$Action;actorId=$Actor;commandOwnerId=$Actor;resourceOwnerId=$Actor
+                targetId='target';result='Success';childAttackStartCount=1;repathCount=0
+                attackWeaponBlueprintId=('7'*32);attackWeaponIsNatural=$Natural;attackWeaponIsRanged=$false
+                attackWeaponSlot=$(if($Natural){'AdditionalLimb'}else{'EquippedMelee'})
+                delegatedMoveExecutorId='horse';delegatedMoveExecutorIsExactMount=$true
+                riderStandardCharged=(-not $Natural);actionStandardCharged=$true;terminalReason=$null
+                attackAnimationHandleCreated=$Animation
+                attackAnimationHandleSource=$(if($Animation){'stock-created'}else{$null})
+                attackAnimationActionName=$(if($Animation){'SpecialAttack'}else{$null})
+                attackAnimationActionType=$(if($Animation){'SpecialAttack'}else{$null})
+                attackAnimationActed=$Animation;attackAnimationFinished=$Animation;attackAnimationInterrupted=$false
+            }
+        }
+        $nativeObservations = [ordered]@{
+            ownerId='owner';horseId='horse'
+            legacyOverlay=[ordered]@{
+                automationPresentBeforeExplicitPolicy=$true;automationObjectCountBeforeExplicitPolicy=1
+                defaultHiddenPresent=$false;defaultHiddenObjectCount=0
+                debugFallbackPresent=$true;debugFallbackObjectCount=1
+                finalHiddenPresent=$false;finalHiddenObjectCount=0
+            }
+            mountedRiderDollRoomIk=[ordered]@{
+                exactBindingCount=0;exactSetupStartCount=1;exactSetupCompleteCount=1
+                lastUnitId='<none>';lastUnitRole='<none>'
+            }
+            mountedHorseDollRoomExpectedPath='simple-unit-view'
+            mountedHorseDollRoomIk=[ordered]@{
+                exactBindingCount=0;exactSetupStartCount=1;exactSetupCompleteCount=1
+                lastUnitId='<none>';lastUnitRole='<none>'
+            }
+            mountedHorseDollRoomPreview=[ordered]@{
+                mode='simple-unit-view';sourceCharacterAvatarPresent=$false
+                simpleAvatarFieldToken='0x04002F58';simpleAvatarPresent=$true
+                simpleAvatarActiveInHierarchy=$true;dollRoomVisible=$true
+                dollRoomPublicAvatarPresent=$false;dollRoomPublicUnitPresent=$false
+                setupStartDelta=0;setupCompleteDelta=0;bindingDelta=0;stableFrameCount=3
+            }
+            nativeControlsBeforeMount=(& $newControlSnapshot $false 1)
+            nativeControlsDuringSaveScope=(& $newControlSnapshot $true 0)
+            nativeControlsAfterSaveScope=(& $newControlSnapshot $false 1)
+            nativeControlsMounted=(& $newControlSnapshot $false 5)
+            nativeControlsAfterDismount=(& $newControlSnapshot $false 1)
+            nativeMountInvalidTarget=(& $newClick ('1'*32) 'owner' 'owner' 'owner' $false)
+            nativeMountValidHorse=(& $newClick ('1'*32) 'owner' 'horse' 'horse' $true)
+            nativeTbRiderPrimaryClick=(& $newClick ('2'*32) 'owner' 'target' 'target' $true)
+            nativeTbHorsePrimaryClick=(& $newClick ('3'*32) 'horse' 'target' 'target' $true)
+            nativeRtRiderPrimaryClick=(& $newClick ('2'*32) 'owner' 'target' 'target' $true)
+            nativeRtHorsePrimaryClick=(& $newClick ('3'*32) 'owner' 'target' 'target' $true)
+            nativeDismountClick=(& $newClick ('4'*32) 'owner' 'owner' 'owner' $true)
+            mountedTurnRiderOutcome=(& $newOutcome 'RiderMelee' 'owner' $false $false)
+            mountedTurnHorseOutcome=(& $newOutcome 'MountPrimaryNatural' 'horse' $true $true)
+            mountedTurnHorseAnimation=[ordered]@{
+                delegatedLocomotionRestoreCount=1;lastDelegatedLocomotionSource='attack-approach';lastDelegatedLocomotionSpeed=1.0
+                horsePrimaryHandleCreateCount=0;horsePrimaryHandleAdoptCount=1;horsePrimaryHandleRejectCount=0
+                lastHorsePrimaryHandleSource='stock-created';lastHorsePrimaryActionName='SpecialAttack';lastHorsePrimaryActionType='SpecialAttack'
+            }
+            mountedRiderOutcome=(& $newOutcome 'RiderMelee' 'owner' $false $false)
+            mountedHorseOutcome=(& $newOutcome 'MountPrimaryNatural' 'horse' $true $true)
+            mountedHorseAnimation=[ordered]@{
+                delegatedLocomotionRestoreCount=1;lastDelegatedLocomotionSource='attack-approach';lastDelegatedLocomotionSpeed=1.0
+                horsePrimaryHandleCreateCount=0;horsePrimaryHandleAdoptCount=2;horsePrimaryHandleRejectCount=0
+                lastHorsePrimaryHandleSource='stock-created';lastHorsePrimaryActionName='SpecialAttack';lastHorsePrimaryActionType='SpecialAttack'
+            }
+            unmountedHorseBlueprintSpeedFeet=50;mountedHorseBlueprintSpeedFeet=50
+            unmountedHorseAgentMaxSpeed=4.0;mountedHorseAgentMaxSpeed=4.0
+            unmountedHorseAverageWorldSpeed=3.5;mountedRealTimeAverageWorldSpeed=3.4
+            horseProfileId='medium-humanoid-horse-v1';horsePoseProfileId='medium-humanoid-horse-v1'
+            horseSourceAnchor='Chest';relationshipState='Unmounted';horseRemoved=$true;targetRemoved=$true
+            unrelatedPartyPetsPreserved=$true
+            horsePoseCalibration=[ordered]@{
+                candidateCount=3;candidateId='phase3d-horse-root-minus-0.08'
+                selectedPelvisPositionOffset=[ordered]@{x=0.0;y=-0.17;z=-0.02}
+                selectedMountRootPositionOffset=[ordered]@{x=0.0;y=-0.08;z=0.0}
+                selectedLeftFootTargetFromThigh=[ordered]@{x=-0.15;y=-0.62;z=0.11}
+                selectedRightFootTargetFromThigh=[ordered]@{x=0.15;y=-0.62;z=0.11}
+                leftFootToAssignedStirrup=0.2;rightFootToAssignedStirrup=0.2
+            }
+        }
+        $nativeArtifact = [ordered]@{
+            schemaVersion=8;evidenceKind='horse-native-controls-ux';runId=$nativeRequest.runId
+            scenario=$nativeRequest.scenario;branch=$nativeRequest.branch;commit=$nativeRequest.commit
+            productVersion=$nativeRequest.productVersion;dllSha256=$nativeRequest.dllSha256
+            dllMvid=$nativeRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='PASS';assertions=$nativeAssertions;observations=$nativeObservations
+            assertionPassCount=$nativeAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        $nativePath = Join-Path $nativeRoot 'horse-native-controls-ux.json'
+        Write-KmcJsonDurable -Path $nativePath -Value $nativeArtifact
+        $nativeRecord = [ordered]@{
+            relativePath='horse-native-controls-ux.json';kind='horse-native-controls-ux'
+            length=(Get-Item -LiteralPath $nativePath).Length;sha256=(Get-KmcSha256 $nativePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $nativeRoot -RunId $nativeRequest.runId -Scenario $nativeRequest.scenario -Artifacts @($nativeRecord))
+        $nativeManifest = Read-KmcJson (Join-Path $nativeRoot 'runtime-artifacts.json')
+        $nativeSubresult = [pscustomobject]@{
+            name='horse-native-controls-ux-suite';status='PASS'
+            assertionPassCount=$nativeAssertions.Count;assertionFailCount=0;errors=@()
+        }
+        Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult)
+
+        $nativeArtifact.observations.legacyOverlay.debugFallbackObjectCount = 2
+        Write-KmcJsonAtomic -Path $nativePath -Value $nativeArtifact
+        $nativeRecord.length=(Get-Item -LiteralPath $nativePath).Length
+        $nativeRecord.sha256=(Get-KmcSha256 $nativePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $nativeRoot -RunId $nativeRequest.runId -Scenario $nativeRequest.scenario -Artifacts @($nativeRecord))
+        $nativeManifest = Read-KmcJson (Join-Path $nativeRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'Horse native-controls UX validator accepted duplicate debug overlay objects'
+        $nativeArtifact.observations.legacyOverlay.debugFallbackObjectCount = 1
+
+        $nativeArtifact.observations.mountedTurnHorseOutcome.attackAnimationHandleCreated = $false
+        Write-KmcJsonAtomic -Path $nativePath -Value $nativeArtifact
+        $nativeRecord.length=(Get-Item -LiteralPath $nativePath).Length
+        $nativeRecord.sha256=(Get-KmcSha256 $nativePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $nativeRoot -RunId $nativeRequest.runId -Scenario $nativeRequest.scenario -Artifacts @($nativeRecord))
+        $nativeManifest = Read-KmcJson (Join-Path $nativeRoot 'runtime-artifacts.json')
+        $threw = $false
+        try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult) }
+        catch { $threw = $true }
+        Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
+    }
+
+    Invoke-HarnessTest 'paired condition schema reaches the strict native evidence validator' {
+        $phase3dRoot=Join-Path $runtimeEvidenceTestRoot 'paired-condition-schema'
+        New-Item -ItemType Directory -Path $phase3dRoot -Force | Out-Null
+        $phase3dRequest=[pscustomobject]@{
+            runId='paired-condition-schema';scenario='actor-allocation-rider-first-tb'
+            branch='codex/mounted-combat-phase3f-playable-core';commit=('e'*40)
+            productVersion=$currentProductVersion;dllSha256=('f'*64)
+            dllMvid='44444444-5555-6666-7777-888888888888';evidenceRoot=$phase3dRoot
+        }
+        $artifact=[ordered]@{schemaVersion=17;evidenceKind='phase3d-horse-scenario-evidence'
+            createdAtUtc=[DateTime]::UtcNow.ToString('o');status='FAIL'
+            rows=@([ordered]@{name='phase3d-horse-runtime-exception';status='FAIL';detail='Synthetic guarded failure.'})
+            observations=[ordered]@{phase3fActualConfiguration=[ordered]@{enablePairedActivation=$true
+                enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}}
+            subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic guarded failure.')}
+        foreach($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {$artifact[$name]=$phase3dRequest.$name}
+        $path=Join-Path $phase3dRoot 'phase3d-horse-scenario-evidence.json'
+        $manifest=[pscustomobject]@{artifacts=@([pscustomobject]@{relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'})}
+        [IO.File]::WriteAllText($path,($artifact|ConvertTo-Json -Depth 15),(New-Object Text.UTF8Encoding($false)))
+        Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $manifest -Status FAIL
+        foreach($schema in @(18,'17')) {
+            $artifact.schemaVersion=$schema
+            [IO.File]::WriteAllText($path,($artifact|ConvertTo-Json -Depth 15),(New-Object Text.UTF8Encoding($false)))
+            $rejected=$false
+            try { Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $manifest -Status FAIL } catch {$rejected=$true}
+            Assert-Test $rejected 'Unregistered or string-typed paired schema was admitted.'
+        }
+    }
+
+    Invoke-HarnessTest 'Phase 3D Horse validator binds exact scenario rows and semantic cardinality' {
+        foreach ($phase3dScenario in @(
+            'phase3d-horse-presentation-suite',
+            'phase3d-unified-combat-rt-suite',
+            'phase3d-unified-combat-tb-suite')) {
+            $phase3dRoot = Join-Path $runtimeEvidenceTestRoot $phase3dScenario
+            New-Item -ItemType Directory -Path $phase3dRoot -Force | Out-Null
+            $phase3dRequest = [pscustomobject]@{
+                runId=('validator-' + $phase3dScenario);scenario=$phase3dScenario
+                branch='codex/mounted-combat-phase3d-unified-combat';commit=('e'*40)
+                productVersion=$currentProductVersion;dllSha256=('f'*64)
+                dllMvid='44444444-5555-6666-7777-888888888888';evidenceRoot=$phase3dRoot
+            }
+            $required = switch -CaseSensitive ($phase3dScenario) {
+                'phase3d-horse-presentation-suite' {
+                    @('Horse-small-portrait-close-up','saddle-icon','Horse-pose-final-idle-walk-run-turn-stop','mounted-single-rider-turn-portrait')
+                    break
+                }
+                'phase3d-unified-combat-rt-suite' {
+                    @(
+                        'rider-primary-target-cancel-does-not-dismount','rider-primary-rejection-does-not-dismount',
+                        'rider-primary-does-not-dismount-rt','rider-primary-after-movement-does-not-dismount',
+                        'rider-primary-after-shared-turn-transition-does-not-dismount',
+                        'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus','mounted-turn-rider-portrait',
+                        'mounted-stock-click-melee-adjacent-rt','mounted-stock-click-melee-approach-rt',
+                        'mounted-stock-click-melee-auto-repeat-rt','mounted-stock-click-melee-cancel-rt',
+                        'mounted-separate-action-ledgers','mounted-stock-click-melee-rider-only-explicit',
+                        'mounted-stock-click-melee-mount-only-explicit','mounted-stock-click-invalid-target-feedback',
+                        'mounted-bow-approach-to-range-rt',
+                        'mounted-bow-auto-fire-rt','mounted-ranged-does-not-force-melee','mounted-ranged-line-of-sight',
+                        'mounted-bow-cancel-rt','mounted-bow-adjacent-rt','mounted-ranged-cover-concealment',
+                        'mounted-ranged-aao-native-control','mounted-crossbow-or-reload-control','mounted-sling-control',
+                        'RT-to-TB-shared-turn','TB-to-RT-shared-turn','unmounted-stock-attack-control','unmounted-ranged-control')
+                    break
+                }
+                'phase3d-unified-combat-tb-suite' {
+                    @(
+                        'mount-in-combat-rider-already-acted','mount-in-combat-mount-already-acted',
+                        'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus',
+                        'mounted-turn-rider-portrait','mounted-single-rider-turn-portrait','mounted-separate-action-ledgers',
+                        'rider-primary-does-not-dismount-tb','mounted-stock-click-melee-rider-only-explicit',
+                        'mounted-stock-click-melee-mount-only-explicit',
+                        'mounted-stock-click-melee-shared-turn-tb','mounted-shared-turn-action-order',
+                        'mounted-bow-shared-turn-tb','mounted-ranged-does-not-force-melee','mounted-ranged-line-of-sight',
+                        'mounted-five-foot-step-no-aao','mounted-five-foot-step-distance','mounted-five-foot-step-resource',
+                        'mounted-five-foot-step-after-movement-rejected','mounted-ordinary-move-aao-control',
+                        'dismount-in-combat-no-extra-turn','dismount-ability-in-combat','unmounted-five-foot-step-control')
+                    break
+                }
+            }
+            $rows = @($required | ForEach-Object {
+                [ordered]@{name=$_;status='PASS';detail=('Synthetic exact Phase 3D contract for ' + $_ + '.');frame=10;seconds=1.0;evidence=[ordered]@{}}
+            })
+            $rowByName = @{}
+            foreach ($row in $rows) { $rowByName[[string]$row.name] = $row }
+            $observations = [ordered]@{
+                riderId='rider';horseId='horse';cleanup=[ordered]@{relationshipState='Unmounted'}
+            }
+            if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
+                $rowByName['Horse-small-portrait-close-up'].evidence = [ordered]@{sprite=[ordered]@{textureWidth=185;textureHeight=242}}
+                $rowByName['saddle-icon'].evidence = [ordered]@{sprite=[ordered]@{textureWidth=128;textureHeight=128}}
+                $observations.pelvisOffset = [ordered]@{x=0.0;y=-0.17;z=-0.02}
+                $observations.mountRootPositionOffset = [ordered]@{x=0.0;y=-0.08;z=0.0}
+            }
+            elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                $primaryEvidence = [ordered]@{
+                    outcome=[ordered]@{
+                        action=1;resourceOwnerId='rider';actionStandardCharged=$true
+                        delegatedMoveFinishedSuccessfully=$true;delegatedMoveStoppedAtLegalRange=$false
+                        delegatedMoveResultBeforeLegalRangeStop=$null
+                        delegatedMovePairDistanceAtLegalRangeStop=0.0;pairApproachRadiusAtStart=2.2
+                    }
+                    activations=@([ordered]@{relationshipEnded=$false;cleanupTrigger=$null})
+                    horseMovementDistance=2.5
+                    rules=[ordered]@{riderAttackRules=1;mountAttackRules=0}
+                    admissionReadiness=[ordered]@{
+                        allPassed=$true;riderCanActInCombat=$true;horseCanActInCombat=$true
+                        riderCommandsIdle=$true;horseCommandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true
+                    }
+                    nativeInput=[ordered]@{
+                        targetSelectionStartDelta=1;targetSelectionEndDelta=1;nativeCastRequestDelta=1
+                        nativeRefusalDelta=0;nativePrimaryShellPrepareDelta=1
+                        nativeShell=[ordered]@{present=$true;needLineOfSight=$false;inFreeSlot=$true;ignoreCooldown=$true;executorId='rider';type='Free'}
+                    }
+                    nativeControls=[ordered]@{nativePrimaryShellPrepareCount=1}
+                    ledgerBefore=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
+                    ledgerAfter=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
+                }
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence = $primaryEvidence
+                $rowByName['rider-primary-after-movement-does-not-dismount'].evidence = $primaryEvidence
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{
+                    outcome=[ordered]@{action=3;resourceOwnerId='horse';actionStandardCharged=$true}
+                    rules=[ordered]@{riderAttackRules=0;mountAttackRules=1}
+                    admissionReadiness=[ordered]@{allPassed=$true}
+                    nativeInput=[ordered]@{
+                        nativePrimaryShellPrepareDelta=1
+                        nativeShell=[ordered]@{needLineOfSight=$false;ignoreCooldown=$true;executorId='rider'}
+                    }
+                    nativeControls=[ordered]@{nativePrimaryShellPrepareCount=2}
+                    ledgerBefore=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
+                    ledgerAfter=[ordered]@{rider=[ordered]@{unitId='rider';move=0.0};mount=[ordered]@{unitId='horse';move=0.0}}
+                }
+                $melee = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0
+                    riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$true
+                    relationshipState='Mounted';horseMovementDistanceAfterAdmission=3.0
+                    previousTargetId='explicit-primary-target';previousTargetCleanupPassed=$true
+                    isolatedTargetId='stock-melee-target'
+                    admissionReadiness=[ordered]@{
+                        ready=$true;relationshipMounted=$true;relationshipExact=$true;modeRealTime=$true;gameUnpaused=$true
+                        riderSelectedPrincipal=$true;weaponMelee=$true;targetReady=$true;combatMemoryReady=$true
+                        pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true
+                        stockIntentIdle=$true;riderStandardReady=$true;horseStandardReady=$true
+                        riderCommandsIdle=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
+                        riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true;poseHealthy=$true
+                        previousTargetId='explicit-primary-target';previousTargetCleanupPassed=$true
+                        isolatedTargetId='stock-melee-target';freshTarget=$true
+                    }
+                    input=[ordered]@{
+                        clicked=$true;expectedDispatchStarted=$true;nativeRequestDelta=1;intentStartDelta=1
+                        targetId='stock-melee-target'
+                    }
+                    rules=[ordered]@{
+                        riderAttackRules=2;mountAttackRules=1;pairAttackRolls=3;pairDamageRules=3
+                    }
+                }
+                $cancelCommandState = [ordered]@{
+                    frame=100;stockIntentActive=$false;activePairCommand=$false
+                    riderRaw=@(
+                        [ordered]@{present=$false},[ordered]@{present=$false},
+                        [ordered]@{present=$false},[ordered]@{present=$false})
+                    riderQueue=@()
+                    mountRaw=@(
+                        [ordered]@{present=$false},[ordered]@{present=$false},
+                        [ordered]@{present=$false},[ordered]@{present=$false})
+                    mountQueue=@()
+                }
+                $cancel = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=1
+                    riderDispatchDelta=2;mountDispatchDelta=1;duplicateDispatchDelta=0;intentActive=$false
+                    pairAttackRulesBeforeCancel=3;pairNonOpportunityAttackRulesBeforeCancel=3
+                    pairOpportunityAttackRulesBeforeCancel=0
+                    pairNonOpportunityAttackRuleDeltaAfterCancel=0;pairOpportunityAttackRuleDeltaAfterCancel=0
+                    commandStateBeforeGround=$cancelCommandState
+                    commandStateAfterGroundAdmission=$cancelCommandState
+                    commandStateAfterStableCancel=$cancelCommandState
+                    rules=[ordered]@{
+                        riderAttackRules=2;mountAttackRules=1;pairNonOpportunityAttackRules=3
+                        pairOpportunityAttackRules=0
+                        attackRuleEvents=@(
+                            [ordered]@{sequence=1;attackOfOpportunity=$false},
+                            [ordered]@{sequence=2;attackOfOpportunity=$false},
+                            [ordered]@{sequence=3;attackOfOpportunity=$false})
+                    }
+                }
+                $ranged = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;intentCancelDelta=0
+                    riderDispatchDelta=2;mountDispatchDelta=0;duplicateDispatchDelta=0;intentActive=$true
+                    weaponCategory='Shortbow';relationshipState='Mounted';horseApproachDistance=5.0
+                    admissionReadiness=[ordered]@{
+                        ready=$true;relationshipMounted=$true;relationshipExact=$true;modeRealTime=$true;gameUnpaused=$true
+                        selectionManagerExact=$true;selectionCount=1;riderSelectedPrincipal=$true
+                        nearestSelectedUnitId='rider';nearestSelectedRider=$true
+                        weaponLeaseReady=$true;weaponCategory='Shortbow';weaponRanged=$true
+                        clickLeaseReady=$true;targetFogOfWarCleared=$true;targetViewVisible=$true
+                        targetVisibleForPlayer=$true;targetVisibleNow=$true;targetNotDirectlyControllable=$true
+                        targetOutsideParty=$true;targetNotLoot=$true;targetReady=$true;combatMemoryReady=$true
+                        pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true;stockIntentIdle=$true
+                        riderCommandsIdle=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
+                        riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        equipmentControllerReady=$true;riderEquipmentIdle=$true;horseEquipmentIdle=$true
+                        poseHealthy=$true;targetId='shortbow-target'
+                    }
+                    input=[ordered]@{
+                        clicked=$true;expectedDispatchStarted=$true;nativeRequestDelta=1;intentStartDelta=1
+                        targetId='shortbow-target';selectionCount=1;selectedRiderExact=$true
+                        nearestSelectedUnitId='rider'
+                    }
+                    rules=[ordered]@{riderAttackRules=2;mountAttackRules=0;pairAttackRolls=2}
+                    outcome=[ordered]@{
+                        targetId='shortbow-target';nativeAttackRuleObserved=$true;attackWeaponIsRanged=$true
+                        initialNativeAdmissionState='BlockedLineOfSight';nativeAdmissionStateAtStart='Admitted'
+                        nativeDistanceSatisfiedAtStart=$true;nativeLineOfSightRecoveryObserved=$true
+                    }
+                }
+                $rowByName['mounted-stock-click-melee-adjacent-rt'].evidence = $melee
+                $rowByName['mounted-stock-click-melee-approach-rt'].evidence = $melee
+                $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence = $melee
+                $rowByName['mounted-stock-click-melee-cancel-rt'].evidence = $cancel
+                $rowByName['mounted-bow-auto-fire-rt'].evidence = $ranged
+                $rowByName['mounted-stock-click-invalid-target-feedback'].evidence = [ordered]@{nativeRequestDelta=0;intentStartDelta=0}
+                $rowByName['mounted-ranged-aao-native-control'].evidence = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=0;duplicateDispatchDelta=0
+                    intentActive=$true;relationshipState='Mounted'
+                    mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
+                    opportunityReadyAtAdmission=[ordered]@{
+                        ready=$true;targetId='target';targetOpportunityCount=1;relationshipMounted=$true
+                        modeRealTime=$true;gameUnpaused=$true;riderSelectedPrincipal=$true
+                        pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true;stockIntentIdle=$true
+                        riderStandardReady=$true;riderCommandsIdle=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
+                        riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true;nativeOpportunitySimulationReady=$true
+                    }
+                    rules=[ordered]@{
+                        riderAttackRules=1;mountAttackRules=0;pairAttackRolls=1
+                        lastRiderAttackType='Ranged';lastRiderAttackDoNotProvoke=$false
+                    }
+                    opportunity=[ordered]@{
+                        attackRules=1;attackRolls=1;damageRules=1;expectedTargetForcedD20=1
+                        lastActorId='target';lastTargetId='rider'
+                    }
+                    targetOpportunityCountAfter=0
+                }
+                $rowByName['mounted-crossbow-or-reload-control'].evidence = [ordered]@{
+                    weaponCategory='LightCrossbow';riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                    mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
+                    previousTargetId='shortbow-target';previousTargetCleanupPassed=$true;isolatedTargetId='crossbow-target'
+                    admissionReadiness=[ordered]@{
+                        ready=$true;category='LightCrossbow';relationshipMounted=$true;modeRealTime=$true;gameUnpaused=$true
+                        riderSelectedPrincipal=$true;weaponLeaseReady=$true;weaponCategory='LightCrossbow';targetReady=$true
+                        combatMemoryReady=$true;pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true
+                        stockIntentIdle=$true;riderStandardReady=$true;riderCommandsIdle=$true;horseCommandsIdle=$true
+                        targetCommandsIdle=$true;riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true
+                    }
+                    input=[ordered]@{expectedDispatchStarted=$true;nativeRequestDelta=1;intentStartDelta=1}
+                    rules=[ordered]@{riderAttackRules=1;mountAttackRules=1;pairAttackRolls=2}
+                    outcome=[ordered]@{
+                        targetId='crossbow-target';childAttackStartCount=1;nativeAttackRuleObserved=$true
+                        ammunitionStateBefore='native';reloadStateBefore='native';reloadStateAfter='native'
+                    }
+                }
+                $rowByName['mounted-sling-control'].evidence = [ordered]@{
+                    weaponCategory='Sling';riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                    mountAlreadyInMeleeAtAdmission=$true;horseMovementDistanceAfterAdmission=0.0
+                    previousTargetId='crossbow-target';previousTargetCleanupPassed=$true;isolatedTargetId='sling-target'
+                    admissionReadiness=[ordered]@{
+                        ready=$true;category='Sling';relationshipMounted=$true;modeRealTime=$true;gameUnpaused=$true
+                        riderSelectedPrincipal=$true;weaponLeaseReady=$true;weaponCategory='Sling';targetReady=$true
+                        combatMemoryReady=$true;pairCommandIdle=$true;pairGroundMovementIdle=$true;exactMountMovementIdle=$true
+                        stockIntentIdle=$true;riderStandardReady=$true;riderCommandsIdle=$true;horseCommandsIdle=$true
+                        targetCommandsIdle=$true;riderHandsIdle=$true;horseHandsIdle=$true;targetHandsIdle=$true
+                        riderEquipmentIdle=$true;horseEquipmentIdle=$true
+                    }
+                    input=[ordered]@{expectedDispatchStarted=$true;nativeRequestDelta=1;intentStartDelta=1}
+                    rules=[ordered]@{riderAttackRules=1;mountAttackRules=1;pairAttackRolls=2}
+                    outcome=[ordered]@{
+                        targetId='sling-target';childAttackStartCount=1;nativeAttackRuleObserved=$true
+                        ammunitionStateBefore='native';reloadStateBefore='native';reloadStateAfter='native'
+                    }
+                }
+                $rowByName['RT-to-TB-shared-turn'].evidence = [ordered]@{
+                    trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true
+                    currentTurnUnitId='rider';firstNativeTurnUnitId='target';riderStartTurnRequestCount=1
+                    after=[ordered]@{sharedInitiativeOwnerId='rider';trackerMountFilterCount=1;rider=[ordered]@{unitId='rider'}}
+                }
+                $rowByName['TB-to-RT-shared-turn'].evidence = [ordered]@{
+                    persistedValueUnchanged=$true;restoreDeliveryCompleted=$true;relationshipState='Mounted'
+                }
+                $observations.rtCombatDismountReadiness = [ordered]@{
+                    availabilityVisible=$true;availabilityEnabled=$true;availabilityReason='Mounted relationship is active.'
+                    relationshipState='Mounted';turnBased=$false;riderSelectedPrincipal=$true
+                    riderInCombat=$true;horseInCombat=$true;partyInCombat=$true;riderHasMoveAction=$true
+                    riderMoveCooldown=0.0;riderStandardCooldown=5.8;abilityActionType='Move'
+                    playerActionFeedback='Mounted relationship is active.';nativeControls=[ordered]@{}
+                    commands=[ordered]@{};dismountActivations=@()
+                }
+                $observations['rt-combat-dismount'] = [ordered]@{
+                    resolvedTargetId='rider';clicked=$true;targetSelectionStartDelta=1;targetSelectionEndDelta=1
+                    nativeCastRequestDelta=1
+                    nativeShell=[ordered]@{present=$true;type='Move';inMoveSlot=$true;ignoreCooldown=$false}
+                }
+                $observations.rtCombatDismountCompletion = [ordered]@{
+                    relationshipState='Unmounted';riderMoveCooldown=2.9
+                    commands=[ordered]@{activePairCommand=$false;stockIntentActive=$false}
+                    dismountActivations=@([ordered]@{
+                        dispatchAccepted=$true;relationshipEnded=$true;relationshipTransitionChanged=$true
+                    })
+                }
+                $activeHorseAiIsolation = [ordered]@{
+                    present=$true;acquired=$true;activeValidationPassed=$true;restoreVerified=$false
+                    restored=$false;stableFrames=2;error=$null
+                    states=@([ordered]@{
+                        unitId='horse';commandsEmptyBefore=$true;rawAiBefore=$true;effectiveAiBefore=$true
+                        commandsEmptyDuring=$true;rawAiDuring=$false;effectiveAiDuring=$false
+                        commandsEmptyAfter=$false;rawAiAfter=$false;effectiveAiAfter=$false
+                    })
+                }
+                $restoredHorseAiIsolation = [ordered]@{
+                    present=$true;acquired=$false;activeValidationPassed=$true;restoreVerified=$true
+                    restored=$true;stableFrames=2;error=$null
+                    states=@([ordered]@{
+                        unitId='horse';commandsEmptyBefore=$true;rawAiBefore=$true;effectiveAiBefore=$true
+                        commandsEmptyDuring=$true;rawAiDuring=$false;effectiveAiDuring=$false
+                        commandsEmptyAfter=$true;rawAiAfter=$true;effectiveAiAfter=$true
+                    })
+                }
+                $observations.unmountedHorseAiIsolation = $activeHorseAiIsolation
+                $observations.cleanup = [ordered]@{
+                    relationshipState='Unmounted';unmountedHorseAiLeaseRestored=$true
+                    unmountedHorseAiIsolation=$restoredHorseAiIsolation
+                }
+                $rowByName['unmounted-stock-attack-control'].evidence = [ordered]@{
+                    nativeRequestDelta=0;intentStartDelta=0;relationshipState='Unmounted'
+                    previousTargetId='sling-target';previousTargetCleanupPassed=$true
+                    isolatedTargetId='unmounted-melee-target';horseAiIsolation=$activeHorseAiIsolation
+                    rules=[ordered]@{
+                        riderAttackRules=1;mountAttackRules=0;riderNonOpportunityAttackRules=1
+                        mountNonOpportunityAttackRules=0;riderOpportunityAttackRules=0
+                    }
+                }
+                $rowByName['unmounted-ranged-control'].evidence = [ordered]@{
+                    nativeRequestDelta=0;intentStartDelta=0;weaponCategory='Sling';targetId='unmounted-ranged-target'
+                    relationshipState='Unmounted';horseAiIsolation=$activeHorseAiIsolation
+                    previousMeleeTargetId='unmounted-melee-target';previousMeleeTargetCleanupPassed=$true
+                    isolatedTargetId='unmounted-ranged-target'
+                    rules=[ordered]@{
+                        riderAttackRules=1;mountAttackRules=0;riderNonOpportunityAttackRules=1
+                        mountNonOpportunityAttackRules=0;riderOpportunityAttackRules=0
+                    }
+                    admissionReadiness=[ordered]@{
+                        ready=$true;relationshipState='Unmounted';modeRealTime=$true;gameUnpaused=$true
+                        riderSelected=$true;weaponLeaseReady=$true;weaponCategory='Sling';targetReady=$true
+                        combatMemoryReady=$true;riderStandardReady=$true;riderCommandsIdle=$true
+                        horseAiIsolated=$true;horseCommandsIdle=$true;targetCommandsIdle=$true
+                        riderHandsIdle=$true;targetHandsIdle=$true
+                        equipmentControllerReady=$true;riderEquipmentIdle=$true
+                        previousMeleeTargetId='unmounted-melee-target';previousMeleeTargetCleanupPassed=$true
+                        isolatedTargetId='unmounted-ranged-target';freshTarget=$true
+                    }
+                    input=[ordered]@{
+                        clicked=$true;expectedDispatchStarted=$true
+                        command=[ordered]@{
+                            present=$true;executorId='rider';targetId='unmounted-ranged-target';contained=$true
+                            inStandardSlot=$true;queued=$false
+                        }
+                    }
+                }
+            }
+            else {
+                $phase3eLedgerBefore = [ordered]@{
+                    enabled=$true;relationshipState='Mounted';turnBased=$true;round=2
+                    currentTurnUnitId='rider';sharedInitiativeOwnerId='rider'
+                    sharedInitiativeValue=22;sharedInitiativeBonus=2
+                    rider=[ordered]@{
+                        unitId='rider';initiative=0.0;standard=0.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$true;hasMove=$true;hasSwift=$true
+                    }
+                    mount=[ordered]@{
+                        unitId='horse';initiative=0.0;standard=0.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$true;hasMove=$true;hasSwift=$true
+                    }
+                    nativeFiveFootStepEnabled=$false;nativeFiveFootStepMeters=0.0
+                    pendingSplit=$false;pendingSplitRound=-1
+                    redundantMountTurnSkipCount=1;deferredMountTurnSkipCount=1;postTickMountTurnSkipCount=1
+                    mountLedgerPrepareCount=2;mirroredInitiativeCount=1;mountInitiativeOverrideCount=1
+                    trackerMountFilterCount=2;sharedTurnRetentionCount=0
+                    stepOpportunityCandidateCount=0;stepOpportunitySuppressionCount=0
+                    ordinaryMovementOpportunityPassThroughCount=0;mountCommandAdmissionCount=0
+                    architectureFallbackCount=0;lastInitiativeObservation='native-initiative-event'
+                    lastSplitObservation='not-observed';lastMovementObservation='not-observed'
+                    lastStepOpportunityObservation='not-observed'
+                    lastTurnCandidateObservation='skipped;source=combat-tick-postfix;mount=horse;replacement=target;round=1'
+                }
+                $phase3eLedgerAfter = [ordered]@{
+                    enabled=$true;relationshipState='Mounted';turnBased=$true;round=2
+                    currentTurnUnitId='rider';sharedInitiativeOwnerId='rider'
+                    sharedInitiativeValue=22;sharedInitiativeBonus=2
+                    rider=[ordered]@{
+                        unitId='rider';initiative=0.0;standard=0.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$true;hasMove=$true;hasSwift=$true
+                    }
+                    mount=[ordered]@{
+                        unitId='horse';initiative=0.0;standard=6.0;move=0.0;swift=0.0
+                        attackOfOpportunity=0.0;hasStandard=$false;hasMove=$true;hasSwift=$true
+                    }
+                    nativeFiveFootStepEnabled=$false;nativeFiveFootStepMeters=0.0
+                    pendingSplit=$false;pendingSplitRound=-1
+                    redundantMountTurnSkipCount=1;deferredMountTurnSkipCount=1;postTickMountTurnSkipCount=1
+                    mountLedgerPrepareCount=2;mirroredInitiativeCount=1;mountInitiativeOverrideCount=1
+                    trackerMountFilterCount=2;sharedTurnRetentionCount=0
+                    stepOpportunityCandidateCount=0;stepOpportunitySuppressionCount=0
+                    ordinaryMovementOpportunityPassThroughCount=0;mountCommandAdmissionCount=1
+                    architectureFallbackCount=0;lastInitiativeObservation='native-initiative-event'
+                    lastSplitObservation='not-observed';lastMovementObservation='not-observed'
+                    lastStepOpportunityObservation='not-observed'
+                    lastTurnCandidateObservation='skipped;source=combat-tick-postfix;mount=horse;replacement=target;round=1'
+                }
+                $phase3eScheduler = [ordered]@{
+                    enabled=$true;hasActiveLease=$false;state='Disposed';riderId='rider';mountId='horse'
+                    relationshipGeneration=1;turnIdentity='turn@1234abcd';turnRound=2
+                    commandIdentity='command@5678efab'
+                    commandType='KingmakerMountedCombat.Integration.MountedPairAttackCommand'
+                    actionOrigin='MountPrimaryNatural';targetId='target';weaponBlueprintId=('7'*32)
+                    expectedResourceOwnerId='horse';expectedRuleInitiatorId='horse'
+                    creationFrame=100;admissionFrame=100;firstGrantFrame=101;lastDrivenFrame=110
+                    startObservedFrame=102;driveCount=10;startObservationCount=1;terminalObservationCount=1
+                    interruptCount=0;resourceChargeObservationCount=1;duplicateFrameDriveCount=0
+                    cleanupCount=1;foreignCommandAdoptionCount=0;riderRemainedCurrent=$true
+                    exactExecutorRetained=$true;exactSlotRetained=$true
+                    mountStandardAvailableBefore=$true;mountStandardAvailableAfter=$false
+                    riderStandardAvailableBefore=$true;riderStandardAvailableAfter=$true
+                    mountStandardCooldownBefore=0.0;mountStandardCooldownAfter=6.0
+                    riderStandardCooldownBefore=0.0;riderStandardCooldownAfter=0.0
+                    terminalResult='Success';lastRejection='None';cleanupReason='native terminal slot removal'
+                    faultReason=$null;firstObservedTurnStatus='Preparing';lastObservedTurnStatus='Preparing'
+                    preparingObserved=$true;actingObserved=$false;endingObserved=$false
+                }
+                $phase3eMountOutcome = [ordered]@{
+                    action=3;actorId='horse';commandOwnerId='horse';resourceOwnerId='horse';targetId='target'
+                    result='Success';childAttackStartCount=1;riderStandardCharged=$false;actionStandardCharged=$true
+                    nativeAttackRuleObserved=$true;attackWeaponBlueprintId=('7'*32);attackWeaponIsNatural=$true
+                    attackWeaponIsRanged=$false;attackWeaponSlot='AdditionalLimb';terminalReason='completed'
+                    attackAnimationHandleCreated=$true;attackAnimationHandleSource='stock-created'
+                    attackAnimationActionName='HorseAnimationSet_Bite';attackAnimationActionType='SpecialAttack'
+                    attackAnimationActed=$true;attackAnimationFinished=$true;attackAnimationInterrupted=$false
+                }
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{
+                    outcome=$phase3eMountOutcome;activations=@();relationshipState='Mounted'
+                    presentation='relationship=Mounted;turnUnit=rider';rules=[ordered]@{
+                        riderAttackRules=0;mountAttackRules=1;riderNonOpportunityAttackRules=0
+                        mountNonOpportunityAttackRules=1;pairNonOpportunityAttackRules=1
+                        riderOpportunityAttackRules=0;mountOpportunityAttackRules=0
+                        pairOpportunityAttackRules=0;pairAttackRolls=1;pairOpportunityAttackRolls=0
+                        pairDamageRules=1;pairForcedD20=3;pairDamage=17
+                        firstPairActorId='horse';lastPairActorId='horse';lastRiderAttackType=$null
+                        lastRiderAttackDoNotProvoke=$null;attackRuleEvents=@()
+                    }
+                    nativeControls=[ordered]@{};unified=$phase3eLedgerAfter
+                    pairedScheduler=$phase3eScheduler;ledgerBefore=$phase3eLedgerBefore
+                    ledgerAfter=$phase3eLedgerAfter
+                }
+                $observations.pairedSchedulerPreTargetSetup = [ordered]@{
+                    pairInitiallyMounted=$true;relationshipState='Mounted';relationshipExact=$true
+                    targetAbsent=$true;turnBasedAbsent=$true;riderInCombat=$false;mountInCombat=$false
+                }
+                $observations.pairedSchedulerMountedTurnAdmission = [ordered]@{
+                    pairInitiallyMounted=$true;relationshipExact=$true;currentTurnRiderExact=$true
+                    currentTurnStatus='Acting';selectionRiderExact=$true
+                    nativeCombatMountCommandPresent=$false;riderCommandsIdle=$true;mountCommandsIdle=$true
+                    unified=[ordered]@{sharedInitiativeOwnerId='rider'}
+                }
+                $rowByName['mounted-combat-start-single-initiative-entry'].evidence = [ordered]@{
+                    trackerRiderCount=1;trackerHorseCount=0;trackerRiderPortraitExact=$true;selectionRiderExact=$true
+                }
+                $rowByName['mounted-stock-click-melee-shared-turn-tb'].evidence = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=1;duplicateDispatchDelta=0
+                }
+                $rowByName['mounted-bow-shared-turn-tb'].evidence = [ordered]@{
+                    nativeRequestDelta=1;intentStartDelta=1;riderDispatchDelta=1;mountDispatchDelta=0;duplicateDispatchDelta=0;weaponCategory='Shortbow'
+                }
+                $rowByName['mounted-five-foot-step-no-aao'].evidence = [ordered]@{
+                    physicalDistance=1.2;nativeFiveFootMaximumMeters=2.25;opportunity=[ordered]@{attackRules=0}
+                }
+                $rowByName['mounted-ordinary-move-aao-control'].evidence = [ordered]@{
+                    physicalDistance=3.5;opportunity=[ordered]@{attackRules=1;attackRolls=1}
+                }
+                $rowByName['mounted-five-foot-step-after-movement-rejected'].evidence = [ordered]@{
+                    restrictsFiveFootStep=$true;changeAdmitted=$false;fiveFootEnabledAfterAttempt=$false
+                }
+                $rowByName['mount-in-combat-rider-already-acted'].evidence = [ordered]@{
+                    before=[ordered]@{riderStandard=3.0;riderMove=0.0;mountStandard=0.0;mountMove=0.0}
+                    after=[ordered]@{riderStandard=3.0;riderMove=3.0;mountStandard=0.0;mountMove=0.0}
+                }
+                $rowByName['mount-in-combat-mount-already-acted'].evidence = [ordered]@{
+                    before=[ordered]@{riderStandard=0.0;riderMove=0.0;mountStandard=3.0;mountMove=0.0}
+                    after=[ordered]@{riderStandard=0.0;riderMove=3.0;mountStandard=3.0;mountMove=0.0}
+                }
+                $rowByName['dismount-in-combat-no-extra-turn'].evidence = [ordered]@{
+                    before=[ordered]@{rider=[ordered]@{unitId='rider'}}
+                    after=[ordered]@{pendingSplit=$true};currentTurnUnitId='rider'
+                }
+                $rowByName['unmounted-five-foot-step-control'].evidence = [ordered]@{
+                    relationshipState='Unmounted';opportunity=[ordered]@{attackRules=0};stepSuppressionBefore=1;stepSuppressionAfter=1
+                }
+                $observations.nativeTurnTraversal = [ordered]@{
+                    rosterCaptured=$true;rosterCaptureCount=1
+                    roster=@(
+                        [ordered]@{index=0;unitId='target';role='DiagnosticTarget';directlyControllable=$false;samePlayerParty=$false;nonPairLeaseReferenceExact=$false;targetExact=$true},
+                        [ordered]@{index=1;unitId='rider';role='Rider';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$false;targetExact=$false},
+                        [ordered]@{index=2;unitId='horse';role='Mount';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$false;targetExact=$false},
+                        [ordered]@{index=3;unitId='companion-a';role='NonPairPlayerParty';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$true;targetExact=$false},
+                        [ordered]@{index=4;unitId='companion-b';role='NonPairPlayerParty';directlyControllable=$true;samePlayerParty=$true;nonPairLeaseReferenceExact=$true;targetExact=$false})
+                    forceEndCallCount=2;duplicateTurnRejectCount=0;foreignTurnRejectCount=0
+                    resourceMutationCount=0;mountedHorseTurnObservedCount=0
+                    entries=@(
+                        [ordered]@{
+                            sequence=1;purpose='mount-primary-after-rider-only';frame=120;round=1
+                            expectedUnitId='rider';unitId='companion-a';role='NonPairPlayerParty';rosterIndex=3
+                            relationshipState='Mounted';referenceExact=$true;nonPairLeaseReferenceExact=$true
+                            pairActorPassAuthorized=$false;directlyControllable=$true;samePlayerParty=$true
+                            statusBefore='Preparing';isActingBefore=$false;commandsIdle=$true;handsIdle=$true
+                            equipmentIdle=$true;pairWorkIdle=$true;pendingNextUnitClear=$true;waitingForUiClear=$true
+                            stableFrames=2;alreadyEnded=$false;forceToEndArgument=$false;statusAfter='Ending'
+                            currentTurnReferenceRetained=$true;unitReferenceRetained=$true
+                            standardBefore=0.0;standardAfter=0.0;moveBefore=0.0;moveAfter=0.0
+                            initiativeBefore=0.0;initiativeAfter=0.0;resourcesUnchanged=$true
+                        },
+                        [ordered]@{
+                            sequence=2;purpose='mount-primary-after-rider-only';frame=140;round=1
+                            expectedUnitId='rider';unitId='companion-b';role='NonPairPlayerParty';rosterIndex=4
+                            relationshipState='Mounted';referenceExact=$true;nonPairLeaseReferenceExact=$true
+                            pairActorPassAuthorized=$false;directlyControllable=$true;samePlayerParty=$true
+                            statusBefore='Preparing';isActingBefore=$false;commandsIdle=$true;handsIdle=$true
+                            equipmentIdle=$true;pairWorkIdle=$true;pendingNextUnitClear=$true;waitingForUiClear=$true
+                            stableFrames=2;alreadyEnded=$false;forceToEndArgument=$false;statusAfter='Ending'
+                            currentTurnReferenceRetained=$true;unitReferenceRetained=$true
+                            standardBefore=0.0;standardAfter=0.0;moveBefore=0.0;moveAfter=0.0
+                            initiativeBefore=0.0;initiativeAfter=0.0;resourcesUnchanged=$true
+                        })
+                    lastProgress=[ordered]@{
+                        forceEndCallCount=2;duplicateTurnRejectCount=0;foreignTurnRejectCount=0
+                        resourceMutationCount=0;mountedHorseTurnObservedCount=0
+                    }
+                }
+            }
+            $phase3dArtifact = [ordered]@{
+                schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){6}else{1})
+                evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
+                scenario=$phase3dRequest.scenario;branch=$phase3dRequest.branch;commit=$phase3dRequest.commit
+                productVersion=$phase3dRequest.productVersion;dllSha256=$phase3dRequest.dllSha256
+                dllMvid=$phase3dRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+                status='PASS';rows=@($rows);observations=$observations
+                subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()
+            }
+            $phase3dPath = Join-Path $phase3dRoot 'phase3d-horse-scenario-evidence.json'
+            Write-KmcJsonDurable -Path $phase3dPath -Value $phase3dArtifact
+            $phase3dRecord = [ordered]@{
+                relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'
+                length=(Get-Item -LiteralPath $phase3dPath).Length;sha256=(Get-KmcSha256 $phase3dPath)
+            }
+            [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+            $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+            $phase3dSubresults = @($rows | ForEach-Object {
+                [pscustomobject]@{name=$_.name;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
+            })
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+
+            if ($phase3dScenario -cne 'phase3d-unified-combat-tb-suite') {
+                foreach ($mutation in @('none','unified-enabled','overlay-present','paired-path','paired-type','paired-missing','missing-required-row')) {
+                    $nativeArtifact = $phase3dArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+                    $nativeArtifact.schemaVersion = 7
+                    $nativeConfig = [pscustomobject]@{enablePairedActivation=$false;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+                    $nativeArtifact.observations | Add-Member -NotePropertyName phase3fActualConfiguration -NotePropertyValue $nativeConfig
+                    if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                        $sharedRows = @('rider-primary-after-shared-turn-transition-does-not-dismount',
+                            'mounted-combat-start-single-initiative-entry','mounted-rider-initiative-bonus','mounted-turn-rider-portrait',
+                            'RT-to-TB-shared-turn','TB-to-RT-shared-turn')
+                        $nativeArtifact.rows = @($nativeArtifact.rows | Where-Object { $_.name -cnotin $sharedRows })
+                    } else {
+                        $saddleRow = $nativeArtifact.rows | Where-Object name -CEQ 'saddle-icon'
+                        $saddleRow.evidence = [pscustomobject]@{
+                            mountSprite=[pscustomobject]@{present=$true;name='KMC_Mount_Saddle_Icon';textureWidth=96;textureHeight=96}
+                            dismountSprite=[pscustomobject]@{present=$true;name='KMC_Dismount_Saddle_Icon';textureWidth=96;textureHeight=96}
+                        }
+                    }
+                    if ($mutation -ceq 'unified-enabled') { $nativeConfig.enableUnifiedMountedTurn = $true }
+                    if ($mutation -ceq 'overlay-present') { $nativeConfig.overlayPresent = $true }
+                    if ($mutation -ceq 'paired-path') { $nativeConfig.enablePairedActivation = $true }
+                    if ($mutation -ceq 'paired-type') { $nativeConfig.enablePairedActivation = 'false' }
+                    if ($mutation -ceq 'paired-missing') { $nativeConfig.PSObject.Properties.Remove('enablePairedActivation') }
+                    if ($mutation -ceq 'missing-required-row') { $nativeArtifact.rows = @($nativeArtifact.rows | Select-Object -Skip 1) }
+                    $nativeArtifact.subscenarioPassCount = $nativeArtifact.rows.Count
+                    $nativeSubresults = @($nativeArtifact.rows | ForEach-Object {
+                        [pscustomobject]@{name=$_.name;status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()}
+                    })
+                    Write-KmcJsonAtomic -Path $phase3dPath -Value $nativeArtifact
+                    $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                    $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                    [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                    $nativeManifest=Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                    if ($mutation -ceq 'none') {
+                        Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults
+                        if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                            # Reuse the complete existing control envelope. These validator cases
+                            # prove protocol integrity only; native gameplay still requires a live run.
+                            foreach ($unmountedMutation in @('none','paired-path','paired-type','paired-missing','missing-row','wrong-command','foreign-rule','ai-unrestored','move-shell','not-actionable','rider-ai-unrestored','setup-damage')) {
+                                $unmountedArtifact = $nativeArtifact | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+                                $unmountedRequest = $phase3dRequest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
+                                $unmountedRequest.scenario = 'unmounted-attack-controls-rt'
+                                $unmountedArtifact.scenario = $unmountedRequest.scenario
+                                $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $true
+                                if ($unmountedMutation -ceq 'paired-path') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $false }
+                                if ($unmountedMutation -ceq 'paired-type') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = 'true' }
+                                if ($unmountedMutation -ceq 'paired-missing') { $unmountedArtifact.observations.phase3fActualConfiguration.PSObject.Properties.Remove('enablePairedActivation') }
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName gamePaused -NotePropertyValue $false
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderCanActInCombat -NotePropertyValue $true
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderHandsBusy -NotePropertyValue $false
+                                $unmountedArtifact.observations.rtCombatDismountReadiness | Add-Member -Force -NotePropertyName riderInitiative -NotePropertyValue 0.0
+                                $riderAi = $unmountedArtifact.observations.unmountedHorseAiIsolation | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+                                $riderAi.states[0].unitId = $unmountedArtifact.observations.riderId
+                                $riderAiRestored = $unmountedArtifact.observations.cleanup.unmountedHorseAiIsolation | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+                                $riderAiRestored.states[0].unitId = $unmountedArtifact.observations.riderId
+                                $unmountedArtifact.observations | Add-Member -Force -NotePropertyName unmountedRiderAiIsolation -NotePropertyValue $riderAi
+                                $unmountedArtifact.observations.cleanup | Add-Member -Force -NotePropertyName combatMountRiderAiIsolation -NotePropertyValue $riderAiRestored
+                                $unmountedArtifact.observations.cleanup | Add-Member -Force -NotePropertyName combatMountRiderAiLeaseRestored -NotePropertyValue $true
+                                $unmountedArtifact.rows = @($unmountedArtifact.rows | Where-Object {
+                                    $_.name -cin @('unmounted-stock-attack-control','unmounted-ranged-control')
+                                })
+                                foreach ($control in $unmountedArtifact.rows) {
+                                    $control.evidence | Add-Member -Force -NotePropertyName commandType -NotePropertyValue 'Kingmaker.UnitLogic.Commands.UnitAttack'
+                                    $control.evidence | Add-Member -Force -NotePropertyName preDispatchDamageRules -NotePropertyValue 0
+                                }
+                                if ($unmountedMutation -ceq 'missing-row') { $unmountedArtifact.rows = @($unmountedArtifact.rows | Select-Object -First 1) }
+                                if ($unmountedMutation -ceq 'wrong-command') { $unmountedArtifact.rows[0].evidence.commandType = 'KingmakerMountedCombat.Integration.MountedPairAttackCommand' }
+                                if ($unmountedMutation -ceq 'foreign-rule') { $unmountedArtifact.rows[0].evidence.rules.mountAttackRules = 1 }
+                                if ($unmountedMutation -ceq 'ai-unrestored') { $unmountedArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $false }
+                                if ($unmountedMutation -ceq 'move-shell') { $unmountedArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $false }
+                                if ($unmountedMutation -ceq 'not-actionable') { $unmountedArtifact.observations.rtCombatDismountReadiness.riderCanActInCombat = $false }
+                                if ($unmountedMutation -ceq 'rider-ai-unrestored') { $riderAiRestored.restoreVerified = $false }
+                                if ($unmountedMutation -ceq 'setup-damage') { $unmountedArtifact.rows[0].evidence.preDispatchDamageRules = 1 }
+                                $unmountedArtifact.subscenarioPassCount = $unmountedArtifact.rows.Count
+                                Write-KmcJsonAtomic -Path $phase3dPath -Value $unmountedArtifact
+                                $phase3dRecord.length = (Get-Item -LiteralPath $phase3dPath).Length
+                                $phase3dRecord.sha256 = Get-KmcSha256 $phase3dPath
+                                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $unmountedRequest.runId -Scenario $unmountedRequest.scenario -Artifacts @($phase3dRecord))
+                                $unmountedManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                                if ($unmountedMutation -ceq 'none') {
+                                    Assert-KmcPhase3dHorseScenarioEvidence -Request $unmountedRequest -Manifest $unmountedManifest -Status PASS
+                                } else {
+                                    Assert-TestThrows { Assert-KmcPhase3dHorseScenarioEvidence -Request $unmountedRequest -Manifest $unmountedManifest -Status PASS } ('Focused unmounted validator accepted ' + $unmountedMutation)
+                                }
+                            }
+                        }
+                    } else {
+                        Assert-TestThrows { Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults $nativeSubresults } ('Phase 3F schema 7 accepted ' + $mutation)
+                    }
+                }
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest=Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+            }
+
+            if ($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite') {
+                $phase3eSchedulerEvidence = $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence
+                $phase3eTraversalEvidence = $phase3dArtifact.observations.nativeTurnTraversal
+                $phase3dArtifact.schemaVersion = 5
+                $phase3dArtifact.observations.Remove('nativeTurnTraversal')
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRequest.evidenceRoot 'runtime-artifacts.json')
+                Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                $phase3dArtifact.schemaVersion = 4
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = [ordered]@{}
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                $phase3dArtifact.schemaVersion = 6
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence = $phase3eSchedulerEvidence
+                $phase3dArtifact.observations['nativeTurnTraversal'] = $phase3eTraversalEvidence
+            }
+
+            if ($phase3dScenario -ceq 'phase3d-horse-presentation-suite') {
+                $phase3dArtifact.observations.mountRootPositionOffset.y = 0.0
+            }
+            elseif ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 1
+            }
+            else {
+                $rowByName['mounted-five-foot-step-no-aao'].evidence.opportunity.attackRules = 1
+            }
+            Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+            $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+            $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+            [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+            $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+            Assert-TestThrows {
+                Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+            } ('Phase 3D validator accepted false semantic evidence for ' + $phase3dScenario + '.')
+
+            if ($phase3dScenario -ceq 'phase3d-unified-combat-rt-suite') {
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.mountDispatchDelta = 0
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.admissionReadiness.riderSelectedPrincipal = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted Shortbow admission without the exact selected rider principal.'
+
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.admissionReadiness.riderSelectedPrincipal = $true
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.outcome.nativeAdmissionStateAtStart = 'BlockedLineOfSight'
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a Shortbow child before exact direct native admission.'
+
+                $rowByName['mounted-bow-auto-fire-rt'].evidence.outcome.nativeAdmissionStateAtStart = 'Admitted'
+                $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence.previousTargetCleanupPassed = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted stock melee that reused an uncleared target.'
+
+                $rowByName['mounted-stock-click-melee-auto-repeat-rt'].evidence.previousTargetCleanupPassed = $true
+                $rowByName['mounted-stock-click-melee-cancel-rt'].evidence.pairNonOpportunityAttackRuleDeltaAfterCancel = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an ordinary pair attack after stock-intent cancellation.'
+
+                $rowByName['mounted-stock-click-melee-cancel-rt'].evidence.pairNonOpportunityAttackRuleDeltaAfterCancel = 0
+                $rowByName['mounted-ranged-aao-native-control'].evidence.opportunityReadyAtAdmission.riderStandardReady = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted adjacent ranged AoO evidence without a ready rider Standard action.'
+
+                $rowByName['mounted-ranged-aao-native-control'].evidence.opportunityReadyAtAdmission.riderStandardReady = $true
+                $rowByName['mounted-ranged-aao-native-control'].evidence.rules.lastRiderAttackDoNotProvoke = $true
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a native rider ranged roll marked not to provoke.'
+
+                $rowByName['mounted-ranged-aao-native-control'].evidence.rules.lastRiderAttackDoNotProvoke = $false
+                $rowByName['mounted-crossbow-or-reload-control'].evidence.previousTargetCleanupPassed = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a ranged weapon control that reused an uncleared target.'
+
+                $rowByName['mounted-crossbow-or-reload-control'].evidence.previousTargetCleanupPassed = $true
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted a Rider Primary click without exact native CanActInCombat admission.'
+
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.admissionReadiness.riderCanActInCombat = $true
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveStoppedAtLegalRange = $true
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveResultBeforeLegalRangeStop = 'None'
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMovePairDistanceAtLegalRangeStop = 2.0
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted duplicate native-success and legal-range-stop terminal claims for Rider Primary.'
+
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveStoppedAtLegalRange = $false
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMoveResultBeforeLegalRangeStop = $null
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.outcome.delegatedMovePairDistanceAtLegalRangeStop = 0.0
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.ready = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted unmounted ranged input without a stable exact readiness boundary.'
+
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.ready = $true
+                $rowByName['unmounted-ranged-control'].evidence.isolatedTargetId = 'unmounted-melee-target'
+                $rowByName['unmounted-ranged-control'].evidence.targetId = 'unmounted-melee-target'
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.isolatedTargetId = 'unmounted-melee-target'
+                $rowByName['unmounted-ranged-control'].evidence.input.command.targetId = 'unmounted-melee-target'
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an unmounted ranged control that reused the unmounted melee target.'
+
+                $rowByName['unmounted-ranged-control'].evidence.isolatedTargetId = 'unmounted-ranged-target'
+                $rowByName['unmounted-ranged-control'].evidence.targetId = 'unmounted-ranged-target'
+                $rowByName['unmounted-ranged-control'].evidence.admissionReadiness.isolatedTargetId = 'unmounted-ranged-target'
+                $rowByName['unmounted-ranged-control'].evidence.input.command.targetId = 'unmounted-ranged-target'
+                $rowByName['unmounted-stock-attack-control'].evidence.rules.mountAttackRules = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an autonomous Horse attack as unmounted rider-control evidence.'
+
+                $rowByName['unmounted-stock-attack-control'].evidence.rules.mountAttackRules = 0
+                $phase3dArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted unmounted Horse AI isolation without exact restoration.'
+
+                $phase3dArtifact.observations.cleanup.unmountedHorseAiLeaseRestored = $true
+                $phase3dArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted combat Dismount without the genuine raw native Move-slot shell.'
+
+                $phase3dArtifact.observations.'rt-combat-dismount'.nativeShell.inMoveSlot = $true
+                $phase3dArtifact.observations.rtCombatDismountCompletion.riderMoveCooldown = 0.0
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted combat Dismount without one native rider Move charge.'
+
+                $phase3dArtifact.observations.rtCombatDismountCompletion.riderMoveCooldown = 2.9
+                $rowByName['rider-primary-does-not-dismount-rt'].evidence.ledgerAfter.rider.move = 3.0
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3D RT validator accepted an explicit primary shell that consumed rider Move in addition to actor Standard.'
+            }
+            elseif ($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite') {
+                $rowByName['mounted-five-foot-step-no-aao'].evidence.opportunity.attackRules = 0
+                $phase3dArtifact.observations.pairedSchedulerPreTargetSetup.relationshipExact = $false
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3E TB validator accepted pre-mounted scheduler staging without the exact relationship.'
+
+                $phase3dArtifact.observations.pairedSchedulerPreTargetSetup.relationshipExact = $true
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence.pairedScheduler.duplicateFrameDriveCount = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3E TB validator accepted a duplicate scheduler drive in one Unity frame.'
+
+                $rowByName['mounted-stock-click-melee-mount-only-explicit'].evidence.pairedScheduler.duplicateFrameDriveCount = 0
+                $phase3dArtifact.observations.nativeTurnTraversal.foreignTurnRejectCount = 1
+                Write-KmcJsonAtomic -Path $phase3dPath -Value $phase3dArtifact
+                $phase3dRecord.length=(Get-Item -LiteralPath $phase3dPath).Length
+                $phase3dRecord.sha256=(Get-KmcSha256 $phase3dPath)
+                [void](New-TestArtifactManifest -EvidenceRoot $phase3dRoot -RunId $phase3dRequest.runId -Scenario $phase3dRequest.scenario -Artifacts @($phase3dRecord))
+                $phase3dManifest = Read-KmcJson (Join-Path $phase3dRoot 'runtime-artifacts.json')
+                Assert-TestThrows {
+                    Assert-KmcPhase3dHorseScenarioEvidence -Request $phase3dRequest -Manifest $phase3dManifest -Status PASS -SubscenarioResults $phase3dSubresults
+                } 'Phase 3E TB validator accepted a foreign diagnostic native-turn traversal.'
+            }
+        }
+    }
+
+    Invoke-HarnessTest 'Phase 3D TB combat-Mount deadline requires exact admission telemetry' {
+        $failureRoot = Join-Path $runtimeEvidenceTestRoot 'phase3d-tb-combat-mount-deadline'
+        New-Item -ItemType Directory -Path $failureRoot -Force | Out-Null
+        $failureRequest = [pscustomobject]@{
+            runId='validator-phase3d-tb-combat-mount-deadline';scenario='phase3d-unified-combat-tb-suite'
+            branch='codex/mounted-combat-phase3d-unified-combat';commit=('d'*40)
+            productVersion=$currentProductVersion;dllSha256=('a'*64)
+            dllMvid='55555555-6666-7777-8888-999999999999';evidenceRoot=$failureRoot
+        }
+        $emptyRaw = @(
+            [ordered]@{present=$false},[ordered]@{present=$false},
+            [ordered]@{present=$false},[ordered]@{present=$false})
+        $riderRaw = @(
+            [ordered]@{present=$false},
+            [ordered]@{present=$true;type='Kingmaker.UnitLogic.Commands.UnitMoveTo'},
+            [ordered]@{present=$false},[ordered]@{present=$false})
+        $actor = {
+            param([string]$Id,[bool]$CommandsIdle)
+            [ordered]@{
+                present=$true;unitId=$Id;isInState=$true;isInCombat=$true;conscious=$true;canAct=$true
+                combatStatePresent=$true;prepared=$true;canActInCombat=$true;initiative=0.0
+                standardCooldown=0.0;moveCooldown=0.0;hasStandardAction=$true;hasMoveAction=$true
+                commandsPresent=$true;commandsIdle=$CommandsIdle;handsIdle=$true
+                equipmentControllerPresent=$true;equipmentIdle=$true
+            }
+        }
+        $progress = [ordered]@{
+            step='AwaitRiderTurnForMount';frame=200;stableFrames=0;startTurnRequestCount=1
+            riderTurnObservedFrames=120;actionableTurnObservedFrames=120;currentTurnMismatchFrames=0
+            turnStatusBlockedFrames=0;riderCommandBlockedFrames=120;horseCommandBlockedFrames=0
+            riderHandsBlockedFrames=0;riderEquipmentBlockedFrames=0
+            gamePresent=$true;gamePaused=$false;turnBased=$true;controllerPresent=$true
+            controllerInitialized=$true;currentTurnPresent=$true;currentTurnUnitId='rider'
+            currentTurnStatus='Preparing';currentTurnIsActing=$false;currentTurnRiderExact=$true
+            currentTurnActionable=$true;rosterUnitIds=@('rider','horse','target')
+            rosterRiderCount=1;rosterHorseCount=1;rosterTargetCount=1;selectedUnitIds=@('rider')
+            selectionRiderExact=$true;relationshipState='Unmounted';relationshipExact=$false
+            mountAbilityVisible=$true;mountAbilityEnabled=$false;mountAbilityReason='Rider command container is not idle.'
+            combatMemoryQueued=$true;playerGroupMemoryContainsTarget=$true;targetGroupMemoryContainsRider=$true
+            rider=(& $actor 'rider' $false);mount=(& $actor 'horse' $true)
+            target=[ordered]@{
+                present=$true;unitId='target';isInState=$true;isInCombat=$true;conscious=$true
+                riderEnemy=$true;riderCanAttack=$true;commandsPresent=$true;commandsIdle=$true
+                rawCommands=$emptyRaw;queuedCommands=@()
+            }
+            commands=[ordered]@{
+                frame=200;stockIntentActive=$false;activePairCommand=$false
+                riderManualTargetId=$null;mountManualTargetId=$null;riderRaw=$riderRaw;riderQueue=@()
+                mountRaw=$emptyRaw;mountQueue=@();lastOutcome=$null
+            }
+            lastNativeAbilityShell=[ordered]@{present=$false}
+            unified=[ordered]@{relationshipMounted=$false;rider=[ordered]@{unitId='rider'};mount=[ordered]@{unitId='horse'}}
+        }
+        $failureRow = [ordered]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL'
+            detail='Synthetic combat-Mount admission deadline.';frame=200;seconds=30.1
+            evidence=[ordered]@{
+                step='AwaitRiderTurnForMount';relationshipState='Unmounted';stockObservation='not-observed'
+                feedback='diagnostic';currentTurnUnitId='rider';currentTurnStatus='Preparing'
+                transitionRiderTurnObserved=$false;transitionRiderStartRequestCount=0
+                leafDeadlineProgress=$progress;nativeControls=[ordered]@{};lastNativeAbilityShell=[ordered]@{present=$false}
+            }
+        }
+        $failureArtifact = [ordered]@{
+            schemaVersion=1;evidenceKind='phase3d-horse-scenario-evidence';runId=$failureRequest.runId
+            scenario=$failureRequest.scenario;branch=$failureRequest.branch;commit=$failureRequest.commit
+            productVersion=$failureRequest.productVersion;dllSha256=$failureRequest.dllSha256
+            dllMvid=$failureRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='FAIL';rows=@($failureRow)
+            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress}
+            subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic combat-Mount admission deadline.')
+        }
+        $failurePath = Join-Path $failureRoot 'phase3d-horse-scenario-evidence.json'
+        Write-KmcJsonDurable -Path $failurePath -Value $failureArtifact
+        $failureRecord = [ordered]@{
+            relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'
+            length=(Get-Item -LiteralPath $failurePath).Length;sha256=(Get-KmcSha256 $failurePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        $failureSubresult = [pscustomobject]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL';assertionPassCount=0;assertionFailCount=1
+            errors=@('Synthetic combat-Mount admission deadline.')
+        }
+        Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest -Status FAIL -SubscenarioResults @($failureSubresult)
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commands.riderRaw = @()
+        $failureArtifact.observations.leafDeadlineProgress.commands.riderRaw = @()
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted a combat-Mount deadline without exact rider raw command slots.'
+    }
+
+    Invoke-HarnessTest 'Phase 3D TB native Mount deadline binds stock lifecycle telemetry' {
+        $failureRoot = Join-Path $runtimeEvidenceTestRoot 'phase3d-tb-native-mount-command-deadline-v2'
+        New-Item -ItemType Directory -Path $failureRoot -Force | Out-Null
+        $failureRequest = [pscustomobject]@{
+            runId='validator-phase3d-tb-native-mount-command-deadline-v2'
+            scenario='phase3d-unified-combat-tb-suite'
+            branch='codex/mounted-combat-phase3e-paired-scheduler';commit=('e'*40)
+            productVersion=$currentProductVersion;dllSha256=('b'*64)
+            dllMvid='66666666-7777-8888-9999-aaaaaaaaaaaa';evidenceRoot=$failureRoot
+        }
+        $emptyRaw = @(
+            [ordered]@{present=$false},[ordered]@{present=$false},
+            [ordered]@{present=$false},[ordered]@{present=$false})
+        $riderRaw = @(
+            [ordered]@{present=$false},[ordered]@{present=$false},
+            [ordered]@{present=$false},
+            [ordered]@{present=$true;type='Kingmaker.UnitLogic.Commands.UnitUseAbility'})
+        $progress = [ordered]@{
+            step='AwaitCombatMount';frame=500;startTurnRequestCount=0;admissionFrame=100
+            startObservedFrame=-1;terminalObservedFrame=-1;nativeTickEncounterCount=120
+            nativeTickEligibleCount=0;nativeTickRejectedCount=120;nativeTickDuplicateFrameCount=0
+            nativeTickFirstFrame=101;nativeTickLastFrame=500;nativeTickFirstEligibleFrame=-1
+            nativeTickLastStockEligible=$false;nativeTickLastWaitingForUi=$true
+            nativeTickLastWaitingForUiGuardCount=1;nativeTickLastCurrentTurnUnitId='rider'
+            nativeTickLastCurrentTurnStatus='Acting';gamePaused=$false;gameMode='Default'
+            gameModeDefault=$true;turnBased=$true;waitingForUi=$true;waitingForUiGuardCount=1
+            currentTurnUnitId='rider';currentTurnStatus='Acting';currentTurnIsActing=$true
+            currentTurnIsEnding=$false;currentTurnRiderExact=$true;currentTurnEligible=$true
+            nextUnitId=$null;nextUnitClear=$true;riderIsAwake=$true;riderInAwakeUnits=$true
+            riderViewPresent=$true;riderRigidbodyControlling=$false;riderIsGetUp=$false
+            riderUnitTickEligible=$true;riderHandsIdle=$true;riderEquipmentIdle=$true
+            riderCanAct=$true;riderCanActInCombat=$true;riderNauseated=$false
+            commandReferencePresent=$true;commandCreatedByPlayer=$false;commandAiActionPresent=$false
+            commandExecutorRiderExact=$true;commandTargetHorseExact=$true
+            commandInMoveSlotExact=$true;commandQueued=$false;commandStarted=$false
+            commandRunning=$false;commandFinished=$false;commandActed=$false;commandResult='None'
+            commandCanStart=$true;commandEnoughClose=$true;commandShouldApproach=$false
+            commandSpellAvailable=$true;commandHasCooldown=$false
+            commandNativeShouldStartReady=$true;commandStockTurnGateReady=$false
+            relationshipState='Unmounted'
+            commands=[ordered]@{
+                frame=500;stockIntentActive=$false;activePairCommand=$false
+                riderManualTargetId=$null;mountManualTargetId=$null;riderRaw=$riderRaw;riderQueue=@()
+                mountRaw=$emptyRaw;mountQueue=@();lastOutcome=$null
+            }
+            nativeShell=[ordered]@{present=$true;executorId='rider';targetId='horse'}
+        }
+        $failureRow = [ordered]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL'
+            detail='Synthetic native Mount command deadline.';frame=500;seconds=30.1
+            evidence=[ordered]@{
+                step='AwaitCombatMount';relationshipState='Unmounted';stockObservation='not-observed'
+                feedback='diagnostic';currentTurnUnitId='rider';currentTurnStatus='Acting'
+                transitionRiderTurnObserved=$false;transitionRiderStartRequestCount=0
+                leafDeadlineProgress=$progress;nativeControls=[ordered]@{}
+                lastNativeAbilityShell=[ordered]@{present=$true;executorId='rider';targetId='horse'}
+            }
+        }
+        $failureArtifact = [ordered]@{
+            schemaVersion=3;evidenceKind='phase3d-horse-scenario-evidence';runId=$failureRequest.runId
+            scenario=$failureRequest.scenario;branch=$failureRequest.branch;commit=$failureRequest.commit
+            productVersion=$failureRequest.productVersion;dllSha256=$failureRequest.dllSha256
+            dllMvid=$failureRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+            status='FAIL';rows=@($failureRow)
+            observations=[ordered]@{
+                riderId='rider';horseId='horse';leafDeadlineProgress=$progress
+                'tb-combat-mount'=[ordered]@{
+                    abilityGuid='mount-ability';clickedTargetId='horse';resolvedTargetId='horse'
+                    priority='2';clicked=$true;targetSelectionStartDelta=1;targetSelectionEndDelta=1
+                    nativeCastRequestDelta=1;nativeRefusalDelta=0;dispatchAcceptedDelta=0
+                    dispatchRejectedDelta=0;nativePrimaryShellPrepareDelta=0
+                    nativePrimaryShellObservation='not-observed'
+                    nativeShell=[ordered]@{
+                        present=$true;executorId='rider';targetId='horse';type='Move';contained=$true
+                        inMoveSlot=$true;queued=$false;createdByPlayer=$false
+                        aiActionPresent=$false;aiActionType=$null
+                    }
+                }
+            }
+            subscenarioPassCount=0;subscenarioFailCount=1
+            errors=@('Synthetic native Mount command deadline.')
+        }
+        $failurePath = Join-Path $failureRoot 'phase3d-horse-scenario-evidence.json'
+        Write-KmcJsonDurable -Path $failurePath -Value $failureArtifact
+        $failureRecord = [ordered]@{
+            relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'
+            length=(Get-Item -LiteralPath $failurePath).Length;sha256=(Get-KmcSha256 $failurePath)
+        }
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        $failureSubresult = [pscustomobject]@{
+            name='phase3d-horse-leaf-deadline';status='FAIL';assertionPassCount=0
+            assertionFailCount=1;errors=@('Synthetic native Mount command deadline.')
+        }
+        Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+            -Status FAIL -SubscenarioResults @($failureSubresult)
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandCreatedByPlayer = $true
+        $failureArtifact.observations.leafDeadlineProgress.commandCreatedByPlayer = $true
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted a stock ability shell mislabeled CreatedByPlayer.'
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandCreatedByPlayer = $false
+        $failureArtifact.observations.leafDeadlineProgress.commandCreatedByPlayer = $false
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandAiActionPresent = $true
+        $failureArtifact.observations.leafDeadlineProgress.commandAiActionPresent = $true
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted an AI-owned native Mount shell.'
+
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.commandAiActionPresent = $false
+        $failureArtifact.observations.leafDeadlineProgress.commandAiActionPresent = $false
+        $failureArtifact.observations.'tb-combat-mount'.nativeCastRequestDelta = 0
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted a native Mount shell without one exact cast-request event.'
+
+        $failureArtifact.observations.'tb-combat-mount'.nativeCastRequestDelta = 1
+        $failureArtifact.rows[0].evidence.leafDeadlineProgress.nativeTickRejectedCount = 119
+        $failureArtifact.observations.leafDeadlineProgress.nativeTickRejectedCount = 119
+        Write-KmcJsonAtomic -Path $failurePath -Value $failureArtifact
+        $failureRecord.length=(Get-Item -LiteralPath $failurePath).Length
+        $failureRecord.sha256=(Get-KmcSha256 $failurePath)
+        [void](New-TestArtifactManifest -EvidenceRoot $failureRoot -RunId $failureRequest.runId `
+            -Scenario $failureRequest.scenario -Artifacts @($failureRecord))
+        $failureManifest = Read-KmcJson (Join-Path $failureRoot 'runtime-artifacts.json')
+        Assert-TestThrows {
+            Assert-KmcPhase3dHorseScenarioEvidence -Request $failureRequest -Manifest $failureManifest `
+                -Status FAIL -SubscenarioResults @($failureSubresult)
+        } 'Phase 3D TB validator accepted unreconciled native Mount eligibility counters.'
+    }
+
+    Invoke-HarnessTest 'Phase 3D unified combat source boundaries are exact and pair-local' {
+        $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $combatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs'))
+        $relationshipSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs'))
+        $nativeSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs'))
+        $playerActionSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionController.cs'))
+        $playerActionDomainSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs'))
+        $attackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $singleAttackSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairSingleAttack.cs'))
+        $spatialSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs'))
+        $optionalPropertySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\OptionalPublicPropertyReader.cs'))
+        $phase3dSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
+
+        Assert-Test ($unifiedSource.Contains('InitiativeOverrideResultFieldToken = 0x04004B5B') -and
+            $unifiedSource.Contains('InitiativeOverrideResultField.SetValue(rule, rider.CombatState.Initiative);') -and
+            $unifiedSource.Contains('MountInitiativeOverrideCount++') -and
+            $unifiedSource.Contains('PrepareExactMountLedger(mount);') -and
+            $unifiedSource.Contains('ShouldSuppressStepOpportunity(UnitEntityData target)') -and
+            $unifiedSource.Contains('settings.EnableUnifiedMountedTurn = false;')) `
+            'unified-turn coordinator lost exact initiative, ledger, five-foot-step, or fallback ownership'
+        Assert-Test ($patchSource.Contains('TryRouteMountedStockAttack(__instance, cmd)') -and
+            $patchSource.Contains('PatchExact(typeof(CombatController), "Tick", 0x06000BD1') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleCombatControllerTickCompleted(__instance);') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn?.HandleChooseNextUnit(__instance);') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn?.FilterTrackerSortedUnits(ref __result);') -and
+            $patchSource.Contains('PatchBridge.UnifiedTurn.ShouldSuppressStepOpportunity(target)') -and
+            $patchSource.Contains('PatchBridge.Service.RouteContinuousMove(ref executor)') -and
+            -not $patchSource.Contains('Dismount(CleanupTrigger.UnexpectedCommand)')) `
+            'Phase 3D exact-token orchestration lost stock-input, tracker, step, or continuous-move isolation'
+        Assert-Test ($relationshipSource.Contains('public bool RouteContinuousMove(ref UnitEntityData executor)') -and
+            $relationshipSource.Contains('executor = runtime.Mount;') -and
+            -not $relationshipSource.Contains('HandleUnexpectedPairCommand')) `
+            'continuous mounted movement can still end the relationship as an unexpected command'
+        Assert-Test ($combatSource.Contains('UnifiedMountedStockAttackPolicy.IsExactObservedPlayerRequest(') -and
+            $combatSource.Contains('principal.CombatState.ManualTarget = target;') -and
+            $combatSource.Contains('UnifiedMountedStockAttackPolicy.AllowsOrdinaryInput(') -and
+            $combatSource.Contains('UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selection, principal)') -and
+            $combatSource.Contains('stockIntent.Owns(target, generation)') -and
+            $combatSource.Contains('TryDriveStockAttackIntent();') -and
+            $combatSource.Contains('ResolveRiderPrimaryAction()') -and
+            $combatSource.Contains('!ranged || action != MountedCombatActionKind.MountPrimaryNatural')) `
+            'stock hostile-click intent lost exact native admission, persistence, or ranged no-melee behavior'
+        Assert-Test ($nativeSource.Contains('NativeMountedAbilityActivationLedger') -and
+            $nativeSource.Contains('NativeMountedAbilityActivationPhase.RelationshipEnded') -and
+            $nativeSource.Contains('UnitCommand.CommandType.Move,') -and
+            $nativeSource.Contains('combat.ObserveStockAttackRequested(unit, target?.EntityData);') -and
+            $nativeSource.Contains('NativeMountedControlPolicy.ShouldPreparePrimaryIntentShell(') -and
+            $nativeSource.Contains('command.NeedLoS = false;') -and
+            $nativeSource.Contains('command.IgnoreCooldown();') -and
+            $patchSource.Contains('PatchExact(typeof(UnitUseAbility), "Init", 0x06002728') -and
+            $patchSource.Contains('PrepareNativePrimaryIntentShell(__instance);')) `
+            'native ability instrumentation or combat Move/stock request delivery is incomplete'
+        Assert-Test ($playerActionDomainSource.Contains('public bool NativeMoveActionShellAdmitted { get; set; }') -and
+            $playerActionDomainSource.Contains('!context.NativeMoveActionShellAdmitted') -and
+            $playerActionSource.Contains('GetNativeMountAvailability(caster, true)') -and
+            $playerActionSource.Contains('GetNativeDismountAvailability(caster, true)') -and
+            $playerActionSource.Contains('context.NativeMoveActionShellAdmitted = nativeMoveActionShellAdmitted;')) `
+            'native Mount/Dismount delivery can re-reject the exact Move resource already admitted by Kingmaker'
+        Assert-Test ($attackSource.Contains('delegatedMove = new UnitMoveTo(targetSnapshot, delegatedMoveApproachRadius)') -and
+            $attackSource.Contains('NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight') -and
+            $attackSource.Contains('NeedLoS = true;') -and
+            $spatialSource.Contains('public const bool DelegatedPointMoveRequiresLineOfSight = false;') -and
+            $spatialSource.Contains('CalculateDelegatedMoveApproachRadius(') -and
+            $singleAttackSource.Contains('EvaluateCurrentNativeAdmission()') -and
+            $singleAttackSource.Contains('MountedPairNativeAdmissionState.BlockedLineOfSight') -and
+            $singleAttackSource.Contains('LastNativeAdmissionState = IsUnitEnoughClose') -and
+            $attackSource.Contains('NativeDistanceSatisfiedAtStart') -and
+            -not $singleAttackSource.Contains('rider.HasLOS(target)') -and
+            $attackSource.Contains('AttackWeaponTypeBlueprintId') -and
+            $attackSource.Contains('AmmunitionStateBefore') -and
+            $attackSource.Contains('ReloadStateAfter') -and
+            $attackSource.Contains('OptionalPublicPropertyReader.Read') -and
+            $optionalPropertySource.Contains('BindingFlags.DeclaredOnly') -and
+            $optionalPropertySource.Contains('type = type.BaseType') -and
+            -not $optionalPropertySource.Contains('.GetProperty(') -and
+            -not $attackSource.Contains('Gunslinger')) `
+            'ranged native LoS, non-throwing ammunition/reload telemetry, or foreign-mod isolation changed'
+        Assert-Test ($phase3dSource.Contains('observations["presentation"] = presentation;') -and
+            $phase3dSource.Contains('new JObject { ["observation"] = presentation }') -and
+            $phase3dSource.Contains('["presentation"] = relationship.CapturePresentationObservation(),') -and
+            $phase3dSource.Contains('observations["pelvisOffset"] = PoseVectorEvidence(horsePose.PelvisPositionOffset);') -and
+            $phase3dSource.Contains('PoseVectorEvidence(') -and
+            $phase3dSource.Contains('SupportedMountedProfiles.Horse.MountRootPositionOffset);') -and
+            $phase3dSource.Contains('["x"] = value.X') -and
+            $phase3dSource.Contains('["y"] = value.Y') -and
+            $phase3dSource.Contains('["z"] = value.Z') -and
+            -not $phase3dSource.Contains('JObject.FromObject(presentation') -and
+            -not $phase3dSource.Contains('relationship.CapturePresentationObservation(), JsonSerializer.Create') -and
+            -not $phase3dSource.Contains('JObject.FromObject(horsePose.PelvisPositionOffset') -and
+            -not $phase3dSource.Contains('JObject.FromObject(SupportedMountedProfiles.Horse.MountRootPositionOffset')) `
+            'Phase 3D scalar presentation or pose-vector evidence was routed back through JObject.FromObject'
+        Assert-Test ($phase3dSource.Contains('new ClickUnitHandler().OnClick(target.View.gameObject, target.Position, 0, false, false)') -and
+            $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(movementDestination, false);') -and
+            $phase3dSource.Contains('turn.TryChangeSmartAction();') -and
+            $phase3dSource.Contains('new InitiativeTrackerVM()') -and
+            $phase3dSource.Contains('if (currentTurn == null)') -and
+            $phase3dSource.Contains('transitionRiderTurnObserved = true;') -and
+            $phase3dSource.Contains('rangedOpportunityReadinessAtAdmission = CaptureRangedOpportunityReadiness();') -and
+            $phase3dSource.Contains('target.CombatState.AttackOfOpportunity(rider, true)') -and
+            $phase3dSource.Contains('rider.HasStandardAction()') -and
+            $phase3dSource.Contains('target.Commands != null && target.Commands.Empty') -and
+            $phase3dSource.Contains('observations["rangedOpportunityProgress"] = CaptureRangedOpportunityProgress();') -and
+            $phase3dSource.Contains('LastRiderAttackDoNotProvoke = evt.DoNotProvokeAttacksOfOpportunity;') -and
+            $phase3dSource.Contains('mountDispatches == 0') -and
+            $phase3dSource.Contains('AwaitRangedVariantTargetCleanupRt()') -and
+            $phase3dSource.Contains('AwaitRangedVariantAdmissionRt()') -and
+            $phase3dSource.Contains('rangedVariantPreviousTargetCleanupPassed = true;') -and
+            $phase3dSource.Contains('AwaitStockMeleeTargetCleanupRt()') -and
+            $phase3dSource.Contains('AwaitStockMeleeAdmissionRt()') -and
+            $phase3dSource.Contains('stockMeleePreviousTargetCleanupPassed = true;') -and
+            $phase3dSource.Contains('CaptureStockMeleeReadiness()') -and
+            $phase3dSource.Contains('["lastOutcomeMatchesIsolatedTarget"]') -and
+            $phase3dSource.Contains('["pairMechanicsDistanceToTarget"]') -and
+            $phase3dSource.Contains('["pairInsideApproachRadiusAtTerminal"]') -and
+            $phase3dSource.Contains('["riderHasLineOfSight"]') -and
+            $phase3dSource.Contains('["movementAgentWantsToMove"]') -and
+            $phase3dSource.Contains('["currentCommands"] = CapturePairCommandState()') -and
+            $phase3dSource.Contains('AwaitRtCombatDismountAdmission()') -and
+            $phase3dSource.Contains('observations["rtCombatDismountReadiness"] = CaptureRtCombatDismountState(availability);') -and
+            $phase3dSource.Contains('["dismountActivations"] = JArray.FromObject(') -and
+            $phase3dSource.Contains('rawCommands.OfType<UnitUseAbility>().FirstOrDefault(') -and
+            $phase3dSource.Contains('CaptureLongRangeRangedReadiness(clickLeaseReady)') -and
+            $phase3dSource.Contains('observations["rangedRtInput"]') -and
+            $phase3dSource.Contains('nativeRequestDelta != 1 || intentStartDelta != 1') -and
+            $phase3dSource.Contains('BeginTarget(TargetDistance, "rt-stock-melee-persistent")') -and
+            $phase3dSource.Contains('private const float RangedVariantTargetDistance = 4.0f;') -and
+            $phase3dSource.Contains('BeginTarget(RangedVariantTargetDistance, "rt-" + rangedVariantCategory.ToString().ToLowerInvariant())') -and
+            $phase3dSource.Contains('ruleProbe.PairNonOpportunityAttackRuleCount == nonOpportunityAttackRulesBeforeCancel') -and
+            $phase3dSource.Contains('observations["stockMeleeCancelBeforeGround"] = CapturePairCommandState();') -and
+            $phase3dSource.Contains('["attackOfOpportunity"] = evt.IsAttackOfOpportunity') -and
+            $phase3dSource.Contains('weapon.Category == rangedVariantCategory') -and
+            $phase3dSource.Contains('ruleProbe.OpportunityAttackRuleCount == 1') -and
+            $phase3dSource.Contains('mountAlreadyInMeleeAtAdmission') -and
+            $phase3dSource.Contains('rangedWeaponLease.Acquire(WeaponCategory.Shortbow);') -and
+            $phase3dSource.Contains('.DefaultIfEmpty(-1)') -and
+            $phase3dSource.Contains('.Select(item => item.Sequence)') -and
+            $phase3dSource.Contains('activations.Length > 0') -and
+            $phase3dSource.Contains('movementDistance > 0.25f') -and
+            $phase3dSource.Contains('TryNativeAbilityTargetClick(nativeControls.MountPrimaryAbility, target, "rt-mount-primary")') -and
+            $phase3dSource.Contains('IsExactRealTimePrimaryAdmissionReady(') -and
+            $phase3dSource.Contains('rider.CombatState.CanActInCombat') -and
+            $phase3dSource.Contains('CaptureNativeAbilityShell(lastNativeAbilityShell)') -and
+            $phase3dSource.Contains('commands.GetCommand(UnitCommand.CommandType.Move), command)') -and
+            $phase3dSource.Contains('AwaitUnmountedRangedAdmissionRt()') -and
+            $phase3dSource.Contains('AwaitUnmountedRangedTargetCleanupRt()') -and
+            $phase3dSource.Contains('BeginTarget(TargetDistance, "rt-unmounted-ranged-control")') -and
+            $phase3dSource.Contains('unmountedMeleeTargetCleanupPassed = true;') -and
+            $phase3dSource.Contains('["freshTarget"] = freshTarget') -and
+            $phase3dSource.Contains('CaptureUnmountedRangedReadiness()') -and
+            $phase3dSource.Contains('observations["unmountedRangedInput"]') -and
+            $phase3dSource.Contains('new ScopedDiagnosticAiLease<UnitEntityData>(') -and
+            $phase3dSource.Contains('AwaitUnmountedHorseAiIsolation()') -and
+            $phase3dSource.Contains('AwaitUnmountedTargetCleanupRt()') -and
+            $phase3dSource.Contains('ruleProbe.RiderNonOpportunityAttackRuleCount < 1') -and
+            $phase3dSource.Contains('ruleProbe.MountAttackRuleCount == 0') -and
+            $phase3dSource.Contains('RestoreUnmountedHorseAiIsolation()') -and
+            $phase3dSource.Contains('errors.Count == 0 &&') -and
+            -not $phase3dSource.Contains('Gunslinger')) `
+            'Phase 3D runtime tranche lost native input admission, explicit actor isolation, exact tracker/five-foot surfaces, or cleanup-safe evidence status'
+        Assert-Test ($phase3dSource.Contains('private void AwaitCombatMountAdjacencyReadiness()') -and
+            $phase3dSource.Contains('AwaitCombatMountAdjacencyReadiness,') -and
+            $phase3dSource.Contains('SelectionManager.Instance.SelectUnit(horse.View, true, true, false);') -and
+            $phase3dSource.Contains('ClickGroundHandler.MoveSelectedUnitsToPoint(combatMountAdjacencyDestination, false);') -and
+            $phase3dSource.Contains('combatMountAdjacencyCommand.Executor == horse') -and
+            $phase3dSource.Contains('CombatMountDismountPolicy.IsAdjacent(') -and
+            $phase3dSource.Contains('"ClickGroundHandler.MoveSelectedUnitsToPoint"') -and
+            -not $phase3dSource.Contains('Translocate(') -and
+            -not $phase3dSource.Contains('.Position =')) `
+            'Phase 3D combat-Mount adjacency fixture lost exact stock Horse movement or introduced direct position mutation'
+    }
+
+    Invoke-HarnessTest 'Phase 3E paired scheduler extends only one exact native command eligibility result' {
+        $schedulerSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairCommandScheduler.cs'))
+        $schedulerDomainSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\PairedCommandScheduler.cs'))
+        $unifiedSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs'))
+        $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
+        $settingsSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs'))
+        $runtimeCombatSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeCombatScenarioEngine.cs'))
+        $phase3dHorseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs'))
+        $turnTraversalPolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\DiagnosticTurnTraversalPolicy.cs'))
+        $nonPairPartyLeaseSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticNonPairPartyAiLease.cs'))
+        $runtimeHostSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs'))
+        $horseEngineSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs'))
+
+        Assert-Test ($schedulerSource.Contains('ReferenceEquals(lease.Command, command)') -and
+            $schedulerSource.Contains('ReferenceEquals(lease.Mount.Commands.Standard, command)') -and
+            $schedulerSource.Contains('ReferenceEquals(currentTurn, lease.Turn)') -and
+            $schedulerSource.Contains('relationship.MountedPairGeneration == lease.RelationshipGeneration') -and
+            $schedulerSource.Contains('game.State.AwakeUnits.Contains(lease.Mount)') -and
+            $schedulerSource.Contains('result = true;') -and
+            $schedulerSource.Contains('result = false;') -and
+            $schedulerSource.Contains('stock eligibility unexpectedly admitted a scheduler-leased cross-actor command') -and
+            $schedulerSource.Contains('FailInterruptAndDispose(') -and
+            $schedulerSource.Contains('!command.CreatedByPlayer || command.AiAction != null') -and
+            $schedulerSource.Contains('Time.frameCount') -and
+            $schedulerSource.Contains('command is UnitAttackOfOpportunity')) `
+            'paired scheduler lost exact command, slot, turn, generation, frame, or AoO exclusion gates'
+        Assert-Test ($schedulerDomainSource.Contains('public sealed class PairedCommandSchedulerLeaseStateMachine') -and
+            $schedulerDomainSource.Contains('DuplicateFrameDriveCount++') -and
+            $schedulerDomainSource.Contains('State = PairedCommandSchedulerState.Faulted;') -and
+            $schedulerDomainSource.Contains('CleanupCount = 1;') -and
+            -not $schedulerDomainSource.Contains('[Serializable]')) `
+            'paired scheduler state machine lost one-frame, fault, cleanup, or nonserialization boundaries'
+        $nativeObserverIndex = $patchSource.IndexOf(
+            'RuntimeAutomationHost.ObserveNativeTurnBasedCommandEligibility(command, __result);',
+            [StringComparison]::Ordinal)
+        $schedulerPostfixIndex = $patchSource.IndexOf(
+            'PatchBridge.UnifiedTurn?.AdmitExactMountCommand(command, ref __result);',
+            [StringComparison]::Ordinal)
+        Assert-Test ($unifiedSource.Contains('pairedCommandScheduler.TryExtendNativeEligibility(') -and
+            $patchSource.Contains('PatchExact(typeof(UnitActionController), "TickCommandTurnBased", 0x0600911D') -and
+            $nativeObserverIndex -ge 0 -and $schedulerPostfixIndex -gt $nativeObserverIndex -and
+            $runtimeHostSource.Contains('active?.horseCompanionEngine?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);') -and
+            $horseEngineSource.Contains('phase3dTranche?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);') -and
+            -not $patchSource.Contains('PairedCommandSchedulerLeaseStateMachine')) `
+            'paired scheduler left the exact token-pinned postfix seam, lost pre-extension stock observation, or stored lease state in Harmony patch fields'
+        Assert-Test ($settingsSource.Contains('EnablePairedCommandScheduler = false;') -and
+            -not $schedulerSource.Contains('command.Tick(') -and
+            -not $schedulerSource.Contains('command.Start(') -and
+            -not $schedulerSource.Contains('StartTurn(') -and
+            -not $schedulerSource.Contains('ForceToEnd(') -and
+            -not [regex]::IsMatch($schedulerSource, 'CurrentTurn\s*=(?!=)') -and
+            -not [regex]::IsMatch($schedulerSource, '\.Unit\s*=(?!=)') -and
+            -not $schedulerSource.Contains('UpdateCooldowns(') -and
+            -not $schedulerSource.Contains('Cooldown.StandardAction =')) `
+            'paired scheduler enabled by default or acquired forbidden tick, turn, unit, or resource mutation ownership'
+        Assert-Test ($runtimeCombatSource.Contains('scheduler.StartObservedFrame - scheduler.FirstGrantFrame <= 2') -and
+            -not $runtimeCombatSource.Contains('scheduler.StartObservedFrame - scheduler.AdmissionFrame <= 2')) `
+            'paired scheduler diagnostic lost the exact actionable-frame start bound'
+        $schedulerCaptureIndex = $phase3dHorseSource.IndexOf(
+            'originalPairedCommandScheduler = settings.EnablePairedCommandScheduler;',
+            [StringComparison]::Ordinal)
+        $schedulerEnableIndex = $phase3dHorseSource.IndexOf(
+            'settings.EnablePairedCommandScheduler = true;',
+            [StringComparison]::Ordinal)
+        $schedulerRestoreIndex = $phase3dHorseSource.IndexOf(
+            'settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;',
+            [StringComparison]::Ordinal)
+        Assert-Test ($phase3dHorseSource.Contains('private bool originalPairedCommandScheduler;') -and
+            $schedulerCaptureIndex -ge 0 -and $schedulerEnableIndex -gt $schedulerCaptureIndex -and
+            $schedulerRestoreIndex -gt $schedulerEnableIndex -and
+            [regex]::Matches($phase3dHorseSource, 'settings\.EnablePairedCommandScheduler = true;').Count -eq 1 -and
+            [regex]::IsMatch(
+                $phase3dHorseSource,
+                'if \(string\.Equals\(request\.Scenario, TurnBasedScenario, StringComparison\.Ordinal\)\)\s*\{\s*settings\.EnablePairedCommandScheduler = true;\s*\}') -and
+            $phase3dHorseSource.Contains(
+                'settings.EnablePairedCommandScheduler == originalPairedCommandScheduler &&') -and
+            $phase3dHorseSource.Contains(
+                '["pairedSchedulerSettingRestored"] =') -and
+            $phase3dHorseSource.Contains(
+                'settings.EnablePairedCommandScheduler == originalPairedCommandScheduler,')) `
+            'Phase 3D Horse TB diagnostic lost its exact paired-scheduler setting lease or cleanup proof'
+        $horseAiIsolationIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitCombatMountHorseAiIsolation()',
+            [StringComparison]::Ordinal)
+        $horseAiIsolationEndIndex = $phase3dHorseSource.IndexOf(
+            'private JObject CaptureCombatMountAdjacencyCompletion()',
+            $horseAiIsolationIndex,
+            [StringComparison]::Ordinal)
+        $horseAiIsolationBody = if ($horseAiIsolationIndex -ge 0 -and
+            $horseAiIsolationEndIndex -gt $horseAiIsolationIndex) {
+            $phase3dHorseSource.Substring(
+                $horseAiIsolationIndex,
+                $horseAiIsolationEndIndex - $horseAiIsolationIndex)
+        } else { '' }
+        $horseAiPrepareIndex = $horseAiIsolationBody.IndexOf(
+            'if (!PrepareUnmountedHorseAiIsolation())',
+            [StringComparison]::Ordinal)
+        $riderAiPrepareIndex = $horseAiIsolationBody.IndexOf(
+            'if (!PrepareCombatMountRiderAiIsolation())',
+            [StringComparison]::Ordinal)
+        $horseAiObservationIndex = $horseAiIsolationBody.IndexOf(
+            'observations["combatMountHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();',
+            [StringComparison]::Ordinal)
+        $riderAiObservationIndex = $horseAiIsolationBody.IndexOf(
+            'observations["combatMountRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();',
+            [StringComparison]::Ordinal)
+        $horseAiTargetIndex = $horseAiIsolationBody.IndexOf(
+            'BeginTarget(TargetDistance, "tb-paired-scheduler");',
+            [StringComparison]::Ordinal)
+        Assert-Test ($phase3dHorseSource.Contains(
+                'case Phase3dHorseStep.AwaitCombatMountHorseAiIsolation:') -and
+            $phase3dHorseSource.Contains(
+                'AwaitCombatMountHorseAiIsolation,') -and
+            [regex]::Matches(
+                $phase3dHorseSource,
+                [regex]::Escape('BeginCombatMountHorseAiIsolation();')).Count -eq 3 -and
+            [regex]::Matches(
+                $phase3dHorseSource,
+                [regex]::Escape('BeginTarget(TargetDistance, "tb-paired-scheduler");')).Count -eq 1 -and
+            $horseAiPrepareIndex -ge 0 -and
+            $riderAiPrepareIndex -gt $horseAiPrepareIndex -and
+            $horseAiObservationIndex -gt $riderAiPrepareIndex -and
+            $riderAiObservationIndex -gt $horseAiObservationIndex -and
+            $horseAiTargetIndex -gt $riderAiObservationIndex -and
+            -not $horseAiIsolationBody.Contains('InterruptAll(')) `
+            'Phase 3D Horse TB diagnostic lost pre-target pair AI isolation, two-branch routing, or non-interruption ordering'
+        $mountAdmissionIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitRiderTurnForMount()',
+            [StringComparison]::Ordinal)
+        $mountAdmissionEndIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitCombatMount()',
+            $mountAdmissionIndex,
+            [StringComparison]::Ordinal)
+        $mountAdmissionBody = if ($mountAdmissionIndex -ge 0 -and
+            $mountAdmissionEndIndex -gt $mountAdmissionIndex) {
+            $phase3dHorseSource.Substring(
+                $mountAdmissionIndex,
+                $mountAdmissionEndIndex - $mountAdmissionIndex)
+        } else { '' }
+        $turnBasedAdmissionIndex = $phase3dHorseSource.IndexOf(
+            'private void AwaitTurnBasedMode()',
+            [StringComparison]::Ordinal)
+        $turnBasedAdmissionBody = if ($turnBasedAdmissionIndex -ge 0 -and
+            $mountAdmissionIndex -gt $turnBasedAdmissionIndex) {
+            $phase3dHorseSource.Substring(
+                $turnBasedAdmissionIndex,
+                $mountAdmissionIndex - $turnBasedAdmissionIndex)
+        } else { '' }
+        $preMountedAdmissionIndex = $mountAdmissionBody.IndexOf(
+            'if (turnBasedPairInitiallyMounted)',
+            [StringComparison]::Ordinal)
+        $preMountedTrackerIndex = $mountAdmissionBody.IndexOf(
+            'ObserveSharedInitiativeAndTracker(turnSnapshotBefore);',
+            [StringComparison]::Ordinal)
+        $preMountedRiderPrimaryIndex = $mountAdmissionBody.IndexOf(
+            'BeginRiderPrimaryTb();',
+            [StringComparison]::Ordinal)
+        $nativeValidMountIndex = $horseEngineSource.IndexOf(
+            '"nativeMountValidHorse"',
+            [StringComparison]::Ordinal)
+        $parentAwaitMountedIndex = $horseEngineSource.IndexOf(
+            'step = EngineStep.AwaitMountedReady;',
+            $nativeValidMountIndex,
+            [StringComparison]::Ordinal)
+        $parentMountedTrancheIndex = $horseEngineSource.IndexOf(
+            'BeginPhase3dTranche(true);',
+            $parentAwaitMountedIndex,
+            [StringComparison]::Ordinal)
+        Assert-Test ($phase3dHorseSource.Contains(
+                'private ScopedDiagnosticAiLease<UnitEntityData> combatMountRiderAiLease;') -and
+            $phase3dHorseSource.Contains('private bool turnBasedPairInitiallyMounted;') -and
+            $phase3dHorseSource.Contains('!IsExactDiagnosticAiIsolationRelationship()') -and
+            [regex]::Matches(
+                $phase3dHorseSource,
+                [regex]::Escape('IsExactDiagnosticAiIsolationRelationship(),')).Count -eq 2 -and
+            $phase3dHorseSource.Contains('combatMountRiderAiLease.Acquire(new[] { rider });') -and
+            $phase3dHorseSource.Contains('combatMountRiderAiLease.ValidateActive(new[] { rider });') -and
+            $phase3dHorseSource.Contains('combatMountRiderAiLease.Restore(new[] { rider });') -and
+            $phase3dHorseSource.Contains('RestoreCombatMountRiderAiIsolation();') -and
+            $phase3dHorseSource.Contains('["combatMountRiderAiLeaseRestored"] =') -and
+            $mountAdmissionBody.Contains(
+                'if (!ValidateUnmountedHorseAiIsolation() || !ValidateCombatMountRiderAiIsolation())') -and
+            $mountAdmissionBody.Contains('var riderHandsIdle = !rider.AreHandsBusyWithAnimation;') -and
+            $mountAdmissionBody.Contains(
+                'var riderEquipmentIdle = equipment != null && !equipment.IsUpdateScheduledFor(rider);') -and
+            $mountAdmissionBody.Contains('combatMountRiderHandsBlockedFrames++;') -and
+            $mountAdmissionBody.Contains('combatMountRiderEquipmentBlockedFrames++;') -and
+            $mountAdmissionBody.Contains('controller.WaitingForUI') -and
+            $mountAdmissionBody.Contains('controller?.WaitingForUI?.GuardCount ?? -1') -and
+            $mountAdmissionBody.Contains('game.State.AwakeUnits.Contains(rider)') -and
+            $mountAdmissionBody.Contains('rider.View.RigidbodyController.IsControllingRigidbody') -and
+            $mountAdmissionBody.Contains('game.CurrentMode == GameModeType.Default') -and
+            $mountAdmissionBody.Contains('var nextUnit = GetPendingNextUnit(controller);') -and
+            $mountAdmissionBody.Contains('!riderHandsIdle || !riderEquipmentIdle') -and
+            $phase3dHorseSource.Contains('private const int CombatMountSyntheticStartTurnRequestCount = 0;') -and
+            $phase3dHorseSource.Contains('observations["combatMountBeforeNaturalRiderTurn"]') -and
+            $phase3dHorseSource.Contains('internal void ObserveNativeTurnBasedCommandEligibility(') -and
+            $phase3dHorseSource.Contains('nativeTickEncounterCount') -and
+            $phase3dHorseSource.Contains('CaptureCombatMountNativeCommandProgress()') -and
+            $mountAdmissionBody.Contains('!shell.CreatedByPlayer && shell.AiAction == null') -and
+            $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
+            $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
+            $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
+            $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
+            $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
+            $phase3dHorseSource.Contains('ledgerAfter.PostTickMountTurnSkipCount >= 1') -and
+            $phase3dHorseSource.Contains('BeginTarget(TargetDistance, "tb-paired-scheduler");') -and
+            $phase3dHorseSource.Contains('if (!IsCombatReady(turnBasedPairInitiallyMounted))') -and
+            $preMountedAdmissionIndex -ge 0 -and
+            $preMountedTrackerIndex -gt $preMountedAdmissionIndex -and
+            $preMountedRiderPrimaryIndex -gt $preMountedTrackerIndex -and
+            $nativeValidMountIndex -ge 0 -and $parentAwaitMountedIndex -gt $nativeValidMountIndex -and
+            $parentMountedTrancheIndex -gt $parentAwaitMountedIndex -and
+            -not $horseEngineSource.Contains('BeginPhase3dTranche(false);') -and
+            -not $turnBasedAdmissionBody.Contains('StartTurn(')) `
+            'Phase 3E Horse TB diagnostic lost native pre-mount setup, reversible AI isolation, natural rider-turn admission, or retained stock Mount-shell observation'
+        $traversalIndex = $phase3dHorseSource.IndexOf(
+            'private bool TryReachExpectedNativeTurn(',
+            [StringComparison]::Ordinal)
+        $traversalEndIndex = $phase3dHorseSource.IndexOf(
+            'private void ResetNativeTurnTraversalCandidate()',
+            $traversalIndex,
+            [StringComparison]::Ordinal)
+        $traversalBody = if ($traversalIndex -ge 0 -and $traversalEndIndex -gt $traversalIndex) {
+            $phase3dHorseSource.Substring($traversalIndex, $traversalEndIndex - $traversalIndex)
+        } else { '' }
+        Assert-Test ($turnTraversalPolicySource.Contains('internal const int RequiredStableFrames = 2;') -and
+            $turnTraversalPolicySource.Contains('currentIsPairActor') -and
+            $turnTraversalPolicySource.Contains('pairActorPassAuthorized') -and
+            $turnTraversalPolicySource.Contains('nonPairLeaseReferenceExact') -and
+            $turnTraversalPolicySource.Contains('!alreadyEnded') -and
+            $turnTraversalPolicySource.Contains('stableFrames >= RequiredStableFrames') -and
+            $nonPairPartyLeaseSource.Contains('public bool OwnsExactMember(UnitEntityData unit)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(expectedMembers[index], unit)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(unit, rider)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(unit, mount)') -and
+            $nonPairPartyLeaseSource.Contains('ReferenceEquals(unit.Group, group)') -and
+            $traversalBody.Contains('DiagnosticTurnTraversalPolicy.IsProhibitedMountedMountTurn(') -and
+            $traversalBody.Contains('ReferenceEquals(turn?.Unit, expected)') -and
+            $traversalBody.Contains('ReferenceEquals(current.Group, rider.Group)') -and
+            $traversalBody.Contains('nonPairLease.OwnsExactMember(current)') -and
+            $traversalBody.Contains('nativeTurnTraversalEndedTurns.Any(item => ReferenceEquals(item, observedTurn))') -and
+            $traversalBody.Contains('turn.ForceToEnd(false);') -and
+            $traversalBody.Contains('turn.Status != TurnController.TurnStatus.Ending') -and
+            $traversalBody.Contains('resourcesUnchanged') -and
+            -not $traversalBody.Contains('StartTurn(') -and
+            -not $traversalBody.Contains('ChooseNextUnit') -and
+            -not $traversalBody.Contains('.Commands.Run(') -and
+            -not $traversalBody.Contains('.Commands.Tick(') -and
+            -not [regex]::IsMatch($traversalBody, 'CurrentTurn\s*=(?!=)') -and
+            -not [regex]::IsMatch($traversalBody, 'Cooldown\.[A-Za-z]+\s*=(?!=)')) `
+            'Phase 3E diagnostic traversal lost exact roster/lease/cardinality/resource guards or acquired forbidden turn, command, selector, or cooldown ownership'
     }
 
     $resultPath = Join-Path $testRoot 'runtime-result.json'

@@ -1,0 +1,207 @@
+# Focused extensions to existing strict movement/boundary evidence contracts.
+# These checks do not replace the native route, endpoint, cleanup or snapshot checks.
+function Test-KmcChunk4TraversalScenario {
+    param([string]$Scenario)
+    return $Scenario -cin @('chunk4-traversal-core','chunk4-traversal-slope')
+}
+function Get-KmcChunk4TraversalRows {
+    param([string]$Scenario)
+    switch -CaseSensitive ($Scenario) {
+        'chunk4-traversal-core' { return @('mounted-distance-door-interaction','mounted-pair-doorway','mounted-pair-turns-and-corners','mounted-pair-party-formation') }
+        'chunk4-traversal-slope' { return @('mounted-pair-slope') }
+        default { throw 'No exact Chunk 4 traversal root.' }
+    }
+}
+function Assert-KmcChunk4PairedConfiguration {
+    param($Value,[switch]$AllowIntake)
+    Assert-KmcExactProperties $Value @('enablePairedActivation','enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent') 'Chunk 4 measured configuration'
+    foreach($kmcName in @('enablePairedActivation','enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
+        if($Value.$kmcName -isnot [bool]) { throw 'Chunk 4 configuration must contain actual JSON booleans.' }
+        if($kmcName -ne 'enablePairedActivation' -and $Value.$kmcName) { throw 'Chunk 4 incompatible authority or overlay is active.' }
+    }
+    if(!$AllowIntake -and !$Value.enablePairedActivation) { throw 'Chunk 4 native measurement did not use paired activation.' }
+}
+function Assert-KmcChunk4NativeSlope {
+    param($Value)
+    Assert-KmcExactProperties $Value @('startY','riderMoveBefore','minimumY','maximumY','heightChange','dropped','samples','discovery','location') 'Chunk 4 native slope'
+    Assert-KmcChunk4SlopeLocation $Value.location
+    Assert-KmcChunk4SlopeDiscovery $Value.discovery
+    foreach($kmcName in @('startY','riderMoveBefore','minimumY','maximumY','heightChange')) {
+        if(!(Test-KmcJsonNumber $Value.$kmcName) -or [double]::IsNaN([double]$Value.$kmcName) -or [double]::IsInfinity([double]$Value.$kmcName)) { throw 'Slope values must be finite JSON numbers.' }
+    }
+    if(!(Test-KmcExactJsonInteger $Value.dropped) -or $Value.dropped -ne 0 -or $Value.samples -isnot [array] -or
+        $Value.samples.Count -lt 3 -or $Value.samples.Count -gt 512 -or $Value.riderMoveBefore -lt 0) { throw 'Slope needs bounded native samples with no drops.' }
+    $kmcMin=[double]$Value.startY; $kmcMax=$kmcMin; $kmcFrame=-1L; $kmcRadius=$null
+    foreach($kmcSample in $Value.samples) {
+        Assert-KmcExactProperties $kmcSample @('frame','position','stockAgentEnabled','avoidanceDisabled','corpulence','riderMove') 'Chunk 4 native slope sample'
+        if(!(Test-KmcExactJsonInteger $kmcSample.frame) -or $kmcSample.frame -le $kmcFrame -or
+            $kmcSample.position -isnot [array] -or $kmcSample.position.Count -ne 3 -or
+            $kmcSample.stockAgentEnabled -isnot [bool] -or !$kmcSample.stockAgentEnabled -or
+            $kmcSample.avoidanceDisabled -isnot [bool] -or $kmcSample.avoidanceDisabled) { throw 'Slope requires distinct native frames and stock movement/avoidance.' }
+        foreach($kmcNumber in @($kmcSample.position)+@($kmcSample.corpulence,$kmcSample.riderMove)) {
+            if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) { throw 'Slope sample values must be finite JSON numbers.' }
+        }
+        if($kmcSample.corpulence -le 0 -or $kmcSample.riderMove -lt 0 -or
+            $kmcSample.riderMove -gt [double]$Value.riderMoveBefore + 0.0001) { throw 'Slope changed the native footprint or charged carried rider movement.' }
+        if($null -eq $kmcRadius) { $kmcRadius=[double]$kmcSample.corpulence }
+        elseif([Math]::Abs([double]$kmcSample.corpulence-$kmcRadius) -gt 0.000001) { throw 'Slope changed the mount footprint during traversal.' }
+        $kmcFrame=[long]$kmcSample.frame
+        $kmcMin=[Math]::Min($kmcMin,[double]$kmcSample.position[1]); $kmcMax=[Math]::Max($kmcMax,[double]$kmcSample.position[1])
+    }
+    if($kmcMax-$kmcMin -lt 0.5 -or [Math]::Abs([double]$Value.minimumY-$kmcMin) -gt 0.000001 -or
+        [Math]::Abs([double]$Value.maximumY-$kmcMax) -gt 0.000001 -or
+        [Math]::Abs([double]$Value.heightChange-($kmcMax-$kmcMin)) -gt 0.000001) { throw 'Slope extent must reconcile to at least half a metre of actual native motion.' }
+}
+function Assert-KmcChunk4SlopeLocation {
+    param($Value)
+    Assert-KmcExactProperties $Value @('method','entry','autoSave','dispatches','loadingFrames','stableFrames','status','failure','before','after') 'Native slope location'
+    if($Value.method -cne 'Game.LoadArea/06000CC9' -or $Value.entry -cne '104849f5f7ea36748aeeb036551047a9' -or
+        $Value.autoSave -cne 'None' -or $Value.status -cne 'ready' -or $null -ne $Value.failure){throw 'Slope location did not use the exact native entry without autosave.'}
+    foreach($name in @('dispatches','loadingFrames','stableFrames')){
+        if(!(Test-KmcExactJsonInteger $Value.$name)){throw 'Native slope location counts must be exact integers.'}
+    }
+    if($Value.dispatches -ne 1 -or $Value.loadingFrames -lt 1 -or $Value.stableFrames -ne 10){throw 'Slope location requires one actual load and ten stable native world frames.'}
+    foreach($state in @($Value.before,$Value.after)){
+        Assert-KmcExactProperties $state @('game','main','rider','mount','area','mode','combat','relationship','viewsReady') 'Slope location identity'
+        foreach($name in @('game','main','rider','mount','area')){
+            if($state.$name -isnot [string] -or [string]::IsNullOrWhiteSpace($state.$name)){throw 'Slope location identity is missing.'}
+        }
+        if($state.rider -ceq $state.mount -or $state.mode -cne 'Default' -or $state.relationship -cne 'Unmounted' -or
+            $state.combat -isnot [bool] -or $state.combat -or $state.viewsReady -isnot [bool] -or !$state.viewsReady){throw 'Slope location must preserve an idle unmounted pair with actual native views.'}
+    }
+    if($Value.before.area -cne '9d1278a2f599b2a4daab53abdfe88d2e' -or $Value.after.area -cne 'fd1b6fa9f788ca24e86bd922a10da080'){throw 'Slope location used an unexpected source or destination area.'}
+    foreach($name in @('game','main','rider','mount')){
+        if($Value.before.$name -cne $Value.after.$name){throw 'Native slope loading changed campaign or actor identity.'}
+    }
+}
+function Assert-KmcChunk4SlopeDiscovery {
+    param($Value)
+    Assert-KmcExactProperties $Value @('surfaces','probes') 'Slope native discovery'
+    if($Value.surfaces -isnot [array] -or $Value.surfaces.Count -lt 1 -or $Value.surfaces.Count -gt 72 -or
+        $Value.probes -isnot [array] -or $Value.probes.Count -lt 1 -or $Value.probes.Count -gt 24) {throw 'Slope discovery exceeded its bounded native observations.'}
+    foreach($kmcSurface in $Value.surfaces) {
+        Assert-KmcExactProperties $kmcSurface @('frame','requested','nodePresent','walkable','clamped') 'Slope native surface'
+        if(!(Test-KmcExactJsonInteger $kmcSurface.frame) -or $kmcSurface.frame -lt 0 -or $kmcSurface.nodePresent -isnot [bool] -or
+            ($kmcSurface.nodePresent -and $kmcSurface.walkable -isnot [bool]) -or
+            (!$kmcSurface.nodePresent -and ($null -ne $kmcSurface.walkable -or $null -ne $kmcSurface.clamped))) {throw 'Slope surface lacks exact native node observations.'}
+        Assert-KmcChunk4SlopePoint $kmcSurface.requested
+        if($kmcSurface.nodePresent) {Assert-KmcChunk4SlopePoint $kmcSurface.clamped}
+    }
+    foreach($kmcProbe in $Value.probes) {
+        Assert-KmcExactProperties $kmcProbe @('frame','requested','endpoint','points','minimumY','maximumY','pathError','accepted','reason','ground') 'Slope native path probe'
+        if(!(Test-KmcExactJsonInteger $kmcProbe.frame) -or $kmcProbe.frame -lt 0 -or
+            !(Test-KmcExactJsonInteger $kmcProbe.points) -or $kmcProbe.points -lt 0 -or $kmcProbe.accepted -isnot [bool] -or
+            ($null -ne $kmcProbe.reason -and $kmcProbe.reason -isnot [string])) {throw 'Slope path probe has invalid native observation types.'}
+        Assert-KmcNullableJsonBoolean $kmcProbe.pathError 'Slope native path error'
+        Assert-KmcChunk4SlopePoint $kmcProbe.requested
+        if($kmcProbe.points -gt 0) {
+            Assert-KmcChunk4SlopePoint $kmcProbe.endpoint
+            foreach($kmcNumber in @($kmcProbe.minimumY,$kmcProbe.maximumY)) {
+                if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) {throw 'Slope path heights must be finite native numbers.'}
+            }
+            if($kmcProbe.minimumY -gt $kmcProbe.maximumY) {throw 'Slope path height extent is reversed.'}
+        } elseif($null -ne $kmcProbe.endpoint -or $null -ne $kmcProbe.minimumY -or $null -ne $kmcProbe.maximumY) {throw 'Absent native path cannot report geometry.'}
+        if($null -ne $kmcProbe.ground) {Assert-KmcChunk4SlopeGround $kmcProbe.ground}
+        if($kmcProbe.accepted -and ($kmcProbe.pathError -ne $false -or $null -ne $kmcProbe.reason -or
+            $kmcProbe.points -lt 2 -or $null -eq $kmcProbe.ground -or $kmcProbe.ground.heightChange -lt 0.5)) {throw 'Accepted slope probe lacks a real eligible native ground projection.'}
+    }
+}
+function Assert-KmcChunk4SlopeGround {
+    param($Value)
+    Assert-KmcExactProperties $Value @('method','flyHeight','minimumY','maximumY','heightChange','samples') 'Slope native ground projection'
+    if($Value.method -cne 'UnitMovementAgentBase.Move/060018DD' -or $Value.samples -isnot [array] -or
+        $Value.samples.Count -lt 2 -or $Value.samples.Count -gt 512) {throw 'Slope needs bounded native ground projection observations.'}
+    foreach($kmcName in @('flyHeight','minimumY','maximumY','heightChange')) {
+        if(!(Test-KmcJsonNumber $Value.$kmcName) -or [double]::IsNaN([double]$Value.$kmcName) -or
+            [double]::IsInfinity([double]$Value.$kmcName)) {throw 'Slope ground extent must use finite native numbers.'}
+    }
+    $kmcMin=[double]::PositiveInfinity; $kmcMax=[double]::NegativeInfinity
+    foreach($kmcPoint in $Value.samples) {
+        Assert-KmcChunk4SlopePoint $kmcPoint
+        $kmcMin=[Math]::Min($kmcMin,[double]$kmcPoint[1]); $kmcMax=[Math]::Max($kmcMax,[double]$kmcPoint[1])
+    }
+    if([Math]::Abs([double]$Value.minimumY-$kmcMin) -gt 0.000001 -or
+        [Math]::Abs([double]$Value.maximumY-$kmcMax) -gt 0.000001 -or
+        [Math]::Abs([double]$Value.heightChange-($kmcMax-$kmcMin)) -gt 0.000001) {throw 'Slope ground extent does not reconcile to native projections.'}
+}
+function Assert-KmcChunk4SlopePoint {
+    param($Value)
+    if($Value -isnot [array] -or $Value.Count -ne 3) {throw 'Native slope point must have three coordinates.'}
+    foreach($kmcNumber in $Value) {
+        if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) {throw 'Native slope coordinates must be finite JSON numbers.'}
+    }
+}
+function Assert-KmcChunk4BlockedDoor {
+    param($Value)
+    Assert-KmcExactProperties $Value @('level','caseId','rider','mount','closing','before','destination','moveType','moveExecutor',
+        'beforeStop','elapsed','samples','afterStopInput','afterStop','afterReturn','returnResult') 'Chunk 4 blocked door'
+    if($Value.level -cne 'NATIVE INTEGRATION' -or $Value.caseId -cne 'C4-TRAVERSAL-closed-door-stop-return' -or
+        [string]::IsNullOrWhiteSpace($Value.rider) -or [string]::IsNullOrWhiteSpace($Value.mount) -or $Value.rider -ceq $Value.mount -or
+        $Value.moveExecutor -cne $Value.mount -or $Value.moveType -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or
+        $Value.returnResult -cne 'Success' -or !(Test-KmcJsonNumber $Value.elapsed) -or [double]::IsNaN([double]$Value.elapsed) -or
+        [double]::IsInfinity([double]$Value.elapsed) -or $Value.elapsed -lt 2 -or
+        $Value.samples -isnot [array] -or $Value.samples.Count -lt 1 -or $Value.samples.Count -gt 512 -or
+        $Value.destination -isnot [array] -or $Value.destination.Count -ne 3) { throw 'Blocked-door evidence lacks its exact native command and bounded measurement.' }
+    foreach($kmcNumber in $Value.destination) {
+        if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) {throw 'Blocked-door destination must be finite native geometry.'}
+    }
+    Assert-KmcExactProperties $Value.closing @('initial','ready','settledFrame','observations','elapsed') 'Chunk 4 native door closing'
+    foreach($kmcPlayback in @($Value.closing.initial,$Value.closing.ready)) {
+        Assert-KmcExactProperties $kmcPlayback @('frame','time','speed','clipLength','graphPlaying') 'Native door playback'
+        if(!(Test-KmcExactJsonInteger $kmcPlayback.frame) -or $kmcPlayback.frame -lt 0 -or $kmcPlayback.graphPlaying -isnot [bool]) {throw 'Door playback requires actual native frame and graph observations.'}
+        foreach($kmcField in @('time','speed','clipLength')) {
+            if(!(Test-KmcJsonNumber $kmcPlayback.$kmcField) -or [double]::IsNaN([double]$kmcPlayback.$kmcField) -or [double]::IsInfinity([double]$kmcPlayback.$kmcField)) {throw 'Door playback observations must be finite numbers.'}
+        }
+        if($kmcPlayback.speed -ne -1 -or $kmcPlayback.clipLength -le 0 -or ($kmcPlayback.time -gt 0 -and !$kmcPlayback.graphPlaying)) {throw 'Door did not follow its native closing animation.'}
+    }
+    $kmcClosing=$Value.closing
+    if(!(Test-KmcExactJsonInteger $kmcClosing.settledFrame) -or !(Test-KmcExactJsonInteger $kmcClosing.observations) -or
+        $kmcClosing.observations -lt 2 -or !(Test-KmcJsonNumber $kmcClosing.elapsed) -or [double]::IsNaN([double]$kmcClosing.elapsed) -or
+        [double]::IsInfinity([double]$kmcClosing.elapsed) -or $kmcClosing.elapsed -le 0 -or $kmcClosing.elapsed -gt 30 -or
+        $kmcClosing.initial.time -lt 0 -or $kmcClosing.initial.time -gt $kmcClosing.initial.clipLength -or
+        $kmcClosing.ready.time -gt 0 -or $kmcClosing.ready.clipLength -ne $kmcClosing.initial.clipLength -or
+        $kmcClosing.settledFrame -lt $kmcClosing.initial.frame -or $kmcClosing.ready.frame -le $kmcClosing.settledFrame -or
+        $kmcClosing.ready.frame -ne $Value.before.frame -or $kmcClosing.ready.time -ne $Value.before.doorAnimationTime) {throw 'Blocked route began before native door closing and graph readiness were observed.'}
+    $kmcFrames=-1L; $kmcCommandObserved=$false
+    foreach($kmcState in @($Value.before)+@($Value.samples)+@($Value.beforeStop,$Value.afterStopInput,$Value.afterStop,$Value.afterReturn)) {
+        Assert-KmcExactProperties $kmcState @('frame','position','riderPosition','farDistance','homeDistance','doorOpen','doorAnimationTime','cutEnabled','cutNeedsUpdate',
+            'reallyMoving','agentEnabled','avoidanceDisabled','corpulence','riderMove','mountMove','riderStandard','mountStandard',
+            'moveStarted','moveFinished','moveResult','pathError','pathPoints','pathState') 'Chunk 4 blocked-door native state'
+        foreach($kmcPosition in @('position','riderPosition')) {
+            if($kmcState.$kmcPosition -isnot [array] -or $kmcState.$kmcPosition.Count -ne 3) {throw 'Blocked route must record both actual actor positions.'}
+            foreach($kmcNumber in $kmcState.$kmcPosition) {
+                if(!(Test-KmcJsonNumber $kmcNumber) -or [double]::IsNaN([double]$kmcNumber) -or [double]::IsInfinity([double]$kmcNumber)) {throw 'Blocked-route actor position must be finite.'}
+            }
+        }
+        if(!(Test-KmcExactJsonInteger $kmcState.frame) -or $kmcState.frame -lt 0) {throw 'Blocked-route frame is invalid.'}
+        foreach($kmcField in @('doorOpen','cutEnabled','cutNeedsUpdate','reallyMoving','agentEnabled','avoidanceDisabled')) {
+            if($kmcState.$kmcField -isnot [bool]) {throw 'Blocked-route native states must be actual booleans.'}
+        }
+        foreach($kmcField in @('moveStarted','moveFinished','pathError')) {
+            Assert-KmcNullableJsonBoolean $kmcState.$kmcField ('Blocked-route '+$kmcField)
+        }
+        if($null -ne $kmcState.pathPoints -and (!(Test-KmcExactJsonInteger $kmcState.pathPoints) -or $kmcState.pathPoints -lt 0)) {throw 'Blocked-route path point count is invalid.'}
+        if($kmcState.doorOpen -or !$kmcState.cutEnabled -or $kmcState.cutNeedsUpdate -or !$kmcState.agentEnabled -or $kmcState.avoidanceDisabled) {throw 'Blocked route changed door/collision state or measured an unready cut.'}
+        if(!(Test-KmcJsonNumber $kmcState.doorAnimationTime) -or [double]::IsNaN([double]$kmcState.doorAnimationTime) -or
+            [double]::IsInfinity([double]$kmcState.doorAnimationTime) -or $kmcState.doorAnimationTime -gt 0) {throw 'Blocked route measured an unfinished native closing animation.'}
+        foreach($kmcField in @('farDistance','homeDistance','corpulence','riderMove','mountMove','riderStandard','mountStandard')) {
+            if(!(Test-KmcJsonNumber $kmcState.$kmcField) -or [double]::IsNaN([double]$kmcState.$kmcField) -or
+                [double]::IsInfinity([double]$kmcState.$kmcField) -or $kmcState.$kmcField -lt 0) {throw 'Blocked-route distances and costs must be finite nonnegative numbers.'}
+        }
+        if($kmcState.corpulence -le 0 -or [Math]::Abs($kmcState.corpulence-$Value.before.corpulence) -gt 0.000001 -or
+            $kmcState.riderMove -gt $Value.before.riderMove + 0.0001) {throw 'Blocked route changed the mount footprint or taxed the carried rider.'}
+        $kmcDx=[double]$kmcState.position[0]-[double]$Value.destination[0]; $kmcDz=[double]$kmcState.position[2]-[double]$Value.destination[2]
+        if([Math]::Abs([double]$kmcState.farDistance-[Math]::Sqrt($kmcDx*$kmcDx+$kmcDz*$kmcDz)) -gt 0.0001) {throw 'Blocked-route remaining distance does not reconcile to native positions.'}
+        $kmcDx=[double]$kmcState.position[0]-[double]$Value.before.position[0]; $kmcDz=[double]$kmcState.position[2]-[double]$Value.before.position[2]
+        if([Math]::Abs([double]$kmcState.homeDistance-[Math]::Sqrt($kmcDx*$kmcDx+$kmcDz*$kmcDz)) -gt 0.0001) {throw 'Blocked-route return distance does not reconcile to native positions.'}
+    }
+    foreach($kmcState in $Value.samples) {
+        if($kmcState.frame -le $kmcFrames) {throw 'Blocked-route samples reused or reversed a native frame.'}; $kmcFrames=$kmcState.frame
+        if($kmcState.moveStarted -eq $true -or $kmcState.moveFinished -eq $true) {$kmcCommandObserved=$true}
+    }
+    if(!$kmcCommandObserved -or $Value.beforeStop.farDistance -le 1.25 -or $Value.afterReturn.homeDistance -gt 1.25 -or
+        $Value.afterStop.reallyMoving -or $Value.afterReturn.reallyMoving) {throw 'Blocked route lacks a real attempted order, safe Stop or completed return.'}
+    foreach($kmcCost in @('riderMove','mountMove','riderStandard','mountStandard')) {
+        if($Value.beforeStop.$kmcCost -ne $Value.afterStopInput.$kmcCost) {throw 'Blocked-route Stop changed a genuine native cost.'}
+    }
+}

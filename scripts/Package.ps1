@@ -1,5 +1,9 @@
 [CmdletBinding()]
-param([switch]$SkipBuild)
+param(
+    [switch]$SkipBuild,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$')]
+    [string]$ArtifactQualifier
+)
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -19,7 +23,18 @@ $headAfter=(& git -C $repoRoot rev-parse HEAD).Trim(); $branchAfter=(& git -C $r
 $statusAfter=@(& git -C $repoRoot status --porcelain --untracked-files=all)
 if ($headAfter -cne $headBefore -or $branchAfter -cne $branchBefore -or $statusAfter.Count -ne 0) { throw 'Source identity changed during qualification build.' }
 $version=Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'version.json')|ConvertFrom-Json
-$packagePath=Join-Path $artifactsRoot ("KingmakerMountedCombat-{0}-diagnostic.zip" -f $version.productVersion)
+$qualifiedName = if ([string]::IsNullOrWhiteSpace($ArtifactQualifier)) {
+    "KingmakerMountedCombat-{0}-diagnostic.zip" -f $version.productVersion
+}
+else {
+    "KingmakerMountedCombat-{0}-{1}-diagnostic.zip" -f $version.productVersion,$ArtifactQualifier
+}
+$packagePath=Join-Path $artifactsRoot $qualifiedName
+$manifestPath=$packagePath+'.manifest.json'
+if (-not [string]::IsNullOrWhiteSpace($ArtifactQualifier) -and
+    ((Test-Path -LiteralPath $packagePath) -or (Test-Path -LiteralPath $manifestPath))) {
+    throw "Qualified artifact already exists and is immutable: $packagePath"
+}
 if (Test-Path -LiteralPath $stageRoot) { Remove-Item -LiteralPath $stageRoot -Recurse -Force }
 New-Item -ItemType Directory -Path $stageRoot -Force|Out-Null; New-Item -ItemType Directory -Path $artifactsRoot -Force|Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'Info.json') -Destination (Join-Path $stageRoot 'Info.json')
@@ -34,7 +49,6 @@ $manifest=[ordered]@{
     packagePath=[IO.Path]::GetFullPath($packagePath); packageSha256=[string]$validated.packageSha256
     dllSha256=[string]$validated.dllSha256; dllMvid=[string]$validated.dllMvid; entries=@($validated.entries)
 }
-$manifestPath=$packagePath+'.manifest.json'
 [IO.File]::WriteAllText($manifestPath,($manifest|ConvertTo-Json -Depth 10),(New-Object Text.UTF8Encoding($false)))
 Write-Host "PASS diagnostic package $packagePath"
 Write-Host "MANIFEST=$manifestPath"

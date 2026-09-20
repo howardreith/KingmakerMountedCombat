@@ -10,12 +10,23 @@ namespace KingmakerMountedCombat.Diagnostics
         public const int SaveBackedSchemaVersion = 2;
         public const string WorkingSaveName = "KMC_AUTOMATION_WORKING";
         public const string BaselineSaveName = "KMC_AUTOMATION_BASELINE";
+        public const string ManualReviewScenario = "manual-visual-review";
 
         private static readonly HashSet<string> SaveBackedScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
             "observe-mount-diagnostic-availability",
+            "horse-native-asset-audit",
+            "horse-companion-blueprint-registration",
+            "horse-companion-unmounted-suite",
+            "horse-mounted-alpha-suite",
+            "horse-native-controls-ux-suite",
+            "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb", "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-ground-arrival-rt", "chunk4-horse-strike-comparison-rt", "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb", "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb", "chunk4-charge-safety-rt", "chunk4-charge-safety-tb", "actor-allocation-rider-first-tb", "actor-allocation-mount-first-tb", "actor-allocation-rider-first-unmounted-tb", "actor-allocation-mount-first-unmounted-tb", "ordinary-attack-controls-tb", "unmounted-attack-controls-rt", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
+            "phase3d-unified-combat-tb-suite",
+            "phase3d-horse-presentation-suite",
+            "player-action-availability",
+            "mount-dismount-user-flow",
             "mounted-pair-create-and-clear",
             "mounted-pair-double-mount-rejected",
             "mounted-pair-invalid-pair-rejected",
@@ -24,10 +35,22 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-combat-start-cleanup",
             "mounted-pair-area-unload-cleanup",
             "mounted-pair-mod-disable-cleanup",
+            "mounted-pair-combat-start-retained",
+            "mounted-pair-combat-end-retained",
+            "mounted-pair-rider-death-cleanup",
+            "mounted-pair-mount-death-cleanup",
+            "mounted-pair-rider-incapacitated-cleanup",
+            "mounted-pair-mount-incapacitated-cleanup",
+            "mounted-pair-rider-native-incapacitated-cleanup",
+            "mounted-pair-mount-native-incapacitated-cleanup",
+            "mounted-pair-companion-removal-cleanup",
+            "mounted-pair-view-destroyed-cleanup",
+            "mounted-pair-exception-cleanup",
             "mounted-pair-open-ground",
             "mounted-pair-stop-start",
             "mounted-pair-turns-and-corners",
             "mounted-pair-doorway",
+            "mounted-distance-door-interaction",
             "mounted-pair-selection",
             "mounted-pair-party-formation",
             "mounted-pair-pause-unpause",
@@ -37,10 +60,40 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-save-safety",
             "mounted-pair-load-safety",
             "mounted-pair-area-transition-safety",
+            "native-save-clean-dismount",
+            "native-area-clean-dismount",
+            "native-mode-transition-cleanup",
+            "presentation-residue-and-uninstall-safety",
+            "pose-idle",
+            "pose-walk-run",
+            "pose-turn-stop",
+            "pose-doorway-formation",
+            "pose-equipment-variants",
+            "ui-selection-portrait-actionbar",
+            "camera-follow-and-command-routing",
             "fixture-intake",
             "lifecycle-suite",
-            "movement-suite",
-            "boundary-suite"
+            "combat-lifecycle-suite",
+            "chunk4-traversal-core", "chunk4-traversal-slope", "chunk4-area-cleanup", "movement-suite",
+            "boundary-suite",
+            "presentation-suite",
+            "mounted-rider-melee-hit-rt",
+            "mounted-rider-melee-hit-tb",
+            "mounted-rider-melee-miss-rt",
+            "mounted-mammoth-primary-hit-rt",
+            "mounted-mammoth-primary-hit-tb",
+            "mounted-rider-melee-move-to-attack-rt",
+            "mounted-rider-melee-move-to-attack-tb",
+            "mounted-rider-melee-command-cancel-rt",
+            "mounted-rider-melee-command-cancel-tb",
+            "mounted-rider-melee-command-interrupt-rt",
+            "mounted-rider-melee-command-interrupt-tb",
+            "mounted-rider-melee-combat-end-rt",
+            "mounted-rider-melee-combat-end-tb",
+            "mounted-rider-melee-human-play-path-rt",
+            "mounted-rider-melee-human-play-path-tb",
+            "combat-core-control-suite",
+            ManualReviewScenario
         };
 
         public int SchemaVersion { get; set; }
@@ -69,6 +122,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public string SaveName { get; set; }
 
         public RuntimeFixtureIdentity Fixture { get; set; }
+
+        public RuntimeQualificationSuiteIdentity QualificationSuite { get; set; }
 
         public IReadOnlyList<string> Validate()
         {
@@ -103,7 +158,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("commit must be a 40-character lowercase Git SHA.");
             }
 
-            if (!string.Equals(ProductVersion, "0.0.1-feasibility", StringComparison.Ordinal))
+            if (!string.Equals(ProductVersion, BuildIdentity.ProductVersion, StringComparison.Ordinal))
             {
                 errors.Add("productVersion does not match this diagnostic build.");
             }
@@ -128,6 +183,11 @@ namespace KingmakerMountedCombat.Diagnostics
         public static bool IsSaveBackedScenario(string scenario)
         {
             return !string.IsNullOrEmpty(scenario) && SaveBackedScenarios.Contains(scenario);
+        }
+
+        public static bool IsManualReviewScenario(string scenario)
+        {
+            return string.Equals(scenario, ManualReviewScenario, StringComparison.Ordinal);
         }
 
         internal static void Require(List<string> errors, string value, string name)
@@ -191,6 +251,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add("Schema v1 requests must not include fixture identity.");
             }
 
+            if (QualificationSuite != null)
+            {
+                errors.Add("Schema v1 requests must not include qualification-suite identity.");
+            }
+
             if (!string.Equals(Scenario, "mod-load-smoke", StringComparison.Ordinal))
             {
                 errors.Add("Only mod-load-smoke is implemented as a schema-v1 no-save scenario.");
@@ -206,7 +271,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (!IsSaveBackedScenario(Scenario))
             {
-                errors.Add("scenario is outside the save-backed Phase 1 allowlist.");
+                errors.Add("scenario is outside the exact save-backed mission allowlist.");
             }
 
             if (Fixture == null)
@@ -216,6 +281,41 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             errors.AddRange(Fixture.Validate());
+            if (QualificationSuite == null)
+            {
+                errors.Add("qualificationSuite is required for schema-v2 requests.");
+            }
+            else
+            {
+                errors.AddRange(QualificationSuite.Validate());
+            }
+            if (Fixture.WriteAuthorization != null)
+            {
+                var expectedMode = IsManualReviewScenario(Scenario) ? "read-only" : "working-only";
+                if (!string.Equals(Fixture.WriteAuthorization.Mode, expectedMode, StringComparison.Ordinal))
+                {
+                    errors.Add("fixture.writeAuthorization.mode does not match the selected runtime scenario.");
+                }
+            }
+        }
+    }
+
+    public sealed class RuntimeQualificationSuiteIdentity
+    {
+        public string SuiteId { get; set; }
+
+        public string SnapshotSha256 { get; set; }
+
+        public IReadOnlyList<string> Validate()
+        {
+            var errors = new List<string>();
+            if (string.IsNullOrEmpty(SuiteId) || !Regex.IsMatch(SuiteId, "^[A-Za-z0-9._-]{1,120}$", RegexOptions.CultureInvariant))
+            {
+                errors.Add("qualificationSuite.suiteId is outside the exact runtime allowlist.");
+            }
+
+            RuntimeRequest.RequireSha256(errors, SnapshotSha256, "qualificationSuite.snapshotSha256");
+            return errors;
         }
     }
 
@@ -342,19 +442,26 @@ namespace KingmakerMountedCombat.Diagnostics
         internal IReadOnlyList<string> Validate(RuntimeSaveDescriptor working)
         {
             var errors = new List<string>();
-            if (!string.Equals(Mode, "working-only", StringComparison.Ordinal))
+            var workingOnly = string.Equals(Mode, "working-only", StringComparison.Ordinal);
+            var readOnly = string.Equals(Mode, "read-only", StringComparison.Ordinal);
+            if (!workingOnly && !readOnly)
             {
-                errors.Add("fixture.writeAuthorization.mode must be working-only.");
+                errors.Add("fixture.writeAuthorization.mode must be working-only or read-only.");
             }
 
-            if (!string.Equals(AllowedInternalName, RuntimeRequest.WorkingSaveName, StringComparison.Ordinal))
+            if (workingOnly && !string.Equals(AllowedInternalName, RuntimeRequest.WorkingSaveName, StringComparison.Ordinal))
             {
                 errors.Add("fixture.writeAuthorization.allowedInternalName is not exact.");
             }
 
-            if (working == null || !string.Equals(AllowedFileName, working.FileName, StringComparison.Ordinal))
+            if (workingOnly && (working == null || !string.Equals(AllowedFileName, working.FileName, StringComparison.Ordinal)))
             {
                 errors.Add("fixture.writeAuthorization.allowedFileName does not match Working.");
+            }
+
+            if (readOnly && (!string.IsNullOrEmpty(AllowedInternalName) || !string.IsNullOrEmpty(AllowedFileName)))
+            {
+                errors.Add("fixture.writeAuthorization read-only mode must not name an allowed save target.");
             }
 
             if (!BaselineImmutable)
@@ -370,10 +477,110 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+                    "C4-LIFE-rider-incapacitation",
+        "C4-LIFE-rider-death-live-command",
+        "C4-LIFE-mount-death-live-command",
+        "C4-TARGETING-rider-heal",
+        "C4-TARGETING-rider-hostile",
+        "C4-TARGETING-mount-heal",
+        "C4-TARGETING-mount-hostile",
+        "C4-TARGETING-area-unmounted", "C4-TARGETING-area-both",
+        "C4-GROUND-mounted-arrival",
+        "C4-GROUND-unmounted-arrival",
+        "C4-HORSE-mounted-three-primaries",
+        "C4-HORSE-unmounted-strike-recovery",
+        "C4-OBSTRUCTION-ranged-native-geometry", "C4-RANGED-native-mixed-range", "C4-INTERRUPT-melee-pause-resume", "C4-INTERRUPT-melee-pause-stop-recover", "C4-INTERRUPT-melee-moving-target", "C4-INTERRUPT-melee-retarget-windup", "C4-INTERRUPT-melee-target-death-windup", "C4-INTERRUPT-melee-target-death-midroutine", "C4-INTERRUPT-ranged-pause-resume", "C4-INTERRUPT-ranged-pause-stop-recover", "C4-INTERRUPT-ranged-moving-target", "C4-INTERRUPT-ranged-retarget-windup", "C4-INTERRUPT-ranged-retarget-inflight", "C4-INTERRUPT-ranged-target-death-windup", "C4-INTERRUPT-ranged-target-death-inflight", "C4-INSPECTION-rider", "C4-INSPECTION-mount", "C4-SESSION-RT-1", "C4-SESSION-RT-2", "C4-SESSION-RT-3", "C4-SESSION-TB-1", "C4-SESSION-TB-2", "C4-SESSION-TB-3",
+        "C4-SUSTAINED-melee-adjacent-held",
+            "C4-SUSTAINED-melee-adjacent-repeat",
+            "C4-SUSTAINED-melee-approach-held",
+            "C4-SUSTAINED-melee-approach-repeat",
+            "C4-SUSTAINED-ranged-adjacent-held",
+            "C4-SUSTAINED-ranged-adjacent-repeat",
+            "C4-SUSTAINED-ranged-approach-held",
+            "C4-SUSTAINED-ranged-approach-repeat",
+            "C4-SUSTAINED-TB-rider-first",
+            "C4-SUSTAINED-TB-mount-first",
+            "C4-SUSTAINED-TB-rider-exhausted",
+            "C4-SUSTAINED-TB-mount-exhausted",
+            "C4-SUSTAINED-TB-early-end",
+            "C4-SUSTAINED-TB-after-early-end",
+            "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider",
+            "C4-CHARGE-mounted-mount", "C4-CHARGE-unrelated-actor", "C4-CHARGE-queued-state-change",
+            "C01-B", "C01-C", "C01-D",
+            "C03-rapid-off-B", "C03-rapid-off-C", "C03-bab-B", "C03-bab-C", "C03-haste-B", "C03-haste-C",
+            "C02-restricted-B", "C02-restricted-C", "C03-single-B", "C03-single-C", "C03-spent-standard-B", "C03-spent-standard-C",
+            "C03-rider-move-B", "C03-carried-move-C", "C03-mixed-range-B", "C03-mixed-range-C",
             "mod-load-smoke",
             "export-mounted-contracts",
             "export-candidate-mount-rigs",
             "observe-mount-diagnostic-availability",
+            "horse-native-asset-audit",
+            "horse-companion-blueprint-registration",
+            "horse-companion-unmounted-suite",
+            "horse-mounted-alpha-suite",
+            "horse-native-controls-ux-suite",
+            "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb", "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-ground-arrival-rt", "chunk4-horse-strike-comparison-rt", "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb", "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb", "chunk4-charge-safety-rt", "chunk4-charge-safety-tb", "actor-allocation-rider-first-tb", "actor-allocation-mount-first-tb", "actor-allocation-rider-first-unmounted-tb", "actor-allocation-mount-first-unmounted-tb", "ordinary-attack-controls-tb", "unmounted-attack-controls-rt", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
+            "T01-native-allocation-trace", "A05-native-preparation-callbacks", "T02-native-exhaustion-refresh-trace", "3g-rider-longbow-ordinary", "3g-rider-longbow-primary", "3g-rider-melee-ordinary", "3g-rider-melee-primary",
+            "3g-horse-bite-ordinary", "3g-horse-bite-primary", "3g-paused-dismount", "3g-paused-mount-stop",
+            "3g-paused-mount-execute", "3g-paused-control-failure",
+            "phase3d-unified-combat-tb-suite",
+            "phase3d-horse-presentation-suite",
+            "Horse-small-portrait-close-up",
+            "saddle-icon",
+            "Horse-pose-final-idle-walk-run-turn-stop",
+            "mounted-single-rider-turn-portrait",
+            "rider-primary-target-cancel-does-not-dismount",
+            "rider-primary-rejection-does-not-dismount",
+            "rider-primary-does-not-dismount-rt",
+            "rider-primary-does-not-dismount-tb",
+            "rider-primary-after-movement-does-not-dismount",
+            "rider-primary-after-shared-turn-transition-does-not-dismount",
+            "mounted-stock-click-melee-adjacent-rt",
+            "mounted-stock-click-melee-approach-rt",
+            "mounted-stock-click-melee-auto-repeat-rt",
+            "mounted-stock-click-melee-cancel-rt",
+            "mounted-stock-click-melee-rider-only-explicit",
+            "mounted-stock-click-melee-mount-only-explicit",
+            "mounted-stock-click-invalid-target-feedback",
+            "mounted-stock-click-melee-shared-turn-tb",
+            "mounted-separate-action-ledgers",
+            "mounted-bow-adjacent-rt",
+            "mounted-bow-approach-to-range-rt",
+            "mounted-bow-auto-fire-rt",
+            "mounted-bow-cancel-rt",
+            "mounted-bow-shared-turn-tb",
+            "mounted-ranged-line-of-sight",
+            "mounted-ranged-cover-concealment",
+            "mounted-ranged-does-not-force-melee",
+            "mounted-ranged-aao-native-control",
+            "mounted-crossbow-or-reload-control",
+            "mounted-sling-control",
+            "unmounted-ranged-control",
+            "unmounted-stock-attack-control",
+            "RT-to-TB-shared-turn",
+            "TB-to-RT-shared-turn",
+            "mount-in-combat-before-either-acted",
+            "mount-in-combat-rider-already-acted",
+            "mount-in-combat-mount-already-acted",
+            "mount-ability-in-combat",
+            "mounted-combat-start-single-initiative-entry",
+            "mounted-rider-initiative-bonus",
+            "mounted-turn-rider-portrait",
+            "mounted-shared-turn-action-order",
+            "mounted-five-foot-step-no-aao",
+            "mounted-five-foot-step-distance",
+            "mounted-five-foot-step-resource",
+            "mounted-five-foot-step-after-movement-rejected",
+            "mounted-ordinary-move-aao-control",
+            "unmounted-five-foot-step-control",
+            "dismount-in-combat-no-extra-turn",
+            "dismount-ability-in-combat",
+            "phase3d-horse-tranche-cleanup",
+            "phase3d-horse-scenario-deadline",
+            "phase3d-horse-leaf-deadline",
+            "phase3d-horse-runtime-exception",
+            "player-action-availability",
+            "mount-dismount-user-flow",
             "mounted-pair-create-and-clear",
             "mounted-pair-double-mount-rejected",
             "mounted-pair-invalid-pair-rejected",
@@ -382,10 +589,22 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-combat-start-cleanup",
             "mounted-pair-area-unload-cleanup",
             "mounted-pair-mod-disable-cleanup",
-            "mounted-pair-open-ground",
+            "mounted-pair-combat-start-retained",
+            "mounted-pair-combat-end-retained",
+            "mounted-pair-rider-death-cleanup",
+            "mounted-pair-mount-death-cleanup",
+            "mounted-pair-rider-incapacitated-cleanup",
+            "mounted-pair-mount-incapacitated-cleanup",
+            "mounted-pair-rider-native-incapacitated-cleanup",
+            "mounted-pair-mount-native-incapacitated-cleanup",
+            "mounted-pair-companion-removal-cleanup",
+            "mounted-pair-view-destroyed-cleanup",
+            "mounted-pair-exception-cleanup",
+            "mounted-pair-slope", "mounted-pair-open-ground",
             "mounted-pair-stop-start",
             "mounted-pair-turns-and-corners",
             "mounted-pair-doorway",
+            "mounted-distance-door-interaction",
             "mounted-pair-selection",
             "mounted-pair-party-formation",
             "mounted-pair-pause-unpause",
@@ -394,7 +613,33 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-realtime-entry-cleanup",
             "mounted-pair-save-safety",
             "mounted-pair-load-safety",
-            "mounted-pair-area-transition-safety"
+            "mounted-pair-area-transition-safety",
+            "native-save-clean-dismount",
+            "native-area-clean-dismount",
+            "native-mode-transition-cleanup",
+            "presentation-residue-and-uninstall-safety",
+            "pose-idle",
+            "pose-walk-run",
+            "pose-turn-stop",
+            "pose-doorway-formation",
+            "pose-equipment-variants",
+            "ui-selection-portrait-actionbar",
+            "camera-follow-and-command-routing",
+            "mounted-rider-melee-hit-rt",
+            "mounted-rider-melee-hit-tb",
+            "mounted-rider-melee-miss-rt",
+            "mounted-mammoth-primary-hit-rt",
+            "mounted-mammoth-primary-hit-tb",
+            "mounted-rider-melee-move-to-attack-rt",
+            "mounted-rider-melee-move-to-attack-tb",
+            "mounted-rider-melee-command-cancel-rt",
+            "mounted-rider-melee-command-cancel-tb",
+            "mounted-rider-melee-command-interrupt-rt",
+            "mounted-rider-melee-command-interrupt-tb",
+            "mounted-rider-melee-combat-end-rt",
+            "mounted-rider-melee-combat-end-tb",
+            "mounted-rider-melee-human-play-path-rt",
+            "mounted-rider-melee-human-play-path-tb"
         };
 
         public string Name { get; set; }
@@ -577,7 +822,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!RuntimeRequest.IsSaveBackedScenario(Scenario))
             {
-                errors.Add("scenario is outside the save-backed Phase 1 allowlist.");
+                errors.Add("scenario is outside the exact save-backed mission allowlist.");
             }
 
             if (Fixture == null)

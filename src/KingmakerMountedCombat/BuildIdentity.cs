@@ -1,0 +1,7 @@
+namespace KingmakerMountedCombat
+{
+    internal static class BuildIdentity
+    {
+        internal const string ProductVersion = "0.1.0-chunk4-preview.54";
+    }
+}

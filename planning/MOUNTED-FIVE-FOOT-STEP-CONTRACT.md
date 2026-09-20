@@ -1,0 +1,41 @@
+# Phase 3D Mounted Five-Foot-Step Contract
+
+Phase 3E final disposition (2026-09-05): `DEFER — EVIDENCED`. K9 failed the prerequisite turn-completion gate, so none of the six mounted five-foot-step/AoO rows was executed and no movement, engagement, or broad AoO patch was added. The fallback package preserves stock separate-turn behavior; it claims neither mounted-step AoO immunity nor a unified-turn step ledger.
+
+Phase 3E dev.11 checkpoint (2026-09-05): dev.10 ended before the five-foot-step tranche. Dev.11 changes only exact redundant-mount initiative selection and adds no movement/AoO production behavior. All six mounted step/control rows remain `TODO` and will run only after scheduler sequencing, ordinary melee/ranged, and combat Mount/Dismount pass in order.
+
+Phase 3E superseding status (2026-09-04): `TODO`. The scheduler vertical slice does not qualify mounted five-foot-step or AoO behavior. Those six controls remain gated behind stable turn completion, sequencing, ranged, and combat Mount/Dismount. Dev.8/dev.9 changes no movement, engagement, opportunity, distance, or resource production seam.
+
+Status: DEFER — EVIDENCED
+
+## Final Phase 3D disposition — 2026-09-04
+
+The exact native root cause and pair-only repair seam below remain source- and contract-valid, but the required runtime control was not reached before the shared-turn executor blocker stopped the bounded tranche. No fresh claim is made that mounted five-foot step avoids AoO, preserves distance/resources, or leaves ordinary and unmounted AoO behavior unchanged. Those six matrix rows remain uncredited; no global AoO suppression was added.
+
+## Root cause
+
+Installed Kingmaker `TurnController.TickMovement` `0x06000C37` treats `MovementLimit.FiveFootStep` as a native step: it tracks a maximum `7.5 ft`, does not increment ordinary Move action, and sets `ImmuneAttackOfOpportunityOnDisengage` for the tick. `UnitCombatState.ShouldAttackOnDisengage` applies that immunity only when the moving target satisfies `UnitEntityData.IsCurrentUnit()`.
+
+In the Phase 3C model the rider is `CurrentUnit` while the mount physically moves. The mount therefore fails the stock current-unit identity test even though the rider turn is in native five-foot-step mode. That identity mismatch explains the observed AoO; it is not evidence that all mounted movement should suppress AoOs.
+
+## Repair seam
+
+The existing exact `UnitCombatState.AttackOfOpportunity(UnitEntityData,bool)` prefix may suppress only when every condition is true:
+
+- relationship is the exact active pair;
+- target is the exact mount physically moving for the current rider-led turn;
+- the current movement command is the exact pair command;
+- current turn movement limit is native `FiveFootStep`;
+- the pair has not exceeded the native step distance;
+- the disengage is caused by that exact step;
+- no ordinary movement has already disqualified the step.
+
+Ordinary movement, attacks, unrelated actors, unmounted units, and a mounted pair outside that exact step state continue through stock AoO logic.
+
+## Resource and distance behavior
+
+Physical movement and pathfinding belong to the mount. Step distance is measured from the mount agent and capped at the native installed distance. The mount ordinary Move cooldown does not increase for a step. Only one step is available. A step after ordinary movement is rejected; ordinary movement after a step remains stock-restricted. Ordinary mounted movement spends mount movement resources and provokes when stock rules say it should.
+
+## Required control
+
+Runtime qualification places an adjacent hostile with a valid AoO and proves all four outcomes in the same exact package: mounted ordinary movement can provoke, mounted five-foot step does not, unmounted five-foot step remains stock, and no global AoO suppression exists. Distance, movement-limit, cooldown, opportunity request/result, and suppression reason are recorded per row.

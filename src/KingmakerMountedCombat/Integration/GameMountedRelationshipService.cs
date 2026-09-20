@@ -8,6 +8,7 @@ using Kingmaker.View;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
+using TurnBased.Controllers;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -19,6 +20,9 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedRelationshipCoordinator coordinator;
         private bool cleanupRetryRequired;
         private CleanupTrigger cleanupRetryTrigger = CleanupTrigger.Exception;
+        private bool nativeTurnBasedExitAiLeaseReassertionPending;
+        private bool nativeTurnBasedExitUiLeaseRestorePending;
+        private long mountedPairGeneration;
         private bool disposed;
 
         public GameMountedRelationshipService(IModLogger logger, DiagnosticSettings settings)
@@ -35,11 +39,46 @@ namespace KingmakerMountedCombat.Integration
 
         public UnitEntityData Mount => runtime.Mount;
 
+        internal long MountedPairGeneration => mountedPairGeneration;
+
         internal KingmakerMountedPairRuntime Runtime => runtime;
+
+        internal bool IsExactCapturedView(UnitEntityData unit) => runtime.IsExactCapturedView(unit);
+
+        internal bool IsChangedViewChildOfOwnedAnchor(UnitEntityData unit) => runtime.IsChangedViewChildOfOwnedAnchor(unit);
+
+        internal string CapturePresentationObservation(bool includeUiOwnership = true) =>
+            "relationship=" + State + ";" + runtime.CapturePresentationObservation(includeUiOwnership);
+
+        public long RiderGroundPlacementSuppressionCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionArmedCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionAttemptCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionMutationCount { get; private set; }
+
+        internal int NativeTurnBasedExitAiLeaseReassertionSuccessCount { get; private set; }
+
+        internal string NativeTurnBasedExitAiLeaseReassertionResult { get; private set; } = "not-requested";
+
+        internal int NativeTurnBasedExitUiLeaseRestoreArmedCount { get; private set; }
+
+        internal int NativeTurnBasedExitUiLeaseRestoreAttemptCount { get; private set; }
+
+        internal int NativeTurnBasedExitUiLeaseRestoreMutationCount { get; private set; }
+
+        internal int NativeTurnBasedExitUiLeaseRestoreSuccessCount { get; private set; }
+
+        internal string NativeTurnBasedExitUiLeaseRestoreResult { get; private set; } = "not-requested";
 
         public string LastResult { get; private set; } = "No diagnostic action has run.";
 
         public TransitionResult LastTransition { get; private set; }
+
+        internal event Action<CleanupTrigger> Dismounting;
+
+        internal event Action<UnitEntityData, UnitEntityData> MountedPairActivated;
 
         public TransitionResult MountSelectedRider()
         {
@@ -57,7 +96,7 @@ namespace KingmakerMountedCombat.Integration
             var selection = SelectionManager.Instance?.SelectedUnits;
             if (selection == null || selection.Count != 1 || selection[0] == null)
             {
-                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one Medium rider with an active rank-7+ Mammoth companion." }, false, false));
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Select exactly one Medium rider with an active supported companion." }, false, false));
             }
 
             var rider = selection[0];
@@ -67,9 +106,39 @@ namespace KingmakerMountedCombat.Integration
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { "Selected rider has no active companion." }, false, false));
             }
 
+            return MountRiderOn(rider, mount);
+        }
+
+        public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount)
+        {
+            ThrowIfDisposed();
+            if (settings.EnablePairedActivation && (rider?.IsInCombat == true || mount?.IsInCombat == true ||
+                Game.Instance?.Player?.IsInCombat == true))
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Mount before combat to establish paired activation ownership." }, false, false));
+            if (!settings.EnableUnsafeMovementExperiment)
+            {
+                return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
+            }
+            if (coordinator.State != RelationshipState.Unmounted)
+            {
+                return Record(coordinator.Mount(null));
+            }
+            if (rider == null || mount == null)
+            {
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "An exact rider and supported active companion are required." }, false, false));
+            }
+
             runtime.Prepare(rider, mount);
             var result = coordinator.Mount(runtime.CreateCandidate());
             ObserveCleanupState(result);
+            if (result.Succeeded)
+            {
+                mountedPairGeneration = checked(mountedPairGeneration + 1);
+                ResetNativeTurnBasedExitAiLeaseEvidence();
+                MountedPairActivated?.Invoke(rider, mount);
+            }
             if (!result.Succeeded)
             {
                 runtime.ClearPreparedPairWhenUnmounted();
@@ -78,6 +147,15 @@ namespace KingmakerMountedCombat.Integration
         }
 
         public bool TryResolveAutomationPair(out UnitEntityData rider, out UnitEntityData mount, out string error)
+        {
+            return TryResolveAutomationPair(KingmakerMountedPairRuntime.MammothBlueprintGuid, out rider, out mount, out error);
+        }
+
+        public bool TryResolveAutomationPair(
+            string expectedMountBlueprintGuid,
+            out UnitEntityData rider,
+            out UnitEntityData mount,
+            out string error)
         {
             ThrowIfDisposed();
             rider = null;
@@ -92,10 +170,12 @@ namespace KingmakerMountedCombat.Integration
 
             var candidates = party.Where(unit =>
                 unit != null && unit.Descriptor?.Pet != null && unit.Descriptor.Pet.Blueprint != null &&
-                string.Equals(unit.Descriptor.Pet.Blueprint.AssetGuid, KingmakerMountedPairRuntime.MammothBlueprintGuid, StringComparison.Ordinal)).ToList();
+                string.Equals(unit.Descriptor.Pet.Blueprint.AssetGuid, expectedMountBlueprintGuid, StringComparison.Ordinal)).ToList();
             if (candidates.Count != 1)
             {
-                error = "Expected exactly one party rider with the exact Mammoth active companion; observed " + candidates.Count + ".";
+                var profile = SupportedMountedProfiles.Resolve(expectedMountBlueprintGuid);
+                error = "Expected exactly one party rider with the exact " +
+                    (profile?.DisplayName ?? "supported mount") + " active companion; observed " + candidates.Count + ".";
                 return false;
             }
 
@@ -115,6 +195,11 @@ namespace KingmakerMountedCombat.Integration
 
         public TransitionResult MountAutomationPair()
         {
+            return MountAutomationPair(KingmakerMountedPairRuntime.MammothBlueprintGuid);
+        }
+
+        public TransitionResult MountAutomationPair(string expectedMountBlueprintGuid)
+        {
             ThrowIfDisposed();
             if (!settings.EnableUnsafeMovementExperiment)
             {
@@ -128,19 +213,12 @@ namespace KingmakerMountedCombat.Integration
             UnitEntityData rider;
             UnitEntityData mount;
             string error;
-            if (!TryResolveAutomationPair(out rider, out mount, out error))
+            if (!TryResolveAutomationPair(expectedMountBlueprintGuid, out rider, out mount, out error))
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { error }, false, false));
             }
 
-            runtime.Prepare(rider, mount);
-            var result = coordinator.Mount(runtime.CreateCandidate());
-            ObserveCleanupState(result);
-            if (!result.Succeeded)
-            {
-                runtime.ClearPreparedPairWhenUnmounted();
-            }
-            return Record(result);
+            return MountRiderOn(rider, mount);
         }
 
         internal TransitionResult RejectSyntheticInvalidPairForAutomation()
@@ -162,15 +240,37 @@ namespace KingmakerMountedCombat.Integration
                 return new TransitionResult(true, coordinator.State, trigger, new string[0], false, false);
             }
 
+            try
+            {
+                Dismounting?.Invoke(trigger);
+            }
+            catch (Exception exception)
+            {
+                logger.Exception("Mounted combat cancellation before relationship cleanup", exception);
+            }
+
             var result = coordinator.Dismount(trigger);
             ObserveCleanupState(result);
             runtime.ClearPreparedPairWhenUnmounted();
             return Record(result);
         }
 
-        public bool RouteGroundCommand(ref UnitEntityData unit)
+        public bool RouteGroundCommand(ref UnitEntityData unit, bool pairedMountInput = false)
         {
             if (unit == null || coordinator.State != RelationshipState.Mounted || coordinator.ActivePair == null)
+            {
+                return true;
+            }
+
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var exactMountSelection = selected != null && selected.Count == 1 && selected[0] == runtime.Mount;
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            if (MountedTurnSelectionPolicy.CanUseNativeMountTurnGroundCommand(
+                true,
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == runtime.Mount || pairedMountInput,
+                unit == runtime.Mount,
+                exactMountSelection))
             {
                 return true;
             }
@@ -194,9 +294,15 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        public bool NormalizeSingleSelection(ref UnitEntityView view, bool single)
+        public bool NormalizeSingleSelection(ref UnitEntityView view, bool single, bool pairedMountInput = false)
         {
-            if (coordinator.State == RelationshipState.Mounted && runtime.Mount?.View == view && runtime.Rider?.View != null)
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var disposition = MountedTurnSelectionPolicy.Classify(
+                coordinator.State == RelationshipState.Mounted,
+                runtime.Mount?.View == view,
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == runtime.Mount || pairedMountInput);
+            if (disposition == MountedSelectionDisposition.ProjectMountToRider && runtime.Rider?.View != null)
             {
                 view = runtime.Rider.View;
             }
@@ -213,7 +319,28 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
-        public void NormalizeMultiSelection(ref IEnumerable<UnitEntityView> views)
+        public bool TrySuppressRiderGroundPlacement(UnitEntityView view)
+        {
+            var riderView = runtime.Rider?.View;
+            if (riderView == null || view == null)
+            {
+                return false;
+            }
+
+            if (!MountedRiderGroundingPolicy.ShouldSuppress(
+                coordinator.State,
+                coordinator.ActivePair != null,
+                riderView,
+                view))
+            {
+                return false;
+            }
+
+            RiderGroundPlacementSuppressionCount++;
+            return true;
+        }
+
+        public void NormalizeMultiSelection(ref IEnumerable<UnitEntityView> views, bool pairedMountInput = false)
         {
             if (views == null || coordinator.State != RelationshipState.Mounted || runtime.Rider?.View == null || runtime.Mount?.View == null)
             {
@@ -221,9 +348,15 @@ namespace KingmakerMountedCombat.Integration
             }
 
             var normalized = new List<UnitEntityView>();
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var preserveNativeMountTurn = MountedTurnSelectionPolicy.Classify(
+                true,
+                true,
+                CombatController.IsInTurnBasedCombat(),
+                turn?.Unit == runtime.Mount || pairedMountInput) == MountedSelectionDisposition.PreserveNativeMountTurn;
             foreach (var view in views)
             {
-                var effective = view == runtime.Mount.View ? runtime.Rider.View : view;
+                var effective = view == runtime.Mount.View && !preserveNativeMountTurn ? runtime.Rider.View : view;
                 if (effective != null && !normalized.Contains(effective))
                 {
                     normalized.Add(effective);
@@ -234,18 +367,40 @@ namespace KingmakerMountedCombat.Integration
 
         public void ForwardStopOrHold()
         {
-            if (coordinator.State == RelationshipState.Mounted)
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            if (coordinator.State == RelationshipState.Mounted &&
+                (UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selected, runtime.Rider) ||
+                 UnifiedMountedStockAttackPolicy.ContainsExactPrincipal(selected, runtime.Mount)))
             {
                 runtime.CancelMountMovement();
             }
         }
 
-        public void HandleUnexpectedPairCommand(UnitEntityData executor)
+        internal bool IsExactActivePairUnit(UnitEntityData unit)
         {
-            if (coordinator.State == RelationshipState.Mounted && (executor == runtime.Rider || executor == runtime.Mount))
+            return coordinator.State == RelationshipState.Mounted &&
+                unit != null && (unit == runtime.Rider || unit == runtime.Mount);
+        }
+
+        public bool RouteContinuousMove(ref UnitEntityData executor)
+        {
+            if (!IsExactActivePairUnit(executor))
             {
-                Dismount(CleanupTrigger.UnexpectedCommand);
+                return true;
             }
+
+            if (executor == runtime.Rider)
+            {
+                if (runtime.Mount == null)
+                {
+                    logger.Warning("Rejected mounted continuous movement because the exact physical mover was unavailable; relationship retained for invariant validation.");
+                    return false;
+                }
+                executor = runtime.Mount;
+                logger.Info("Routed exact rider continuous movement through the mounted physical mover without relationship cleanup.");
+            }
+
+            return true;
         }
 
         public bool GuardBoundary(CleanupTrigger trigger)
@@ -253,6 +408,13 @@ namespace KingmakerMountedCombat.Integration
             var result = Dismount(trigger);
             return result.Succeeded && !result.MovementAuthorityResidual && !result.PresentationResidual &&
                 coordinator.State == RelationshipState.Unmounted;
+        }
+
+        internal void BeginNativeMovementUpdate()
+        {
+            if (disposed || coordinator.State != RelationshipState.Mounted ||
+                !runtime.IsExactCapturedView(runtime.Rider) || !runtime.IsExactCapturedView(runtime.Mount)) return;
+            runtime.MovementAgent?.BeginNativeMovementUpdate();
         }
 
         public void ValidateActivePair()
@@ -264,18 +426,177 @@ namespace KingmakerMountedCombat.Integration
 
             if (coordinator.State != RelationshipState.Mounted)
             {
+                nativeTurnBasedExitAiLeaseReassertionPending = false;
+                nativeTurnBasedExitUiLeaseRestorePending = false;
                 return;
             }
+
+            CompleteNativeTurnBasedExitAiLeaseReassertion();
+            CompleteNativeTurnBasedExitUiLeaseRestore();
 
             var error = runtime.ValidateMountedInvariants();
             if (error != null)
             {
                 logger.Warning("Mounted invariant invalidated: " + error);
-                Dismount(CleanupTrigger.CompanionInvalidated);
+                Dismount(runtime.HasRiderViewReplacement ? CleanupTrigger.ViewReplaced : CleanupTrigger.CompanionInvalidated);
                 if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
                 {
                     RetryFailedCleanupOrThrow();
                 }
+            }
+        }
+
+        internal void ObserveNativeTurnBasedModeChanged(bool enabled)
+        {
+            if (enabled || coordinator.State != RelationshipState.Mounted)
+            {
+                nativeTurnBasedExitAiLeaseReassertionPending = false;
+                nativeTurnBasedExitUiLeaseRestorePending = false;
+                return;
+            }
+
+            nativeTurnBasedExitAiLeaseReassertionPending = true;
+            NativeTurnBasedExitAiLeaseReassertionArmedCount++;
+            NativeTurnBasedExitAiLeaseReassertionResult = "armed";
+            nativeTurnBasedExitUiLeaseRestorePending = true;
+            NativeTurnBasedExitUiLeaseRestoreArmedCount++;
+            NativeTurnBasedExitUiLeaseRestoreResult = "armed";
+        }
+
+        internal UnitEntityData CaptureNativeCombatEndMount()
+        {
+            return coordinator.State == RelationshipState.Mounted && runtime.MountAiLeaseOwned ? runtime.Mount : null;
+        }
+
+        internal void CompleteNativeCombatEndMountLease(CombatController controller, UnitEntityData capturedMount)
+        {
+            if (!NativeTurnBasedExitAiLeasePolicy.OwnsCompletedCombatEnd(
+                controller != null && ReferenceEquals(controller, Game.Instance?.TurnBasedCombatController),
+                controller != null && !controller.Initialized,
+                capturedMount != null && ReferenceEquals(capturedMount, runtime.Mount),
+                coordinator.State == RelationshipState.Mounted, runtime.MountAiLeaseOwned)) { return; }
+
+            // Native HandleCombatEnd enables every controllable unit's AI even when the
+            // user's TB option remains enabled. Reacquire only our captured owned lease
+            // after that exact native write, before a new encounter can initialize.
+            ObserveNativeTurnBasedModeChanged(false);
+            CompleteNativeTurnBasedExitAiLeaseReassertion();
+        }
+
+        private void CompleteNativeTurnBasedExitAiLeaseReassertion()
+        {
+            var controller = Game.Instance?.TurnBasedCombatController;
+            var disposition = NativeTurnBasedExitAiLeasePolicy.Classify(
+                nativeTurnBasedExitAiLeaseReassertionPending,
+                coordinator.State == RelationshipState.Mounted,
+                CombatController.IsInTurnBasedCombat(),
+                controller != null && controller.Initialized,
+                runtime.MountAiLeaseOwned,
+                runtime.MountRawAiEnabled);
+            if (disposition == NativeTurnBasedExitAiLeaseDisposition.NotPending ||
+                disposition == NativeTurnBasedExitAiLeaseDisposition.AwaitNativeControllerClear)
+            {
+                return;
+            }
+
+            nativeTurnBasedExitAiLeaseReassertionPending = false;
+            NativeTurnBasedExitAiLeaseReassertionAttemptCount++;
+            if (disposition == NativeTurnBasedExitAiLeaseDisposition.RejectInexactLease)
+            {
+                NativeTurnBasedExitAiLeaseReassertionResult = "rejected-inexact-lease";
+                return;
+            }
+
+            if (disposition == NativeTurnBasedExitAiLeaseDisposition.AlreadyExact)
+            {
+                NativeTurnBasedExitAiLeaseReassertionSuccessCount++;
+                NativeTurnBasedExitAiLeaseReassertionResult = "already-exact";
+                return;
+            }
+
+            NativeTurnBasedExitAiLeaseReassertionMutationCount++;
+            if (runtime.ReassertMountAiLeaseAfterNativeTurnBasedExit())
+            {
+                NativeTurnBasedExitAiLeaseReassertionSuccessCount++;
+                NativeTurnBasedExitAiLeaseReassertionResult = "reasserted";
+                logger.Info("Reasserted the exact owned mount AI-disable lease after native TB combat-controller shutdown.");
+            }
+            else
+            {
+                NativeTurnBasedExitAiLeaseReassertionResult = "reassertion-failed";
+            }
+        }
+
+        private void ResetNativeTurnBasedExitAiLeaseEvidence()
+        {
+            nativeTurnBasedExitAiLeaseReassertionPending = false;
+            nativeTurnBasedExitUiLeaseRestorePending = false;
+            NativeTurnBasedExitAiLeaseReassertionArmedCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionAttemptCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionMutationCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionSuccessCount = 0;
+            NativeTurnBasedExitAiLeaseReassertionResult = "not-requested";
+            NativeTurnBasedExitUiLeaseRestoreArmedCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreAttemptCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreMutationCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreSuccessCount = 0;
+            NativeTurnBasedExitUiLeaseRestoreResult = "not-requested";
+        }
+
+        private void CompleteNativeTurnBasedExitUiLeaseRestore()
+        {
+            var rider = runtime.Rider;
+            var selection = SelectionManager.Instance;
+            var selected = selection?.SelectedUnits;
+            var exactRiderSelected = rider != null && selected != null &&
+                selected.Count == 1 && selected[0] == rider;
+            var aiLeaseBoundaryCompleted =
+                NativeTurnBasedExitAiLeaseReassertionAttemptCount == 1 &&
+                NativeTurnBasedExitAiLeaseReassertionSuccessCount == 1;
+            var disposition = NativeTurnBasedExitUiLeasePolicy.Classify(
+                nativeTurnBasedExitUiLeaseRestorePending,
+                coordinator.State == RelationshipState.Mounted,
+                CombatController.IsInTurnBasedCombat(),
+                Game.Instance?.CurrentMode.ToString(),
+                aiLeaseBoundaryCompleted,
+                rider != null && runtime.IsExactCapturedView(rider),
+                exactRiderSelected);
+            if (disposition == NativeTurnBasedExitUiLeaseDisposition.NotPending ||
+                disposition == NativeTurnBasedExitUiLeaseDisposition.AwaitNativeRealtimeBoundary)
+            {
+                return;
+            }
+
+            nativeTurnBasedExitUiLeaseRestorePending = false;
+            NativeTurnBasedExitUiLeaseRestoreAttemptCount++;
+            if (disposition == NativeTurnBasedExitUiLeaseDisposition.RejectInexactPair)
+            {
+                NativeTurnBasedExitUiLeaseRestoreResult = "rejected-inexact-pair";
+                return;
+            }
+
+            if (disposition == NativeTurnBasedExitUiLeaseDisposition.AlreadyExact)
+            {
+                NativeTurnBasedExitUiLeaseRestoreSuccessCount++;
+                NativeTurnBasedExitUiLeaseRestoreResult = "already-exact";
+                return;
+            }
+
+            NativeTurnBasedExitUiLeaseRestoreMutationCount++;
+            if (selection != null && rider?.View != null)
+            {
+                selection.SelectUnit(rider.View, true, true, false);
+                selected = selection.SelectedUnits;
+            }
+            if (selected != null && selected.Count == 1 && selected[0] == rider)
+            {
+                NativeTurnBasedExitUiLeaseRestoreSuccessCount++;
+                NativeTurnBasedExitUiLeaseRestoreResult = "reselected-rider";
+                logger.Info("Restored the exact rider selection/UI principal after native TB combat-controller shutdown.");
+            }
+            else
+            {
+                NativeTurnBasedExitUiLeaseRestoreResult = "selection-restore-failed";
             }
         }
 

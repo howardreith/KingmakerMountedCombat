@@ -1,0 +1,299 @@
+# Phase 3E Paired-Command Scheduler Contract
+
+Status: BLOCKED — CRITICAL
+
+## Final contract disposition — bounded fallback
+
+The pair-local lease and Option A command eligibility contract is technically proven for one exact in-range mount attack. Dev.4 A/B totals are `140 PASS / 0 FAIL`; each run retains rider `CurrentTurn.Unit`, one mount Standard charge, zero rider cost, one exact mount attack/roll/damage chain, one start, one terminal result, one cleanup, and zero duplicate-frame or foreign-command drives.
+
+Unified turn completion is not accepted. Final audited dev.12 Horse rerun `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun` passed the exact Horse Mount Primary row with admission/grant/start/last-drive frames `5678/5679/5680/5687`, drive/start/terminal/resource counts `9/1/1/1`, exact Horse Bite ownership, zero rider cost, and disposed cleanup. After later rider work, native `ChooseNextUnit` retained the redundant Horse, KMC raised `ChooseNextUnit retained the exact redundant mount`, entered safe fallback, and the suite timed out. K9 is `FAIL`; the two-cycle budget is exhausted.
+
+The rider-owned scheduling shell is `FEATURE-NOT-PRESENT`. The historical wrapper at `2b25bb45556ff62b9f421963ae81dc4d75d63412` is contract-invalid because its rider-resident Standard shell spends rider Standard. A newly compliant shell could leave the mount child as action/rule/weapon/resource owner, but it would terminate before the later initiative defect and therefore cannot solve K9. No shell is added.
+
+The shipping disposition keeps all scheduler code dormant and nonserialized. Fresh defaults are `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`; the accepted separate-turn path remains authoritative. Re-enabling either experiment is diagnostic-only and makes no qualification claim.
+
+## Dev.11 result and dev.12 diagnostic traversal contract
+
+Clean dev.11 commit/package/suite are `b50a44cdfdf160f06f19ee48b8c5af7afc2385fa` / `4cc3fd262c06a112d5bdca92032ca0b65262623608c4ba454bc284307425a4a4` / `2577387f77bbf569e50a224b9acc5251be7078e92f9ec431a6785b18c5648b33`; full-continuity WhatIf passed. Immutable audited run `20260905T051700Z-phase3e-dev11-horse-tb-gate2` proves the exact post-`CombatController.Tick` repair skipped the mounted Horse and left the next unrelated native unit in its original order. There was no fallback and no native Horse turn. The production K9 defect found in dev.10 is repaired.
+
+The run stopped because the next unit, `b6628a77-4962-47a4-a17c-88d9836fc9d5`, was a legitimate directly controllable member of the exact five-unit combat roster and waited for player input in `Preparing`. This does not authorize another turn selector, `StartTurn`, arbitrary unit advancement, or a production patch. Dev.12 adds one diagnostic-only native end-input seam with all of these preconditions:
+
+- the roster was snapshotted by reference after native TB initialization and contains rider, Horse, and diagnostic hostile exactly once;
+- the current turn is not the desired test actor, is reference-identical to one roster entry, is actionable, and has not been ended previously through this helper;
+- the actor is directly controllable and belongs to the rider's exact player-party group;
+- a non-pair actor is reference-identical to a member of the already-active reversible `DiagnosticNonPairPartyAiLease`; the other pair actor is eligible only while unmounted and only for an explicitly declared spent-ledger control transition;
+- command container, hands, equipment, KMC pair command/movement/intent state, pending native unit, UI guard, mode, pause, and two-frame stability gates are all clear;
+- a mounted Horse current turn, hostile/foreign/non-roster unit, busy command, duplicate turn reference, or resource mutation fails closed;
+- the sole mutation is native `TurnController.ForceToEnd(false)`, once. Rider/Horse/current-unit/initiative fields are never assigned and no command is advanced.
+
+Evidence schema 6 must list the roster and every diagnostic end-turn input in observed order, bind each unit/purpose/round/role, prove exact reference/lease/readiness gates, prove unchanged Standard and Move cooldowns across the call, and retain zero duplicate, foreign, resource-mutation, or mounted-Horse observations. Historical schemas 1-5 remain immutable and valid. This is conservatively repair cycle 2/2; any further non-isolatable K9 failure reaches the bounded fallback decision.
+
+## Dev.10 exact turn-selection defect and dev.11 contract
+
+Clean dev.10/audited run identities are `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9` / `20260905T030300Z-phase3e-dev10-horse-tb-gate2`. The run passed exact pre-mounted rider initiative/tracker/UI/ledger and rider-only action ownership before emitting a native Horse turn. At the failure boundary the Horse was `CurrentTurn.Unit` in `Preparing`; no scheduler lease or Horse attack had been admitted.
+
+Exact installed control flow establishes the defect. `CombatController.Tick` `0x06000BD1` calls `ChooseNextUnit` `0x06000BD2` before clearing the ended rider `CurrentTurn`. The selection method searches from `CurrentTurn?.Unit ?? m_NextUnit`; therefore a recursive skip inside its postfix still searches from the rider and selects the same pending Horse. The safe native seam is one delayed call after `Tick` clears `CurrentTurn`, when `m_NextUnit` is the search origin.
+
+Dev.11 permits this call only when all of the following remain true: unified mode is enabled; TB combat is active; the coordinator is not disposed or reentrant; `CurrentTurn == null`; `m_NextUnit` is the reference-exact active mount; relationship generation and round suppression policy still require that mount slot to be skipped. The exact native call must replace the candidate; otherwise existing fallback applies. The implementation does not assign current-turn state, start a turn, advance a command, or alter initiative/resources/UI. The early postfix only observes and increments a deferred count.
+
+The Horse scheduler result is schema 5. A PASS must show the rider current before/after; at least one deferred and one post-Tick exact skip; no architecture fallback; exact KMC Horse Standard command/type/origin/target/weapon; one start/terminal/resource charge; at most one drive per frame; no interrupt/foreign adoption; final `Disposed` with cleanup count one; Horse Standard spent and rider Standard unchanged; one Horse attack/roll, at most one damage, exact Horse animation; and no native Horse turn. Historical schemas 1-4 remain accepted. This consumes repair cycle 1/2 for K9; a repeated non-isolatable duplicate/skip/deadlock reaches the remaining bounded decision rather than authorizing a global controller.
+
+## Dev.9 result and dev.10 pre-mounted Gate 2 setup contract
+
+Clean guarded-published dev.9 is commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4`, version `0.1.0-phase3e-dev.9`. Package ZIP/manifest/DLL SHA-256 are `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`; DLL MVID is `72c99d26-4420-437a-86d2-2b331b7aa69a`. Suite `20260904T232500Z-phase3e-dev9-horse-tb-suite8` is `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0`; full-continuity WhatIf passed. Immutable live run `20260905T010000Z-phase3e-dev9-horse-tb-gate2` is game `FAIL 42/2` and its independent audit passed before evidence read.
+
+Dev.9 conclusively closes the rider-shell start question. The exact native-click `UnitUseAbility` was admitted at frame `4993`, stock `TickCommandTurnBased` visited it once and returned eligible, and stock started and completed it `Success` at frame `4994`. It remained the exact rider/Move/Horse/ability command, `CreatedByPlayer=false`, `AiAction==null`, with zero duplicate tick. The installed game log then records `NativeMountedAbilityLogic.Deliver -> TryExecuteNativeMount -> MountedPairCandidate.Validate` rejecting the relationship transition only because `RiderIsInCombat || MountIsInCombat || PartyIsInCombat`: `Private-alpha mounting is available only outside combat.` This is not a scheduler lease, predicate, start, tick, ownership, ledger, or turn-completion defect. No scheduler repair cycle and no K1-K12 criterion is consumed.
+
+The Phase 3E qualification order places combat Mount/Dismount after the scheduler vertical slice, turn completion, sequencing, melee/ranged, and movement gates. Dev.10 therefore must not weaken `MountedPairCandidate.Validate`, add a combat bypass, or credit/relabel the failed combat-Mount row. The exact Horse TB diagnostic will instead use the already-qualified parent-engine native out-of-combat Mount path as setup, require the exact mounted Horse relationship and healthy pose, then:
+
+- acquire and validate reversible, pair-exact Horse and rider AI-isolation leases before the disposable target exists; each eligibility predicate may accept `Unmounted` only during legacy setup or the reference-exact `Mounted` rider/Horse pair, never a different or faulted relationship;
+- create the one disposable hostile only after both leases validate, wait for exact mounted combat, request the native RT-to-TB transition, and wait for Kingmaker's natural rider turn without calling `StartTurn`;
+- require the same pending-unit, `WaitingForUI`, AwakeUnits, view, mode, nausea, selection, hands, equipment, empty-command, target, and current-rider gates before entering the existing rider-first/mount-second TB sequence;
+- observe the unified roster/tracker/initiative/separate-ledger projection at that natural rider turn, while assigning no combat-Mount row and claiming no setup action cost;
+- retain exact cleanup/restoration of both AI leases, the scheduler setting, mode lease, target, relationship, selection, and equipment on every terminal path.
+
+This is diagnostic orchestration only. `MountedPairCommandScheduler`, its Harmony seam, command origin, relationship domain policy, combat action routing, cooldown ownership, turn completion, RT behavior, presentation, and both default-off settings remain byte-behavior unchanged. Horse evidence may advance once to bind the new setup. The external validator must report an underlying game failure truthfully rather than replacing it with a structural mapping error. One clean dev.10 package/run must attribute all reached existing rows before another code change.
+
+## Dev.9 rider-shell provenance boundary
+
+The rider-owned native Mount ability shell and the scheduler-leased mount attack have intentionally different provenance contracts. Exact Kingmaker `ClickWithSelectedAbilityHandler.OnClick` creates the rider `UnitUseAbility` through `CreateCastCommand` and `UnitCommands.Run` without writing `CreatedByPlayer`; the truthful native-player proof is one exact target-selection/cast-request lifecycle, exact rider/Horse/ability/Move-slot identity, `CreatedByPlayer=false`, and `AiAction==null`. By contrast, KMC itself creates the mount-owned `MountedPairAttackCommand` and explicitly sets `CreatedByPlayer=true`; the scheduler continues to require that flag and `AiAction==null` before leasing it.
+
+Dev.8 stopped at the first boundary because its diagnostic incorrectly applied the second contract to the first. Dev.9 corrects diagnostics/evidence only, advances Horse evidence to schema 3, and preserves schema 1/2. It does not alter `MountedPairCommandScheduler`, native eligibility, relationship, ledgers, turn completion, movement, combat routing, fallback settings, or any runtime default.
+
+## Dev.2 implementation checkpoint
+
+The primary Option A implementation is offline-complete on published parent `80a75ee6b3011cb4ec52d1b296776db25f6b0f15`, version `0.1.0-phase3e-dev.2`. `MountedPairCommandScheduler` is an injected runtime-only service and `PairedCommandSchedulerLeaseStateMachine` is a Unity-independent domain object. Harmony retains only the exact installed `TickCommandTurnBased` postfix and no lease fields.
+
+The service registers before `UnitCommands.Run`, confirms the exact mount Standard slot afterward, and may extend only the returned eligibility Boolean for that same object. It independently revalidates pair/generation/turn/executor/slot/queue/origin/AwakeUnits/UI/mode/status gates on every native encounter and every service update. An unexpected stock-true result is forced false and faulted; the implementation never explicitly starts or ticks a command, mutates current turn/status, writes a cooldown/result, or adopts AoO/AI/foreign work.
+
+Offline gates pass source `22/0`, Release, component `315/0`, visual/source-order `18/0`, harness/protocol `241/0`, and exact assembly `388/0`. Schema 56 binds the runtime lease and independent ledgers. This is not runtime credit: fresh clean-package vertical-slice A/B remain mandatory before any broader tranche.
+
+## Dev.2 audited runtime attribution and actionable-frame definition
+
+Immutable run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` proves the primary Option A seam executes the complete vertical-slice gameplay lifecycle. The exact command was admitted at frame `3982`, native `WaitingForUI` remained a hard false gate until the first eligible scheduler grant at frame `4293`, and stock observed command start at frame `4294`. It then drove once per frame, completed `Success`, charged the mount Standard exactly once, left rider Standard unchanged, emitted one mount-owned attack/roll/damage chain, retained the rider as `CurrentTurn.Unit`, emitted no native mount turn, and cleaned the exact lease/slot with no fault or residue.
+
+That run remains immutable `FAIL 69/1` and receives no Gate 1 credit because both the in-game assertion and external schema validator incorrectly measured `startObservedFrame - admissionFrame <= 2`. Frames blocked by the preserved native `WaitingForUI` predicate are not actionable. For this contract an **actionable game frame** is a frame on which the exact native hard gates and pair-local lease gates all pass and the scheduler grants eligibility; `firstGrantFrame` is its durable boundary. Acceptance therefore requires `admissionFrame <= firstGrantFrame <= startObservedFrame` and `startObservedFrame - firstGrantFrame <= 2`. It does not weaken, bypass, or place a time bound on native UI staging.
+
+Version `0.1.0-phase3e-dev.3` changed only that diagnostic calculation and its regression tests. Its fresh run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` is immutable outer `FAIL`, game `PASS 70/0`: the exact lease granted at frame `4309`, stock started on `4310`, one mount-owned chain and Standard charge completed, rider Standard/current identity remained exact, and cleanup was residue-free. Audit-before-read passed exact suite/save/Mods/Baseline/Working continuity.
+
+That gameplay PASS exposed a second latent external-validator contradiction: schema 55/56 PASS fixtures required raw action-actor `CanActInCombat=false`, although dev.21, dev.2, and dev.3 all record `true` at entry and dispatch. Version `0.1.0-phase3e-dev.4` changes only those two external expectations and reverses their synthetic mutation. The repaired validator accepts immutable dev.3 evidence and the complete harness passes `241/0`. Scheduler implementation/schema/thresholds are unchanged; this consumes no scheduler repair cycle. Fresh dev.4 A/B runtime remains mandatory and neither prior failure will be relabeled.
+
+Dev.4 Gate 1 qualification: clean published commit `27e088b4dafe4d449127b5e2920f09b3a0ed4f79`, package/manifest/DLL SHA-256 `c6636c54eaee15bc1ab7c1c72a867dd0d0bc9ff62ae14d3a62dbd61672da3d7a` / `de999807ffa2114a5b9468c1679b73c5da757329105464a606ef8eb5ce1945aa` / `7f17fbc50ad282eef797be74e807cb6b89d769e3e924d359d4d746939080a13c`, MVID `59008275-8bb0-4763-804a-b4175d917a99`, suite snapshot `686f131a580377ca0b77ffc28bdd3d04eb12bfc0f6d24d8f59ad5ceb1963ce7b`. Fresh A/B each pass `70/0`, begin one actionable frame after first grant, drive `235` distinct frames, terminate once, charge mount Standard once, leave rider Standard unchanged, retain rider current identity and mount command/weapon/rule ownership, emit no mount turn, and clean with no residue. This closes the minimal command-execution gate at `140/0` without consuming a repair cycle. Exact native turn advancement remains a separate Gate 2 observation.
+
+Gate 2 dev.5 seam: `Phase3dHorseScenarioTranche` may capture the incoming `EnablePairedCommandScheduler` value, set it true only when `request.Scenario` is the exact existing turn-based Horse tranche, and restore the captured value in `BestEffortCleanup`. Cleanup success and evidence must require both the scheduler and unsafe-movement settings to equal their captured inputs. The real-time and presentation Horse tranches must not enable the scheduler. This is diagnostic orchestration only: it adds no production command seam, turn mutation, ledger reset, movement driver, attack route, or new runtime row. One clean-package Horse TB process will first attribute which existing Phase 3D rows pass with the qualified scheduler before any missing Gate 2 instrumentation is added.
+
+## Dev.5 Horse TB intake failure and dev.6 diagnostic-isolation contract
+
+Immutable run `20260904T155035Z-phase3e-dev5-horse-tb-gate2` is outer/game `FAIL` before Mount admission. Its exact `AwaitRiderTurnForMount` checkpoint observed the rider as reference-exact, actionable `CurrentTurn.Unit` for all `2,520` sampled frames, with zero rider-turn mismatch, status-blocked, or rider-command-blocked frames. The sole blocker was one unstarted foreign Horse Standard `UnitAttack`: `CreatedByPlayer=false`, `AIAction=BlueprintAiAttack`, exact Horse executor, and no KMC lease. The paired scheduler correctly refused to adopt or drive it. No mount relationship, scheduler lease, KMC attack, rule, resource, or turn-completion path ran, so this is a diagnostic fixture-isolation failure and consumes no scheduler repair cycle.
+
+The dev.6 diagnostic repair must reuse the existing `ScopedDiagnosticAiLease<UnitEntityData>` and its existing exact restoration checks. In the Horse TB tranche only, after optional pre-combat Horse adjacency movement has completed and before `BeginTarget` creates the disposable hostile, enter a distinct bounded state that:
+
+- requires the relationship to remain unmounted, both pair command containers to be empty, the Horse to remain directly controllable in the rider group, and the exact reflected AI backing field contract to remain available;
+- acquires and validates the existing reversible Horse AI lease for two stable frames;
+- records the active lease observation before target creation;
+- then creates the disposable target and continues the unchanged native combat/turn/Mount path;
+- keeps the Horse brain disabled while direct diagnostic inputs create only the explicitly tested commands;
+- restores the exact captured AI state through the existing `BestEffortCleanup` path on PASS, FAIL, exception, or deadline.
+
+The repair must not interrupt or remove the already-preserved dev.5 foreign command, broaden scheduler eligibility, weaken the `horse.Commands.Empty` admission guard, enable a KMC lease for AI work, change production command routing, or alter RT/presentation scenarios. Source-order tests must prove AI isolation precedes target creation on both already-adjacent and movement-required branches, and that target creation cannot occur from the new state before the lease validates.
+
+## Dev.6 native Mount-shell intake failure and dev.7 diagnostic-readiness contract
+
+Immutable run `20260904T174752Z-phase3e-dev6-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`. Its independent audit passed before evidence inspection and re-proved the exact suite, save metadata/content, Mods, Baseline, Working, lock, sentinel, live-deployment, and process state. Dev.6 satisfied its intended boundary: the exact Horse AI lease acquired before target creation, validated for two stable frames, kept the Horse command container empty with raw/effective AI false, and restored raw/effective AI exactly during cleanup.
+
+The next blocker was independent and rider-local. Before the diagnostic `StartTurn(rider)` request, exact Kingmaker had created one unstarted rider Standard `UnitAttack` with `CreatedByPlayer=false` and `AIAction=BlueprintAiAttack`. Native rider-turn preparation removed that foreign command, but the rider's hands remained busy. The diagnostic then admitted the genuine rider-owned `UnitUseAbility` Mount shell into the rider Move slot while the exact current rider turn was `Preparing`; the shell reported `CanStart=true`, legal proximity, and `executorHandsBusy=true`, remained unstarted for the 30-second leaf deadline, and completed only during cleanup after the mode lease restored real time. The Mount transition correctly refused at that later boundary with `real-time/turn-based mode changed`. No mounted relationship, paired-scheduler lease, mount-owned command, attack rule, damage, or scheduler resource path ran. This is a second diagnostic fixture/readiness failure, not a production scheduler failure; it consumes no scheduler repair cycle and fires no kill criterion.
+
+Exact Kingmaker requires player input to be admitted while a directly controllable turn is `Preparing`: waiting for `TurnController.IsActing` while the rider command container is empty would deadlock the stock player-input boundary. Dev.7 therefore keeps `Preparing` eligible for admission, but the Horse TB diagnostic must additionally:
+
+- acquire a separate reversible `ScopedDiagnosticAiLease<UnitEntityData>` for the reference-exact rider after the Horse lease validates and before the disposable hostile target is created;
+- require the rider to be directly controllable, in the exact Horse player group, unmounted, out of combat, target-free, and command-empty at acquisition; refuse rather than interrupt or adopt any preexisting rider command;
+- validate raw/effective rider AI false and an empty rider command container for two stable frames, then record the lease before target creation;
+- before the native Mount click, require the exact rider current turn in `Preparing` or `Acting`, both pair command containers empty, rider hands not busy, the exact hands-equipment controller present, and no scheduled rider equipment update for two stable frames;
+- record separate rider-hands and rider-equipment blocked-frame counters in the existing admission progress checkpoint so a later deadline remains attributable;
+- restore the rider's exact captured raw/effective AI state after interrupting only the diagnostic rider command during cleanup, and make cleanup PASS depend on verified rider and Horse AI restoration;
+- keep this rider lease confined to the exact Horse TB diagnostic path. RT and presentation behavior, production command routing, scheduler eligibility, action ledgers, turn status, and gameplay ownership remain unchanged.
+
+Source-order tests must prove both AI leases validate before the sole TB target creation, no pre-target isolation body interrupts commands, the Mount click is guarded by native hands/equipment readiness, and both leases participate in cleanup. The full offline gate is required before one fresh dev.7 package/run; dev.6 evidence remains immutable and uncredited.
+
+## Dev.7 result and dev.8 bounded native-start contract
+
+Clean guarded-published dev.7 is commit `412fa949be558718200781df8221bd4b6f22af3c`, version `0.1.0-phase3e-dev.7`. Package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.7-paired-scheduler-horse-tb-gate2-diagnostic.zip` has ZIP/manifest/DLL SHA-256 `4e6249211a496574a660935205711276319b80a3a819656acde3effc833f32fa` / `73eb397c5dc4ef3a9131da4088cbadd5e7dd7ec1b768dc28b35e3b8b612f99f2` / `c5d7cf5780ed02a0fb941090e74cd9a9f23642b4d94a067fbe47b2e9bf27a5d0`; DLL MVID is `7b485e8c-d192-4f77-a0f9-1b983250f4f1`. Suite `20260904T185200Z-phase3e-dev7-horse-tb-suite6` has SHA-256 `bb7ee7fe14bf3a9e8711b51234dc0f1f2e3cd24b653ba290c49114e22f9ea5d3`; full-continuity WhatIf passed exact purity.
+
+Immutable live run `20260904T195400Z-phase3e-dev7-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`. Independent audit passed before evidence read. Dev.7 closed both AI/readiness races: both pair command containers and raw/effective AI states were empty/false for their required stable frames; both leases restored their original true/true states; the rider's hands/equipment were idle at admission; and adjacency, exact current-turn identity, actions, selection, memory, target, and ability availability all passed. The genuine native click-created rider Mount `UnitUseAbility` occupied the exact Move slot with exact Horse target, legal range, `CanStart=true`, available spell, no cooldown, and no approach, yet remained unstarted for 30 seconds and ran only after RT restoration. Earlier prose incorrectly called this “player-created”; it did not establish `CreatedByPlayer=true`. No relationship, scheduler lease, mount attack, rule, damage, resource, or turn-completion path ran. This is still pre-scheduler diagnostic attribution: no scheduler repair cycle and no K1-K12 criterion is consumed.
+
+Exact installed control flow now requires the final diagnostic correction to preserve the natural turn rather than fabricate one. `CombatController.TickTime` owns `m_NextUnit -> StartTurn -> m_NextUnit=null`; direct `StartTurn(rider)` does not clear a pending next unit. Dev.8 must:
+
+- make zero direct `StartTurn` calls in this combat-Mount entry path and wait for the naturally selected rider turn;
+- require the pending native `m_NextUnit` to be null, `WaitingForUI` false with `GuardCount == 0`, Default/unpaused mode, rider awake and reference-present in `AwakeUnits`, no rigidbody/get-up tick exclusion, no nausea, exact rider selection, exact empty pair containers, and idle rider hands/equipment for two stable frames;
+- admit one exact native-click rider Mount `UnitUseAbility` with `CreatedByPlayer=false` and `AiAction==null` in the rider Move slot and record its admission frame;
+- passively observe the exact command at the existing token-pinned `TickCommandTurnBased` postfix before scheduler policy runs, recording stock true/false counts, first/last/first-eligible frames, duplicate-frame visits, UI guard, current unit/status, and terminal state;
+- leave the result unchanged because the relationship is still unmounted and this command belongs natively to the rider;
+- publish schema-v2 Horse evidence while retaining strict schema-v1 validation for immutable historical artifacts.
+
+If dev.8 observes stock eligibility and all `ShouldStartCommand` gates true but the shell still does not start, that single comprehensive checkpoint exhausts piecemeal native-start diagnostics: preserve it and attribute the remaining boundary before authorizing any further package. A failed natural-turn admission remains a fixture/diagnostic failure, not a scheduler kill criterion. Production scheduler, ledgers, attack routing, movement, RT, presentation, and fallback remain byte-behavior unchanged.
+
+## Product model
+
+The rider remains the sole native initiative, portrait, selection, camera, action-bar, and `CurrentTurn.Unit` principal. The active mount may execute exactly one explicitly registered pair-local command during that rider-owned turn. Rider and mount retain separate command containers, Standard/Move/five-foot/Swift cooldown ledgers, weapons, abilities, animations, targets, rule initiators, results, and cleanup.
+
+There is no shared synthetic action pool and no second turn clock. `EnableUnifiedMountedTurn=false` preserves the Phase 3C separate-turn fallback. The new `EnablePairedCommandScheduler` gate defaults false until every required Phase 3E qualification row passes.
+
+## Architecture selection gate
+
+Status: PASS — Option A selected
+
+Dev.1 proved that stock `UnitActionController` visited the exact active Mammoth command `2,485` times while the Mammoth was reference-present in `AwakeUnits`; every stock result was false while the exact rider turn remained `Preparing`. Therefore the primary seam is Option A. Options B-D remain inactive and may not be explored unless Option A reaches an exact recorded kill criterion.
+
+Evaluation order:
+
+1. **Option A — exact native eligibility extension.** Use only if stock visits the exact command. Extend only reference-exact pair eligibility while preserving `WaitingForUI`, target, range/LoS, life, hands, equipment, cooldown, approach, start, tick, resource, event, result, and slot behavior. The rider may be in native `Preparing` only when this exact leased pair command is the first shared-turn action; no global status rewrite is allowed.
+2. **Option B — exact native supplied-command seam.** Use only if stock does not visit but private `UnitActionController.TickCommand(UnitCommand,bool)` can be invoked once for the exact lease without duplicating a stock tick. Never invoke `TickOnUnit`, because it advances all mount commands.
+3. **Option C — original pair-local explicit scheduler.** Reproduce only the minimum lifecycle unavailable through an exact native seam. Do not emulate global turn control.
+4. **Option D — rider-owned scheduling shell.** Authorized only after A-C hit an evidenced kill criterion. The shell consumes no rider action and emits no rider attack; one mount-owned child retains actor, weapon, target, animation, rule, damage, and resource ownership.
+
+Changing `CurrentTurn.Unit`, calling `StartTurn(mount)`, replacing the global controller, advancing all mount commands, or admitting foreign/AI/AoO commands is prohibited.
+
+The selected Harmony postfix is only a policy bridge into the injected scheduler service. It stores no lease state. It may change a false native return to true only after the service proves the exact registered lease and independently rechecks all hard conditions whose original false return is otherwise ambiguous. Stock `TickCommand` remains the sole caller of native approach/start/tick/cooldown/result/removal behavior; KMC does not invoke it a second time.
+
+## State machine
+
+The scheduler state is owned by an injected service, never a Harmony patch field.
+
+| State | Entry | Permitted exit |
+|---|---|---|
+| `Idle` | no lease | `Registered`, `Disposed` |
+| `Registered` | exact command and identities captured before/at `UnitCommands.Run` admission | `AwaitingStart`, `Interrupting`, `Faulted` |
+| `AwaitingStart` | exact slot/queue admission and native predicates verified | `Running`, `Interrupting`, `Faulted` |
+| `Running` | native `IsStarted && IsRunning` observed | `Finishing`, `Interrupting`, `Faulted` |
+| `Finishing` | terminal result/finish transition observed | `Completed`, `Faulted` |
+| `Interrupting` | named invalidation requires exact interrupt | `Completed`, `Faulted` |
+| `Completed` | one terminal result, exact slot cleanup, observations sealed | `Idle`, `Disposed` |
+| `Faulted` | an invariant or native-call failure occurred | exact best-effort interrupt/cleanup, then `Disposed` or safe `Idle` only after proof |
+| `Disposed` | relationship/lifecycle/mod boundary | none |
+
+Transitions are monotonic per lease. `Completed`, `Faulted`, and `Disposed` cleanup is idempotent.
+
+## Exact lease identity
+
+Every lease captures immutable registration data:
+
+- exact rider reference and `UniqueId`;
+- exact mount reference and `UniqueId`;
+- mounted-relationship generation;
+- exact native rider `TurnController` reference, rider ID, and round at registration;
+- exact command reference, runtime type, executor, command slot, and queue expectation;
+- action kind and input origin;
+- exact target reference/ID;
+- exact weapon or ability reference/blueprint ID when applicable;
+- creation and admission Unity frame;
+- expected cooldown/resource owner;
+- expected attack/rule initiator;
+- whether native stock enumeration encountered the command;
+- first/last driven frame and drive count;
+- native started/running/acted/finished/result observations;
+- one terminal reason and cleanup reason.
+
+Mutable state records counters and observations but cannot retarget or adopt a replacement command.
+
+## Admission invariants
+
+Admission is true only when all of these are true:
+
+1. unified mounted turn and paired scheduler gates are enabled;
+2. relationship state is exactly `Mounted` with one active pair;
+3. exact captured rider and mount references/IDs still match the relationship generation;
+4. exact captured rider `TurnController` is still `CombatController.CurrentTurn`;
+5. `CurrentTurn.Unit` is the exact rider and remains so before and after scheduling;
+6. command executor is the exact mount;
+7. command is the reference-identical KMC-created object registered by `MountedCombatController`;
+8. command remains the reference-identical live object in the expected mount raw slot, or in the explicitly recorded queue state before promotion;
+9. command type/action origin/target/weapon still match registration;
+10. command is not `UnitAttackOfOpportunity`, a free/out-of-turn action, AI-created, foreign, stale, already terminal, or already adopted by another lease;
+11. native pause, mode, UI wait, actor state, range/LoS, equipment, hands, target, and cooldown predicates remain authoritative;
+12. the scheduler has not driven any command in the current Unity frame.
+
+Any failed invariant refuses admission or faults the exact active lease. It never broadens eligibility.
+
+## Drive invariants
+
+- At most one active pair and one active lease exist.
+- An exact command can receive at most one lease for its lifetime.
+- At most one scheduler/native eligible drive of the leased command occurs per Unity frame.
+- Start, first acted transition/resource charge, terminal result, finish event, and cleanup each occur at most once.
+- A slot replacement or queue mutation invalidates the lease; the scheduler does not chase the replacement.
+- The scheduler never advances rider commands, another companion, another mount, an AI command, or an AoO.
+- The rider remains `CurrentTurn.Unit` across every before/after observation.
+- The mount remains command executor, action actor, target actor, weapon/ability owner, animation actor, rule initiator, damage initiator, and resource owner.
+- The scheduler never writes a campaign/save fact and holds no serializable component/part/state.
+
+## First-action `Preparing` boundary
+
+Exact Kingmaker begins a directly controllable rider turn in `Preparing`. It changes to `Acting` only after the rider has acted, the rider command container becomes nonempty, or the rider becomes unable to act. A mount-only command does not satisfy those stock observations.
+
+Phase 3E may treat the exact registered pair command as eligible while the same rider turn is `Preparing`, but only inside the selected pair-local command seam. It must not mutate `TurnController.Status`, add a rider shell, add a rider command, or emit a turn event merely to cross this boundary. The native rider UI remains in its ordinary controllable-turn state. When a later rider command starts, stock `TurnController` transitions normally.
+
+`TurnBasedCombatController.WaitingForUI` remains independently authoritative during this boundary. Registration/admission may precede UI readiness; no drive is counted until the first frame on which this native gate clears. Runtime must record both raw admission and first grant so non-actionable staging cannot be mistaken for scheduler latency.
+
+## Resource and gameplay ownership
+
+The scheduler does not charge resources. Exact `UnitActionController.TickCommand` detects `IsActed` transitioning false-to-true and calls native `UpdateCooldowns` on the command executor. Acceptance requires:
+
+- mount Standard changes exactly once for mount primary;
+- rider Standard/Move/Swift are unchanged by mount primary;
+- attack/roll/damage initiator is the mount;
+- weapon is the exact native mount natural weapon;
+- animation belongs to the mount;
+- at most one attack rule, one roll, and one damage event occur for the vertical slice;
+- result and slot removal are native and terminal exactly once.
+
+The Phase 3D KMC wrapper may remain the exact top-level Standard-slot command only while its child attack retains these mount-owned semantics. Telemetry must distinguish scheduler ownership from gameplay-action ownership.
+
+## Turn completion
+
+Existing pair-aware `ContinueActing` work may keep the rider turn open only while an exact lease is running or the valid mount retains an actually usable pair action. It must not keep a turn open merely because an ineligible/dead/stale mount has nominal cooldown.
+
+Required completion behavior:
+
+- active lease prevents native turn advancement;
+- target death or invalidation cancels the not-yet-started second action;
+- cancellation/interruption terminates only exact pair work;
+- player end-turn exactly interrupts or disposes pending pair work before native end;
+- when rider and mount are finished/ineligible, native rider turn advances once;
+- natural `TurnController.Prepare` initializes rider stock state and mount paired ledger exactly once;
+- no mid-turn reset, refresh, duplicate round event, duplicate initiative slot, or unrelated reorder occurs.
+
+## Lifecycle cleanup
+
+Registration/drive ends on exact relationship invalidation, rider-turn reference change, TB/RT change, combat end, target invalidation, slot replacement, save/load, area unload/transition, view detach, death/incapacitation, party removal, mod disable, update exception, or process exit where observable.
+
+Cleanup sequence:
+
+1. latch one named reason;
+2. prevent any later drive;
+3. interrupt only the exact live scheduler-owned command if native state permits;
+4. verify terminal state and exact expected slot/queue removal without clearing foreign commands;
+5. record pre/post rider and mount ledgers and `CurrentTurn.Unit`;
+6. dispose references and event subscriptions idempotently;
+7. request relationship cleanup or separate-turn fallback only at its already authorized safe boundary.
+
+Transient failure does not rewrite persistent user settings. `EnablePairedCommandScheduler=false` remains available and inert.
+
+## Telemetry contract
+
+Every runtime row records:
+
+- lease ID/state/generation and each transition frame;
+- exact rider, mount, turn, command, executor, slot/queue, target, weapon/ability identities;
+- mount awake-list membership and stock encounter count;
+- scheduler/native drive source and at-most-once frame guard;
+- start/act/finish/interrupt counts and terminal result;
+- rider/mount ledgers before admission, first act, terminal, and cleanup;
+- command, weapon, animation, rule, roll, damage, and movement ownership/cardinality;
+- current-turn identity before/after every drive;
+- turn roster/order/round and native turn-start event cardinality;
+- cancellation/fault/cleanup reason and exact residue checks;
+- fallback gate state and proof disabled mode is inert.
+
+## Initial vertical-slice acceptance
+
+Two fresh processes from one immutable package must each prove one in-range mount primary starts within two actionable game frames after admission (or a separately documented stock staging bound), is driven at most once per frame, starts once, produces one terminal result and one mount Standard charge, costs the rider nothing, emits no duplicate chain or native mount turn, leaves the rider current throughout, and cleans its exact slot/lease with zero unrelated effects.

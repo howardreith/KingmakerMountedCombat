@@ -15,19 +15,27 @@ namespace KingmakerMountedCombat.Diagnostics
 
     internal static class BoundaryScenarioEvidenceContract
     {
-        public const int SchemaVersion = 1;
+        public const int SchemaVersion = 2;
         public const string ArtifactKind = "boundary-scenario-evidence";
         public const string EvidenceFileName = "boundary-scenario-evidence.jsonl";
         public const string CachedImmediatePreDispatchSource = "cached-immediate-pre-dispatch";
         public const string CachedRowStartSource = "cached-row-start";
 
-        private static readonly string[] Rows =
+        private static readonly string[] Phase1Rows =
         {
             "mounted-pair-turn-based-entry-cleanup",
             "mounted-pair-realtime-entry-cleanup",
             "mounted-pair-save-safety",
             "mounted-pair-load-safety",
             "mounted-pair-area-transition-safety"
+        };
+
+        private static readonly string[] Phase2NativeRows =
+        {
+            "native-save-clean-dismount",
+            "native-area-clean-dismount",
+            "native-mode-transition-cleanup",
+            "presentation-residue-and-uninstall-safety"
         };
 
         private static readonly string[] SimplePassPhases =
@@ -54,12 +62,21 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public static IReadOnlyList<string> SelectRows(string scenario)
         {
+            if (scenario == "chunk4-area-cleanup") return new[] { "native-area-clean-dismount" };
             if (string.Equals(scenario, "boundary-suite", StringComparison.Ordinal))
             {
-                return (string[])Rows.Clone();
+                return (string[])Phase1Rows.Clone();
             }
 
-            foreach (var row in Rows)
+            foreach (var row in Phase1Rows)
+            {
+                if (string.Equals(row, scenario, StringComparison.Ordinal))
+                {
+                    return new[] { row };
+                }
+            }
+
+            foreach (var row in Phase2NativeRows)
             {
                 if (string.Equals(row, scenario, StringComparison.Ordinal))
                 {
@@ -85,12 +102,21 @@ namespace KingmakerMountedCombat.Diagnostics
         public static bool IsLoadingRow(string row)
         {
             return string.Equals(row, "mounted-pair-load-safety", StringComparison.Ordinal) ||
-                string.Equals(row, "mounted-pair-area-transition-safety", StringComparison.Ordinal);
+                string.Equals(row, "mounted-pair-area-transition-safety", StringComparison.Ordinal) ||
+                string.Equals(row, "native-area-clean-dismount", StringComparison.Ordinal);
         }
 
         public static bool IsRow(string row)
         {
-            foreach (var candidate in Rows)
+            foreach (var candidate in Phase1Rows)
+            {
+                if (string.Equals(candidate, row, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            foreach (var candidate in Phase2NativeRows)
             {
                 if (string.Equals(candidate, row, StringComparison.Ordinal))
                 {
@@ -111,14 +137,14 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return IsRow(selectedRows[0]);
             }
-            if (selectedRows.Count != Rows.Length)
+            if (selectedRows.Count != Phase1Rows.Length)
             {
                 return false;
             }
 
-            for (var index = 0; index < Rows.Length; index++)
+            for (var index = 0; index < Phase1Rows.Length; index++)
             {
-                if (!string.Equals(selectedRows[index], Rows[index], StringComparison.Ordinal))
+                if (!string.Equals(selectedRows[index], Phase1Rows[index], StringComparison.Ordinal))
                 {
                     return false;
                 }
@@ -141,7 +167,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 return BoundaryWorkingIdentityObservation.CachedImmediatePreDispatch;
             }
 
-            if (string.Equals(row, "mounted-pair-area-transition-safety", StringComparison.Ordinal) &&
+            if ((string.Equals(row, "mounted-pair-area-transition-safety", StringComparison.Ordinal) ||
+                 string.Equals(row, "native-area-clean-dismount", StringComparison.Ordinal)) &&
                 realAreaReloadDispatched && string.Equals(phase, "loading-start", StringComparison.Ordinal))
             {
                 return BoundaryWorkingIdentityObservation.CachedRowStart;
@@ -167,7 +194,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!BoundaryScenarioEvidenceContract.IsExactSelection(selectedRows))
             {
                 throw new ArgumentException(
-                    "Boundary evidence requires one exact row or the exact five-row suite order.",
+                    "Boundary evidence requires one exact row or the exact Phase 1 five-row suite order.",
                     nameof(selectedRows));
             }
 

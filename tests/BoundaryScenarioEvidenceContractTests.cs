@@ -9,6 +9,7 @@ namespace KingmakerMountedCombat.Tests
         public static void Register(TestRunner runner)
         {
             runner.Run("boundary evidence suite order is exact", SuiteOrderIsExact);
+            runner.Run("boundary evidence admits exact Phase 2 native rows without changing Phase 1 suite", NativeRowsAreExactSingles);
             runner.Run("boundary evidence accepts complete simple and loading rows", CompleteRowsAreAccepted);
             runner.Run("boundary evidence rejects missing PASS phases", MissingPassPhaseIsRejected);
             runner.Run("boundary evidence rejects intermediate phase skips", IntermediatePhaseSkipIsRejected);
@@ -19,6 +20,32 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("boundary evidence journal is create-new append-close", JournalIsCreateNewAppendClose);
             runner.Run("boundary evidence journal fails closed after disappearance", JournalFailsClosedAfterDisappearance);
             runner.Run("boundary evidence journal rejects same-length mutation", JournalRejectsSameLengthMutation);
+        }
+
+        private static void NativeRowsAreExactSingles()
+        {
+            foreach (var row in new[]
+            {
+                "native-save-clean-dismount",
+                "native-area-clean-dismount",
+                "native-mode-transition-cleanup",
+                "presentation-residue-and-uninstall-safety"
+            })
+            {
+                var selected = BoundaryScenarioEvidenceContract.SelectRows(row);
+                TestRunner.Equal(1, selected.Count, "Native boundary row was not selected alone.");
+                TestRunner.Equal(row, selected[0], "Native boundary row identity changed.");
+
+                var guard = new BoundaryEvidenceSequenceGuard(selected);
+                foreach (var phase in BoundaryScenarioEvidenceContract.PassPhases(row))
+                {
+                    guard.Accept(row, phase, phase == "row-result" ? "PASS" : null, true, false);
+                }
+                TestRunner.True(guard.IsComplete, "Native boundary row did not complete its exact phase contract.");
+            }
+
+            TestRunner.Equal(null, BoundaryScenarioEvidenceContract.SelectRows("native-save-clean-dismount-near-match"),
+                "A near-match native boundary scenario was accepted.");
         }
 
         private static void SuiteOrderIsExact()
@@ -147,6 +174,11 @@ namespace KingmakerMountedCombat.Tests
                 BoundaryScenarioEvidenceContract.SelectWorkingIdentityObservation(
                     "mounted-pair-area-transition-safety", "cleanup-latch", false, false),
                 "Area pre-reload cleanup latch was incorrectly labeled as a cached observation.");
+            TestRunner.Equal(
+                BoundaryWorkingIdentityObservation.CachedRowStart,
+                BoundaryScenarioEvidenceContract.SelectWorkingIdentityObservation(
+                    "native-area-clean-dismount", "loading-start", false, true),
+                "Native area loading-start would reopen Working during active world replacement.");
         }
 
         private static void JournalIsCreateNewAppendClose()

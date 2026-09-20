@@ -1,3 +1,16 @@
+## Active Chunk 4 risks — 2026-09-09
+
+IN PROGRESS: H exposes stopped RT ranged repetition after a native mixed-range tail rejection; preview.8 scopes continuation to that measured native terminal and awaits native control/rerun. I exposes a missing terminal-sweep/input-context observation for partner movement after rider exhaustion; no native allocation repair is claimed. Independent incoming spatial effects, actual rider death, sustained interruption/traversal/session/resource bounds and exact-final regression remain mandatory gates. Native camera capture is available; unavailable desktop/physical input and human visual acceptance retain separate pending scope. All nine current-intake transactions restored preview.37, protected saves and foreign Mods exactly; preview.13 is separate. No Phase1 historical kill criterion or frozen finding below is reinterpreted.
+## Chunk 4 active risks
+
+IN PROGRESS. Actual mounted Charge spends without observed transport in both native modes; the exact early guard still needs new runtime qualification. Unmounted Charge fixture placement, sustained cadence, incoming targeting, actual rider death, supported traversal and cleanup bounds are open gates. A/B restored current preview.37 and protected state exactly. Full Charge remains a missing Chunk 6 feature, and persistence remains Chunk 5. [Active evidence](../docs/CHUNK4-PLAYABILITY.md). Historical risk decisions below are unchanged.
+
+## Chunk 2 current risk - 2026-09-07 09:08 UTC
+
+**BLOCKED — CRITICAL:** rider-first delegation still consults prior native Standard before the Horse's next preparation; a legal actor grant/reservation and continuation contract remain unproved. Numeric debit preservation alone is insufficient. A01-A09 are incomplete; A05 representative native effects/order pass on7 and A10 exact final10 passes32/0. Step/restriction/interruption, mode conversion and native relationship/session cases remain limited as listed in the [single gate ledger](../docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+
+Actor reference retirement does not solve same-campaign loaded action debt; identify that later save-integration dependency rather than treating cleanup as persistence. RT durability and unmounted fixture party cleanup are regressed after preserved failed traces. All25 temporary transactions restore the actual preview13/current human state, with no historical pin rollback. No full scheduler, content expansion, permanent install or release. Historical Phase1 risk/kill results below remain unchanged.
+
 # Risk and kill criteria
 
 Status: PHASE 1 COMPLETE — PROCEED RECOMMENDED
@@ -60,3 +73,11 @@ Fixture descriptor identity and protected-save continuity pass. The F1 exact aud
 The three F0 deferrals are superseded by F1 PASS evidence, not erased: doorway, away/back selection, and stock party formation each passed twice in fresh processes under unchanged gates. No K1–K12 criterion fired. The final 25-row ledger is `25 PASS / 0 attributable FAIL / 0 DEFER`.
 
 Architecture B is selected and remains default-off. The truthful status is `PHASE 1 COMPLETE — PROCEED RECOMMENDED`, subject to the existing `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED` limitation. Phase 2 remains outside current execution authorization and requires a separate mission.
+
+## Phase 2A review-gate overlay
+
+The separately authorized Phase 2 mission has not changed any Phase 1 kill criterion. Dev.13 complete-suite A/B each pass all seven presentation rows at `381/0` under unchanged synchronization, cleanup, screenshot, and `2000/500`-microsecond pose-cost gates. The first-row maxima are `24.8` and `15.4` microseconds, so the dev.12 `2017.7` outlier is closed by reversible cold-path priming rather than threshold relaxation.
+
+The remaining presentation risk is subjective and deliberately human-owned: pose acceptability, fixture-geometry occlusion, doorway/edge framing, native blue selection silhouette, camera feel, and physical pointer behavior. The guarded review path permits no save writes, rejects save/load/combat/area/mode drift, records only `PENDING`, and restores external state after normal exit. Until the user accepts the exact published review package, the truthful authorization state is `BLOCKED - MANUAL VISUAL ACCEPTANCE REQUIRED` once all remaining package/repeat/publication work is complete; no combat implementation is permitted before then.
+
+Chunk4 2026-09-09 IN PROGRESS: K proves cached sight and command visibility differ; use verified native geometry in the narrow repeat policy and require new obstruction control. L fixture outward motion invalidates the next melee control with an exhausted mount; use native paid lateral positioning, never grant free approach or widen reach. All12 actual-intake restorations PASS. Native rider death/incoming spatial correctness/session/traversal remain open, never inferred from outgoing bow or cleanup-only tests. Historical Phase1 disposition is unchanged.

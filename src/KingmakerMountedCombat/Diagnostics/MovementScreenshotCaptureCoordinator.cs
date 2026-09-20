@@ -38,6 +38,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public int PendingCount => queue.PendingCount;
 
+        internal static MovementCaptureOverlayLease AcquireClosedUmmLease()
+        {
+            return MovementCaptureOverlayLease.Acquire(new UmmCaptureOverlay(UnityModManager.UI.Instance));
+        }
+
         public bool HasInFlightCapture => queue.HasInFlightCapture;
 
         public void Enqueue(string row, string milestone, int readyFrame)

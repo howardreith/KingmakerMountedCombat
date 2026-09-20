@@ -4,10 +4,14 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.Items;
+using Kingmaker.UI.ActionBar;
+using Kingmaker.UI.Group;
 using Kingmaker.UI.Selection;
 using Kingmaker.View;
 using Kingmaker.View.MapObjects;
@@ -25,9 +29,10 @@ namespace KingmakerMountedCombat.Diagnostics
     /// Frame-driven, save-independent-in-process executor for the eight Phase 1
     /// movement rows. The containing harness owns fixture and Mods restoration;
     /// this type never invokes a save API and changes only movement, selection,
-    /// pause, and the explicitly scoped mounted relationship.
+    /// pause, and the explicitly scoped mounted relationship. The Chunk 4 slope
+    /// fixture also loads one exact native area with autosave disabled.
     /// </summary>
-    internal sealed class RuntimeMovementScenarioEngine : IDisposable
+    internal sealed partial class RuntimeMovementScenarioEngine : IDisposable
     {
         // The host has a 300-second monotonic deadline and the launcher allows
         // another bounded exit/restoration window. Eight rows can legitimately
@@ -36,6 +41,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double SuiteTimeoutSeconds = 250.0d;
         private const double RowTimeoutSeconds = 42.0d;
         private const double PathProbeTimeoutSeconds = 4.0d;
+        private const double DoorTraversalReadinessTimeoutSeconds = 4.0d;
         private const double MovementTimeoutSeconds = 12.0d;
         private const double StableWindowSeconds = 0.75d;
         private const double PauseObservationSeconds = 1.0d;
@@ -48,6 +54,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private const double MaximumPostCorrectionRotationResidualDegrees = 0.10d;
         private const int MaximumOscillations = 2;
         private const int MaximumUnexpectedRepaths = 2;
+        private const double PoseIdleObservationSeconds = 3.0d;
+        private const double PresentationUiSettleSeconds = 0.75d;
+        private const double EquipmentSettleSeconds = 0.85d;
+        private const double MaximumPoseApplyMicroseconds = 2000.0d;
+        private const double MaximumPoseAverageApplyMicroseconds = 500.0d;
+        private const double MaximumPoseSegmentResidualWorldUnits = 0.001d;
+        private const double MaximumPoseTargetResidualWorldUnits = 0.025d;
+        private const double MaximumIdlePoseFrameDeltaWorldUnits = 0.15d;
 
         private static readonly string[] SuiteRows =
         {
@@ -64,6 +78,19 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-destination-cancel"
         };
 
+        private static readonly string[] PresentationRows =
+        {
+            // The doorway is fixture-local and is therefore exercised before
+            // any prior presentation row can move the party away from it.
+            "pose-doorway-formation",
+            "pose-idle",
+            "pose-walk-run",
+            "pose-turn-stop",
+            "pose-equipment-variants",
+            "ui-selection-portrait-actionbar",
+            "camera-follow-and-command-routing"
+        };
+
         private static readonly HashSet<string> CaptureMilestones = new HashSet<string>(StringComparer.Ordinal)
         {
             "mounted-idle",
@@ -77,7 +104,22 @@ namespace KingmakerMountedCombat.Diagnostics
             "formation",
             "paused",
             "cancelled",
-            "dismounted"
+            "dismounted",
+            "pose-idle",
+            "pose-walk",
+            "pose-run",
+            "pose-turn",
+            "pose-reversal",
+            "pose-stop-motion",
+            "pose-stopped",
+            "pose-equipment",
+            "ui-rider",
+            "ui-mount-normalized",
+            "ui-away",
+            "ui-back",
+            "camera-moving",
+            "camera-away",
+            "camera-back"
         };
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
@@ -92,6 +134,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
+        private readonly MountedPlayerActionController playerAction;
+        private readonly MountedCombatController combat;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private readonly string evidenceRoot;
@@ -127,6 +171,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private long evidenceSequence;
         private EngineStep step;
         private bool originalUnsafeMovementSetting;
+        private bool originalPairedActivationSetting;
         private bool settingLeaseOwned;
         private bool originalPause;
         private bool pauseLeaseOwned;
@@ -145,6 +190,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private readonly List<Vector3> probeCandidates = new List<Vector3>();
         private readonly List<string> probeRejections = new List<string>();
+        private readonly StopEarlyCaptureBoundary stopEarlyCaptureBoundary = new StopEarlyCaptureBoundary();
         private int probeIndex;
         private int probeGeneration;
         private bool probePending;
@@ -164,6 +210,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 navigationStablePosition;
         private object navigationCommand;
         private object navigationPath;
+        private int navigationPathFirstObservedFrame;
         private double navigationStartedAt;
         private double navigationStableStartedAt;
         private double navigationPreviousDistance;
@@ -174,6 +221,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool navigationWasApproaching;
         private int navigationOscillations;
         private int navigationRepaths;
+        private int navigationUnattributedRepaths;
         private int navigationCommandReplacements;
         private int navigationSelectionLosses;
         private bool navigationMovingCaptureTaken;
@@ -285,6 +333,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private double rowMaximumStuckSeconds;
         private int rowOscillations;
         private int rowUnexpectedRepaths;
+        private int rowUnattributedRepaths;
         private int rowCommandReplacements;
         private int rowSelectionLosses;
         private int rowWaypointCount;
@@ -313,20 +362,100 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool rowPauseExited;
         private bool rowDestinationCancelCommandAbsent;
         private bool rowDestinationCancelRelationshipPreserved;
+        private long rowPoseObservationCount;
+        private long rowPoseHealthyObservationCount;
+        private long rowPoseFrameAppliedObservationCount;
+        private long rowPoseApplicationFrameCount;
+        private long rowPoseFootTargetClampCount;
+        private double rowPoseMaximumFootTargetResidual;
+        private double rowPoseMaximumKneeTargetResidual;
+        private double rowPoseMaximumSegmentLengthResidual;
+        private double rowPoseMaximumApplyMicroseconds;
+        private double rowPoseAverageApplyMicroseconds;
+        private double rowPoseMaximumPelvisLocalFrameDelta;
+        private double rowPoseMaximumLeftFootLocalFrameDelta;
+        private double rowPoseMaximumRightFootLocalFrameDelta;
+        private Vector3 previousPosePelvisLocal;
+        private Vector3 previousPoseLeftFootLocal;
+        private Vector3 previousPoseRightFootLocal;
+        private bool previousPoseSampleAvailable;
+        private string rowPoseProfileId;
+        private string rowPoseBoneInventory;
+        private string rowPoseFailure;
+        private int rowPoseMaximumComponentCount;
+        private int rowPoseMaximumBoneCount;
+        private double rowWalkMaximumSpeed;
+        private double rowRunMaximumSpeed;
+        private int rowWalkMovingSampleCount;
+        private int rowRunMovingSampleCount;
+        private float? originalMountMaxSpeedOverride;
+        private float originalMountEffectiveMaxSpeed;
+        private bool mountSpeedLeaseOwned;
+        private int originalEquipmentSetIndex;
+        private bool equipmentSetLeaseOwned;
+        private int[] equipmentSetIndices;
+        private int equipmentSetCursor;
+        private readonly List<EquipmentSetEvidence> equipmentSets = new List<EquipmentSetEvidence>();
+        private readonly List<UiOwnershipEvidence> uiObservations = new List<UiOwnershipEvidence>();
+        private CameraFollowerSnapshot cameraFollowerSnapshot;
+        private bool cameraFollowerLeaseOwned;
+        private UnitEntityData cameraExpectedUnit;
+        private int rowCameraObservationCount;
+        private int rowCameraTotalObservationCount;
+        private double rowCameraMinimumTargetResidual;
+        private double rowCameraMaximumTargetResidual;
+        private double rowCameraFinalTargetResidual;
+        private double rowCameraMinimumRigResidual;
+        private double rowCameraMaximumRigResidual;
+        private bool rowCameraFollowAccepted;
+        private bool rowCameraAwayObserved;
+        private bool rowCameraBackObserved;
+        private long rowOverlayRepaintCountBefore;
+        private long rowOverlayRepaintCountAfter;
+        private PresentationOverlayEvidence rowOverlayEvidence;
+        private bool rowUiRiderPortraitSelected;
+        private bool rowUiRiderSelectionCircleSelected;
+        private bool rowUiRiderActionBarOwned;
+        private bool rowUiMountNormalized;
+        private bool rowUiAwayOwned;
+        private bool rowUiBackOwned;
+        private bool rowUiOverlayRendered;
+        private string rowUiObservationFailure;
         private Vector3 previousLegDirection;
         private StandardDoor selectedDoor;
         private Vector3 doorNearPoint;
         private Vector3 doorFarPoint;
+        private Vector3 doorInteractionRiderStart;
+        private Vector3 doorInteractionMountStart;
+        private bool rowMountedAtLeastOnce;
+        private bool distanceDoorFixtureLeaseCaptured;
+        private bool distanceDoorFixtureOriginalOpen;
+        private bool distanceDoorFixtureOriginalEnabled;
+        private bool distanceDoorFixtureDisableOnOpen;
+        private bool distanceDoorFixtureTemporaryEnableUsed;
+        private bool distanceDoorFixtureRestored;
+        private Pathfinding.NavmeshCut distanceDoorNavmeshCut;
+        private bool distanceDoorDisableNavmeshCutWhenOpen;
+        private bool? distanceDoorInitialCutRequiresUpdate;
+        private bool distanceDoorFinalCutRequiresUpdate;
+        private bool distanceDoorTraversalReadinessQualified;
+        private int distanceDoorTraversalReadinessObservationCount;
+        private double distanceDoorTraversalReadinessStartedAt;
+        private double distanceDoorTraversalReadinessElapsedSeconds;
 
         public RuntimeMovementScenarioEngine(
             RuntimeRequest request,
             GameMountedRelationshipService relationship,
+            MountedPlayerActionController playerAction,
+            MountedCombatController combat,
             DiagnosticSettings settings,
             IModLogger logger,
             string evidenceRoot)
         {
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             if (string.IsNullOrWhiteSpace(evidenceRoot))
@@ -375,8 +504,18 @@ namespace KingmakerMountedCombat.Diagnostics
             var evidencePath = Path.Combine(evidenceRoot, "movement-scenario-evidence.jsonl");
             evidenceWriter = new StreamWriter(new FileStream(evidencePath, FileMode.CreateNew, FileAccess.Write, FileShare.Read), new System.Text.UTF8Encoding(false));
             originalUnsafeMovementSetting = settings.EnableUnsafeMovementExperiment;
+            originalPairedActivationSetting = settings.EnablePairedActivation;
+            if ((request.Scenario == "mounted-pair-party-formation" || IsChunk4Traversal) && !combat.TryConfigurePairedActivation(true))
+                throw new InvalidOperationException("Paired developer configuration was rejected before party fixture setup.");
             settings.EnableUnsafeMovementExperiment = true;
             settingLeaseOwned = true;
+            if ((request.Scenario == "mounted-pair-party-formation" || IsChunk4Traversal))
+            {
+                if (settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
+                    settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
+                    throw new InvalidOperationException("Final party regression requires the sole paired activation authority and native controls.");
+                logger.Info("Paired regression configuration: EnablePairedActivation=true; EnableUnifiedMountedTurn=false; EnablePairedCommandScheduler=false; EnableDiagnosticOverlay=false; overlayPresent=false.");
+            }
             suiteClock.Start();
             step = EngineStep.BeginRow;
             logger.Info("Movement runtime engine started for " + request.Scenario + ".");
@@ -428,6 +567,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case EngineStep.BeginRow:
                         BeginRow();
                         break;
+                    case EngineStep.PrepareSlopeLocation:
+                        AdvanceSlopeLocation();
+                        break;
                     case EngineStep.ExecuteRow:
                         AdvanceCurrentRow();
                         break;
@@ -463,6 +605,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 screenshotCapture.Dispose();
                 StopTouchedMovement();
+                RestoreDistanceDoorFixtureLease();
+                RestorePresentationTestLeases();
                 BestEffortDismount(CleanupTrigger.ProcessTeardown);
                 RestorePause();
                 RestoreSelection();
@@ -537,6 +681,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (currentRow == Chunk4SlopeRow)
+            {
+                step = EngineStep.PrepareSlopeLocation;
+                AdvanceSlopeLocation();
+                return;
+            }
+            BeginPreparedMovementRow();
+        }
+
+        private void BeginPreparedMovementRow()
+        {
             string pairError;
             if (!relationship.TryResolveAutomationPair(out rider, out mount, out pairError))
             {
@@ -555,7 +710,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            if (!string.Equals(currentRow, "mounted-pair-doorway", StringComparison.Ordinal))
+            rowOverlayRepaintCountBefore = playerAction.OverlayRepaintCount;
+            if (string.Equals(currentRow, "camera-follow-and-command-routing", StringComparison.Ordinal))
+            {
+                string cameraSnapshotError;
+                cameraFollowerSnapshot = CameraFollowerSnapshot.TryCapture(Game.Instance, out cameraSnapshotError);
+                assertions.Check(cameraFollowerSnapshot != null,
+                    "Exact native camera-follower state was captured for bounded restoration.",
+                    "Native camera-follower state could not be captured: " + (cameraSnapshotError ?? "unknown error"));
+                if (cameraFollowerSnapshot == null)
+                {
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+                cameraFollowerLeaseOwned = true;
+            }
+
+            if (!IsDoorwayPresentationRow(currentRow))
             {
                 if (!MountPair())
                 {
@@ -582,8 +753,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 ObserveSynchronization();
+                ObservePose();
             }
 
+            if (currentRow == Chunk4SlopeRow) { AdvanceChunk4Slope(); return; }
             if (string.Equals(currentRow, "mounted-pair-open-ground", StringComparison.Ordinal))
             {
                 AdvanceOpenGround();
@@ -600,6 +773,10 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 AdvanceDoorway();
             }
+            else if (string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal))
+            {
+                AdvanceDistanceDoorInteraction();
+            }
             else if (string.Equals(currentRow, "mounted-pair-selection", StringComparison.Ordinal))
             {
                 AdvanceSelection();
@@ -615,6 +792,34 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-destination-cancel", StringComparison.Ordinal))
             {
                 AdvanceDestinationCancel();
+            }
+            else if (string.Equals(currentRow, "pose-idle", StringComparison.Ordinal))
+            {
+                AdvancePoseIdle();
+            }
+            else if (string.Equals(currentRow, "pose-walk-run", StringComparison.Ordinal))
+            {
+                AdvancePoseWalkRun();
+            }
+            else if (string.Equals(currentRow, "pose-turn-stop", StringComparison.Ordinal))
+            {
+                AdvancePoseTurnStop();
+            }
+            else if (string.Equals(currentRow, "pose-doorway-formation", StringComparison.Ordinal))
+            {
+                AdvancePoseDoorwayFormation();
+            }
+            else if (string.Equals(currentRow, "pose-equipment-variants", StringComparison.Ordinal))
+            {
+                AdvancePoseEquipmentVariants();
+            }
+            else if (string.Equals(currentRow, "ui-selection-portrait-actionbar", StringComparison.Ordinal))
+            {
+                AdvanceUiSelectionPortraitActionBar();
+            }
+            else if (string.Equals(currentRow, "camera-follow-and-command-routing", StringComparison.Ordinal))
+            {
+                AdvanceCameraFollowAndCommandRouting();
             }
             else
             {
@@ -779,6 +984,242 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private void AdvanceDistanceDoorInteraction()
+        {
+            if (rowPhase == 101) { if (!PollChunk4BlockedDoor()) return; rowPhase = 102; }
+            if (rowPhase == 0)
+            {
+                DoorCandidate candidate;
+                string reason;
+                if (!TrySelectOpenDoorCandidate(out candidate, out reason, true))
+                {
+                    assertions.Fail(reason);
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                selectedDoor = candidate.Door;
+                doorNearPoint = candidate.Near;
+                doorFarPoint = candidate.Far;
+                distanceDoorFixtureLeaseCaptured = true;
+                distanceDoorFixtureOriginalOpen = selectedDoor.GetState();
+                distanceDoorFixtureOriginalEnabled = selectedDoor.Enabled;
+                distanceDoorFixtureDisableOnOpen = selectedDoor.DisableOnOpen;
+                distanceDoorDisableNavmeshCutWhenOpen = selectedDoor.DisableNavmeshCutWhenOpen;
+                distanceDoorNavmeshCut = selectedDoor.GetComponentInChildren<Pathfinding.NavmeshCut>();
+                if (!selectedDoor.CanInteract() && MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(
+                        selectedDoor.CanInteract(),
+                        selectedDoor.Enabled,
+                        selectedDoor.DisableOnOpen,
+                        Game.Instance.Player.IsInCombat))
+                {
+                    selectedDoor.Enabled = true;
+                    distanceDoorFixtureTemporaryEnableUsed = true;
+                }
+                assertions.Check(selectedDoor.GetState() && selectedDoor.CanInteract(),
+                    "The distance-interaction setup selected one active stock open StandardDoor.",
+                    "The selected distance-interaction door was not an active interactable open StandardDoor.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                selectedDoor.Interact(rider);
+                if (IsChunk4Traversal)
+                {
+                    chunk4DoorClosingInitial = CaptureChunk4DoorPlayback();
+                    chunk4DoorClosingStarted = suiteClock.Elapsed.TotalSeconds;
+                }
+                rowPhase = 1;
+                return;
+            }
+
+            if (rowPhase == 1)
+            {
+                if (selectedDoor.GetState())
+                {
+                    return;
+                }
+                if (!selectedDoor.CanInteract() && MountedDistanceDoorFixturePolicy.CanTemporarilyEnable(
+                        selectedDoor.CanInteract(),
+                        selectedDoor.Enabled,
+                        selectedDoor.DisableOnOpen,
+                        Game.Instance.Player.IsInCombat))
+                {
+                    selectedDoor.Enabled = true;
+                    distanceDoorFixtureTemporaryEnableUsed = true;
+                }
+                assertions.Check(selectedDoor.CanInteract(),
+                    "The closed stock door was interactable before the mounted player click.",
+                    "The closed selected door could not be admitted after exact fixture preparation.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                rowUnmountedDoorControlPassed = true;
+                assertions.Check(rowUnmountedDoorControlPassed,
+                    "The unmounted stock setup closed exactly the selected door without KMC routing.",
+                    "The stock setup did not leave the selected closed door interactable.");
+                if (!MountPair())
+                {
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+                SelectOnly(rider);
+                var initialDistance = PlanarDistance(mount.Position, selectedDoor.transform.position);
+                assertions.Check(initialDistance > selectedDoor.ProximityRadius + 0.5f,
+                    "The ordinary player door click began outside exact immediate interaction range.",
+                    "The selected door was not far enough away to prove approach-plus-interaction: distance=" +
+                    initialDistance.ToString("0.000", CultureInfo.InvariantCulture) +
+                    "; radius=" + selectedDoor.ProximityRadius.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+
+                if (IsChunk4Traversal) { rowPhase = 101; return; }
+            }
+            if (rowPhase == 1 || rowPhase == 102)
+            {
+                doorInteractionRiderStart = rider.Position;
+                doorInteractionMountStart = mount.Position;
+                var clickAccepted = new ClickMapObjectHandler().OnClick(
+                    selectedDoor.gameObject,
+                    selectedDoor.transform.position,
+                    0,
+                    false,
+                    false);
+                assertions.Check(clickAccepted && combat.HasActiveDoorInteraction,
+                    "Ordinary ClickMapObjectHandler input admitted the exact mounted distance-door command.",
+                    "Ordinary door click did not admit the mounted approach-plus-interaction command. Feedback=" +
+                    combat.LastFeedback + ".");
+                rowPhase = 2;
+                return;
+            }
+
+            if (rowPhase == 2)
+            {
+                if (combat.HasActiveDoorInteraction || combat.LastDoorInteractionOutcome == null)
+                {
+                    return;
+                }
+                if (!selectedDoor.GetState())
+                {
+                    return;
+                }
+                var outcome = combat.LastDoorInteractionOutcome;
+                var selected = SelectionManager.Instance?.SelectedUnits;
+                assertions.Check(string.Equals(outcome.Result, "Success", StringComparison.Ordinal) &&
+                        outcome.InteractionCount == 1 && outcome.DelegatedMoveStartCount == 1 &&
+                        outcome.DoorStateChanged && outcome.RiderPathSuppressed && outcome.MountMoveSlotRestored,
+                    "The exact door opened once after one Mammoth-owned approach and restored its Move slot.",
+                    "Mounted door outcome was not exact: result=" + outcome.Result +
+                    "; interactions=" + outcome.InteractionCount +
+                    "; moveStarts=" + outcome.DelegatedMoveStartCount +
+                    "; stateChanged=" + outcome.DoorStateChanged +
+                    "; riderPathSuppressed=" + outcome.RiderPathSuppressed +
+                    "; slotRestored=" + outcome.MountMoveSlotRestored + ".");
+                assertions.Check(selectedDoor.GetState() && selectedDoor.IsOpen &&
+                        relationship.State == RelationshipState.Mounted &&
+                        selected != null && selected.Count == 1 && selected[0] == rider &&
+                        relationship.Runtime.PoseHealthy,
+                    "Door opening retained the exact pair, rider selection, and accepted Mammoth pose.",
+                    "Door opening lost pair, selection, pose, or exact open state.");
+                distanceDoorFixtureRestored = MountedDistanceDoorFixturePolicy.IsExactlyRestored(
+                    distanceDoorFixtureLeaseCaptured,
+                    distanceDoorFixtureOriginalOpen,
+                    distanceDoorFixtureOriginalEnabled,
+                    selectedDoor.GetState(),
+                    selectedDoor.Enabled);
+                assertions.Check(distanceDoorFixtureRestored,
+                    "The bounded door fixture lease returned to its exact captured open/enabled state.",
+                    "The door fixture retained changed open or enabled state after the mounted interaction.");
+                assertions.Check(PlanarDistance(doorInteractionMountStart, mount.Position) >= 0.5f &&
+                        PlanarDistance(doorInteractionRiderStart, rider.Position) >= 0.5f,
+                    "Both pair members moved measurably during the Mammoth-authoritative door approach.",
+                    "Door interaction completed without a measurable approach by both synchronized pair members.");
+                if (assertions.FailureCount != 0)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                distanceDoorTraversalReadinessStartedAt = suiteClock.Elapsed.TotalSeconds;
+                rowPhase = 3;
+                return;
+            }
+
+            if (rowPhase == 3)
+            {
+                var cutPresent = distanceDoorNavmeshCut != null;
+                var cutEnabled = cutPresent && distanceDoorNavmeshCut.enabled;
+                var cutRequiresUpdate = cutPresent && distanceDoorNavmeshCut.RequiresUpdate();
+                if (!distanceDoorInitialCutRequiresUpdate.HasValue)
+                {
+                    distanceDoorInitialCutRequiresUpdate = cutRequiresUpdate;
+                }
+                distanceDoorFinalCutRequiresUpdate = cutRequiresUpdate;
+                distanceDoorTraversalReadinessObservationCount++;
+                distanceDoorTraversalReadinessElapsedSeconds =
+                    suiteClock.Elapsed.TotalSeconds - distanceDoorTraversalReadinessStartedAt;
+                distanceDoorTraversalReadinessQualified = MountedDistanceDoorTraversalReadinessPolicy.IsReady(
+                    selectedDoor.GetState(),
+                    distanceDoorDisableNavmeshCutWhenOpen,
+                    cutPresent,
+                    cutEnabled,
+                    cutRequiresUpdate);
+                if (distanceDoorTraversalReadinessQualified)
+                {
+                    var astarPath = AstarPath.active;
+                    WriteEvidence(new
+                    {
+                        kind = "door-traversal-readiness",
+                        door = BuildHierarchyName(selectedDoor.transform),
+                        doorOpen = selectedDoor.GetState(),
+                        disableNavmeshCutWhenOpen = distanceDoorDisableNavmeshCutWhenOpen,
+                        navmeshCutPresent = cutPresent,
+                        navmeshCutEnabled = cutEnabled,
+                        initialNavmeshCutRequiresUpdate = distanceDoorInitialCutRequiresUpdate,
+                        finalNavmeshCutRequiresUpdate = cutRequiresUpdate,
+                        astarPathPresent = astarPath != null,
+                        astarGraphUpdatesQueued = astarPath == null ? (bool?)null : astarPath.IsAnyGraphUpdatesQueued,
+                        unityFrameCount = Time.frameCount,
+                        tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame,
+                        unityFrameStrictlyAfterTileHandlerLastUpdate =
+                            Time.frameCount > Pathfinding.Util.TileHandler.LastUpdateFrame,
+                        observationCount = distanceDoorTraversalReadinessObservationCount,
+                        elapsedSeconds = distanceDoorTraversalReadinessElapsedSeconds,
+                        ready = true
+                    });
+                    BeginExactNavigation(NavigationMode.Normal, doorFarPoint, true, "door-mounted");
+                    rowPhase = 4;
+                    return;
+                }
+                if (distanceDoorTraversalReadinessElapsedSeconds > DoorTraversalReadinessTimeoutSeconds)
+                {
+                    assertions.Fail(
+                        "The exact opened door did not reach stock navmesh-cut readiness within " +
+                        DoorTraversalReadinessTimeoutSeconds.ToString("0", CultureInfo.InvariantCulture) +
+                        " seconds: disableWhenOpen=" + distanceDoorDisableNavmeshCutWhenOpen +
+                        "; cutPresent=" + cutPresent +
+                        "; cutEnabled=" + cutEnabled +
+                        "; cutRequiresUpdate=" + cutRequiresUpdate + ".");
+                    BeginCleanup(CleanupTrigger.Exception);
+                }
+                return;
+            }
+
+            if (rowPhase == 4 && PollNavigation())
+            {
+                assertions.Check(selectedDoor.GetState() && selectedDoor.IsOpen &&
+                        relationship.State == RelationshipState.Mounted,
+                    "The mounted pair traversed the exact door after opening it once.",
+                    "The pair or open-door state was lost during post-interaction traversal.");
+                AssertRowMovementQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
         private void AdvanceSelection()
         {
             if (rowPhase == 0)
@@ -934,6 +1375,856 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        private void AdvancePoseIdle()
+        {
+            if (rowPhase == 0)
+            {
+                CaptureMilestone("pose-idle");
+                phaseClock.Restart();
+                rowPhase = 1;
+                return;
+            }
+            if (rowPhase == 1 && phaseClock.Elapsed.TotalSeconds >= PoseIdleObservationSeconds)
+            {
+                assertions.Check(mount.Commands.Move == null && !mount.View.AgentASP.WantsToMove && !mount.View.AgentASP.IsReallyMoving,
+                    "Mounted pair remained stationary through the bounded idle wait.",
+                    "Mounted pair acquired movement state during the idle pose observation.");
+                assertions.Check(rowPoseMaximumPelvisLocalFrameDelta <= MaximumIdlePoseFrameDeltaWorldUnits &&
+                        rowPoseMaximumLeftFootLocalFrameDelta <= MaximumIdlePoseFrameDeltaWorldUnits &&
+                        rowPoseMaximumRightFootLocalFrameDelta <= MaximumIdlePoseFrameDeltaWorldUnits,
+                    "Idle pelvis and foot frame deltas remained within the gross-oscillation bound.",
+                    "Idle pose frame delta exceeded the gross-oscillation bound: pelvis/left/right=" +
+                        rowPoseMaximumPelvisLocalFrameDelta.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                        rowPoseMaximumLeftFootLocalFrameDelta.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                        rowPoseMaximumRightFootLocalFrameDelta.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
+                AssertPoseTechnicalQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private void AdvancePoseWalkRun()
+        {
+            if (rowPhase == 0)
+            {
+                AcquireMountSpeedLease();
+                var walkingSpeed = Math.Max(0.60f, Math.Min(1.25f, originalMountEffectiveMaxSpeed * 0.45f));
+                mount.View.AgentASP.MaxSpeedOverride = walkingSpeed;
+                BeginRadialNavigation(NavigationMode.Normal, null, "pose-walk", true);
+                rowPhase = 1;
+                return;
+            }
+            if (rowPhase == 1 && PollNavigation())
+            {
+                previousLegDirection = PlanarDirection(navigationStart, navigationDestination);
+                CaptureMilestone("pose-stopped");
+                mount.View.AgentASP.MaxSpeedOverride = originalMountMaxSpeedOverride;
+                BeginRadialNavigation(
+                    NavigationMode.Normal,
+                    candidate => Vector3.Dot(previousLegDirection, PlanarDirection(mount.Position, candidate)) < 0.35f,
+                    "pose-run",
+                    true);
+                rowPhase = 2;
+                return;
+            }
+            if (rowPhase == 2 && PollNavigation())
+            {
+                assertions.Check(rowWalkMovingSampleCount > 0 && rowRunMovingSampleCount > 0,
+                    "Both bounded walk and ordinary-run legs produced moving pose samples.",
+                    "Walk/run moving sample coverage was incomplete: walk/run=" + rowWalkMovingSampleCount + "/" + rowRunMovingSampleCount + ".");
+                assertions.Check(rowRunMaximumSpeed >= rowWalkMaximumSpeed + 0.35d,
+                    "Ordinary-run speed was measurably greater than the scoped walking speed.",
+                    "Walk/run speed separation was insufficient: walk/run=" +
+                        rowWalkMaximumSpeed.ToString("0.000", CultureInfo.InvariantCulture) + "/" +
+                        rowRunMaximumSpeed.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+                AssertRowMovementQuality();
+                AssertPoseTechnicalQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private void AdvancePoseTurnStop()
+        {
+            if (rowPhase == 0)
+            {
+                BeginRadialNavigation(NavigationMode.StopEarly, null, "pose-stop-motion", true);
+                rowPhase = 1;
+                return;
+            }
+            if (rowPhase == 1 && PollNavigation())
+            {
+                assertions.Check(rowStopCommandIssuedCount > 0,
+                    "Scoped stop routing interrupted the authoritative Mammoth during motion.",
+                    "Pose turn/stop row did not issue its routed stop command.");
+                CaptureMilestone("pose-stopped");
+                previousLegDirection = PlanarDirection(navigationStart, navigationDestination);
+                BeginRadialNavigation(NavigationMode.Normal, candidate =>
+                {
+                    var dot = Vector3.Dot(previousLegDirection, PlanarDirection(mount.Position, candidate));
+                    return dot > -0.35f && dot < 0.35f;
+                }, "pose-turn", true);
+                rowPhase = 2;
+                return;
+            }
+            if (rowPhase == 2 && PollNavigation())
+            {
+                var direction = PlanarDirection(navigationStart, navigationDestination);
+                rowMaximumTurnDegrees = Math.Max(rowMaximumTurnDegrees, Vector3.Angle(previousLegDirection, direction));
+                previousLegDirection = direction;
+                BeginRadialNavigation(
+                    NavigationMode.Normal,
+                    candidate => Vector3.Dot(previousLegDirection, PlanarDirection(mount.Position, candidate)) < -0.55f,
+                    "pose-reversal",
+                    true);
+                rowPhase = 3;
+                return;
+            }
+            if (rowPhase == 3 && PollNavigation())
+            {
+                var direction = PlanarDirection(navigationStart, navigationDestination);
+                rowMaximumTurnDegrees = Math.Max(rowMaximumTurnDegrees, Vector3.Angle(previousLegDirection, direction));
+                assertions.Check(rowMaximumTurnDegrees >= 75.0d,
+                    "Pose remained active through a substantial turn and reversal.",
+                    "Pose turn/stop route reached only " + rowMaximumTurnDegrees.ToString("0.0", CultureInfo.InvariantCulture) + " degrees.");
+                CaptureMilestone("pose-stopped");
+                AssertRowMovementQuality();
+                AssertPoseTechnicalQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private void AdvancePoseDoorwayFormation()
+        {
+            if (rowPhase == 0)
+            {
+                DoorCandidate candidate;
+                string reason;
+                if (!TrySelectOpenDoorCandidate(out candidate, out reason))
+                {
+                    assertions.Fail(reason);
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                selectedDoor = candidate.Door;
+                doorNearPoint = candidate.Near;
+                doorFarPoint = candidate.Far;
+                SelectOnly(mount);
+                rowDoorApproachSkipped = PlanarDistance(mount.Position, doorNearPoint) < MinimumRadialDistance - 1.0f;
+                BeginExactNavigation(
+                    NavigationMode.UnmountedControl,
+                    rowDoorApproachSkipped ? doorFarPoint : doorNearPoint,
+                    rowDoorApproachSkipped,
+                    "door-control");
+                rowPhase = rowDoorApproachSkipped ? 2 : 1;
+                return;
+            }
+            if (rowPhase == 1 && PollNavigation())
+            {
+                BeginExactNavigation(NavigationMode.UnmountedControl, doorFarPoint, true, "door-control");
+                rowPhase = 2;
+                return;
+            }
+            if (rowPhase == 2 && PollNavigation())
+            {
+                rowUnmountedDoorControlPassed = true;
+                assertions.Check(selectedDoor != null && selectedDoor.isActiveAndEnabled && selectedDoor.IsOpen,
+                    "Unmounted Mammoth control traversed the unchanged active open StandardDoor.",
+                    "Door state changed during the unmounted Mammoth control.");
+                if (!MountPair())
+                {
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+                SelectOnly(rider);
+                CaptureMilestone("door-mounted");
+                BeginExactNavigation(NavigationMode.Normal, doorNearPoint, true, "door-mounted");
+                rowPhase = 3;
+                return;
+            }
+            if (rowPhase == 3 && PollNavigation())
+            {
+                assertions.Check(rowUnmountedDoorControlPassed && selectedDoor != null && selectedDoor.isActiveAndEnabled && selectedDoor.IsOpen,
+                    "Mounted pose traversed the same unchanged doorway after its exact unmounted control.",
+                    "Mounted doorway traversal lost its matched open-door control.");
+                if (!BeginFormationExercise())
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                rowPhase = 4;
+                return;
+            }
+            if (rowPhase == 4 && PollNavigation())
+            {
+                AssertFormationExercise();
+                AssertRowMovementQuality();
+                AssertPoseTechnicalQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private void AdvancePoseEquipmentVariants()
+        {
+            if (rowPhase == 0)
+            {
+                var body = rider.Body;
+                if (body == null || body.HandsEquipmentSets == null)
+                {
+                    assertions.Fail("Exact rider body/equipment-set surface was unavailable.");
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+
+                originalEquipmentSetIndex = body.CurrentHandEquipmentSetIndex;
+                equipmentSetLeaseOwned = true;
+                equipmentSetIndices = Enumerable.Range(0, body.HandsEquipmentSets.Count)
+                    .Where(index => index == originalEquipmentSetIndex || !body.HandsEquipmentSets[index].IsEmpty())
+                    .Distinct()
+                    .ToArray();
+                assertions.Check(equipmentSetIndices.Length > 0,
+                    "At least the exact active rider equipment set was available for pose observation.",
+                    "No bounded rider equipment set was available.");
+                if (equipmentSetIndices.Length == 0)
+                {
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+                equipmentSetCursor = 0;
+                body.CurrentHandEquipmentSetIndex = equipmentSetIndices[equipmentSetCursor];
+                phaseClock.Restart();
+                rowPhase = 1;
+                return;
+            }
+            if (rowPhase == 1 && phaseClock.Elapsed.TotalSeconds >= EquipmentSettleSeconds)
+            {
+                var index = equipmentSetIndices[equipmentSetCursor];
+                equipmentSets.Add(CaptureEquipmentSetEvidence(index));
+                CaptureMilestone("pose-equipment");
+                equipmentSetCursor++;
+                if (equipmentSetCursor < equipmentSetIndices.Length)
+                {
+                    rider.Body.CurrentHandEquipmentSetIndex = equipmentSetIndices[equipmentSetCursor];
+                    phaseClock.Restart();
+                    return;
+                }
+
+                rider.Body.CurrentHandEquipmentSetIndex = originalEquipmentSetIndex;
+                assertions.Check(rider.Body.CurrentHandEquipmentSetIndex == originalEquipmentSetIndex,
+                    "Exact active rider equipment-set index was restored before cleanup.",
+                    "Rider equipment-set index did not restore to its captured value.");
+                if (rider.Body.CurrentHandEquipmentSetIndex == originalEquipmentSetIndex)
+                {
+                    equipmentSetLeaseOwned = false;
+                }
+                phaseClock.Restart();
+                rowPhase = 2;
+                return;
+            }
+            if (rowPhase == 2 && phaseClock.Elapsed.TotalSeconds >= PresentationUiSettleSeconds)
+            {
+                assertions.Check(equipmentSets.Count == equipmentSetIndices.Length,
+                    "Every bounded active/nonempty rider equipment set was observed.",
+                    "Equipment-set observation count did not match its bounded inventory.");
+                assertions.Check(!string.IsNullOrEmpty(rowPoseBoneInventory) &&
+                        rowPoseBoneInventory.IndexOf("Spine", StringComparison.Ordinal) < 0 &&
+                        rowPoseBoneInventory.IndexOf("arm", StringComparison.OrdinalIgnoreCase) < 0 &&
+                        rowPoseBoneInventory.IndexOf("hand", StringComparison.OrdinalIgnoreCase) < 0,
+                    "Procedural pose ownership excluded spine, arms, hands, weapons, and shields.",
+                    "Procedural pose inventory unexpectedly included upper-body/equipment transforms: " + rowPoseBoneInventory + ".");
+                AssertPoseTechnicalQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private void AdvanceUiSelectionPortraitActionBar()
+        {
+            if (rowPhase == 0)
+            {
+                RequireSelectionManager().SelectUnit(rider.View, true, true, false);
+                phaseClock.Restart();
+                rowPhase = 1;
+                return;
+            }
+            if (rowPhase == 1 && phaseClock.Elapsed.TotalSeconds >= PresentationUiSettleSeconds)
+            {
+                var observation = ObserveUiOwnership("rider-selected", rider);
+                rowUiRiderPortraitSelected = observation.PortraitSelected;
+                rowUiRiderSelectionCircleSelected = observation.SelectionCircleSelected;
+                rowUiRiderActionBarOwned = observation.ActionBarOwned;
+                CaptureMilestone("ui-rider");
+
+                RequireSelectionManager().SelectUnit(mount.View, true, true, false);
+                rowUiMountNormalized = RequireSelectionManager().SelectedUnits.Count == 1 &&
+                    RequireSelectionManager().SelectedUnits[0] == rider && !RequireSelectionManager().SelectedUnits.Contains(mount);
+                phaseClock.Restart();
+                rowPhase = 2;
+                return;
+            }
+            if (rowPhase == 2 && phaseClock.Elapsed.TotalSeconds >= PresentationUiSettleSeconds)
+            {
+                var normalized = ObserveUiOwnership("mount-selection-normalized-to-rider", rider);
+                rowUiMountNormalized = rowUiMountNormalized && normalized.IsExactlySelected &&
+                    normalized.PortraitSelected && normalized.SelectionCircleSelected && normalized.ActionBarOwned;
+                CaptureMilestone("ui-mount-normalized");
+
+                nonPairUnit = FindIdleNonPairControllable();
+                assertions.Check(nonPairUnit != null,
+                    "A directly controllable non-pair unit was available for UI ownership switching.",
+                    "No directly controllable non-pair UI comparison unit was available.");
+                if (nonPairUnit == null)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                nonPairSnapshot = NonPairSnapshot.Capture(nonPairUnit);
+                RequireSelectionManager().SelectUnit(nonPairUnit.View, true, true, false);
+                phaseClock.Restart();
+                rowPhase = 3;
+                return;
+            }
+            if (rowPhase == 3 && phaseClock.Elapsed.TotalSeconds >= PresentationUiSettleSeconds)
+            {
+                var away = ObserveUiOwnership("selection-away", nonPairUnit);
+                rowUiAwayOwned = away.IsExactlySelected && away.PortraitSelected && away.SelectionCircleSelected && away.ActionBarOwned;
+                CaptureMilestone("ui-away");
+                RequireSelectionManager().SelectUnit(rider.View, true, true, false);
+                phaseClock.Restart();
+                rowPhase = 4;
+                return;
+            }
+            if (rowPhase == 4 && phaseClock.Elapsed.TotalSeconds >= PresentationUiSettleSeconds)
+            {
+                var back = ObserveUiOwnership("selection-back", rider);
+                rowUiBackOwned = back.IsExactlySelected && back.PortraitSelected && back.SelectionCircleSelected && back.ActionBarOwned;
+                CaptureMilestone("ui-back");
+                rowOverlayRepaintCountAfter = playerAction.OverlayRepaintCount;
+                rowOverlayEvidence = new PresentationOverlayEvidence(
+                    rowOverlayRepaintCountBefore,
+                    rowOverlayRepaintCountAfter,
+                    playerAction.OverlayPresent,
+                    playerAction.LastOverlayVisible,
+                    playerAction.LastOverlayEnabled,
+                    playerAction.LastOverlayLabel,
+                    playerAction.LastOverlayRect.width,
+                    playerAction.LastOverlayRect.height,
+                    playerAction.OverlayButtonActivationCount);
+                rowUiOverlayRendered = rowOverlayEvidence.IsQualifiedDismountOverlay;
+
+                assertions.Check(rowUiRiderPortraitSelected && rowUiRiderSelectionCircleSelected && rowUiRiderActionBarOwned,
+                    "Selected rider owned the native portrait highlight, selection circle, and action bar.",
+                    "Selected rider did not own every native portrait/circle/action-bar surface.");
+                assertions.Check(rowUiMountNormalized,
+                    "Selecting the mounted Mammoth normalized all principal UI ownership to the rider.",
+                    "Mounted Mammoth selection did not normalize portrait/circle/action-bar ownership to the rider.");
+                assertions.Check(rowUiAwayOwned && rowUiBackOwned,
+                    "Native portrait, circle, and action-bar ownership switched away and back coherently.",
+                    "UI ownership did not switch away/back coherently.");
+                assertions.Check(rowUiOverlayRendered,
+                    "Actual IMGUI repaint delivery rendered an enabled Dismount overlay inside the active screen.",
+                    "Actual IMGUI repaint telemetry did not prove the mounted Dismount overlay.");
+                AssertPoseTechnicalQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private void AdvanceCameraFollowAndCommandRouting()
+        {
+            if (rowPhase == 0)
+            {
+                if (!RunMountedRiderGroundingRegressionProbe())
+                {
+                    BeginCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+                RequireSelectionManager().SelectUnit(rider.View, true, true, false);
+                rowCameraFollowAccepted = Game.Instance.CameraController != null &&
+                    Game.Instance.CameraController.Follower != null &&
+                    Game.Instance.CameraController.Follower.Follow(rider);
+                assertions.Check(rowCameraFollowAccepted,
+                    "Native camera follower accepted the selected rider principal.",
+                    "Native camera follower rejected the selected rider; verify the exact camera-follow setting/state.");
+                cameraExpectedUnit = rider;
+                BeginRadialNavigation(NavigationMode.Normal, null, "camera-moving", true);
+                rowPhase = 1;
+                return;
+            }
+            if (rowPhase == 1)
+            {
+                ObserveCamera(cameraExpectedUnit);
+                if (!PollNavigation())
+                {
+                    return;
+                }
+                nonPairUnit = FindIdleNonPairControllable();
+                assertions.Check(nonPairUnit != null,
+                    "A directly controllable non-pair unit was available for camera selection switching.",
+                    "No directly controllable non-pair camera comparison unit was available.");
+                if (nonPairUnit == null)
+                {
+                    BeginCleanup(CleanupTrigger.Manual);
+                    return;
+                }
+                nonPairSnapshot = NonPairSnapshot.Capture(nonPairUnit);
+                RequireSelectionManager().SelectUnit(nonPairUnit.View, true, true, false);
+                Game.Instance.CameraController.Follower.Follow(nonPairUnit);
+                cameraExpectedUnit = nonPairUnit;
+                ResetCameraObservationWindow();
+                phaseClock.Restart();
+                rowPhase = 2;
+                return;
+            }
+            if (rowPhase == 2)
+            {
+                ObserveCamera(cameraExpectedUnit);
+                if (phaseClock.Elapsed.TotalSeconds < PresentationUiSettleSeconds)
+                {
+                    return;
+                }
+                rowCameraAwayObserved = rowCameraObservationCount > 0 && rowCameraFinalTargetResidual <= 0.50d;
+                CaptureMilestone("camera-away");
+
+                RequireSelectionManager().SelectUnit(mount.View, true, true, false);
+                rowSelectionMountNormalized = RequireSelectionManager().SelectedUnits.Count == 1 &&
+                    RequireSelectionManager().SelectedUnits[0] == rider;
+                Game.Instance.CameraController.Follower.Follow(rider);
+                cameraExpectedUnit = rider;
+                ResetCameraObservationWindow();
+                phaseClock.Restart();
+                rowPhase = 3;
+                return;
+            }
+            if (rowPhase == 3)
+            {
+                ObserveCamera(cameraExpectedUnit);
+                if (phaseClock.Elapsed.TotalSeconds < PresentationUiSettleSeconds)
+                {
+                    return;
+                }
+                rowCameraBackObserved = rowCameraObservationCount > 0 && rowCameraFinalTargetResidual <= 0.50d;
+                CaptureMilestone("camera-back");
+                assertions.Check(rowCameraAwayObserved && rowCameraBackObserved && rowSelectionMountNormalized,
+                    "Native camera target followed selection away and returned to the rider after mounted-Mammoth normalization.",
+                    "Camera target or mounted-Mammoth selection normalization did not complete away/back coherently.");
+                assertions.Check(rowCameraMaximumTargetResidual <= 1.50d,
+                    "Native camera target remained within the bounded moving-follow residual.",
+                    "Camera target residual reached " + rowCameraMaximumTargetResidual.ToString("0.000", CultureInfo.InvariantCulture) + " world units.");
+                AssertRowMovementQuality();
+                AssertPoseTechnicalQuality();
+                BeginCleanup(CleanupTrigger.Manual);
+            }
+        }
+
+        private bool RunMountedRiderGroundingRegressionProbe()
+        {
+            var failuresBefore = assertions.FailureCount;
+            var suppressionCountBefore = relationship.RiderGroundPlacementSuppressionCount;
+            var riderViewPositionBefore = rider.View.transform.position;
+            var riderEntityPositionBefore = rider.Position;
+
+            rider.View.ForcePlaceAboveGround();
+
+            var suppressionCountAfter = relationship.RiderGroundPlacementSuppressionCount;
+            var viewDelta = Vector3.Distance(riderViewPositionBefore, rider.View.transform.position);
+            var entityDelta = Vector3.Distance(riderEntityPositionBefore, rider.Position);
+            assertions.Check(suppressionCountAfter == suppressionCountBefore + 1L,
+                "The exact mounted-rider grounding call was intercepted once.",
+                "The exact mounted-rider grounding call was not intercepted exactly once; before/after=" +
+                suppressionCountBefore + "/" + suppressionCountAfter + ".");
+            assertions.Check(viewDelta <= 0.000001f && entityDelta <= 0.000001f,
+                "The intercepted grounding call left rider view and entity positions unchanged.",
+                "The intercepted grounding call changed rider view/entity position by " +
+                viewDelta.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                entityDelta.ToString("0.000000", CultureInfo.InvariantCulture) + " world units.");
+            logger.Info("Mounted-rider grounding regression probe: suppression before/after=" +
+                suppressionCountBefore + "/" + suppressionCountAfter +
+                ", view/entity delta=" + viewDelta.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                entityDelta.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
+            return assertions.FailureCount == failuresBefore;
+        }
+
+        private bool BeginFormationExercise()
+        {
+            nonPairUnit = FindIdleNonPairControllable();
+            assertions.Check(nonPairUnit != null,
+                "A directly controllable non-pair formation member was available.",
+                "No directly controllable non-pair unit was available for formation qualification.");
+            if (nonPairUnit == null)
+            {
+                return false;
+            }
+            nonPairSnapshot = NonPairSnapshot.Capture(nonPairUnit);
+            assertions.Check(nonPairSnapshot != null,
+                "Idle non-pair movement snapshot was captured before formation movement.",
+                "Idle non-pair movement snapshot could not be captured.");
+            if (nonPairSnapshot == null)
+            {
+                return false;
+            }
+            requiredPairNonPairSeparation = Math.Max(0.10d, mount.Corpulence + nonPairUnit.Corpulence);
+            RequireSelectionManager().MultiSelect(new[] { rider.View, nonPairUnit.View }, false);
+            rowFormationSelectionNormalized = RequireSelectionManager().SelectedUnits.Contains(rider) &&
+                RequireSelectionManager().SelectedUnits.Contains(nonPairUnit) &&
+                !RequireSelectionManager().SelectedUnits.Contains(mount);
+            assertions.Check(rowFormationSelectionNormalized,
+                "Formation selection contains rider and one non-pair unit, not the mount.",
+                "Formation selection was not normalized to rider plus one non-pair unit.");
+            uninvolvedCommands = CaptureUninvolvedMoveCommands(nonPairUnit);
+            CaptureMilestone("formation");
+            BeginRadialNavigation(NavigationMode.Formation, null, "formation");
+            return true;
+        }
+
+        private void AssertFormationExercise()
+        {
+            assertions.Check(nonPairMovedDistance >= 1.0d,
+                "Selected non-pair formation member made measurable progress.",
+                "Selected non-pair formation member did not make measurable progress.");
+            assertions.Check(rowNonPairInterferenceCount == 0,
+                "No unselected non-pair movement command was changed.",
+                "Observed " + rowNonPairInterferenceCount + " unselected non-pair command interference event(s).");
+            assertions.Check(mountFinalTargetDistance <= ReachTolerance &&
+                    navigationEndpointDistance.MinimumObservedDistance <= ReachTolerance &&
+                    nonPairFinalTargetDistance <= ReachTolerance && nonPairBestTargetDistance <= ReachTolerance,
+                "Both authoritative mount and selected non-pair member finished within formation target tolerance.",
+                "Formation target residuals exceeded tolerance: mount final/best=" +
+                    mountFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) + "/" +
+                    navigationEndpointDistance.MinimumObservedDistance.ToString("0.000", CultureInfo.InvariantCulture) +
+                    ", non-pair final/best=" + nonPairFinalTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) + "/" +
+                    nonPairBestTargetDistance.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+            assertions.Check(minimumPairNonPairSeparation >= requiredPairNonPairSeparation,
+                "Formation members retained non-overlap clearance derived from both units' corpulence.",
+                "Formation separation was " + minimumPairNonPairSeparation.ToString("0.000", CultureInfo.InvariantCulture) +
+                    " but requires " + requiredPairNonPairSeparation.ToString("0.000", CultureInfo.InvariantCulture) + ".");
+        }
+
+        private void ObservePose()
+        {
+            var runtime = relationship.Runtime;
+            rowPoseObservationCount++;
+            if (runtime.PoseHealthy)
+            {
+                rowPoseHealthyObservationCount++;
+            }
+            if (runtime.PoseFrameApplied)
+            {
+                rowPoseFrameAppliedObservationCount++;
+            }
+            var poseApplicationFrameCount = runtime.PoseApplicationFrameCount;
+            rowPoseAverageApplyMicroseconds = PresentationRuntimeEvidencePolicy.SelectLatestCumulativeAverage(
+                rowPoseApplicationFrameCount,
+                rowPoseAverageApplyMicroseconds,
+                poseApplicationFrameCount,
+                runtime.PoseAverageApplyMicroseconds);
+            rowPoseApplicationFrameCount = Math.Max(rowPoseApplicationFrameCount, poseApplicationFrameCount);
+            rowPoseFootTargetClampCount = Math.Max(rowPoseFootTargetClampCount, runtime.PoseFootTargetClampCount);
+            rowPoseMaximumFootTargetResidual = Math.Max(rowPoseMaximumFootTargetResidual, runtime.PoseMaximumFootTargetResidualWorldUnits);
+            rowPoseMaximumKneeTargetResidual = Math.Max(rowPoseMaximumKneeTargetResidual, runtime.PoseMaximumKneeTargetResidualWorldUnits);
+            rowPoseMaximumSegmentLengthResidual = Math.Max(rowPoseMaximumSegmentLengthResidual, runtime.PoseMaximumSegmentLengthResidualWorldUnits);
+            rowPoseMaximumApplyMicroseconds = Math.Max(rowPoseMaximumApplyMicroseconds, runtime.PoseMaximumApplyMicroseconds);
+            rowPoseProfileId = runtime.PoseProfileId ?? rowPoseProfileId;
+            rowPoseBoneInventory = runtime.PoseBoneInventory ?? rowPoseBoneInventory;
+            rowPoseFailure = runtime.PoseFailure ?? rowPoseFailure;
+            rowPoseMaximumComponentCount = Math.Max(rowPoseMaximumComponentCount, runtime.PoseComponentCount);
+            rowPoseMaximumBoneCount = Math.Max(rowPoseMaximumBoneCount, runtime.PoseBoneCount);
+
+            var view = rider?.View;
+            var avatar = view?.CharacterAvatar;
+            if (view == null || avatar == null)
+            {
+                return;
+            }
+            var root = avatar.transform;
+            var pelvisTransform = FindUniqueTransform(root, "Pelvis");
+            var leftFoot = FindUniqueTransform(root, "L_foot");
+            var rightFoot = FindUniqueTransform(root, "R_foot");
+            if (pelvisTransform == null || leftFoot == null || rightFoot == null)
+            {
+                return;
+            }
+
+            var pelvisLocal = view.transform.InverseTransformPoint(pelvisTransform.position);
+            var leftLocal = view.transform.InverseTransformPoint(leftFoot.position);
+            var rightLocal = view.transform.InverseTransformPoint(rightFoot.position);
+            if (previousPoseSampleAvailable)
+            {
+                rowPoseMaximumPelvisLocalFrameDelta = Math.Max(rowPoseMaximumPelvisLocalFrameDelta, Vector3.Distance(previousPosePelvisLocal, pelvisLocal));
+                rowPoseMaximumLeftFootLocalFrameDelta = Math.Max(rowPoseMaximumLeftFootLocalFrameDelta, Vector3.Distance(previousPoseLeftFootLocal, leftLocal));
+                rowPoseMaximumRightFootLocalFrameDelta = Math.Max(rowPoseMaximumRightFootLocalFrameDelta, Vector3.Distance(previousPoseRightFootLocal, rightLocal));
+            }
+            previousPosePelvisLocal = pelvisLocal;
+            previousPoseLeftFootLocal = leftLocal;
+            previousPoseRightFootLocal = rightLocal;
+            previousPoseSampleAvailable = true;
+        }
+
+        private void AssertPoseTechnicalQuality()
+        {
+            var runtime = relationship.Runtime;
+            assertions.Check(rowPoseObservationCount > 0 && rowPoseHealthyObservationCount == rowPoseObservationCount &&
+                    rowPoseApplicationFrameCount > 0 && string.IsNullOrEmpty(rowPoseFailure),
+                "Pose adapter remained healthy and produced applied-frame telemetry throughout the mounted observation.",
+                "Pose health/frame telemetry was incomplete: observations/healthy/applied=" +
+                    rowPoseObservationCount + "/" + rowPoseHealthyObservationCount + "/" + rowPoseApplicationFrameCount +
+                    ", failure=" + (rowPoseFailure ?? "none") + ".");
+            assertions.Check(runtime.PoseConfigured && runtime.PoseHealthy &&
+                    rowPoseMaximumComponentCount == pairSnapshot.RiderPoseComponentCount + 1 &&
+                    rowPoseMaximumBoneCount == 7 &&
+                    string.Equals(rowPoseProfileId, "medium-humanoid-mammoth-v1", StringComparison.Ordinal),
+                "Pose ownership stayed scoped to one exact seven-bone deterministic profile.",
+                "Pose ownership/profile changed during observation: components/bones/profile=" +
+                    rowPoseMaximumComponentCount + "/" + rowPoseMaximumBoneCount + "/" + (rowPoseProfileId ?? "null") + ".");
+            assertions.Check(rowPoseMaximumFootTargetResidual <= MaximumPoseTargetResidualWorldUnits &&
+                    rowPoseMaximumKneeTargetResidual <= MaximumPoseTargetResidualWorldUnits &&
+                    rowPoseMaximumSegmentLengthResidual <= MaximumPoseSegmentResidualWorldUnits,
+                "Analytical leg targets and segment lengths remained within bounded residuals.",
+                "Pose residual exceeded its bound: foot/knee/segment=" +
+                    rowPoseMaximumFootTargetResidual.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                    rowPoseMaximumKneeTargetResidual.ToString("0.000000", CultureInfo.InvariantCulture) + "/" +
+                    rowPoseMaximumSegmentLengthResidual.ToString("0.000000", CultureInfo.InvariantCulture) + ".");
+            assertions.Check(rowPoseMaximumApplyMicroseconds <= MaximumPoseApplyMicroseconds &&
+                    rowPoseAverageApplyMicroseconds <= MaximumPoseAverageApplyMicroseconds,
+                "Procedural pose frame cost remained within the private-alpha technical bound.",
+                "Pose frame cost exceeded its bound: max/average=" +
+                    rowPoseMaximumApplyMicroseconds.ToString("0.0", CultureInfo.InvariantCulture) + "/" +
+                    rowPoseAverageApplyMicroseconds.ToString("0.0", CultureInfo.InvariantCulture) + " microseconds.");
+        }
+
+        private void AcquireMountSpeedLease()
+        {
+            if (mountSpeedLeaseOwned)
+            {
+                throw new InvalidOperationException("A mount-speed observation lease is already active.");
+            }
+            var agent = mount?.View?.AgentASP;
+            if (agent == null)
+            {
+                throw new InvalidOperationException("The exact Mammoth stock movement agent is unavailable for walk/run observation.");
+            }
+            originalMountMaxSpeedOverride = agent.MaxSpeedOverride;
+            originalMountEffectiveMaxSpeed = agent.MaxSpeed;
+            mountSpeedLeaseOwned = true;
+        }
+
+        private EquipmentSetEvidence CaptureEquipmentSetEvidence(int index)
+        {
+            var set = rider.Body.HandsEquipmentSets[index];
+            var primaryItem = set.PrimaryHand.MaybeItem;
+            var secondaryItem = set.SecondaryHand.MaybeItem;
+            var primaryWeapon = set.PrimaryHand.MaybeWeapon;
+            return new EquipmentSetEvidence
+            {
+                Index = index,
+                IsOriginal = index == originalEquipmentSetIndex,
+                IsEmpty = set.IsEmpty(),
+                PrimaryType = primaryItem == null ? null : primaryItem.GetType().FullName,
+                PrimaryBlueprintGuid = primaryItem?.Blueprint?.AssetGuid,
+                SecondaryType = secondaryItem == null ? null : secondaryItem.GetType().FullName,
+                SecondaryBlueprintGuid = secondaryItem?.Blueprint?.AssetGuid,
+                OneHandedWeapon = primaryWeapon != null && !primaryWeapon.Blueprint.IsTwoHanded && !primaryWeapon.Blueprint.IsNatural,
+                TwoHandedWeapon = primaryWeapon != null && primaryWeapon.Blueprint.IsTwoHanded,
+                Shield = set.SecondaryHand.HasShield,
+                PoseHealthy = relationship.Runtime.PoseHealthy,
+                PoseFrameCount = relationship.Runtime.PoseApplicationFrameCount
+            };
+        }
+
+        private UiOwnershipEvidence ObserveUiOwnership(string phase, UnitEntityData expected)
+        {
+            var observation = new UiOwnershipEvidence
+            {
+                Phase = phase,
+                ExpectedUnitId = expected == null ? null : expected.UniqueId
+            };
+            try
+            {
+                var selection = RequireSelectionManager();
+                observation.IsExactlySelected = expected != null && selection.SelectedUnits.Count == 1 && selection.SelectedUnits[0] == expected;
+
+                var actionBar = ActionBarManager.Instance;
+                var selectedField = typeof(ActionBarManager).GetField("m_Selected", BindingFlags.Instance | BindingFlags.NonPublic);
+                var actionBarSelected = selectedField == null || actionBar == null ? null : selectedField.GetValue(actionBar) as UnitEntityData;
+                observation.ActionBarSelectedUnitId = actionBarSelected == null ? null : actionBarSelected.UniqueId;
+                observation.ActionBarActive = actionBar != null && actionBar.isActiveAndEnabled && actionBar.gameObject.activeInHierarchy;
+                observation.ActionBarOwned = actionBarSelected == expected && observation.ActionBarActive;
+
+                var portraitUnitField = typeof(GroupCharacterPortraitController).GetField("m_Unit", BindingFlags.Instance | BindingFlags.NonPublic);
+                var portraitSelectionSpriteField = typeof(GroupCharacterPortraitController).GetField("m_SelectionSprite", BindingFlags.Instance | BindingFlags.NonPublic);
+                var portraitFrameField = typeof(GroupCharacterPortraitController).GetField("Frame", BindingFlags.Instance | BindingFlags.Public);
+                var portrait = Resources.FindObjectsOfTypeAll<GroupCharacterPortraitController>()
+                    .FirstOrDefault(candidate => candidate != null && portraitUnitField != null && portraitUnitField.GetValue(candidate) == expected);
+                observation.PortraitControllerCount = Resources.FindObjectsOfTypeAll<GroupCharacterPortraitController>()
+                    .Count(candidate => candidate != null && portraitUnitField != null && portraitUnitField.GetValue(candidate) == expected);
+                var selectedSprite = portrait == null || portraitSelectionSpriteField == null
+                    ? null
+                    : portraitSelectionSpriteField.GetValue(portrait) as Sprite;
+                var frame = portrait == null || portraitFrameField == null ? null : portraitFrameField.GetValue(portrait) as Component;
+                var currentSprite = frame == null ? null : frame.GetType().GetProperty("sprite", BindingFlags.Instance | BindingFlags.Public)?.GetValue(frame, null) as Sprite;
+                observation.PortraitSelected = portrait != null && frame != null && portrait.gameObject.activeInHierarchy &&
+                    selectedSprite != null && currentSprite == selectedSprite;
+
+                var decal = expected?.View == null
+                    ? null
+                    : expected.View.GetComponentsInChildren<CharacterUIDecal>(true).FirstOrDefault(candidate => candidate != null && candidate.Unit == expected);
+                observation.SelectionCircleCount = expected?.View == null
+                    ? 0
+                    : expected.View.GetComponentsInChildren<CharacterUIDecal>(true).Count(candidate => candidate != null && candidate.Unit == expected);
+                observation.SelectionCircleSelected = decal != null && decal.Select != null && decal.Select.activeInHierarchy &&
+                    decal.transform.IsChildOf(expected.View.transform);
+            }
+            catch (Exception exception)
+            {
+                observation.Error = exception.GetType().Name + ": " + exception.Message;
+                rowUiObservationFailure = rowUiObservationFailure ?? observation.Error;
+            }
+            uiObservations.Add(observation);
+            return observation;
+        }
+
+        private void ObserveCamera(UnitEntityData expected)
+        {
+            if (expected == null || Game.Instance?.UI == null)
+            {
+                return;
+            }
+            var rig = Game.Instance.UI.GetCameraRig();
+            if (rig == null)
+            {
+                return;
+            }
+            var targetResidual = PlanarDistance(rig.GetPosition(), expected.Position);
+            var rigResidual = PlanarDistance(rig.transform.position, expected.Position);
+            rowCameraObservationCount++;
+            rowCameraTotalObservationCount++;
+            rowCameraMinimumTargetResidual = Math.Min(rowCameraMinimumTargetResidual, targetResidual);
+            rowCameraMaximumTargetResidual = Math.Max(rowCameraMaximumTargetResidual, targetResidual);
+            rowCameraFinalTargetResidual = targetResidual;
+            rowCameraMinimumRigResidual = Math.Min(rowCameraMinimumRigResidual, rigResidual);
+            rowCameraMaximumRigResidual = Math.Max(rowCameraMaximumRigResidual, rigResidual);
+        }
+
+        private void ResetCameraObservationWindow()
+        {
+            rowCameraObservationCount = 0;
+            rowCameraMinimumTargetResidual = double.MaxValue;
+            rowCameraFinalTargetResidual = double.MaxValue;
+            rowCameraMinimumRigResidual = double.MaxValue;
+        }
+
+        private bool RestoreDistanceDoorFixtureLease()
+        {
+            if (!distanceDoorFixtureLeaseCaptured)
+            {
+                return true;
+            }
+            if (selectedDoor == null)
+            {
+                RecordPresentationLeaseFailure("Distance-door fixture lease lost its exact StandardDoor reference.");
+                return false;
+            }
+
+            try
+            {
+                if (selectedDoor.GetState() != distanceDoorFixtureOriginalOpen)
+                {
+                    if (!selectedDoor.Enabled)
+                    {
+                        selectedDoor.Enabled = true;
+                    }
+                    selectedDoor.Open();
+                }
+                selectedDoor.Enabled = distanceDoorFixtureOriginalEnabled;
+                distanceDoorFixtureRestored = MountedDistanceDoorFixturePolicy.IsExactlyRestored(
+                    distanceDoorFixtureLeaseCaptured,
+                    distanceDoorFixtureOriginalOpen,
+                    distanceDoorFixtureOriginalEnabled,
+                    selectedDoor.GetState(),
+                    selectedDoor.Enabled);
+                if (!distanceDoorFixtureRestored)
+                {
+                    RecordPresentationLeaseFailure("Distance-door fixture lease did not restore exact open/enabled state.");
+                }
+                return distanceDoorFixtureRestored;
+            }
+            catch (Exception exception)
+            {
+                RecordPresentationLeaseFailure("Distance-door fixture lease restoration failed: " +
+                    exception.GetType().Name + ": " + exception.Message);
+                return false;
+            }
+        }
+
+        private bool RestorePresentationTestLeases()
+        {
+            var restored = true;
+            if (equipmentSetLeaseOwned)
+            {
+                try
+                {
+                    if (rider?.Body == null)
+                    {
+                        throw new InvalidOperationException("Rider body disappeared before equipment-set restoration.");
+                    }
+                    rider.Body.CurrentHandEquipmentSetIndex = originalEquipmentSetIndex;
+                    if (rider.Body.CurrentHandEquipmentSetIndex != originalEquipmentSetIndex)
+                    {
+                        throw new InvalidOperationException("Rider equipment-set index did not match its captured value.");
+                    }
+                    equipmentSetLeaseOwned = false;
+                }
+                catch (Exception exception)
+                {
+                    restored = false;
+                    RecordPresentationLeaseFailure("Equipment-set observation lease restoration failed: " + exception.GetType().Name + ": " + exception.Message);
+                }
+            }
+            if (mountSpeedLeaseOwned)
+            {
+                try
+                {
+                    if (mount?.View?.AgentASP == null)
+                    {
+                        throw new InvalidOperationException("Mammoth movement agent disappeared before speed restoration.");
+                    }
+                    mount.View.AgentASP.MaxSpeedOverride = originalMountMaxSpeedOverride;
+                    if (mount.View.AgentASP.MaxSpeedOverride != originalMountMaxSpeedOverride)
+                    {
+                        throw new InvalidOperationException("Mammoth MaxSpeedOverride did not match its captured value.");
+                    }
+                    mountSpeedLeaseOwned = false;
+                }
+                catch (Exception exception)
+                {
+                    restored = false;
+                    RecordPresentationLeaseFailure("Walk/run speed lease restoration failed: " + exception.GetType().Name + ": " + exception.Message);
+                }
+            }
+            if (cameraFollowerLeaseOwned)
+            {
+                try
+                {
+                    cameraFollowerSnapshot.Restore();
+                    cameraFollowerLeaseOwned = false;
+                }
+                catch (Exception exception)
+                {
+                    restored = false;
+                    RecordPresentationLeaseFailure("Native camera-follower lease restoration failed: " + exception.GetType().Name + ": " + exception.Message);
+                }
+            }
+            return restored;
+        }
+
+        private void RecordPresentationLeaseFailure(string message)
+        {
+            if (assertions != null && currentRow != null)
+            {
+                assertions.Fail(message);
+            }
+            else
+            {
+                errors.Add(message);
+            }
+        }
+
         private bool MountPair()
         {
             var result = relationship.MountAutomationPair();
@@ -947,6 +2238,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return false;
             }
+            rowMountedAtLeastOnce = true;
 
             var runtime = relationship.Runtime;
             assertions.Check(pairSnapshot.RiderView.AgentASP == pairSnapshot.RiderStockAgent && !pairSnapshot.RiderStockAgent.enabled,
@@ -961,6 +2253,13 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(runtime.PresentationAttachmentLeaseActive && runtime.RiderParentMatchesAttachment,
                 "Rider view owns one scoped root-projected position attachment lease.",
                 "Rider view position attachment lease is missing or has the wrong parent.");
+            assertions.Check(runtime.PoseConfigured && runtime.PoseHealthy &&
+                    runtime.PoseComponentCount == pairSnapshot.RiderPoseComponentCount + 1 &&
+                    runtime.PoseBoneCount == 7 &&
+                    string.Equals(runtime.PoseProfileId, "medium-humanoid-mammoth-v1", StringComparison.Ordinal),
+                "Rider view owns exactly one healthy seven-bone Medium-humanoid Mammoth pose adapter.",
+                "Rider pose adapter count, health, profile, or typed bone inventory was not exact: " +
+                    (runtime.PoseFailure ?? "no adapter failure detail"));
             assertions.Check(pairSnapshot.MountView.AgentASP == pairSnapshot.MountStockAgent && pairSnapshot.MountStockAgent.enabled && pairSnapshot.MountView.AgentOverride == null,
                 "Mammoth stock agent is the sole authoritative mover.",
                 "Mammoth stock movement authority is unavailable or overridden.");
@@ -1002,6 +2301,7 @@ namespace KingmakerMountedCombat.Diagnostics
             probeRejections.Clear();
             phaseClock.Restart();
             navigationMovingCaptureTaken = false;
+            stopEarlyCaptureBoundary.Reset();
             navigationMilestone = movingMilestone;
             if (probeCandidates.Count == 0)
             {
@@ -1058,6 +2358,16 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 if (navigationMode == NavigationMode.StopEarly && navigationMovedDistance >= 0.75d)
                 {
+                    var stopCaptureDecision = stopEarlyCaptureBoundary.Observe(true, navigationMovingCaptureTaken);
+                    if (stopCaptureDecision == StopEarlyCaptureDecision.CaptureAndWait)
+                    {
+                        navigationMovingCaptureTaken = true;
+                        CaptureMilestone(navigationMilestone);
+                    }
+                    if (stopCaptureDecision != StopEarlyCaptureDecision.Stop)
+                    {
+                        return false;
+                    }
                     RequireSelectionManager().Stop();
                     rowStopCommandIssuedCount++;
                     navigationStablePosition = mount.Position;
@@ -1238,6 +2548,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             probeCallbackAccepted = false;
             probePathLength = 0.0d;
+            chunk4SlopeGroundProbe = null;
             if (path == null)
             {
                 probeCallbackReason = "candidate " + FormatPosition(requested) + " returned a null path";
@@ -1276,6 +2587,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     probeCallbackReason = "candidate " + FormatPosition(requested) + " path detour was " + probePathLength.ToString("0.00", CultureInfo.InvariantCulture);
                 }
+                else if (currentRow == Chunk4SlopeRow && !Chunk4PathContainsSlope(path.vectorPath))
+                {
+                    probeCallbackReason = "Native ground projection has less than half a metre of elevation; not a slope candidate.";
+                }
                 else if (probeDoorStrict && selectedDoor != null && !PathCrossesSelectedDoor(path.vectorPath))
                 {
                     probeCallbackReason = "candidate " + FormatPosition(requested) + " path did not cross the selected open StandardDoor plane within the bounded aperture proxy";
@@ -1287,6 +2602,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     probeCallbackReason = null;
                 }
             }
+            ObserveChunk4SlopeProbe(requested, path);
             probeCallbackReady = true;
         }
 
@@ -1314,6 +2630,7 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationPreviousDistance = initialTargetDistance;
             navigationStartedAt = suiteClock.Elapsed.TotalSeconds;
             navigationPath = mount.View.AgentASP.Path;
+            navigationPathFirstObservedFrame = navigationPath == null ? -1 : Time.frameCount;
 
             if (mounted)
             {
@@ -1368,8 +2685,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            ObserveChunk4Slope();
             var position = mount.Position;
             var distance = PlanarDistance(position, navigationDestination);
+            if (string.Equals(currentRow, "pose-walk-run", StringComparison.Ordinal) && mount.View.AgentASP.IsReallyMoving)
+            {
+                if (rowPhase == 1)
+                {
+                    rowWalkMovingSampleCount++;
+                    rowWalkMaximumSpeed = Math.Max(rowWalkMaximumSpeed, mount.View.AgentASP.Speed);
+                }
+                else if (rowPhase == 2)
+                {
+                    rowRunMovingSampleCount++;
+                    rowRunMaximumSpeed = Math.Max(rowRunMaximumSpeed, mount.View.AgentASP.Speed);
+                }
+            }
             navigationMovedDistance = Math.Max(navigationMovedDistance, PlanarDistance(navigationStart, position));
             navigationEndpointDistance.Observe(distance, suiteClock.Elapsed.TotalSeconds);
             if (distance + 0.05d < navigationPreviousDistance)
@@ -1393,13 +2724,69 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationPreviousDistance = distance;
 
             var currentPath = mount.View.AgentASP.Path;
-            if (currentPath != null && navigationPath != null && !ReferenceEquals(currentPath, navigationPath))
-            {
-                navigationRepaths++;
-            }
-            if (currentPath != null)
+            if (currentPath != null && navigationPath == null)
             {
                 navigationPath = currentPath;
+                navigationPathFirstObservedFrame = Time.frameCount;
+            }
+            else if (currentPath != null && navigationPath != null && !ReferenceEquals(currentPath, navigationPath))
+            {
+                var previousPath = navigationPath as Pathfinding.Path;
+                var currentCommandAtReplacement = mount.Commands.Move;
+                var astarPathAtReplacement = AstarPath.active;
+                var tileHandlerLastUpdateFrame = Pathfinding.Util.TileHandler.LastUpdateFrame;
+                var replacementObservedFrame = Time.frameCount;
+                var previousPathFirstObservedNotNewerThanTileUpdateFrame =
+                    navigationPathFirstObservedFrame >= 0 &&
+                    navigationPathFirstObservedFrame <= tileHandlerLastUpdateFrame;
+                var astarGraphUpdatesQueued = astarPathAtReplacement == null
+                    ? (bool?)null
+                    : astarPathAtReplacement.IsAnyGraphUpdatesQueued;
+                var agentRepathNeeded = mount.View.AgentASP.RepathNeeded;
+                var pathFailed = mount.View.AgentASP.PathFailed;
+                var pathError = currentPath.error;
+                var commandReferenceRetained = currentCommandAtReplacement != null &&
+                    navigationCommand != null &&
+                    ReferenceEquals(currentCommandAtReplacement, navigationCommand);
+                var tileFrameAttributedRefresh =
+                    (string.Equals(currentRow, "mounted-distance-door-interaction", StringComparison.Ordinal) ||
+                     string.Equals(currentRow, "mounted-pair-doorway", StringComparison.Ordinal)) &&
+                    previousPathFirstObservedNotNewerThanTileUpdateFrame &&
+                    replacementObservedFrame > tileHandlerLastUpdateFrame &&
+                    astarPathAtReplacement != null &&
+                    astarGraphUpdatesQueued.HasValue &&
+                    !astarGraphUpdatesQueued.Value &&
+                    !agentRepathNeeded &&
+                    !pathFailed &&
+                    !pathError &&
+                    commandReferenceRetained;
+                navigationRepaths++;
+                if (!tileFrameAttributedRefresh)
+                {
+                    navigationUnattributedRepaths++;
+                }
+                WriteEvidence(new
+                {
+                    kind = "navigation-path-replacement",
+                    replacementIndex = navigationRepaths,
+                    previousPathId = previousPath == null ? (uint?)null : previousPath.pathID,
+                    newPathId = currentPath.pathID,
+                    previousPathFirstObservedFrame = navigationPathFirstObservedFrame,
+                    replacementObservedFrame,
+                    tileHandlerLastUpdateFrame,
+                    previousPathFirstObservedNotNewerThanTileUpdateFrame,
+                    astarPathPresent = astarPathAtReplacement != null,
+                    astarGraphUpdatesQueued,
+                    agentRepathNeeded,
+                    pathFailed,
+                    pathError,
+                    commandReferenceRetained,
+                    commandType = currentCommandAtReplacement == null
+                        ? null
+                        : currentCommandAtReplacement.GetType().FullName
+                });
+                navigationPath = currentPath;
+                navigationPathFirstObservedFrame = Time.frameCount;
             }
 
             var currentCommand = mount.Commands.Move;
@@ -1460,6 +2847,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             rowOscillations += navigationOscillations;
             rowUnexpectedRepaths += navigationRepaths;
+            rowUnattributedRepaths += navigationUnattributedRepaths;
             rowCommandReplacements += navigationCommandReplacements;
             rowSelectionLosses += navigationSelectionLosses;
             rowMaximumStationaryDrift = Math.Max(rowMaximumStationaryDrift, navigationMaximumStationaryDrift);
@@ -1502,9 +2890,10 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(navigationOscillations <= MaximumOscillations,
                 "Movement leg remained within the oscillation bound.",
                 "Movement leg observed " + navigationOscillations + " oscillations.");
-            assertions.Check(navigationRepaths <= MaximumUnexpectedRepaths,
-                "Movement leg remained within the unexpected-repath bound.",
-                "Movement leg observed " + navigationRepaths + " unexpected path replacements.");
+            assertions.Check(navigationUnattributedRepaths <= MaximumUnexpectedRepaths,
+                "Movement leg path replacements were frame-attributed or remained within the unexpected-repath bound.",
+                "Movement leg observed " + navigationUnattributedRepaths + " unattributed path replacements (" +
+                navigationRepaths + " raw).");
             assertions.Check(navigationCommandReplacements == 0,
                 "Movement command was not unexpectedly replaced.",
                 "Movement command was unexpectedly replaced " + navigationCommandReplacements + " time(s).");
@@ -1517,6 +2906,10 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationStage = NavigationStage.Complete;
         }
 
+        private MovementSynchronizationSample rowFirstPhaseViolation;
+        private long rowNativeMovementControllerUpdates;
+        private long rowNativeMovingTicks;
+
         private void ObserveSynchronization()
         {
             var agent = relationship.Runtime.MovementAgent;
@@ -1525,6 +2918,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             rowSynchronizationObservationCount++;
+            if (rowFirstPhaseViolation == null) rowFirstPhaseViolation = agent.FirstPhaseViolation;
+            rowNativeMovementControllerUpdates = agent.NativeMovementControllerUpdateCount;
+            rowNativeMovingTicks = agent.NativeMovingTickCount;
             rowMaximumPreCorrectionResidual = Math.Max(rowMaximumPreCorrectionResidual, agent.MaximumPreCorrectionPositionResidualWorldUnits);
             rowMaximumInitialConfigurationResidual = Math.Max(rowMaximumInitialConfigurationResidual,
                 agent.MaximumInitialConfigurationPreCorrectionPositionResidualWorldUnits);
@@ -1742,9 +3138,10 @@ namespace KingmakerMountedCombat.Diagnostics
             assertions.Check(rowOscillations <= MaximumOscillations * Math.Max(1, rowWaypointCount),
                 "Row oscillation count remained bounded.",
                 "Row oscillation count was " + rowOscillations + ".");
-            assertions.Check(rowUnexpectedRepaths <= MaximumUnexpectedRepaths * Math.Max(1, rowWaypointCount),
-                "Row unexpected-repath count remained bounded.",
-                "Row unexpected-repath count was " + rowUnexpectedRepaths + ".");
+            assertions.Check(rowUnattributedRepaths <= MaximumUnexpectedRepaths * Math.Max(1, rowWaypointCount),
+                "Row path replacements were frame-attributed or remained within the unexpected-repath bound.",
+                "Row unattributed/raw path-replacement counts were " + rowUnattributedRepaths + "/" +
+                rowUnexpectedRepaths + ".");
             assertions.Check(rowCommandReplacements == 0,
                 "No routed Mammoth command was unexpectedly replaced.",
                 "Observed " + rowCommandReplacements + " routed-command replacements.");
@@ -1782,6 +3179,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 navigationStage = NavigationStage.None;
                 StopTouchedMovement();
                 cleanupMovementStoppedBeforeFinalSynchronization = true;
+            }
+            if (!RestoreDistanceDoorFixtureLease())
+            {
+                fatalResidue = true;
+            }
+            if (!RestorePresentationTestLeases())
+            {
+                fatalResidue = true;
             }
             if (!FreezeFinalSynchronizationAtCleanupBoundary())
             {
@@ -1935,7 +3340,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 qualification.PostCorrectionPositionPassed &&
                 qualification.PostCorrectionRotationPassed &&
                 qualification.CorrectionCadencePassed &&
-                agent.UpdateSampleCount > 0L && agent.LateUpdateSampleCount > 0L &&
+                PresentationRuntimeEvidencePolicy.HasRequiredSynchronizationPhaseCoverage(
+                    currentRow,
+                    agent.UpdateSampleCount,
+                    agent.LateUpdateSampleCount) &&
                 rowMaximumUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
                 rowMaximumLateUpdatePreCorrectionResidual <= settings.MaximumAnchorResidualWorldUnits &&
                 rowMaximumViewCurrentPositionResidual <= settings.MaximumAnchorResidualWorldUnits &&
@@ -2024,6 +3432,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             try
             {
+                // Unity destroys the disabled owned components at the render
+                // boundary after dismount. Publish cleanup-after evidence from
+                // this verified later frame, not from the transition frame.
+                cleanupAfter = CleanupStateEvidence.Capture(pendingCleanupTrigger, relationship, rider, mount, Game.Instance);
+                cleanupResidual = cleanupResidual || cleanupAfter.HasMountedResidual;
                 var failuresBeforeCleanupVerification = assertions.FailureCount;
                 var clean = relationship.State == RelationshipState.Unmounted && relationship.Rider == null && relationship.Mount == null && relationship.Runtime.MovementAgent == null;
                 assertions.Check(clean,
@@ -2040,8 +3453,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     assertions.Check(pairSnapshot.RiderOverrideComponentCountRestored(),
                         "Owned RiderMovementAgent component count returned to its exact prior value.",
                         "A RiderMovementAgent component remained/disappeared, or its Unity view was destroyed after cleanup.");
+                    assertions.Check(pairSnapshot.RiderPoseComponentCountRestored() &&
+                            (!rowMountedAtLeastOnce || relationship.Runtime.PoseBaselineRestoreVerified),
+                        "Owned pose component count returned to its exact prior value and the bone baseline restoration was verified.",
+                        "A MountedRiderPoseAdapter component or unverified pose baseline remained after cleanup.");
                     assertions.Check(pairSnapshot.RiderAttachmentStateRestored() &&
-                        relationship.Runtime.PresentationAttachmentRestoreVerified &&
+                        (!rowMountedAtLeastOnce || relationship.Runtime.PresentationAttachmentRestoreVerified) &&
                         !relationship.Runtime.PresentationAttachmentLeaseActive && !relationship.Runtime.HasPresentationAttachmentResidue,
                         "Rider attachment restored its exact parent, sibling index, and local scale; the lease verified captured world pose before nav-safe dismount placement.",
                         "Rider attachment retained parent/carrier residue, lost its Unity view, or did not verify the captured transform state.");
@@ -2253,6 +3670,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 maximumStationaryDriftWorldUnits = rowMaximumStationaryDrift,
                 maximumStuckSeconds = rowMaximumStuckSeconds,
                 oscillationCount = rowOscillations,
+                // This schema-v1 field remains the raw replacement count so every native path identity
+                // change stays present and independently auditable in historical and forward evidence.
                 unexpectedRepathCount = rowUnexpectedRepaths,
                 commandReplacementCount = rowCommandReplacements,
                 selectionLossCount = rowSelectionLosses,
@@ -2269,6 +3688,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 minimumPairNonPairSeparationWorldUnits = minimumPairNonPairSeparation,
                 requiredPairNonPairSeparationWorldUnits = requiredPairNonPairSeparation,
                 unmountedDoorControlPassed = rowUnmountedDoorControlPassed,
+                doorFixtureLeaseCaptured = distanceDoorFixtureLeaseCaptured,
+                doorFixtureOriginalOpen = distanceDoorFixtureOriginalOpen,
+                doorFixtureOriginalEnabled = distanceDoorFixtureOriginalEnabled,
+                doorFixtureDisableOnOpen = distanceDoorFixtureDisableOnOpen,
+                doorFixtureTemporaryEnableUsed = distanceDoorFixtureTemporaryEnableUsed,
+                doorFixtureRestored = distanceDoorFixtureRestored,
+                doorDisableNavmeshCutWhenOpen = distanceDoorDisableNavmeshCutWhenOpen,
+                doorNavmeshCutPresent = distanceDoorNavmeshCut != null,
+                doorNavmeshCutEnabled = distanceDoorNavmeshCut != null && distanceDoorNavmeshCut.enabled,
+                doorInitialNavmeshCutRequiresUpdate = distanceDoorInitialCutRequiresUpdate,
+                doorFinalNavmeshCutRequiresUpdate = distanceDoorFinalCutRequiresUpdate,
+                doorTraversalReadinessQualified = distanceDoorTraversalReadinessQualified,
+                doorTraversalReadinessObservationCount = distanceDoorTraversalReadinessObservationCount,
+                doorTraversalReadinessElapsedSeconds = distanceDoorTraversalReadinessElapsedSeconds,
                 doorApproachSkipped = rowDoorApproachSkipped,
                 stopCommandIssuedCount = rowStopCommandIssuedCount,
                 restartCompleted = rowRestartCompleted,
@@ -2282,13 +3715,63 @@ namespace KingmakerMountedCombat.Diagnostics
                 pauseExited = rowPauseExited,
                 destinationCancelCommandAbsent = rowDestinationCancelCommandAbsent,
                 destinationCancelRelationshipPreserved = rowDestinationCancelRelationshipPreserved,
+                poseProfileId = rowPoseProfileId,
+                poseBoneInventory = rowPoseBoneInventory,
+                poseObservationCount = rowPoseObservationCount,
+                poseHealthyObservationCount = rowPoseHealthyObservationCount,
+                poseFrameAppliedObservationCount = rowPoseFrameAppliedObservationCount,
+                poseApplicationFrameCount = rowPoseApplicationFrameCount,
+                poseFootTargetClampCount = rowPoseFootTargetClampCount,
+                poseMaximumFootTargetResidualWorldUnits = rowPoseMaximumFootTargetResidual,
+                poseMaximumKneeTargetResidualWorldUnits = rowPoseMaximumKneeTargetResidual,
+                poseMaximumSegmentLengthResidualWorldUnits = rowPoseMaximumSegmentLengthResidual,
+                poseMaximumApplyMicroseconds = rowPoseMaximumApplyMicroseconds,
+                poseAverageApplyMicroseconds = rowPoseAverageApplyMicroseconds,
+                poseMaximumPelvisLocalFrameDeltaWorldUnits = rowPoseMaximumPelvisLocalFrameDelta,
+                poseMaximumLeftFootLocalFrameDeltaWorldUnits = rowPoseMaximumLeftFootLocalFrameDelta,
+                poseMaximumRightFootLocalFrameDeltaWorldUnits = rowPoseMaximumRightFootLocalFrameDelta,
+                poseMaximumComponentCount = rowPoseMaximumComponentCount,
+                poseMaximumBoneCount = rowPoseMaximumBoneCount,
+                poseFailure = rowPoseFailure,
+                walkMovingSampleCount = rowWalkMovingSampleCount,
+                runMovingSampleCount = rowRunMovingSampleCount,
+                walkMaximumSpeedWorldUnitsPerSecond = rowWalkMaximumSpeed,
+                runMaximumSpeedWorldUnitsPerSecond = rowRunMaximumSpeed,
+                equipmentSets = equipmentSets.ToArray(),
+                uiObservations = uiObservations.ToArray(),
+                uiRiderPortraitSelected = rowUiRiderPortraitSelected,
+                uiRiderSelectionCircleSelected = rowUiRiderSelectionCircleSelected,
+                uiRiderActionBarOwned = rowUiRiderActionBarOwned,
+                uiMountNormalized = rowUiMountNormalized,
+                uiAwayOwned = rowUiAwayOwned,
+                uiBackOwned = rowUiBackOwned,
+                uiOverlayRendered = rowUiOverlayRendered,
+                uiOverlayRepaintCountBefore = rowOverlayRepaintCountBefore,
+                uiOverlayRepaintCountAfter = rowOverlayRepaintCountAfter,
+                uiOverlayLabel = rowOverlayEvidence.Label,
+                uiOverlayEnabled = rowOverlayEvidence.Enabled,
+                uiOverlayVisible = rowOverlayEvidence.Visible,
+                uiOverlayButtonActivationCount = rowOverlayEvidence.ButtonActivationCount,
+                uiObservationFailure = rowUiObservationFailure,
+                cameraFollowAccepted = rowCameraFollowAccepted,
+                cameraObservationCount = rowCameraTotalObservationCount,
+                cameraMinimumTargetResidualWorldUnits = rowCameraMinimumTargetResidual,
+                cameraMaximumTargetResidualWorldUnits = rowCameraMaximumTargetResidual,
+                cameraFinalTargetResidualWorldUnits = rowCameraFinalTargetResidual,
+                cameraMinimumRigResidualWorldUnits = rowCameraMinimumRigResidual,
+                cameraMaximumRigResidualWorldUnits = rowCameraMaximumRigResidual,
+                cameraAwayObserved = rowCameraAwayObserved,
+                cameraBackObserved = rowCameraBackObserved,
                 cleanupTrigger = pendingCleanupTrigger.ToString(),
                 cleanupSucceeded = cleanupAttemptSucceeded,
                 cleanupResult,
                 cleanupResidual,
                 cleanupBefore,
                 cleanupAfter,
-                selectionCoverage = "SelectionManager.SelectedUnits and scoped mount-to-rider normalization only; active portrait and camera-follow state are not asserted by this row.",
+                selectionCoverage = IsPresentationRow(currentRow)
+                    ? "Exact SelectionManager identities plus native portrait controller, CharacterUIDecal selection circle, ActionBarManager owner, IMGUI repaint, and/or native CameraUnitFollower observations as applicable; physical pointer injection remains reserved for manual review."
+                    : "SelectionManager.SelectedUnits and scoped mount-to-rider normalization only; active portrait and camera-follow state are not asserted by this row.",
+                poseCoverage = "Exact supported seven-bone profile, analytical target/segment residuals, local per-frame deltas, frame cost, component ownership, and baseline cleanup; subjective visual acceptability remains manual-review-only.",
                 formationCoverage = "Stock group-command recipients, final/best target distance, corpulence clearance, and uninvolved command identity only; authored formation-slot persistence is not asserted.",
                 door = selectedDoor == null ? null : BuildHierarchyName(selectedDoor.transform),
                 doorNear = PositionEvidence.From(doorNearPoint),
@@ -2457,7 +3940,10 @@ namespace KingmakerMountedCombat.Diagnostics
             return null;
         }
 
-        private bool TrySelectOpenDoorCandidate(out DoorCandidate selected, out string reason)
+        private bool TrySelectOpenDoorCandidate(
+            out DoorCandidate selected,
+            out string reason,
+            bool requireOutsideInteractionRange = false)
         {
             selected = null;
             reason = null;
@@ -2485,6 +3971,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 openCount++;
                 var centerDistance = PlanarDistance(mount.Position, door.transform.position);
                 if (centerDistance > 28.0d)
+                {
+                    continue;
+                }
+                if (requireOutsideInteractionRange && centerDistance <= door.ProximityRadius + 0.5f)
                 {
                     continue;
                 }
@@ -2518,7 +4008,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             reason = openCount == 0
                 ? "Doorway row found no active open StandardDoor; no door was mutated and no mounted inference was made."
-                : "Doorway row found " + openCount + " active open StandardDoor object(s), but none had a bounded nearby geometry candidate for the Mammoth control.";
+                : "Doorway row found " + openCount + " active open StandardDoor object(s), but none had a bounded nearby geometry candidate" +
+                    (requireOutsideInteractionRange ? " outside immediate interaction range" : string.Empty) +
+                    " for the Mammoth control.";
             return false;
         }
 
@@ -2539,7 +4031,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 PlanarNormalized(forward - right)
             };
             var candidates = new List<Vector3>();
-            var distances = preferLocalCandidates
+            // BD measured the nearby 5/8/11 metre routes as physically level.
+            // The slope fixture alone searches farther inside the existing
+            // 33 metre endpoint limit; all native path/motion checks still apply.
+            var distances = currentRow == Chunk4SlopeRow
+                ? new[] { 32.0f, 22.0f, MaximumRadialDistance }
+                : preferLocalCandidates
                 ? MovementRadialDistanceOrder.CreateLocalFirst(MinimumRadialDistance, 8.0f, MaximumRadialDistance)
                 : new[] { MaximumRadialDistance, 8.0f, MinimumRadialDistance };
             foreach (var distance in distances)
@@ -2709,6 +4206,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             settings.EnableUnsafeMovementExperiment = originalUnsafeMovementSetting;
+            settings.EnablePairedActivation = originalPairedActivationSetting;
             settingLeaseOwned = false;
         }
 
@@ -2797,6 +4295,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 { "sequence", evidenceSequence++ },
                 { "utcTimestamp", DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture) }
             };
+            if (IsChunk4Traversal) record["pairedConfiguration"] = CaptureChunk4TraversalConfiguration();
+            if (IsChunk4Traversal && (string)payload["kind"] == "movement-row-result")
+            {
+                record["firstPhaseViolation"] = rowFirstPhaseViolation == null ? JValue.CreateNull() : JToken.FromObject(rowFirstPhaseViolation, serializer);
+                record["nativeMovementControllerUpdates"] = rowNativeMovementControllerUpdates;
+                record["nativeMovingTicks"] = rowNativeMovingTicks;
+            }
+            if (IsChunk4Traversal && currentRow == "mounted-distance-door-interaction" && (string)payload["kind"] == "movement-row-result") record["nativeBlockedDoor"] = chunk4BlockedDoorEvidence;
+            if (currentRow == Chunk4SlopeRow && (string)payload["kind"] == "movement-row-result") record["nativeSlope"] = CaptureChunk4Slope();
             foreach (var property in payload.Properties())
             {
                 if (record.Property(property.Name) != null)
@@ -2811,6 +4318,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ResetRowMetrics()
         {
+            rowFirstPhaseViolation = null;
+            rowNativeMovementControllerUpdates = 0L;
+            rowNativeMovingTicks = 0L;
+            if (mountSpeedLeaseOwned || equipmentSetLeaseOwned || cameraFollowerLeaseOwned)
+            {
+                throw new InvalidOperationException("A prior presentation observation lease remained active at row reset.");
+            }
             rowMaximumPreCorrectionResidual = 0.0d;
             rowMaximumInitialConfigurationResidual = 0.0d;
             rowMaximumUpdatePreCorrectionResidual = 0.0d;
@@ -2904,6 +4418,7 @@ namespace KingmakerMountedCombat.Diagnostics
             rowMaximumStuckSeconds = 0.0d;
             rowOscillations = 0;
             rowUnexpectedRepaths = 0;
+            rowUnattributedRepaths = 0;
             rowCommandReplacements = 0;
             rowSelectionLosses = 0;
             rowWaypointCount = 0;
@@ -2932,10 +4447,83 @@ namespace KingmakerMountedCombat.Diagnostics
             rowPauseExited = false;
             rowDestinationCancelCommandAbsent = false;
             rowDestinationCancelRelationshipPreserved = false;
+            rowPoseObservationCount = 0L;
+            rowPoseHealthyObservationCount = 0L;
+            rowPoseFrameAppliedObservationCount = 0L;
+            rowPoseApplicationFrameCount = 0L;
+            rowPoseFootTargetClampCount = 0L;
+            rowPoseMaximumFootTargetResidual = 0.0d;
+            rowPoseMaximumKneeTargetResidual = 0.0d;
+            rowPoseMaximumSegmentLengthResidual = 0.0d;
+            rowPoseMaximumApplyMicroseconds = 0.0d;
+            rowPoseAverageApplyMicroseconds = 0.0d;
+            rowPoseMaximumPelvisLocalFrameDelta = 0.0d;
+            rowPoseMaximumLeftFootLocalFrameDelta = 0.0d;
+            rowPoseMaximumRightFootLocalFrameDelta = 0.0d;
+            previousPosePelvisLocal = Vector3.zero;
+            previousPoseLeftFootLocal = Vector3.zero;
+            previousPoseRightFootLocal = Vector3.zero;
+            previousPoseSampleAvailable = false;
+            rowPoseProfileId = null;
+            rowPoseBoneInventory = null;
+            rowPoseFailure = null;
+            rowPoseMaximumComponentCount = 0;
+            rowPoseMaximumBoneCount = 0;
+            rowWalkMaximumSpeed = 0.0d;
+            rowRunMaximumSpeed = 0.0d;
+            rowWalkMovingSampleCount = 0;
+            rowRunMovingSampleCount = 0;
+            originalMountMaxSpeedOverride = null;
+            originalMountEffectiveMaxSpeed = 0f;
+            originalEquipmentSetIndex = 0;
+            equipmentSetIndices = null;
+            equipmentSetCursor = 0;
+            equipmentSets.Clear();
+            cameraFollowerSnapshot = null;
+            cameraExpectedUnit = null;
+            rowCameraObservationCount = 0;
+            rowCameraTotalObservationCount = 0;
+            rowCameraMinimumTargetResidual = double.MaxValue;
+            rowCameraMaximumTargetResidual = 0.0d;
+            rowCameraFinalTargetResidual = double.MaxValue;
+            rowCameraMinimumRigResidual = double.MaxValue;
+            rowCameraMaximumRigResidual = 0.0d;
+            rowCameraFollowAccepted = false;
+            rowCameraAwayObserved = false;
+            rowCameraBackObserved = false;
+            rowOverlayRepaintCountBefore = 0L;
+            rowOverlayRepaintCountAfter = 0L;
+            rowOverlayEvidence = default(PresentationOverlayEvidence);
+            rowUiRiderPortraitSelected = false;
+            rowUiRiderSelectionCircleSelected = false;
+            rowUiRiderActionBarOwned = false;
+            rowUiMountNormalized = false;
+            rowUiAwayOwned = false;
+            rowUiBackOwned = false;
+            rowUiOverlayRendered = false;
+            rowUiObservationFailure = null;
+            uiObservations.Clear();
             previousLegDirection = Vector3.zero;
             selectedDoor = null;
             doorNearPoint = Vector3.zero;
             doorFarPoint = Vector3.zero;
+            doorInteractionRiderStart = Vector3.zero;
+            doorInteractionMountStart = Vector3.zero;
+            rowMountedAtLeastOnce = false;
+            distanceDoorFixtureLeaseCaptured = false;
+            distanceDoorFixtureOriginalOpen = false;
+            distanceDoorFixtureOriginalEnabled = false;
+            distanceDoorFixtureDisableOnOpen = false;
+            distanceDoorFixtureTemporaryEnableUsed = false;
+            distanceDoorFixtureRestored = false;
+            distanceDoorNavmeshCut = null;
+            distanceDoorDisableNavmeshCutWhenOpen = false;
+            distanceDoorInitialCutRequiresUpdate = null;
+            distanceDoorFinalCutRequiresUpdate = false;
+            distanceDoorTraversalReadinessQualified = false;
+            distanceDoorTraversalReadinessObservationCount = 0;
+            distanceDoorTraversalReadinessStartedAt = 0.0d;
+            distanceDoorTraversalReadinessElapsedSeconds = 0.0d;
             uninvolvedCommands = null;
             requiredPairNonPairSeparation = 0.0d;
         }
@@ -2947,6 +4535,7 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationStablePosition = Vector3.zero;
             navigationCommand = null;
             navigationPath = null;
+            navigationPathFirstObservedFrame = -1;
             navigationStartedAt = 0.0d;
             navigationStableStartedAt = 0.0d;
             navigationEndpointDistance.Reset();
@@ -2958,6 +4547,7 @@ namespace KingmakerMountedCombat.Diagnostics
             navigationWasApproaching = false;
             navigationOscillations = 0;
             navigationRepaths = 0;
+            navigationUnattributedRepaths = 0;
             navigationCommandReplacements = 0;
             navigationSelectionLosses = 0;
             navigationPauseRequested = false;
@@ -3014,9 +4604,19 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private static IReadOnlyList<string> SelectRows(string scenario)
         {
+            var chunk4Rows = SelectChunk4TraversalRows(scenario);
+            if (chunk4Rows != null) return chunk4Rows;
             if (string.Equals(scenario, "movement-suite", StringComparison.Ordinal))
             {
                 return SuiteRows;
+            }
+            if (string.Equals(scenario, "presentation-suite", StringComparison.Ordinal))
+            {
+                return PresentationRows;
+            }
+            if (string.Equals(scenario, "mounted-distance-door-interaction", StringComparison.Ordinal))
+            {
+                return new[] { scenario };
             }
             foreach (var row in SuiteRows)
             {
@@ -3025,7 +4625,26 @@ namespace KingmakerMountedCombat.Diagnostics
                     return new[] { row };
                 }
             }
+            foreach (var row in PresentationRows)
+            {
+                if (string.Equals(row, scenario, StringComparison.Ordinal))
+                {
+                    return new[] { row };
+                }
+            }
             return null;
+        }
+
+        private static bool IsPresentationRow(string row)
+        {
+            return Array.IndexOf(PresentationRows, row) >= 0;
+        }
+
+        private static bool IsDoorwayPresentationRow(string row)
+        {
+            return string.Equals(row, "mounted-pair-doorway", StringComparison.Ordinal) ||
+                string.Equals(row, "pose-doorway-formation", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-distance-door-interaction", StringComparison.Ordinal);
         }
 
         private static string FormatTransitionErrors(TransitionResult result)
@@ -3062,6 +4681,31 @@ namespace KingmakerMountedCombat.Diagnostics
             return vector.sqrMagnitude <= 0.0001f ? Vector3.zero : vector.normalized;
         }
 
+        private static Transform FindUniqueTransform(Transform root, string exactName)
+        {
+            Transform found = null;
+            var count = 0;
+            FindTransforms(root, exactName, ref found, ref count);
+            return count == 1 ? found : null;
+        }
+
+        private static void FindTransforms(Transform current, string exactName, ref Transform found, ref int count)
+        {
+            if (current == null || count > 1)
+            {
+                return;
+            }
+            if (string.Equals(current.name, exactName, StringComparison.Ordinal))
+            {
+                found = current;
+                count++;
+            }
+            for (var index = 0; index < current.childCount; index++)
+            {
+                FindTransforms(current.GetChild(index), exactName, ref found, ref count);
+            }
+        }
+
         private static string FormatPosition(Vector3 position)
         {
             return "(" + position.x.ToString("0.00", CultureInfo.InvariantCulture) + "," +
@@ -3093,6 +4737,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     return row.Substring("mounted-pair-".Length);
                 }
             }
+            foreach (var allowed in PresentationRows)
+            {
+                if (string.Equals(row, allowed, StringComparison.Ordinal))
+                {
+                    return row;
+                }
+            }
+            if (string.Equals(row, "mounted-distance-door-interaction", StringComparison.Ordinal))
+            {
+                return row;
+            }
+            if (row == Chunk4SlopeRow) return "slope";
             throw new InvalidOperationException("Screenshot row is outside the fixed movement allowlist.");
         }
 
@@ -3115,6 +4771,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private enum EngineStep
         {
             BeginRow,
+            PrepareSlopeLocation,
             ExecuteRow,
             AwaitPreCleanupCaptures,
             AwaitCleanupFrame,
@@ -3165,6 +4822,15 @@ namespace KingmakerMountedCombat.Diagnostics
             public string AttachmentParent { get; set; }
             public string SourceAnchor { get; set; }
             public string AttachmentRiskState { get; set; }
+            public bool PoseConfigured { get; set; }
+            public bool PoseHealthy { get; set; }
+            public bool PoseFrameApplied { get; set; }
+            public bool PoseBaselineRestoreVerified { get; set; }
+            public int? PoseComponentCount { get; set; }
+            public int PoseBoneCount { get; set; }
+            public string PoseProfileId { get; set; }
+            public string PoseBoneInventory { get; set; }
+            public string PoseFailure { get; set; }
 
             public static CleanupStateEvidence Capture(
                 CleanupTrigger trigger,
@@ -3198,7 +4864,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     RiderParent = rider?.View?.transform.parent == null ? null : BuildHierarchyName(rider.View.transform.parent),
                     AttachmentParent = relationship.Runtime.PresentationAttachmentParentName,
                     SourceAnchor = relationship.Runtime.PresentationSourceAnchorName,
-                    AttachmentRiskState = relationship.Runtime.PresentationAttachmentRiskState
+                    AttachmentRiskState = relationship.Runtime.PresentationAttachmentRiskState,
+                    PoseConfigured = relationship.Runtime.PoseConfigured,
+                    PoseHealthy = relationship.Runtime.PoseHealthy,
+                    PoseFrameApplied = relationship.Runtime.PoseFrameApplied,
+                    PoseBaselineRestoreVerified = relationship.Runtime.PoseBaselineRestoreVerified,
+                    PoseComponentCount = rider?.View == null ? (int?)null : rider.View.GetComponents<MountedRiderPoseAdapter>().Length,
+                    PoseBoneCount = relationship.Runtime.PoseBoneCount,
+                    PoseProfileId = relationship.Runtime.PoseProfileId,
+                    PoseBoneInventory = relationship.Runtime.PoseBoneInventory,
+                    PoseFailure = relationship.Runtime.PoseFailure
                 };
             }
         }
@@ -3259,6 +4934,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public object RiderOverride { get; private set; }
             public object MountOverride { get; private set; }
             public int RiderOverrideComponentCount { get; private set; }
+            public int RiderPoseComponentCount { get; private set; }
             public Transform RiderParent { get; private set; }
             public int RiderSiblingIndex { get; private set; }
             public Vector3 RiderLocalScale { get; private set; }
@@ -3286,6 +4962,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     RiderOverride = rider.View.AgentOverride,
                     MountOverride = mount.View.AgentOverride,
                     RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length,
+                    RiderPoseComponentCount = rider.View.GetComponents<MountedRiderPoseAdapter>().Length,
                     RiderParent = rider.View.transform.parent,
                     RiderSiblingIndex = rider.View.transform.GetSiblingIndex(),
                     RiderLocalScale = rider.View.transform.localScale,
@@ -3331,6 +5008,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 try
                 {
                     return RiderView != null && RiderView.GetComponents<RiderMovementAgent>().Length == RiderOverrideComponentCount;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+
+            public bool RiderPoseComponentCountRestored()
+            {
+                try
+                {
+                    return RiderView != null && RiderView.GetComponents<MountedRiderPoseAdapter>().Length == RiderPoseComponentCount;
                 }
                 catch (Exception)
                 {
@@ -3402,6 +5091,104 @@ namespace KingmakerMountedCombat.Diagnostics
             public StandardDoor Door { get; }
             public Vector3 Near { get; }
             public Vector3 Far { get; }
+        }
+
+        private sealed class EquipmentSetEvidence
+        {
+            public int Index { get; set; }
+            public bool IsOriginal { get; set; }
+            public bool IsEmpty { get; set; }
+            public string PrimaryType { get; set; }
+            public string PrimaryBlueprintGuid { get; set; }
+            public string SecondaryType { get; set; }
+            public string SecondaryBlueprintGuid { get; set; }
+            public bool OneHandedWeapon { get; set; }
+            public bool TwoHandedWeapon { get; set; }
+            public bool Shield { get; set; }
+            public bool PoseHealthy { get; set; }
+            public long PoseFrameCount { get; set; }
+        }
+
+        private sealed class UiOwnershipEvidence
+        {
+            public string Phase { get; set; }
+            public string ExpectedUnitId { get; set; }
+            public bool IsExactlySelected { get; set; }
+            public string ActionBarSelectedUnitId { get; set; }
+            public bool ActionBarActive { get; set; }
+            public bool ActionBarOwned { get; set; }
+            public int PortraitControllerCount { get; set; }
+            public bool PortraitSelected { get; set; }
+            public int SelectionCircleCount { get; set; }
+            public bool SelectionCircleSelected { get; set; }
+            public string Error { get; set; }
+        }
+
+        private sealed class CameraFollowerSnapshot
+        {
+            private readonly object follower;
+            private readonly FieldInfo isOnField;
+            private readonly FieldInfo unitField;
+            private readonly bool isOn;
+            private readonly UnitEntityData unit;
+
+            private CameraFollowerSnapshot(
+                object follower,
+                FieldInfo isOnField,
+                FieldInfo unitField,
+                bool isOn,
+                UnitEntityData unit)
+            {
+                this.follower = follower;
+                this.isOnField = isOnField;
+                this.unitField = unitField;
+                this.isOn = isOn;
+                this.unit = unit;
+            }
+
+            public static CameraFollowerSnapshot TryCapture(Game game, out string error)
+            {
+                error = null;
+                try
+                {
+                    var exactFollower = game?.CameraController?.Follower;
+                    if (exactFollower == null)
+                    {
+                        error = "Game.CameraController.Follower is unavailable.";
+                        return null;
+                    }
+                    var type = exactFollower.GetType();
+                    var exactIsOn = type.GetField("m_IsOn", BindingFlags.Instance | BindingFlags.NonPublic);
+                    var exactUnit = type.GetField("m_Unit", BindingFlags.Instance | BindingFlags.NonPublic);
+                    if (exactIsOn == null || exactIsOn.FieldType != typeof(bool) ||
+                        exactUnit == null || exactUnit.FieldType != typeof(UnitEntityData))
+                    {
+                        error = "Exact native camera-follower fields did not match their pinned contract.";
+                        return null;
+                    }
+                    return new CameraFollowerSnapshot(
+                        exactFollower,
+                        exactIsOn,
+                        exactUnit,
+                        (bool)exactIsOn.GetValue(exactFollower),
+                        exactUnit.GetValue(exactFollower) as UnitEntityData);
+                }
+                catch (Exception exception)
+                {
+                    error = exception.GetType().Name + ": " + exception.Message;
+                    return null;
+                }
+            }
+
+            public void Restore()
+            {
+                unitField.SetValue(follower, unit);
+                isOnField.SetValue(follower, isOn);
+                if ((bool)isOnField.GetValue(follower) != isOn || unitField.GetValue(follower) != unit)
+                {
+                    throw new InvalidOperationException("Native camera-follower fields did not restore to their captured values.");
+                }
+            }
         }
 
         private sealed class AssertionRecorder

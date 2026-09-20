@@ -1,0 +1,204 @@
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
+
+$kmcPass=0
+Assert-KmcChunk4MovementUpdates ([pscustomobject]@{nativeMovementControllerUpdates=10;nativeMovingTicks=8}) $true; $kmcPass++
+Assert-KmcChunk4MovementUpdates ([pscustomobject]@{nativeMovementControllerUpdates=0;nativeMovingTicks=0}) $false; $kmcPass++
+foreach($kmcField in @('nativeMovementControllerUpdates','nativeMovingTicks')) {
+    foreach($kmcValue in @(-1,'8',1.5,$null)) {
+        $kmcRecord=[pscustomobject]@{nativeMovementControllerUpdates=10;nativeMovingTicks=8}
+        $kmcRecord.$kmcField=$kmcValue
+        $kmcRejected=$false; try {Assert-KmcChunk4MovementUpdates $kmcRecord $true} catch {$kmcRejected=$true}
+        if(!$kmcRejected){throw ('Invalid native movement callback count accepted: '+$kmcField)}; $kmcPass++
+    }
+}
+foreach($kmcCounts in @(@(0,0),@(8,8),@(7,8),@(10,0))) {
+    $kmcRecord=[pscustomobject]@{nativeMovementControllerUpdates=$kmcCounts[0];nativeMovingTicks=$kmcCounts[1]}
+    $kmcRejected=$false; try {Assert-KmcChunk4MovementUpdates $kmcRecord $true} catch {$kmcRejected=$true}
+    if(!$kmcRejected){throw 'Missing native standing/moving update coverage accepted.'}; $kmcPass++
+}
+function New-SlopeEnvelope {
+    # Parser envelope only, never native evidence.
+    return (@{startY=2; riderMoveBefore=0; minimumY=2; maximumY=2.75; heightChange=.75; dropped=0;
+        location=@{method='Game.LoadArea/06000CC9';entry='104849f5f7ea36748aeeb036551047a9';autoSave='None';dispatches=1;
+            loadingFrames=2;stableFrames=10;status='ready';failure=$null;
+            before=@{game='working';main='rider';rider='rider';mount='mount';area='9d1278a2f599b2a4daab53abdfe88d2e';mode='Default';combat=$false;relationship='Unmounted';viewsReady=$true};
+            after=@{game='working';main='rider';rider='rider';mount='mount';area='fd1b6fa9f788ca24e86bd922a10da080';mode='Default';combat=$false;relationship='Unmounted';viewsReady=$true}};
+        discovery=@{surfaces=@(@{frame=1;requested=@(0,2,0);nodePresent=$true;walkable=$true;clamped=@(0,2,0)});
+            # A flat navmesh plane does not describe native physical ground height.
+            probes=@(@{frame=2;requested=@(0,2,5);endpoint=@(0,2.431,5);points=3;minimumY=2;maximumY=2.431;
+                pathError=$false;accepted=$true;reason=$null;
+                ground=@{method='UnitMovementAgentBase.Move/060018DD';flyHeight=0;minimumY=2;maximumY=2.75;heightChange=.75;
+                    samples=@(@(0,2,0),@(0,2.25,1),@(0,2.75,2))}})};
+        samples=@(@{frame=1;position=@(0,2,0);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0},
+            @{frame=2;position=@(0,2.25,1);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0},
+            @{frame=3;position=@(0,2.75,2);stockAgentEnabled=$true;avoidanceDisabled=$false;corpulence=1.8;riderMove=0})} | ConvertTo-Json -Depth 8 | ConvertFrom-Json)
+}
+function Reject-Slope([scriptblock]$Change) {
+    $kmcEnvelope=New-SlopeEnvelope
+    & $Change $kmcEnvelope
+    $kmcRejected=$false
+    try { Assert-KmcChunk4NativeSlope $kmcEnvelope } catch { $kmcRejected=$true }
+    if(!$kmcRejected) {throw ('Invalid slope envelope accepted: '+$Change)}
+    $script:kmcPass++
+}
+Assert-KmcChunk4NativeSlope (New-SlopeEnvelope); $kmcPass++
+Reject-Slope {param($e) $e.location.entry='f774de83bb5fee442a5633679e5fef32'}
+Reject-Slope {param($e) $e.location.method='teleport'}
+Reject-Slope {param($e) $e.location.autoSave='AfterEntry'}
+Reject-Slope {param($e) $e.location.dispatches=2}
+Reject-Slope {param($e) $e.location.loadingFrames=0}
+Reject-Slope {param($e) $e.location.stableFrames=9}
+Reject-Slope {param($e) $e.location.status='loading'}
+Reject-Slope {param($e) $e.location.failure='failed'}
+Reject-Slope {param($e) $e.location.before.area=$e.location.after.area}
+Reject-Slope {param($e) $e.location.after.area=$e.location.before.area}
+Reject-Slope {param($e) $e.location.after.game='another campaign'}
+Reject-Slope {param($e) $e.location.after.main='another actor'}
+Reject-Slope {param($e) $e.location.after.rider='another actor'}
+Reject-Slope {param($e) $e.location.after.mount='another actor'}
+Reject-Slope {param($e) $e.location.after.viewsReady=$false}
+Reject-Slope {param($e) $e.location.after.combat=$true}
+Reject-Slope {param($e) $e.location.after.mode='Dialog'}
+Reject-Slope {param($e) $e.location.after.relationship='Mounted'}
+Reject-Slope {param($e) $e.heightChange=.5}
+Reject-Slope {param($e) $e.maximumY=3}
+Reject-Slope {param($e) $e.minimumY=1}
+Reject-Slope {param($e) $e.startY=[double]::NaN}
+Reject-Slope {param($e) $e.dropped=1}
+Reject-Slope {param($e) $e.dropped='0'}
+Reject-Slope {param($e) $e.samples=@($e.samples[0],$e.samples[1])}
+Reject-Slope {param($e) $e.samples[2].frame=2}
+Reject-Slope {param($e) $e.samples[1].frame='2'}
+Reject-Slope {param($e) $e.samples[1].position=@(1,2)}
+Reject-Slope {param($e) $e.samples[1].position[0]=[double]::PositiveInfinity}
+Reject-Slope {param($e) $e.samples[1].position[1]='2.25'}
+Reject-Slope {param($e) $e.samples[1].stockAgentEnabled=$false}
+Reject-Slope {param($e) $e.samples[1].stockAgentEnabled='true'}
+Reject-Slope {param($e) $e.samples[1].avoidanceDisabled=$true}
+Reject-Slope {param($e) $e.samples[1].avoidanceDisabled=0}
+Reject-Slope {param($e) $e.samples[1].corpulence=0}
+Reject-Slope {param($e) $e.samples[1].corpulence=1.7}
+Reject-Slope {param($e) $e.samples[1].riderMove=.1}
+Reject-Slope {param($e) $e.samples[1].riderMove=-1}
+Reject-Slope {param($e) $e.riderMoveBefore=-1}
+Reject-Slope {param($e) $e.samples[1].position[1]=2; $e.samples[2].position[1]=2.2; $e.maximumY=2.2; $e.heightChange=.2}
+Reject-Slope {param($e) $e.samples[1] | Add-Member -NotePropertyName ghost -NotePropertyValue $true}
+Reject-Slope {param($e) $e.discovery.surfaces=@()}
+Reject-Slope {param($e) $e.discovery.surfaces=@($e.discovery.surfaces[0])*73}
+Reject-Slope {param($e) $e.discovery.probes=@($e.discovery.probes[0])*25}
+Reject-Slope {param($e) $e.discovery.surfaces[0].requested[1]='2'}
+Reject-Slope {param($e) $e.discovery.surfaces[0].nodePresent='true'}
+Reject-Slope {param($e) $e.discovery.surfaces[0].walkable=$null}
+Reject-Slope {param($e) $e.discovery.surfaces[0].clamped=@(0,2)}
+Reject-Slope {param($e) $e.discovery.probes[0].minimumY=[double]::NaN}
+Reject-Slope {param($e) $e.discovery.probes[0].maximumY=1}
+Reject-Slope {param($e) $e.discovery.probes[0].points=-1}
+Reject-Slope {param($e) $e.discovery.probes[0].accepted='true'}
+Reject-Slope {param($e) $e.discovery.probes[0].pathError='false'}
+Reject-Slope {param($e) $e.discovery.probes[0].frame='2'}
+Reject-Slope {param($e) $e.discovery.probes[0].reason=3}
+Reject-Slope {param($e) $e.discovery.probes[0].ground=$null}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.method='custom-physics'}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.flyHeight='0'}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.samples=@($e.discovery.probes[0].ground.samples[0])*513}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.samples[1][1]=[double]::NaN}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.minimumY=1}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.maximumY=3}
+Reject-Slope {param($e) $e.discovery.probes[0].ground.heightChange=1}
+Reject-Slope {param($e) $e.discovery.probes[0].maximumY=3; $e.discovery.probes[0].ground.samples=@(@(0,2,0),@(0,2,1));
+    $e.discovery.probes[0].ground.minimumY=2; $e.discovery.probes[0].ground.maximumY=2; $e.discovery.probes[0].ground.heightChange=0}
+foreach($kmcField in @('enablePairedActivation','enableUnifiedMountedTurn','enablePairedCommandScheduler','enableDiagnosticOverlay','overlayPresent')) {
+    $kmcConfig=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+    Assert-KmcChunk4PairedConfiguration ([pscustomobject]$kmcConfig); $kmcPass++
+    $kmcConfig[$kmcField]=!$kmcConfig[$kmcField]
+    $kmcRejected=$false; try {Assert-KmcChunk4PairedConfiguration ([pscustomobject]$kmcConfig)} catch {$kmcRejected=$true}
+    if(!$kmcRejected){throw ('Wrong measured configuration accepted: '+$kmcField)}; $kmcPass++
+    $kmcConfig[$kmcField]='false'
+    $kmcRejected=$false; try {Assert-KmcChunk4PairedConfiguration ([pscustomobject]$kmcConfig) -AllowIntake} catch {$kmcRejected=$true}
+    if(!$kmcRejected){throw ('Nonboolean configuration accepted: '+$kmcField)}; $kmcPass++
+}
+Assert-KmcChunk4PairedConfiguration ([pscustomobject]@{enablePairedActivation=$false;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}) -AllowIntake; $kmcPass++
+if((Get-KmcChunk4TraversalRows 'chunk4-traversal-core') -join ',' -cne 'mounted-distance-door-interaction,mounted-pair-doorway,mounted-pair-turns-and-corners,mounted-pair-party-formation'){throw 'Core traversal order changed.'}; $kmcPass++
+if((Get-KmcChunk4TraversalRows 'chunk4-traversal-slope') -cne 'mounted-pair-slope'){throw 'Slope traversal row changed.'}; $kmcPass++
+function New-BlockedState([int]$Frame,[double]$X) {
+    return @{frame=($Frame+3);position=@($X,0,0);riderPosition=@($X,1,0);farDistance=(10-$X);homeDistance=$X;doorAnimationTime=-0.01;
+        doorOpen=$false;cutEnabled=$true;cutNeedsUpdate=$false;reallyMoving=$false;agentEnabled=$true;avoidanceDisabled=$false;
+        corpulence=1.8;riderMove=0;mountMove=0;riderStandard=0;mountStandard=0;moveStarted=$true;moveFinished=$true;moveResult='Success';
+        pathError=$false;pathPoints=2;pathState='Complete'}
+}
+function New-BlockedEnvelope {
+    return (@{level='NATIVE INTEGRATION';caseId='C4-TRAVERSAL-closed-door-stop-return';rider='rider';mount='mount';
+        closing=@{initial=@{frame=1;time=2;speed=-1;clipLength=2;graphPlaying=$true};
+            ready=@{frame=3;time=-0.01;speed=-1;clipLength=2;graphPlaying=$true};settledFrame=2;observations=3;elapsed=2.01};
+        before=(New-BlockedState 0 0);destination=@(10,0,0);moveType='Kingmaker.UnitLogic.Commands.UnitMoveTo';moveExecutor='mount';
+        beforeStop=(New-BlockedState 3 4);elapsed=3;samples=@((New-BlockedState 1 2),(New-BlockedState 2 4));
+        afterStopInput=(New-BlockedState 3 4);afterStop=(New-BlockedState 4 4);afterReturn=(New-BlockedState 5 0);returnResult='Success'} |
+        ConvertTo-Json -Depth 8 | ConvertFrom-Json)
+}
+function Reject-Blocked([scriptblock]$Change) {
+    $kmcEnvelope=New-BlockedEnvelope; & $Change $kmcEnvelope
+    $kmcRejected=$false; try {Assert-KmcChunk4BlockedDoor $kmcEnvelope} catch {$kmcRejected=$true}
+    if(!$kmcRejected){throw ('Invalid blocked-door envelope accepted: '+$Change)}; $script:kmcPass++
+}
+Assert-KmcChunk4BlockedDoor (New-BlockedEnvelope); $kmcPass++
+Reject-Blocked {param($e) $e.level='COMPONENT'}
+Reject-Blocked {param($e) $e.caseId='unknown'}
+Reject-Blocked {param($e) $e.mount='rider'}
+Reject-Blocked {param($e) $e.moveType='Kingmaker.UnitLogic.Commands.UnitAttack'}
+Reject-Blocked {param($e) $e.moveExecutor='rider'}
+Reject-Blocked {param($e) $e.returnResult='Interrupt'}
+Reject-Blocked {param($e) $e.elapsed=[double]::NaN}
+Reject-Blocked {param($e) $e.elapsed=1}
+Reject-Blocked {param($e) $e.destination[1]=[double]::PositiveInfinity}
+Reject-Blocked {param($e) $e.destination=@(10,0)}
+Reject-Blocked {param($e) $e.samples=@()}
+Reject-Blocked {param($e) $e.samples[1].frame=$e.samples[0].frame}
+Reject-Blocked {param($e) $e.samples[1].doorOpen=$true}
+Reject-Blocked {param($e) $e.samples[1].doorOpen='false'}
+Reject-Blocked {param($e) $e.samples[1].cutEnabled=$false}
+Reject-Blocked {param($e) $e.samples[1].cutNeedsUpdate=$true}
+Reject-Blocked {param($e) $e.samples[1].agentEnabled=$false}
+Reject-Blocked {param($e) $e.samples[1].avoidanceDisabled=$true}
+Reject-Blocked {param($e) $e.samples[1].corpulence=1}
+Reject-Blocked {param($e) $e.samples[1].riderMove=.1}
+Reject-Blocked {param($e) $e.samples[1].farDistance=5}
+Reject-Blocked {param($e) $e.samples[1].homeDistance=3}
+Reject-Blocked {param($e) $e.samples[1].position[1]=[double]::NaN}
+Reject-Blocked {param($e) $e.samples[1].riderPosition=@(1,2)}
+Reject-Blocked {param($e) $e.samples[1].pathError='false'}
+Reject-Blocked {param($e) $e.samples[1].pathPoints=-1}
+Reject-Blocked {param($e) foreach($s in $e.samples){$s.moveStarted=$false;$s.moveFinished=$false}}
+Reject-Blocked {param($e) $e.beforeStop.position[0]=9;$e.beforeStop.farDistance=1;$e.beforeStop.homeDistance=9}
+Reject-Blocked {param($e) $e.afterStop.reallyMoving=$true}
+Reject-Blocked {param($e) $e.afterReturn.position[0]=4;$e.afterReturn.farDistance=6;$e.afterReturn.homeDistance=4}
+Reject-Blocked {param($e) $e.afterStopInput.mountMove=.1}
+Reject-Blocked {param($e) $e.closing.initial.time=[double]::NaN}
+Reject-Blocked {param($e) $e.closing.initial.time=-1}
+Reject-Blocked {param($e) $e.closing.initial.time=3}
+Reject-Blocked {param($e) $e.closing.initial.speed=1}
+Reject-Blocked {param($e) $e.closing.initial.graphPlaying=$false}
+Reject-Blocked {param($e) $e.closing.ready.time=.2; $e.before.doorAnimationTime=.2}
+Reject-Blocked {param($e) $e.closing.ready.clipLength=3}
+Reject-Blocked {param($e) $e.closing.ready.frame=2}
+Reject-Blocked {param($e) $e.closing.settledFrame=3}
+Reject-Blocked {param($e) $e.closing.observations=1}
+Reject-Blocked {param($e) $e.closing.observations='3'}
+Reject-Blocked {param($e) $e.closing.elapsed=31}
+Reject-Blocked {param($e) $e.closing.elapsed=[double]::PositiveInfinity}
+Reject-Blocked {param($e) $e.before.doorAnimationTime=-.1}
+Reject-Blocked {param($e) $e.samples[1].doorAnimationTime=.1}
+Reject-Blocked {param($e) $e.samples[1].doorAnimationTime=[double]::NaN}
+Reject-Blocked {param($e) $e.samples[1].doorAnimationTime='0'}
+Reject-Blocked {param($e) $e.closing.initial.time=1.3666666746139526; $e.closing.initial.clipLength=1.36666667; $e.closing.ready.clipLength=1.36666667}
+$kmcPrecise=New-BlockedEnvelope
+$kmcPrecise.closing.initial.time=1.3666666746139526
+$kmcPrecise.closing.initial.clipLength=1.3666666746139526
+$kmcPrecise.closing.ready.clipLength=1.3666666746139526
+Assert-KmcChunk4BlockedDoor $kmcPrecise; $kmcPass++
+$kmcTerminal=New-BlockedEnvelope
+foreach($kmcSample in $kmcTerminal.samples){$kmcSample.moveStarted=$false;$kmcSample.moveFinished=$false}
+$kmcTerminal.samples=@($kmcTerminal.samples)+@($kmcTerminal.beforeStop)
+Assert-KmcChunk4BlockedDoor $kmcTerminal; $kmcPass++
+Write-Output "CHUNK 4 TRAVERSAL COMPONENT PASS=$kmcPass FAIL=0"

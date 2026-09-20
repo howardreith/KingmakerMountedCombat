@@ -1051,6 +1051,10 @@ namespace KingmakerMountedCombat.Domain
 
         public MovementYawPhaseObservation LatestYawObservation { get; private set; }
 
+        // Keep one immutable fault through subsequent valid samples. Periodic consumers
+        // can otherwise observe a violation count after its causal sample is gone.
+        public MovementSynchronizationSample FirstPhaseViolation { get; private set; }
+
         public double MaximumCalibratedViewCurrentPositionResidualWorldUnits { get; private set; }
 
         public double MaximumCalibratedEntityRawCurrentPositionResidualWorldUnits { get; private set; }
@@ -1161,6 +1165,12 @@ namespace KingmakerMountedCombat.Domain
             LatestPhase = sample.Phase;
             LatestPositionObservation = sample.Position;
             LatestYawObservation = sample.Yaw;
+            if (FirstPhaseViolation == null &&
+                (sample.Position.PhaseLagViolation || sample.Position.RecoveryViolation || sample.Position.StationaryPositionCorrectionViolation ||
+                 sample.Yaw.PhaseLagViolation || sample.Yaw.RecoveryViolation || sample.Yaw.StationaryYawCorrectionViolation))
+            {
+                FirstPhaseViolation = sample;
+            }
             LatestPreCorrectionPositionResidualWorldUnits = sample.PreCorrectionPositionResidualWorldUnits;
             LatestPreCorrectionRawCurrentPositionResidualWorldUnits = sample.PreCorrectionRawCurrentPositionResidualWorldUnits;
             LatestPreCorrectionViewCurrentPositionResidualWorldUnits = sample.PreCorrectionViewCurrentPositionResidualWorldUnits;

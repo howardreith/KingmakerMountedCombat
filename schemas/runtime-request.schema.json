@@ -114,14 +114,19 @@
     "saveBackedScenario": {
       "enum": [
         "export-mounted-contracts", "export-candidate-mount-rigs", "observe-mount-diagnostic-availability",
+        "player-action-availability", "mount-dismount-user-flow",
         "mounted-pair-create-and-clear", "mounted-pair-double-mount-rejected", "mounted-pair-invalid-pair-rejected",
         "mounted-pair-cleanup-idempotent", "mounted-pair-death-cleanup", "mounted-pair-combat-start-cleanup",
         "mounted-pair-area-unload-cleanup", "mounted-pair-mod-disable-cleanup", "mounted-pair-open-ground",
         "mounted-pair-stop-start", "mounted-pair-turns-and-corners", "mounted-pair-doorway", "mounted-pair-selection",
         "mounted-pair-party-formation", "mounted-pair-pause-unpause", "mounted-pair-destination-cancel",
         "mounted-pair-turn-based-entry-cleanup", "mounted-pair-realtime-entry-cleanup", "mounted-pair-save-safety",
-        "mounted-pair-load-safety", "mounted-pair-area-transition-safety", "fixture-intake", "lifecycle-suite",
-        "movement-suite", "boundary-suite"
+        "mounted-pair-load-safety", "mounted-pair-area-transition-safety",
+        "native-save-clean-dismount", "native-area-clean-dismount", "native-mode-transition-cleanup",
+        "presentation-residue-and-uninstall-safety", "pose-idle", "pose-walk-run", "pose-turn-stop",
+        "pose-doorway-formation", "pose-equipment-variants", "ui-selection-portrait-actionbar",
+        "camera-follow-and-command-routing", "fixture-intake", "lifecycle-suite", "movement-suite",
+        "boundary-suite", "presentation-suite"
       ]
     },
     "runId": { "type": "string", "pattern": "^[A-Za-z0-9._-]{1,120}$" },

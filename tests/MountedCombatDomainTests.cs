@@ -1,0 +1,1201 @@
+using System;
+using System.Linq;
+using KingmakerMountedCombat.Domain;
+
+namespace KingmakerMountedCombat.Tests
+{
+    internal static class MountedCombatDomainTests
+    {
+        public static void Register(TestRunner runner)
+        {
+            runner.Run("approach admits only its exact live mount Standard and empty Move without foreign slots or queue", ApproachOwnership);
+            runner.Run("a complete native full attack retains recovery after its final rule", FullAttackRecovery);
+            runner.Run("mount partial movement and native Standard conversion share one allowance", MountMovementAllowance);
+            runner.Run("mounted step and forced movement retain independent actor state across Stop", MountStepState);
+            runner.Run("mounted rider melee uses rider actor and rider resource ownership", RiderMeleeOwnership);
+            runner.Run("mounted Mammoth primary uses mount actor and mount resource ownership", MountAttackOwnership);
+            runner.Run("mounted ranged uses rider actor and native ranged weapon", AdmitsRangedRider);
+            runner.Run("mounted combat rejects invalid target and unavailable Standard action", RejectsInvalidContext);
+            runner.Run("mounted combat reports every required player-facing admission reason", ReportsRequiredAdmissionReasons);
+            runner.Run("mounted combat transaction starts exactly one child attack", PreventsDuplicateAttack);
+            runner.Run("disabled legacy experiment retains its exact-pair opportunity isolation policy", SuppressesOnlyExactPairOpportunityAttacks);
+            runner.Run("fallback active rider command preserves genuine native opportunity emission", FallbackPreservesRiderOpportunity);
+            runner.Run("fallback active mount command preserves genuine native opportunity emission", FallbackPreservesMountOpportunity);
+            runner.Run("mounted combat transaction bounds target repaths", BoundsRepaths);
+            runner.Run("mounted combat transaction cancellation is idempotent", CancellationIsIdempotent);
+            runner.Run("mounted combat target invalidation cancels only the exact pre-child transaction", TargetInvalidationCancelsOnlyExactPreChildTransaction);
+            runner.Run("mounted combat transaction requires exact target identity", RequiresExactTarget);
+            runner.Run("mounted combat range uses Mammoth origin and exact tolerance", RangeBoundary);
+            runner.Run("mounted combat range rejects invalid measurements", RejectsInvalidRange);
+            runner.Run("mounted combat diagnostic placement admits the exact observed small radius", DiagnosticPlacementAdmitsObservedRadius);
+            runner.Run("mounted combat diagnostic placement rejects insufficient radius and projection drift", DiagnosticPlacementRejectsUnsafeBounds);
+            runner.Run("unrelated Charge fixture rejects its native-valid point inside the rider spawn bound", DiagnosticSpawnPreservesRiderReference);
+            runner.Run("diagnostic spawn range retains exact limits and rejects invalid distances", DiagnosticSpawnBounds);
+            runner.Run("mounted combat diagnostic placement refreshes exact Mammoth actor drift", DiagnosticPlacementRefreshesObservedMammothDrift);
+            runner.Run("mounted combat approach placement starts outside exact pair range", DiagnosticApproachPlacementStartsOutsideRange);
+            runner.Run("mounted combat approach evidence preserves mount-only pathfinding", ApproachEvidencePreservesMountAuthority);
+            runner.Run("mounted combat approach may stop its exact move only at legal attack range", ApproachEvidenceAdmitsOnlyLegalRangeStop);
+            runner.Run("mounted combat approach raw Move slot preserves the exact finished command boundary", ApproachRawMoveSlotPreservesFinishedBoundary);
+            runner.Run("mounted combat delegated point movement leaves LoS to the native child attack", DelegatedPointMoveLeavesLineOfSightToChildAttack);
+            runner.Run("mounted combat approach rejects an empty Mammoth command controller", ApproachEvidenceRejectsEmptyMountCommandController);
+            runner.Run("mounted combat approach evidence reports command movement and pose drift", ApproachEvidenceReportsExactFailures);
+            runner.Run("mounted combat native admission bridges only an in-range Mammoth origin", NativeAdmissionUsesMountOrigin);
+            runner.Run("mounted combat native admission rejects pair range and offset escape", NativeAdmissionRejectsUnsafeBounds);
+            runner.Run("mounted pair preserves the exact independent Mammoth turn", PreservesIndependentMountTurn);
+            runner.Run("mounted pair admits ground movement only through the rider turn", AdmitsGroundMovementOnlyThroughRiderTurn);
+            runner.Run("mounted pair admits rider action in exact native command window", AdmitsExactRiderActionWindow);
+            runner.Run("mounted pair delegates movement only through the exact rider turn", DelegatesOnlyExactMovement);
+            runner.Run("mounted Mammoth TB path endpoint bridge is exact and corpulence bounded", BridgesOnlyExactReachedMountPathEnd);
+            runner.Run("native single attack prefers an eligible primary hand", NativeSingleAttackPrefersPrimary);
+            runner.Run("native single attack falls back through secondary then additional limbs", NativeSingleAttackFallbackOrder);
+            runner.Run("native single attack skips hand slots when hands are disabled", NativeSingleAttackSkipsDisabledHands);
+            runner.Run("native single attack rejects negative attack counts and empty weapon sets", NativeSingleAttackRejectsInvalidOrEmptyInputs);
+            runner.Run("native primary natural attack admits exact primary hand or first additional limb only", NativePrimaryNaturalAttackAdmitsExactSlotsOnly);
+            runner.Run("native single attack preserves exact turn-based terminal success", NativeSingleAttackPreservesTurnBasedTerminalSuccess);
+            runner.Run("diagnostic target requires Working authorization", TargetRequiresWorkingAuthorization);
+            runner.Run("diagnostic target creation and removal are exact and idempotent", TargetLifecycleIsExact);
+            runner.Run("diagnostic target safety snapshot preserves every strict gate", TargetSafetySnapshotPreservesEveryGate);
+            runner.Run("diagnostic target safety snapshot reports exact failed gates", TargetSafetySnapshotReportsExactFailures);
+            runner.Run("diagnostic combat click safety preserves every target-only gate", CombatClickSafetyPreservesEveryGate);
+            runner.Run("diagnostic combat click safety reports exact visibility and weapon failures", CombatClickSafetyReportsExactFailures);
+            runner.Run("diagnostic combat dispatch requires every native real-time start gate", CombatDispatchRequiresEveryStartGate);
+            runner.Run("diagnostic combat dispatch admits a separate actor through the exact shared turn", CombatDispatchAdmitsSharedTurnActor);
+            runner.Run("diagnostic combat dispatch reports exact paused initiative and equipment gates", CombatDispatchReportsExactFailures);
+            runner.Run("diagnostic combat entry requires native memory preparation and group combat", CombatEntryRequiresNativeMemoryAndCombat);
+            runner.Run("diagnostic combat entry reports exact memory combat and time failures", CombatEntryReportsExactFailures);
+            runner.Run("diagnostic combat action actor uses its own real-time initiative", CombatActionActorUsesOwnInitiative);
+            runner.Run("diagnostic combat action actor preserves raw shared-turn admission", CombatActionActorUsesSharedTurnAdmission);
+            runner.Run("diagnostic combat action actor rejects identity preparation and initiative failures", CombatActionActorReportsExactFailures);
+            runner.Run("diagnostic combat initiative observer records native decrement without mutation", CombatInitiativeObserverRecordsNativeDecrement);
+            runner.Run("diagnostic combat initiative observer distinguishes absent ticks and cross-tick rewrites", CombatInitiativeObserverDistinguishesAbsentTicksAndRewrites);
+            runner.Run("diagnostic native combat join preserves every exact controller gate", NativeCombatJoinPreservesEveryGate);
+            runner.Run("diagnostic native combat join reports exact controller failures", NativeCombatJoinReportsExactFailures);
+            runner.Run("diagnostic turn-based dispatch requires exact native rider turn", TurnBasedDispatchRequiresExactRiderTurn);
+            runner.Run("diagnostic turn-based dispatch reports exact roster and turn failures", TurnBasedDispatchReportsExactFailures);
+            runner.Run("mounted pair liveness preserves every in-flight gate", PairLivenessPreservesEveryGate);
+            runner.Run("mounted pair liveness reports exact changed gates", PairLivenessReportsExactFailures);
+            runner.Run("mounted pair liveness admits target incapacitation only after exact child start", PairLivenessAdmitsPostAttackIncapacitation);
+        }
+
+        private static void ApproachOwnership()
+        {
+            var parent = new object();
+            var foreign = new object();
+            var slots = new object[4];
+            TestRunner.Equal(true, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, false, true, true, true, true), "Rider-owned approach must admit an empty mount.");
+            slots[1] = parent;
+            TestRunner.Equal(true, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Horse approach must preserve its own live Standard.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, false, true, true, true, true), "Rider parent must not be owned by the mount.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, false, true, true, true), "Finished parent cannot obtain a move.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, false, true, true), "Queued foreign command must survive rejection.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, false, true), "Group command conflicts.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, false), "Paused previous command conflicts.");
+            slots[1] = foreign;
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Foreign Standard conflicts.");
+            slots[1] = parent;
+            slots[3] = foreign;
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Owned attack cannot replace another Move.");
+            slots[3] = null;
+            slots[0] = foreign;
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.CanAdmitDelegatedMove(slots, 1, 3, parent, true, true, true, true, true), "Foreign Free command conflicts.");
+            TestRunner.Equal(foreign, slots[0], "Admission must not mutate foreign commands.");
+        }
+
+        private static void FullAttackRecovery()
+        {
+            TestRunner.Equal(true, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(true, true, true, true, 2, 2, false), "Completed Rapid Shot must retain recovery.");
+            TestRunner.Equal(false, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(true, true, false, true, 2, 1, true), "First shot must permit native continuation.");
+            TestRunner.Equal(true, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(false, true, true, true, 4, 4, false), "RT iterative plan must retain final animation.");
+            TestRunner.Equal(false, NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(false, true, true, false, 2, 2, false), "Creation alone is not effect completion.");
+        }
+
+        private static void MountMovementAllowance()
+        {
+            var state = new MountedMovementState();
+            float debit;
+            TestRunner.Equal(1f, state.Advance(1f, 5f, 2.286f, 0f, false, false, false, false, false, false, false, out debit), "First partial ground move.");
+            TestRunner.Equal(1f, debit, "One actual movement debit.");
+            TestRunner.Equal(2f, state.Advance(3f, 5f, 2.286f, debit, true, false, false, false, false, false, false, out debit), "After mount attack only its remaining Move is legal.");
+            TestRunner.Equal(0f, state.Advance(1f, 5f, 2.286f, 3f, true, false, false, false, false, false, false, out debit), "Rider input cannot lend Standard to exhausted mount.");
+            TestRunner.Equal(3f, state.Advance(3f, 5f, 2.286f, 3f, false, false, false, false, false, false, false, out debit), "Unused native mount Standard converts to second move.");
+            TestRunner.Equal(0f, state.Advance(1f, 5f, 2.286f, 6f, false, false, false, false, false, true, false, out debit), "A new endpoint request cannot reopen exhausted movement.");
+            TestRunner.Equal(6f, state.TimeMoved, "Ground/approach/control surface changes do not reset movement time.");
+        }
+
+        private static void MountStepState()
+        {
+            var state = new MountedMovementState();
+            float debit;
+            state.Advance(.2f, 5f, 2.286f, 0f, false, false, true, false, false, false, false, out debit);
+            TestRunner.Equal(0f, debit, "Native step has no ordinary Move debit.");
+            TestRunner.Equal(1f, state.MetresStepped, "Step distance uses mount speed.");
+            TestRunner.Equal(0f, state.Advance(1f, 5f, 2.286f, 0f, false, false, false, false, false, false, false, out debit), "Stop cannot change partial step into normal movement.");
+            TestRunner.Equal(true, state.StepImmune, "Only actual step displacement records immunity.");
+            var ordinary = new MountedMovementState();
+            ordinary.Advance(.1f, 5f, 2.286f, 0f, false, false, false, false, false, false, false, out debit);
+            TestRunner.Equal(0f, ordinary.Advance(.2f, 5f, 2.286f, debit, false, false, true, false, false, false, false, out debit), "Ordinary movement cannot gain a step or AoO immunity.");
+            TestRunner.Equal(false, ordinary.StepImmune, "No false step immunity.");
+            var forced = new MountedMovementState();
+            forced.Advance(.3f, 5f, 2.286f, 0f, false, false, false, false, true, false, false, out debit);
+            TestRunner.Equal(.3f, forced.TimeForced, "Forced movement side effect retained.");
+            TestRunner.Equal(0f, forced.Remaining(5f, 2.286f, 0f, false, false, false, false), "Native normal movement restriction survives forced movement.");
+        }
+
+        private static void RiderMeleeOwnership()
+        {
+            var result = MountedCombatActionEvaluator.Evaluate(Eligible(MountedCombatActionKind.RiderMelee));
+            TestRunner.True(result.IsAllowed, "Eligible rider melee was rejected.");
+            TestRunner.Equal(MountedCombatActor.Rider, result.Actor, "Rider attack actor changed.");
+            TestRunner.Equal(MountedCombatActor.Rider, result.ResourceOwner, "Rider did not own Standard cost.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.PathfindingOwner, "Mammoth did not own pathfinding.");
+            TestRunner.True(result.IsSingleAttack, "Mounted rider attack admitted multiple attacks.");
+        }
+
+        private static void MountAttackOwnership()
+        {
+            var result = MountedCombatActionEvaluator.Evaluate(Eligible(MountedCombatActionKind.MountPrimaryNatural));
+            TestRunner.True(result.IsAllowed, "Eligible Mammoth primary was rejected.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.Actor, "Mammoth attack actor changed.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.ResourceOwner, "Mammoth did not own its Standard cost.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.PathfindingOwner, "Mammoth did not retain pathfinding authority.");
+        }
+
+        private static void AdmitsRangedRider()
+        {
+            var context = Eligible(MountedCombatActionKind.RiderRanged);
+            context.RiderWeaponIsSupportedMelee = false;
+            context.RiderWeaponIsRanged = true;
+            var result = MountedCombatActionEvaluator.Evaluate(context);
+            TestRunner.True(result.IsAllowed, "Eligible native ranged mounted attack was rejected.");
+            TestRunner.Equal(MountedCombatActor.Rider, result.Actor,
+                "Mounted ranged attack changed actor ownership.");
+            TestRunner.Equal(MountedCombatActor.Mount, result.PathfindingOwner,
+                "Mounted ranged approach changed pathfinding ownership.");
+        }
+
+        private static void RejectsInvalidContext()
+        {
+            var context = Eligible(MountedCombatActionKind.MountPrimaryNatural);
+            context.TargetIsVisibleEnemy = false;
+            context.TargetVisible = false;
+            context.ActionActorHasStandardAction = false;
+            context.ActionActorOwnsCurrentTurnOrRealTime = false;
+            var result = MountedCombatActionEvaluator.Evaluate(context);
+            var feedback = string.Join(" ", result.RejectionReasons.ToArray());
+            TestRunner.True(!result.IsAllowed, "Invalid mounted attack was accepted.");
+            TestRunner.True(feedback.Contains("not visible"), "Target visibility rejection missing.");
+            TestRunner.True(feedback.Contains("current turn"), "Turn rejection missing.");
+            TestRunner.True(feedback.Contains("Standard action"), "Resource rejection missing.");
+        }
+
+        private static void ReportsRequiredAdmissionReasons()
+        {
+            var context = Eligible(MountedCombatActionKind.RiderMelee);
+            context.ExactRiderSelection = false;
+            context.ExactMountedPair = false;
+            context.SupportedRiderBodyProfile = false;
+            context.TargetExists = false;
+            context.TargetAliveAndConscious = false;
+            context.TargetVisible = false;
+            context.TargetHostile = false;
+            context.TargetAttackable = false;
+            context.TargetIsVisibleEnemy = false;
+            context.ActionActorOwnsCurrentTurnOrRealTime = false;
+            context.ActionActorHasStandardAction = false;
+            context.TransactionIdle = false;
+            context.RiderHasEligibleWeapon = false;
+            context.PathKnownUnavailable = true;
+            context.WithinSupportedRangeEnvelope = false;
+            context.RangeOriginConsistent = false;
+            context.CommandAdmissionReady = false;
+
+            var result = MountedCombatActionEvaluator.Evaluate(context);
+            var codes = result.RejectionCodes;
+            foreach (var expected in new[]
+            {
+                MountedCombatRejectionCode.WrongActorOrSelection,
+                MountedCombatRejectionCode.RelationshipInvalidated,
+                MountedCombatRejectionCode.BodyProfileUnsupported,
+                MountedCombatRejectionCode.TargetInvalid,
+                MountedCombatRejectionCode.TargetNotVisible,
+                MountedCombatRejectionCode.TargetNotHostile,
+                MountedCombatRejectionCode.TargetNotAttackable,
+                MountedCombatRejectionCode.WrongTurn,
+                MountedCombatRejectionCode.WrongActionState,
+                MountedCombatRejectionCode.AlreadyActiveCommand,
+                MountedCombatRejectionCode.NoEligibleWeapon,
+                MountedCombatRejectionCode.NoPath,
+                MountedCombatRejectionCode.OutsideSupportedRange,
+                MountedCombatRejectionCode.RangeOriginMismatch,
+                MountedCombatRejectionCode.CommandAdmissionFailure
+            })
+            {
+                TestRunner.True(codes.Contains(expected), "Missing rejection code: " + expected + ".");
+            }
+        }
+
+        private static void PreventsDuplicateAttack()
+        {
+            var transaction = TargetedTransaction(false);
+            TestRunner.True(transaction.TryStartSingleAttack("target-1"), "First child attack was rejected.");
+            TestRunner.True(!transaction.TryStartSingleAttack("target-1"), "Duplicate child attack was admitted.");
+            TestRunner.Equal(1, transaction.ChildAttackStartCount, "Child attack count was not exactly one.");
+            TestRunner.True(transaction.Complete("target-1"), "Exact transaction did not complete.");
+        }
+
+        private static void SuppressesOnlyExactPairOpportunityAttacks()
+        {
+            TestRunner.True(
+                MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                    true, true, true, false, true, true),
+                "An active exact-rider opportunity attack escaped the mounted transaction guard.");
+            TestRunner.True(
+                MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                    true, true, false, true, true, true),
+                "An active exact-Mammoth opportunity attack escaped the mounted transaction guard.");
+            TestRunner.True(
+                !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                    true, false, true, false, true, true),
+                "Idle mounted rider opportunity behavior was changed.");
+            TestRunner.True(
+                !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                    false, true, true, false, true, true),
+                "Non-mounted rider opportunity behavior was changed.");
+            TestRunner.True(
+                !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                    true, true, false, false, true, true),
+                "A non-pair unit opportunity attack was suppressed.");
+            TestRunner.True(
+                !MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                    true, true, true, false, false, true),
+                "A null-target opportunity probe was suppressed.");
+        }
+
+        private static void FallbackPreservesRiderOpportunity()
+        {
+            TestRunner.True(!MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                true, true, true, false, true, false),
+                "Separate-turn active rider command suppressed a genuine native opportunity.");
+        }
+
+        private static void FallbackPreservesMountOpportunity()
+        {
+            TestRunner.True(!MountedOpportunityIsolationPolicy.ShouldSuppressStockOpportunityAttack(
+                true, true, false, true, true, false),
+                "Separate-turn active mount command suppressed a genuine native opportunity.");
+        }
+
+        private static void BoundsRepaths()
+        {
+            var transaction = TargetedTransaction(true);
+            for (var i = 0; i < MountedCombatTransaction.MaximumRepaths; i++)
+            {
+                TestRunner.True(transaction.TryRepath("target-1"), "Authorized repath was rejected.");
+            }
+            TestRunner.True(!transaction.TryRepath("target-1"), "Unbounded repath was admitted.");
+        }
+
+        private static void CancellationIsIdempotent()
+        {
+            var transaction = TargetedTransaction(true);
+            TestRunner.True(transaction.Cancel("manual stop"), "Active transaction did not cancel.");
+            TestRunner.True(!transaction.Cancel("second stop"), "Cancellation was not idempotent.");
+            TestRunner.Equal("manual stop", transaction.TerminalReason, "First cancellation reason was overwritten.");
+        }
+
+        private static void TargetInvalidationCancelsOnlyExactPreChildTransaction()
+        {
+            var exact = TargetedTransaction(true);
+            TestRunner.True(
+                exact.CancelTargetInvalidationBeforeChildAttack("target-1"),
+                "Exact pre-child target invalidation did not cancel.");
+            TestRunner.Equal(
+                MountedCombatTransactionState.Cancelled,
+                exact.State,
+                "Exact pre-child target invalidation did not use cancellation semantics.");
+            TestRunner.Equal(
+                MountedCombatTransaction.TargetInvalidatedBeforeChildAttackReason,
+                exact.TerminalReason,
+                "Exact pre-child target invalidation did not preserve its bounded terminal reason.");
+            TestRunner.True(
+                !exact.CancelTargetInvalidationBeforeChildAttack("target-1"),
+                "Exact pre-child target invalidation was not idempotent.");
+
+            var substituted = TargetedTransaction(true);
+            TestRunner.True(
+                !substituted.CancelTargetInvalidationBeforeChildAttack("target-2"),
+                "A substituted target cancelled the mounted transaction.");
+            TestRunner.Equal(
+                MountedCombatTransactionState.Approaching,
+                substituted.State,
+                "A rejected substituted target changed transaction state.");
+
+            var started = TargetedTransaction(false);
+            TestRunner.True(started.TryStartSingleAttack("target-1"), "Exact child attack did not start.");
+            TestRunner.True(
+                !started.CancelTargetInvalidationBeforeChildAttack("target-1"),
+                "Post-child target invalidation cancelled the native attack lifecycle.");
+            TestRunner.Equal(
+                MountedCombatTransactionState.Attacking,
+                started.State,
+                "Rejected post-child invalidation changed transaction state.");
+        }
+
+        private static void RequiresExactTarget()
+        {
+            var transaction = TargetedTransaction(true);
+            TestRunner.True(!transaction.Arrive("target-2"), "A substituted target was accepted.");
+            TestRunner.True(transaction.Arrive("target-1"), "Exact target arrival was rejected.");
+            TestRunner.True(!transaction.TryStartSingleAttack("target-2"), "Attack target substitution was accepted.");
+        }
+
+        private static void RangeBoundary()
+        {
+            var radius = MountedCombatSpatialPolicy.CalculateStoppingRadius(1.5f, 0.5f, 1f);
+            TestRunner.Equal(3f, radius, "Stopping radius changed.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsWithinRange(
+                    new MountedCombatPoint(0f, 0f),
+                    new MountedCombatPoint(3.05f, 0f),
+                    radius),
+                "Exact tolerance boundary was rejected.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsWithinRange(
+                    new MountedCombatPoint(0f, 0f),
+                    new MountedCombatPoint(3.051f, 0f),
+                    radius),
+                "Outside range boundary was accepted.");
+        }
+
+        private static void RejectsInvalidRange()
+        {
+            var threw = false;
+            try
+            {
+                MountedCombatSpatialPolicy.CalculateStoppingRadius(1f, -1f, 1f);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                threw = true;
+            }
+            TestRunner.True(threw, "Negative target corpulence was accepted.");
+        }
+
+        private static void DiagnosticPlacementAdmitsObservedRadius()
+        {
+            const float observedRadius = 2.37020588f;
+            float requestedDistance;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(observedRadius, out requestedDistance),
+                "The exact guarded Probe F radius was rejected by diagnostic placement.");
+            TestRunner.True(
+                Math.Abs(requestedDistance - 2.25020588f) < 0.00001f,
+                "Diagnostic placement did not retain the exact fixed range inset.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(observedRadius, requestedDistance),
+                "The exact near-boundary diagnostic distance was rejected.");
+        }
+
+        private static void DiagnosticPlacementRejectsUnsafeBounds()
+        {
+            float requestedDistance;
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    MountedCombatSpatialPolicy.DiagnosticRangeInset + MountedCombatSpatialPolicy.RangeTolerance,
+                    out requestedDistance),
+                "A diagnostic radius without positive separation was accepted.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(2.37020588f, 2.18020588f),
+                "Excess navmesh projection drift was accepted.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(2.37020588f, 0.05f),
+                "A diagnostic target without bounded positive separation was accepted.");
+        }
+
+        private static void DiagnosticSpawnPreservesRiderReference()
+        {
+            // CO: a native-valid point nine metres from the unrelated caster
+            // was only 1.9383593 metres from the rider after earlier real moves.
+            TestRunner.True(!MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(1.9383593f),
+                "The unrelated caster's range displaced the diagnostic rider-relative bound.");
+            TestRunner.True(MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(9f),
+                "An ordinary bounded diagnostic target was rejected.");
+        }
+
+        private static void DiagnosticSpawnBounds()
+        {
+            TestRunner.True(MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(3f), "Exact minimum changed.");
+            TestRunner.True(MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(20f), "Exact maximum changed.");
+            foreach (var distance in new[] { 2.999f, 20.001f, -1f, float.NaN, float.PositiveInfinity, float.NegativeInfinity })
+                TestRunner.True(!MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(distance),
+                    "An out-of-bounds or invalid diagnostic distance was accepted.");
+        }
+
+        private static void DiagnosticPlacementRefreshesObservedMammothDrift()
+        {
+            const float mammothPrimaryRadius = 3.589406f;
+            const float observedDriftedDistance = 3.06238842f;
+            float refreshedDistance;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.RequiresDiagnosticTargetPlacementRefresh(
+                    mammothPrimaryRadius,
+                    observedDriftedDistance),
+                "The exact failed Mammoth-primary pre-dispatch placement drift was not detected.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateDiagnosticTargetDistance(
+                    mammothPrimaryRadius,
+                    out refreshedDistance) &&
+                Math.Abs(refreshedDistance - 3.469406f) < 0.00001f &&
+                MountedCombatSpatialPolicy.IsBoundedDiagnosticTargetDistance(
+                    mammothPrimaryRadius,
+                    refreshedDistance),
+                "The exact Mammoth-primary radius did not produce a bounded current-position refresh.");
+        }
+
+        private static void DiagnosticApproachPlacementStartsOutsideRange()
+        {
+            const float pairRadius = 2.37020588f;
+            float requestedDistance;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateDiagnosticApproachTargetDistance(
+                    pairRadius,
+                    out requestedDistance),
+                "A positive pair radius did not produce an approach target.");
+            TestRunner.True(
+                Math.Abs(requestedDistance - 4.37020588f) < 0.00001f,
+                "Approach placement did not retain the exact fixed extension.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsBoundedDiagnosticApproachTargetDistance(
+                    pairRadius,
+                    requestedDistance),
+                "Exact approach placement was rejected.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsBoundedDiagnosticApproachTargetDistance(
+                    pairRadius,
+                    pairRadius + MountedCombatSpatialPolicy.RangeTolerance),
+                "An in-range placement was accepted as movement-to-attack evidence.");
+        }
+
+        private static void ApproachEvidencePreservesMountAuthority()
+        {
+            var snapshot = PassingApproachSnapshot();
+            TestRunner.True(snapshot.AllPassed, "An exact mount-authoritative approach failed.");
+            TestRunner.Equal(0, snapshot.FailedGateNames.Length, "An exact approach reported failed gates.");
+            TestRunner.Equal(string.Empty, snapshot.FailureSummary, "An exact approach reported a failure summary.");
+        }
+
+        private static void ApproachEvidenceReportsExactFailures()
+        {
+            var snapshot = new MountedCombatApproachSnapshot(
+                true, 2, 1, false, false, false,
+                false, false, false, false, false, 0f, false, false, true, false, 0,
+                false, false, false, 0, false, false,
+                2.37f, 2.42f, 2.43f, 0.1f, 0.2f, 0.051f, 1);
+            TestRunner.True(!snapshot.AllPassed, "An unsafe approach evidence snapshot passed.");
+            TestRunner.Equal(
+                "one-delegated-move,delegated-move-drive-mode,delegated-move-executor-is-mount," +
+                "wrapper-command-retained,delegated-move-not-queued,mount-move-slot-owned," +
+                "mount-move-slot-unreplaced,mount-command-queue-empty,delegated-move-terminal-boundary-exact," +
+                "mount-move-slot-restored,delegated-move-controller-exact,delegated-move-progress-observed," +
+                "rider-stock-agent-suppressed," +
+                "mount-stock-agent-authoritative,pose-healthy-throughout,runtime-approach-observed," +
+                "selection-retained,ui-coherent-throughout,attack-start-inside-range," +
+                "rider-followed-approach,mount-performed-approach,target-remained-stationary," +
+                "no-unexpected-repath",
+                snapshot.FailureSummary,
+                "Unsafe approach gates were not reported in exact order.");
+        }
+
+        private static void ApproachEvidenceAdmitsOnlyLegalRangeStop()
+        {
+            var stoppedAtRange = PassingApproachSnapshot(false, true, 2.36f);
+            TestRunner.True(stoppedAtRange.AllPassed,
+                "An exact delegated move stopped inside legal attack range was rejected.");
+
+            var stoppedOutsideRange = PassingApproachSnapshot(false, true, 2.421f);
+            TestRunner.True(!stoppedOutsideRange.AllPassed &&
+                    Array.IndexOf(stoppedOutsideRange.FailedGateNames, "legal-range-stop-inside-range") >= 0,
+                "A delegated move stopped outside legal attack range was accepted.");
+
+            var duplicateTerminal = PassingApproachSnapshot(true, true, 2.36f);
+            TestRunner.True(!duplicateTerminal.AllPassed &&
+                    Array.IndexOf(duplicateTerminal.FailedGateNames, "delegated-move-terminal-boundary-exact") >= 0,
+                "A delegated move claimed both native success and a KMC legal-range stop.");
+
+            var nativeSuccessWithStopResidue = PassingApproachSnapshot(true, false, 2.36f);
+            TestRunner.True(!nativeSuccessWithStopResidue.AllPassed &&
+                    Array.IndexOf(nativeSuccessWithStopResidue.FailedGateNames, "legal-range-stop-inside-range") >= 0,
+                "A native-success delegated move retained false legal-range stop distance evidence.");
+        }
+
+        private static void ApproachRawMoveSlotPreservesFinishedBoundary()
+        {
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(true, false, false),
+                "An active exact delegated raw Move slot was rejected.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(true, false, true),
+                "The exact finished delegated command still present in the raw Move slot was rejected.");
+            TestRunner.True(
+                MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(false, true, true),
+                "A finished delegated command removed by the stock sweep was rejected.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(false, true, false),
+                "An unfinished delegated command missing from the raw Move slot was accepted.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.IsExactRawMoveSlotLifecycle(false, false, true),
+                "A replacement raw Move-slot command was accepted.");
+        }
+
+        private static void ApproachEvidenceRejectsEmptyMountCommandController()
+        {
+            var snapshot = PassingApproachSnapshot();
+            var missingMoveSlot = new MountedCombatApproachSnapshot(
+                snapshot.ApproachRequiredAtStart,
+                snapshot.DelegatedMoveStartCount,
+                snapshot.DelegatedMoveTickCount,
+                snapshot.DelegatedMoveExecutorIsExactMount,
+                snapshot.WrapperCommandRetained,
+                snapshot.DelegatedMoveNeverQueued,
+                false,
+                snapshot.MountMoveSlotUnreplacedThroughoutApproach,
+                snapshot.MountQueueEmptyThroughoutApproach,
+                snapshot.DelegatedMoveFinishedSuccessfully,
+                snapshot.DelegatedMoveStoppedAtLegalRange,
+                snapshot.DelegatedMovePairDistanceAtLegalRangeStop,
+                snapshot.MountMoveSlotRestoredAfterApproach,
+                snapshot.DelegatedMoveDrivenByStockController,
+                snapshot.DelegatedMoveDrivenByRiderTurnAdapter,
+                snapshot.TurnBasedApproach,
+                snapshot.DelegatedMoveProgressObservationCount,
+                snapshot.RiderStockAgentSuppressed,
+                snapshot.MountStockAgentAuthoritative,
+                snapshot.PoseHealthyThroughout,
+                snapshot.ObservationCount,
+                snapshot.SelectionRetained,
+                snapshot.UiCoherentThroughout,
+                snapshot.PairApproachRadius,
+                snapshot.InitialPairDistance,
+                snapshot.PairDistanceAtAttackStart,
+                snapshot.RiderDisplacementAtAttackStart,
+                snapshot.MountDisplacementAtAttackStart,
+                snapshot.TargetDisplacementAtAttackStart,
+                snapshot.RepathCount);
+            TestRunner.True(!missingMoveSlot.AllPassed,
+                "A detached delegated move passed despite stock empty-container movement cancellation.");
+            TestRunner.True(Array.IndexOf(missingMoveSlot.FailedGateNames, "mount-move-slot-owned") >= 0,
+                "The exact Mammoth Move-slot failure was not reported.");
+        }
+
+        private static void DelegatedPointMoveLeavesLineOfSightToChildAttack()
+        {
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight,
+                "A delegated point move still required LoS and can deadlock on the hostile target blocker.");
+            var delegatedRadius = MountedCombatSpatialPolicy.CalculateDelegatedMoveApproachRadius(
+                13f,
+                1.25f,
+                0.75f);
+            TestRunner.True(
+                Math.Abs(delegatedRadius - 2f) < 0.00001f && delegatedRadius < 13f,
+                "The delegated move can terminate at ranged radius before the exact native child LoS gate admits.");
+            TestRunner.True(
+                Math.Abs(MountedCombatSpatialPolicy.CalculateDelegatedMoveApproachRadius(1.5f, 1.25f, 0.75f) - 1.5f) <
+                    0.00001f,
+                "The delegated move expanded beyond the pair's legal approach radius.");
+        }
+
+        private static MountedCombatApproachSnapshot PassingApproachSnapshot(
+            bool finishedSuccessfully = true,
+            bool stoppedAtLegalRange = false,
+            float legalRangeStopDistance = 0f)
+        {
+            return new MountedCombatApproachSnapshot(
+                true, 1, 0, true, true, true,
+                true, true, true, finishedSuccessfully, stoppedAtLegalRange,
+                legalRangeStopDistance, true, true, false, false, 8,
+                true, true, true, 10, true, true,
+                2.37f, 4.37f, 2.36f, 2.0f, 2.0f, 0.0f, 0);
+        }
+
+        private static void NativeAdmissionUsesMountOrigin()
+        {
+            float nativeRadius;
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(
+                    2.37020588f,
+                    2.25020623f,
+                    2.47820623f,
+                    out nativeRadius),
+                "An in-range Mammoth origin could not bridge the exact native rider executor offset.");
+            TestRunner.True(
+                Math.Abs(nativeRadius - 2.47920623f) < 0.00001f,
+                "Native rider admission did not retain the exact bounded executor distance plus epsilon.");
+
+            TestRunner.True(
+                MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(3f, 2.9f, 2.8f, out nativeRadius) &&
+                    Math.Abs(nativeRadius - 3f) < 0.00001f,
+                "An executor already inside the pair radius received an unnecessary range expansion.");
+        }
+
+        private static void NativeAdmissionRejectsUnsafeBounds()
+        {
+            float nativeRadius;
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(2.37f, 2.421f, 2.4f, out nativeRadius),
+                "A target outside the Mammoth-origin tolerance received native attack admission.");
+            TestRunner.True(
+                !MountedCombatSpatialPolicy.TryCalculateNativeExecutorAdmissionRadius(2.37f, 2.3f, 3.121f, out nativeRadius),
+                "An excessive rider-executor radius expansion was admitted.");
+        }
+
+        private static void PreservesIndependentMountTurn()
+        {
+            TestRunner.True(MountedPairTurnPolicy.ShouldPreserveIndependentMountTurn(true, true, true), "Exact Mammoth turn was not preserved.");
+            TestRunner.True(!MountedPairTurnPolicy.ShouldPreserveIndependentMountTurn(true, true, false), "A rider/non-pair turn was classified as the Mammoth turn.");
+            TestRunner.True(!MountedPairTurnPolicy.ShouldPreserveIndependentMountTurn(false, true, true), "Unmounted Mammoth turn was adopted by KMC.");
+        }
+
+        private static void AdmitsGroundMovementOnlyThroughRiderTurn()
+        {
+            TestRunner.True(
+                MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, true, true, true, false) &&
+                    MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, true, true, false, true),
+                "The exact rider turn rejected ground movement in Preparing or Acting.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, true, false, true, true),
+                "A different actor's turn admitted pair ground movement.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, true, false, true, true, true),
+                "A non-rider request admitted pair ground movement.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanAdmitRiderGroundMovement(true, false, true, false, false, false),
+                "Real-time pair ground movement incorrectly required a turn.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, true, false, true) &&
+                    MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, false, true, true),
+                "Exact Mammoth ground movement was not driven during the rider Preparing or Acting window.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, false, true, true, true) &&
+                    !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, false, false, true) &&
+                    !MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, true, true, false),
+                "Ground movement admitted another actor, a non-action turn, or a non-Mammoth mover.");
+        }
+
+        private static void BridgesOnlyExactReachedMountPathEnd()
+        {
+            TestRunner.True(
+                MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f),
+                "The exact observed reached Mammoth path endpoint was rejected.");
+
+            TestRunner.True(
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    false, true, true, true, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, false, true, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, false, true, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, false, true, true,
+                    0.0f, 0.3f, 0.5389647f, 1.060606f),
+                "The bridge admitted an unmounted, wrong-turn, non-player, or non-slot command.");
+
+            TestRunner.True(
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.02f, 0.3f, 0.5389647f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.0f, 0.3f, 1.080607f, 1.060606f) &&
+                !MountedTurnGroundCompletionPolicy.CanBridgeReachedPathEnd(
+                    true, true, true, true, true, true, true,
+                    0.0f, 0.3f, 0.29f, 1.060606f),
+                "The bridge admitted an unreached endpoint, body-radius escape, or already-stock-close command.");
+        }
+
+        private static void AdmitsExactRiderActionWindow()
+        {
+            TestRunner.True(
+                MountedPairTurnPolicy.CanIssueRiderAction(false, false, false, false),
+                "Real-time rider action incorrectly required a turn controller.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanIssueRiderAction(true, true, true, false),
+                "Exact native Preparing rider turn rejected command admission.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanIssueRiderAction(true, true, false, true),
+                "Exact native Acting rider turn rejected command admission.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanIssueRiderAction(true, false, true, false),
+                "A different unit's native Preparing turn admitted a rider command.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanIssueRiderAction(true, true, false, false),
+                "A rider turn outside Preparing or Acting admitted a command.");
+        }
+
+        private static void DelegatesOnlyExactMovement()
+        {
+            TestRunner.True(
+                MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, true, true),
+                "Exact Mammoth movement was not delegated.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, false, true, true),
+                "Non-rider turn admitted Mammoth movement.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, true, false),
+                "Non-pair movement agent was admitted.");
+        }
+
+        private static void NativeSingleAttackPrefersPrimary()
+        {
+            var decision = NativeSingleAttackSlotPolicy.Select(
+                true, true, 1, true, 1, new[] { true, true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.PrimaryHand, decision.Kind, "Eligible primary hand lost native priority.");
+            TestRunner.Equal(-1, decision.AdditionalLimbIndex, "Primary-hand selection retained a limb index.");
+        }
+
+        private static void NativeSingleAttackFallbackOrder()
+        {
+            var secondary = NativeSingleAttackSlotPolicy.Select(
+                true, true, 0, true, 1, new[] { true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.SecondaryHand, secondary.Kind, "Eligible secondary hand did not precede limbs.");
+
+            var limb = NativeSingleAttackSlotPolicy.Select(
+                true, false, 0, false, 0, new[] { false, true, true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.AdditionalLimb, limb.Kind, "Additional-limb fallback was not selected.");
+            TestRunner.Equal(1, limb.AdditionalLimbIndex, "Additional-limb fallback did not choose the first weapon-bearing slot.");
+        }
+
+        private static void NativeSingleAttackPreservesTurnBasedTerminalSuccess()
+        {
+            TestRunner.True(
+                NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, true, 1, 1, false),
+                "An exact acted turn-based single attack lost its native Success before animation completion.");
+            TestRunner.True(
+                NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    false, true, true, true, 1, 1, false),
+                "RT single attack interrupted its completed native clip while seeking a nonexistent next child.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, false, true, true, 1, 1, false),
+                "An unacted attack was treated as terminal success.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, false, true, 1, 1, false),
+                "A non-success result was preserved as terminal success.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, false, 1, 1, false),
+                "A command without an observed native attack rule was treated as terminal success.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, true, 2, 1, true),
+                "A multi-attack sequence with a planned attack was truncated.");
+            TestRunner.True(
+                !NativeSingleAttackTerminalPolicy.ShouldAwaitNativeAnimation(
+                    true, true, true, true, 1, 0, false),
+                "An incomplete single attack was treated as terminal success.");
+        }
+
+        private static void NativeSingleAttackSkipsDisabledHands()
+        {
+            var decision = NativeSingleAttackSlotPolicy.Select(
+                false, true, 3, true, 2, new[] { true });
+            TestRunner.Equal(NativeSingleAttackSlotKind.AdditionalLimb, decision.Kind, "Disabled hands remained eligible for native attack selection.");
+            TestRunner.Equal(0, decision.AdditionalLimbIndex, "Disabled-hand fallback did not select the exact first limb.");
+        }
+
+        private static void NativeSingleAttackRejectsInvalidOrEmptyInputs()
+        {
+            var empty = NativeSingleAttackSlotPolicy.Select(
+                true, false, 0, false, 0, new bool[0]);
+            TestRunner.True(!empty.HasSelection, "Weaponless native attack input produced a selection.");
+
+            var threw = false;
+            try
+            {
+                NativeSingleAttackSlotPolicy.Select(true, true, -1, false, 0, null);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                threw = true;
+            }
+            TestRunner.True(threw, "Negative native primary attack count was accepted.");
+        }
+
+        private static void NativePrimaryNaturalAttackAdmitsExactSlotsOnly()
+        {
+            TestRunner.True(
+                NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.PrimaryHand, -1, true, false),
+                "An exact primary-hand natural attack was rejected.");
+            TestRunner.True(
+                NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 0, true, false),
+                "The horse's exact first additional-limb Bite was rejected.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.SecondaryHand, -1, true, false),
+                "A secondary-hand natural attack was admitted as the primary.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.PrimaryHand, 0, true, false),
+                "A primary-hand selection retaining a limb index was admitted.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 1, true, false),
+                "A later additional-limb natural attack was admitted as the primary.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 0, false, false),
+                "A non-natural first additional-limb weapon was admitted.");
+            TestRunner.True(
+                !NativePrimaryNaturalAttackPolicy.IsExact(
+                    NativeSingleAttackSlotKind.AdditionalLimb, 0, true, true),
+                "A ranged first additional-limb natural weapon was admitted.");
+        }
+
+        private static void TargetRequiresWorkingAuthorization()
+        {
+            var lifecycle = new DiagnosticCombatTargetLifecycle();
+            TestRunner.True(!lifecycle.BeginCreate("target-1", false), "Target creation bypassed Working authorization.");
+            TestRunner.Equal(DiagnosticCombatTargetState.Absent, lifecycle.State, "Rejected target changed lifecycle state.");
+        }
+
+        private static void TargetLifecycleIsExact()
+        {
+            var lifecycle = new DiagnosticCombatTargetLifecycle();
+            TestRunner.True(lifecycle.BeginCreate("target-1", true), "Authorized target creation was rejected.");
+            TestRunner.True(!lifecycle.Activate("target-2", true), "Substituted target activated.");
+            TestRunner.True(lifecycle.Activate("target-1", true), "Exact target activation was rejected.");
+            TestRunner.True(lifecycle.RequestDestroy("complete"), "Active target was not queued for removal.");
+            TestRunner.True(!lifecycle.RequestDestroy("again"), "Duplicate removal request was accepted.");
+            TestRunner.True(!lifecycle.ConfirmRemoved("target-1", false), "Target removal accepted residue.");
+            TestRunner.True(lifecycle.ConfirmRemoved("target-1", true), "Zero-residue removal was rejected.");
+        }
+
+        private static void TargetSafetySnapshotPreservesEveryGate()
+        {
+            var snapshot = TargetSafetySnapshot();
+            TestRunner.True(snapshot.AllPassed, "An all-pass transient target safety snapshot failed.");
+            TestRunner.Equal(0, snapshot.FailedGateNames.Length, "An all-pass transient target safety snapshot reported failures.");
+            TestRunner.Equal(string.Empty, snapshot.FailureSummary, "An all-pass transient target safety snapshot reported a failure summary.");
+        }
+
+        private static void TargetSafetySnapshotReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatTargetSafetySnapshot(
+                true, true, true, true, true, true, true, false,
+                true, true, false, false, true, false, false, true, true, false);
+            TestRunner.True(!snapshot.AllPassed, "A transient target with failed safety gates passed.");
+            TestRunner.Equal(
+                "rider-treats-target-as-enemy,bounded-brain-lease,bounded-sleepless-lease,inventory-has-no-loot,native-primary-natural-weapon-resolved-without-provisioning,primary-natural-weapon-is-melee",
+                snapshot.FailureSummary,
+                "Transient target safety failures were not reported in exact gate order.");
+        }
+
+        private static DiagnosticCombatTargetSafetySnapshot TargetSafetySnapshot()
+        {
+            return new DiagnosticCombatTargetSafetySnapshot(
+                true, true, true, true, true, true, true, true,
+                true, true, true, true, true, true, true, true, true, true);
+        }
+
+        private static void CombatClickSafetyPreservesEveryGate()
+        {
+            var snapshot = new DiagnosticCombatClickSafetySnapshot(
+                true, true, true, true, true, true, true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "An exact prepared diagnostic click was rejected.");
+            TestRunner.Equal(0, snapshot.FailedGateNames.Length, "An exact click reported failed safety gates.");
+        }
+
+        private static void CombatClickSafetyReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatClickSafetySnapshot(
+                true, false, true, false, false, false, false, false, true, true, false);
+            TestRunner.True(!snapshot.AllPassed, "An unsafe diagnostic click passed.");
+            TestRunner.Equal(
+                "fog-of-war-cleared,target-visible-for-player,target-commands-empty,target-agent-enabled,target-agent-stopped,target-brain-suppressed,action-weapon-is-supported-melee",
+                snapshot.FailureSummary,
+                "Diagnostic click failures were not reported in exact gate order.");
+        }
+
+        private static void CombatDispatchRequiresEveryStartGate()
+        {
+            var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
+                true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "An unpaused rider with every native start gate ready was rejected.");
+            TestRunner.True(snapshot.GameUnpaused && snapshot.ActionActorCanActInCombat && !snapshot.ActionActorHandsBusy &&
+                    snapshot.EquipmentControllerAvailable && !snapshot.EquipmentUpdateScheduled,
+                "An all-pass dispatch snapshot changed its exact native gate values.");
+        }
+
+        private static void CombatDispatchAdmitsSharedTurnActor()
+        {
+            var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
+                true, false, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed && snapshot.ActionActorCanDispatch,
+                "An exact shared-turn mount command was rejected because the mount did not own a second native turn.");
+            TestRunner.True(!snapshot.ActionActorCanActInCombat && snapshot.ActionActorSharedTurnAdmitted,
+                "Shared-turn dispatch did not preserve the mount's exact raw native/action-admission split.");
+        }
+
+        private static void CombatDispatchReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatDispatchReadinessSnapshot(
+                false, false, false, true, false);
+            TestRunner.True(!snapshot.AllPassed, "A paused rider waiting on initiative and equipment was dispatched.");
+            TestRunner.Equal(
+                "game-unpaused,action-actor-can-act-in-combat,action-actor-hands-idle,equipment-update-idle",
+                snapshot.FailureSummary,
+                "Diagnostic dispatch failures were not reported in exact gate order.");
+            TestRunner.True(snapshot.ActionActorHandsBusy && snapshot.EquipmentUpdateScheduled,
+                "Failed dispatch gates were not preserved as exact observed states.");
+        }
+
+        private static void CombatEntryRequiresNativeMemoryAndCombat()
+        {
+            var snapshot = new DiagnosticCombatEntryReadinessSnapshot(
+                true, true, true, true, true, true, true, true, true, true, true, 0f, 0.01f);
+            TestRunner.True(snapshot.AllPassed, "A native-memory-backed Default-mode combat entry was rejected.");
+            TestRunner.True(snapshot.MemoryQueued && snapshot.PlayerGroupMemoryContainsTarget &&
+                    snapshot.TargetGroupMemoryContainsRider && snapshot.RiderInCombat && snapshot.MountInCombat &&
+                    snapshot.TargetInCombat && snapshot.PlayerInCombat && snapshot.RiderPrepared && snapshot.RiderAwake &&
+                    snapshot.TargetAwake &&
+                    snapshot.DefaultGameMode && snapshot.RiderInitiative == 0f && snapshot.GameDeltaTime > 0f,
+                "An all-pass combat-entry snapshot changed its exact observed state.");
+        }
+
+        private static void CombatEntryReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatEntryReadinessSnapshot(
+                true, false, false, true, false, false, false, false, false, false, false, 6f, 0f);
+            TestRunner.True(!snapshot.AllPassed, "A combat entry without memory, group combat, preparation, or game time passed.");
+            TestRunner.Equal(
+                "player-memory-contains-target,target-memory-contains-rider,mount-in-combat,target-in-combat,player-in-combat,rider-initiative-prepared,rider-awake,target-awake,default-game-mode,positive-game-delta",
+                snapshot.FailureSummary,
+                "Combat-entry failures were not reported in exact gate order.");
+            TestRunner.True(snapshot.RiderInitiative == 6f && snapshot.GameDeltaTime == 0f,
+                "Failed combat-entry timing evidence was not preserved exactly.");
+        }
+
+        private static void CombatActionActorUsesOwnInitiative()
+        {
+            var realTime = new DiagnosticCombatActionActorReadinessSnapshot(
+                false, "mammoth", "mammoth", true, true, 0f);
+            TestRunner.True(realTime.AllPassed,
+                "A real-time Mammoth ready on its own zero initiative was rejected.");
+
+            var turnBased = new DiagnosticCombatActionActorReadinessSnapshot(
+                true, "mammoth", "mammoth", true, true, 3f);
+            TestRunner.True(turnBased.AllPassed,
+                "An exact native Mammoth turn with a bounded prepared initiative was rejected.");
+            TestRunner.True(turnBased.TurnBased && turnBased.ActorInitiative == 3f &&
+                    turnBased.ActorCanActInCombat && turnBased.ActorPrepared,
+                "Action-actor readiness did not preserve its exact observed state.");
+        }
+
+        private static void CombatActionActorUsesSharedTurnAdmission()
+        {
+            var snapshot = new DiagnosticCombatActionActorReadinessSnapshot(
+                true, "mammoth", "mammoth", true, false, true, 3f);
+            TestRunner.True(snapshot.AllPassed && snapshot.ActorActionable,
+                "A prepared Mammoth with its own Standard ledger was rejected on the rider-owned shared turn.");
+            TestRunner.True(!snapshot.ActorCanActInCombat && snapshot.ActorSharedTurnAdmitted,
+                "Shared-turn actor readiness did not preserve the exact native/action-admission split.");
+        }
+
+        private static void CombatActionActorReportsExactFailures()
+        {
+            var snapshot = new DiagnosticCombatActionActorReadinessSnapshot(
+                false, "mammoth", "rider", false, false, 4.99591351f);
+            TestRunner.True(!snapshot.AllPassed,
+                "A rider-owned or initiative-blocked Mammoth action actor passed readiness.");
+            TestRunner.Equal(
+                "exact-action-actor,action-actor-prepared,action-actor-can-act-in-combat,action-actor-initiative-ready",
+                snapshot.FailureSummary,
+                "Action-actor readiness failures were not reported in exact gate order.");
+
+            var outsideNativeRange = new DiagnosticCombatActionActorReadinessSnapshot(
+                true, "mammoth", "mammoth", true, true, 6.01f);
+            TestRunner.Equal(
+                "action-actor-initiative-ready",
+                outsideNativeRange.FailureSummary,
+                "Turn-based action-actor readiness admitted initiative outside the native preparation range.");
+        }
+
+        private static void CombatInitiativeObserverRecordsNativeDecrement()
+        {
+            var observation = new DiagnosticCombatInitiativeObservation();
+            observation.Observe(2f, 1.75f, 0.25f, true, true, true);
+            observation.Observe(1.75f, 1.5f, 0.25f, true, true, true);
+
+            TestRunner.Equal(2, observation.CallbackCount, "Exact actor callback count changed.");
+            TestRunner.Equal(2, observation.DecreaseCount, "Native initiative decrements were not counted.");
+            TestRunner.Equal(0, observation.CrossTickRewriteCount, "Continuous native ticks were classified as rewrites.");
+            TestRunner.Equal(0.5d, observation.NativeDecreaseTotal, "Native initiative decrease total changed.");
+            TestRunner.Equal(0.5d, observation.PositiveGameDeltaTotal, "Positive game-delta total changed.");
+            TestRunner.True(observation.Describe().Contains("callbacks=2;decreases=2") &&
+                    observation.Describe().Contains("firstPrefix=2;lastPostfix=1.5"),
+                "Initiative observation summary omitted exact bounded evidence.");
+        }
+
+        private static void CombatInitiativeObserverDistinguishesAbsentTicksAndRewrites()
+        {
+            var observation = new DiagnosticCombatInitiativeObservation();
+            TestRunner.True(observation.Describe().Contains("callbacks=0") &&
+                    observation.Describe().Contains("firstPrefix=not-observed;lastPostfix=not-observed"),
+                "An absent native cooldown callback was not represented truthfully.");
+
+            observation.Observe(2f, 1.9f, 0.1f, true, true, true);
+            observation.Observe(2f, 1.9f, 0.1f, true, true, true);
+            TestRunner.Equal(1, observation.CrossTickRewriteCount,
+                "An initiative rewrite between native callbacks was not detected.");
+            observation.Reset();
+            TestRunner.Equal(0, observation.CallbackCount, "Observation reset retained callback evidence across rows.");
+        }
+
+        private static void NativeCombatJoinPreservesEveryGate()
+        {
+            var snapshot = new DiagnosticNativeCombatJoinReadinessSnapshot(
+                true, true, true, true, true, true,
+                false, false, false,
+                true, true, true, true, true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "An exact native UnitCombatJoinController-ready state was rejected.");
+            TestRunner.True(snapshot.RiderInGame && snapshot.MountInGame && snapshot.TargetInGame &&
+                    snapshot.RiderConscious && snapshot.MountConscious && snapshot.TargetConscious &&
+                    !snapshot.RiderIgnoredByCombat && !snapshot.MountIgnoredByCombat && !snapshot.TargetIgnoredByCombat &&
+                    snapshot.PlayerGroupContainsRider && snapshot.PlayerGroupContainsMount &&
+                    snapshot.TargetGroupContainsTarget && snapshot.PlayerGroupEnemiesContainsTarget &&
+                    snapshot.TargetGroupEnemiesContainsRider && snapshot.RiderNotInFogOfWar &&
+                    snapshot.TargetNotInFogOfWar && snapshot.RiderNotInStealthAmbush &&
+                    snapshot.TargetNotInStealthAmbush,
+                "An all-pass native join snapshot changed its exact raw state.");
+        }
+
+        private static void NativeCombatJoinReportsExactFailures()
+        {
+            var snapshot = new DiagnosticNativeCombatJoinReadinessSnapshot(
+                false, true, true, true, true, false,
+                false, true, false,
+                true, true, true, false, true, true, true, true, false);
+            TestRunner.True(!snapshot.AllPassed, "An ineligible native combat join snapshot passed.");
+            TestRunner.Equal(
+                "rider-in-game,target-conscious,mount-not-ignored-by-combat,player-enemies-contain-target,target-not-in-stealth-ambush",
+                snapshot.FailureSummary,
+                "Native combat join failures were not reported in exact controller-gate order.");
+        }
+
+        private static void TurnBasedDispatchRequiresExactRiderTurn()
+        {
+            var snapshot = new DiagnosticTurnBasedDispatchReadinessSnapshot(
+                true, true, true, true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed,
+                "An initialized native rider turn with the exact combat roster was rejected.");
+            TestRunner.True(snapshot.ModeEnabled && snapshot.ControllerInitialized &&
+                    snapshot.RosterContainsRider && snapshot.RosterContainsMount &&
+                    snapshot.RosterContainsTarget && snapshot.NativeActionActorTurnStarted &&
+                    snapshot.CurrentTurnActionActor && snapshot.CurrentTurnCommandReady,
+                "An all-pass turn-based snapshot changed its exact native gate values.");
+        }
+
+        private static void TurnBasedDispatchReportsExactFailures()
+        {
+            var snapshot = new DiagnosticTurnBasedDispatchReadinessSnapshot(
+                true, false, true, false, false, true, false, false);
+            TestRunner.True(!snapshot.AllPassed,
+                "A turn-based dispatch without an initialized exact rider turn passed.");
+            TestRunner.Equal(
+                "turn-based-controller-initialized,turn-roster-contains-mount,turn-roster-contains-target,current-turn-action-actor,current-turn-command-ready",
+                snapshot.FailureSummary,
+                "Turn-based dispatch failures were not reported in exact gate order.");
+        }
+
+        private static MountedCombatTransaction TargetedTransaction(bool requiresApproach)
+        {
+            var transaction = new MountedCombatTransaction();
+            TestRunner.True(transaction.Arm(MountedCombatActionKind.RiderMelee), "Transaction did not arm.");
+            TestRunner.True(transaction.AcceptTarget("target-1", requiresApproach), "Transaction did not accept exact target.");
+            return transaction;
+        }
+
+        private static void PairLivenessPreservesEveryGate()
+        {
+            var snapshot = new MountedPairLivenessSnapshot(
+                true, true, true, true, true, true, true, true, true, true,
+                true, true, true, true, true);
+            TestRunner.True(snapshot.AllPassed, "A fully live exact mounted pair failed its in-flight snapshot.");
+            TestRunner.Equal(string.Empty, snapshot.FailureSummary,
+                "A fully live exact mounted pair published false failure gates.");
+        }
+
+        private static void PairLivenessReportsExactFailures()
+        {
+            var snapshot = new MountedPairLivenessSnapshot(
+                false, true, true, true, false, true, true, true, true, false,
+                true, true, false, false, false);
+            TestRunner.True(!snapshot.AllPassed, "An invalid in-flight mounted pair passed its liveness snapshot.");
+            TestRunner.Equal(
+                "relationship-mounted,target-in-state,target-conscious-or-child-started,target-not-finally-dead,action-actor-hostile-to-target,action-actor-can-attack-target",
+                snapshot.FailureSummary,
+                "In-flight mounted-pair failures were not reported in exact gate order.");
+        }
+
+        private static void PairLivenessAdmitsPostAttackIncapacitation()
+        {
+            TestRunner.True(
+                !MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(false, 0),
+                "An unconscious target passed before the exact native child started.");
+            TestRunner.True(
+                MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(true, 0),
+                "A conscious target failed before native child start.");
+            TestRunner.True(
+                MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(false, 1),
+                "Native target incapacitation could not finish the exact already-started child.");
+            TestRunner.True(
+                !MountedPairLivenessSnapshot.IsTargetConsciousnessAdmissible(true, 2),
+                "An impossible duplicate child-start count passed liveness admission.");
+        }
+
+        private static MountedCombatActionContext Eligible(MountedCombatActionKind action)
+        {
+            return new MountedCombatActionContext
+            {
+                Action = action,
+                FeatureEnabled = true,
+                ExactMountedPair = true,
+                ExactRiderSelection = true,
+                SupportedMountProfile = true,
+                MountDisplayName = "Mammoth",
+                SupportedRiderBodyProfile = true,
+                InCombat = true,
+                RiderAliveAndConscious = true,
+                MountAliveAndConscious = true,
+                TargetExists = true,
+                TargetAliveAndConscious = true,
+                TargetIsVisibleEnemy = true,
+                TargetVisible = true,
+                TargetHostile = true,
+                TargetAttackable = true,
+                ActionActorOwnsCurrentTurnOrRealTime = true,
+                ActionActorHasStandardAction = true,
+                RiderWeaponIsSupportedMelee = true,
+                RiderHasEligibleWeapon = true,
+                RiderWeaponIsRanged = false,
+                RiderWeaponCategorySupported = true,
+                MountPrimaryNaturalAttackIsExact = true,
+                TransactionIdle = true,
+                LoadingOrLifecycleBoundary = false,
+                PathKnownUnavailable = false,
+                WithinSupportedRangeEnvelope = true,
+                RangeOriginConsistent = true,
+                CommandAdmissionReady = true
+            };
+        }
+    }
+}
