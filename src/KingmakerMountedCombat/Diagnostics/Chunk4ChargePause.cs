@@ -34,6 +34,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!Game.Instance.IsPaused || Time.frameCount <= requestFrame)
                 throw new InvalidOperationException("Charge input preceded actual native Pause mode.");
             return new JObject {
+                ["kind"] = "native-real-time-pause",
                 ["requestFrame"] = requestFrame, ["inputFrame"] = Time.frameCount,
                 ["beforePaused"] = Game.Instance.IsPaused,
                 ["gameTimeBefore"] = Game.Instance.TimeController.GameTime.Ticks,
@@ -41,14 +42,43 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private JObject BeginChunk4ChargeTbInput()
+        {
+            var game = Game.Instance;
+            var turn = game.TurnBasedCombatController.CurrentTurn;
+            var principal = chunk4ChargeActor == horse && relationship.State == Domain.RelationshipState.Mounted ? rider : chunk4ChargeActor;
+            if (!TurnBased.Controllers.CombatController.IsInTurnBasedCombat() || game.IsPaused ||
+                turn?.Unit != principal || turn.Status != TurnBased.Controllers.TurnController.TurnStatus.Preparing && !turn.IsActing)
+                throw new InvalidOperationException("Charge input lost the native TB planning/acting principal.");
+            // Native Game.DoStartMode rejects global Pause in TB. Observe real
+            // synchronous inputs here; only RT claims a held paused frame.
+            return new JObject {
+                ["kind"] = "native-turn-based-input", ["inputFrame"] = Time.frameCount,
+                ["beforePaused"] = game.IsPaused, ["turnBefore"] = turn.Unit.UniqueId,
+                ["turnStatusBefore"] = turn.Status.ToString(),
+                ["gameTimeBefore"] = game.TimeController.GameTime.Ticks,
+                ["actorsBefore"] = CaptureChunk4ChargePauseActors()
+            };
+        }
+
         private void ObserveChunk4ChargePausedInput(JObject proof)
         {
+            proof["afterInputFrame"] = Time.frameCount;
             proof["afterInputPaused"] = Game.Instance.IsPaused;
             proof["gameTimeAfterInput"] = Game.Instance.TimeController.GameTime.Ticks;
             proof["actorsAfterInput"] = CaptureChunk4ChargePauseActors();
-            if (!(bool)proof["afterInputPaused"] || (long)proof["gameTimeBefore"] != (long)proof["gameTimeAfterInput"] ||
+            if (Chunk4ChargeTb)
+            {
+                proof["turnAfter"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit?.UniqueId;
+                proof["turnStatusAfter"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Status.ToString();
+                if (!JToken.DeepEquals(proof["turnBefore"], proof["turnAfter"]))
+                    throw new InvalidOperationException("Synchronous TB Charge input changed the native turn principal.");
+            }
+            if ((bool)proof["afterInputPaused"] != !Chunk4ChargeTb ||
+                (int)proof["inputFrame"] != (int)proof["afterInputFrame"] ||
+                (long)proof["gameTimeBefore"] != (long)proof["gameTimeAfterInput"] ||
                 !Chunk4ChargePauseResourcesEqual(proof["actorsBefore"], proof["actorsAfterInput"]))
-                throw new InvalidOperationException("Native paused Charge input changed actor costs, positions or game time.");
+                throw new InvalidOperationException("Native Charge input changed actor costs, positions, mode or game time.");
         }
 
         private bool FinishChunk4ChargePausedHold(JObject proof)

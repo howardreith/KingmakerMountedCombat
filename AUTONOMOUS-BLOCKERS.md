@@ -1,8 +1,8 @@
-# Active Chunk 4 - candidate38, 2026-09-20 UTC
+# Active Chunk 4 - candidate39, 2026-09-20 UTC
 
-IN PROGRESS. Source37 BS completed five TB Charge cases (51/0 native,5/0 child), but outer validation failed0/1: the queue callback had requested Pause without reaching actual Pause mode. All70 native transactions independently restored actual human `0.1.0-paired-preview.37`, saves, full Mods and settings; no game/lock. BS remains FAIL.
+IN PROGRESS. Candidate38 BT failed46/2 while awaiting global Pause during TB. Exact installed Game.DoStartMode06000CBF explicitly rejects that mode; the existing assembly contract already records it. All71 completed native transactions independently restored actual human pairedpreview37 and protected data. No game/lock. Original BS/BT failures remain unchanged.
 
-Candidate `0.1.0-chunk4-preview.38` waits for actual Pause before direct and queued inputs and proves a held frame with frozen time, positions, costs and live commands. The distinct unmounted-to-mounted queue test remains at real, unpaused Mount delivery. Schema25 requires both forms of evidence; legacy24 still rejects BS. No gameplay policy change. Release/source22/0, full checks exit0, Charge426/0 and Kingmaker569/0 PASS. Commit/private package/guarded publish/fresh suite38, then unique BT TB Charge and BU RT precede all remaining exact-final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
+Candidate `0.1.0-chunk4-preview.39` requires actual held Pause in RT and cost/position/time-pure synchronous TB planning/acting inputs under the native principal. It does not introduce a TB pause mode or change gameplay policy. Build/source22/0 and full local checks exit0 PASS, including Charge460/0 and Kingmaker569/0. Commit/private package/guarded push/fresh suite39, then unique BU TB Charge/BV RT precede the remaining exact-final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
 
 ---
 ## Combined milestone disposition — 2026-09-08

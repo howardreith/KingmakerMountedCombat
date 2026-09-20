@@ -1,6 +1,6 @@
 function Assert-KmcChunk4ChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if ([long]$Artifact.schemaVersion -notin @(18,19,20,24,25) -or $Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
+    if ([long]$Artifact.schemaVersion -notin @(18,19,20,24,25,26) -or $Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
         throw 'Chunk 4 Charge requires its exact schema and parameterized mode.'
     }
     Assert-KmcMountedRuntimeConfiguration $Artifact.observations.phase3fActualConfiguration $true 'Chunk 4 Charge configuration'
@@ -22,11 +22,11 @@ function Assert-KmcChunk4ChargeEvidence {
         $mode=if($Request.scenario.EndsWith('-tb')){'TB'}else{'RT'}
         if ($row.name -ceq 'C4-CHARGE-queued-state-change') {
             if ($e.level -cne 'NATIVE INTEGRATION' -or $e.mode -cne $mode -or
-                $e.inputKind -cne $(if([long]$Artifact.schemaVersion -in @(24,25)){'native-mount-delivery-and-native-queue-promotion'}else{'native-mount-handler-and-native-queue-promotion'}) -or
+                $e.inputKind -cne $(if([long]$Artifact.schemaVersion -in @(24,25,26)){'native-mount-delivery-and-native-queue-promotion'}else{'native-mount-handler-and-native-queue-promotion'}) -or
                 $e.blueprint -cne 'c78506dd0e14f7c45a599990e4e65038' -or
                 $e.availableWhileUnmounted -ne $true -or $e.canTargetWhileUnmounted -ne $true -or
                 $e.queuedWhileUnmounted -ne $true -or
-                $(if([long]$Artifact.schemaVersion -eq 25){$e.queueCostsAndPositionsPure}else{$e.pausedQueueCostsPure}) -ne $true -or
+                $(if([long]$Artifact.schemaVersion -ge 25){$e.queueCostsAndPositionsPure}else{$e.pausedQueueCostsPure}) -ne $true -or
                 $e.nativeQueueApi -cne 'UnitCommands.AddToQueueInternal060026B8' -or
                 $e.mountSucceeded -ne $true -or $e.combatBeforeMount -ne $false -or
                 $e.rejectedBeforeStart -ne $true -or $e.admissionCostsAndPositionPure -ne $true -or
@@ -44,7 +44,7 @@ function Assert-KmcChunk4ChargeEvidence {
                 (@($before.actorPosition)-join ',') -cne (@($after.actorPosition)-join ',')) {
                 throw 'Native queue promotion changed costs or motion before Charge rejection.'
             }
-            if ([long]$Artifact.schemaVersion -in @(20,24,25)) {
+            if ([long]$Artifact.schemaVersion -in @(20,24,25,26)) {
                 $rejection=Test-KmcChunk4ChargeRejectionBoundary $e.admission
                 $approach=@($e.approachExecution)
                 if($approach.Count % 2 -ne 0){throw 'Charge approach observer omitted one side of a boundary.'}
@@ -62,8 +62,8 @@ function Assert-KmcChunk4ChargeEvidence {
                     throw 'Queued Charge lacks a pure mounted rejection before native approach or expenditure.'
                 }
             }
-            if ([long]$Artifact.schemaVersion -in @(24,25)) { Assert-KmcChunk4QueuedMountWindow $e ([long]$Artifact.schemaVersion -eq 24) }
-            Assert-KmcChunk4ChargeRecovery $e.recovery $mode ([long]$Artifact.schemaVersion -eq 25)
+            if ([long]$Artifact.schemaVersion -in @(24,25,26)) { Assert-KmcChunk4QueuedMountWindow $e ([long]$Artifact.schemaVersion -eq 24) }
+            Assert-KmcChunk4ChargeRecovery $e.recovery $mode ([long]$Artifact.schemaVersion)
             continue
         }
         $mounted=$row.name -cin @('C4-CHARGE-mounted-rider','C4-CHARGE-mounted-mount')
@@ -87,6 +87,9 @@ function Assert-KmcChunk4ChargeEvidence {
         }
         if ([long]$Artifact.schemaVersion -eq 25) {
             Assert-KmcChunk4ChargePausedInput $e.pausedInput $e.before.rider.id $e.before.mount.id $e.actorId
+        } elseif ([long]$Artifact.schemaVersion -eq 26) {
+            $principal=if($e.pairMounted -and $e.actorIsMount){$e.before.rider.id}else{$e.actorId}
+            Assert-KmcChunk4ChargeInputWindow $e.inputWindow $mode $e.before.rider.id $e.before.mount.id $e.actorId $principal
         }
         if ($mounted) {
             foreach($name in @('maximumRiderStandard','maximumRiderMove','maximumMountStandard','maximumMountMove','riderDistance','mountDistance')) {
@@ -109,7 +112,7 @@ function Assert-KmcChunk4ChargeEvidence {
             foreach($warning in $e.nativeWarnings) {
                 if($warning.text -cne $e.feedback -or $warning.addToLog -ne $true) {throw 'Native Charge warning missing.'}
             }
-            if ($row.name -ceq 'C4-CHARGE-mounted-rider') { Assert-KmcChunk4ChargeRecovery $e.recovery $mode ([long]$Artifact.schemaVersion -eq 25) }
+            if ($row.name -ceq 'C4-CHARGE-mounted-rider') { Assert-KmcChunk4ChargeRecovery $e.recovery $mode ([long]$Artifact.schemaVersion) }
         } elseif ($e.nativeChargeCompleted -ne $true -or
             ([long]$Artifact.schemaVersion -eq 18 -and ($e.riderDistance -le 1 -or $e.maximumRiderStandard -le 0)) -or
             ([long]$Artifact.schemaVersion -ge 19 -and ($e.actorDistance -le 1 -or $e.maximumActorStandard -le 0)) -or
@@ -181,7 +184,7 @@ function Test-KmcChunk4ChargeRejectionBoundary {
 }
 
 function Assert-KmcChunk4ChargeRecovery {
-    param($Recovery,[string]$Mode,[bool]$RequireObservedPause=$false)
+    param($Recovery,[string]$Mode,[int]$Schema=0)
     $queue=$Recovery.liveQueue; $attack=$Recovery.ordinaryAttack
     if($Recovery.completed -ne $true -or $Recovery.moveDistance -le 0.5 -or
         $Recovery.afterMove.rider.move -ge 0.001 -or $queue.queuedRejectedBeforeInit -ne $true -or
@@ -194,8 +197,10 @@ function Assert-KmcChunk4ChargeRecovery {
         ($Mode -ceq 'TB' -and ($Recovery.nativeEndInput -ne $true -or [string]::IsNullOrWhiteSpace($Recovery.nextUnrelatedActor)))) {
         throw 'Charge rejection did not preserve a queued/live legal command and native recovery.'
     }
-    if($RequireObservedPause) {
+    if($Schema -eq 25) {
         Assert-KmcChunk4ChargePausedInput $queue.pausedInput $Recovery.afterMove.rider.id $Recovery.afterMove.mount.id $Recovery.afterMove.rider.id
+    } elseif($Schema -eq 26) {
+        Assert-KmcChunk4ChargeInputWindow $queue.inputWindow $Mode $Recovery.afterMove.rider.id $Recovery.afterMove.mount.id $Recovery.afterMove.rider.id $Recovery.afterMove.rider.id
     }
 }
 
@@ -211,11 +216,40 @@ function Assert-KmcChunk4ChargePausedInput {
         $Proof.gameTimeBefore -ne $Proof.gameTimeAfterInput -or $Proof.gameTimeBefore -ne $Proof.gameTimeAfterHold) {
         throw 'Charge input did not wait for and hold an actual frozen native frame.'
     }
+    Assert-KmcChunk4ChargeInputActors $Proof @('actorsBefore','actorsAfterInput','actorsAfterHold') $RiderId $MountId $ActorId
+}
+
+function Assert-KmcChunk4ChargeInputWindow {
+    param($Proof,[string]$Mode,[string]$RiderId,[string]$MountId,[string]$ActorId,[string]$PrincipalId)
+    if(!(Test-KmcExactJsonInteger $Proof.afterInputFrame) -or $Proof.afterInputFrame -ne $Proof.inputFrame) {
+        throw 'Charge input lost its synchronous native frame.'
+    }
+    if($Mode -ceq 'RT') {
+        if($Proof.kind -cne 'native-real-time-pause'){throw 'RT Charge requires actual native Pause.'}
+        Assert-KmcChunk4ChargePausedInput $Proof $RiderId $MountId $ActorId
+        return
+    }
+    # Kingmaker DoStartMode06000CBF refuses global Pause during native TB.
+    # Verify real planning/acting inputs without claiming a paused TB frame.
+    if($Proof.kind -cne 'native-turn-based-input' -or $Proof.beforePaused -ne $false -or $Proof.afterInputPaused -ne $false -or
+        $Proof.turnBefore -cne $PrincipalId -or $Proof.turnAfter -cne $PrincipalId -or
+        $Proof.turnStatusBefore -cnotin @('Preparing','Acting') -or $Proof.turnStatusAfter -cnotin @('Preparing','Acting')) {
+        throw 'TB Charge did not use its native planning/acting principal.'
+    }
+    foreach($field in @('inputFrame','gameTimeBefore','gameTimeAfterInput')) {
+        if(!(Test-KmcExactJsonInteger $Proof.$field) -or $Proof.$field -lt 0){throw 'TB Charge input clock missing or invalid.'}
+    }
+    if($Proof.gameTimeBefore -ne $Proof.gameTimeAfterInput){throw 'Synchronous TB Charge input advanced native time.'}
+    Assert-KmcChunk4ChargeInputActors $Proof @('actorsBefore','actorsAfterInput') $RiderId $MountId $ActorId
+}
+
+function Assert-KmcChunk4ChargeInputActors {
+    param($Proof,[string[]]$Snapshots,[string]$RiderId,[string]$MountId,[string]$ActorId)
     $ids=@{rider=$RiderId;mount=$MountId;actor=$ActorId}
     foreach($actor in @('rider','mount','actor')) {
         if([string]::IsNullOrWhiteSpace($ids[$actor])) {throw 'Paused Charge actor identity missing.'}
         $before=$Proof.actorsBefore.$actor
-        foreach($snapshot in @('actorsBefore','actorsAfterInput','actorsAfterHold')) {
+        foreach($snapshot in $Snapshots) {
             $observed=$Proof.$snapshot.$actor
             if($observed.id -cne $ids[$actor]) {throw 'Paused Charge observation changed actor identity.'}
             foreach($field in @('standard','move','swift')) {

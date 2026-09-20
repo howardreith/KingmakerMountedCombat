@@ -97,7 +97,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["case"] = Chunk4ChargeId, ["stage"] = chunk4ChargeStage,
                 ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
                 ["turn"] = turn?.Unit?.UniqueId, ["status"] = turn?.Status.ToString(),
-                ["samples"] = chunk4ChargeSamples, ["shell"] = CaptureNativeAbilityShell(chunk4ChargeCommand)
+                ["samples"] = chunk4ChargeSamples, ["shell"] = CaptureNativeAbilityShell(chunk4ChargeCommand),
+                ["pauseRequestFrame"] = chunk4ChargePauseRequestFrame, ["gamePaused"] = game.IsPaused,
+                ["gameMode"] = game.CurrentMode.ToString(), ["frame"] = Time.frameCount
             };
             if (chunk4ChargeStage == 4) { TickChunk4ChargeRecovery(); return; }
             if (game.IsPaused && !(chunk4ChargeStage == 1 && chunk4ChargePauseRequestFrame >= 0) && chunk4ChargeStage != 5)
@@ -165,9 +167,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         chunk4ChargeActor.CombatState.Cooldown.StandardAction > 0.001f ||
                         chunk4ChargeActor.CombatState.Cooldown.MoveAction > 0.001f) return;
                 }
-                if (!AwaitChunk4ChargePause(ref chunk4ChargePauseRequestFrame)) return;
-                chunk4ChargePausedInput = BeginChunk4ChargePausedInput(chunk4ChargePauseRequestFrame);
-                observations["actualPause-" + Chunk4ChargeId] = chunk4ChargePausedInput;
+                if (!Chunk4ChargeTb && !AwaitChunk4ChargePause(ref chunk4ChargePauseRequestFrame)) return;
+                chunk4ChargePausedInput = Chunk4ChargeTb ? BeginChunk4ChargeTbInput() :
+                    BeginChunk4ChargePausedInput(chunk4ChargePauseRequestFrame);
+                observations["inputWindow-" + Chunk4ChargeId] = chunk4ChargePausedInput;
                 var nativeTarget = new TargetWrapper(target);
                 chunk4ChargeBefore = new JObject {
                     ["rider"] = CaptureOrdinaryActor(rider), ["mount"] = CaptureOrdinaryActor(horse),
@@ -179,7 +182,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["relationship"] = relationship.State.ToString(), ["turn"] = turn?.Unit?.UniqueId
                 };
                 observations["before-" + Chunk4ChargeId] = chunk4ChargeBefore;
-                // Hover through the actual selected-ability handler while paused.
+                // Hover through the actual selected-ability handler in the native
+                // mode's input window: RT Pause or TB planning/acting.
                 // No command or native budget is fabricated by this fixture.
                 var handler = game.SelectedAbilityHandler;
                 handler.SetAbility(chunk4ChargeAbility);
@@ -216,7 +220,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeMaxMountStandard = chunk4ChargeMaxMountMove = 0;
                 chunk4ChargeObservedCharging = false;
                 chunk4ChargeSamples.Clear();
-                chunk4ChargeStage = 5;
+                chunk4ChargeStage = Chunk4ChargeTb ? 2 : 5;
                 ResetLeafClock();
                 return;
             }
@@ -281,7 +285,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["maximumRiderStandard"] = chunk4ChargeMaxStandard, ["maximumRiderMove"] = chunk4ChargeMaxMove,
                     ["maximumMountStandard"] = chunk4ChargeMaxMountStandard, ["maximumMountMove"] = chunk4ChargeMaxMountMove,
                     ["observedCharging"] = chunk4ChargeObservedCharging, ["samples"] = chunk4ChargeSamples.DeepClone(),
-                    ["pausedInput"] = chunk4ChargePausedInput.DeepClone(),
+                    ["inputWindow"] = chunk4ChargePausedInput.DeepClone(),
                     ["rules"] = ruleProbe.CapturePairEvidence(), ["after"] = CaptureOrdinaryLiveState()
                 };
                 if (chunk4ChargeCase == 0 && safe) { BeginChunk4ChargeRecovery(evidence); return; }
