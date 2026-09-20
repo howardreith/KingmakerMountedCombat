@@ -139,7 +139,11 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (rider.Commands.Move != null || mount.Commands.Move != null) return;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                game.SelectedAbilityHandler.SetAbility(null);
+                // SetAbility(null) still enters Ability mode in this native build.
+                // Use the native Escape/cancel path before an ordinary point click.
+                game.DefaultPointerController.ClearPointerMode();
+                Check(game.DefaultPointerController.Mode == Kingmaker.Controllers.Clicks.PointerMode.Default &&
+                    game.SelectedAbilityHandler.Ability == null, "native-pointer-cancel-before-ground-input");
                 origin = mount.Position; destination = FindDestination(3f);
                 using (var input = new NativeOrdinaryAttackInput(destination))
                     Check(input.Click(), "ordinary-ground-input");
