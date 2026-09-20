@@ -1,6 +1,6 @@
 ## Active Chunk 4 checkpoint - 2026-09-20 UTC
 
-FB52 fully records matched mounted/unmounted native edge interruptions:46/4,0/2 movement leaves FAIL, no fixture exception. AI isolation repair verified; no mounted-only navigation repair.53 avoids unused live-preflight archive hashes while preserving Mods/saves and full WhatIf purity. Fresh WhatIf53 then FC/FD Charge, all20 required new roots and10 final regressions. All104 native transactions plus EX prelaunch restored. [Single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
+FC-FH53 pass Charge, sustained RT/TB and obstruction. FI48/2 FAIL: target native movement, after rider4/4 Success.54 qualifies target path/full footprint and preserves failure diagnostics; native evidence pending. All111 native transactions plus EX restored. Focused interruptions then Charge and exact-final31 roots. [Single report](../docs/CHUNK4-PLAYABILITY.md). HUD/physical input/HUMAN PLAY pending; persistence remains roadmap only.
 
 ## Chunk 2 current scenario pointer
 

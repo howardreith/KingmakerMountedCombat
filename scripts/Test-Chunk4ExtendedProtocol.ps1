@@ -80,6 +80,7 @@ function New-ExtendedEnvelope([string]$root) {
                 pauseDuration=.5;pausedBegin=(New-ExtendedState);pausedEnd=(New-ExtendedState);pausedAfterStop=(New-ExtendedState);
                 targetMoved=3;targetMove=(New-ExtendedCommand 3 'target');
                 targetPath=@{accepted=$true;error=$false;direct=3;length=3;endpointError=0;radius=16;
+                    footprint=@{corpulence=.7;probeRadius=.7;probes=@(0..7|ForEach-Object {@{residual=0}})};
                     before=@{rider=@{id='rider'};mount=@{id='mount'};target=@{id='target'}};
                     after=@{rider=@{id='rider'};mount=@{id='mount'};target=@{id='target'}};
                     samples=@(@{blocked=$false;distance=12},@{blocked=$false;distance=13})};
@@ -169,13 +170,19 @@ foreach($root in @('chunk4-interrupt-melee-rt','chunk4-interrupt-ranged-rt','chu
                 {param($e,$i) $e.rows[$i].evidence.nativeTrace=@($e.rows[$i].evidence.nativeTrace|Where-Object {$_.boundary -cne 'cost-after'})})
             if($id.Contains('-pause-')){$mutations+=@({param($e,$i) $e.rows[$i].evidence.pauseDuration=0},{param($e,$i) $e.rows[$i].evidence.pausedEnd.firstClock=.2})}
             if($id.EndsWith('moving-target')){$mutations+=@({param($e,$i) $e.rows[$i].evidence.targetMoved=0})}
-            if($id -ceq 'C4-INTERRUPT-ranged-moving-target'){$mutations+=@(
+            if($id.EndsWith('moving-target')){$mutations+=@(
                 {param($e,$i) $e.rows[$i].evidence.targetPath.accepted=$false},
                 {param($e,$i) $e.rows[$i].evidence.targetPath.length=10},
                 {param($e,$i) $e.rows[$i].evidence.targetPath.samples[0].blocked=$true},
-                {param($e,$i) $e.rows[$i].evidence.targetPath.samples[0].distance=17},
                 {param($e,$i) $e.rows[$i].evidence.targetPath.after.target.id='changed'},
-                {param($e,$i) $e.rows[$i].evidence.targetPath.samples=@()})}
+                {param($e,$i) $e.rows[$i].evidence.targetPath.samples=@()},
+                {param($e,$i) $e.rows[$i].evidence.targetPath.footprint=$null},
+                {param($e,$i) $e.rows[$i].evidence.targetPath.footprint.probeRadius=.1},
+                {param($e,$i) $e.rows[$i].evidence.targetPath.footprint.probes=@(@{residual=0})},
+                {param($e,$i) $e.rows[$i].evidence.targetPath.footprint.probes[0].residual=.001},
+                {param($e,$i) $e.rows[$i].evidence.targetPath.footprint.probes[0].residual=$null})}
+            if($id -ceq 'C4-INTERRUPT-ranged-moving-target'){$mutations+=@(
+                {param($e,$i) $e.rows[$i].evidence.targetPath.samples[0].distance=17})}
             if($id.Contains('target-death')){$mutations+=@({param($e,$i) $e.rows[$i].evidence.nativeDamage=0},{param($e,$i) $e.rows[$i].evidence.after.target.dead=$false})}
             if($id.EndsWith('inflight')){$mutations+=@({param($e,$i) $e.rows[$i].evidence.inFlightAtStimulus=@()}, {param($e,$i) $e.rows[$i].evidence.beforeStimulus.nativeProjectiles[0].destroyed=$true})}
             if($id.Contains('retarget') -or $id.Contains('target-death')){$mutations+=@({param($e,$i) $e.rows[$i].evidence.otherTarget='target'})}

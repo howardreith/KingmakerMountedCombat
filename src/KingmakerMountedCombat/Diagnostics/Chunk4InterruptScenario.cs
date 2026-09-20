@@ -74,6 +74,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["firstCommand"] = CaptureOrdinaryCommand(chunk4InterruptFirst),
             ["firstClock"] = chunk4InterruptFirst?.TimeSinceStart,
             ["firstIndex"] = chunk4InterruptFirst?.GetAttackIndex(), ["intent"] = combat.HasStockAttackIntent,
+            ["targetMove"] = CaptureOrdinaryCommand(chunk4InterruptTargetMove),
+            ["targetMovement"] = NativeGroundMovementObservation.Capture(target, chunk4InterruptTargetMove),
             ["nativeProjectiles"] = CaptureChunk4InterruptProjectiles()
         };
 
@@ -128,6 +130,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["kind"] = Chunk4InterruptKind, ["mode"] = "RT", ["ranged"] = Chunk4InterruptRanged,
                     ["target"] = target.UniqueId, ["otherTarget"] = chunk4InterruptOtherTarget?.UniqueId,
                     ["inputKind"] = "native-pointer-prediction-and-click", ["damageDispatches"] = 0 };
+                // Keep the current leaf even when an assertion throws after the
+                // per-tick progress snapshot was cloned.
+                observations["interrupt-" + Chunk4InterruptId] = chunk4InterruptEvidence;
                 chunk4InterruptStage = 1; ResetLeafClock(); return;
             }
             if (chunk4InterruptStage == 1)
@@ -148,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     horse.CombatState.Cooldown.StandardAction > 0.001f || horse.CombatState.Cooldown.MoveAction > 0.001f ||
                     !rider.CombatState.CanActInCombat || !horse.CombatState.CanActInCombat ||
                     game.HandsEquipmentController.IsUpdateScheduledFor(rider) || game.HandsEquipmentController.IsUpdateScheduledFor(horse)) return;
-                if (Chunk4InterruptRanged && Chunk4InterruptKind == "moving-target" && !PrepareChunk4MovingTargetPath()) return;
+                if (Chunk4InterruptKind == "moving-target" && !PrepareChunk4MovingTargetPath()) return;
                 ordinaryAttackTrace.BeginCase(Chunk4InterruptId); chunk4IncomingObserver.BeginCase(Chunk4InterruptId);
                 chunk4InterruptEvidence["before"] = CaptureChunk4InterruptState();
                 chunk4InterruptEvidence["rulesBefore"] = chunk4IncomingObserver.Capture();
@@ -168,8 +173,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (!combat.HasActiveCommand && !combat.HasStockAttackIntent) return;
                     chunk4InterruptTargetOrigin = target.Position;
-                    var point = Chunk4InterruptRanged ? chunk4MovingPathEndpoint.Value :
-                        FindWalkablePointAwayFromTarget(target.Position, horse.Position, 3f);
+                    var point = chunk4MovingPathEndpoint.Value;
                     chunk4InterruptTargetMove = new UnitMoveTo(point) { CreatedByPlayer = true };
                     chunk4InterruptEvidence["beforeStimulus"] = CaptureChunk4InterruptState();
                     chunk4InterruptEvidence["targetMoveDestination"] = new JArray(point.x, point.y, point.z);
@@ -262,6 +266,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4InterruptEvidence["legalNativePlan"] = final.AllAttacks.Count;
                 chunk4InterruptEvidence["targetMoved"] = chunk4InterruptTargetMove == null ? 0f : HorizontalDistance(chunk4InterruptTargetOrigin, target.Position);
                 chunk4InterruptEvidence["targetMove"] = CaptureOrdinaryCommand(chunk4InterruptTargetMove);
+                chunk4InterruptEvidence["targetMovement"] = NativeGroundMovementObservation.Capture(target, chunk4InterruptTargetMove);
                 if (chunk4InterruptTargetMove != null && (chunk4InterruptTargetMove.Result != UnitCommand.ResultType.Success ||
                     (float)chunk4InterruptEvidence["targetMoved"] < 1f)) throw new InvalidOperationException("Native target movement did not make real progress.");
                 chunk4InterruptEvidence["beforeStop"] = CaptureChunk4InterruptState();
@@ -310,9 +315,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk4MovingPathPending) return false;
             if (chunk4MovingPathCandidate == 16)
                 throw new InvalidOperationException("No bounded clear native target path exists for the moving-target case.");
-            // S selected a walkable endpoint whose native route detoured behind
-            // geometry. Qualify a clear short route before measurement; the
-            // separate obstruction case retains native visibility cancellation.
+            // S detoured behind geometry; FI's melee target stopped short of
+            // its unchecked endpoint. Both variants need a clear native route
+            // and an interior endpoint for the target's actual footprint.
             var index = chunk4MovingPathCandidate++;
             var direction = target.Position - horse.Position; direction.y = 0f; direction.Normalize();
             var nearest = global::AstarPath.active.GetNearest(target.Position +
@@ -360,14 +365,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 candidate["endpointError"] = HorizontalDistance(requested, endpoint);
                 candidate["radius"] = sight["radius"]; candidate["samples"] = samples;
                 candidate["endpoint"] = Chunk4MovingPoint(endpoint);
+                var footprint = NativeGroundMovementObservation.CaptureFootprint(subject, endpoint);
+                candidate["footprint"] = footprint;
                 if (!JToken.DeepEquals(before, after))
                 {
                     chunk4MovingPathError = "Native fixture path probing changed actor commands, positions or costs.";
                     return;
                 }
                 if (direct < 2.5f || direct > 3.5f || length > direct * 1.5f + 0.5f ||
-                    (float)candidate["endpointError"] > 0.3f || samples.OfType<JObject>().Any(sample =>
-                        (bool)sample["blocked"] || (float)sample["distance"] > (float)sight["radius"] - 0.5f)) return;
+                    (float)candidate["endpointError"] > 0.3f ||
+                    ((JArray)footprint["probes"]).Any(probe => (float)probe["residual"] >= 0.001f) ||
+                    samples.OfType<JObject>().Any(sample => (bool)sample["blocked"] ||
+                        Chunk4InterruptRanged && (float)sample["distance"] > (float)sight["radius"] - 0.5f)) return;
                 candidate["accepted"] = true;
                 chunk4MovingPathEndpoint = endpoint;
                 chunk4InterruptEvidence["targetPath"] = candidate;

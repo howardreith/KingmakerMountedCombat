@@ -107,17 +107,25 @@ function Assert-KmcChunk4InterruptRow {
         }elseif($e.legalCompletion.id -ne $e.beforeStimulus.firstCommand.id){throw 'Pause restarted the native windup.'}
     }
     if($e.kind -ceq 'moving-target' -and ($e.targetMoved -lt 1 -or $e.targetMove.result -cne 'Success' -or $e.targetMove.executor -cne $e.target)){throw 'Moving target did not complete a real native move.'}
-    if($e.kind -ceq 'moving-target' -and $e.ranged){
+    if($e.kind -ceq 'moving-target'){
         $path=$e.targetPath
         if($path.accepted -ne $true -or $path.error -ne $false -or $path.direct -lt 2.5 -or $path.direct -gt 3.5 -or
             $path.length -lt $path.direct-.01 -or $path.length -gt $path.direct*1.5+.5 -or $path.endpointError -gt .3 -or
             @($path.samples).Count -lt 2 -or @($path.samples).Count -gt 128 -or $path.before.target.id -cne $e.target -or
             $path.before.rider.id -cne $e.before.live.rider.id -or $path.before.mount.id -cne $e.before.live.mount.id -or
             ($path.before|ConvertTo-Json -Depth 30 -Compress) -cne ($path.after|ConvertTo-Json -Depth 30 -Compress)){
-            throw 'Ranged moving-target setup lacks a bounded native path with unchanged actor state.'
+            throw 'Moving-target setup lacks a bounded native path with unchanged actor state.'
         }
         foreach($sample in $path.samples){
-            if($sample.blocked -ne $false -or $sample.distance -gt $path.radius-.5){throw 'Ranged moving-target path crosses obstruction or leaves native reach.'}
+            if($sample.blocked -ne $false -or ($e.ranged -and $sample.distance -gt $path.radius-.5)){throw 'Moving-target path crosses obstruction or leaves native ranged reach.'}
+        }
+        $footprint=$path.footprint
+        if(!(Test-KmcFiniteNonnegativeJsonNumber $footprint.corpulence) -or $footprint.corpulence -le 0 -or
+            $footprint.probeRadius -ne [Math]::Max(.5,[double]$footprint.corpulence) -or @($footprint.probes).Count -ne 8){
+            throw 'Moving-target destination lacks its full native footprint.'
+        }
+        foreach($probe in $footprint.probes){
+            if(!(Test-KmcFiniteNonnegativeJsonNumber $probe.residual) -or $probe.residual -ge .001){throw 'Moving-target destination clips the native navmesh edge.'}
         }
     }
     if($e.kind.StartsWith('target-death-')){

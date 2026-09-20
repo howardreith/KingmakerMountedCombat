@@ -1,8 +1,8 @@
-# Active Chunk 4 - complete native edge comparison and preflight cost53, 2026-09-20 UTC
+# Active Chunk 4 - interruption fixture54, 2026-09-20 UTC
 
-IN PROGRESS. FB on published source52 34c85001875a8069fa9675360a861d9455ddc6ed fully records matched mounted/unmounted native interruptions at the same navmesh edge. Both remain FAIL; corrected AI isolation removes the fixture exception. No mounted-only navigation repair is justified. Charge recovery on full-footprint interior destinations remains pending.53 avoids unused historical archive hashes in live preflight after measuring707.6seconds there; live Mods/save snapshots and complete WhatIf purity checks remain.
+IN PROGRESS. Published source53 f639cf7ddd4506a43b2898190b85a201cc33d7b3 passes Charge RT/TB, sustained melee/ranged RT and TB, and obstruction. FI preserves a failed native target move after the rider completed4/4;54 extends existing native path qualification to the melee target and checks its full footprint. No gameplay change. Full54 checks pass; focused native evidence is pending.
 
-All104 native transactions plus EX prelaunch restored actual preview37/human data. Next: publish/package/snapshot53, fresh actual WhatIf53, FC/FD Charge, then exact-final Chunk4 and paired/A05/A10/Horse/Mammoth gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All111 native transactions plus EX prelaunch restored actual humanpreview37/data. Fresh actual WhatIf53 passes; live preflight falls from707.6 to14.7seconds. Next: package/publish/snapshot54, focused interruptions, Charge and all exact-candidate final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent deployment or Chunk5 implementation.
 
 ---
 # Combined actor-allocation and paired-activation milestone
