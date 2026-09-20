@@ -64,6 +64,7 @@ param(
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
 $repoRoot=Get-KmcRepositoryRoot
@@ -218,6 +219,7 @@ $orchestrationPath=Join-Path $evidenceRoot 'orchestration.json'
 $lock=$null
 $request=$null
 $combinedStatePath=$null
+$profileSnapshot=$null
 $process=$null
 $launchIssued=$false
 $processExited=$false
@@ -240,6 +242,9 @@ $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
+    if($Scenario -ceq 'persistence-isolation'){
+        $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
+    }
     $request=[ordered]@{
         schemaVersion=$(if($isSaveBacked){2}else{1})
         runId=$actualRunId
@@ -324,7 +329,7 @@ try{
     Assert-KmcNoGameProcesses
     $requestHash=Get-KmcSha256 $requestPath
     $arguments=@('-applaunch','640820','-kmcRuntimeRequest',('"'+$requestPath+'"'),'-kmcRuntimeToken',[string]$lock.Token,'-kmcRuntimeRequestSha256',$requestHash)
-    [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -PassThru)
+    [void](Start-Process -FilePath $SteamPath -ArgumentList $arguments -WindowStyle Hidden -PassThru)
     $launchIssued=$true
     $launchDeadline=[DateTimeOffset]::UtcNow.AddSeconds(60)
     while([DateTimeOffset]::UtcNow-lt$launchDeadline-and$null-eq$process){
@@ -509,6 +514,10 @@ finally{
             if(-not$modsRestored-or-not$saveProtection){$errors.Add('External state differs after a run that created no combined transaction state.')}
         }catch{$errors.Add('Unmutated external-state verification failed: '+$_.Exception.Message)}
     }else{$errors.Add('Kingmaker process state is ambiguous; external-state restoration was intentionally not attempted.')}
+    if($processExited-and$null-ne$profileSnapshot){
+        try{[void](Assert-KmcPersistenceProfileUnchanged $profileSnapshot)}
+        catch{$errors.Add($_.Exception.Message);$saveProtection=$false}
+    }
     try{if($processExited){[void](Assert-KmcSteamSafety $SteamPath)}}catch{$errors.Add('Steam postflight safety failed: '+$_.Exception.Message)}
     if($null-ne$lock){
         try{
