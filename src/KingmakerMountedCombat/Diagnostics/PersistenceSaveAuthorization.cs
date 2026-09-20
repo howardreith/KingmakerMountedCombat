@@ -79,6 +79,17 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var item in entries) VerifyFile(item.Key, item.Value);
         }
 
+        internal void AssertReadableArchive(string path)
+        {
+            lock (sync)
+            {
+                if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
+                    !entries.TryGetValue(Path.GetFileName(path), out var entry) || entry.Writing || entry.Hash == null)
+                    throw new InvalidOperationException("Native load archive is not a completed exact owned entry.");
+                VerifyFile(Path.GetFileName(path), entry);
+            }
+        }
+
         internal string Validate(RuntimeSaveOperation operation, RuntimeSaveTarget target, string observedRoot)
         {
             lock (sync) return ValidateLocked(operation, target, observedRoot);

@@ -35,8 +35,8 @@ namespace KingmakerMountedCombat.Integration
             Patch(harmony, typeof(SaveManager), "get_SavePath", 0x0600800C, Type.EmptyTypes, "SavePathPrefix", null);
             Patch(harmony, typeof(SaveManager), "UpdateSaveListAsync", 0x0600800E, Type.EmptyTypes, null, "SaveRootTranspiler");
             Patch(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, null, "SaveRootTranspiler");
-            var loadIterator = typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.SaveManager+<LoadRoutine>d__50", true);
-            Patch(harmony, loadIterator, "MoveNext", 0x0600BF00, Type.EmptyTypes, null, "LoadHeaderTranspiler");
+            Patch(harmony, NativeZipSaver, "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, "LoadHeaderJsonPrefix", null);
+            Patch(harmony, NativeZipSaver, "Save", 0x06008068, Type.EmptyTypes, "LoadHeaderCommitPrefix", null);
             // Every native stash read/write/clear resolves this property.
             var stash = typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.AreaDataStash", true);
             var folder = stash.GetProperty("Folder", BindingFlags.Static | BindingFlags.Public).GetGetMethod();
@@ -92,35 +92,61 @@ namespace KingmakerMountedCombat.Integration
         private static string IsolatedDataParent() => authority == null ?
             ApplicationPaths.persistentDataPath : Path.GetDirectoryName(authority.Root);
 
-        private static IEnumerable<CodeInstruction> LoadHeaderTranspiler(IEnumerable<CodeInstruction> source)
+        private sealed class ReadOnlyLoadScope
         {
-            var code = source.ToList();
-            var jsonSites = code.Where(c => c.opcode == OpCodes.Callvirt && c.operand is MethodInfo &&
-                ((MethodInfo)c.operand).Module == typeof(SaveManager).Module &&
-                ((MethodInfo)c.operand).MetadataToken == 0x06007FAE).ToArray();
-            var commitSites = code.Where(c => c.opcode == OpCodes.Callvirt && c.operand is MethodInfo &&
-                ((MethodInfo)c.operand).Module == typeof(SaveManager).Module &&
-                ((MethodInfo)c.operand).MetadataToken == 0x06007FB3).ToArray();
-            if (jsonSites.Length != 1 || commitSites.Length != 1)
-                throw new InvalidOperationException("Native load-header write contract changed.");
-            jsonSites[0].opcode = OpCodes.Call;
-            jsonSites[0].operand = typeof(NativePersistenceIsolation).GetMethod("LoadHeaderJson", BindingFlags.Static | BindingFlags.NonPublic);
-            commitSites[0].opcode = OpCodes.Call;
-            commitSites[0].operand = typeof(NativePersistenceIsolation).GetMethod("LoadHeaderCommit", BindingFlags.Static | BindingFlags.NonPublic);
-            return code;
+            internal readonly string Path;
+            internal readonly HashSet<ISaver> HeaderUpdates = new HashSet<ISaver>();
+            internal ReadOnlyLoadScope(string path) { Path = path; }
         }
 
-        private static void LoadHeaderJson(ISaver saver, string name, string json)
+        private static ReadOnlyLoadScope readOnlyLoad;
+        private static readonly Type NativeZipSaver = typeof(SaveManager).Assembly.GetType(
+            "Kingmaker.EntitySystem.Persistence.ZipSaver", true);
+
+        internal static IEnumerator<object> WrapReadOnlyLoad(IEnumerator<object> routine, string archivePath)
         {
-            if (authority == null) { saver.SaveJson(name, json); return; }
-            if (name != "header") throw new InvalidOperationException("Unexpected write while loading an isolated source archive.");
-            // Native LoadedTimes changes only in memory during the test process.
-            // The exact loaded archive stays byte-identical; no KMC data is injected.
+            if (authority == null || routine == null) return routine;
+            var scope = new ReadOnlyLoadScope(archivePath);
+            var acquired = false;
+            return new KingmakerMountedCombat.Domain.ScopedEnumerator<object>(routine, () =>
+            {
+                if (readOnlyLoad != null) throw new InvalidOperationException("Overlapping isolated native loads.");
+                authority.AssertReadableArchive(archivePath);
+                readOnlyLoad = scope;
+                acquired = true;
+            }, () =>
+            {
+                if (!acquired) return;
+                scope.HeaderUpdates.Clear();
+                if (ReferenceEquals(readOnlyLoad, scope)) readOnlyLoad = null;
+            });
         }
 
-        private static void LoadHeaderCommit(ISaver saver)
+        private static bool IsSelectedReadOnlyArchive(ISaver saver)
         {
-            if (authority == null) saver.Save();
+            if (authority == null || readOnlyLoad == null) return false;
+            if (saver == null || saver.GetType() != NativeZipSaver)
+                throw new InvalidOperationException("Isolated loading requires the exact native archive saver.");
+            var path = (string)NativeZipSaver.GetProperty("FolderName").GetValue(saver, null);
+            return string.Equals(path, readOnlyLoad.Path, StringComparison.Ordinal);
+        }
+
+        private static bool LoadHeaderJsonPrefix(ISaver __instance, string name)
+        {
+            if (!IsSelectedReadOnlyArchive(__instance)) return true;
+            if (name != "header") throw new InvalidOperationException("Unexpected mutation of the selected read-only archive.");
+            readOnlyLoad.HeaderUpdates.Add(__instance);
+            return false;
+        }
+
+        private static bool LoadHeaderCommitPrefix(ISaver __instance)
+        {
+            if (!IsSelectedReadOnlyArchive(__instance)) return true;
+            if (!readOnlyLoad.HeaderUpdates.Remove(__instance))
+                throw new InvalidOperationException("Read-only load attempted an unrecognized native archive commit.");
+            // Preserve the actual source archive while native LoadedTimes updates
+            // remain in the descriptor. This is never reported as a save write.
+            return false;
         }
 
         private static IEnumerable<CodeInstruction> SaveRootTranspiler(IEnumerable<CodeInstruction> source, MethodBase __originalMethod)

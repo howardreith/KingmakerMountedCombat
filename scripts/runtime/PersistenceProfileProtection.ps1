@@ -75,3 +75,82 @@ function Assert-KmcPersistenceProfileUnchanged {
     if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
     return $true
 }
+
+function Get-KmcPersistencePreferenceChanges {
+    param([string]$BeforeJson,[string]$AfterJson)
+    $before=ConvertFrom-Json -InputObject $BeforeJson
+    $after=ConvertFrom-Json -InputObject $AfterJson
+    if(@($before).Count-ne@($after).Count){throw 'PlayerPrefs key set changed; automatic restoration refused.'}
+    foreach($old in $before){
+        $matches=@($after|Where-Object {$_.name-ceq$old.name})
+        if($matches.Count-ne1){throw 'PlayerPrefs key identity is ambiguous.'}
+        $new=$matches[0]
+        if(($old|ConvertTo-Json -Depth 8 -Compress)-ceq($new|ConvertTo-Json -Depth 8 -Compress)){continue}
+        if($old.name-cnotin@('KingdomDifficulty_h4200925179','unity.player_session_count_h922449978','unity.player_sessionid_h1351336811')-or
+            $old.kind-cne'Binary'-or$new.kind-cne'Binary'){throw 'PlayerPrefs delta is outside the observed native startup changes.'}
+        [void][Convert]::FromBase64String([string]$old.value)
+        [void][Convert]::FromBase64String([string]$new.value)
+        [pscustomobject]@{name=[string]$old.name;before=[string]$old.value;after=[string]$new.value}
+    }
+}
+
+function Assert-KmcNativeUmmStartupDelta {
+    param([string]$Before,[string]$After)
+    [xml]$original=$Before;[xml]$current=$After
+    $old=@($original.SelectNodes("//Mod[@Id='SkipIntro']"))
+    $added=@($current.SelectNodes("//Mod[@Id='SkipIntro']"))
+    if($old.Count-ne0-or$added.Count-ne1-or$added[0].OuterXml-cne
+        '<Mod Id="SkipIntro" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod>'){
+        throw 'UMM parameter delta is outside the observed native startup append.'
+    }
+    [void]$added[0].ParentNode.RemoveChild($added[0])
+    if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include an unrelated change.'}
+}
+
+function Restore-KmcPersistenceStartupSettings {
+    [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
+    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256)
+    [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
+    if($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
+    $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
+    $expectedParams=[IO.Path]::GetFullPath((Join-Path $intake.requestedLayout.kingmakerInstallDir 'Kingmaker_Data/Managed/UnityModManager/Params.xml'))
+    if([IO.Path]::GetFullPath($Snapshot.paramsPath)-cne$expectedParams-or
+        [IO.Path]::GetFullPath($Snapshot.profile)-cne[IO.Path]::GetFullPath((Split-Path $intake.requestedLayout.kingmakerSaveRoot))){
+        throw 'Profile restoration paths differ from exact current lab intake.'
+    }
+    $saved=Assert-KmcChildPath (Join-Path $BackupRoot ('profile-'+$Lock.RunId+'/Params.xml')) $BackupRoot 'captured UMM parameters'
+    Assert-KmcRecoveryLeafNoLinks $saved 'captured UMM parameters'
+    Assert-KmcRecoveryLeafNoLinks $expectedParams 'current UMM parameters'
+    if((Get-KmcSha256 $saved)-cne$Snapshot.paramsSha256){throw 'Captured UMM parameters changed.'}
+    $paramsHash=Get-KmcSha256 $expectedParams
+    $prefs=Get-KmcPersistencePlayerPrefs
+    if($paramsHash-cne$ExpectedCurrentParamsSha256-or(Get-KmcTextSha256 $prefs)-cne$ExpectedCurrentPrefsSha256){
+        throw 'Current settings changed after the restoration review; refusing a stale overwrite.'
+    }
+    $profile=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
+    if((Get-KmcPersistenceProfileDigest $profile)-cne$Snapshot.profileDigest){throw 'Profile/cache bytes changed outside the startup settings seam.'}
+    $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs)
+    $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
+    if($restoreParams){
+        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams))
+    }
+    if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and three observed native startup preference keys',
+        'restore verified actual intake after the attributed process exit')){return}
+    [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
+    if((Get-KmcSha256 $expectedParams)-cne$paramsHash-or(Get-KmcPersistencePlayerPrefs)-cne$prefs){
+        throw 'Settings changed immediately before restoration.'
+    }
+    if($restoreParams){
+        [IO.File]::WriteAllBytes($expectedParams,[IO.File]::ReadAllBytes($saved))
+        [IO.File]::SetLastWriteTimeUtc($expectedParams,[IO.File]::GetLastWriteTimeUtc($saved))
+    }
+    if($changes.Count-ne0){
+        $key=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Owlcat Games\Pathfinder Kingmaker',$true)
+        try{
+            if($null-eq$key){throw 'Exact PlayerPrefs key disappeared.'}
+            foreach($change in $changes){$key.SetValue($change.name,[Convert]::FromBase64String($change.before),[Microsoft.Win32.RegistryValueKind]::Binary)}
+            $key.Flush()
+        }finally{if($null-ne$key){$key.Dispose()}}
+    }
+    [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)
+}

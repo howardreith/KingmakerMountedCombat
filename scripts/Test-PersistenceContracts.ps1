@@ -21,6 +21,18 @@ public static class KmcPersistenceContractProbe
         passes++;
         Console.WriteLine("PASS "+label);
     }
+    private static string Hash(string path)
+    {
+        using(var algorithm=System.Security.Cryptography.SHA256.Create())
+        using(var stream=File.OpenRead(path))
+            return BitConverter.ToString(algorithm.ComputeHash(stream)).Replace("-","").ToLowerInvariant();
+    }
+    private static System.Collections.Generic.IEnumerator<object> WriteHeader(Type type,object saver)
+    {
+        type.GetMethod("SaveJson").Invoke(saver,new object[]{"header","{\"LoadedTimes\":99}"});
+        type.GetMethod("Save").Invoke(saver,null);
+        yield break;
+    }
     public static void Run(string managed, string candidatePath, string owned)
     {
         ResolveEventHandler resolver=(sender,args)=>{
@@ -79,26 +91,10 @@ public static class KmcPersistenceContractProbe
                 if(operandMember.Module==native.ManifestModule && operandMember.MetadataToken==0x06001BC7) retained++;
             }
             Check(replaced==2 && retained==0,"both exact native descriptor path branches are rewritten");
-            var loadOriginal=native.ManifestModule.ResolveMethod(0x0600BF00);
-            var loadInstructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{loadOriginal,null});
-            var loadLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
-            foreach(var instruction in loadInstructions)
-            {
-                var instructionType=instruction.GetType();
-                loadLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{
-                    instructionType.GetField("opcode").GetValue(instruction),instructionType.GetField("operand").GetValue(instruction)}));
-            }
-            var guardedLoad=(System.Collections.IEnumerable)isolation.GetMethod("LoadHeaderTranspiler",
-                BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{loadLegacy});
-            var loadReplaced=0; var loadWritesRetained=0;
-            foreach(var instruction in guardedLoad)
-            {
-                var called=legacyInstruction.GetField("operand").GetValue(instruction) as MethodInfo;
-                if(called==null) continue;
-                if(called.DeclaringType==isolation && (called.Name=="LoadHeaderJson" || called.Name=="LoadHeaderCommit")) loadReplaced++;
-                if(called.Module==native.ManifestModule && (called.MetadataToken==0x06007FAE || called.MetadataToken==0x06007FB3)) loadWritesRetained++;
-            }
-            Check(loadReplaced==2 && loadWritesRetained==0,"exact native load-header writes route through isolated guard");
+            var nativeSaver=native.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver",true);
+            patch.Invoke(null,new object[]{harmony,nativeSaver,"SaveJson",0x06008063,new[]{typeof(string),typeof(string)},"LoadHeaderJsonPrefix",null});
+            patch.Invoke(null,new object[]{harmony,nativeSaver,"Save",0x06008068,Type.EmptyTypes,"LoadHeaderCommitPrefix",null});
+            Check(true,"narrow native header and commit patches construct without iterator rewriting");
             Check((bool)isolation.GetMethod("CloudPrefix",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null),
                 "unbound isolation leaves ordinary cloud behavior unchanged");
             Console.WriteLine("TODO native Unity construction of PrepareSave/load/stash/cloud isolation; no native write authorized");
@@ -131,8 +127,8 @@ public static class KmcPersistenceContractProbe
             var saveArgs=new object[]{null,null,false,null,false};
             Check(!(bool)callbacks.GetMethod("SavePrefix",flags).Invoke(null,saveArgs) && !(bool)saveArgs[4],
                 "denied native save returns before relationship/control cleanup");
-            var loadArgs=new object[]{null,null,false,null};
-            Check(!(bool)callbacks.GetMethod("LoadPrefix",flags).Invoke(null,loadArgs),
+            var loadArgs=new object[]{null,null,false,null,false};
+            Check(!(bool)callbacks.GetMethod("LoadPrefix",flags).Invoke(null,loadArgs) && !(bool)loadArgs[4],
                 "denied native load returns before relationship cleanup");
             Check((int)authorizationType.GetProperty("UnauthorizedWriteCount").GetValue(authorization,null)==1 &&
                 (int)authorizationType.GetProperty("UnauthorizedLoadCount").GetValue(authorization,null)==1,
@@ -147,40 +143,84 @@ public static class KmcPersistenceContractProbe
         var saverType=native.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver",true);
         var path=Path.Combine(owned,"owned-native-archive.zks");
         var renamed=Path.Combine(owned,"owned-renamed.zks");
-        const string member="KingmakerMountedCombat";
+        const string member="kmc-mounted-state";
         const string metadata="{\"schemaVersion\":1,\"campaignId\":\"fixture\",\"riderId\":\"native-actor\"}";
+        var loaderType=native.GetType("Kingmaker.EntitySystem.Persistence.ThreadedGameLoader",true);
+        var loader=Activator.CreateInstance(loaderType,new object[]{null,false});
+        var inventory=loaderType.GetMethod("CreateStateData",BindingFlags.NonPublic|BindingFlags.Instance);
+        Check(inventory.MetadataToken==0x06008055,"exact native archive area-inventory contract");
+        inventory.Invoke(loader,new object[]{new System.Collections.Generic.List<string>{"header.json",member}});
+        Check(true,"extensionless metadata does not create a native area record");
         object saver=Activator.CreateInstance(saverType,new object[]{path});
         try
         {
             saverType.GetMethod("SaveJson").Invoke(saver,new object[]{"header","{\"Name\":\"owned storage probe\"}"});
-            saverType.GetMethod("SaveJson").Invoke(saver,new object[]{member,metadata});
+            saverType.GetMethod("SaveBytes").Invoke(saver,new object[]{member,System.Text.Encoding.UTF8.GetBytes(metadata)});
             Check(!File.Exists(path),"native metadata addition does not write before Save");
             saverType.GetMethod("Save").Invoke(saver,null);
             Check(File.Exists(path),"native archive Save writes an owned archive");
-            Check((string)saverType.GetMethod("ReadJson").Invoke(saver,new object[]{member})==metadata,
+            Check(System.Text.Encoding.UTF8.GetString((byte[])saverType.GetMethod("ReadBytes").Invoke(saver,new object[]{member}))==metadata,
                 "owned metadata survives native archive commit");
             ((IDisposable)saver).Dispose();
             var clone=saverType.GetMethod("Clone").Invoke(saver,null);
             try
             {
-                Check((string)saverType.GetMethod("ReadJson").Invoke(clone,new object[]{member})==metadata,
+                Check(System.Text.Encoding.UTF8.GetString((byte[])saverType.GetMethod("ReadBytes").Invoke(clone,new object[]{member}))==metadata,
                     "metadata reads through a fresh native saver clone");
                 saverType.GetMethod("SaveJson").Invoke(clone,new object[]{"header","{\"LoadedTimes\":1}"});
                 saverType.GetMethod("Save").Invoke(clone,null);
             }
             finally { ((IDisposable)clone).Dispose(); }
-            Check((string)saverType.GetMethod("ReadJson").Invoke(saver,new object[]{member})==metadata,
+            Check(System.Text.Encoding.UTF8.GetString((byte[])saverType.GetMethod("ReadBytes").Invoke(saver,new object[]{member}))==metadata,
                 "native header update preserves unknown archive members");
             ((IDisposable)saver).Dispose();
             saverType.GetMethod("RenameFile").Invoke(saver,new object[]{renamed});
             Check(!File.Exists(path) && File.Exists(renamed),"native rename moves the whole owned archive");
-            Check((string)saverType.GetMethod("ReadJson").Invoke(saver,new object[]{member})==metadata,
+            Check(System.Text.Encoding.UTF8.GetString((byte[])saverType.GetMethod("ReadBytes").Invoke(saver,new object[]{member}))==metadata,
                 "metadata survives rename without original filename or sidecar");
         }
         finally
         {
             ((IDisposable)saver).Dispose();
             foreach(var file in new[]{path,renamed}) if(File.Exists(file)) File.Delete(file);
+        }
+        var isolated=Path.Combine(owned,"Saved Games");
+        Directory.CreateDirectory(isolated);
+        var readPath=Path.Combine(isolated,"owned-read.zks");
+        var readSaver=Activator.CreateInstance(saverType,new object[]{readPath});
+        var binding=BindingFlags.NonPublic|BindingFlags.Static;
+        try
+        {
+            saverType.GetMethod("SaveJson").Invoke(readSaver,new object[]{"header","{\"LoadedTimes\":0}"});
+            saverType.GetMethod("Save").Invoke(readSaver,null);
+            var before=Hash(readPath);
+            var entryType=candidate.GetType("KingmakerMountedCombat.Diagnostics.PersistenceSaveEntry",true);
+            var entry=Activator.CreateInstance(entryType,true);
+            foreach(var pair in new[]{new[]{"FileName","owned-read.zks"},new[]{"InternalName","owned"},
+                new[]{"SaveType","Manual"},new[]{"Area",new string('a',32)},new[]{"InitialSha256",before}})
+                entryType.GetProperty(pair[0]).SetValue(entry,pair[1],null);
+            var entries=Array.CreateInstance(entryType,1);entries.SetValue(entry,0);
+            var authorityType=candidate.GetType("KingmakerMountedCombat.Diagnostics.PersistenceSaveAuthorization",true);
+            var authority=authorityType.GetConstructors(BindingFlags.NonPublic|BindingFlags.Instance)[0].Invoke(
+                new object[]{owned,"owned-campaign","owned",new string('b',64),entries});
+            isolation.GetMethod("Bind",binding).Invoke(null,new[]{authority});
+            var patch=isolation.GetMethod("Patch",binding);
+            patch.Invoke(null,new object[]{harmony,saverType,"SaveJson",0x06008063,new[]{typeof(string),typeof(string)},"LoadHeaderJsonPrefix",null});
+            patch.Invoke(null,new object[]{harmony,saverType,"Save",0x06008068,Type.EmptyTypes,"LoadHeaderCommitPrefix",null});
+            var routine=(System.Collections.Generic.IEnumerator<object>)isolation.GetMethod("WrapReadOnlyLoad",binding).Invoke(
+                null,new object[]{WriteHeader(saverType,readSaver),readPath});
+            using(routine){while(routine.MoveNext()){}}
+            Check(Hash(readPath)==before,"enumerated isolated load preserves actual native archive bytes");
+            using(var ordinary=WriteHeader(saverType,readSaver)){while(ordinary.MoveNext()){}}
+            Check(Hash(readPath)!=before,"completed read scope releases the native writer without stale suppression");
+        }
+        finally
+        {
+            harmonyType.GetMethod("UnpatchAll").Invoke(harmony,new object[]{id});
+            isolation.GetField("authority",binding).SetValue(null,null);
+            ((IDisposable)readSaver).Dispose();
+            if(File.Exists(readPath)) File.Delete(readPath);
+            Directory.Delete(isolated);
         }
         Console.WriteLine("PERSISTENCE ASSEMBLY/STORAGE CONTRACT PASS="+passes+" FAIL=0; not native gameplay qualification");
     }

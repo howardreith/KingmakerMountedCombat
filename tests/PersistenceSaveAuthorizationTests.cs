@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated saves require actual bytes before cold-load admission", ActualBytes);
             runner.Run("isolated saves retain read-only fixture and detect outside mutation", ReadOnly);
             runner.Run("isolated saves reject multiply linked files", HardLinks);
+            runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
         }
 
         private static void NativeTypes()
@@ -122,6 +123,22 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(guard.Validate(RuntimeSaveOperation.Delete, target, files.Root) != null, "Fixture rotation allowed.");
                 File.WriteAllText(target.FullPath, "new external bytes");
                 TestRunner.True(guard.Validate(RuntimeSaveOperation.Load, target, files.Root) != null, "External mutation silently admitted.");
+            }
+        }
+
+        private static void ReadArchiveScope()
+        {
+            using (var files = new Files())
+            {
+                var target = files.Target("Manual");
+                File.WriteAllText(target.FullPath, "owned archive");
+                var entry = Entry("Manual"); entry.InitialSha256 = Hash(target.FullPath);
+                entry.Writable = false;
+                var guard = files.Guard(entry);
+                guard.AssertReadableArchive(target.FullPath);
+                MustThrow(() => guard.AssertReadableArchive(Path.Combine(files.RunRoot, entry.FileName)));
+                File.WriteAllText(target.FullPath, "outside mutation");
+                MustThrow(() => guard.AssertReadableArchive(target.FullPath));
             }
         }
 

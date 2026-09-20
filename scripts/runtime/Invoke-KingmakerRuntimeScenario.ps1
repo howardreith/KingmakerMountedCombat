@@ -519,7 +519,10 @@ finally{
         }catch{$errors.Add('Unmutated external-state verification failed: '+$_.Exception.Message)}
     }else{$errors.Add('Kingmaker process state is ambiguous; external-state restoration was intentionally not attempted.')}
     if($processExited-and$null-ne$profileSnapshot){
-        try{[void](Assert-KmcPersistenceProfileUnchanged $profileSnapshot)}
+        try{
+            Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups -ExpectedCurrentParamsSha256 (Get-KmcSha256 $profileSnapshot.paramsPath) -ExpectedCurrentPrefsSha256 (Get-KmcTextSha256 (Get-KmcPersistencePlayerPrefs)) -Confirm:$false
+            [void](Assert-KmcPersistenceProfileUnchanged $profileSnapshot)
+        }
         catch{$errors.Add($_.Exception.Message);$saveProtection=$false}
     }
     try{if($processExited){[void](Assert-KmcSteamSafety $SteamPath)}}catch{$errors.Add('Steam postflight safety failed: '+$_.Exception.Message)}

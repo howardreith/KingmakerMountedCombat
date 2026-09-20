@@ -1,6 +1,6 @@
 # Active Chunk 5 - 2026-09-20
 
-IN PROGRESS. No critical hard stop is proven. The isolated bootstrap and safe offline guard/storage checks are implemented; real isolated native writes, P01 cold round trip and all persistence/gameplay gates remain TODO. See [the single report](docs/CHUNK5-PERSISTENCE.md). Human preview.54 is the current intake, not historical preview.37/preview.13. No game was launched, save modified or candidate installed. Normal sandbox setup fails; individually reviewed bounded commands work.
+IN PROGRESS. No critical hard stop is proven. The isolated bootstrap and safe offline guard/storage checks are implemented; real isolated native writes, P01 cold round trip and all persistence/gameplay gates remain TODO. See [the single report](docs/CHUNK5-PERSISTENCE.md). Human preview.54 is the current intake, not historical preview.37/preview.13. Isolation-B failed before fixture load; its owned process exited normally and exact human installation/data/settings were restored. No game or lock remains. Normal sandbox setup fails; individually reviewed bounded commands work.
 
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC

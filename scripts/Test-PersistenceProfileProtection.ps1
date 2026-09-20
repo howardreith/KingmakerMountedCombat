@@ -36,5 +36,18 @@ try{
         }finally{[IO.File]::WriteAllBytes($path,$original)}
     }
     [void](Assert-KmcPersistenceProfileUnchanged $snapshot)
+    $pref='[{"name":"KingdomDifficulty_h4200925179","kind":"Binary","value":"MQA="}]'
+    $changed='[{"name":"KingdomDifficulty_h4200925179","kind":"Binary","value":"NAA="}]'
+    if(@(Get-KmcPersistencePreferenceChanges $pref $changed).Count-ne1){throw 'Observed startup change not identified.'}
+    $passes++
+    $rejected=$false
+    try{[void]@(Get-KmcPersistencePreferenceChanges ($pref.Replace('KingdomDifficulty_h4200925179','Unrelated')) ($changed.Replace('KingdomDifficulty_h4200925179','Unrelated')))}catch{$rejected=$true}
+    if(!$rejected){throw 'Unrelated preference change accepted.'};$passes++
+    $original='<Params><ModParamsList><Mod Id="Existing" Enabled="false"/></ModParamsList></Params>'
+    $after='<Params><ModParamsList><Mod Id="Existing" Enabled="false"/><Mod Id="SkipIntro" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod></ModParamsList></Params>'
+    Assert-KmcNativeUmmStartupDelta $original $after;$passes++
+    $rejected=$false
+    try{Assert-KmcNativeUmmStartupDelta $original ($after.Replace('Enabled="true"','Enabled="false"'))}catch{$rejected=$true}
+    if(!$rejected){throw 'Unrelated UMM value accepted.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}
