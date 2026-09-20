@@ -345,13 +345,35 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk4ChargePlacementMove == null)
             {
                 chunk4ChargePlacementOrigin = chunk4ChargeActor.Position;
-                var destination = FindWalkablePoint(chunk4ChargeActor.Position, 2.5f, 0.5f, point =>
-                    HorizontalDistance(ObstacleAnalyzer.TraceAlongNavmesh(point, point), point) < 0.001f);
-                observations["originWalk-" + Chunk4ChargeId] = new JObject {
+                var clearance = Math.Max(0.5f, chunk4ChargeActor.View.Corpulence);
+                var candidates = new JArray();
+                var originWalk = new JObject {
                     ["before"] = CaptureOrdinaryLiveState(),
                     ["nativeOriginProjection"] = CapturePosition(ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, chunk4ChargeActor.Position)),
-                    ["destination"] = CapturePosition(destination)
+                    ["clearanceRadius"] = clearance, ["candidates"] = candidates
                 };
+                observations["originWalk-" + Chunk4ChargeId] = originWalk;
+                // Native stopping/avoidance need not land on the requested point.
+                // Probe an interior fixture destination before measurement; never
+                // relax the actual Charge origin assertion after the native walk.
+                var destination = FindWalkablePoint(chunk4ChargeActor.Position, 2.5f, 0.5f, point => {
+                    var probes = new JArray();
+                    var candidateProjection = ObstacleAnalyzer.TraceAlongNavmesh(point, point);
+                    var eligible = HorizontalDistance(candidateProjection, point) < 0.001f;
+                    for (var index = 0; index < 8; index++)
+                    {
+                        var sample = point + Quaternion.Euler(0f, index * 45f, 0f) * Vector3.forward * clearance;
+                        var trace = ObstacleAnalyzer.TraceAlongNavmesh(point, sample);
+                        var residual = HorizontalDistance(trace, sample);
+                        probes.Add(new JObject { ["point"] = CapturePosition(sample),
+                            ["trace"] = CapturePosition(trace), ["residual"] = residual });
+                        eligible &= residual < 0.001f;
+                    }
+                    candidates.Add(new JObject { ["point"] = CapturePosition(point),
+                        ["projection"] = CapturePosition(candidateProjection), ["probes"] = probes, ["eligible"] = eligible });
+                    return eligible;
+                });
+                originWalk["destination"] = CapturePosition(destination);
                 Game.Instance.SelectedAbilityHandler.SetAbility(null);
                 SelectionManager.Instance.SelectUnit(chunk4ChargeActor.View, true, true, false);
                 ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);

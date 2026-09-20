@@ -1,8 +1,8 @@
-# Active Chunk 4 - candidate39, 2026-09-20 UTC
+# Active Chunk 4 - candidate40, 2026-09-20 UTC
 
-IN PROGRESS. Candidate38 BT failed46/2 while awaiting global Pause during TB. Exact installed Game.DoStartMode06000CBF explicitly rejects that mode; the existing assembly contract already records it. All71 completed native transactions independently restored actual human pairedpreview37 and protected data. No game/lock. Original BS/BT failures remain unchanged.
+IN PROGRESS. Source39 BU Charge TB passes51/0 native/outer, all five cases. BV RT passes the mounted-rider actual-Pause/recovery case, then fails47/2 during unmounted origin setup: native walking succeeds but stops .05912m beyond the navmesh origin projection, failing the unchanged .01m bound. No unmounted Charge was attempted in BV. All73 native transactions independently restored actual human pairedpreview37 and protected data; no game/lock.
 
-Candidate `0.1.0-chunk4-preview.39` requires actual held Pause in RT and cost/position/time-pure synchronous TB planning/acting inputs under the native principal. It does not introduce a TB pause mode or change gameplay policy. Build/source22/0 and full local checks exit0 PASS, including Charge460/0 and Kingmaker569/0. Commit/private package/guarded push/fresh suite39, then unique BU TB Charge/BV RT precede the remaining exact-final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
+Candidate `0.1.0-chunk4-preview.40` selects a fixture walk destination with native navmesh clearance around it, before target creation/measurement. Native movement, collision, footprint and final origin assertions remain unchanged. Build/source22/0 and full local checks exit0 PASS, Charge460/0/Kingmaker569/0. Commit/private package/guarded push/fresh suite40, then BW RT Charge and BX TB precede all remaining exact-final gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
 
 ---
 # Combined actor-allocation and paired-activation milestone
