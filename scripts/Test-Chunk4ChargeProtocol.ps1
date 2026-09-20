@@ -60,7 +60,11 @@ function New-ChargeEnvelope {
             $queued.inputKind='native-mount-delivery-and-native-queue-promotion'
             $queued.queueBoundary='NativeMountedControlService.TryDispatch:MountCompanion:before'
             $queued.queueFrame=9;$queued.queuePaused=$true;$queued.before=@{relationship='Unmounted'}
-            $queued.mountAtQueue=@{present=$true;abilityGuid='f053faad986631688defa003cd7bda0e';executorId='rider';targetId='mount';started=$true;finished=$false;contained=$true}
+            $queued.mountAtQueue=@{present=$true;abilityGuid='f053faad986631688defa003cd7bda0e';executorId='rider';targetId='mount';started=$true;finished=$false;contained=$true;acted=$false;result='None'}
+            $queued.mountDelivery=@{frame=9;state=@{relationship='Unmounted'};activeShell=$true;completedShell=$false
+                riderInCombat=$false;mountInCombat=$false;playerInCombat=$false;targetAbsent=$true
+                executionPresent=$true;executionEnded=$false;engagesUnit=$false;sameAbility=$true
+                blueprint='f053faad986631688defa003cd7bda0e';casterId='rider';targetId='mount'}
             $queued.pairBeforeQueue=@{relationship='Unmounted';rider=@{id='rider';standard=0;move=0;swift=0;position=@(1,2,3)};mount=@{id='mount';standard=0;move=0;swift=0;position=@(3,2,1)}}
             $queued.pairAfterQueue=($queued.pairBeforeQueue|ConvertTo-Json -Depth 10|ConvertFrom-Json)
             $state=($queued.pairBeforeQueue|ConvertTo-Json -Depth 10|ConvertFrom-Json);$state.relationship='Mounted'
@@ -78,6 +82,20 @@ foreach($mode in @('RT','TB')) {
     Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 18) 'PASS';$passed++
     Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 19) 'PASS';$passed++
     Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 20) 'PASS';$passed++
+    $completed=New-ChargeEnvelope $mode
+    $completed.rows[4].evidence.mountAtQueue.finished=$true;$completed.rows[4].evidence.mountAtQueue.acted=$true
+    $completed.rows[4].evidence.mountAtQueue.result='Success';$completed.rows[4].evidence.mountAtQueue.contained=$false
+    $completed.rows[4].evidence.mountDelivery.activeShell=$false;$completed.rows[4].evidence.mountDelivery.completedShell=$true
+    Assert-KmcChunk4ChargeEvidence $request $completed 'PASS';$passed++
+    foreach($mutation in @(
+        {$args[0].rows[4].evidence.mountAtQueue.acted=$false},
+        {$args[0].rows[4].evidence.mountAtQueue.result='Fail'},
+        {$args[0].rows[4].evidence.mountAtQueue.started=$false}
+    )) {
+        $changed=$completed|ConvertTo-Json -Depth 30|ConvertFrom-Json;& $mutation $changed
+        $rejected=$false;try{Assert-KmcChunk4ChargeEvidence $request $changed 'PASS'}catch{$rejected=$true}
+        if(!$rejected){throw 'Unexecuted or failed Mount shell accepted as pending native delivery.'};$passed++
+    }
     foreach($mutation in @(
         {$args[0].observations.phase3fActualConfiguration.enablePairedActivation=$false},
         {$args[0].rows[0].evidence.maximumRiderMove=0.01},
@@ -131,6 +149,21 @@ foreach($mode in @('RT','TB')) {
         {$args[0].rows[4].evidence.mountAtQueue.abilityGuid='another-ability'},
         {$args[0].rows[4].evidence.mountAtQueue.executorId='unrelated'},
         {$args[0].rows[4].evidence.mountAtQueue.targetId='unrelated'},
+        {$args[0].rows[4].evidence.mountDelivery.frame++},
+        {$args[0].rows[4].evidence.mountDelivery.state.relationship='Mounted'},
+        {$args[0].rows[4].evidence.mountDelivery.activeShell=$false},
+        {$args[0].rows[4].evidence.mountDelivery.completedShell=$true},
+        {$args[0].rows[4].evidence.mountDelivery.riderInCombat=$true},
+        {$args[0].rows[4].evidence.mountDelivery.mountInCombat=$true},
+        {$args[0].rows[4].evidence.mountDelivery.playerInCombat=$true},
+        {$args[0].rows[4].evidence.mountDelivery.targetAbsent=$false},
+        {$args[0].rows[4].evidence.mountDelivery.executionPresent=$false},
+        {$args[0].rows[4].evidence.mountDelivery.executionEnded=$true},
+        {$args[0].rows[4].evidence.mountDelivery.engagesUnit=$true},
+        {$args[0].rows[4].evidence.mountDelivery.sameAbility=$false},
+        {$args[0].rows[4].evidence.mountDelivery.blueprint='another'},
+        {$args[0].rows[4].evidence.mountDelivery.casterId='unrelated'},
+        {$args[0].rows[4].evidence.mountDelivery.targetId='unrelated'},
         {$args[0].rows[4].evidence.pairAfterQueue.rider.move=3},
         {$args[0].rows[4].evidence.pairAfterQueue.mount.standard=6},
         {$args[0].rows[4].evidence.pairAfterQueue.mount.swift=6},

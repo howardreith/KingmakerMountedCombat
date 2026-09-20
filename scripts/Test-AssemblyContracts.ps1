@@ -34,6 +34,14 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
 if($Target-eq'Kingmaker'){
     # New native incoming/life observations. Token/hash contracts are not native execution proof.
     foreach($expected in @(
+        @('Kingmaker.UnitLogic.Commands.UnitUseAbility',0x06002714,'get_ExecutionProcess'),
+        @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD1,'get_IsEnded'),
+        @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD3,'get_Context'),
+        @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD4,'get_IsEngageUnit'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x04001C65,'Ability'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x06002B6D,'get_AbilityBlueprint'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x06002B80,'get_Caster'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x06002B6F,'get_MainTarget'),
         @('Kingmaker.GameDifficulty',0x06000CF9,'get_TrueDeath'),
         @('Kingmaker.GameDifficulty',0x06000CF8,'get_DeathDoorCondition'),
         @('Kingmaker.UI.SettingsUI.SettingsRoot+SettingsListScreen',0x04007CB5,'DeadCompanionsRiseAfterCombat'),

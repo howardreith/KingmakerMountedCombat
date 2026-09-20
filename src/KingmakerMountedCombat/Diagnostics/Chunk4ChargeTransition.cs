@@ -88,6 +88,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // before the relationship changes. Native perception stays active.
                 game.IsPaused = true;
                 chunk4ChargeTransition["mountInput"] = CaptureOrdinaryLiveState();
+                ordinaryAttackTrace.BeginCase(Chunk4ChargeId);
                 chunk4QueuedMountWindow = new DiagnosticQueuedMountWindow(nativeControls, rider, horse,
                     QueueChargeBeforeNativeMount, accepted => {
                         chunk4ChargeTransition["afterMountDispatch"] = new JObject {
@@ -166,9 +167,33 @@ namespace KingmakerMountedCombat.Diagnostics
         private void QueueChargeBeforeNativeMount()
         {
             var game = Game.Instance;
+            var process = chunk4QueuedMount?.ExecutionProcess;
+            var context = process?.Context;
+            var shell = CaptureNativeAbilityShell(chunk4QueuedMount);
+            // A non-engaging native cast can retire its command before its
+            // delivery coroutine runs. Bind that still-live execution to the
+            // exact original ability, caster and clicked target instead.
+            var activeShell = chunk4QueuedMount != null && !chunk4QueuedMount.IsFinished &&
+                rider.Commands.Raw.Contains(chunk4QueuedMount);
+            var completedShell = chunk4QueuedMount != null && chunk4QueuedMount.IsFinished &&
+                chunk4QueuedMount.IsActed &&
+                chunk4QueuedMount.Result == Kingmaker.UnitLogic.Commands.Base.UnitCommand.ResultType.Success;
+            chunk4ChargeTransition["mountAtQueue"] = shell;
+            chunk4ChargeTransition["mountDelivery"] = new JObject {
+                ["frame"] = Time.frameCount, ["state"] = CaptureOrdinaryLiveState(),
+                ["riderInCombat"] = rider.IsInCombat, ["mountInCombat"] = horse.IsInCombat,
+                ["playerInCombat"] = game.Player.IsInCombat, ["targetAbsent"] = target == null,
+                ["activeShell"] = activeShell, ["completedShell"] = completedShell,
+                ["executionPresent"] = process != null, ["executionEnded"] = process?.IsEnded,
+                ["engagesUnit"] = process?.IsEngageUnit, ["sameAbility"] = context?.Ability == chunk4QueuedMount?.Spell,
+                ["blueprint"] = context?.AbilityBlueprint?.AssetGuid, ["casterId"] = context?.Caster?.UniqueId,
+                ["targetId"] = context?.MainTarget?.Unit?.UniqueId
+            };
             if (relationship.State != RelationshipState.Unmounted || rider.IsInCombat || horse.IsInCombat ||
                 game.Player.IsInCombat || chunk4QueuedMount?.Executor != rider || !chunk4QueuedMount.IsStarted ||
-                chunk4QueuedMount.IsFinished || !rider.Commands.Raw.Contains(chunk4QueuedMount) || target != null)
+                !(activeShell || completedShell) || process == null || process.IsEnded || process.IsEngageUnit ||
+                context.Ability != chunk4QueuedMount.Spell || context.Caster != rider || context.MainTarget?.Unit != horse ||
+                context.AbilityBlueprint != nativeControls.MountAbility || target != null)
                 throw new InvalidOperationException("Queued fixture did not reach the real unmounted Mount delivery boundary.");
             var pausedBefore = game.IsPaused;
             game.IsPaused = true;
@@ -177,7 +202,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargeTransition["queueFrame"] = Time.frameCount;
                 chunk4ChargeTransition["queuePaused"] = game.IsPaused;
                 chunk4ChargeTransition["queueBoundary"] = "NativeMountedControlService.TryDispatch:MountCompanion:before";
-                chunk4ChargeTransition["mountAtQueue"] = CaptureNativeAbilityShell(chunk4QueuedMount);
                 targetService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
                 target = targetService.Spawn(rider, horse, FindChunk4ChargeTargetPoint(),
                     request.RunId + "-queued-charge-transition", true, true);
@@ -210,7 +234,6 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Native unmounted Charge did not queue without expenditure.");
                 chunk4ChargeWarningStart = chunk4ChargeWarnings.Count;
                 ruleProbe.Arm(target, false);
-                ordinaryAttackTrace.BeginCase(Chunk4ChargeId);
             }
             finally { game.IsPaused = pausedBefore; }
         }

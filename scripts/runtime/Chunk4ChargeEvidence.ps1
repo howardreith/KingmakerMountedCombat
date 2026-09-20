@@ -121,7 +121,9 @@ function Assert-KmcChunk4ChargeEvidence {
 
 function Assert-KmcChunk4QueuedMountWindow {
     param($Evidence)
-    $e=$Evidence; $shell=$e.mountAtQueue; $dispatch=$e.afterMountDispatch
+    $e=$Evidence; $shell=$e.mountAtQueue; $dispatch=$e.afterMountDispatch; $delivery=$e.mountDelivery
+    $activeShell=$shell.started -eq $true -and $shell.finished -eq $false -and $shell.contained -eq $true
+    $completedShell=$shell.started -eq $true -and $shell.finished -eq $true -and $shell.acted -eq $true -and $shell.result -ceq 'Success'
     if($e.queueBoundary -cne 'NativeMountedControlService.TryDispatch:MountCompanion:before' -or
         $e.queuePaused -ne $true -or !(Test-KmcExactJsonInteger $e.queueFrame) -or $e.queueFrame -le 0 -or
         $dispatch.frame -ne $e.queueFrame -or $dispatch.accepted -ne $true -or $dispatch.playerInCombat -ne $false -or
@@ -129,7 +131,12 @@ function Assert-KmcChunk4QueuedMountWindow {
         $e.pairBeforeQueue.relationship -cne 'Unmounted' -or $e.pairAfterQueue.relationship -cne 'Unmounted' -or
         $shell.abilityGuid -cne 'f053faad986631688defa003cd7bda0e' -or $shell.present -ne $true -or
         $shell.executorId -cne $e.pairBeforeQueue.rider.id -or $shell.targetId -cne $e.pairBeforeQueue.mount.id -or
-        $shell.started -ne $true -or $shell.finished -ne $false -or $shell.contained -ne $true) {
+        !($activeShell -or $completedShell) -or $delivery.activeShell -ne $activeShell -or $delivery.completedShell -ne $completedShell -or
+        $delivery.frame -ne $e.queueFrame -or $delivery.state.relationship -cne 'Unmounted' -or
+        $delivery.riderInCombat -ne $false -or $delivery.mountInCombat -ne $false -or $delivery.playerInCombat -ne $false -or
+        $delivery.targetAbsent -ne $true -or $delivery.executionPresent -ne $true -or $delivery.executionEnded -ne $false -or
+        $delivery.engagesUnit -ne $false -or $delivery.sameAbility -ne $true -or
+        $delivery.blueprint -cne $shell.abilityGuid -or $delivery.casterId -cne $shell.executorId -or $delivery.targetId -cne $shell.targetId) {
         throw 'Queued Charge omitted its real unmounted Mount delivery window.'
     }
     foreach($actor in @('rider','mount')) {
