@@ -137,7 +137,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     "P02-fresh-native-paired-boundary");
                 savedBoundary = turn; savedSequence = combat.PairedActivationSequence;
                 savedRound = game.TurnBasedCombatController.RoundNumber;
-                BeginCombatMovement(0.75f, "partial-movement-dispatched");
+                BeginCombatMovement(0.75f, "partial-movement-dispatched",
+                    Checkpoint == "between-partner-orders" ? (Vector3?)RiderReachDestination() : null);
                 stage = 2; return;
             }
             if (stage == 2)
@@ -148,6 +149,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     mount.CombatState.Cooldown.MoveAction > 0 && mount.CombatState.Cooldown.MoveAction < 3f &&
                     rider.CombatState.Cooldown.StandardAction == 0 && rider.CombatState.Cooldown.MoveAction == 0 &&
                     ReferenceEquals(savedBoundary, turn), "P02-partial-mount-work-leaves-rider-standard-and-mount-remainder");
+                if (Checkpoint == "between-partner-orders")
+                    Check(mount.DistanceTo(combatTarget) < RiderAttackRadius() && mount.HasLOS(combatTarget),
+                        "P02-rider-in-native-weapon-reach-before-mount-spends-movement");
                 Write("partial-movement-completed", CombatObservation());
                 if (Checkpoint == "partial-movement") stage = 3;
                 else if (Checkpoint == "explicit-end") stage = 22;
@@ -377,12 +381,34 @@ namespace KingmakerMountedCombat.Diagnostics
             rejectedFrame = Time.frameCount; stage = 31;
         }
 
-        private void BeginCombatMovement(float distance, string kind)
+        private float RiderAttackRadius()
+        {
+            var selection = NativeSingleAttackWeaponResolver.Resolve(rider);
+            if (selection?.Weapon == null || mount?.View == null || combatTarget?.View == null)
+                throw new InvalidOperationException("P02 fixture has no native rider weapon/range context.");
+            return mount.View.Corpulence + combatTarget.View.Corpulence + selection.Weapon.AttackRange.Meters;
+        }
+
+        private Vector3 RiderReachDestination()
+        {
+            var radius = RiderAttackRadius();
+            var offset = mount.Position - combatTarget.Position;
+            offset.y = 0;
+            var wanted = combatTarget.Position + offset.normalized * (radius - 0.35f);
+            var traced = Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(mount.Position, wanted);
+            Check(GeometryUtils.MechanicsDistance(wanted, traced) < 0.1f &&
+                GeometryUtils.MechanicsDistance(traced, mount.Position) > 0.25f &&
+                GeometryUtils.MechanicsDistance(traced, combatTarget.Position) < radius,
+                "P02-walkable-position-within-native-rider-reach");
+            return traced;
+        }
+
+        private void BeginCombatMovement(float distance, string kind, Vector3? wantedDestination = null)
         {
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             Game.Instance.DefaultPointerController.ClearPointerMode();
-            origin = mount.Position; destination = FindDestination(distance);
+            origin = mount.Position; destination = wantedDestination ?? FindDestination(distance);
             using (var input = new NativeOrdinaryAttackInput(destination))
             {
                 input.Predict();

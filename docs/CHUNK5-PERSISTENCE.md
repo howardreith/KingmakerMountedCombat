@@ -31,6 +31,8 @@ A persistence-specific run-owned root/campaign/native-type/leaf/hash contract pr
 | P02-load-A, same preview.9, PID16172 | PASS20/0 + outer PASS; four actor records, saved grant/round/remainder, controls once, movement/attack and two later paired activations |
 | P02-rider-save-A, preview.10/sourceaeb8e27, PID15396 | FAIL24/1 after write and mount movement; Primary target rejected as not a valid living target; no cold run |
 | P02-rider-save-B, preview.11/sourceabb9afc, PID4040 | FAIL24/1; target had1 HP and was unconscious after2 native damage, so rejection was correct; no cold run |
+| P02-rider-save-C / load-C, preview.12/source251a62a, PID12252 / 12324 | PASS36/0 and29/0, both outer PASS; rider spent, mount remainder, native health, spent-work rejection and two later grants |
+| P02-partner-save-A, same preview.12, PID14672 | FAIL23/1 after write; mount stopped at longer reach, so rider lacked legal approach after mount expenditure; no cold run |
 
 Earlier P01 failures and exact historical identities remain in the journal and immutable lab evidence. P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`; P02-save-B archive SHA256 `e65a6d5ca94596c4d7f68e5e6b945a6022ea6a6c50dc6f8f86b6247697787439`, under its owned `runtime-staging/persistence-20260920-chunk5-P02-save-B/Saved Games/Manual_300_KMC_P01.zks`. The cold process reads those bytes and supplies no missing gameplay state. At round1/grant1, mount Move0.17698051 and rider Standard/Move0 survive; grants2/3 refresh normally. Source PID16516 exited and fully restored intake21:54:15.0066094Z; cold process started22:00:52.1487984Z.
 
@@ -45,7 +47,7 @@ Build/source22/0, package11/0 and installed-assembly/storage contracts30/0 PASS.
 | Final scenario | Status and remaining work |
 |---|---|
 | P01 | Causal round trip PASS across previews6/7; exact-final rerun required |
-| P02 | Partial movement cold slice PASS on9; rider-spent, exhausted, End/pending and partner-order boundaries remain |
+| P02 | Partial movement PASS on9 and rider-spent PASS on12; exhausted, End/pending and partner-order cold boundaries remain |
 | P03 | TODO: step/conversion/reaction, conditions, split/suspension and exactly-once round effects |
 | P04 | TODO: native RT unmounted control, active commands/projectiles and loaded outcomes |
 | P05 | TODO: manual/quick/auto, overwrite/rotation, repeated requests, copies/renames and alternating saves |
@@ -55,11 +57,11 @@ Build/source22/0, package11/0 and installed-assembly/storage contracts30/0 PASS.
 
 Paired activation=true; both legacy authorities and overlay=false. Full Charge remains Chunk6; safe rejection is not its completion. Every mandatory row must pass on the final frozen candidate. Visual/physical-input review is separate.
 
-Preview.10 adds exact P02 checkpoint parameters and unrelated-turn-order/rejected-work assertions. Components413/0, fixture25/0 and harness254/0 pass. Preview.11's life observation explains the failed Primary cases: the stock companion blueprint produces a one-HP enemy without a master. Preview.12 provisions native HP BaseValue256 only at owned enemy creation, with no temporary modifier, blueprint edit or cold-process repair. CharacterStats.HitPoints and ModifiableValue.m_BaseValue are verified native JSON members; metadata duplicates no health state. Source22/0 and native contracts31/0 pass. Native12 qualification remains pending; preview9 remains the passed partial cold slice.
+Preview.10 adds exact P02 checkpoint parameters and unrelated-turn-order/rejected-work assertions. Components413/0, fixture25/0 and harness254/0 pass. Preview.11's life observation explains the failed Primary cases: the stock companion blueprint produces a one-HP enemy without a master. Preview.12 provisions native HP BaseValue256 only at owned enemy creation, with no temporary modifier, blueprint edit or cold-process repair. CharacterStats.HitPoints and ModifiableValue.m_BaseValue are verified native JSON members; metadata duplicates no health state. Source22/0 and native contracts31/0 pass. Rider-save-C36/0 and cold-load-C29/0 on12 pass. Archive f47704e40ab3fc273a4656c54f2c2b4c56e6a3a5475487b5e068fecb5deb3f18 carries the rider's spent Standard and legitimate mount remainder. Partner-save-A failed because mount reach exceeded rider reach; preview13 moves the fixture within measured rider reach using native ground input before mount expenditure. No production reach, cost or persistence change; native13 remains pending.
 
 ## Human restoration, removal and manual review
 
-Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, protected saves/settings/caches/foreign Mods were restored after each completed transaction. Latest native PID16172 completed22:01:41.8719489Z; full restoration22:01:57.2221102Z. No game/transaction remains. Separate preview.37/preview.13 backups are retained. Recheck actual intake before each transaction; historical pins are not rollback authority.
+Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, protected saves/settings/caches/foreign Mods were restored after each completed transaction. Rider cold PID12324 completed22:48:19.4710003Z and restored22:48:35.5329574Z. Latest failed partner source PID14672 completed22:52:58.9764128Z; full restoration22:53:14.7110767Z. No game/transaction remains. Separate preview.37/preview.13 backups are retained. Recheck actual intake before each transaction; historical pins are not rollback authority.
 
 Prepare-to-Disable/removal implementation and native qualification remain TODO. Permanent custom Horse dependencies are separate from transient pair metadata; arbitrary DLL deletion is not certified. No permanent candidate deployment, main merge or public release is authorized.
 
