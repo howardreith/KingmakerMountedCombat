@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk4-targeting-mount-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-targeting-area-unmounted-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-obstruction-ranged-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk4-ground-arrival-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-horse-strike-comparison-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-ranged-native-control-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk4-interrupt-melee-rt", StringComparison.Ordinal) ||

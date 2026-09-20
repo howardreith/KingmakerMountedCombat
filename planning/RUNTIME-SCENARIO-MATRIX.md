@@ -1,6 +1,6 @@
 ## Active Chunk 4 scenario checkpoint - 2026-09-20 UTC
 
-Source47 DT sustained TB52/0, six cases PASS. DU RT Charge50/2, four PASS/one FAIL: safe queued rejection followed by native ground-arrival interruption. Candidate48 registers chunk4-ground-arrival-rt with C4-GROUND-mounted-arrival and C4-GROUND-unmounted-arrival to attribute it through matched ordinary native movement. All100 transactions restored. See the [single report](../docs/CHUNK4-PLAYABILITY.md) and journal for exact identities/results; no native48 claim yet. New exact-final roots/regressions and physical-input/HUMAN PLAY remain pending. Historical matrices below are retained evidence.
+Source47 DT sustained TB52/0, six cases PASS. DU RT Charge50/2, four PASS/one FAIL: safe queued rejection followed by native ground-arrival interruption. Candidate49 completes registration of chunk4-ground-arrival-rt with C4-GROUND-mounted-arrival and C4-GROUND-unmounted-arrival to attribute it through matched ordinary native movement. All100 native transactions and EX48 prelaunch rejection restored. EX exposed missing request/native registration; no game launched. See the [single report](../docs/CHUNK4-PLAYABILITY.md) and journal for exact identities/results; no native49 claim yet; next EY. New exact-final roots/regressions and physical-input/HUMAN PLAY remain pending. Historical matrices below are retained evidence.
 
 ## Chunk 2 current scenario pointer
 

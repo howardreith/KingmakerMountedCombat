@@ -485,6 +485,8 @@ namespace KingmakerMountedCombat.Diagnostics
         "C4-TARGETING-mount-heal",
         "C4-TARGETING-mount-hostile",
         "C4-TARGETING-area-unmounted", "C4-TARGETING-area-both",
+        "C4-GROUND-mounted-arrival",
+        "C4-GROUND-unmounted-arrival",
         "C4-HORSE-mounted-three-primaries",
         "C4-HORSE-unmounted-strike-recovery",
         "C4-OBSTRUCTION-ranged-native-geometry", "C4-RANGED-native-mixed-range", "C4-INTERRUPT-melee-pause-resume", "C4-INTERRUPT-melee-pause-stop-recover", "C4-INTERRUPT-melee-moving-target", "C4-INTERRUPT-melee-retarget-windup", "C4-INTERRUPT-melee-target-death-windup", "C4-INTERRUPT-melee-target-death-midroutine", "C4-INTERRUPT-ranged-pause-resume", "C4-INTERRUPT-ranged-pause-stop-recover", "C4-INTERRUPT-ranged-moving-target", "C4-INTERRUPT-ranged-retarget-windup", "C4-INTERRUPT-ranged-retarget-inflight", "C4-INTERRUPT-ranged-target-death-windup", "C4-INTERRUPT-ranged-target-death-inflight", "C4-INSPECTION-rider", "C4-INSPECTION-mount", "C4-SESSION-RT-1", "C4-SESSION-RT-2", "C4-SESSION-RT-3", "C4-SESSION-TB-1", "C4-SESSION-TB-2", "C4-SESSION-TB-3",

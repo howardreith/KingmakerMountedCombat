@@ -5050,6 +5050,29 @@ try {
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
 
+    Invoke-HarnessTest 'runtime request reader admits exact ground comparison and rejects unknown variants' {
+        try {
+            $v2Request.scenario = 'chunk4-ground-arrival-rt'
+            $v2Request.runId = 'schema-v2-ground-arrival'
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot $v2Request.runId
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            foreach($unknown in @('chunk4-ground-arrival-tb','chunk4-ground-arrival-rt-unknown')){
+                $v2Request.scenario = $unknown
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath } catch { $rejected=$true }
+                Assert-Test $rejected 'unknown ground scenario was admitted'
+            }
+        }
+        finally {
+            $v2Request.scenario = 'mounted-pair-create-and-clear'
+            $v2Request.runId = 'schema-v2-test'
+            $v2Request.evidenceRoot = Join-Path $runtimeEvidenceTestRoot 'schema-v2-test'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'paired native loop result has exactly one registered runtime row' {
         $rows = @(Get-KmcPhase3dHorseRuntimeRows)
         Assert-Test (@($rows | Where-Object { $_ -ceq 'P01-three-paired-activations' }).Count -eq 1) 'paired result row is missing or duplicated'

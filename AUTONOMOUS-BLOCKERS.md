@@ -1,8 +1,8 @@
-# Active Chunk 4 - native arrival comparison48, 2026-09-20 UTC
+# Active Chunk 4 - ground diagnostic registration49, 2026-09-20 UTC
 
-IN PROGRESS. Published source47 c7bea356e66ef438e6c0f209601b25702afa9ec2 newly passes sustained TB52/0, six cases. DU RT Charge passes four cases and safely rejects queued mounted Charge, but its subsequent legal ground move is interrupted by native CompleteMovement at.472m from the unchanged endpoint/.3m arrival radius. This reproduces CF41's native stack and leaves recovery open. Candidate0.1.0-chunk4-preview.48 adds a matched mounted/unmounted Horse route comparison and read-only steering observations; no gameplay repair yet.
+IN PROGRESS. Source48 13c0192c3312b8872e853fb3f7bbc82afe74c2f7 passed fresh WhatIf purity, but EX failed before launch because the actual request validator lacked the new ground scenario. No native48 evidence. Candidate49 completes that allowlist, native Horse registration and result leaves, with real reader/policy regression tests. Ground fixture, movement observations, gameplay and thresholds are unchanged. All100 native transactions and the EX prelaunch attempt restored actual preview37/human data.
 
-All100 transactions restored actual preview37/current human data. Next: full checks, commit/private package/guarded publication/suite48, fresh WhatIf purity, then EX chunk4-ground-arrival-rt. Continue exact-final new roots and paired/A05/A10/Horse/Mammoth regression after attribution. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Visual/physical-input gaps remain; no permanent installation or Chunk5 implementation.
+Next: commit/package/guarded publication/suite49, exact-package request validation and guard scope proof, then unused EY chunk4-ground-arrival-rt. Attribute CF41/DU47 arrival failure before broad final regression. DT47 sustained TB52/0/six cases remains scoped new evidence. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 ## Combined milestone disposition — 2026-09-08
