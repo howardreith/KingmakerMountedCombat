@@ -47,6 +47,8 @@
     <Compile Include="RuntimeSaveAuthorizationTests.cs" />
     <Compile Include="StopEarlyCaptureBoundaryTests.cs" />
     <Compile Include="WorkingFixtureLoadWatchdogTests.cs" />
+    <Compile Include="SustainedRoutineProgressTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\SustainedRoutineProgress.cs" />
     <Compile Include="BoundaryFailureDrainTests.cs" />
     <Compile Include="BoundaryScenarioEvidenceContractTests.cs" />
     <Compile Include="MovementScreenshotCaptureTests.cs" />

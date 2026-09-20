@@ -260,6 +260,7 @@
     <Compile Include="Diagnostics\Chunk4SessionScenario.cs" />
     <Compile Include="Domain\MountedRangedRoutineCompletionPolicy.cs" />
     <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
+    <Compile Include="Diagnostics\SustainedRoutineProgress.cs" />
     <Compile Include="Diagnostics\Chunk4PairedPlayScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeEffectInventory.cs" />
     <Compile Include="Diagnostics\Chunk4SubscriptionSnapshot.cs" />

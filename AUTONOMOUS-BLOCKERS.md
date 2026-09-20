@@ -1,8 +1,8 @@
-# Active Chunk 4 - sustained mount cadence, 2026-09-20 UTC
+# Active Chunk 4 - capture sustained actor stalls, 2026-09-20 UTC
 
-IN PROGRESS. Published source42 `db22b424d0df01baca5cdf63e563e21af86c3fc3` passes Charge RT/TB, obstruction and sustained rider melee/ranged (CG-CK). CJ measures three rider routines but only two complete Horse routines per case. Candidate `0.1.0-chunk4-preview.43` extends melee measurement to three complete native routines from each actor and checks mount cadence under held/repeated input. No gameplay timing or modes change. CF41's native movement interruption remains unexplained; the later passing route differs.
+IN PROGRESS. Published source43 `26aedc163602fefc8be4262ca63d80fe6079a6bb` strengthens the three-routine Horse requirement. CL then fails at the outer300-second deadline: its retained log admits three rider/three Horse commands on the first target, nineteen rider/two Horse commands on the second. No completed tranche artifact survived; do not promote log counts to full-plan evidence. Candidate `0.1.0-chunk4-preview.44` limits fixture timer renewal to progress toward each actor's required quota and captures native readiness/reach/commands before cleanup. Gameplay is unchanged; eligibility versus dispatch priority remains unresolved.
 
-All88 native transactions restored actual human pairedpreview37 and protected data. Next: package/publish43 and fresh suite, focused sustained melee first, then exact-final Charge RT/TB and the remaining new gates/regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
+All89 transactions restored actual human pairedpreview37 and protected data. Next: package/publish44/fresh suite, then CM focused sustained melee for the missing native observation before a repair or broad campaign. CF41's separate native movement interruption also remains unexplained. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
 
 ---
 ## Combined milestone disposition — 2026-09-08

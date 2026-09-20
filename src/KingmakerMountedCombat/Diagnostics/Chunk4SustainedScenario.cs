@@ -38,6 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private long chunk4SustainedIntentBefore;
         private long chunk4SustainedDuplicateBefore;
         private int chunk4SustainedCompleted;
+        private SustainedRoutineProgress chunk4SustainedProgress;
         private double chunk4SustainedLastClick;
         private double chunk4SustainedLastSample;
         private double chunk4SustainedPreviousTick;
@@ -138,6 +139,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (native.IsUnitEnoughClose == Chunk4SustainedApproach)
                     throw new InvalidOperationException("Native range does not distinguish the requested adjacent/approach condition.");
                 chunk4Routines.Clear(); chunk4SustainedCompleted = 0;
+                chunk4SustainedProgress = new SustainedRoutineProgress(!Chunk4SustainedRanged);
                 chunk4SustainedClicks = new JArray(); chunk4SustainedSamples = new JArray();
                 chunk4SustainedEvidence["clicks"] = chunk4SustainedClicks; chunk4SustainedEvidence["samples"] = chunk4SustainedSamples;
                 chunk4SustainedIntentBefore = combat.StockAttackIntentStartCount;
@@ -246,9 +248,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     (command.Result == UnitCommand.ResultType.Success || ordinaryAttackTrace.NativeRecoveryInterrupt(command) != null)))
                 {
                     evidence["completedObserved"] = true; evidence["finishedAt"] = now;
-                    if (command.Executor == rider) { chunk4SustainedCompleted++; ResetLeafClock(); }
+                    if (command.Executor == rider) chunk4SustainedCompleted++;
                 }
             }
+            if (chunk4SustainedProgress.Observe(chunk4SustainedCompleted, Chunk4CompleteMountRoutines)) ResetLeafClock();
             if (now - chunk4SustainedLastSample >= 0.25d)
             {
                 chunk4SustainedSamples.Add(new JObject { ["time"] = now, ["frame"] = Time.frameCount,
@@ -256,10 +259,39 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderMove"] = rider.CombatState.Cooldown.MoveAction,
                     ["mountStandard"] = horse.CombatState.Cooldown.StandardAction,
                     ["mountMove"] = horse.CombatState.Cooldown.MoveAction,
+                    ["riderHasStandard"] = rider.HasStandardAction(), ["mountHasStandard"] = horse.HasStandardAction(),
+                    ["riderCanAct"] = rider.CombatState.CanActInCombat, ["mountCanAct"] = horse.CombatState.CanActInCombat,
+                    ["mountCommandsEmpty"] = horse.Commands.Empty, ["stockObservation"] = combat.LastStockAttackObservation,
                     ["targetTemporaryHp"] = target.Stats.TemporaryHitPoints.ModifiedValue,
                     ["targetDamage"] = target.Damage });
                 chunk4SustainedLastSample = now;
             }
+        }
+
+        private JObject CaptureChunk4SustainedProgress()
+        {
+            var mountAttack = ordinaryAttackTrace?.LastStartedMountAttack;
+            return new JObject {
+                ["caseId"] = Chunk4SustainedId, ["stage"] = chunk4SustainedStage,
+                ["state"] = rider == null || horse == null ? null : CaptureOrdinaryLiveState(),
+                ["completeRiderRoutines"] = chunk4SustainedCompleted, ["completeMountRoutines"] = Chunk4CompleteMountRoutines,
+                ["routines"] = new JArray(chunk4Routines.Values.Select(value => value.DeepClone())),
+                ["nativeTrace"] = ordinaryAttackTrace?.CaptureCaseEvents(Chunk4SustainedId),
+                ["rules"] = ruleProbe?.CapturePairEvidence(), ["currentEvidence"] = chunk4SustainedEvidence?.DeepClone(),
+                ["riderHasStandard"] = rider != null && rider.HasStandardAction(),
+                ["mountHasStandard"] = horse != null && horse.HasStandardAction(),
+                ["mountCanAct"] = horse != null && horse.CombatState.CanActInCombat,
+                ["mountHandsBusy"] = horse != null && horse.AreHandsBusyWithAnimation,
+                ["mountCanAttackTarget"] = horse != null && target != null && horse.CanAttack(target),
+                ["mountHostileToTarget"] = horse != null && target != null && horse.IsEnemy(target),
+                ["mountHasLOS"] = horse != null && target != null && horse.HasLOS(target),
+                ["lastMountCommand"] = CaptureOrdinaryCommand(mountAttack),
+                ["lastMountEnoughClose"] = mountAttack?.IsUnitEnoughClose,
+                ["lastMountShouldApproach"] = mountAttack?.ShouldUnitApproach,
+                ["targetPosition"] = target == null ? null : new JArray(target.Position.x, target.Position.y, target.Position.z),
+                ["stockObservation"] = combat.LastStockAttackObservation,
+                ["activePairCommand"] = combat.HasActiveCommand, ["stockIntent"] = combat.HasStockAttackIntent
+            };
         }
 
         private void CompleteChunk4SustainedCase()

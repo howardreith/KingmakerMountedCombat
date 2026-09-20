@@ -95,6 +95,7 @@ namespace KingmakerMountedCombat.Tests
             ManualReviewBoundaryGuardTests.Register(runner);
             RuntimeSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);
+            SustainedRoutineProgressTests.Register(runner);
             BoundaryFailureDrainTests.Register(runner);
             BoundaryScenarioEvidenceContractTests.Register(runner);
             MovementScreenshotCaptureTests.Register(runner);
