@@ -1,8 +1,8 @@
-# Active Chunk 4 - bounded Charge control fixture, 2026-09-20 UTC
+# Active Chunk 4 - native46 progress and TB fixture correction47, 2026-09-20 UTC
 
-IN PROGRESS. Published source45 `ffd77919cda670f66f296e42fa630e5a27e887a9` passes CN sustained melee: native/outer50/0, four cases with three full rider and Horse routines each, matched cadence and pure repeated input. CO RT Charge passes mounted rider rejection/recovery, unmounted rider Charge and mounted Horse rejection, then fails because its unrelated-actor target candidate is only1.938m from the rider, below the unchanged3m fixture minimum. Candidate `0.1.0-chunk4-preview.46` makes the existing candidate search honor the same3-20m spawn bound. No gameplay, native Charge geometry, clocks, footprint or assertion limits change.
+IN PROGRESS. Published source46 a886158cccf56df68dd721ba6576aef2ae4f414d passes new RT/TB Charge safety, sustained melee/ranged and obstruction. CU sustained TB passes three cases, then its paid tangent movement leaves the rider outside weapon reach before the Horse exhausts its budget. Candidate0.1.0-chunk4-preview.47 reuses bounded native-range placement and verifies actual arrival; production ranges, clocks, budgets and repath/time limits remain unchanged.
 
-All92 transactions independently restored actual preview37 and protected data. Next: commit/package/publish46/fresh suite; CP Charge RT first, then CQ Charge TB, CR sustained melee, CS obstruction and remaining exact-final roots/regression. CF41 native arrival uncertainty and visual/physical-input gaps remain explicit. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All98 transactions independently restored actual preview37/current human data. Next: commit/package/guarded publication/suite47, then focused DT sustained TB; continue exact-final new roots and paired/A05/A10/Horse/Mammoth regressions. CF41 arrival uncertainty and visual/physical-input gaps remain explicit. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 ## Combined milestone disposition — 2026-09-08

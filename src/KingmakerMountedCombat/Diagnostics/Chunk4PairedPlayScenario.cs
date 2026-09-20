@@ -67,7 +67,13 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["chunk4PairedPlayProgress"] = new JObject {
                 ["stage"] = chunk4PairedPlayStage, ["activationNumber"] = chunk4PairedPlayActivation,
                 ["operation"] = chunk4PairedPlayOperation, ["identity"] = combat.PairedActivationIdentity,
-                ["turnActor"] = turn?.Unit.UniqueId, ["live"] = CaptureOrdinaryLiveState()
+                ["turnActor"] = turn?.Unit.UniqueId, ["live"] = CaptureOrdinaryLiveState(),
+                ["lastOutcome"] = combat.LastOutcome == null ? null : new JObject {
+                    ["actor"] = combat.LastOutcome.ActorId, ["result"] = combat.LastOutcome.Result,
+                    ["reason"] = combat.LastOutcome.TerminalReason, ["repaths"] = combat.LastOutcome.RepathCount,
+                    ["nativeStarts"] = combat.LastOutcome.ChildAttackStartCount,
+                    ["initialAdmission"] = combat.LastOutcome.InitialNativeAdmissionState
+                }
             };
             if (game.IsPaused) { game.IsPaused = false; return; }
             if (turn?.Unit == horse) throw new InvalidOperationException("Sustained paired play produced an independent mount turn.");
@@ -219,14 +225,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (chunk4PairedPlayActivation == 3)
                 {
                     SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
-                    // A paid lateral step preserves both actors' melee reach for
-                    // the following mount-exhausted control. An outward step can
-                    // leave only the Horse's longer natural reach in range.
-                    var radial = horse.Position - target.Position; radial.y = 0f;
-                    var direction = Vector3.Cross(Vector3.up, radial).normalized;
-                    chunk4PairedPlayAction = new JObject { ["kind"] = "partner-move-after-rider-exhaustion", ["before"] = CaptureOrdinaryLiveState() };
+                    // A tangent still increases distance, and native avoidance
+                    // can move its endpoint farther out. Use the same bounded,
+                    // unoccupied endpoint search as the initial stationary setup.
+                    var destination = FindPairedControlPoint(0.75f, "chunk4-paired-play-residual-adjacency");
+                    chunk4PairedPlayAction = new JObject {
+                        ["kind"] = "partner-move-after-rider-exhaustion", ["before"] = CaptureOrdinaryLiveState(),
+                        ["destination"] = CapturePosition(destination), ["minimumWeaponRadius"] = pairedNativeSetupRadius
+                    };
                     ((JArray)chunk4PairedPlaySample["operations"]).Add(chunk4PairedPlayAction);
-                    using (var input = new NativeOrdinaryAttackInput(horse.Position + direction * 0.75f))
+                    using (var input = new NativeOrdinaryAttackInput(destination))
                     {
                         input.Predict(); var cycles = 0;
                         while ((chunk4PairedPlayPartner.EnabledFiveFootStep || chunk4PairedPlayPartner.EnabledSingleActionMove) && cycles++ < 8)
@@ -249,6 +257,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk4PairedPlayStage == 7)
             {
+                var path = horse.View.AgentASP.Path?.vectorPath;
+                if (path != null && path.Count != 0)
+                    chunk4PairedPlayAction["lastNativePathEndpoint"] = CapturePosition(path[path.Count - 1]);
                 chunk4PairedPlayAction["movementProgress"] = new JObject {
                     ["observation"] = combat.CaptureUnifiedTurnSnapshot().LastMovementObservation,
                     ["partnerStepMetres"] = chunk4PairedPlayPartner.MetersMovedByFiveFootStep,
@@ -257,11 +268,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!chunk4PairedPlayMove.IsFinished || !Chunk4PairedPlayIdle || combat.LastGroundMoveResult == null || !combat.LastGroundMoveSlotRestored) return;
                 var after = CaptureOrdinaryLiveState(); var before = chunk4PairedPlayAction["before"];
                 chunk4PairedPlayAction["after"] = after; chunk4PairedPlayAction["command"] = CaptureOrdinaryCommand(chunk4PairedPlayMove);
+                var targetDistance = HorizontalDistance(horse.Position, target.Position);
+                chunk4PairedPlayAction["targetPositionAfterMove"] = CapturePosition(target.Position);
+                chunk4PairedPlayAction["targetDistanceAfterMove"] = targetDistance;
                 if (chunk4PairedPlayMove.Result != UnitCommand.ResultType.Success || (float)after["mount"]["move"] <= 0f ||
                     (float)after["mount"]["move"] > 3f || (float)after["mount"]["standard"] != 6f ||
                     (float)after["rider"]["standard"] != (float)before["rider"]["standard"] ||
                     (float)after["rider"]["move"] != (float)before["rider"]["move"])
                     throw new InvalidOperationException("Native partner movement altered the exhausted rider or exceeded its own remaining budget.");
+                if (targetDistance > pairedNativeSetupRadius)
+                    throw new InvalidOperationException("Paid partner fixture movement ended outside a native planned weapon's reach.");
                 chunk4PairedPlayStage = 8; ResetLeafClock(); return;
             }
             if (chunk4PairedPlayStage == 8)
