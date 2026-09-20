@@ -1,10 +1,18 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
 
 public static class PersistenceDataTests
 {
+    private sealed class OptInGameResolver : DefaultContractResolver
+    {
+        protected override IList<JsonProperty> CreateProperties(Type type, MemberSerialization memberSerialization)
+            => base.CreateProperties(type, MemberSerialization.OptIn);
+    }
     private static int count;
     private static void Check(bool value, string label)
     { if (!value) throw new Exception(label); count++; Console.WriteLine("PASS " + label); }
@@ -17,6 +25,26 @@ public static class PersistenceDataTests
             Mount = new SavedNativeActor { Id = "97b3ae99e9f3420caf64e5ab8b49f992", Move = 3.125f },
             Slots = new[]{ new SavedMountedSlot { ActorId = rider.Id, Index = 17, Kind = 3 } } };
         var frozen = MountedSaveCodec.Encode(data);
+        var previousDefaults = JsonConvert.DefaultSettings;
+        var defaultsConsulted = 0;
+        try
+        {
+            JsonConvert.DefaultSettings = () =>
+            {
+                defaultsConsulted++;
+                return new JsonSerializerSettings { ContractResolver = new OptInGameResolver(),
+                    PreserveReferencesHandling = PreserveReferencesHandling.Objects };
+            };
+            Check(JsonConvert.SerializeObject(data) == "{\"$id\":\"1\"}",
+                "regression reproduces native global opt-in serializer erasing pair data");
+            defaultsConsulted = 0;
+            Check(MountedSaveCodec.Encode(data) == frozen && MountedSaveCodec.Decode(frozen).Data.Rider.Standard == 6,
+                "archive codec round trips with native-style global JSON defaults installed");
+            var evidence = JObject.FromObject(data.Rider, MountedSaveCodec.CreateSerializer());
+            Check(evidence["Id"].Value<string>() == rider.Id && evidence["Standard"].Value<float>() == 6 &&
+                defaultsConsulted == 0, "archive and native observations never consult global JSON defaults");
+        }
+        finally { JsonConvert.DefaultSettings = previousDefaults; }
         rider.Standard = 0;
         var decoded = MountedSaveCodec.Decode(frozen);
         Check(decoded.Kind == MountedSaveReadKind.Current && decoded.Data.Rider.Standard == 6 &&

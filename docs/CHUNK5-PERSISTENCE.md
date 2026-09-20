@@ -4,13 +4,13 @@ Status: IN PROGRESS. Integration descends from reviewed `8a297fa019ff205f50fd7b9
 
 ## Storage, transaction and resume semantics
 
-IN PROGRESS. Exact installed SaveManager/ISaver/ZipSaver inspection and owned native archive I/O establish an in-transaction primitive member seam. Use extensionless `kmc-mounted-state`: the installed loader treats unknown `.json` members as area state. Primitive UTF8 metadata survives native commit, clone and rename; no post-finalization rewrite is needed. Preview.3 implements the bounded schema, per-enumerator snapshot at native header serialization, current native actor debt at PostLoad and dedicated validated pair/control attachment. The first native write/cold-load qualification is next; combat state remains explicitly unsupported in this development slice. Save-specific state must travel in the archive and preserve spent and unused actions without repeating preparations.
+IN PROGRESS. Exact installed SaveManager/ISaver/ZipSaver inspection and owned native archive I/O establish an in-transaction primitive member seam. Use extensionless `kmc-mounted-state`: the installed loader treats unknown `.json` members as area state. Primitive UTF8 metadata survives native commit, clone and rename; no post-finalization rewrite is needed. Preview.4 implements the bounded schema, per-enumerator snapshot at native header serialization, current native actor debt at PostLoad and dedicated validated pair/control attachment. The first actual native write exposed global serializer interference, repaired with an independent serializer and a reproduction regression; cold qualification is next; combat state remains explicitly unsupported in this development slice. Save-specific state must travel in the archive and preserve spent and unused actions without repeating preparations.
 
 ## Qualification
 
 | Scenario | Required behavior | Status |
 |---|---|---|
-| P01 | Manual write, same-session continuation, exit, cold load, movement/attack | TODO |
+| P01 | Manual write, same-session continuation, exit, cold load, movement/attack | IN PROGRESS |
 | P02 | TB remainder, participation and two subsequent paired activations | TODO |
 | P03 | Step/conversion/reaction/conditions and exactly-once rounds | TODO |
 | P04 | Native RT active-command snapshot and loaded outcome controls | TODO |
@@ -19,7 +19,7 @@ IN PROGRESS. Exact installed SaveManager/ISaver/ZipSaver inspection and owned na
 | P07 | Failed/canceled operations, views/areas, disable/removal | TODO |
 | P08 | Final accepted gameplay regression including post-load variants | TODO |
 
-COMPONENT / ASSEMBLY CONTRACT / NATIVE INTEGRATION / HUMAN PLAY remain distinct. Preview.3: source22/0, components404/0, harness250/0, focused native archive/write-lease contracts23/0, primitive data25/0, owned-copy guards8/0. Profile/settings guards8/0 and actual installation registration6/0 remain applicable. Logs remain in `analysis-cache/chunk5-persistence`; no P01-P08 runtime qualification is claimed.
+COMPONENT / ASSEMBLY CONTRACT / NATIVE INTEGRATION / HUMAN PLAY remain distinct. Preview.4: source22/0, focused native archive/write-lease contracts23/0, primitive data28/0 (including native JSON-default regression); unchanged preview.3 components404/0 and harness250/0, owned-copy guards8/0. Profile/settings guards8/0 and actual installation registration6/0 remain applicable. Logs remain in `analysis-cache/chunk5-persistence`; no P01-P08 runtime qualification is claimed.
 
 ## Isolation bootstrap and exact seams
 
@@ -30,7 +30,7 @@ COMPONENT / ASSEMBLY CONTRACT / NATIVE INTEGRATION / HUMAN PLAY remain distinct.
 
 Exact assembly MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`. Proprietary inspection stays outside Git. Detached checks prove method construction and real owned native archive behavior, not Unity lifecycle or gameplay.
 
-Bootstrap history: A failed before launch on culturally ambiguous profile ordering, now fixed with ordinal digest regression. B failed before fixture loading because Harmony12 rejected the iterator MoveNext patch; preview.2 replaces it with narrow native ZipSaver hooks and an exception-safe selected-load scope. Full actual WhatIf purity PASS on source `8612544`; the preflight/WhatIf branches remain unchanged. Isolation-C PASS14/0 native and PASS outer on preview.2/source1b8747e, with normal process exit and exact actual intake restoration. Next is preview.3 p01-native-save package/suite4, then actual P01 save and a separate cold-load process.
+Bootstrap history: A failed before launch on culturally ambiguous profile ordering, now fixed with ordinal digest regression. B failed before fixture loading because Harmony12 rejected the iterator MoveNext patch; preview.2 replaces it with narrow native ZipSaver hooks and an exception-safe selected-load scope. Full actual WhatIf purity PASS on source `8612544`; the preflight/WhatIf branches remain unchanged. Isolation-C PASS14/0 native and PASS outer on preview.2/source1b8747e, with normal process exit and exact actual intake restoration. P01-save-A/source4cb95af made a real native Manual write, then FAIL0/1: global JSON defaults reduced pair metadata to11 bytes (`{"$id":"1"}`). The live pair was still mounted. No cold load was attempted. Actual intake restored at18:59:42Z after normal process exit. Preview.4 uses an independent serializer for storage and observations; next is p01-json-isolation/suite5/P01-save-B, then a separate cold process.
 
 ## Intake and restoration
 

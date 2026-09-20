@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
+using Newtonsoft.Json.Serialization;
 using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -113,14 +115,27 @@ namespace KingmakerMountedCombat.Integration
             MissingMemberHandling = MissingMemberHandling.Error,
             MaxDepth = 12,
             DateParseHandling = DateParseHandling.None,
-            FloatParseHandling = FloatParseHandling.Double
+            FloatParseHandling = FloatParseHandling.Double,
+            ContractResolver = new DefaultContractResolver(),
+            PreserveReferencesHandling = PreserveReferencesHandling.None,
+            Culture = CultureInfo.InvariantCulture
         };
+
+        // Create (not CreateDefault/JsonConvert) bypasses the game's global
+        // opt-in entity contracts, converters and reference-preservation defaults.
+        internal static JsonSerializer CreateSerializer() => JsonSerializer.Create(Settings);
 
         internal static string Encode(MountedSaveData data)
         {
             if (data == null) throw new ArgumentNullException(nameof(data));
             data.Validate();
-            var json = JsonConvert.SerializeObject(data, Formatting.None, Settings);
+            string json;
+            using (var buffer = new StringWriter(CultureInfo.InvariantCulture))
+            {
+                using (var writer = new JsonTextWriter(buffer) { Formatting = Formatting.None })
+                    CreateSerializer().Serialize(writer, data);
+                json = buffer.ToString();
+            }
             if (json.Length > MaximumCharacters) throw new InvalidDataException("Mounted save data is oversized.");
             return json;
         }
@@ -143,7 +158,9 @@ namespace KingmakerMountedCombat.Integration
                 {
                     case MountedSaveData.CurrentSchema:
                         VerifyCurrentShape(root);
-                        var data = JsonConvert.DeserializeObject<MountedSaveData>(json, Settings);
+                        MountedSaveData data;
+                        using (var reader = new JsonTextReader(new StringReader(json)))
+                            data = CreateSerializer().Deserialize<MountedSaveData>(reader);
                         if (data == null) throw new InvalidDataException("Mounted metadata was empty.");
                         data.Validate();
                         return new MountedSaveReadResult(MountedSaveReadKind.Current, data, json, null);

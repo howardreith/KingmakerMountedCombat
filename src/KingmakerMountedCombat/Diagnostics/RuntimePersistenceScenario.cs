@@ -130,7 +130,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("native-write-complete", new JObject
                 {
                     ["path"] = saved.FolderName, ["sha256"] = Hash(saved.FolderName), ["length"] = file.Length,
-                    ["nativeType"] = saved.Type.ToString(), ["snapshot"] = JObject.FromObject(read.Data),
+                    ["nativeType"] = saved.Type.ToString(), ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
                     ["nativeCallback"] = callback, ["operation"] = saved.OperationState.ToString()
                 });
                 stage = 2; return;
@@ -239,9 +239,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["kind"] = kind, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["source"] = request.Commit,
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
-                ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider)),
-                ["mount"] = mount == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(mount)),
-                ["controls"] = JObject.FromObject(controls.CaptureSnapshot()), ["detail"] = detail
+                ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),
+                ["mount"] = mount == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(mount), MountedSaveCodec.CreateSerializer()),
+                ["controls"] = JObject.FromObject(controls.CaptureSnapshot(), MountedSaveCodec.CreateSerializer()), ["detail"] = detail
             };
             File.AppendAllText(evidence, row.ToString(Formatting.None) + Environment.NewLine);
         }
