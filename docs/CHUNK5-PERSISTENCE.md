@@ -38,6 +38,9 @@ A persistence-specific run-owned root/campaign/native-type/leaf/hash contract pr
 | P02-exhausted-load-B, preview.14/source5071d0a | PASS23/0 + outer PASS; exact saved exhausted remainder, rejected work and two later grants |
 | P02-end-save-A, same preview.14 | FAIL17/1 after actual Ending snapshot; diagnostic targeting call encountered no current native turn; no cold run |
 | P02-end-save-B / load-B, preview.15/sourceee8c191 | Save PASS30/0 + outer PASS; cold FAIL11/1 because fixture expected the next turn while the saved boundary was correctly still Ending/Standard6 |
+| P02-end-load-C, preview.16/sourceb5fec9a | PASS28/0 + outer PASS; pending End completes, ended pair rejected, two later grants |
+| P03-step-save-A / load-A, same preview.16 | PASS34/0 and28/0, both outer PASS; only saved remaining step allowed, ordinary/repeated movement rejected, two later refreshes |
+| P03-conversion-save-A, same preview.16 | FAIL34/1 before write; fixture mistook native Standard availability for the StandardAction cooldown field |
 
 Earlier P01 failures and exact historical identities remain in the journal and immutable lab evidence. P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`; P02-save-B archive SHA256 `e65a6d5ca94596c4d7f68e5e6b945a6022ea6a6c50dc6f8f86b6247697787439`, under its owned `runtime-staging/persistence-20260920-chunk5-P02-save-B/Saved Games/Manual_300_KMC_P01.zks`. The cold process reads those bytes and supplies no missing gameplay state. At round1/grant1, mount Move0.17698051 and rider Standard/Move0 survive; grants2/3 refresh normally. Source PID16516 exited and fully restored intake21:54:15.0066094Z; cold process started22:00:52.1487984Z.
 
@@ -47,13 +50,13 @@ The P02-only diagnostic setting lease now reapplies its declared temporary boole
 
 Frozen preview.14 source `5071d0a26796016dd5801a499a47575d09b58117`; DLL SHA256 `3f47406334888ebf4ca877cd6c0e400e175dda87b71b04da17a12d5c3bef0c03`, MVID `8f1636e3-4705-40d8-b439-e848d5df83ac`. Private `KingmakerMountedCombat-0.1.0-chunk5-preview.14-p02-spent-observation-diagnostic.zip` SHA256 `bf63a6f96d94e5e09e6496f3467c087a0ee3a814b189513fb0d45c7c9a26e1a1`; manifest `5ecc53f36d222d760f2db3cb0fcbe597047e6eeeb4fbe022c59ad868278c9377`. Later candidate source does not rebuild this payload.
 
-Current preview15 build/source22/0, components414/0, harness255/0 and owned-copy/commitment guards31/0 PASS. Frozen14 package11/0 and relevant unchanged native contracts31/0/data42/0 PASS. Native15 remains pending. The owner-approved DLL entry cap is5 MiB; ZIP/Info limits, allowlists, hashes, dependency checks and runtime protections are unchanged. These checks are separate from native qualification.
+Current preview17 build/source22/0 and owned-copy/commitment guards31/0 PASS; relevant unchanged components414/0/harness255/0 PASS. Frozen14 package11/0 and relevant unchanged native contracts31/0/data42/0 PASS. Native17 remains pending. The owner-approved DLL entry cap is5 MiB; ZIP/Info limits, allowlists, hashes, dependency checks and runtime protections are unchanged. These checks are separate from native qualification.
 
 | Final scenario | Status and remaining work |
 |---|---|
 | P01 | Causal round trip PASS across previews6/7; exact-final rerun required |
-| P02 | Partial movement, rider-spent, partner-order and exhausted cold slices PASS across9/12/13/14; End/pending remains |
-| P03 | Step/conversion fixtures implemented15, native qualification pending; reaction/conditions/split/suspension/round effects still TODO |
+| P02 | All five causal boundaries PASS across9/12/13/14/15/16; exact-final reruns required |
+| P03 | Step cold slice PASS16; conversion expectation corrected17, native pending; reaction/conditions/split/suspension/round effects TODO |
 | P04 | TODO: native RT unmounted control, active commands/projectiles and loaded outcomes |
 | P05 | TODO: manual/quick/auto, overwrite/rotation, repeated requests, copies/renames and alternating saves |
 | P06 | TODO: native legacy/current/malformed/future schema, invalid pair and campaign cases |
@@ -66,7 +69,7 @@ Preview.10 adds exact P02 checkpoint parameters and unrelated-turn-order/rejecte
 
 ## Human restoration, removal and manual review
 
-Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, protected saves/settings/caches/foreign Mods were restored after each completed transaction. Rider cold PID12324 completed22:48:19.4710003Z and restored22:48:35.5329574Z. Exhausted-load-B restored23:19:23.2839565Z. End-save-B restored23:35:46.1388315Z; latest End-load-B restored23:36:58.0355800Z. No game/transaction remains. Separate preview.37/preview.13 backups are retained. Recheck actual intake before each transaction; historical pins are not rollback authority.
+Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, protected saves/settings/caches/foreign Mods were restored after each completed transaction. Rider cold PID12324 completed22:48:19.4710003Z and restored22:48:35.5329574Z. Exhausted-load-B restored23:19:23.2839565Z. End-load-C restored23:42:44.6884946Z; step-save/load restored23:44:17.7172595Z/23:45:39.8626179Z. Latest conversion failure restored23:47:07.2936675Z. No game/transaction remains. Separate preview.37/preview.13 backups are retained. Recheck actual intake before each transaction; historical pins are not rollback authority.
 
 Prepare-to-Disable/removal implementation and native qualification remain TODO. Permanent custom Horse dependencies are separate from transient pair metadata; arbitrary DLL deletion is not certified. No permanent candidate deployment, main merge or public release is authorized.
 

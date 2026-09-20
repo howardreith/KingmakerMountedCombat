@@ -49,6 +49,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 MountedSaveCodec.CreateSerializer()),
             ["activation"] = combat.PairedActivationIdentity,
             ["sequence"] = combat.PairedActivationSequence,
+            ["nativeRiderStandardAvailable"] = rider?.HasStandardAction(),
+            ["nativeMountStandardAvailable"] = mount?.HasStandardAction(),
             ["partner"] = combat.PairedPartnerContext == null ? null :
                 JObject.FromObject(NativeTurnPersistence.Capture(combat.PairedPartnerContext), MountedSaveCodec.CreateSerializer())
         };
@@ -305,8 +307,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(!riderSpent && data.Rider.Move == 0 && saved.Current?.ActorId == data.Rider.Id &&
                     (Checkpoint == "step" ? !mountSpent && data.Mount.Move == 0 &&
                         movement.MetresStepped > 0 && movement.MetresStepped < TurnController.MetersOfFiveFootStep &&
-                        movement.TimeStepped > 0 : mountSpent && data.Mount.Standard == 6 &&
-                        data.Mount.Move > 3 && data.Mount.Move < 6 && allocation.StandardCommitted),
+                        movement.TimeStepped > 0 : !mountSpent && data.Mount.Standard == 0 &&
+                        data.Mount.Move > 3 && data.Mount.Move < 6 && movement.TimeMoved > 3),
                     "P03-actual-snapshot-matches-native-" + Checkpoint);
                 return;
             }

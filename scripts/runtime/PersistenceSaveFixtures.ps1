@@ -79,7 +79,7 @@ function Assert-KmcP03Snapshot {
     $a=$alloc[0]
     $valid=switch -CaseSensitive ($Checkpoint){
         'step' { $Snapshot.Mount.Standard-eq0-and$Snapshot.Mount.Move-eq0-and$a.Movement.MetresStepped-gt0-and$a.Movement.TimeStepped-gt0 }
-        'conversion' { $Snapshot.Mount.Standard-eq6-and$Snapshot.Mount.Move-gt3-and$Snapshot.Mount.Move-lt6-and$a.StandardCommitted-eq$true }
+        'conversion' { $Snapshot.Mount.Standard-eq0-and$Snapshot.Mount.Move-gt3-and$Snapshot.Mount.Move-lt6-and$a.Movement.TimeMoved-gt3 }
         default { $false }
     }
     if(-not$valid){throw 'P03 actual archive does not match its declared native commitment.'}

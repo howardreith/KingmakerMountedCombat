@@ -59,13 +59,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     Check(debt.Move > commitmentDebt.Move && after.MetresStepped == 0,
                         "P03-native-conversion-setup-consumes-current-mount-work");
-                    if (debt.Standard == 0)
+                    if (mount.HasStandardAction())
                     {
                         commitmentDebt = debt;
                         BeginCombatMovement(6f, null);
                         return true;
                     }
-                    Check(debt.Standard == 6 && debt.Move > 3 && debt.Move < 6,
+                    // Native HasStandardAction also checks UsedTwoMoveAction.
+                    // Conversion is Move debt above three, not a manufactured Standard cooldown.
+                    Check(debt.Standard == 0 && debt.Move > 3 && debt.Move < 6 && mount.UsedTwoMoveAction(),
                         "P03-native-Standard-conversion-leaves-measured-Move-remainder");
                 }
                 var detail = CombatObservation();
