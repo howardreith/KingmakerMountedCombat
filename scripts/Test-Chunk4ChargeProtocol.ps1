@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 $passed=0
 function New-ChargeEnvelope {
-    param([string]$Mode,[int]$Schema=20)
+    param([string]$Mode,[int]$Schema=24)
     # Synthetic envelopes exercise evidence validation only, never gameplay.
     $rows=@()
     foreach($mounted in @($true,$false)) {
@@ -42,7 +42,7 @@ function New-ChargeEnvelope {
                 @{boundary='private-run-after';command=42;started=$false;acted=$false;finished=$true;standard=0;move=0;actorPosition=@(1,2,3)})
             recovery=$rows[0].evidence.recovery
         }})
-        if($Schema -eq 20) {
+        if($Schema -in @(20,24)) {
             $queued=$rows[4].evidence
             foreach($boundary in $queued.admission) {
                 $boundary.relationship='Unmounted';$boundary.charging=$false;$boundary.frame=10
@@ -55,6 +55,17 @@ function New-ChargeEnvelope {
                 @{boundary='charge-approach-before';relationship='Mounted';command=42;frame=11;started=$false;acted=$false;finished=$false;charging=$false;standard=0;move=0;mountStandard=0;mountMove=0;actorPosition=@(1,3,3);mountPosition=@(3,2,1)},
                 @{boundary='charge-approach-after';relationship='Mounted';command=42;frame=11;started=$false;acted=$false;finished=$true;charging=$false;standard=0;move=0;mountStandard=0;mountMove=0;actorPosition=@(1,3,3);mountPosition=@(3,2,1)})
         }
+        if($Schema -eq 24) {
+            $queued=$rows[4].evidence
+            $queued.inputKind='native-mount-delivery-and-native-queue-promotion'
+            $queued.queueBoundary='NativeMountedControlService.TryDispatch:MountCompanion:before'
+            $queued.queueFrame=9;$queued.queuePaused=$true;$queued.before=@{relationship='Unmounted'}
+            $queued.mountAtQueue=@{present=$true;abilityGuid='f053faad986631688defa003cd7bda0e';executorId='rider';targetId='mount';started=$true;finished=$false;contained=$true}
+            $queued.pairBeforeQueue=@{relationship='Unmounted';rider=@{id='rider';standard=0;move=0;swift=0;position=@(1,2,3)};mount=@{id='mount';standard=0;move=0;swift=0;position=@(3,2,1)}}
+            $queued.pairAfterQueue=($queued.pairBeforeQueue|ConvertTo-Json -Depth 10|ConvertFrom-Json)
+            $state=($queued.pairBeforeQueue|ConvertTo-Json -Depth 10|ConvertFrom-Json);$state.relationship='Mounted'
+            $queued.afterMountDispatch=@{frame=9;accepted=$true;playerInCombat=$false;state=$state}
+        }
     }
     return (@{schemaVersion=$Schema;status='PASS';subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();rows=$rows
         observations=@{phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enablePairedActivation=$true;enableDiagnosticOverlay=$false;overlayPresent=$false}}} | ConvertTo-Json -Depth 20 | ConvertFrom-Json)
@@ -66,6 +77,7 @@ foreach($mode in @('RT','TB')) {
     Assert-KmcChunk4ChargeEvidence $request $artifact 'PASS';$passed++
     Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 18) 'PASS';$passed++
     Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 19) 'PASS';$passed++
+    Assert-KmcChunk4ChargeEvidence $request (New-ChargeEnvelope $mode 20) 'PASS';$passed++
     foreach($mutation in @(
         {$args[0].observations.phase3fActualConfiguration.enablePairedActivation=$false},
         {$args[0].rows[0].evidence.maximumRiderMove=0.01},
@@ -105,6 +117,27 @@ foreach($mode in @('RT','TB')) {
         {$args[0].rows[4].evidence.approachExecution[1].started=$true},
         {$args[0].rows[4].evidence.approachExecution[1].finished=$false},
         {$args[0].rows[4].evidence.charge.contained=$true},
+        {$args[0].rows[4].evidence.queueBoundary='synthetic-mount'},
+        {$args[0].rows[4].evidence.queuePaused=$false},
+        {$args[0].rows[4].evidence.queueFrame=0},
+        {$args[0].rows[4].evidence.afterMountDispatch.frame++},
+        {$args[0].rows[4].evidence.afterMountDispatch.accepted=$false},
+        {$args[0].rows[4].evidence.afterMountDispatch.playerInCombat=$true},
+        {$args[0].rows[4].evidence.afterMountDispatch.state.relationship='Unmounted'},
+        {$args[0].rows[4].evidence.before.relationship='Mounted'},
+        {$args[0].rows[4].evidence.mountAtQueue.started=$false},
+        {$args[0].rows[4].evidence.mountAtQueue.finished=$true},
+        {$args[0].rows[4].evidence.mountAtQueue.contained=$false},
+        {$args[0].rows[4].evidence.mountAtQueue.abilityGuid='another-ability'},
+        {$args[0].rows[4].evidence.mountAtQueue.executorId='unrelated'},
+        {$args[0].rows[4].evidence.mountAtQueue.targetId='unrelated'},
+        {$args[0].rows[4].evidence.pairAfterQueue.rider.move=3},
+        {$args[0].rows[4].evidence.pairAfterQueue.mount.standard=6},
+        {$args[0].rows[4].evidence.pairAfterQueue.mount.swift=6},
+        {$args[0].rows[4].evidence.pairAfterQueue.rider.position[0]++},
+        {$args[0].rows[4].evidence.pairAfterQueue.mount.position[0]++},
+        {$args[0].rows[4].evidence.pairAfterQueue.relationship='Mounted'},
+        {$args[0].rows[4].evidence.pairAfterQueue.mount.id='unrelated'},
         {$args[0].rows=@($args[0].rows[0..3]);$args[0].subscenarioPassCount=4},
         {$args[0].rows=@($args[0].rows[0]);$args[0].subscenarioPassCount=1}
     )) {

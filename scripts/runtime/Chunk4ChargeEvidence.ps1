@@ -1,6 +1,6 @@
 function Assert-KmcChunk4ChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if ([long]$Artifact.schemaVersion -notin @(18,19,20) -or $Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
+    if ([long]$Artifact.schemaVersion -notin @(18,19,20,24) -or $Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
         throw 'Chunk 4 Charge requires its exact schema and parameterized mode.'
     }
     Assert-KmcMountedRuntimeConfiguration $Artifact.observations.phase3fActualConfiguration $true 'Chunk 4 Charge configuration'
@@ -22,7 +22,7 @@ function Assert-KmcChunk4ChargeEvidence {
         $mode=if($Request.scenario.EndsWith('-tb')){'TB'}else{'RT'}
         if ($row.name -ceq 'C4-CHARGE-queued-state-change') {
             if ($e.level -cne 'NATIVE INTEGRATION' -or $e.mode -cne $mode -or
-                $e.inputKind -cne 'native-mount-handler-and-native-queue-promotion' -or
+                $e.inputKind -cne $(if([long]$Artifact.schemaVersion -eq 24){'native-mount-delivery-and-native-queue-promotion'}else{'native-mount-handler-and-native-queue-promotion'}) -or
                 $e.blueprint -cne 'c78506dd0e14f7c45a599990e4e65038' -or
                 $e.availableWhileUnmounted -ne $true -or $e.canTargetWhileUnmounted -ne $true -or
                 $e.queuedWhileUnmounted -ne $true -or $e.pausedQueueCostsPure -ne $true -or
@@ -43,7 +43,7 @@ function Assert-KmcChunk4ChargeEvidence {
                 (@($before.actorPosition)-join ',') -cne (@($after.actorPosition)-join ',')) {
                 throw 'Native queue promotion changed costs or motion before Charge rejection.'
             }
-            if ([long]$Artifact.schemaVersion -eq 20) {
+            if ([long]$Artifact.schemaVersion -in @(20,24)) {
                 $rejection=Test-KmcChunk4ChargeRejectionBoundary $e.admission
                 $approach=@($e.approachExecution)
                 if($approach.Count % 2 -ne 0){throw 'Charge approach observer omitted one side of a boundary.'}
@@ -61,6 +61,7 @@ function Assert-KmcChunk4ChargeEvidence {
                     throw 'Queued Charge lacks a pure mounted rejection before native approach or expenditure.'
                 }
             }
+            if ([long]$Artifact.schemaVersion -eq 24) { Assert-KmcChunk4QueuedMountWindow $e }
             Assert-KmcChunk4ChargeRecovery $e.recovery $mode
             continue
         }
@@ -116,6 +117,36 @@ function Assert-KmcChunk4ChargeEvidence {
         (($Artifact.status -ceq 'PASS') -ne ($fail -eq 0 -and @($Artifact.errors).Count -eq 0))) {throw 'Charge status/count mismatch.'}
     if ($Artifact.status -ceq 'PASS') {foreach($name in $required){if(-not $names.Contains($name)){throw 'Required Charge control missing.'}}}
     if ($Status -ceq 'PASS' -and $Artifact.status -cne 'PASS') {throw 'Runtime PASS contains failed Charge evidence.'}
+}
+
+function Assert-KmcChunk4QueuedMountWindow {
+    param($Evidence)
+    $e=$Evidence; $shell=$e.mountAtQueue; $dispatch=$e.afterMountDispatch
+    if($e.queueBoundary -cne 'NativeMountedControlService.TryDispatch:MountCompanion:before' -or
+        $e.queuePaused -ne $true -or !(Test-KmcExactJsonInteger $e.queueFrame) -or $e.queueFrame -le 0 -or
+        $dispatch.frame -ne $e.queueFrame -or $dispatch.accepted -ne $true -or $dispatch.playerInCombat -ne $false -or
+        $dispatch.state.relationship -cne 'Mounted' -or $e.before.relationship -cne 'Unmounted' -or
+        $e.pairBeforeQueue.relationship -cne 'Unmounted' -or $e.pairAfterQueue.relationship -cne 'Unmounted' -or
+        $shell.abilityGuid -cne 'f053faad986631688defa003cd7bda0e' -or $shell.present -ne $true -or
+        $shell.executorId -cne $e.pairBeforeQueue.rider.id -or $shell.targetId -cne $e.pairBeforeQueue.mount.id -or
+        $shell.started -ne $true -or $shell.finished -ne $false -or $shell.contained -ne $true) {
+        throw 'Queued Charge omitted its real unmounted Mount delivery window.'
+    }
+    foreach($actor in @('rider','mount')) {
+        $before=$e.pairBeforeQueue.$actor; $after=$e.pairAfterQueue.$actor
+        if([string]::IsNullOrWhiteSpace($before.id) -or $before.id -cne $after.id -or
+            $before.id -cne $dispatch.state.$actor.id) {throw 'Queued Mount window changed actor identity.'}
+        foreach($field in @('standard','move','swift')) {
+            if(!(Test-KmcFiniteNonnegativeJsonNumber $before.$field) -or
+                !(Test-KmcFiniteNonnegativeJsonNumber $after.$field) -or $before.$field -ne $after.$field) {
+                throw 'Paused Charge queue spent or refunded an actor action.'
+            }
+        }
+        if(@($before.position).Count -ne 3 -or @($after.position).Count -ne 3 -or
+            (@($before.position)-join ',') -cne (@($after.position)-join ',')) {
+            throw 'Paused Charge queue moved an actor.'
+        }
+    }
 }
 
 function Test-KmcChunk4ChargeRejectionBoundary {

@@ -6099,6 +6099,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             try { chunk4ChargeWarnings?.Dispose(); chunk4ChargeWarnings = null; }
             catch (Exception exception) { AddCleanupError("Charge native warning observer", exception); }
+            try { chunk4QueuedMountWindow?.Dispose(); chunk4QueuedMountWindow = null; }
+            catch (Exception exception) { AddCleanupError("Queued Mount delivery fixture", exception); }
             settings.EnablePairedCommandScheduler = originalPairedCommandScheduler;
             settings.EnableUnsafeMovementExperiment = originalUnsafeExperiment;
         }
@@ -6249,7 +6251,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Play ? 21 : IsChunk4Charge ? 20 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Play ? 21 : IsChunk4Charge ? 24 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

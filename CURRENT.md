@@ -1,8 +1,8 @@
-# Active Chunk 4 - candidate35, 2026-09-19 UTC
+# Active Chunk 4 - candidate36, 2026-09-19 UTC
 
-IN PROGRESS. Published source34 `7ab1ac939a75c4abd296a005fe025605cbf75587` now has new native RT-session BJ49/0 and slope BL50/0 PASS. TB session BK46/2 FAIL exposed a diagnostic assumption: paired TB ordinary input addresses one actor, so waiting for both routines after one click stalls the fixture. Candidate35 issues both actors' ordinary inputs through settled selection and native prediction within the same paired activation. No production scheduler, costs, modes or deadlines changed. Full35/build PASS; new TB native proof remains required.
+IN PROGRESS. Published source35 `398acff6a30f2c9d72b5baeb49c933a49e44f1df` passed three complete ordinary sessions in each mode (BM/BN49/0), slope BO50/0 and Charge RT BP51/0. TB Charge BQ50/2 passed its first four controls but timed out before the queued Mount executed: native perception entered combat while the rider remained outside Mount range. No queued Charge started, spent resources or reached the rejection hook. Candidate36 changes only the diagnostic queue window to the real Mount delivery boundary, before the relationship changes. Native perception, commands, costs and gameplay policy stay intact. New focused native proof is required.
 
-All63 completed native transactions independently restored actual preview.37 and protected data. The owner opened Steam and existing safety checks passed. No game/lock remains at this checkpoint. Next: private package/guarded publication and fresh suite35, then unique focused TB session BM, RT/slope and exact-final new/accepted regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Human/physical-input checks remain pending; no permanent deployment or Chunk5 implementation.
+All68 completed native transactions independently restored actual preview.37 and protected data. No game/lock at this checkpoint. Next: finish36 checks/commit/private package/guarded publication/fresh suite, then focused Charge TB, Charge RT and the remaining exact-final new/accepted regression. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Human/HUD/physical-input checks remain pending. No permanent deployment or Chunk5 implementation.
 
 ---
 # Combined actor-allocation and paired-activation milestone

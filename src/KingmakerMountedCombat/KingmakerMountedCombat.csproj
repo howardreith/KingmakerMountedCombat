@@ -265,6 +265,7 @@
     <Compile Include="Diagnostics\Chunk4SubscriptionSnapshot.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeRecovery.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeTransition.cs" />
+    <Compile Include="Diagnostics\DiagnosticQueuedMountWindow.cs" />
     <Compile Include="Domain\MountedChargeSafetyPolicy.cs" />
     <Compile Include="Integration\MountedChargeSafetyService.cs" />
     <Compile Include="Main.cs" />
