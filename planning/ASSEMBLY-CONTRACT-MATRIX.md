@@ -234,3 +234,17 @@ The header barrier is ZipSaver.SaveJson06008063 inside the matching SaveRoutine 
 P01-save-A discovered native global JsonConvert defaults replacing DTO data with an opt-in reference-only object. Preview.4 creates an independent JsonSerializer without CreateDefault/JsonConvert; codec regression28/0 includes reproducing that failure and proving unchanged primitive wire data under hostile global contracts. This is a serialization defect repair, not cold-load qualification.
 
 Native cold-load ordering found in P01-load-A: SaveManager.LoadRoutine0600802C invokes State.PlayerState.PostLoad/TurnOn/CrossScene.TurnOn before Player.GameId is assigned from SaveInfo. ThreadedGameLoader.DoLoad replaces State.PlayerState with a newly deserialized Player before these callbacks. Preview.7 therefore binds early actor state to the selected load enumeration/new Player object; campaign and area are checked after native publication, before presentation. Four world/iterator regressions bring components to408/0; actual cold retry remains required. P01-save-D separately passes23 native assertions with true archive commit and usable same-session movement/attack. Its metadata clock exactly matches native player GameTime; no post-finalization rewrite is involved.
+
+## Chunk 5 combat restoration seam inspection - 2026-09-20
+
+ASSEMBLY CONTRACT only; P02 implementation/native qualification remains TODO. Exact installed Kingmaker MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`. Bounded local source and member inventory remain in `analysis-cache/chunk5-persistence`, outside Git/packages.
+
+| Installed seam | Verified responsibility and implication |
+|---|---|
+| SaveManager.IsSaveAllowed `06008028` | Explicitly rejects combat as well as missing area, game over, dialog, cutscene, global-map encounter and dual-companion switching. Combat admission needs a narrow verified exception that preserves every other gate. |
+| SaveRoutine `06008029` / SerializeAndSaveThread `0600802A` | The header barrier precedes TurnOff/PreSave. Workers serialize the live Player, cross-scene and area state; native gameplay resumes after serialization, while ZIP commit can continue. Snapshot consistency and failure recovery must respect these distinct boundaries. |
+| UnitEntityData.PostLoad `0600835E` | Recreates UnitCombatState and UnitCommands. Current cooldowns alone do not cover preparation, reaction/step commitments, RT move/deflect timestamps or engagement obligations. |
+| TurnController.Prepare `06000C3C` | Clears/reapplies native costs, refreshes reactions, invokes OnNewRound and round/AI/fact/confusion callbacks. Restoring an already-prepared context must not call Prepare; the next genuine activation must still do so exactly once. |
+| CombatController.StartTurn `06000BDA` / HandleCombatStart `06000BE2` / OnAreaDidLoad `06000BEC` | Controller/roster, initiative sequence, current actor and round/turn game-clock state are process-local. Starting a fresh encounter or turn performs gameplay work. A semantic rebind needs the saved roster/participation and a constructor-only current/partner context before ordinary ticking, not a late visual mount. |
+
+Native round/current-context fields and movement properties are inventoried by exact member token. Paired domain high-water values describe commitments and suspend eligibility; they are not automatically legitimate current native cooldown debt. No turn grant, round replay, refresh suppression or fixture mutation was performed during this inspection.
