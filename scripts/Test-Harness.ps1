@@ -5086,6 +5086,38 @@ try {
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
 
+    Invoke-HarnessTest 'P03 requires a declared native commitment and preserves strict other scenarios' {
+        try{
+            $v2Request.scenario='persistence-p03-save'
+            foreach($case in @('step','conversion')){
+                $v2Request['persistenceCase']=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            }
+            foreach($case in @('partial-movement','../human','')){
+                $v2Request.persistenceCase=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'P03 admitted a foreign/unrecognized commitment'
+            }
+            $v2Request.Remove('persistenceCase')
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P03 inferred missing commitment'
+            $v2Request['persistenceCase']='step';$v2Request.scenario='persistence-p02-save'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P03 case leaked into another scenario'
+        }finally{
+            $v2Request.Remove('persistenceCase')
+            $v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'P02 checkpoints are bounded parameters and do not relax fixture authority' {
         try {
             $v2Request.scenario='persistence-p02-save'

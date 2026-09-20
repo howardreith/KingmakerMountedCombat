@@ -117,6 +117,25 @@ namespace KingmakerMountedCombat.Tests
                 invalid.PersistenceCase = "rider-spent"; invalid.Fixture = null;
                 TestRunner.True(invalid.Validate().Count > 0, "Checkpoint bypassed fixture authority.");
             });
+            runner.Run("P03 preserves disjoint native commitment and save authority", () =>
+            {
+                foreach (var name in new[] { "step", "conversion" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = "persistence-p03-save";
+                    request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "P03 commitment rejected.");
+                    request.Scenario = "persistence-p02-save";
+                    TestRunner.True(request.Validate().Count > 0, "P03 case leaked into P02.");
+                    request.Scenario = "persistence-p03-load";
+                    TestRunner.True(request.Validate().Count > 0, "Cold P03 bypassed its archive identity.");
+                }
+                var invalid = ValidSaveBackedRequest(); invalid.Scenario = "persistence-p03-save";
+                TestRunner.True(invalid.Validate().Count > 0, "P03 inferred an undeclared commitment.");
+                invalid.PersistenceCase = "partial-movement";
+                TestRunner.True(invalid.Validate().Count > 0, "P02 case leaked into P03.");
+                invalid.PersistenceCase = "step"; invalid.Fixture = null;
+                TestRunner.True(invalid.Validate().Count > 0, "P03 bypassed fixture authority.");
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             NativeLoadWorldTests.Register(runner);

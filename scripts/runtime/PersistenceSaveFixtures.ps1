@@ -13,7 +13,7 @@ function Get-KmcPersistenceSource {
     Assert-KmcDirectoryTreeCloneable $root 'owned persistence source'
     $owner=Read-KmcJson (Join-Path $root 'owner.json')
     $result=Read-KmcJson (Join-Path $lab ('runtime-evidence/'+$SourceRunId+'/runtime-result.json'))
-    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p01-save','persistence-p02-save')-or$result.status-cne'PASS'-or
+    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')-or$result.status-cne'PASS'-or
         $result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or
         $result.modsRestored-ne$true-or$result.workingRestored-ne$true-or
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
@@ -68,18 +68,36 @@ function Assert-KmcP02Snapshot {
     }
 }
 
+function Assert-KmcP03Snapshot {
+    param($Snapshot,[string]$Checkpoint)
+    $c=$Snapshot.Combat
+    if($null-eq$c-or$c.Round-lt1-or$null-eq$c.Paired-or$null-eq$c.Paired.Activation-or
+        $c.Paired.Activation.Sequence-lt1-or$c.Current.ActorId-cne$Snapshot.Rider.Id-or
+        $Snapshot.Rider.Standard-ne0-or$Snapshot.Rider.Move-ne0){throw 'P03 snapshot lost the native rider grant/remainder.'}
+    $alloc=@($c.Allocations|Where-Object ActorId -CEQ $Snapshot.Mount.Id)
+    if($alloc.Count-ne1){throw 'P03 snapshot lost its mount movement commitment.'}
+    $a=$alloc[0]
+    $valid=switch -CaseSensitive ($Checkpoint){
+        'step' { $Snapshot.Mount.Standard-eq0-and$Snapshot.Mount.Move-eq0-and$a.Movement.MetresStepped-gt0-and$a.Movement.TimeStepped-gt0 }
+        'conversion' { $Snapshot.Mount.Standard-eq6-and$Snapshot.Mount.Move-gt3-and$Snapshot.Mount.Move-lt6-and$a.StandardCommitted-eq$true }
+        default { $false }
+    }
+    if(-not$valid){throw 'P03 actual archive does not match its declared native commitment.'}
+}
+
 function Assert-KmcPersistenceScenarioEvidence {
     param($Request,$Manifest,[string]$Status,$GameResult)
-    if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load') -or $Status-cne'PASS'){return}
+    if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load') -or $Status-cne'PASS'){return}
     $artifact=@($Manifest.artifacts|Where-Object relativePath -CEQ 'persistence-observations.jsonl')
     if($artifact.Count-ne1-or$artifact[0].kind-cne'persistence-evidence'){throw 'P01 has no exact observation artifact.'}
     $path=Join-Path $Request.evidenceRoot 'persistence-observations.jsonl'
     if((Get-KmcSha256 $path)-cne$artifact[0].sha256){throw 'P01 observations changed.'}
     $rows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     if($rows.Count-lt6-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
-    $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load')
+    $isCommitment=$Request.scenario-cin @('persistence-p03-save','persistence-p03-load')
+    $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')
     $checkpoint=if(@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'){[string]$Request.persistenceCase}else{'partial-movement'}
-    $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save')
+    $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
     foreach($row in $rows){
@@ -93,11 +111,16 @@ function Assert-KmcPersistenceScenarioEvidence {
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent')){$required+=@('movement-dispatched','movement-completed')}
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','between-partner-orders')){$required+=@('attack-dispatched','attack-delivered')}
     if($isCombat-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
-    if($isCombat-and$isWrite){
+    if($isCombat-and$isWrite-and-not$isCommitment){
         $required+=@('partial-movement-dispatched','partial-movement-completed')
         if($checkpoint-cin @('rider-spent','exhausted')){$required+=@('setup-rider-attack-dispatched','setup-rider-attack-delivered')}
         if($checkpoint-cin @('between-partner-orders','exhausted')){$required+=@('setup-mount-attack-dispatched','setup-mount-attack-delivered')}
         if($checkpoint-ceq'explicit-end'){$required+='explicit-end-requested'}
+    }
+    if($isCommitment){
+        if($isWrite){$required+=@('commitment-dispatched','commitment-created')}
+        if($checkpoint-ceq'step'){$required+=@('ordinary-movement-input-before','ordinary-movement-rejected','step-remainder-dispatched','step-remainder-completed')}
+        else{$required+=@('converted-standard-rejected','conversion-remainder-dispatched','conversion-remainder-completed')}
     }
     foreach($kind in $required){
         if(@($rows|Where-Object kind -CEQ $kind).Count-ne1){throw "Persistence is missing native outcome: $kind"}
@@ -118,11 +141,12 @@ function Assert-KmcPersistenceScenarioEvidence {
         if(@($final.detail.turnVisits).Count-lt4){throw 'P02 lacks observed native unrelated participation.'}
     }
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
-    if($Request.scenario-cin @('persistence-p01-save','persistence-p02-save')){
+    if($Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')){
         $written=@($rows|Where-Object kind -CEQ 'native-write-complete')
         if($written.Count-ne1){throw 'P01 save has no real completion observation.'}
         $d=$written[0].detail
-        if($isCombat){Assert-KmcP02Snapshot $d.snapshot $checkpoint}
+        if($isCommitment){Assert-KmcP03Snapshot $d.snapshot $checkpoint}
+        elseif($isCombat){Assert-KmcP02Snapshot $d.snapshot $checkpoint}
         $archive=Join-Path $root 'Manual_300_KMC_P01.zks'
         if($d.path-cne$archive-or$d.nativeType-cne'Manual'-or$d.nativeCallback-ne$true-or$d.operation-cne'None'-or
             (Get-KmcSha256 $archive)-cne$d.sha256-or(Get-Item $archive).Length-ne$d.length-or

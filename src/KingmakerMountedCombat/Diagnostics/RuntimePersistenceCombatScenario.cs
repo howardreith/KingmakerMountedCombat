@@ -68,6 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 observedTurn = turn;
                 turnVisits.Add(game.TurnBasedCombatController.RoundNumber + "|" + turn.Unit.UniqueId);
             }
+            if (CommitmentCase && AdvanceCommitmentProbe(turn)) return;
             if (stage == 0)
             {
                 Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
@@ -137,6 +138,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "P02-fresh-native-paired-boundary");
                 savedBoundary = turn; savedSequence = combat.PairedActivationSequence;
                 savedRound = game.TurnBasedCombatController.RoundNumber;
+                if (CommitmentCase) { BeginCommitmentFixture(); return; }
                 BeginCombatMovement(0.75f, "partial-movement-dispatched",
                     Checkpoint == "between-partner-orders" ? (Vector3?)RiderReachDestination() : null);
                 stage = 2; return;
@@ -232,6 +234,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Checkpoint == "rider-spent") { BeginRejectedWork(); return; }
                 stage = 9; return;
             }
+            if (stage == 32)
+            {
+                if (turn == null) return;
+                Check(combat.PairedActivationSequence == savedSequence && turn.Unit != rider && turn.Unit != mount,
+                    "P02-ended-pair-has-no-new-grant-during-next-native-turn");
+                BeginRejectedWork(); return;
+            }
             if (stage == 31)
             {
                 if (Time.frameCount < rejectedFrame + 8 || !PairIdle || move != null && !move.IsFinished) return;
@@ -257,6 +266,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.CombatState.Cooldown.MoveAction == 0 && mount.CombatState.Cooldown.StandardAction == 0 &&
                     mount.CombatState.Cooldown.MoveAction == 0 && combat.PairedPartnerContext.TimeMoved == 0,
                     "P02-next-true-activation-refreshes-once-without-old-commitments");
+                if (CommitmentCase)
+                    Check(CurrentCommitment.MetresStepped == 0 && CurrentCommitment.TimeStepped == 0,
+                        "P03-next-true-activation-refreshes-step-commitment-once");
                 laterActivations++; savedBoundary = turn;
                 Write("next-paired-activation", CombatObservation());
                 if (laterActivations < 2) { EndFixtureTurn(turn); return; }
@@ -280,6 +292,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 "P02-snapshot-has-native-round-and-participation");
             var riderSpent = data.Rider.Standard > 0;
             var mountSpent = data.Mount.Standard > 0;
+            if (CommitmentCase)
+            {
+                var allocation = saved.Allocations.Single(a => a.ActorId == data.Mount.Id);
+                var movement = allocation.Movement;
+                Check(!riderSpent && data.Rider.Move == 0 && saved.Current?.ActorId == data.Rider.Id &&
+                    (Checkpoint == "step" ? !mountSpent && data.Mount.Move == 0 &&
+                        movement.MetresStepped > 0 && movement.MetresStepped < TurnController.MetersOfFiveFootStep &&
+                        movement.TimeStepped > 0 : mountSpent && data.Mount.Standard == 6 &&
+                        data.Mount.Move > 3 && data.Mount.Move < 6 && allocation.StandardCommitted),
+                    "P03-actual-snapshot-matches-native-" + Checkpoint);
+                return;
+            }
             var valid = Checkpoint == "partial-movement" ? !riderSpent && !mountSpent && data.Mount.Move > 0 && data.Mount.Move < 3 :
                 Checkpoint == "rider-spent" ? riderSpent && !mountSpent && data.Mount.Move > 0 && data.Mount.Move < 3 :
                 Checkpoint == "between-partner-orders" ? !riderSpent && mountSpent && data.Mount.Move >= 3 :
@@ -302,6 +326,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ContinueSavedCheckpoint()
         {
+            if (CommitmentCase) { ContinueCommitment(); return; }
+            if (Checkpoint == "explicit-end") { stage = 32; return; }
             if (Checkpoint == "partial-movement" || Checkpoint == "rider-spent") { stage = 6; return; }
             BeginRejectedWork();
         }
@@ -361,8 +387,8 @@ namespace KingmakerMountedCombat.Diagnostics
             rejectedMount = MountedPersistenceService.CaptureActor(mount);
             Write("spent-work-input-before", CombatObservation());
             var before = controls.CaptureSnapshot().DispatchAcceptedCount;
-            if (rejectedRider.Standard > 0) Check(!TryPrimaryInput(false), "P02-spent-rider-standard-rejected");
-            if (rejectedMount.Standard > 0) Check(!TryPrimaryInput(true), "P02-spent-mount-standard-rejected");
+            if (rejectedRider.Standard > 0 || Checkpoint == "explicit-end") Check(!TryPrimaryInput(false), "P02-spent-rider-standard-rejected");
+            if (rejectedMount.Standard > 0 || Checkpoint == "explicit-end") Check(!TryPrimaryInput(true), "P02-spent-mount-standard-rejected");
             Check(controls.CaptureSnapshot().DispatchAcceptedCount == before && PairIdle,
                 "P02-spent-attack-admission-created-no-native-work");
             if (Checkpoint == "explicit-end")
@@ -404,7 +430,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return traced;
         }
 
-        private void BeginCombatMovement(float distance, string kind, Vector3? wantedDestination = null)
+        private void BeginCombatMovement(float distance, string kind, Vector3? wantedDestination = null,
+            bool step = false, bool requireCommand = true)
         {
             var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
@@ -413,13 +440,15 @@ namespace KingmakerMountedCombat.Diagnostics
             using (var input = new NativeOrdinaryAttackInput(destination))
             {
                 input.Predict();
-                for (var cycle = 0; (turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && cycle < 4; cycle++)
+                for (var cycle = 0; (turn.EnabledFiveFootStep != step || !step && turn.EnabledSingleActionMove) && cycle < 4; cycle++)
                 { input.Click(button: 1); input.Predict(); }
-                Check(!turn.EnabledFiveFootStep && input.Click(), "P02-ordinary-ground-input");
+                Check(turn.EnabledFiveFootStep == step, "P02-native-ground-cursor-policy");
+                var accepted = input.Click();
+                if (requireCommand) Check(accepted, "P02-ordinary-ground-input");
             }
             move = mount.Commands.Move as UnitMoveTo;
-            Check(move != null && move.Executor == mount, "P02-native-transport-owner");
-            Write(kind, CombatObservation());
+            if (requireCommand) Check(move != null && move.Executor == mount, "P02-native-transport-owner");
+            if (kind != null) Write(kind, CombatObservation());
         }
 
         private void EndFixtureTurn(TurnController turn)

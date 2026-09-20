@@ -48,8 +48,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disposed;
         internal bool Completed { get; private set; }
         internal RuntimeSubscenarioResult Result { get; private set; }
-        private bool Cold => request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load";
-        private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load";
+        private bool Cold => request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load";
+        private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load";
         private readonly MountedCombatController combat;
 
         internal RuntimePersistenceScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
@@ -68,7 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
-                try { Write("scenario-failed", new JObject { ["error"] = errors[0] }); }
+                try { Write("scenario-failed", new JObject { ["error"] = errors[0], ["stack"] = exception.ToString() }); }
                 catch (Exception error) { errors.Add("Failure observation: " + error.Message); }
                 try { Dispose(); }
                 catch (Exception error) { errors.Add("P01 cleanup: " + error.Message); }

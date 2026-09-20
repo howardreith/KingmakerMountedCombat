@@ -152,7 +152,7 @@ function Assert-FixtureEcho {
 function Assert-SubscenarioResults {
     param($Result)
     $missionScenarios = @(
-        'persistence-p01-save', 'persistence-p01-load', 'persistence-p02-save', 'persistence-p02-load',
+        'persistence-p01-save', 'persistence-p01-load', 'persistence-p02-save', 'persistence-p02-load', 'persistence-p03-save', 'persistence-p03-load',
         'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',

@@ -90,11 +90,13 @@ if ($schemaVersion -eq 1) {
 }
 elseif ($schemaVersion -eq 2) {
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
-    if($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
+    if($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion')){throw 'P03 requires its exact native commitment case.'}
+    }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
-    $extra=@(if($request.scenario -cin @('persistence-p01-load','persistence-p02-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
+    $extra=@(if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
-    if($request.scenario -cin @('persistence-p01-load','persistence-p02-load')){
+    if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load')){
         $d=$request.persistenceLoad
         Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cold archive descriptor'
         if($d.internalName-cne'KMC_P01'-or$d.fileName-cne'Manual_300_KMC_P01.zks'-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
@@ -134,7 +136,7 @@ $missionScenarios = @(
     'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
     'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
-$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
+$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }

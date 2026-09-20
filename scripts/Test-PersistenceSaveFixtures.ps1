@@ -76,5 +76,21 @@ Must-Reject {Assert-KmcP02Snapshot $snapshot 'rider-spent'} 'Spent-rider fixture
 $snapshot.Mount.Standard=6;$snapshot.Mount.Move=0
 Must-Reject {Assert-KmcP02Snapshot $snapshot 'between-partner-orders'} 'Spent mount accepted refunded movement'
 Must-Reject {Assert-KmcP02Snapshot $snapshot 'unknown'} 'Unknown checkpoint accepted'
+$snapshot.Rider|Add-Member NoteProperty Move 0
+$snapshot.Mount|Add-Member NoteProperty Id 'm'
+$snapshot.Mount.Standard=0;$snapshot.Mount.Move=0
+$snapshot.Combat|Add-Member NoteProperty Allocations @([pscustomobject]@{
+    ActorId='m';StandardCommitted=$false;Movement=[pscustomobject]@{MetresStepped=1.2;TimeStepped=0.3}})
+Assert-KmcP03Snapshot $snapshot 'step';$passes++
+$snapshot.Combat.Allocations[0].Movement.TimeStepped=0
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'step'} 'Step without native time accepted'
+$snapshot.Mount.Standard=6;$snapshot.Mount.Move=4
+$snapshot.Combat.Allocations[0].StandardCommitted=$true
+Assert-KmcP03Snapshot $snapshot 'conversion';$passes++
+$snapshot.Combat.Allocations[0].StandardCommitted=$false
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'conversion'} 'Conversion without commitment accepted'
+$snapshot.Combat.Allocations[0].StandardCommitted=$true;$snapshot.Mount.Move=6
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'conversion'} 'Conversion fixture without available remainder accepted'
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'unknown'} 'Unknown P03 checkpoint accepted'
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

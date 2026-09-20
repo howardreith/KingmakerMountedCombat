@@ -298,7 +298,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var host = active;
             if (host?.persistenceMode == null || host.completed ||
-                host.request.Scenario != "persistence-p02-save" && host.request.Scenario != "persistence-p02-load") return;
+                host.request.Scenario != "persistence-p02-save" && host.request.Scenario != "persistence-p02-load" &&
+                host.request.Scenario != "persistence-p03-save" && host.request.Scenario != "persistence-p03-load") return;
             if (host.persistenceMode.ReapplyTemporaryCacheAfterNativeRefresh())
                 host.logger.Info("P02 declared TB configuration cache reapplied after native settings refresh; no persisted setting or gameplay state written.");
         }
@@ -514,7 +515,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
                     saveAuthorization.BindPersistenceScope(persistenceBootstrap.Authority);
                 }
-                if (request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load")
+                if (request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load")
                 {
                     // Test configuration only, chosen before reading the selected archive.
                     persistenceMode = new NativeModeTransitionProbe(true);
@@ -681,7 +682,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 boundaryEngine = null;
             }
             else if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p01-load" ||
-                request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load")
+                request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load")
             {
                 if (persistenceEngine == null)
                     persistenceEngine = new RuntimePersistenceScenario(request, relationship, nativeControls, persistence, combat, diagnosticSettings, logger);
