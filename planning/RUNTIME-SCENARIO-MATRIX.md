@@ -1,6 +1,6 @@
 ## Active Chunk 4 checkpoint - 2026-09-20 UTC
 
-EY49 ground comparison46/4 FAIL reproduces native waypoint-plane termination at a full-footprint navmesh edge; actual Dismount then fails the fixture7m clearance search, leaving unmounted control pending. Candidate50 searches bounded7/9/11m with recorded rejection reasons and unchanged actual clearance/arrival thresholds. Next EZ; all101 native transactions plus EX prelaunch restored. Exact evidence, previous scoped passes and remaining final gates: [single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
+EZ50 ground comparison46/4 FAIL proves native rider clearance after Dismount; mounted arrival interruption repeats. Opposite native stopping residuals leave setup origins.06215m apart/.06m gate, so unmounted measurement remains pending.51 targets the actual first origin, with unchanged native movement/matching requirements. Next FA; all102 native transactions plus EX prelaunch restored. Exact evidence and remaining gates: [single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
 
 ## Chunk 2 current scenario pointer
 

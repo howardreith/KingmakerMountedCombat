@@ -30,6 +30,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 chunk4GroundMountedStart;
         private bool Chunk4GroundMounted => chunk4GroundCase == 0;
         private string Chunk4GroundId => Chunk4GroundMounted ? "C4-GROUND-mounted-arrival" : "C4-GROUND-unmounted-arrival";
+        // Native arrivals stop on their approach side. Target the measured first
+        // origin for the control so two independent stopping errors do not add.
+        private Vector3 Chunk4GroundPositioningOrigin => Chunk4GroundMounted ? Chunk4GroundOrigin : chunk4GroundMountedStart;
 
         private void BeginChunk4GroundArrival()
         {
@@ -95,7 +98,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!IsCombatReady(Chunk4GroundMounted) || CombatController.IsInTurnBasedCombat() || !Chunk4PairedPlayIdle ||
                     !rider.CombatState.CanActInCombat || !horse.CombatState.CanActInCombat) return;
-                chunk4GroundMove = BeginChunk4GroundInput(Chunk4GroundMounted ? rider : horse, horse, Chunk4GroundOrigin, Chunk4GroundId + "-positioning");
+                chunk4GroundMove = BeginChunk4GroundInput(Chunk4GroundMounted ? rider : horse, horse, Chunk4GroundPositioningOrigin, Chunk4GroundId + "-positioning");
                 chunk4GroundStage = 2; ResetLeafClock(); return;
             }
             if (chunk4GroundStage == 2)
@@ -103,7 +106,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!chunk4GroundMove.IsFinished || !Chunk4PairedPlayIdle || !rider.CombatState.CanActInCombat ||
                     !horse.CombatState.CanActInCombat) return;
                 var setup = new JObject { ["command"] = CaptureOrdinaryCommand(chunk4GroundMove), ["actual"] = CapturePosition(horse.Position),
-                    ["requested"] = CapturePosition(Chunk4GroundOrigin), ["residual"] = HorizontalDistance(horse.Position, Chunk4GroundOrigin),
+                    ["requested"] = CapturePosition(Chunk4GroundPositioningOrigin), ["residual"] = HorizontalDistance(horse.Position, Chunk4GroundPositioningOrigin),
                     ["trace"] = ordinaryAttackTrace.CaptureCaseEvents(Chunk4GroundId + "-positioning") };
                 observations[Chunk4GroundId + "-positioning"] = setup;
                 if (chunk4GroundMove.Result != UnitCommand.ResultType.Success ||

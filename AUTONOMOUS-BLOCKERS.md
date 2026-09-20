@@ -1,8 +1,8 @@
-# Active Chunk 4 - unmounted control clearance50, 2026-09-20 UTC
+# Active Chunk 4 - native control positioning51, 2026-09-20 UTC
 
-IN PROGRESS. Published source49 0c9c9941a4574bf2ceef64efd8019b571d9fb580 reproduces native Horse arrival interruption: waypoint-plane crossed while.471m from destination/.3m arrival radius; full-footprint probes encounter a navmesh edge. Actual Dismount succeeds, but the fixture's single7m rider-clearance ring finds no valid point, leaving unmounted attribution pending. Candidate50 expands only that bounded fixture search to7/9/11m, records rejection reasons and preserves all arrival/clearance/collision/cost requirements.
+IN PROGRESS. Published source50 d6bbb2bb20268086bba3bd6a28a0086893d7f1ed newly proves native rider clearance after actual Dismount. The mounted ground failure remains; the unmounted setup reaches its point but two opposite native stopping residuals leave origins.06215m apart, exceeding.06m. Candidate51 targets the observed mounted start for the control, retaining both native movement and the unchanged matching gate. Unmounted attribution remains pending; no gameplay repair.
 
-All101 native transactions and EX prelaunch attempt restored actual preview37/human data. Next: commit/package/guarded publication/suite50, unchanged-guard proof/exact request validation, then unused EZ ground comparison. Continue exact-final Charge, sustained combat, targeting, rider death, traversal/session and paired/A05/A10/Horse/Mammoth gates after attribution. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All102 native transactions and EX prelaunch restored actual preview37/human data. Next: commit/package/guarded publication/suite51, unchanged-guard proof/exact request validation, then unused FA ground comparison. Continue required exact-final Chunk4 and paired/A05/A10/Horse/Mammoth gates after attribution. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 ## Combined milestone disposition — 2026-09-08
