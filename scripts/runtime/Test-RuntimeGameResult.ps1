@@ -13,6 +13,7 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 
 function Assert-NoDuplicateJsonObjectProperties {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
@@ -104,7 +105,8 @@ function Assert-RuntimeArtifactManifest {
         $kind = $artifact.kind
         if (-not $seen.Add($relativePath)) { throw "Runtime artifact manifest contains duplicate path: $relativePath" }
 
-        $allowed = ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+        $allowed = ($relativePath -ceq 'persistence-observations.jsonl' -and $kind -ceq 'persistence-evidence') -or
+            ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
@@ -156,6 +158,7 @@ function Assert-FixtureEcho {
 function Assert-SubscenarioResults {
     param($Game)
     $missionScenarios = @(
+        'persistence-p01-save', 'persistence-p01-load',
         'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
@@ -280,18 +283,20 @@ Assert-KmcCombatScenarioEvidence -Request $request -Manifest $validatedArtifactM
 Assert-KmcHorseNativeAssetAuditEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -GameResult $game
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
+    $expectedNativeWrites = if ([string]$game.scenario -ceq 'persistence-p01-save') { 1 } else { 0 }
     $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
-        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne 0) {
+        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne $expectedNativeWrites) {
         throw 'Save-backed PASS crossed its exact scenario-bound load/save quota.'
     }
     $expectedSuppressedSaves = if ([string]$game.scenario -ceq 'native-save-clean-dismount') { 1 } else { 0 }
     if ([int]$game.suppressedWorkingSaveRequestCount -ne $expectedSuppressedSaves -or
-        [int]$game.saveRequestCount -ne $expectedSuppressedSaves) {
+        [int]$game.saveRequestCount -ne ($expectedSuppressedSaves + $expectedNativeWrites)) {
         throw 'Save-backed PASS crossed its exact suppressed-save request quota.'
     }
     if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or

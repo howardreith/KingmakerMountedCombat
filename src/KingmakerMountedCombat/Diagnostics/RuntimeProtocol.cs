@@ -72,7 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "ui-selection-portrait-actionbar",
             "camera-follow-and-command-routing",
             "fixture-intake",
-            "persistence-isolation",
+            "persistence-isolation", "persistence-p01-save", "persistence-p01-load",
             "lifecycle-suite",
             "combat-lifecycle-suite",
             "chunk4-traversal-core", "chunk4-traversal-slope", "chunk4-area-cleanup", "movement-suite",
@@ -123,6 +123,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public string SaveName { get; set; }
 
         public RuntimeFixtureIdentity Fixture { get; set; }
+
+        public RuntimeSaveDescriptor PersistenceLoad { get; set; }
 
         public RuntimeQualificationSuiteIdentity QualificationSuite { get; set; }
 
@@ -237,6 +239,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateLegacyNoSaveRequest(List<string> errors)
         {
+            if (PersistenceLoad != null) errors.Add("No-save requests cannot select an archive.");
             if (SaveAccessAllowed)
             {
                 errors.Add("Schema v1 never authorizes save access.");
@@ -265,6 +268,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateSaveBackedRequest(List<string> errors)
         {
+            if (Scenario == "persistence-p01-load")
+            {
+                if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");
+                else
+                {
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad", "KMC_P01", "^Manual_300_KMC_P01\\.zks$"));
+                    if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
+                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != Fixture.Working.Area)
+                        errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
+                }
+            }
+            else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
             if (SaveAccessAllowed || !string.IsNullOrEmpty(SaveName))
             {
                 errors.Add("Schema v2 uses only its exact fixture write authorization.");
@@ -478,6 +493,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "persistence-p01-save", "persistence-p01-load",
                     "C4-LIFE-rider-incapacitation",
         "C4-LIFE-rider-death-live-command",
         "C4-LIFE-mount-death-live-command",
@@ -731,6 +747,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public IReadOnlyList<string> Errors { get; set; }
 
         public RuntimeFixtureIdentity Fixture { get; set; }
+
 
         public bool BaselineImmutable { get; set; }
 

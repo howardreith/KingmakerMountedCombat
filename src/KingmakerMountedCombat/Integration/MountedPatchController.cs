@@ -32,7 +32,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly HarmonyInstance harmony;
         private bool disposed;
 
-        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
+        public MountedPatchController(GameMountedRelationshipService service, MountedPlayerActionController playerAction, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, NativeMountedControlService nativeControls, MountedPersistenceService persistence, MountedAnimationAdapter animation, MountedDollRoomIkAdapter dollRoomIk, RuntimeSaveAuthorization saveAuthorization, NativeLifecycleDeliveryLedger lifecycleLedger, IModLogger logger)
         {
             PatchBridge.Service = service ?? throw new ArgumentNullException(nameof(service));
             PatchBridge.PlayerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.ChargeSafety = new MountedChargeSafetyService(service, combat.RejectPairedControl);
             PatchBridge.UnifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
             PatchBridge.NativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
+            PatchBridge.Persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             PatchBridge.Animation = animation ?? throw new ArgumentNullException(nameof(animation));
             PatchBridge.DollRoomIk = dollRoomIk ?? throw new ArgumentNullException(nameof(dollRoomIk));
             PatchBridge.SaveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
@@ -87,6 +88,10 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
+                PatchExact(typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, null, nameof(PatchMethods.SavePreparedPostfix));
+                PatchExact(typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver", true),
+                    "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, nameof(PatchMethods.NativeSaveHeaderPrefix));
+                PatchExact(typeof(UnitEntityData), "PostLoad", 0x0600835E, Type.EmptyTypes, null, nameof(PatchMethods.ActorPostLoadPostfix));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix), nameof(PatchMethods.LoadPostfix));
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
@@ -176,6 +181,7 @@ namespace KingmakerMountedCombat.Integration
                     PatchBridge.Combat = null;
                     PatchBridge.UnifiedTurn = null;
                     PatchBridge.NativeControls = null;
+                    PatchBridge.Persistence = null;
                     PatchBridge.Animation = null;
                     PatchBridge.DollRoomIk = null;
                     PatchBridge.SaveAuthorization = null;
@@ -200,6 +206,7 @@ namespace KingmakerMountedCombat.Integration
             PatchBridge.ChargeSafety = null;
             PatchBridge.UnifiedTurn = null;
             PatchBridge.NativeControls = null;
+                    PatchBridge.Persistence = null;
             PatchBridge.Animation = null;
             PatchBridge.DollRoomIk = null;
             PatchBridge.SaveAuthorization = null;
@@ -249,6 +256,7 @@ namespace KingmakerMountedCombat.Integration
             internal static MountedCombatController Combat;
             internal static UnifiedMountedTurnCoordinator UnifiedTurn;
             internal static NativeMountedControlService NativeControls;
+            internal static MountedPersistenceService Persistence;
             internal static MountedAnimationAdapter Animation;
             internal static MountedDollRoomIkAdapter DollRoomIk;
             internal static RuntimeSaveAuthorization SaveAuthorization;
@@ -730,6 +738,7 @@ namespace KingmakerMountedCombat.Integration
                 bool suppressed;
                 var authorized = AuthorizeSaveBoundary(RuntimeSaveOperation.Write, __instance, saveInfo, ref __result, out suppressed);
                 if (!authorized && !suppressed) return false;
+                if (authorized && PatchBridge.Persistence != null) { __state = true; return true; }
                 // Retain the explicitly armed historical suppression probe. An
                 // unauthorized request must not dismount or change live controls.
                 if (!GuardNativeBoundary(NativeLifecycleBoundary.SaveRequest, CleanupTrigger.SaveRequested, "SaveManager.SaveRoutine Harmony12 prefix"))
@@ -744,8 +753,9 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void SavePostfix(ref IEnumerator<object> __result, bool __state)
             {
-                if (__state && PatchBridge.NativeControls != null && __result != null)
-                    __result = PatchBridge.NativeControls.WrapSaveRoutine(__result);
+                if (__state && __result != null)
+                    __result = PatchBridge.Persistence != null ? PatchBridge.Persistence.WrapSaveRoutine(__result) :
+                        PatchBridge.NativeControls == null ? __result : PatchBridge.NativeControls.WrapSaveRoutine(__result);
             }
 
             internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result, out bool __state)
@@ -764,9 +774,25 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
+            internal static void SavePreparedPostfix(SaveInfo save)
+            {
+                NativePersistenceIsolation.ObservePreparedWrite(save);
+                PatchBridge.Persistence?.ObservePreparedSave(save);
+            }
+
+            internal static void NativeSaveHeaderPrefix(ISaver __instance, string name) =>
+                PatchBridge.Persistence?.BeforeNativeHeader(__instance, name);
+
+            internal static void ActorPostLoadPostfix(UnitEntityData __instance) =>
+                PatchBridge.Persistence?.RestoreActorAfterPostLoad(__instance);
+
             internal static void LoadPostfix(SaveInfo saveInfo, ref IEnumerator<object> __result, bool __state)
             {
-                if (__state) __result = NativePersistenceIsolation.WrapReadOnlyLoad(__result, saveInfo.FolderName);
+                if (__state)
+                {
+                    PatchBridge.Persistence?.SelectLoad(saveInfo);
+                    __result = NativePersistenceIsolation.WrapReadOnlyLoad(__result, saveInfo.FolderName);
+                }
             }
 
             private static bool GuardNativeBoundary(NativeLifecycleBoundary boundary, CleanupTrigger trigger, string source)
@@ -827,6 +853,8 @@ namespace KingmakerMountedCombat.Integration
                             GameName = saveInfo.GameName,
                             Area = saveInfo.Area == null ? null : saveInfo.Area.AssetGuidThreadSafe
                         };
+                    if (authorization.IsPersistenceMode && operation == RuntimeSaveOperation.Write && saveInfo != null && !saveInfo.IsActuallySaved)
+                        target = NativePersistenceIsolation.ProjectNewRequest(saveManager, saveInfo);
                     var saveRoot = saveManager == null ? null : saveManager.SavePath;
                     decision = authorization.Authorize(operation, target, saveRoot);
                 }

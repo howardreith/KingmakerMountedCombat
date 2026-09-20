@@ -19,6 +19,9 @@ namespace KingmakerMountedCombat.Integration
     internal static class NativePersistenceIsolation
     {
         private static PersistenceSaveAuthorization authority;
+        private static readonly object writeGate = new object();
+        private static readonly Dictionary<ISaver, PersistenceSaveAuthorization.WriteLease> writes =
+            new Dictionary<ISaver, PersistenceSaveAuthorization.WriteLease>();
         private static readonly Guid ExpectedMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
 
         internal static void Bind(PersistenceSaveAuthorization authorizedScope)
@@ -36,6 +39,8 @@ namespace KingmakerMountedCombat.Integration
             Patch(harmony, typeof(SaveManager), "UpdateSaveListAsync", 0x0600800E, Type.EmptyTypes, null, "SaveRootTranspiler");
             Patch(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, null, "SaveRootTranspiler");
             Patch(harmony, NativeZipSaver, "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, "LoadHeaderJsonPrefix", null);
+            Patch(harmony, NativeZipSaver, "Clear", 0x06008067, Type.EmptyTypes, "ClearPrefix", null);
+            Patch(harmony, NativeZipSaver, "RenameFile", 0x0600806D, new[] { typeof(string) }, "RenamePrefix", null);
             Patch(harmony, NativeZipSaver, "Save", 0x06008068, Type.EmptyTypes, "LoadHeaderCommitPrefix", null);
             // Every native stash read/write/clear resolves this property.
             var stash = typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.AreaDataStash", true);
@@ -62,7 +67,8 @@ namespace KingmakerMountedCombat.Integration
             try
             {
             harmony.Patch(method, prefix == null ? null : new HarmonyMethod(typeof(NativePersistenceIsolation).GetMethod(prefix, flags)),
-                null, transpiler == null ? null : new HarmonyMethod(typeof(NativePersistenceIsolation).GetMethod(transpiler, flags)));
+                name == "Save" && type == NativeZipSaver ? new HarmonyMethod(typeof(NativePersistenceIsolation).GetMethod("CommitPostfix", flags)) : null,
+                transpiler == null ? null : new HarmonyMethod(typeof(NativePersistenceIsolation).GetMethod(transpiler, flags)));
             }
             catch (Exception exception)
             {
@@ -141,12 +147,79 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool LoadHeaderCommitPrefix(ISaver __instance)
         {
-            if (!IsSelectedReadOnlyArchive(__instance)) return true;
+            if (!IsSelectedReadOnlyArchive(__instance))
+            {
+                if (authority != null)
+                {
+                    lock (writeGate) if (!writes.ContainsKey(__instance)) throw new InvalidOperationException("Native commit has no authorized run-owned write lease.");
+                    NativeMountedSaveStorage.ConstrainIsolatedCommit(__instance, authority.Root);
+                }
+                return true;
+            }
             if (!readOnlyLoad.HeaderUpdates.Remove(__instance))
                 throw new InvalidOperationException("Read-only load attempted an unrecognized native archive commit.");
             // Preserve the actual source archive while native LoadedTimes updates
             // remain in the descriptor. This is never reported as a save write.
             return false;
+        }
+
+        internal static RuntimeSaveTarget Project(SaveInfo save) => new RuntimeSaveTarget
+        {
+            InternalName = save.Name, FileName = save.FileName, FullPath = save.FolderName,
+            SaveType = save.Type.ToString(), GameId = save.GameId, GameName = save.GameName,
+            Area = save.Area?.AssetGuidThreadSafe
+        };
+
+        internal static RuntimeSaveTarget ProjectNewRequest(SaveManager manager, SaveInfo save)
+        {
+            if (authority == null || manager.SavePath != authority.Root)
+                throw new InvalidOperationException("Native write projection requires exact active isolation.");
+            var suffix = save.Type == SaveInfo.SaveType.Manual ? "_" +
+                System.Text.RegularExpressions.Regex.Replace(save.Name, "[^a-zA-Z0-9]", "_") : string.Empty;
+            var leaf = save.Type + "_" + manager.FindUnusedSaveNumber(save.Type) + suffix + ".zks";
+            return new RuntimeSaveTarget
+            {
+                InternalName = save.Name, FileName = leaf, FullPath = Path.Combine(authority.Root, leaf),
+                SaveType = save.Type.ToString(), GameId = Kingmaker.Game.Instance.Player.GameId,
+                GameName = Kingmaker.Game.Instance.Player.MainCharacter.Value.CharacterName,
+                Area = Kingmaker.Game.Instance.CurrentlyLoadedArea.AssetGuidThreadSafe
+            };
+        }
+
+        internal static void ObservePreparedWrite(SaveInfo save)
+        {
+            if (authority == null) return;
+            lock (writeGate)
+            {
+                if (save?.Saver == null || writes.ContainsKey(save.Saver))
+                    throw new InvalidOperationException("Native writer was allocated ambiguously.");
+                writes.Add(save.Saver, authority.BeginWrite(Project(save), authority.Root));
+            }
+        }
+
+        private static void CommitPostfix(ISaver __instance)
+        {
+            if (authority == null || IsSelectedReadOnlyArchive(__instance)) return;
+            lock (writeGate)
+            {
+                if (!writes.TryGetValue(__instance, out var lease)) return;
+                lease.Complete();
+                writes.Remove(__instance);
+            }
+        }
+
+        private static void ClearPrefix(ISaver __instance)
+        {
+            if (authority == null) return;
+            lock (writeGate)
+                if (!writes.ContainsKey(__instance))
+                    throw new InvalidOperationException("Native deletion has no exact run-owned write lease.");
+        }
+
+        private static void RenamePrefix()
+        {
+            if (authority != null)
+                throw new InvalidOperationException("Native rename is not authorized by the single-write bootstrap contract.");
         }
 
         private static IEnumerable<CodeInstruction> SaveRootTranspiler(IEnumerable<CodeInstruction> source, MethodBase __originalMethod)

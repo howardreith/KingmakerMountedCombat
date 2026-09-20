@@ -249,7 +249,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void ObserveOrCleanupGameMode(NativeLifecycleBoundary boundary, string source, GameModeType gameMode)
         {
-            if (MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) || service.State != RelationshipState.Mounted)
+            if (service.SaveSerializationSuspended ||
+                MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) || service.State != RelationshipState.Mounted)
             {
                 Observe(boundary, source, service.CapturePresentationObservation(false));
                 return;

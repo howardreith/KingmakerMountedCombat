@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat
         private readonly MountedPatchController patches;
         private readonly MountedPlayerActionController playerAction;
         private readonly NativeMountedControlService nativeControls;
+        private readonly MountedPersistenceService persistence;
         private readonly MountedCombatController combat;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
@@ -66,7 +67,8 @@ namespace KingmakerMountedCombat
                     settings,
                     lifecycleLedger,
                     logger);
-                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
+                persistence = new MountedPersistenceService(relationship, nativeControls, settings, logger);
+                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -79,6 +81,7 @@ namespace KingmakerMountedCombat
                     combat,
                     horseCompanion,
                     nativeControls,
+                    persistence,
                     animation,
                     dollRoomIk,
                     settings,
@@ -121,6 +124,8 @@ namespace KingmakerMountedCombat
 
         internal MountedLifecycleSubscriber Lifecycle => lifecycle;
 
+        internal MountedPersistenceService Persistence => persistence;
+
         public bool SetEnabled(bool enabled)
         {
             ThrowIfDisposed();
@@ -133,6 +138,7 @@ namespace KingmakerMountedCombat
                     return false;
                 }
                 IsEnabled = true;
+                persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
                 var overlayEnabled = settings.EnableDiagnosticOverlay ||
                     (runtimeAutomation != null && runtimeAutomation.RequiresLegacyDiagnosticOverlay);
@@ -156,6 +162,7 @@ namespace KingmakerMountedCombat
                 return false;
             }
             IsEnabled = false;
+            persistence.Enabled = false;
             nativeControls.SetEnabled(false);
             playerAction.SetOverlayEnabled(false);
             logger.Info("Private-alpha services disabled; native control facts and transient UI removed with no mounted state retained.");
@@ -201,6 +208,7 @@ namespace KingmakerMountedCombat
         {
             ThrowIfDisposed();
             horseCompanion.Update();
+            persistence.Update();
             nativeControls.Update();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
@@ -216,6 +224,7 @@ namespace KingmakerMountedCombat
                 return;
             }
 
+            if (persistence.SaveSuspended) return;
             combat.Update();
             unifiedTurn.Update();
             relationship.ValidateActivePair();
@@ -224,7 +233,8 @@ namespace KingmakerMountedCombat
         public void DrawGui()
         {
             ThrowIfDisposed();
-            GUILayout.Label("Phase 2 private-alpha presentation work. The mounted relationship is transient and is cleaned before save/load/area boundaries.");
+            GUILayout.Label("Chunk 5 development: mounted saves restore the eligible pair and its saved state. Cold-load qualification is in progress.");
+            GUILayout.Label(persistence.Feedback);
             settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha mounted player action");
             var configurationEnabled = GUI.enabled;
             GUI.enabled = configurationEnabled && unifiedTurn.CanConfigurePairedActivation;
@@ -303,7 +313,7 @@ namespace KingmakerMountedCombat
             horseCompanion.Dispose();
             IsEnabled = false;
             disposed = true;
-            logger.Info("Composition root disposed; no mounted relationship was serialized.");
+            logger.Info("Composition root disposed; transient mounted references released.");
         }
 
         private void ThrowIfDisposed()

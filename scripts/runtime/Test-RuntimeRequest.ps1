@@ -89,7 +89,16 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $request @($commonRequired + @('saveAccessAllowed','saveName')) 'runtime request v1'
 }
 elseif ($schemaVersion -eq 2) {
-    Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite')) 'runtime request v2'
+    $extra=@(if($request.scenario -ceq 'persistence-p01-load'){'persistenceLoad'})
+    Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
+    if($extra.Count -gt 0){
+        $d=$request.persistenceLoad
+        Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cold archive descriptor'
+        if($d.internalName-cne'KMC_P01'-or$d.fileName-cne'Manual_300_KMC_P01.zks'-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+            $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
+            -not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or$d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Cold archive identity is invalid.'}
+        foreach($name in @('gameId','gameName','area')){if($d.$name-cne$request.fixture.working.$name){throw 'Cold archive campaign differs.'}}
+    }
 }
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
@@ -122,7 +131,7 @@ $missionScenarios = @(
     'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
     'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
-$aggregateScenarios = @('fixture-intake','persistence-isolation','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
+$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }

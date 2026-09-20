@@ -49,6 +49,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string ManualSaveType = "Manual";
         private readonly object sync = new object();
         private AuthorizationScope activeScope;
+        private PersistenceSaveAuthorization persistenceScope;
+        internal bool IsPersistenceMode { get { lock (sync) return persistenceScope != null; } }
+
+        internal void BindPersistenceScope(PersistenceSaveAuthorization scope)
+        {
+            lock (sync)
+            {
+                if (scope == null || activeScope == null || persistenceScope != null || activeScope.SaveRoot != scope.Root)
+                    throw new InvalidOperationException("Persistence authorization needs an exact active isolated scope.");
+                persistenceScope = scope;
+            }
+        }
         private int generation;
         private int fatalViolationCount;
         private string lastFatalViolation;
@@ -201,7 +213,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 return new RuntimeSaveAuthorizationDecision(true, false, "Runtime automation save authorization is inactive.");
             }
 
-            var rejection = ValidateActiveRequest(scope, operation, target, observedSaveRoot, false);
+            var rejection = persistenceScope == null ? ValidateActiveRequest(scope, operation, target, observedSaveRoot, false) :
+                persistenceScope.Validate(operation, target, observedSaveRoot);
             if (rejection == null)
             {
                 lock (sync)
@@ -209,10 +222,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (operation == RuntimeSaveOperation.Load) { authorizedLoadCount++; }
                     else { authorizedWriteCount++; }
                 }
-                return new RuntimeSaveAuthorizationDecision(true, false, "Exact KMC Working save target authorized.");
+                return new RuntimeSaveAuthorizationDecision(true, false, persistenceScope == null ? "Exact KMC Working save target authorized." : "Exact run-owned persistence target authorized.");
             }
 
-            if (operation == RuntimeSaveOperation.Write && !scope.AllowWorkingWrites &&
+            if (persistenceScope == null && operation == RuntimeSaveOperation.Write && !scope.AllowWorkingWrites &&
                 ValidateActiveRequest(scope, operation, target, observedSaveRoot, true) == null)
             {
                 lock (sync)
@@ -417,6 +430,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (activeScope != null && generation == leaseGeneration)
                 {
                     activeScope = null;
+                    persistenceScope = null;
                     oneShotWorkingWriteSuppressionArmed = false;
                 }
             }

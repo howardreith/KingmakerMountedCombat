@@ -60,6 +60,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private IDisposable saveAuthorizationLease;
         private WorkingFixtureLoader fixtureLoader;
         private PersistenceIsolationBootstrap persistenceBootstrap;
+        private readonly MountedPersistenceService persistence;
+        private RuntimePersistenceScenario persistenceEngine;
         private bool fixtureLoaderStarted;
         private bool fixtureIdentityVerified;
         private bool fixtureScenarioCompleted;
@@ -94,7 +96,7 @@ namespace KingmakerMountedCombat.Diagnostics
             request.Scenario != "combat-lifecycle-suite" &&
             request.Scenario != "chunk4-area-cleanup" &&
             request.Scenario != "chunk4-traversal-core" &&
-            request.Scenario != "chunk4-traversal-slope";
+            request.Scenario != "chunk4-traversal-slope" && !PersistenceIsolationBootstrap.Supports(request.Scenario);
 
         public string RunId => request.RunId;
 
@@ -133,6 +135,7 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedCombatController combat,
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
+            MountedPersistenceService persistence,
             MountedAnimationAdapter animation,
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
@@ -150,6 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.horseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
             this.nativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
+            this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             this.animation = animation ?? throw new ArgumentNullException(nameof(animation));
             this.dollRoomIk = dollRoomIk ?? throw new ArgumentNullException(nameof(dollRoomIk));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
@@ -185,6 +189,7 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedCombatController combat,
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
+            MountedPersistenceService persistence,
             MountedAnimationAdapter animation,
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
@@ -255,7 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls,
+                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls, persistence,
                 animation, dollRoomIk, diagnosticSettings, registeredToggle);
         }
 
@@ -497,6 +502,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (!persistenceBootstrap.TryPrepare()) return;
                     saveAuthorizationLease.Dispose();
                     saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
+                    saveAuthorization.BindPersistenceScope(persistenceBootstrap.Authority);
                 }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();
@@ -657,7 +663,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 CollectEngineErrors(boundaryEngine.Errors, "Boundary");
                 boundaryEngine = null;
             }
-            else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal) || request.Scenario == PersistenceIsolationBootstrap.Scenario)
+            else if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p01-load")
+            {
+                if (persistenceEngine == null)
+                    persistenceEngine = new RuntimePersistenceScenario(request, relationship, nativeControls, persistence, diagnosticSettings, logger);
+                persistenceEngine.Update();
+                if (!persistenceEngine.Completed) return;
+                subscenarioResults = new[] { persistenceEngine.Result };
+            }
+            else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal) || PersistenceIsolationBootstrap.Supports(request.Scenario))
             {
                 subscenarioResults = new[]
                 {
@@ -790,9 +804,10 @@ namespace KingmakerMountedCombat.Diagnostics
             // already-transactional Working header; every SaveRoutine request stays denied.
             saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, game.SaveManager.SavePath, false);
             fixtureLoader = new WorkingFixtureLoader(request, logger);
-            if (request.Scenario == PersistenceIsolationBootstrap.Scenario)
+            if (PersistenceIsolationBootstrap.Supports(request.Scenario))
             {
                 diagnosticSettings.EnablePairedActivation = true;
+                diagnosticSettings.EnableUnsafeMovementExperiment = request.Scenario != PersistenceIsolationBootstrap.Scenario;
                 diagnosticSettings.EnableUnifiedMountedTurn = false;
                 diagnosticSettings.EnablePairedCommandScheduler = false;
                 diagnosticSettings.EnableDiagnosticOverlay = false;
@@ -897,6 +912,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             disposed = true;
+            persistenceEngine?.Dispose();
             manualReviewSession?.Dispose();
             manualReviewSession = null;
             lifecycleEngine?.Dispose();
@@ -1525,6 +1541,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 BoundaryScenarioEvidenceContract.EvidenceFileName,
                 "boundary-evidence");
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "persistence-observations.jsonl", "persistence-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "combat-scenario-evidence.jsonl", "combat-evidence");

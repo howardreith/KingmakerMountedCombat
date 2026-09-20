@@ -15,6 +15,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed class PersistenceIsolationBootstrap
     {
         internal const string Scenario = "persistence-isolation";
+        internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load";
+        internal PersistenceSaveAuthorization Authority => authority;
         private const string HarmonyId = "KingmakerMountedCombat.PersistenceIsolation";
         private readonly RuntimeRequest request;
         private static readonly FieldInfo UpdateTask = typeof(SaveManager).GetField("m_UpdateTask", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -25,7 +27,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal PersistenceIsolationBootstrap(RuntimeRequest request)
         {
-            if (request == null || request.Scenario != Scenario || request.Validate().Count != 0)
+            if (request == null || !Supports(request.Scenario) || request.Validate().Count != 0)
                 throw new ArgumentException("An exact persistence bootstrap request is required.");
             this.request = request;
         }
@@ -45,16 +47,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (priorTask != null && !priorTask.IsCompleted) return false;
                 var lab = Path.GetDirectoryName(Path.GetDirectoryName(request.EvidenceRoot));
                 var runRoot = Path.Combine(lab, "runtime-staging", "persistence-" + request.RunId);
-                var fixture = request.Fixture.Working;
+                var fixture = request.PersistenceLoad ?? request.Fixture.Working;
+                var entries = new System.Collections.Generic.List<PersistenceSaveEntry>
+                {
+                    new PersistenceSaveEntry { FileName = fixture.FileName, InternalName = fixture.InternalName,
+                        SaveType = "Manual", Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
+                };
+                if (request.Scenario == "persistence-p01-save") entries.Add(new PersistenceSaveEntry
+                {
+                    FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
+                    Writable = true
+                });
                 authority = new PersistenceSaveAuthorization(runRoot, fixture.GameId, fixture.GameName,
-                    request.Fixture.Baseline.Sha256, new[]
-                    {
-                        new PersistenceSaveEntry
-                        {
-                            FileName = fixture.FileName, InternalName = fixture.InternalName, SaveType = "Manual",
-                            Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false
-                        }
-                    });
+                    request.Fixture.Baseline.Sha256, entries);
                 var areas = Path.Combine(runRoot, "Areas");
                 if (!Directory.Exists(areas) || Directory.EnumerateFileSystemEntries(areas).Any() ||
                     (File.GetAttributes(areas) & FileAttributes.ReparsePoint) != 0)
@@ -81,7 +86,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal bool VerifyLoaded(string actualLoadedPath)
         {
-            if (!Ready || actualLoadedPath != Path.Combine(SaveRoot, request.Fixture.Working.FileName) ||
+            if (!Ready || actualLoadedPath != Path.Combine(SaveRoot, (request.PersistenceLoad ?? request.Fixture.Working).FileName) ||
                 Game.Instance.SaveManager.SavePath != SaveRoot ||
                 NativePersistenceIsolation.ObservedStashFolder != Path.Combine(Path.GetDirectoryName(SaveRoot), "Areas"))
                 return false;

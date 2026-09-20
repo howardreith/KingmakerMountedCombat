@@ -16,7 +16,7 @@ param(
         'mounted-pair-stop-start','mounted-pair-turns-and-corners','mounted-pair-doorway','mounted-distance-door-interaction','mounted-pair-selection',
         'mounted-pair-party-formation','mounted-pair-pause-unpause','mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup','mounted-pair-realtime-entry-cleanup','mounted-pair-save-safety',
-        'mounted-pair-load-safety','mounted-pair-area-transition-safety','fixture-intake','persistence-isolation','lifecycle-suite','combat-lifecycle-suite',
+        'mounted-pair-load-safety','mounted-pair-area-transition-safety','fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','lifecycle-suite','combat-lifecycle-suite',
         'native-save-clean-dismount','native-area-clean-dismount','native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety','pose-idle','pose-walk-run','pose-turn-stop',
         'pose-doorway-formation','pose-equipment-variants','ui-selection-portrait-actionbar',
@@ -35,6 +35,8 @@ param(
     [ValidateRange(360,900)][int]$TimeoutSeconds=360,
     [switch]$SaveAccessAllowed,
     [string]$PackagePath,
+    [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -65,6 +67,7 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
 $repoRoot=Get-KmcRepositoryRoot
@@ -242,7 +245,7 @@ $errors=New-Object 'System.Collections.Generic.List[string]'
 New-Item -ItemType Directory -Path $evidenceRoot|Out-Null
 try{
     $lock=Open-KmcRuntimeLock $runtimeState $actualRunId
-    if($Scenario -ceq 'persistence-isolation'){
+    if($Scenario -cin @('persistence-isolation','persistence-p01-save','persistence-p01-load')){
         $profileSnapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saveRoot -GameRoot ([string]$intake.requestedLayout.kingmakerInstallDir) -BackupRoot $runtimeBackups
     }
     $request=[ordered]@{
@@ -295,24 +298,33 @@ try{
             -After (Get-KmcSaveMetadataInventory $saveRoot) `
             -Description 'runtime immediate pre-save-transaction metadata'
         [void](Enter-KmcWorkingSaveTransaction -Lock $lock -Pair $lockedPair -SaveRoot $saveRoot -StateRoot $runtimeState -BackupRoot $runtimeBackups -StagingRoot $runtimeStaging -Scenario $Scenario)
-        if($Scenario -ceq 'persistence-isolation'){
+        if($Scenario -cin @('persistence-isolation','persistence-p01-save','persistence-p01-load')){
             $profileRoot=Assert-KmcChildPath (Join-Path $runtimeStaging ('persistence-'+$actualRunId)) $runtimeStaging 'owned persistence profile'
             if(Test-Path -LiteralPath $profileRoot){throw 'Persistence profile already exists; refusing ambiguous ownership.'}
             [void][IO.Directory]::CreateDirectory($profileRoot)
             $isolatedSaves=Join-Path $profileRoot 'Saved Games'
             [void][IO.Directory]::CreateDirectory($isolatedSaves)
             [void][IO.Directory]::CreateDirectory((Join-Path $profileRoot 'Areas'))
-            $copiedFixture=Join-Path $isolatedSaves ([string]$lockedPair.working.fileName)
-            Assert-KmcNotReparsePoint $lockedWorkingPath 'persistence fixture source'
-            Assert-KmcNotHardLink $lockedWorkingPath 'persistence fixture source'
-            Copy-Item -LiteralPath $lockedWorkingPath -Destination $copiedFixture
-            [IO.File]::SetLastWriteTimeUtc($copiedFixture,([IO.File]::GetLastWriteTimeUtc($lockedWorkingPath)))
-            if((Get-KmcSha256 $copiedFixture)-cne[string]$fixturePayload.working.sha256){
+            $copySource=$lockedWorkingPath
+            $copyDescriptor=$fixturePayload.working
+            if($Scenario -ceq 'persistence-p01-load'){
+                $source=Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload
+                $copySource=$source.path;$copyDescriptor=$source.descriptor
+                $request['persistenceLoad']=$copyDescriptor
+            }elseif(-not [string]::IsNullOrEmpty($PersistenceSourceRunId)-or-not [string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256)){
+                throw 'Only the dedicated cold-load scenario may select an owned archive.'
+            }
+            $copiedFixture=Join-Path $isolatedSaves ([string]$copyDescriptor.fileName)
+            Assert-KmcNotReparsePoint $copySource 'persistence fixture source'
+            Assert-KmcNotHardLink $copySource 'persistence fixture source'
+            Copy-Item -LiteralPath $copySource -Destination $copiedFixture
+            [IO.File]::SetLastWriteTimeUtc($copiedFixture,([IO.File]::GetLastWriteTimeUtc($copySource)))
+            if((Get-KmcSha256 $copiedFixture)-cne[string]$copyDescriptor.sha256){
                 throw 'Copied persistence fixture bytes differ from the admitted Working fixture.'
             }
             Write-KmcJsonAtomic (Join-Path $profileRoot 'owner.json') ([ordered]@{
                 runId=$actualRunId;transactionToken=[string]$lock.Token;scenario=$Scenario
-                sourceSha256=[string]$fixturePayload.working.sha256;saveRoot=$isolatedSaves
+                sourceSha256=[string]$copyDescriptor.sha256;saveRoot=$isolatedSaves
             })
         }
 

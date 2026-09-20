@@ -904,6 +904,45 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal SavedMountedSlot[] CapturePersistentSlots()
+        {
+            var result = new List<SavedMountedSlot>();
+            foreach (var unit in CollectCandidateUnits())
+            {
+                var slots = unit?.UISettings?.Slots;
+                if (slots == null) continue;
+                for (var i = 0; i < slots.Length; i++)
+                {
+                    var kind = ResolveKind((slots[i] as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
+                    if (kind != NativeMountedControlKind.None)
+                        result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = (int)kind });
+                }
+            }
+            return result.ToArray();
+        }
+
+        internal void RestorePersistentSlots(SavedMountedSlot[] bindings)
+        {
+            Update();
+            var candidates = CollectCandidateUnits();
+            foreach (var binding in bindings)
+            {
+                var units = candidates.Where(u => u.UniqueId == binding.ActorId).ToArray();
+                if (units.Length != 1) continue;
+                var unit = units[0];
+                var slots = unit.UISettings?.Slots;
+                if (slots == null || binding.Index >= slots.Length) continue;
+                var current = slots[binding.Index];
+                var existingKind = ResolveKind((current as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
+                if (existingKind == (NativeMountedControlKind)binding.Kind) continue;
+                if (current != null && !(current is MechanicActionBarSlotEmpty)) continue;
+                var blueprint = EnumerateBlueprints().SingleOrDefault(b => (int)ResolveKind(b) == binding.Kind);
+                var fact = blueprint == null ? null : unit.Descriptor.Abilities.GetAbility(blueprint);
+                if (fact != null && fact.Active)
+                    unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = fact.Data }, binding.Index);
+            }
+        }
+
         private void CaptureAndClearManagedHotbarSlots()
         {
             hotbarSerializationLeases.Clear();
@@ -929,7 +968,7 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private void EndSaveSerializationScope()
+        internal void EndSaveSerializationScope()
         {
             if (!serializationSuspended)
             {

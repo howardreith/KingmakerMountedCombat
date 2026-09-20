@@ -89,7 +89,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
 
                 var root = Path.GetFullPath(game.SaveManager.SavePath).TrimEnd(Path.DirectorySeparatorChar);
-                var working = request.Fixture.Working;
+                var working = (request.PersistenceLoad ?? request.Fixture.Working);
                 var candidate = Path.GetFullPath(Path.Combine(root, working.FileName));
                 if (!string.Equals(Path.GetDirectoryName(candidate).TrimEnd(Path.DirectorySeparatorChar), root, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(Path.GetFileName(candidate), working.FileName, StringComparison.Ordinal))
@@ -166,7 +166,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return false;
                 }
 
-                var fixture = request.Fixture.Working;
+                var fixture = (request.PersistenceLoad ?? request.Fixture.Working);
                 if (!string.Equals(game.Player.GameId, fixture.GameId, StringComparison.Ordinal))
                 {
                     throw new InvalidOperationException("Loaded Player.GameId differs from the qualified Working descriptor.");
@@ -214,7 +214,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private static void VerifyDescriptor(SaveInfo observed, RuntimeSaveDescriptor expected, string expectedPath)
         {
             var observedArea = observed.Area == null ? null : observed.Area.AssetGuidThreadSafe;
-            if (!string.Equals(observed.Name, RuntimeRequest.WorkingSaveName, StringComparison.Ordinal) ||
+            if (!string.Equals(observed.Name, expected.InternalName, StringComparison.Ordinal) ||
                 !string.Equals(observed.FileName, expected.FileName, StringComparison.Ordinal) ||
                 !string.Equals(Path.GetFullPath(observed.FolderName), expectedPath, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(observed.GameId, expected.GameId, StringComparison.Ordinal) ||

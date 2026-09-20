@@ -4,7 +4,7 @@ Status: IN PROGRESS. Integration descends from reviewed `8a297fa019ff205f50fd7b9
 
 ## Storage, transaction and resume semantics
 
-IN PROGRESS. Exact installed SaveManager/ISaver/ZipSaver inspection and owned native archive I/O establish an in-transaction primitive member seam. Use extensionless `kmc-mounted-state`: the installed loader treats unknown `.json` members as area state. Primitive UTF8 metadata survives native commit, clone and rename; no post-finalization rewrite is needed. Production schema/snapshot/rebind integration is not implemented yet. Save-specific state must travel in the archive and preserve spent and unused actions without repeating preparations.
+IN PROGRESS. Exact installed SaveManager/ISaver/ZipSaver inspection and owned native archive I/O establish an in-transaction primitive member seam. Use extensionless `kmc-mounted-state`: the installed loader treats unknown `.json` members as area state. Primitive UTF8 metadata survives native commit, clone and rename; no post-finalization rewrite is needed. Preview.3 implements the bounded schema, per-enumerator snapshot at native header serialization, current native actor debt at PostLoad and dedicated validated pair/control attachment. The first native write/cold-load qualification is next; combat state remains explicitly unsupported in this development slice. Save-specific state must travel in the archive and preserve spent and unused actions without repeating preparations.
 
 ## Qualification
 
@@ -19,18 +19,18 @@ IN PROGRESS. Exact installed SaveManager/ISaver/ZipSaver inspection and owned na
 | P07 | Failed/canceled operations, views/areas, disable/removal | TODO |
 | P08 | Final accepted gameplay regression including post-load variants | TODO |
 
-COMPONENT / ASSEMBLY CONTRACT / NATIVE INTEGRATION / HUMAN PLAY remain distinct. Preview.2: source 22/0, components 402/0, harness 250/0, focused contracts 19/0, profile/settings guards 8/0, actual installation registration 6/0. Logs remain in `analysis-cache/chunk5-persistence`; no P01-P08 runtime qualification is claimed.
+COMPONENT / ASSEMBLY CONTRACT / NATIVE INTEGRATION / HUMAN PLAY remain distinct. Preview.3: source22/0, components404/0, harness250/0, focused native archive/write-lease contracts23/0, primitive data25/0, owned-copy guards8/0. Profile/settings guards8/0 and actual installation registration6/0 remain applicable. Logs remain in `analysis-cache/chunk5-persistence`; no P01-P08 runtime qualification is claimed.
 
 ## Isolation bootstrap and exact seams
 
-- `persistence-isolation` copies only the admitted Working fixture into a run-owned lab profile. Native enumeration/descriptor/stash paths are redirected and cloud operations suppressed for that process. Existing strict write denial remains active; the exact read archive stays unchanged. Root/campaign/leaf/type/hash authority rejects traversal, aliases, links, foreign campaigns and unknown existing files. It is not yet connected to native writes.
-- Authorization precedes save/load cleanup. Per-enumerator control scopes unwind on completion, failure and disposal. Ordinary saves still use historical dismount behavior until the dedicated persistence path is implemented.
+- `persistence-isolation` copies only the admitted Working fixture into a run-owned lab profile. Native enumeration/descriptor/stash paths are redirected and cloud operations suppressed for that process. Existing strict write denial remains active; the exact read archive stays unchanged. Root/campaign/leaf/type/hash authority rejects traversal, aliases, links, foreign campaigns and unknown existing files. The P01 save scenario now admits one explicit native Manual destination, leases its actual prepared writer, constrains ZIP temporary files to the same root and requires real commit before load admission. Native write qualification is pending.
+- Authorization precedes save/load cleanup. Per-enumerator control scopes unwind on completion, failure and disposal. The new ordinary save path retains the pair and suspends only serialization-sensitive controls and AI fields; native same-session qualification is pending.
 - `SaveRoutine` creation precedes serialization. The native routine waits, allocates a temporary descriptor, takes a screenshot, turns entities off and starts worker serialization. Iterator completion may precede final commit/overwrite. Native `LoadRoutine` mutates its header counter; test isolation suppresses only that selected archive's scoped SaveJson/Save calls, never claims a write occurred, and retains source bytes.
 - Native TB load reconstructs controller state; late visual restoration alone cannot preserve legitimate grants. Snapshot and early semantic rebind remain required.
 
 Exact assembly MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`. Proprietary inspection stays outside Git. Detached checks prove method construction and real owned native archive behavior, not Unity lifecycle or gameplay.
 
-Bootstrap history: A failed before launch on culturally ambiguous profile ordering, now fixed with ordinal digest regression. B failed before fixture loading because Harmony12 rejected the iterator MoveNext patch; preview.2 replaces it with narrow native ZipSaver hooks and an exception-safe selected-load scope. Full actual WhatIf purity PASS on source `8612544`; the preflight/WhatIf branches remain unchanged. Next is fresh package/suite and isolation-C, then P01.
+Bootstrap history: A failed before launch on culturally ambiguous profile ordering, now fixed with ordinal digest regression. B failed before fixture loading because Harmony12 rejected the iterator MoveNext patch; preview.2 replaces it with narrow native ZipSaver hooks and an exception-safe selected-load scope. Full actual WhatIf purity PASS on source `8612544`; the preflight/WhatIf branches remain unchanged. Isolation-C PASS14/0 native and PASS outer on preview.2/source1b8747e, with normal process exit and exact actual intake restoration. Next is preview.3 p01-native-save package/suite4, then actual P01 save and a separate cold-load process.
 
 ## Intake and restoration
 

@@ -94,7 +94,9 @@ public static class KmcPersistenceContractProbe
             var nativeSaver=native.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver",true);
             patch.Invoke(null,new object[]{harmony,nativeSaver,"SaveJson",0x06008063,new[]{typeof(string),typeof(string)},"LoadHeaderJsonPrefix",null});
             patch.Invoke(null,new object[]{harmony,nativeSaver,"Save",0x06008068,Type.EmptyTypes,"LoadHeaderCommitPrefix",null});
-            Check(true,"narrow native header and commit patches construct without iterator rewriting");
+            patch.Invoke(null,new object[]{harmony,nativeSaver,"Clear",0x06008067,Type.EmptyTypes,"ClearPrefix",null});
+            patch.Invoke(null,new object[]{harmony,nativeSaver,"RenameFile",0x0600806D,new[]{typeof(string)},"RenamePrefix",null});
+            Check(true,"narrow native header, commit, clear and rename guards construct without iterator rewriting");
             Check((bool)isolation.GetMethod("CloudPrefix",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null),
                 "unbound isolation leaves ordinary cloud behavior unchanged");
             Console.WriteLine("TODO native Unity construction of PrepareSave/load/stash/cloud isolation; no native write authorized");
@@ -199,7 +201,12 @@ public static class KmcPersistenceContractProbe
             foreach(var pair in new[]{new[]{"FileName","owned-read.zks"},new[]{"InternalName","owned"},
                 new[]{"SaveType","Manual"},new[]{"Area",new string('a',32)},new[]{"InitialSha256",before}})
                 entryType.GetProperty(pair[0]).SetValue(entry,pair[1],null);
-            var entries=Array.CreateInstance(entryType,1);entries.SetValue(entry,0);
+            var writable=Activator.CreateInstance(entryType,true);
+            foreach(var pair in new[]{new[]{"FileName","owned-write.zks"},new[]{"InternalName","owned-write"},
+                new[]{"SaveType","Manual"},new[]{"Area",new string('a',32)}})
+                entryType.GetProperty(pair[0]).SetValue(writable,pair[1],null);
+            entryType.GetProperty("Writable").SetValue(writable,true,null);
+            var entries=Array.CreateInstance(entryType,2);entries.SetValue(entry,0);entries.SetValue(writable,1);
             var authorityType=candidate.GetType("KingmakerMountedCombat.Diagnostics.PersistenceSaveAuthorization",true);
             var authority=authorityType.GetConstructors(BindingFlags.NonPublic|BindingFlags.Instance)[0].Invoke(
                 new object[]{owned,"owned-campaign","owned",new string('b',64),entries});
@@ -211,8 +218,36 @@ public static class KmcPersistenceContractProbe
                 null,new object[]{WriteHeader(saverType,readSaver),readPath});
             using(routine){while(routine.MoveNext()){}}
             Check(Hash(readPath)==before,"enumerated isolated load preserves actual native archive bytes");
+            bool unleasedDenied=false;
+            try { using(var ordinary=WriteHeader(saverType,readSaver)){while(ordinary.MoveNext()){}} }
+            catch(TargetInvocationException e) { unleasedDenied=e.InnerException is InvalidOperationException; }
+            Check(unleasedDenied && Hash(readPath)==before,"outside-load commit requires an explicit write lease");
+            var writePath=Path.Combine(isolated,"owned-write.zks");
+            var writeSaver=Activator.CreateInstance(saverType,new object[]{writePath});
+            var targetType=candidate.GetType("KingmakerMountedCombat.Diagnostics.RuntimeSaveTarget",true);
+            var target=Activator.CreateInstance(targetType,true);
+            foreach(var pair in new[]{new[]{"InternalName","owned-write"},new[]{"FileName","owned-write.zks"},
+                new[]{"FullPath",writePath},new[]{"SaveType","Manual"},new[]{"GameId","owned-campaign"},
+                new[]{"GameName","owned"},new[]{"Area",new string('a',32)}})
+                targetType.GetProperty(pair[0]).SetValue(target,pair[1],null);
+            var writeLease=authorityType.GetMethod("BeginWrite",BindingFlags.NonPublic|BindingFlags.Instance)
+                .Invoke(authority,new[]{target,isolated});
+            var pending=(System.Collections.IDictionary)isolation.GetField("writes",binding).GetValue(null);
+            pending.Add(writeSaver,writeLease);
+            try
+            {
+                saverType.GetMethod("SaveJson").Invoke(writeSaver,new object[]{"header","{}"});
+                Check(!File.Exists(writePath),"authorized native metadata stage does not claim a disk write");
+                saverType.GetMethod("Save").Invoke(writeSaver,null);
+                Check(File.Exists(writePath) && !pending.Contains(writeSaver),"real native commit completes and releases its exact write lease");
+                authorityType.GetMethod("AssertReadableArchive",BindingFlags.NonPublic|BindingFlags.Instance)
+                    .Invoke(authority,new object[]{writePath});
+                Check(true,"completed native archive becomes readable through the same strict authority");
+            }
+            finally { ((IDisposable)writeSaver).Dispose(); ((IDisposable)writeLease).Dispose(); pending.Remove(writeSaver); if(File.Exists(writePath)) File.Delete(writePath); }
+            isolation.GetField("authority",binding).SetValue(null,null);
             using(var ordinary=WriteHeader(saverType,readSaver)){while(ordinary.MoveNext()){}}
-            Check(Hash(readPath)!=before,"completed read scope releases the native writer without stale suppression");
+            Check(Hash(readPath)!=before,"unbound ordinary native writer retains normal behavior");
         }
         finally
         {
