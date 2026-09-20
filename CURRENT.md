@@ -1,8 +1,8 @@
-# Active Chunk 4 - native edge control and recovery fixture52, 2026-09-20 UTC
+# Active Chunk 4 - complete native edge comparison and preflight cost53, 2026-09-20 UTC
 
-IN PROGRESS. FA on published source51 c7c2998b2e4c5aca9c30afdaa43d07a7f74fb493 reproduces the same native endpoint interruption while unmounted, with matched origins and the full Horse footprint. The wrapper remains FAIL because a later automatic attack outlasts its observation capacity.52 reasserts the existing diagnostic AI lease after Dismount and selects full-footprint interior destinations for Charge recovery. Native movement and every result/cost/arrival bound stay unchanged.
+IN PROGRESS. FB on published source52 34c85001875a8069fa9675360a861d9455ddc6ed fully records matched mounted/unmounted native interruptions at the same navmesh edge. Both remain FAIL; corrected AI isolation removes the fixture exception. No mounted-only navigation repair is justified. Charge recovery on full-footprint interior destinations remains pending.53 avoids unused historical archive hashes in live preflight after measuring707.6seconds there; live Mods/save snapshots and complete WhatIf purity checks remain.
 
-All103 native transactions plus EX prelaunch restored actual preview37/human data. Next: publish/package/snapshot52, FB focused comparison and FC/FD Charge; then all required exact-final Chunk4 and paired/A05/A10/Horse/Mammoth gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All104 native transactions plus EX prelaunch restored actual preview37/human data. Next: publish/package/snapshot53, fresh actual WhatIf53, FC/FD Charge, then exact-final Chunk4 and paired/A05/A10/Horse/Mammoth gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 # Combined actor-allocation and paired-activation milestone

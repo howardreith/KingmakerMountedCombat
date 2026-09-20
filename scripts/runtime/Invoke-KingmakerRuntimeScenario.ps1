@@ -153,11 +153,7 @@ if($isSaveBacked){
     $preflightPair=$preflightContinuity.pair
     $fixturePayload=New-KmcRuntimeFixturePayload $preflightPair -ReadOnly:$isManualReview
 }
-$beforeRoots=@(
-    (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
-    (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
-    (Get-KmcDirectoryManifest $liveMods)
-)
+$beforeMods=Get-KmcDirectoryManifest $liveMods
 $beforeSaves=Get-KmcSaveMetadataInventory $saveRoot
 if($isSaveBacked){
     Assert-KmcSaveMetadataInventoriesEqual `
@@ -169,6 +165,13 @@ $WhatIfPreference=$requestedWhatIf
 $action=if($isManualReview){'open guarded read-only KMC manual visual review against Working fixture only'}elseif($isSaveBacked){"run guarded KMC $Scenario against Working fixture only"}else{'run guarded KMC mod-load-smoke'}
 if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, and guarded KMC save policy',$action)){
     $WhatIfPreference=$false
+    # Historical archives are compared only by this purity check. Live runs
+    # still snapshot every current Mods byte and retain all save/restore guards.
+    $beforeRoots=@(
+        (Get-KmcDirectoryManifest $runtimeState),(Get-KmcDirectoryManifest $runtimeBackups),
+        (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
+        $beforeMods
+    )
     if($isSaveBacked){
         $whatIfContinuity=Assert-KmcQualificationSuiteContinuity `
             -SnapshotPath $QualificationSuiteSnapshotPath -StateRoot $runtimeState -SaveRoot $saveRoot -ModsRoot $liveMods `
@@ -276,7 +279,7 @@ try{
             -Description 'runtime locked fixture-continuity save metadata'
     }
     $combinedStatePath=New-KmcRunTransactionState -Lock $lock -Mode $(if($isSaveBacked){'save-backed-v3-suite'}else{'no-save-v1'}) `
-        -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeRoots[4] -SavesBefore $beforeSaves `
+        -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeMods -SavesBefore $beforeSaves `
         -QualificationSuiteSnapshotPath $QualificationSuiteSnapshotPath -QualificationSuiteId $ExpectedQualificationSuiteId `
         -QualificationSuiteSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256
     if($isSaveBacked){
@@ -294,7 +297,7 @@ try{
     $orchestration=[ordered]@{
         schemaVersion=2;runId=$actualRunId;scenario=$Scenario;status='IN PROGRESS';stage='transactions-staged';
         startedAtUtc=$startedAt.ToString('o');steamSafety=$steamSafety;combinedTransactionState=$combinedStatePath;
-        protectedSaveDigestBefore=$beforeSaves.digest;liveModsDigestBefore=$beforeRoots[4].digest;saveBacked=$isSaveBacked
+        protectedSaveDigestBefore=$beforeSaves.digest;liveModsDigestBefore=$beforeMods.digest;saveBacked=$isSaveBacked
     }
     Write-KmcJsonAtomic $orchestrationPath $orchestration
     Assert-KmcNoGameProcesses
@@ -477,7 +480,7 @@ finally{
         }catch{$errors.Add('Combined external-state restoration failed: '+$_.Exception.Message)}
     }elseif($processExited){
         try{
-            $modsRestored=(Get-KmcDirectoryManifest $liveMods).digest-ceq$beforeRoots[4].digest
+            $modsRestored=(Get-KmcDirectoryManifest $liveMods).digest-ceq$beforeMods.digest
             $currentSaves=Get-KmcSaveMetadataInventory $saveRoot
             $restoredSaveInventoryDigest=[string]$currentSaves.digest
             $saveProtection=$currentSaves.digest-ceq$beforeSaves.digest

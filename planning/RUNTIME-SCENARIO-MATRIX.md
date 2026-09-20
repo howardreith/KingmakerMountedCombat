@@ -1,6 +1,6 @@
 ## Active Chunk 4 checkpoint - 2026-09-20 UTC
 
-FA51 native/outer46/4 FAIL now records matched mounted/unmounted native endpoint interruptions at the same navmesh edge. A later automatic attack prevents finalizing the unmounted row.52 reasserts existing post-Dismount fixture AI isolation and uses full-footprint interior Charge recovery destinations, preserving all limits and native results. Next FB comparison and FC/FD Charge. All103 native transactions plus EX prelaunch restored. Exact evidence and remaining gates: [single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
+FB52 fully records matched mounted/unmounted native edge interruptions:46/4,0/2 movement leaves FAIL, no fixture exception. AI isolation repair verified; no mounted-only navigation repair.53 avoids unused live-preflight archive hashes while preserving Mods/saves and full WhatIf purity. Fresh WhatIf53 then FC/FD Charge, all20 required new roots and10 final regressions. All104 native transactions plus EX prelaunch restored. [Single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
 
 ## Chunk 2 current scenario pointer
 
