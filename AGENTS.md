@@ -24,6 +24,8 @@ The owner's September 20 Chunk 5 mission authorizes scoped persistence source/te
 
 Implement isolated native writes first, then a real outside-combat cold round trip, spent-action/participation continuity, and P01-P08 qualification on the final candidate. Save restoration must not grant actions or replay preparation. Keep paired activation true and both legacy authorities/overlay false. Chunk 4 native engineering is accepted; visual/HUD/physical-input and HUMAN PLAY remain TODO. Current human intake is preview.54 (verify afresh before runtime); never restore historical preview.37/preview.13 over it. [Single active report](docs/CHUNK5-PERSISTENCE.md).
 
+The owner subsequently approved raising only the packaged KingmakerMountedCombat.dll entry limit from 4 MiB to 5 MiB for Chunk 5. The ZIP limit, Info.json limit, entry/dependency allowlists, hashes and runtime safeguards remain unchanged. This narrow approved capacity change is the sole exception to the historical no-threshold-weakening rule.
+
 ## Historical Chunk 4: sustained play and core safety
 
 The owner's September 20 acceptance authorizes committing the accepted work, merging it into the default branch, publishing an alpha prerelease and installing the exact tested package into local UMM. This supersedes historical no-merge/no-release/no-permanent-installation limits for this delivery only. Preserve the tested payload, back up actual installed preview.37 through the guarded deployment helper, and retain human saves/settings and foreign Mods. No new gameplay or Chunk 5 implementation is authorized by delivery.

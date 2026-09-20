@@ -4928,6 +4928,42 @@ try {
     Invoke-HarnessTest 'package validator accepts exact owned payload' {
         & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $validPackage
     }
+    foreach ($sizeCase in @(
+        @{name='DLL';leaf='KingmakerMountedCombat.dll';limit=5MB},
+        @{name='Info';leaf='Info.json';limit=4MB}
+    )) {
+        Invoke-HarnessTest ("package validator retains the {0} entry size boundary" -f $sizeCase.name) {
+            $sizePackage = Join-Path $testRoot ($sizeCase.name+'-oversized.zip')
+            $sizeArchive = [IO.Compression.ZipFile]::Open($sizePackage, [IO.Compression.ZipArchiveMode]::Create)
+            try {
+                foreach ($leaf in @('Info.json','KingmakerMountedCombat.dll')) {
+                    $entry = $sizeArchive.CreateEntry('KingmakerMountedCombat/'+$leaf)
+                    $output = $entry.Open()
+                    try {
+                        $length = if ($leaf -ceq $sizeCase.leaf) { $sizeCase.limit+1 } else { 1 }
+                        $buffer = New-Object byte[] $length
+                        $output.Write($buffer,0,$buffer.Length)
+                    }
+                    finally { $output.Dispose() }
+                }
+            }
+            finally { $sizeArchive.Dispose() }
+            $rejection=$null
+            try { & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $sizePackage }
+            catch { $rejection=$_.Exception.Message }
+            Assert-Test ($rejection -ceq ('Package entry is unsafe, empty, or oversized: KingmakerMountedCombat/'+$sizeCase.leaf)) 'oversized entry did not fail at its exact size boundary'
+        }
+    }
+    Invoke-HarnessTest 'package validator retains the compressed ZIP size boundary' {
+        $largeZip = Join-Path $testRoot 'oversized-zip.zip'
+        $stream = [IO.File]::Create($largeZip)
+        try { $stream.SetLength(5MB+1) } finally { $stream.Dispose() }
+        $rejection=$null
+        try { & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $largeZip }
+        catch { $rejection=$_.Exception.Message }
+        Assert-Test ($rejection -ceq 'Diagnostic package exceeds the 5 MiB safety limit.') 'oversized ZIP did not fail before archive inspection'
+    }
+
     Invoke-HarnessTest 'package validator rejects extra payload' {
         $extraSource = Join-Path $testRoot 'extra-package\KingmakerMountedCombat'
         New-Item -ItemType Directory -Path $extraSource -Force | Out-Null
