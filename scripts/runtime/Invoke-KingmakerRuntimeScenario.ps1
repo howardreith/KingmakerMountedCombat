@@ -448,6 +448,10 @@ try{
 }
 catch{
     $errors.Add($_.Exception.Message)
+    Write-KmcJsonAtomic (Join-Path $evidenceRoot 'launcher-failure.json') ([ordered]@{
+        runId=$actualRunId;scenario=$Scenario;failedAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
+        launchIssued=$launchIssued;errors=@($errors|ForEach-Object{[string]$_})
+    })
     if(Test-Path -LiteralPath $orchestrationPath -PathType Leaf){
         try{
             $caughtOrchestration=Read-KmcJson $orchestrationPath

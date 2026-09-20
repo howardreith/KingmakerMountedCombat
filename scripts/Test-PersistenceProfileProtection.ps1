@@ -21,7 +21,10 @@ try{
     $snapshot=New-KmcPersistenceProfileSnapshot -Lock $lock -SaveRoot $saves -GameRoot $game -BackupRoot $backups
     [void](Assert-KmcPersistenceProfileUnchanged $snapshot)
     if(Test-Path (Join-Path $backups 'profile-profile-test/profile/Saved Games')){throw 'Profile helper copied human saves.'}
-    $passes=1
+    $reordered=[pscustomobject]@{entries=@($snapshot.inventory.entries)}
+    [Array]::Reverse($reordered.entries)
+    if((Get-KmcPersistenceProfileDigest $reordered)-cne$snapshot.profileDigest){throw 'Profile identity depends on enumeration order.'}
+    $passes=2
     foreach($path in @($cache,$params)){
         $original=[IO.File]::ReadAllBytes($path)
         try{

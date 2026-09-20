@@ -15,6 +15,17 @@ function Get-KmcPersistencePlayerPrefs {
     } finally {if($null-ne$key){$key.Dispose()}}
 }
 
+function Get-KmcPersistenceProfileDigest {
+    param($Inventory)
+    # Current profiles may contain culturally equivalent, ordinally distinct
+    # filenames. Content identity must not depend on their enumeration order.
+    [string[]]$rows=@($Inventory.entries|ForEach-Object {
+        '{0}|{1}|{2}|{3}' -f $_.kind,$_.path,$_.length,$_.sha256
+    })
+    [Array]::Sort($rows,[StringComparer]::Ordinal)
+    return Get-KmcTextSha256 ($rows -join "`n")
+}
+
 function New-KmcPersistenceProfileSnapshot {
     param($Lock,[string]$SaveRoot,[string]$GameRoot,[string]$BackupRoot)
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
@@ -43,10 +54,10 @@ function New-KmcPersistenceProfileSnapshot {
     }
     [IO.File]::Copy($params,(Join-Path $target 'Params.xml'),$false)
     $cloned=Get-KmcQualificationTreeInventory -Root $copy -Scope save-root
-    if($cloned.contentDigest-cne$before.contentDigest){throw 'Profile backup bytes differ from intake.'}
+    if((Get-KmcPersistenceProfileDigest $cloned)-cne(Get-KmcPersistenceProfileDigest $before)){throw 'Profile backup bytes differ from intake.'}
     $record=[pscustomobject][ordered]@{
         runId=[string]$Lock.RunId;token=[string]$Lock.Token;profile=$profile
-        inventory=$before;paramsPath=$params;paramsSha256=$paramsHash;playerPrefsJson=$prefs
+        inventory=$before;profileDigest=Get-KmcPersistenceProfileDigest $before;paramsPath=$params;paramsSha256=$paramsHash;playerPrefsJson=$prefs
     }
     Write-KmcJsonCreateNewDurable -Path (Join-Path $target 'snapshot.json') -Value $record
     [void](Assert-KmcPersistenceProfileUnchanged $record)
@@ -57,7 +68,7 @@ function Assert-KmcPersistenceProfileUnchanged {
     param($Snapshot)
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    if($after.contentDigest-cne$Snapshot.inventory.contentDigest){
+    if((Get-KmcPersistenceProfileDigest $after)-cne$Snapshot.profileDigest){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
