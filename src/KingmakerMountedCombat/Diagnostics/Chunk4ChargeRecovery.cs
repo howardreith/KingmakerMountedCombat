@@ -70,6 +70,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 var destination = FindWalkablePoint(horse.Position, 2.5f, 0.5f, point =>
                     HorizontalDistance(point, target.Position) < HorizontalDistance(horse.Position, target.Position));
+                // Observe the real endpoint and native obstacles before input.
+                // Do not reinterpret an Interrupt as successful legal movement.
+                chunk4ChargeRecovery["moveDestination"] = CapturePosition(destination);
+                chunk4ChargeRecovery["moveOrigin"] = CapturePosition(horse.Position);
+                chunk4ChargeRecovery["moveNearbyActors"] = new JArray(game.State.AwakeUnits
+                    .Where(actor => actor.View != null && HorizontalDistance(actor.Position, destination) < 6f)
+                    .Select(actor => new JObject {
+                        ["id"] = actor.UniqueId, ["position"] = CapturePosition(actor.Position),
+                        ["corpulence"] = actor.View.Corpulence, ["avoidanceDisabled"] = actor.View.MovementAgent.AvoidanceDisabled,
+                        ["destinationDistance"] = HorizontalDistance(actor.Position, destination),
+                        ["isRider"] = actor == rider, ["isMount"] = actor == horse
+                    }));
                 using (var input = new NativeOrdinaryAttackInput(destination))
                 {
                     input.Predict();

@@ -1,8 +1,8 @@
-# Active Chunk 4 - candidate41, 2026-09-20 UTC
+# Active Chunk 4 - native movement observation, 2026-09-20 UTC
 
-IN PROGRESS. Published source40 faeb63e3bb585954ec1e84f80fa5abfe8995f01d passes both Charge gates, sustained RT melee/ranged and TB, and both interruption roots. CD fails before attack input because its single 12m fixture ring contains no native obstructed point. All81 native transactions independently restored actual human pairedpreview37 and protected data; no game/lock.
+IN PROGRESS. Published source41 `4115ec6ea8149e48b48952b21cca3f44df3a3257` passes CE obstruction47/0. CF Charge RT rejects mounted Charge safely but fails its legal recovery movement assertion: native CompleteMovement interrupts at .459m from the destination (arrival radius .3m), after2.429463m actual travel with rider Move0. No later Charge controls run. All83 native transactions restored actual human pairedpreview37 and protected data.
 
-Candidate `0.1.0-chunk4-preview.41` searches bounded native geometry at12/14/16m from the actual rider origin. Native visibility, range, footprint, collision, costs and all behavioral assertions remain unchanged. Build/source22/0 and full checks exit0 PASS. Package/publish/fresh suite41, focused obstruction first, then exact-final Charge and all remaining gates. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Full mounted Charge remains missing; no permanent installation or Chunk5 implementation.
+Candidate `0.1.0-chunk4-preview.42` adds read-only path-end, native radius/position and destination-occupancy observations. It does not accept Interrupt as Success or change gameplay/fixture selection. Full local checks pass; the cause remains unresolved pending focused RT evidence. Package/publish/fresh suite42, then CG RT Charge with added observations before any broad campaign. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 # Combined actor-allocation and paired-activation milestone
