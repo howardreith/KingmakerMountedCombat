@@ -1,14 +1,14 @@
 # Chunk 5 persistence - 2026-09-20
 
-IN PROGRESS. [Single report](docs/CHUNK5-PERSISTENCE.md). Chunk 4 native engineering is accepted; human visual/HUD/physical-input acceptance remains TODO.
+IN PROGRESS. [Single report](docs/CHUNK5-PERSISTENCE.md). Chunk 4 native engineering accepted; human visual/HUD/physical-input acceptance TODO.
 
-Branch `codex/mounted-combat-phase3f-playable-core`; pre-checkpoint HEAD `38253836ca243679d95e878e2b3991a97c8d2fff` (guarded published). Preview.5 changes only P01 diagnostic cancellation: native SetAbility(null) enters Ability mode; use native ClearPointerMode and assert Default/no selected ability before ordinary input. Accepted gameplay is unchanged. Build/source22/0. DLL `333a8df3f09ecff889e8906c8b2580d6c41edee66556786017c8d29836349d05`, MVID `4de22d72-9667-46a4-8915-5b5ad174d93e`. Earlier unchanged data28/0/storage23/0/components404/0/harness250/0 remain separate.
+Branch `codex/mounted-combat-phase3f-playable-core`; pre-checkpoint HEAD `b9f51e4e9e28a1f4221681f2a9164ccd72ad4e49`. Preview.6 fixes only the P01 fixture's native auto-pause ordering: resume before waiting for initiative; maintain the established owned target memory lease. Failure observations now include native pause/readiness and preserve prior assertion counts. Gameplay/serialization unchanged. Build/source22/0. DLL `744a0c493443c78ed48ad48d462c4a191c7801b95d445283398cf0a476c8c1b7`, MVID `44ea2840-127b-43f1-940a-4420fc6731c6`; unchanged data28/0/storage23/0/components404/0/harness250/0 are earlier evidence.
 
-P01-save-B FAIL0/1 reported after verified native write and same-session pair/controls/current-debt retention. Archive SHA `ddeb73d9367ac62e35ae04394cd4f523a6c54c183347ef2a4b800caf3cf83403`,847753 bytes; complete primitive metadata now present. Failure was diagnostic pointer priority. No cold load attempted. Owned PID15416 exited normally; actual human preview.54, saves/settings/cache/foreign Mods restored at19:07:14Z. Prior P01-save-A JSON failure and isolation-C PASS14/0 retained. No game/lock remains; preview.37/preview.13 backups separate.
+P01-save-C FAIL0/1 reported at stage4 timeout, native mode Pause. Actual Manual save and normal mounted movement completed; no action debt or control loss observed. Archive SHA `f8c6df80bf585ba6711091f83368eb30595e4ffec80c073de08778fc253ff671`,848364 bytes. PID14496 exited normally; complete human preview.54/saves/settings/cache/foreign Mods restoration at19:16:46Z. No game/lock remains. Earlier A/B failures are distinct diagnosed issues; isolation-C remains PASS14/0.
 
-Next: commit/package preview.5 `p01-native-pointer`, admit suite6, run `persistence-p01-save` / `20260920-chunk5-P01-save-C`. After PASS, load the archive by actual hash in a new process. P01-P08 remain incomplete; P02 combat restoration is not implemented. Exact receipts and next command: `analysis-cache/chunk5-persistence/ACTIVE.json`. First resume command: `git status --short`, then read the receipt.
+Next: commit/package preview.6 `p01-combat-readiness`, suite7, `persistence-p01-save` / `20260920-chunk5-P01-save-D`, then fresh-process `persistence-p01-load` from the passed archive's exact hash. P01-P08 incomplete; combat restore not implemented. Exact receipt/next command in `analysis-cache/chunk5-persistence/ACTIVE.json`; first resume command `git status --short`, then read receipt.
 
-Unchanged WhatIf branch retains full proof on8612544 plus focused current guards. Paired=true; legacy authorities/overlay=false. No permanent installation, main merge or release.
+Paired=true; legacy authorities/overlay=false. No permanent install/main merge/release; preview.37/preview.13 are separate preserved backups. WhatIf and strict intake checks retained; guarded remote currently3825383.
 
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC

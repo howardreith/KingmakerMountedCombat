@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -61,9 +62,38 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
+            try { Advance(); }
+            catch (Exception exception)
+            {
+                var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
+                try { Write("scenario-failed", new JObject { ["error"] = errors[0] }); }
+                catch (Exception error) { errors.Add("Failure observation: " + error.Message); }
+                try { Dispose(); }
+                catch (Exception error) { errors.Add("P01 cleanup: " + error.Message); }
+                Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "FAIL",
+                    AssertionPassCount = passed, AssertionFailCount = 1, Errors = errors.ToArray() };
+                Completed = true;
+            }
+        }
+
+        private void Advance()
+        {
             if (clock.Elapsed.TotalSeconds > 150) throw new InvalidOperationException("P01 native stage timed out: " + stage);
             var game = Game.Instance;
             if (LoadingProcess.Instance.IsLoadingInProcess) return;
+            if (stage >= 4 && stage <= 5)
+            {
+                if (!targetService.RefreshBidirectionalCombatMemoryLease())
+                    throw new InvalidOperationException("P01 native combat memory fixture lease was lost.");
+                // The owned RT attack scenario explicitly resumes native auto-pause
+                // before waiting for initiative, which cannot recover while paused.
+                if (game.IsPaused)
+                {
+                    Write("fixture-native-unpause");
+                    game.IsPaused = false;
+                    return;
+                }
+            }
             if (stage == 0)
             {
                 Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
@@ -170,7 +200,6 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 4)
             {
                 if (!game.Player.IsInCombat || !rider.CombatState.CanActInCombat) return;
-                if (game.IsPaused) { game.IsPaused = false; return; }
                 Check(!TurnBased.Controllers.CombatController.IsInTurnBasedCombat(), "native-rt-control");
                 var target = targetService.Target;
                 Check(targetService.PrepareForPlayerClick(target) && targetService.BeginExpectedAttackDispatch(target),
@@ -245,7 +274,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
                 ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),
                 ["mount"] = mount == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(mount), MountedSaveCodec.CreateSerializer()),
-                ["controls"] = JObject.FromObject(controls.CaptureSnapshot(), MountedSaveCodec.CreateSerializer()), ["detail"] = detail
+                ["controls"] = JObject.FromObject(controls.CaptureSnapshot(), MountedSaveCodec.CreateSerializer()),
+                ["native"] = new JObject { ["paused"] = Game.Instance.IsPaused,
+                    ["mode"] = Game.Instance.CurrentMode.ToString(), ["partyCombat"] = Game.Instance.Player.IsInCombat,
+                    ["riderCombat"] = rider?.IsInCombat, ["mountCombat"] = mount?.IsInCombat,
+                    ["riderCanAct"] = rider?.CombatState.CanActInCombat,
+                    ["targetCombat"] = targetService?.Target?.IsInCombat, ["targetId"] = targetService?.TargetId },
+                ["detail"] = detail
             };
             File.AppendAllText(evidence, row.ToString(Formatting.None) + Environment.NewLine);
         }
