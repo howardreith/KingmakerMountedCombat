@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UI.Selection;
@@ -162,9 +163,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 // The native rider is a real obstacle after Dismount. Move it
                 // away through ordinary controls before measuring the Horse.
-                var away = FindWalkablePoint(rider.Position, 7f, 0.5f, point =>
-                    HorizontalDistance(point, Chunk4GroundOrigin) > 6f && HorizontalDistance(point, Chunk4GroundDestination) > 6f &&
-                    HorizontalDistance(point, target.Position) > 3f);
+                var away = FindChunk4GroundRiderClearance();
                 chunk4GroundMove = BeginChunk4GroundInput(rider, rider, away, "ground-comparison-rider-clearance");
                 chunk4GroundStage = 5; ResetLeafClock(); return;
             }
@@ -173,12 +172,55 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!chunk4GroundMove.IsFinished || !Chunk4PairedPlayIdle) return;
                 observations["groundComparisonRiderClearance"] = new JObject { ["command"] = CaptureOrdinaryCommand(chunk4GroundMove),
                     ["originDistance"] = HorizontalDistance(rider.Position, Chunk4GroundOrigin),
-                    ["destinationDistance"] = HorizontalDistance(rider.Position, Chunk4GroundDestination) };
+                    ["destinationDistance"] = HorizontalDistance(rider.Position, Chunk4GroundDestination),
+                    ["targetDistance"] = HorizontalDistance(rider.Position, target.Position) };
                 if (chunk4GroundMove.Result != UnitCommand.ResultType.Success || HorizontalDistance(rider.Position, Chunk4GroundOrigin) <= 6f ||
-                    HorizontalDistance(rider.Position, Chunk4GroundDestination) <= 6f)
+                    HorizontalDistance(rider.Position, Chunk4GroundDestination) <= 6f || HorizontalDistance(rider.Position, target.Position) <= 3f)
                     throw new InvalidOperationException("Ground comparison did not clear the real dismounted rider through native movement.");
                 chunk4GroundCase = 1; chunk4GroundEvidence = null; chunk4GroundStage = 1; ResetLeafClock();
             }
+        }
+
+        private Vector3 FindChunk4GroundRiderClearance()
+        {
+            if (global::AstarPath.active == null) throw new InvalidOperationException("Ground comparison requires the native navigation graph.");
+            var candidates = new JArray();
+            observations["groundRiderClearanceSearch"] = new JObject { ["rider"] = CapturePosition(rider.Position),
+                ["target"] = CapturePosition(target.Position), ["routeOrigin"] = CapturePosition(Chunk4GroundOrigin),
+                ["routeDestination"] = CapturePosition(Chunk4GroundDestination), ["candidates"] = candidates };
+            var direction = horse.View.transform.forward; direction.y = 0f;
+            if (direction.sqrMagnitude < 0.01f) direction = Vector3.forward;
+            direction.Normalize();
+            // EY exhausted one 7 m ring after actual Dismount. Search three
+            // bounded rings with the same native projection/distance tolerance;
+            // preserve the actual 6 m clearance and full actor footprint.
+            foreach (var radius in new[] { 7f, 9f, 11f })
+            {
+                for (var index = 0; index < 32; index++)
+                {
+                    var nearest = global::AstarPath.active.GetNearest(rider.Position +
+                        Quaternion.Euler(0f, index * 11.25f, 0f) * direction * radius);
+                    var point = nearest.clampedPosition;
+                    var distance = HorizontalDistance(rider.Position, point);
+                    var originDistance = HorizontalDistance(point, Chunk4GroundOrigin);
+                    var destinationDistance = HorizontalDistance(point, Chunk4GroundDestination);
+                    var targetDistance = HorizontalDistance(point, target.Position);
+                    var walkable = nearest.node != null && nearest.node.Walkable;
+                    var eligible = walkable && distance >= 0.25f && Math.Abs(distance - radius) <= 0.5f &&
+                        originDistance > 6.4f && destinationDistance > 6.4f && targetDistance > 3.4f;
+                    var blockers = Game.Instance.State.Units.Where(unit => unit != rider && unit.IsInState && unit.View != null &&
+                        HorizontalDistance(point, unit.Position) < rider.View.Corpulence + unit.View.Corpulence + 0.05f)
+                        .Select(unit => unit.UniqueId).ToArray();
+                    var footprint = eligible && blockers.Length == 0 ? NativeGroundMovementObservation.CaptureFootprint(rider, point) : null;
+                    eligible &= footprint != null && ((JArray)footprint["probes"]).All(probe => (float)probe["residual"] < 0.001f);
+                    candidates.Add(new JObject { ["radius"] = radius, ["directionIndex"] = index, ["point"] = CapturePosition(point),
+                        ["walkable"] = walkable, ["distance"] = distance, ["originDistance"] = originDistance,
+                        ["destinationDistance"] = destinationDistance, ["targetDistance"] = targetDistance,
+                        ["blockers"] = new JArray(blockers), ["footprint"] = footprint, ["eligible"] = eligible });
+                    if (eligible) return point;
+                }
+            }
+            throw new InvalidOperationException("No native rider-clearance endpoint exists on the three bounded comparison rings.");
         }
     }
 }

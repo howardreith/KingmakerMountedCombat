@@ -1,6 +1,6 @@
-## Active Chunk 4 scenario checkpoint - 2026-09-20 UTC
+## Active Chunk 4 checkpoint - 2026-09-20 UTC
 
-Source47 DT sustained TB52/0, six cases PASS. DU RT Charge50/2, four PASS/one FAIL: safe queued rejection followed by native ground-arrival interruption. Candidate49 completes registration of chunk4-ground-arrival-rt with C4-GROUND-mounted-arrival and C4-GROUND-unmounted-arrival to attribute it through matched ordinary native movement. All100 native transactions and EX48 prelaunch rejection restored. EX exposed missing request/native registration; no game launched. See the [single report](../docs/CHUNK4-PLAYABILITY.md) and journal for exact identities/results; no native49 claim yet; next EY. New exact-final roots/regressions and physical-input/HUMAN PLAY remain pending. Historical matrices below are retained evidence.
+EY49 ground comparison46/4 FAIL reproduces native waypoint-plane termination at a full-footprint navmesh edge; actual Dismount then fails the fixture7m clearance search, leaving unmounted control pending. Candidate50 searches bounded7/9/11m with recorded rejection reasons and unchanged actual clearance/arrival thresholds. Next EZ; all101 native transactions plus EX prelaunch restored. Exact evidence, previous scoped passes and remaining final gates: [single report](../docs/CHUNK4-PLAYABILITY.md). No HUMAN PLAY or persistence claim.
 
 ## Chunk 2 current scenario pointer
 

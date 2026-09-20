@@ -1,8 +1,8 @@
-# Active Chunk 4 - ground diagnostic registration49, 2026-09-20 UTC
+# Active Chunk 4 - unmounted control clearance50, 2026-09-20 UTC
 
-IN PROGRESS. Source48 13c0192c3312b8872e853fb3f7bbc82afe74c2f7 passed fresh WhatIf purity, but EX failed before launch because the actual request validator lacked the new ground scenario. No native48 evidence. Candidate49 completes that allowlist, native Horse registration and result leaves, with real reader/policy regression tests. Ground fixture, movement observations, gameplay and thresholds are unchanged. All100 native transactions and the EX prelaunch attempt restored actual preview37/human data.
+IN PROGRESS. Published source49 0c9c9941a4574bf2ceef64efd8019b571d9fb580 reproduces native Horse arrival interruption: waypoint-plane crossed while.471m from destination/.3m arrival radius; full-footprint probes encounter a navmesh edge. Actual Dismount succeeds, but the fixture's single7m rider-clearance ring finds no valid point, leaving unmounted attribution pending. Candidate50 expands only that bounded fixture search to7/9/11m, records rejection reasons and preserves all arrival/clearance/collision/cost requirements.
 
-Next: commit/package/guarded publication/suite49, exact-package request validation and guard scope proof, then unused EY chunk4-ground-arrival-rt. Attribute CF41/DU47 arrival failure before broad final regression. DT47 sustained TB52/0/six cases remains scoped new evidence. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All101 native transactions and EX prelaunch attempt restored actual preview37/human data. Next: commit/package/guarded publication/suite50, unchanged-guard proof/exact request validation, then unused EZ ground comparison. Continue exact-final Charge, sustained combat, targeting, rider death, traversal/session and paired/A05/A10/Horse/Mammoth gates after attribution. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 # Combined actor-allocation and paired-activation milestone
