@@ -1006,7 +1006,8 @@ namespace KingmakerMountedCombat.Integration
                 ranged,
                 IsMountAlreadyInPrimaryRange(target),
                 !turnBased || !stockIntent.MountActor,
-                !turnBased || stockIntent.MountActor || settings.UseLegacyUnifiedTurn);
+                !turnBased || stockIntent.MountActor || settings.UseLegacyUnifiedTurn,
+                settings.EnablePairedActivation && stockIntent.PreferMount);
 
             if (decision == MountedStockAttackDecision.Wait)
             {
@@ -1061,6 +1062,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             stockIntentCommand = activeCommand;
+            stockIntent.ObserveDispatch(action == MountedCombatActionKind.MountPrimaryNatural);
             if (action == MountedCombatActionKind.MountPrimaryNatural)
             {
                 StockAttackMountDispatchCount++;

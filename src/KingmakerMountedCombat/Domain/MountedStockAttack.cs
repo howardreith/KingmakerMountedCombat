@@ -80,7 +80,8 @@ namespace KingmakerMountedCombat.Domain
             bool riderWeaponIsRanged,
             bool mountAlreadyInMeleeRange,
             bool riderIsLegalActor = true,
-            bool mountIsLegalActor = true)
+            bool mountIsLegalActor = true,
+            bool preferMount = false)
         {
             if (!exactMountedPair || !targetValid)
             {
@@ -90,11 +91,18 @@ namespace KingmakerMountedCombat.Domain
             {
                 return MountedStockAttackDecision.Wait;
             }
+            var mountReady = mountHasStandardAction && mountIsLegalActor && (!riderWeaponIsRanged || mountAlreadyInMeleeRange);
+            // A native rider routine can outlast its cooldown. Let the waiting
+            // RT partner go next instead of repeatedly selecting that rider.
+            if (!turnBasedCombat && preferMount && mountReady)
+            {
+                return MountedStockAttackDecision.DispatchMount;
+            }
             if (riderHasStandardAction && riderIsLegalActor)
             {
                 return MountedStockAttackDecision.DispatchRider;
             }
-            if (mountHasStandardAction && mountIsLegalActor && (!riderWeaponIsRanged || mountAlreadyInMeleeRange))
+            if (mountReady)
             {
                 return MountedStockAttackDecision.DispatchMount;
             }
@@ -124,6 +132,7 @@ namespace KingmakerMountedCombat.Domain
         public bool MountActor { get; private set; }
         public long Generation { get; private set; }
         public bool HasEnteredCombat { get; private set; }
+        public bool PreferMount { get; private set; }
         private object riderContext;
         private object mountContext;
         private object weaponContext;
@@ -144,6 +153,7 @@ namespace KingmakerMountedCombat.Domain
             Target = target ?? throw new ArgumentNullException(nameof(target));
             Turn = turn;
             MountActor = mountActor;
+            PreferMount = false;
             HasEnteredCombat = inCombat;
             riderContext = rider;
             mountContext = mount;
@@ -158,6 +168,11 @@ namespace KingmakerMountedCombat.Domain
             return Target != null && ReferenceEquals(Target, target) && Generation == generation;
         }
 
+        public void ObserveDispatch(bool mountActor)
+        {
+            if (Target != null) PreferMount = !mountActor;
+        }
+
         public bool ObserveCombatEnded(bool inCombat)
         {
             HasEnteredCombat |= inCombat;
@@ -170,6 +185,7 @@ namespace KingmakerMountedCombat.Domain
             Turn = null;
             HasEnteredCombat = false;
             MountActor = false;
+            PreferMount = false;
             riderContext = mountContext = weaponContext = mountWeaponContext = null;
             actionContext = 0;
             Generation++;

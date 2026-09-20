@@ -1,8 +1,8 @@
-# Active Chunk 4 - capture sustained actor stalls, 2026-09-20 UTC
+# Active Chunk 4 - sustained RT partner dispatch, 2026-09-20 UTC
 
-IN PROGRESS. Published source43 `26aedc163602fefc8be4262ca63d80fe6079a6bb` strengthens the three-routine Horse requirement. CL then fails at the outer300-second deadline: its retained log admits three rider/three Horse commands on the first target, nineteen rider/two Horse commands on the second. No completed tranche artifact survived; do not promote log counts to full-plan evidence. Candidate `0.1.0-chunk4-preview.44` limits fixture timer renewal to progress toward each actor's required quota and captures native readiness/reach/commands before cleanup. Gameplay is unchanged; eligibility versus dispatch priority remains unresolved.
+IN PROGRESS. Published source44 `800d26ef3cfef322222a8a3085b266c2eff2710f` completes CM sustained melee with native50/0 and4/0 children; its outer validator rejects new schema27. CM also shows a fourth full rider routine selected while the Horse is ready and idle, delaying the Horse's next routine by6sec. Candidate `0.1.0-chunk4-preview.45` gives the waiting eligible partner priority in the paired path's RT ordinary intent and admits schema27 only for its two RT roots. Native budgets, modes, ranged reach, TB ordering and all safety guards remain authoritative.
 
-All89 transactions restored actual human pairedpreview37 and protected data. Next: package/publish44/fresh suite, then CM focused sustained melee for the missing native observation before a repair or broad campaign. CF41's separate native movement interruption also remains unexplained. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 implementation.
+All90 transactions restored actual human pairedpreview37 and protected data. Next: package/publish45/fresh suite, then CN focused sustained melee to qualify the repair, followed by exact-final Charge, other new roots and final regression. CL's original lost-trace failure remains FAIL; CF41's separate native arrival interruption remains unexplained. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
 
 ---
 ## Combined milestone disposition — 2026-09-08

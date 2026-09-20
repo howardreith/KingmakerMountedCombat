@@ -15,6 +15,11 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("ordinary party selection preserves unrelated units and includes the exact principal", PartySelection);
             runner.Run("ordinary separate TB dispatch stays actor local", SeparateTurnDispatch);
             runner.Run("ordinary RT cooldown waits retain the same intent for both weapon modes", RepeatsAfterCooldown);
+            runner.Run("ready mount progresses when rider recovers before its native routine ends", ReadyActorsProgress);
+            runner.Run("repeated same-target input preserves the waiting native actor", RepeatedInputPreservesPreference);
+            runner.Run("actor preference cannot create native readiness or overlapping commands", PreferenceRequiresReadiness);
+            runner.Run("RT actor preference preserves native ranged reach and TB order", PreferencePreservesModeAndRange);
+            runner.Run("Stop and retarget discard prior actor preference", ReplacementClearsPreference);
             runner.Run("Stop ground retarget and explicit controls invalidate old dispatch generations", ReplacementPrecedence);
             runner.Run("hostile initiation survives precombat wait but observes later combat end", CombatStartBoundary);
             runner.Run("expected target death waits for released native child completion", ReleasedAttackTargetDeath);
@@ -51,6 +56,81 @@ namespace KingmakerMountedCombat.Tests
             alreadyCharged.ObserveEpoch(mount, controller, 1, 600L);
             alreadyCharged.RecordPhysicalMove(0, 1);
             TestRunner.Equal(3f, alreadyCharged.ReconcileNativePreparation(3f), "Native existing cost double charged.");
+        }
+
+        private static void ReadyActorsProgress()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            intent.Begin(new object(), null, false, true);
+            // CM native trace: both budgets were ready when the rider's full
+            // routine finished; the Horse was idle, eligible and in reach.
+            for (var routine = 0; routine < 6; routine++)
+            {
+                var next = UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false,
+                    true, true, false, true, preferMount: intent.PreferMount);
+                var expected = routine % 2 == 0 ? MountedStockAttackDecision.DispatchRider : MountedStockAttackDecision.DispatchMount;
+                TestRunner.Equal(expected, next, "A ready native actor was indefinitely passed over.");
+                intent.ObserveDispatch(next == MountedStockAttackDecision.DispatchMount);
+            }
+        }
+
+        private static void RepeatedInputPreservesPreference()
+        {
+            var target = new object();
+            var intent = new MountedAttackIntent<object, object>();
+            intent.Begin(target, null, false, true);
+            var generation = intent.Generation;
+            intent.ObserveDispatch(false);
+            for (var click = 0; click < 100; click++)
+            {
+                TestRunner.True(intent.CanContinue(target, null, false), "Same-target input replaced its intent.");
+                TestRunner.True(intent.Owns(target, generation), "Repeated click changed generation.");
+            }
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false,
+                    true, true, false, true, preferMount: intent.PreferMount), "Repeated input lost the waiting Horse.");
+        }
+
+        private static void PreferenceRequiresReadiness()
+        {
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, true, false, false, true, preferMount: true),
+                "Preference dispatched a mount without its native action.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, true, true, false, true, mountIsLegalActor: false, preferMount: true),
+                "Preference dispatched an ineligible actor.");
+            TestRunner.Equal(MountedStockAttackDecision.Wait,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, true, false, true, true, false, true, preferMount: true),
+                "Preference overlapped an active native command.");
+            TestRunner.Equal(MountedStockAttackDecision.Wait,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, false, false, false, true, preferMount: true),
+                "Preference manufactured a native action.");
+        }
+
+        private static void PreferencePreservesModeAndRange()
+        {
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, true, true, true, false, true, preferMount: true),
+                "RT preference changed TB rider ordering.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchRider,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, true, true, true, false, preferMount: true),
+                "Ranged intent pulled the Horse into melee.");
+            TestRunner.Equal(MountedStockAttackDecision.DispatchMount,
+                UnifiedMountedStockAttackPolicy.DecideNext(true, true, false, false, true, true, true, true, preferMount: true),
+                "Ranged intent passed over a ready Horse already in native melee reach.");
+        }
+
+        private static void ReplacementClearsPreference()
+        {
+            var intent = new MountedAttackIntent<object, object>();
+            intent.Begin(new object(), null, false, true);
+            intent.ObserveDispatch(false);
+            intent.Begin(new object(), null, false, true);
+            TestRunner.True(!intent.PreferMount, "A retarget inherited the old actor preference.");
+            intent.ObserveDispatch(false);
+            intent.Cancel();
+            intent.ObserveDispatch(false);
+            TestRunner.True(!intent.PreferMount, "Stop retained or recreated the old actor preference.");
         }
 
         private static void SameTargetContinuation()

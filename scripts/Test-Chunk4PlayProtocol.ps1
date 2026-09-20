@@ -244,3 +244,34 @@ $tb=New-PlayEnvelope 'chunk4-sustained-tb';$tb.schemaVersion=27;$rejected=$false
 try{Assert-KmcChunk4PlayEvidence @{scenario='chunk4-sustained-tb'} $tb 'PASS'}catch{$rejected=$true}
 if(!$rejected){throw 'RT cadence schema was accepted for TB activation evidence.'};$passed++
 Write-Host "CHUNK 4 PLAY PROTOCOL PASS=$passed FAIL=0"
+
+# Exercise the real outer artifact reader as well as the inner play validator.
+# CM's native schema27 artifact exposed a missing outer admission entry.
+$playOuterRoot=Join-Path (Get-KmcRepositoryRoot) ('obj/chunk4-play-artifact/'+[Guid]::NewGuid().ToString('N'))
+$playOuterPass=0
+foreach($root in @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt','chunk4-sustained-tb')){
+    $outer=if($root -ceq 'chunk4-sustained-tb'){New-PlayEnvelope $root}else{New-MountCadenceEnvelope $root}
+    $identity=@{evidenceKind='phase3d-horse-scenario-evidence';runId='parser-only';scenario=$root;branch='codex/mounted-combat-phase3f-playable-core';
+        commit=('a'*40);productVersion='0.1.0-parser-only';dllSha256=('b'*64);dllMvid='00000000-0000-0000-0000-000000000001';createdAtUtc=[DateTime]::UtcNow.ToString('o')}
+    foreach($key in $identity.Keys){$outer|Add-Member -NotePropertyName $key -NotePropertyValue $identity[$key]}
+    $request=@{};foreach($key in $identity.Keys){$request[$key]=$identity[$key]}
+    $request.evidenceRoot=Join-Path $playOuterRoot $root
+    $null=[IO.Directory]::CreateDirectory($request.evidenceRoot)
+    $path=Join-Path $request.evidenceRoot 'phase3d-horse-scenario-evidence.json'
+    $manifest=@{artifacts=@(@{relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'})}
+    $outer|ConvertTo-Json -Depth 40|Set-Content -LiteralPath $path -Encoding UTF8
+    Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $manifest -Status 'PASS';$playOuterPass++
+    $mutations=if($root -ceq 'chunk4-sustained-tb'){@({param($a) $a.schemaVersion=27})}else{@(
+        {param($a) $a.schemaVersion=28},
+        {param($a) $a.commit=('c'*40)},
+        {param($a) $a.rows[0].evidence.PSObject.Properties.Remove('completeMountRoutines')}
+    )}
+    foreach($mutate in $mutations){
+        $changed=$outer|ConvertTo-Json -Depth 40|ConvertFrom-Json;& $mutate $changed
+        $changed|ConvertTo-Json -Depth 40|Set-Content -LiteralPath $path -Encoding UTF8
+        $rejected=$false
+        try{Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $manifest -Status 'PASS'}catch{$rejected=$true}
+        if(!$rejected){throw ('Invalid outer play artifact accepted: '+$root)};$playOuterPass++
+    }
+}
+Write-Host "COMPONENT outer play dispatch TOTAL PASS=$playOuterPass FAIL=0"
