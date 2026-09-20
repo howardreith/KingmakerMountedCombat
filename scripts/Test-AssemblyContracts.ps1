@@ -32,6 +32,22 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
     return $false
 }
 if($Target-eq'Kingmaker'){
+    # Read-only steering observations for the mounted/unmounted arrival comparison.
+    foreach($expected in @(
+        @('Kingmaker.View.UnitMovementAgent',0x04001193,'m_NextPointIndex','System.Int32',$false),
+        @('Kingmaker.View.UnitMovementAgent',0x04001196,'m_NextWaypoint','UnityEngine.Vector2',$false),
+        @('Kingmaker.View.UnitMovementAgent',0x040011AD,'m_FirstTick','System.Boolean',$false),
+        @('Kingmaker.View.UnitMovementAgent',0x04001192,'m_Roaming','System.Boolean',$false),
+        @('Kingmaker.View.UnitMovementAgent',0x040011B7,'m_NextVelocity','UnityEngine.Vector3',$false),
+        @('Kingmaker.View.UnitMovementAgent',0x040011A1,'m_StuckTimeStop','System.Single',$false),
+        @('Kingmaker.View.ObstacleAnalyzer',0x040010ED,'HasNavmeshObstacles','System.Boolean',$true),
+        @('Kingmaker.View.ObstacleAnalyzer',0x040010EB,'MainDirectionBlockedByStatic','System.Boolean',$true)
+    )){
+        $field=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($field.Count -eq 1 -and $field[0] -is [Reflection.FieldInfo] -and
+            $field[0].Name -ceq $expected[2] -and $field[0].FieldType.FullName -ceq $expected[3] -and
+            $field[0].IsStatic -eq $expected[4]) ('ground arrival observation '+$expected[2])
+    }
     # New native incoming/life observations. Token/hash contracts are not native execution proof.
     foreach($expected in @(
         @('Kingmaker.UnitLogic.Commands.UnitUseAbility',0x06002714,'get_ExecutionProcess'),

@@ -175,6 +175,8 @@
     <Compile Include="Domain\MountedMovementState.cs" />
     <Compile Include="Integration\MountedMovementStateAdapter.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackTrace.cs" />
+    <Compile Include="Diagnostics\NativeGroundMovementObservation.cs" />
+    <Compile Include="Diagnostics\Chunk4GroundArrivalScenario.cs" />
     <Compile Include="Diagnostics\NativeOrdinaryAttackInput.cs" />
     <Compile Include="Diagnostics\NativeAttackFixtureVariation.cs" />
     <Compile Include="Diagnostics\NativeAttackBonusEvidence.cs" />

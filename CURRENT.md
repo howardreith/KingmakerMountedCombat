@@ -1,8 +1,8 @@
-# Active Chunk 4 - native46 progress and TB fixture correction47, 2026-09-20 UTC
+# Active Chunk 4 - native arrival comparison48, 2026-09-20 UTC
 
-IN PROGRESS. Published source46 a886158cccf56df68dd721ba6576aef2ae4f414d passes new RT/TB Charge safety, sustained melee/ranged and obstruction. CU sustained TB passes three cases, then its paid tangent movement leaves the rider outside weapon reach before the Horse exhausts its budget. Candidate0.1.0-chunk4-preview.47 reuses bounded native-range placement and verifies actual arrival; production ranges, clocks, budgets and repath/time limits remain unchanged.
+IN PROGRESS. Published source47 c7bea356e66ef438e6c0f209601b25702afa9ec2 newly passes sustained TB52/0, six cases. DU RT Charge passes four cases and safely rejects queued mounted Charge, but its subsequent legal ground move is interrupted by native CompleteMovement at.472m from the unchanged endpoint/.3m arrival radius. This reproduces CF41's native stack and leaves recovery open. Candidate0.1.0-chunk4-preview.48 adds a matched mounted/unmounted Horse route comparison and read-only steering observations; no gameplay repair yet.
 
-All98 transactions independently restored actual preview37/current human data. Next: commit/package/guarded publication/suite47, then focused DT sustained TB; continue exact-final new roots and paired/A05/A10/Horse/Mammoth regressions. CF41 arrival uncertainty and visual/physical-input gaps remain explicit. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). No permanent installation or Chunk5 work.
+All100 transactions restored actual preview37/current human data. Next: full checks, commit/private package/guarded publication/suite48, fresh WhatIf purity, then EX chunk4-ground-arrival-rt. Continue exact-final new roots and paired/A05/A10/Horse/Mammoth regression after attribution. [Report](docs/CHUNK4-PLAYABILITY.md), [resume](AUTONOMOUS-RESUME.md). Visual/physical-input gaps remain; no permanent installation or Chunk5 implementation.
 
 ---
 # Combined actor-allocation and paired-activation milestone

@@ -1,7 +1,7 @@
 function Test-KmcChunk4CoreScenario {
     param([string]$Scenario)
     return $Scenario -cin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb',
-        'chunk4-targeting-area-unmounted-rt','chunk4-targeting-rider-rt','chunk4-targeting-mount-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')
+        'chunk4-targeting-area-unmounted-rt','chunk4-targeting-rider-rt','chunk4-targeting-mount-rt','chunk4-ground-arrival-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')
 }
 function Get-KmcChunk4CoreLeaves {
     param([string]$Scenario)
@@ -13,6 +13,7 @@ function Get-KmcChunk4CoreLeaves {
         'chunk4-targeting-area-unmounted-rt' {return @('C4-TARGETING-area-unmounted')}
         'chunk4-targeting-mount-rt' {return @('C4-TARGETING-mount-heal','C4-TARGETING-mount-hostile')}
         'chunk4-horse-strike-comparison-rt' {return @('C4-HORSE-mounted-three-primaries','C4-HORSE-unmounted-strike-recovery')}
+        'chunk4-ground-arrival-rt' {return @('C4-GROUND-mounted-arrival','C4-GROUND-unmounted-arrival')}
         'chunk4-ranged-native-control-rt' {return @('C4-RANGED-native-mixed-range')}
         default {throw 'Unregistered Chunk 4 native core scenario.'}
     }
@@ -31,6 +32,7 @@ function Assert-KmcChunk4CoreEvidence {
         if($row.name -cin $failureOnly -or $e.level -cne 'NATIVE INTEGRATION' -or $e.caseId -cne $row.name){throw 'Core PASS lacks exact native identity.'}
         if($row.name.StartsWith('C4-LIFE-')){Assert-KmcChunk4LifeRow $e}
         elseif($row.name.StartsWith('C4-HORSE-')){Assert-KmcChunk4HorseRow $e}
+        elseif($row.name.StartsWith('C4-GROUND-')){Assert-KmcChunk4GroundArrivalRow $e}
         elseif($row.name -ceq 'C4-RANGED-native-mixed-range'){Assert-KmcChunk4NativeRangedRow $e}
         elseif($row.name.EndsWith('-heal')){Assert-KmcChunk4HealRow $e}
         elseif($row.name -cin @('C4-TARGETING-area-both','C4-TARGETING-area-unmounted')){Assert-KmcChunk4AreaRow $e}
@@ -49,6 +51,58 @@ function Assert-KmcChunk4InstantStop {
     foreach($actor in @('rider','mount')){foreach($cost in @('standard','move')){
         if($Before.$actor.$cost -ne $After.$actor.$cost){throw 'Native Stop refunded or added a genuine actor cost.'}
     }}
+}
+function Assert-KmcChunk4GroundArrivalRow {
+    param($e)
+    $mounted=$e.caseId -ceq 'C4-GROUND-mounted-arrival'
+    $relationship=if($mounted){'Mounted'}else{'Unmounted'}
+    $selected=if($mounted){$e.before.rider.id}else{$e.before.mount.id}
+    if($e.mode -cne 'RT' -or $e.mounted -isnot [bool] -or $e.mounted -ne $mounted -or
+        $e.area -cne '9d1278a2f599b2a4daab53abdfe88d2e' -or $e.inputKind -cne 'native-ordinary-pointer-ground' -or
+        $e.before.relationship -cne $relationship -or $e.after.relationship -cne $relationship -or
+        $e.selected -cne $selected -or $e.input.selected -cne $selected -or $e.input.clicked -ne $true -or
+        ($e.input.beforePrediction|ConvertTo-Json -Depth 20 -Compress) -cne ($e.input.afterPrediction|ConvertTo-Json -Depth 20 -Compress) -or
+        $e.riderCanAct -ne $true -or $e.mountCanAct -ne $true -or $e.createdByPlayer -ne $true -or $e.forcedD20 -ne 0){
+        throw 'Ground comparison lacks native relationship, readiness or pure ordinary input.'
+    }
+    if($e.command.type -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or $e.command.executor -cne $e.before.mount.id -or
+        $e.command.result -cne 'Success' -or $e.command.started -ne $true -or $e.command.acted -ne $true -or $e.command.finished -ne $true -or
+        $e.setup.command.result -cne 'Success' -or $e.setup.command.executor -cne $e.before.mount.id){
+        throw 'Ground comparison cannot promote an interrupted or foreign native command to PASS.'
+    }
+    foreach($field in @('travel','endpointDistance','approachRadius','originMatchDistance','originTolerance')){
+        if(!(Test-KmcFiniteNonnegativeJsonNumber $e.$field)){throw "Invalid ground measurement: $field"}
+    }
+    if($e.travel -lt .5 -or $e.approachRadius -ne .3 -or $e.endpointDistance -gt $e.approachRadius -or
+        $e.originTolerance -ne .06 -or $e.originMatchDistance -gt $e.originTolerance -or
+        !(Test-KmcFiniteNonnegativeJsonNumber $e.setup.residual) -or $e.setup.residual -gt $e.originTolerance){
+        throw 'Ground comparison lacks matched native origins or actual arrival at the unchanged native radius.'
+    }
+    foreach($actor in @('rider','mount')){
+        if([string]::IsNullOrWhiteSpace($e.before.$actor.id) -or $e.before.$actor.id -cne $e.after.$actor.id -or
+            @($e.after.$actor.raw|Where-Object {$null -ne $_}).Count -ne 0 -or @($e.after.$actor.queue).Count -ne 0){
+            throw 'Ground comparison lost an actor or stranded a native command.'
+        }
+    }
+    if($e.before.rider.id -ceq $e.before.mount.id -or ($mounted -and $e.after.rider.move -gt $e.before.rider.move)){
+        throw 'Ground movement changed actor identity or added a rider transport tax.'
+    }
+    foreach($key in @('originFootprint','destinationFootprint')){
+        if(!(Test-KmcFiniteNonnegativeJsonNumber $e.$key.corpulence) -or $e.$key.corpulence -le 0 -or
+            $e.$key.probeRadius -lt $e.$key.corpulence -or @($e.$key.probes).Count -ne 8){throw 'Ground comparison lacks full native footprint observations.'}
+    }
+    $samples=@($e.samples)
+    if($samples.Count -lt 2 -or $samples.Count -gt 256){throw 'Ground comparison lacks bounded native steering samples.'}
+    $frame=-1
+    foreach($sample in $samples){
+        if(!(Test-KmcExactJsonInteger $sample.frame) -or $sample.frame -le $frame -or
+            !(Test-KmcFiniteNonnegativeJsonNumber $sample.gameSeconds) -or $sample.movement.avoidanceDisabled -ne $false -or
+            $sample.movement.corpulence -ne $e.originFootprint.corpulence){throw 'Ground samples altered collision or lost native time/order.'}
+        $frame=$sample.frame
+    }
+    $admitted=@($e.nativeTrace|Where-Object {$_.boundary -ceq 'private-run-after' -and $_.command -eq $e.command.id -and
+        $_.actor -ceq $e.command.executor -and $_.commandType -ceq $e.command.type})
+    if($admitted.Count -ne 1 -or $admitted[0].caseId -cne $e.caseId){throw 'Ground comparison lacks exactly one observed native admission.'}
 }
 function Assert-KmcChunk4LifeRow {
     param($e)

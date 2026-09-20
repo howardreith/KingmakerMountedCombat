@@ -214,21 +214,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     row["shouldInterrupt"] = command.ShouldBeInterrupted;
                     if (command is UnitMoveTo && actor.View != null)
                     {
-                        var agent = actor.View.AgentASP;
-                        var points = agent?.Path?.vectorPath;
-                        var end = points != null && points.Count > 0 ? (Vector3?)points[points.Count - 1] : null;
-                        var viewPosition = actor.View.transform.position;
-                        row["nativeMovement"] = new JObject {
-                            ["pathPoints"] = points?.Count ?? 0,
-                            ["pathEnd"] = end.HasValue ? new JArray(end.Value.x, end.Value.y, end.Value.z) : null,
-                            ["viewPosition"] = new JArray(viewPosition.x, viewPosition.y, viewPosition.z),
-                            ["targetDistance"] = Kingmaker.Utility.GeometryUtils.MechanicsDistance(viewPosition, command.ApproachPoint),
-                            ["pathEndDistance"] = end.HasValue ? (float?)Kingmaker.Utility.GeometryUtils.MechanicsDistance(viewPosition, end.Value) : null,
-                            ["targetToPathEnd"] = end.HasValue ? (float?)Kingmaker.Utility.GeometryUtils.MechanicsDistance(command.ApproachPoint, end.Value) : null,
-                            ["corpulence"] = actor.View.Corpulence, ["avoidanceDisabled"] = agent?.AvoidanceDisabled,
-                            ["approachRadius"] = agent?.ApproachRadius, ["maxApproachRadius"] = agent?.MaxApproachRadius,
-                            ["reallyMoving"] = agent?.IsReallyMoving, ["wantsToMove"] = agent?.WantsToMove
-                        };
+                        row["nativeMovement"] = NativeGroundMovementObservation.Capture(actor, (UnitMoveTo)command);
                     }
                     if (attack?.Target != null)
                     {
