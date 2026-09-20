@@ -37,6 +37,7 @@ A persistence-specific run-owned root/campaign/native-type/leaf/hash contract pr
 | P02-exhausted-save-A / load-A, same preview.13 | Save PASS33/0; cold native PASS23/0 but outer FAIL for five-row evidence; preview14 adds mandatory pre-input observation |
 | P02-exhausted-load-B, preview.14/source5071d0a | PASS23/0 + outer PASS; exact saved exhausted remainder, rejected work and two later grants |
 | P02-end-save-A, same preview.14 | FAIL17/1 after actual Ending snapshot; diagnostic targeting call encountered no current native turn; no cold run |
+| P02-end-save-B / load-B, preview.15/sourceee8c191 | Save PASS30/0 + outer PASS; cold FAIL11/1 because fixture expected the next turn while the saved boundary was correctly still Ending/Standard6 |
 
 Earlier P01 failures and exact historical identities remain in the journal and immutable lab evidence. P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`; P02-save-B archive SHA256 `e65a6d5ca94596c4d7f68e5e6b945a6022ea6a6c50dc6f8f86b6247697787439`, under its owned `runtime-staging/persistence-20260920-chunk5-P02-save-B/Saved Games/Manual_300_KMC_P01.zks`. The cold process reads those bytes and supplies no missing gameplay state. At round1/grant1, mount Move0.17698051 and rider Standard/Move0 survive; grants2/3 refresh normally. Source PID16516 exited and fully restored intake21:54:15.0066094Z; cold process started22:00:52.1487984Z.
 
@@ -65,7 +66,7 @@ Preview.10 adds exact P02 checkpoint parameters and unrelated-turn-order/rejecte
 
 ## Human restoration, removal and manual review
 
-Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, protected saves/settings/caches/foreign Mods were restored after each completed transaction. Rider cold PID12324 completed22:48:19.4710003Z and restored22:48:35.5329574Z. Exhausted-load-B restored23:19:23.2839565Z. Latest End-save-A restored23:20:42.6023721Z. No game/transaction remains. Separate preview.37/preview.13 backups are retained. Recheck actual intake before each transaction; historical pins are not rollback authority.
+Actual human preview.54 DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`, protected saves/settings/caches/foreign Mods were restored after each completed transaction. Rider cold PID12324 completed22:48:19.4710003Z and restored22:48:35.5329574Z. Exhausted-load-B restored23:19:23.2839565Z. End-save-B restored23:35:46.1388315Z; latest End-load-B restored23:36:58.0355800Z. No game/transaction remains. Separate preview.37/preview.13 backups are retained. Recheck actual intake before each transaction; historical pins are not rollback authority.
 
 Prepare-to-Disable/removal implementation and native qualification remain TODO. Permanent custom Horse dependencies are separate from transient pair metadata; arbitrary DLL deletion is not certified. No permanent candidate deployment, main merge or public release is authorized.
 

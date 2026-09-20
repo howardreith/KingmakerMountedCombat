@@ -237,6 +237,12 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 32)
             {
                 if (turn == null) return;
+                if (ReferenceEquals(turn, savedBoundary))
+                {
+                    Check(turn.IsEnding || turn.Status == TurnController.TurnStatus.Ended,
+                        "P02-pending-saved-End-does-not-become-Acting");
+                    return;
+                }
                 Check(combat.PairedActivationSequence == savedSequence && turn.Unit != rider && turn.Unit != mount,
                     "P02-ended-pair-has-no-new-grant-during-next-native-turn");
                 BeginRejectedWork(); return;
