@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Text;
 using KingmakerMountedCombat.Logging;
 using KingmakerMountedCombat.Integration;
+using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using UnityEngine;
@@ -39,7 +40,14 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly RuntimeSaveAuthorization saveAuthorization;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
+        private readonly MountedPlayerActionController playerAction;
+        private readonly MountedCombatController combat;
+        private readonly HorseCompanionBlueprintService horseCompanion;
+        private readonly NativeMountedControlService nativeControls;
+        private readonly MountedAnimationAdapter animation;
+        private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly DiagnosticSettings diagnosticSettings;
+        private readonly Func<bool, bool> registeredToggle;
         private readonly string resultPath;
         private readonly DateTimeOffset startedAt;
         private readonly Stopwatch runtimeClock;
@@ -56,8 +64,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool fixtureScenarioCompleted;
         private IReadOnlyList<RuntimeSubscenarioResult> subscenarioResults;
         private RuntimeLifecycleScenarioEngine lifecycleEngine;
+        private RuntimeManualReviewSession manualReviewSession;
         private RuntimeMovementScenarioEngine movementEngine;
         private RuntimeBoundaryScenarioEngine boundaryEngine;
+        private RuntimeCombatControlScenarioEngine combatControlEngine;
+        private RuntimeCombatScenarioEngine combatEngine;
+        private HorseCompanionUnmountedScenarioEngine horseCompanionEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
         private readonly BoundaryFailureDrain saveBackedFailureDrain = new BoundaryFailureDrain();
         private IReadOnlyList<string> saveBackedFailureErrors;
@@ -69,9 +81,24 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public string Scenario => request.Scenario;
 
+        internal bool RequiresLegacyDiagnosticOverlay =>
+            request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario &&
+            request.Scenario != Phase3dHorseScenarioTranche.Phase3gRealTimeScenario &&
+            request.Scenario != Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario &&
+            request.Scenario != Phase3dHorseScenarioTranche.PresentationScenario &&
+            request.Scenario != "mounted-mammoth-primary-hit-rt" &&
+            request.Scenario != "mounted-mammoth-primary-hit-tb" &&
+            request.Scenario != "mounted-pair-party-formation" &&
+            request.Scenario != "combat-lifecycle-suite" &&
+            request.Scenario != "chunk4-area-cleanup" &&
+            request.Scenario != "chunk4-traversal-core" &&
+            request.Scenario != "chunk4-traversal-slope";
+
         public string RunId => request.RunId;
 
         public bool IsCompleted => completed;
+
+        internal bool IsManualReview => RuntimeRequest.IsManualReviewScenario(request.Scenario);
 
         internal RuntimeRequest Request => request;
 
@@ -100,7 +127,14 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeSaveAuthorization saveAuthorization,
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
-            DiagnosticSettings diagnosticSettings)
+            MountedPlayerActionController playerAction,
+            MountedCombatController combat,
+            HorseCompanionBlueprintService horseCompanion,
+            NativeMountedControlService nativeControls,
+            MountedAnimationAdapter animation,
+            MountedDollRoomIkAdapter dollRoomIk,
+            DiagnosticSettings diagnosticSettings,
+            Func<bool, bool> registeredToggle)
         {
             this.logger = logger;
             this.request = request;
@@ -110,7 +144,14 @@ namespace KingmakerMountedCombat.Diagnostics
             this.saveAuthorization = saveAuthorization ?? throw new ArgumentNullException(nameof(saveAuthorization));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            this.horseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
+            this.nativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
+            this.animation = animation ?? throw new ArgumentNullException(nameof(animation));
+            this.dollRoomIk = dollRoomIk ?? throw new ArgumentNullException(nameof(dollRoomIk));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
+            this.registeredToggle = registeredToggle ?? throw new ArgumentNullException(nameof(registeredToggle));
             resultPath = Path.Combine(request.EvidenceRoot, "runtime-game-result.json");
             startedAt = DateTimeOffset.UtcNow;
             runtimeClock = Stopwatch.StartNew();
@@ -138,7 +179,14 @@ namespace KingmakerMountedCombat.Diagnostics
             RuntimeSaveAuthorization saveAuthorization,
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
-            DiagnosticSettings diagnosticSettings)
+            MountedPlayerActionController playerAction,
+            MountedCombatController combat,
+            HorseCompanionBlueprintService horseCompanion,
+            NativeMountedControlService nativeControls,
+            MountedAnimationAdapter animation,
+            MountedDollRoomIkAdapter dollRoomIk,
+            DiagnosticSettings diagnosticSettings,
+            Func<bool, bool> registeredToggle)
         {
             if (logger == null)
             {
@@ -205,7 +253,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, diagnosticSettings);
+                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls,
+                animation, dollRoomIk, diagnosticSettings, registeredToggle);
         }
 
         internal static void ObserveSaveRequest()
@@ -216,6 +265,32 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static void ObserveLoadRequest()
         {
             if (active != null) { active.loadRequestCount++; }
+        }
+
+        internal static void ObserveCombatCooldownTick(
+            Kingmaker.EntitySystem.Entities.UnitEntityData unit,
+            float prefixInitiative,
+            float postfixInitiative,
+            float gameDeltaTime,
+            bool prepared,
+            bool inCombat,
+            bool awake)
+        {
+            active?.combatEngine?.ObserveCombatCooldownTick(
+                unit,
+                prefixInitiative,
+                postfixInitiative,
+                gameDeltaTime,
+                prepared,
+                inCombat,
+                awake);
+        }
+
+        internal static void ObserveNativeTurnBasedCommandEligibility(
+            Kingmaker.UnitLogic.Commands.Base.UnitCommand command,
+            bool stockEligible)
+        {
+            active?.horseCompanionEngine?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);
         }
 
         internal static bool TryReportBootstrapFailure(IModLogger logger, string loadedModId, Exception exception)
@@ -257,6 +332,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 var now = DateTimeOffset.UtcNow;
                 if (request.SchemaVersion == RuntimeRequest.SaveBackedSchemaVersion)
                 {
+                    if (RuntimeRequest.IsManualReviewScenario(request.Scenario))
+                    {
+                        WriteJsonAtomic(Path.Combine(request.EvidenceRoot, RuntimeManualReviewSession.FailureFileName), new
+                        {
+                            schemaVersion = 1,
+                            evidenceKind = "manual-visual-review-failure",
+                            runId = request.RunId,
+                            scenario = request.Scenario,
+                            status = "FAIL",
+                            transactionToken = request.TransactionToken,
+                            failedAtUtc = now.ToString("o"),
+                            processId = Process.GetCurrentProcess().Id,
+                            reason = exception.GetType().FullName + ": " + exception.Message
+                        });
+                        logger.Warning("Manual review bootstrap failure evidence committed; requesting clean process exit.");
+                        return true;
+                    }
+
                     var failureName = RuntimeRequest.IsMissionScenario(request.Scenario)
                         ? request.Scenario
                         : "observe-mount-diagnostic-availability";
@@ -338,13 +431,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
-                if (elapsedSeconds > 300.0d)
+                var hostDeadline = HorseCompanionScenarioDeadlinePolicy.HostDeadlineSeconds(
+                    Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario),
+                    request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario
+                        ? Phase3dHorseScenarioTranche.OrdinaryScenarioDeadlineSeconds : 0.0);
+                if (!IsManualReview && elapsedSeconds > hostDeadline)
                 {
                     if (IsLoadingProcessActive())
                     {
                         return;
                     }
-                    Complete("FAIL", new[] { "Runtime automation exceeded the bounded 300-second in-process deadline." });
+                    Complete("FAIL", new[] { "Runtime automation exceeded the bounded " + hostDeadline + "-second in-process deadline." });
                     return;
                 }
 
@@ -400,6 +497,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (saveAuthorization.FatalViolationCount != 0)
             {
+                if (IsManualReview)
+                {
+                    FailManualReviewAndQuit(saveAuthorization.LastFatalViolation ?? "Runtime save authorization reported an unspecified fatal violation.");
+                    return;
+                }
                 Complete("FAIL", new[] { saveAuthorization.LastFatalViolation ?? "Runtime save authorization reported an unspecified fatal violation." });
                 return;
             }
@@ -410,16 +512,89 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             fixtureIdentityVerified = true;
+            if (IsManualReview)
+            {
+                UpdateManualReview();
+                return;
+            }
             if (fixtureScenarioCompleted)
             {
                 return;
             }
 
-            if (RuntimeLifecycleScenarioEngine.SupportsScenario(request.Scenario))
+            if (HorseCompanionUnmountedScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (horseCompanionEngine == null)
+                {
+                    horseCompanionEngine = new HorseCompanionUnmountedScenarioEngine(
+                        request,
+                        horseCompanion,
+                        relationship,
+                        playerAction,
+                        combat,
+                        nativeControls,
+                        animation,
+                        dollRoomIk,
+                        diagnosticSettings,
+                        logger);
+                    horseCompanionEngine.Start();
+                }
+                horseCompanionEngine.Update();
+                if (!horseCompanionEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = horseCompanionEngine.Results;
+                CollectEngineErrors(horseCompanionEngine.Errors, "Horse companion");
+                try { horseCompanionEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Horse-companion engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(horseCompanionEngine.Errors, "Horse companion");
+                horseCompanionEngine = null;
+            }
+            else if (RuntimeCombatControlScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (combatControlEngine == null)
+                {
+                    combatControlEngine = new RuntimeCombatControlScenarioEngine(
+                        request, relationship, combat, diagnosticSettings, logger);
+                    combatControlEngine.Start();
+                }
+                combatControlEngine.Update();
+                if (!combatControlEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = combatControlEngine.Results;
+                CollectEngineErrors(combatControlEngine.Errors, "Combat control");
+                try { combatControlEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Combat-control engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(combatControlEngine.Errors, "Combat control");
+                combatControlEngine = null;
+            }
+            else if (RuntimeCombatScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (combatEngine == null)
+                {
+                    combatEngine = new RuntimeCombatScenarioEngine(request, relationship, playerAction, combat, lifecycle, diagnosticSettings, logger);
+                    combatEngine.Start();
+                }
+                combatEngine.Update();
+                if (!combatEngine.IsCompleted)
+                {
+                    return;
+                }
+                subscenarioResults = combatEngine.Results;
+                CollectEngineErrors(combatEngine.Errors, "Combat");
+                try { combatEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Combat engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(combatEngine.Errors, "Combat");
+                combatEngine = null;
+            }
+            else if (RuntimeLifecycleScenarioEngine.SupportsScenario(request.Scenario))
             {
                 if (lifecycleEngine == null)
                 {
-                    lifecycleEngine = new RuntimeLifecycleScenarioEngine(request, relationship, lifecycle, diagnosticSettings, logger);
+                    lifecycleEngine = new RuntimeLifecycleScenarioEngine(request, relationship, lifecycle, playerAction, diagnosticSettings, logger);
                     lifecycleEngine.Start();
                 }
                 lifecycleEngine.Update();
@@ -438,7 +613,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (movementEngine == null)
                 {
-                    movementEngine = new RuntimeMovementScenarioEngine(request, relationship, diagnosticSettings,
+                    movementEngine = new RuntimeMovementScenarioEngine(request, relationship, playerAction, combat, diagnosticSettings,
                         logger, request.EvidenceRoot);
                     movementEngine.Start();
                 }
@@ -459,7 +634,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (boundaryEngine == null)
                 {
                     boundaryEngine = new RuntimeBoundaryScenarioEngine(request, relationship, lifecycle, saveAuthorization,
-                        fixtureLoader, diagnosticSettings, logger);
+                        fixtureLoader, playerAction, combat, diagnosticSettings, registeredToggle, logger);
                     boundaryEngine.Start();
                 }
                 boundaryEngine.Update();
@@ -494,6 +669,14 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(request.Scenario, "observe-mount-diagnostic-availability", StringComparison.Ordinal))
             {
                 subscenarioResults = new[] { EvaluateDiagnosticAvailability() };
+            }
+            else if (string.Equals(request.Scenario, HorseNativeAssetAuditService.ScenarioName, StringComparison.Ordinal))
+            {
+                subscenarioResults = new[] { HorseNativeAssetAuditService.Run(request, horseCompanion, nativeControls, logger) };
+            }
+            else if (string.Equals(request.Scenario, HorseCompanionBlueprintRegistrationAuditService.ScenarioName, StringComparison.Ordinal))
+            {
+                subscenarioResults = new[] { HorseCompanionBlueprintRegistrationAuditService.Run(request, horseCompanion, logger) };
             }
             else
             {
@@ -541,6 +724,48 @@ namespace KingmakerMountedCombat.Diagnostics
                     scenarioEngineErrors.Add(message);
                 }
             }
+        }
+
+        private void UpdateManualReview()
+        {
+            if (manualReviewSession == null)
+            {
+                manualReviewSession = new RuntimeManualReviewSession(
+                    request,
+                    loadedModId,
+                    saveAuthorization,
+                    relationship,
+                    playerAction,
+                    diagnosticSettings,
+                    logger,
+                    () => loadRequestCount,
+                    () => saveRequestCount);
+            }
+
+            manualReviewSession.Update();
+            if (manualReviewSession.HasFailed)
+            {
+                completed = true;
+            }
+        }
+
+        private void FailManualReviewAndQuit(string reason)
+        {
+            if (manualReviewSession == null)
+            {
+                manualReviewSession = new RuntimeManualReviewSession(
+                    request,
+                    loadedModId,
+                    saveAuthorization,
+                    relationship,
+                    playerAction,
+                    diagnosticSettings,
+                    logger,
+                    () => loadRequestCount,
+                    () => saveRequestCount);
+            }
+            manualReviewSession.FailAndQuit(reason);
+            completed = true;
         }
 
         private void ActivateSaveBackedBoundary()
@@ -653,12 +878,16 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             disposed = true;
+            manualReviewSession?.Dispose();
+            manualReviewSession = null;
             lifecycleEngine?.Dispose();
             lifecycleEngine = null;
             movementEngine?.Dispose();
             movementEngine = null;
             boundaryEngine?.Dispose();
             boundaryEngine = null;
+            horseCompanionEngine?.Dispose();
+            horseCompanionEngine = null;
             saveAuthorizationLease?.Dispose();
             saveAuthorizationLease = null;
             if (ReferenceEquals(active, this)) { active = null; }
@@ -668,6 +897,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (completed)
             {
+                return;
+            }
+
+            if (IsManualReview)
+            {
+                FailManualReviewAndQuit(errors == null || errors.Count == 0
+                    ? "Manual review requested terminal completion without an exact cause."
+                    : string.Join("; ", errors));
                 return;
             }
 
@@ -942,7 +1179,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var ummAssembly = typeof(UnityModManager).Assembly;
             var harmonyPath = Path.Combine(Path.GetDirectoryName(ummAssembly.Location), "0Harmony12.dll");
             var game = Kingmaker.Game.Instance;
-            var evidenceManifestSha256 = EnsureRuntimeArtifactManifest();
+            var evidenceManifestSha256 = PublishRuntimeArtifactManifest();
             var resultPayload = new RuntimeGameResultV2
             {
                 SchemaVersion = RuntimeRequest.SaveBackedSchemaVersion,
@@ -980,6 +1217,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 BaselineLoadRequestCount = saveAuthorization.BaselineLoadRequestCount,
                 WorkingLoadRequestCount = saveAuthorization.AuthorizedLoadCount,
                 WorkingSaveRequestCount = saveAuthorization.AuthorizedWriteCount,
+                SuppressedWorkingSaveRequestCount = saveAuthorization.SuppressedWorkingWriteCount,
                 UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount,
                 UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount,
                 SubscenarioTotal = results.Count,
@@ -997,6 +1235,39 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
+            if (horseCompanionEngine != null)
+            {
+                var engine = horseCompanionEngine;
+                horseCompanionEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Horse-companion engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Horse companion");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Horse-companion engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Horse companion");
+            }
+            if (combatControlEngine != null)
+            {
+                var engine = combatControlEngine;
+                combatControlEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Combat-control engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Combat control");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Combat-control engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Combat control");
+            }
+            if (combatEngine != null)
+            {
+                var engine = combatEngine;
+                combatEngine = null;
+                if (!engine.IsCompleted) { finalErrors.Add("Combat engine was interrupted before completing its selected rows."); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) { subscenarioResults = engine.Results; }
+                CollectEngineErrors(engine.Errors, "Combat");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Combat engine disposal failed: " + exception.GetType().Name + ": " + exception.Message); }
+                CollectEngineErrors(engine.Errors, "Combat");
+            }
             if (lifecycleEngine != null)
             {
                 var engine = lifecycleEngine;
@@ -1060,9 +1331,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 emergency.BaselineLoadRequestCount = saveAuthorization.BaselineLoadRequestCount;
                 emergency.WorkingLoadRequestCount = saveAuthorization.AuthorizedLoadCount;
                 emergency.WorkingSaveRequestCount = saveAuthorization.AuthorizedWriteCount;
+                emergency.SuppressedWorkingSaveRequestCount = saveAuthorization.SuppressedWorkingWriteCount;
                 emergency.UnauthorizedLoadRequestCount = saveAuthorization.UnauthorizedLoadCount;
                 emergency.UnauthorizedSaveRequestCount = saveAuthorization.UnauthorizedWriteCount;
-                emergency.EvidenceManifestSha256 = EnsureRuntimeArtifactManifest();
+                emergency.EvidenceManifestSha256 = PublishRuntimeArtifactManifest();
                 try { emergency.RelationshipState = relationshipStateProvider() ?? "Unavailable"; } catch { emergency.RelationshipState = "Unavailable"; }
                 try { emergency.MovementExperimentEnabled = movementExperimentProvider(); } catch { emergency.MovementExperimentEnabled = false; }
                 WriteJsonAtomic(resultPath, emergency);
@@ -1151,6 +1423,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 BaselineLoadRequestCount = 0,
                 WorkingLoadRequestCount = 0,
                 WorkingSaveRequestCount = 0,
+                SuppressedWorkingSaveRequestCount = 0,
                 UnauthorizedLoadRequestCount = 0,
                 UnauthorizedSaveRequestCount = 0,
                 SubscenarioTotal = 1,
@@ -1158,7 +1431,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 SubscenarioFailCount = 1,
                 AssertionPassCount = 0,
                 AssertionFailCount = 1,
-                EvidenceManifestSha256 = EnsureRuntimeArtifactManifest(request),
+                EvidenceManifestSha256 = PublishRuntimeArtifactManifest(request),
                 SubscenarioResults = new[] { failedSubscenario }
             };
         }
@@ -1167,6 +1440,11 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             try
             {
+                if (IsManualReview)
+                {
+                    FailManualReviewAndQuit(exception.GetType().FullName + ": " + exception.Message);
+                    return;
+                }
                 Complete("FAIL", new[] { exception.GetType().FullName + ": " + exception.Message });
             }
             catch (Exception writeException)
@@ -1213,19 +1491,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private string EnsureRuntimeArtifactManifest()
+        private string PublishRuntimeArtifactManifest()
         {
-            return EnsureRuntimeArtifactManifest(request);
+            return PublishRuntimeArtifactManifest(request);
         }
 
-        private static string EnsureRuntimeArtifactManifest(RuntimeRequest request)
+        private static string PublishRuntimeArtifactManifest(RuntimeRequest request)
         {
             var manifestPath = Path.Combine(request.EvidenceRoot, "runtime-artifacts.json");
-            if (File.Exists(manifestPath))
-            {
-                return ComputeSha256(manifestPath);
-            }
-
             var artifacts = new List<RuntimeArtifactRecord>();
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "lifecycle-scenario-evidence.jsonl", "scenario-evidence");
             AddRuntimeArtifactIfPresent(
@@ -1235,6 +1508,37 @@ namespace KingmakerMountedCombat.Diagnostics
                 "boundary-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "combat-scenario-evidence.jsonl", "combat-evidence");
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseNativeAssetAuditService.EvidenceFileName,
+                HorseNativeAssetAuditService.EvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionBlueprintRegistrationAuditService.EvidenceFileName,
+                HorseCompanionBlueprintRegistrationAuditService.EvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionUnmountedScenarioEngine.EvidenceFileName,
+                HorseCompanionUnmountedScenarioEngine.EvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionUnmountedScenarioEngine.MountedEvidenceFileName,
+                HorseCompanionUnmountedScenarioEngine.MountedEvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceFileName,
+                HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceKind);
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                Phase3dHorseScenarioTranche.EvidenceFileName,
+                Phase3dHorseScenarioTranche.EvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))
@@ -1267,7 +1571,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 CreatedAtUtc = DateTimeOffset.UtcNow.ToString("o"),
                 Artifacts = artifacts
             };
-            WriteJsonAtomic(manifestPath, manifest);
+            WriteJsonReplacingAtomic(manifestPath, manifest);
             return ComputeSha256(manifestPath);
         }
 
@@ -1314,6 +1618,40 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 File.WriteAllText(temporary, JsonConvert.SerializeObject(value, JsonSettings));
                 File.Move(temporary, path);
+            }
+            finally
+            {
+                if (File.Exists(temporary))
+                {
+                    File.Delete(temporary);
+                }
+            }
+        }
+
+        private static void WriteJsonReplacingAtomic(string path, object value)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!Directory.Exists(directory))
+            {
+                throw new DirectoryNotFoundException("Runtime evidence directory is missing.");
+            }
+            if (File.Exists(path) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidOperationException("Runtime artifact manifest is a reparse point.");
+            }
+
+            var temporary = Path.Combine(directory, ".runtime-artifacts." + Guid.NewGuid().ToString("N") + ".tmp");
+            try
+            {
+                File.WriteAllText(temporary, JsonConvert.SerializeObject(value, JsonSettings));
+                if (File.Exists(path))
+                {
+                    File.Replace(temporary, path, null, true);
+                }
+                else
+                {
+                    File.Move(temporary, path);
+                }
             }
             finally
             {
@@ -1395,6 +1733,7 @@ namespace KingmakerMountedCombat.Diagnostics
             public int BaselineLoadRequestCount { get; set; }
             public int WorkingLoadRequestCount { get; set; }
             public int WorkingSaveRequestCount { get; set; }
+            public int SuppressedWorkingSaveRequestCount { get; set; }
             public int UnauthorizedLoadRequestCount { get; set; }
             public int UnauthorizedSaveRequestCount { get; set; }
             public int SubscenarioTotal { get; set; }

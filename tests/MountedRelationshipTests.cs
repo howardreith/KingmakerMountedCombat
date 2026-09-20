@@ -28,6 +28,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("relationship exception cleanup", ExceptionCleanup);
             runner.Run("relationship partial dismount continues best effort", PartialDismountContinuesBestEffort);
             runner.Run("relationship faulted cleanup can be retried idempotently", FaultedCleanupCanBeRetried);
+            runner.Run("relationship cleanup diagnostics retain bounded inner cause", CleanupDiagnosticsRetainBoundedInnerCause);
+            runner.Run("avoidance restoration separates KMC lease from native consciousness", AvoidanceRestorationSeparatesNativeConsciousness);
             runner.Run("command routing rewrites only active rider", CommandRoutingRewritesOnlyActiveRider);
             runner.Run("command routing suppresses only duplicate mount", CommandRoutingSuppressesOnlyDuplicateMount);
             runner.Run("cleanup trigger priority is deterministic", CleanupTriggerPriorityIsDeterministic);
@@ -38,6 +40,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("movement synchronization telemetry preserves pre and post correction residuals", MovementSynchronizationTelemetryPreservesPreAndPostResiduals);
             runner.Run("movement synchronization telemetry separates update phases and corrections", MovementSynchronizationTelemetrySeparatesPhasesAndCorrections);
             runner.Run("movement synchronization telemetry rejects noncontiguous samples", MovementSynchronizationTelemetryRejectsNoncontiguousSamples);
+            runner.Run("movement telemetry retains the first native-phase fault after recovery", MovementSynchronizationRetainsFirstPhaseFault);
             runner.Run("movement synchronization qualification excludes initial placement", MovementSynchronizationQualificationExcludesInitialPlacement);
             runner.Run("movement synchronization qualification gates calibrated phases", MovementSynchronizationQualificationGatesCalibratedPhases);
             runner.Run("movement synchronization qualification bounds callback cadence", MovementSynchronizationQualificationBoundsCallbackCadence);
@@ -56,6 +59,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("view attachment lease cleanup is idempotent", ViewAttachmentLeaseCleanupIsIdempotent);
             runner.Run("view attachment lease retains snapshot for cleanup retry", ViewAttachmentLeaseRetainsSnapshotForRetry);
             runner.Run("view attachment lease uses injected bounded restoration comparers", ViewAttachmentLeaseUsesInjectedBoundedComparers);
+            runner.Run("view attachment lease releases an inherited replacement before anchor cleanup", ViewAttachmentLeaseReleasesInheritedReplacement);
         }
 
         private static void ValidMountTransition()
@@ -232,6 +236,46 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(1, runtime.RestoreAuthorityCalls, "Already-restored movement authority was repeated during cleanup retry.");
         }
 
+        private static void CleanupDiagnosticsRetainBoundedInnerCause()
+        {
+            var deepest = new InvalidOperationException("exact movement sub-operation failed");
+            Exception nested = deepest;
+            for (var index = 0; index < 9; index++)
+            {
+                nested = new InvalidOperationException("wrapper " + index, nested);
+            }
+            var runtime = new FakeRuntime { RestoreAuthorityException = nested };
+            var coordinator = Mounted(runtime);
+
+            var result = coordinator.Dismount(CleanupTrigger.Incapacitated);
+
+            TestRunner.Equal(RelationshipState.Faulted, result.State, "Nested cleanup failure did not retain a retryable fault.");
+            TestRunner.True(result.Errors[0].StartsWith("RestoreMovementAuthority: InvalidOperationException: wrapper 8 <- InvalidOperationException: wrapper 7", StringComparison.Ordinal),
+                "Cleanup diagnostics lost the ordered outer and inner exception identities.");
+            TestRunner.True(result.Errors[0].EndsWith("additional inner exceptions omitted", StringComparison.Ordinal),
+                "Cleanup diagnostics did not enforce the bounded inner-exception limit.");
+            TestRunner.True(!result.Errors[0].Contains("exact movement sub-operation failed"),
+                "Cleanup diagnostics exceeded the bounded inner-exception limit.");
+        }
+
+        private static void AvoidanceRestorationSeparatesNativeConsciousness()
+        {
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(false, true, false),
+                "Ordinary captured-enabled avoidance restoration was rejected.");
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(false, false, true),
+                "Native unconsciousness was treated as retained KMC avoidance residue.");
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(true, true, true),
+                "A captured foreign avoidance guard was not preserved.");
+            TestRunner.True(AvoidanceRestorationExpectation.Matches(true, false, true),
+                "Captured and native avoidance ownership did not compose.");
+            TestRunner.True(!AvoidanceRestorationExpectation.Matches(false, true, true),
+                "Unexplained avoidance drift while conscious was accepted.");
+            TestRunner.True(!AvoidanceRestorationExpectation.Matches(false, false, false),
+                "An impossible enabled-while-unconscious getter state was accepted.");
+            TestRunner.True(!AvoidanceRestorationExpectation.Matches(true, true, false),
+                "A captured foreign avoidance guard was silently lost.");
+        }
+
         private static void CommandRoutingRewritesOnlyActiveRider()
         {
             var pair = new MountedPair("rider", "mount");
@@ -344,6 +388,32 @@ namespace KingmakerMountedCombat.Tests
 
             TestRunner.True(rejected, "Noncontiguous synchronization sample was accepted.");
             TestRunner.Equal(0L, accumulator.SampleCount, "Rejected synchronization sample mutated the accumulator.");
+        }
+
+        private static void MovementSynchronizationRetainsFirstPhaseFault()
+        {
+            var tracker = new MovementYawPhaseTracker();
+            var accumulator = new MovementSynchronizationTelemetryAccumulator();
+            Action<long, MovementSynchronizationPhase, double, double> observe = (frame, phase, authority, entity) =>
+                accumulator.Observe(new MovementSynchronizationSample(accumulator.SampleCount, phase, 0.0d,
+                    tracker.Observe(frame, phase, authority, authority, authority, entity, 0.10d), 0.0d, 0.0d, 0.0d, 0.0d));
+            observe(0L, MovementSynchronizationPhase.InitialConfiguration, 0.0d, 0.0d);
+            observe(1L, MovementSynchronizationPhase.Update, 0.0d, 0.0d);
+            observe(1L, MovementSynchronizationPhase.LateUpdate, 8.0d, 0.0d);
+            observe(2L, MovementSynchronizationPhase.Update, 8.0d, 8.0d);
+            TestRunner.True(accumulator.FirstPhaseViolation == null, "Permitted lag or real recovery was recorded as a fault.");
+            observe(3L, MovementSynchronizationPhase.LateUpdate, 16.0d, 8.0d);
+            var first = accumulator.FirstPhaseViolation;
+            TestRunner.True(first != null && first.Yaw.PhaseLagViolation, "Actual stale-reference violation was not retained.");
+            TestRunner.Equal(3L, first.Yaw.Frame, "First fault lost its native frame.");
+            observe(4L, MovementSynchronizationPhase.Update, 16.0d, 16.0d);
+            TestRunner.True(!accumulator.LatestYawObservation.PhaseLagViolation && ReferenceEquals(first, accumulator.FirstPhaseViolation),
+                "Subsequent valid state erased or relabeled the first fault.");
+            observe(5L, MovementSynchronizationPhase.LateUpdate, 24.0d, 16.0d);
+            TestRunner.True(ReferenceEquals(first, accumulator.FirstPhaseViolation), "A later fault replaced the first observation.");
+            TestRunner.Equal(2L, accumulator.PhaseLagViolationCount, "Bounded fault capture changed aggregate violations.");
+            TestRunner.True(new MovementSynchronizationTelemetryAccumulator().FirstPhaseViolation == null,
+                "A new telemetry lifetime inherited old fault state.");
         }
 
         private static void MovementSynchronizationQualificationExcludesInitialPlacement()
@@ -1055,6 +1125,41 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!lease.IsAcquired && lease.LastRestoreVerified, "Bounded-comparer mismatch did not support an exact cleanup retry.");
         }
 
+        private static void ViewAttachmentLeaseReleasesInheritedReplacement()
+        {
+            var originalParent = new FakeTransformNode("stock-parent");
+            var anchor = new FakeTransformNode("owned-anchor");
+            var rider = new FakeTransformNode("old-rider")
+            {
+                Parent = originalParent,
+                SiblingIndex = 4,
+                WorldPosition = "old-position",
+                WorldRotation = "old-rotation",
+                LocalScale = "old-scale"
+            };
+            var replacement = new FakeTransformNode("stock-polymorph-replacement")
+            {
+                Parent = anchor,
+                SiblingIndex = 0,
+                WorldPosition = "replacement-position",
+                WorldRotation = "replacement-rotation",
+                LocalScale = "replacement-scale"
+            };
+            var lease = CreateFakeAttachmentLease();
+            lease.Acquire(rider, anchor);
+
+            TestRunner.True(lease.ReleaseInheritedReplacement(replacement), "Inherited replacement was not released.");
+            TestRunner.Equal(originalParent, replacement.Parent, "Replacement did not return to the captured stock parent.");
+            TestRunner.Equal(4, replacement.SiblingIndex, "Replacement did not inherit the captured stock sibling position.");
+            TestRunner.Equal("replacement-position", replacement.WorldPosition, "Replacement world position changed.");
+            TestRunner.Equal("replacement-rotation", replacement.WorldRotation, "Replacement world rotation changed.");
+            TestRunner.True(lease.IsAcquired, "Releasing the replacement discarded the old rider lease.");
+
+            var foreign = new FakeTransformNode("foreign") { Parent = originalParent };
+            TestRunner.True(!lease.ReleaseInheritedReplacement(foreign), "A view outside the owned anchor was reparented.");
+            lease.Restore();
+        }
+
         private static ScopedTransformAttachmentLease<FakeTransformNode, string, string, string> CreateFakeAttachmentLease()
         {
             return new ScopedTransformAttachmentLease<FakeTransformNode, string, string, string>(
@@ -1215,6 +1320,7 @@ namespace KingmakerMountedCombat.Tests
             public int RestorePresentationFailuresRemaining { get; set; }
             public CleanupTrigger? LastRestoreTrigger { get; private set; }
             public Action OnAcquire { get; set; }
+            public Exception RestoreAuthorityException { get; set; }
 
             public void AcquireMovementAuthority(MountedPair pair)
             {
@@ -1243,6 +1349,7 @@ namespace KingmakerMountedCombat.Tests
             {
                 RestoreAuthorityCalls++;
                 LastRestoreTrigger = trigger;
+                if (RestoreAuthorityException != null) { throw RestoreAuthorityException; }
             }
         }
     }

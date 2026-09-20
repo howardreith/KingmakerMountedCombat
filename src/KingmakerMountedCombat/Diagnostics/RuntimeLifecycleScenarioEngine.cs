@@ -20,7 +20,7 @@ using UnityEngine;
 namespace KingmakerMountedCombat.Diagnostics
 {
     /// <summary>
-    /// Executes only the Phase 1 relationship-lifecycle rows.  Every action is
+    /// Executes bounded relationship-lifecycle and transient player-action rows. Every action is
     /// advanced by Update so cleanup is observed on a later game frame rather
     /// than being accepted from the transition return value alone.
     /// </summary>
@@ -31,6 +31,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private const string EvidenceFileName = "lifecycle-scenario-evidence.jsonl";
         private const string DirectInvocationClaimLimit =
             "Direct service/handler invocation only; native EventBus/UMM delivery was not exercised.";
+        private const string PlayerActionClaimLimit =
+            "Runtime player-action controller invocation; Unity OnGUI button delivery remains separately observed.";
+        private const string NativeIncapacitationClaimLimit =
+            "Real UnitEntityData.Damage mutation; stock UnitLifeController/EventBus delivery is claimed only when observed; no direct life-state or lifecycle-handler invocation.";
 
         private static readonly JsonSerializerSettings EvidenceJsonSettings = new JsonSerializerSettings
         {
@@ -54,9 +58,35 @@ namespace KingmakerMountedCombat.Diagnostics
             "mounted-pair-mod-disable-cleanup"
         };
 
+        private static readonly string[] PlayerActionRows =
+        {
+            "player-action-availability",
+            "mount-dismount-user-flow"
+        };
+
+        private static readonly string[] CombatLifecycleRows =
+        {
+            "mounted-pair-combat-start-retained",
+            "mounted-pair-combat-end-retained",
+            "mounted-pair-rider-death-cleanup",
+            "mounted-pair-mount-death-cleanup",
+            "mounted-pair-rider-incapacitated-cleanup",
+            "mounted-pair-mount-incapacitated-cleanup",
+            "mounted-pair-companion-removal-cleanup",
+            "mounted-pair-view-destroyed-cleanup",
+            "mounted-pair-exception-cleanup"
+        };
+
+        private static readonly string[] NativeIncapacitationRows =
+        {
+            "mounted-pair-rider-native-incapacitated-cleanup",
+            "mounted-pair-mount-native-incapacitated-cleanup"
+        };
+
         private readonly RuntimeRequest request;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedLifecycleSubscriber lifecycle;
+        private readonly MountedPlayerActionController playerAction;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private readonly List<RuntimeSubscenarioResult> results = new List<RuntimeSubscenarioResult>();
@@ -90,17 +120,25 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool evidenceFinalized;
         private bool cleanupFrameEvidenceWritten;
         private bool attachmentLeaseAcquiredThisRow;
+        private bool poseLeaseAcquiredThisRow;
+        private long lifecycleDeliveryBaselineSequence;
+        private long pairLifeTransitionBaselineSequence;
+        private BoundaryExerciseEvidence boundaryExercise;
+        private UnitEntityData incapacitationActor;
+        private ActorLifeTransitionEvidence actorLifeTransition;
 
         public RuntimeLifecycleScenarioEngine(
             RuntimeRequest request,
             GameMountedRelationshipService relationship,
             MountedLifecycleSubscriber lifecycle,
+            MountedPlayerActionController playerAction,
             DiagnosticSettings settings,
             IModLogger logger)
         {
             this.request = request ?? throw new ArgumentNullException(nameof(request));
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.lifecycle = lifecycle ?? throw new ArgumentNullException(nameof(lifecycle));
+            this.playerAction = playerAction ?? throw new ArgumentNullException(nameof(playerAction));
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             evidencePath = Path.Combine(request.EvidenceRoot, EvidenceFileName);
@@ -235,6 +273,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 case EngineStep.AwaitMountedFrame:
                     ExerciseMountedRow();
                     break;
+                case EngineStep.AwaitNativeIncapacitation:
+                    AwaitNativeIncapacitation();
+                    break;
                 case EngineStep.AwaitFirstIdempotentCleanupFrame:
                     VerifyFirstIdempotentCleanupAndRepeat();
                     break;
@@ -261,6 +302,18 @@ namespace KingmakerMountedCombat.Diagnostics
             lastCleanupTransition = null;
             cleanupFrameEvidenceWritten = false;
             attachmentLeaseAcquiredThisRow = false;
+            poseLeaseAcquiredThisRow = false;
+            boundaryExercise = null;
+            incapacitationActor = null;
+            actorLifeTransition = null;
+            lifecycleDeliveryBaselineSequence = lifecycle.SnapshotNativeDeliveries()
+                .Select(record => record.Sequence)
+                .DefaultIfEmpty(0L)
+                .Max();
+            pairLifeTransitionBaselineSequence = lifecycle.SnapshotPairLifeTransitions()
+                .Select(record => record.Sequence)
+                .DefaultIfEmpty(0L)
+                .Max();
             rowClock.Restart();
             assertions.Check(relationship.State == RelationshipState.Unmounted,
                 "Relationship began the row Unmounted.",
@@ -297,6 +350,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 RequestCleanup(CleanupTrigger.Exception);
                 return;
             }
+            if (IsNativeIncapacitationRow(currentRow))
+            {
+                var actorIsRider = string.Equals(
+                    currentRow,
+                    "mounted-pair-rider-native-incapacitated-cleanup",
+                    StringComparison.Ordinal);
+                incapacitationActor = actorIsRider ? snapshot.Rider : snapshot.Mount;
+                var hitPoints = incapacitationActor == null ? 0 : (int)incapacitationActor.Stats.HitPoints;
+                actorLifeTransition = ActorLifeTransitionEvidence.Before(
+                    actorIsRider ? "rider" : "mount",
+                    incapacitationActor,
+                    hitPoints + 1);
+            }
             evidenceSnapshot = snapshot;
             if (!TryWriteEvidence("pre-mount", null, null))
             {
@@ -306,6 +372,33 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!AssertPreMountBaseline())
             {
                 RequestCleanup(CleanupTrigger.Exception);
+                return;
+            }
+
+            if (string.Equals(currentRow, "player-action-availability", StringComparison.Ordinal))
+            {
+                SelectionManager.Instance.SelectUnit(rider.View, true, false, false);
+                var available = playerAction.GetAvailability();
+                assertions.Check(available.IsVisible,
+                    "Transient player action was visible for the selected eligible rider.",
+                    "Transient player action was hidden for the selected eligible rider.");
+                assertions.Check(available.IsEnabled && available.Action == MountedPlayerActionKind.Mount,
+                    "Transient player action exposed enabled Mount state.",
+                    "Transient player action was not an enabled Mount action: " + available.Feedback);
+                assertions.Check(available.UnavailableReasons.Count == 0,
+                    "Eligible live pair exposed no rejection reason.",
+                    "Eligible live pair exposed rejection reasons: " + available.Feedback);
+
+                settings.EnableUnsafeMovementExperiment = false;
+                var disabled = playerAction.GetAvailability();
+                assertions.Check(disabled.IsVisible && !disabled.IsEnabled,
+                    "Disabled private-alpha feature retained visible eligibility feedback without an executable action.",
+                    "Disabled private-alpha feature did not fail closed with visible feedback.");
+                assertions.Check(disabled.Feedback.IndexOf("Enable the private-alpha", StringComparison.Ordinal) >= 0,
+                    "Disabled feature explained the exact enablement requirement.",
+                    "Disabled feature did not expose its exact enablement requirement: " + disabled.Feedback);
+                settings.EnableUnsafeMovementExperiment = true;
+                RequestCleanup(CleanupTrigger.Manual);
                 return;
             }
 
@@ -322,7 +415,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            var mounted = relationship.MountAutomationPair();
+            TransitionResult mounted;
+            if (string.Equals(currentRow, "mount-dismount-user-flow", StringComparison.Ordinal))
+            {
+                SelectionManager.Instance.SelectUnit(rider.View, true, false, false);
+                var activated = playerAction.Activate();
+                mounted = relationship.LastTransition;
+                assertions.Check(activated,
+                    "Transient player action activated the eligible live pair.",
+                    "Transient player action did not activate the eligible live pair: " + playerAction.LastFeedback);
+            }
+            else
+            {
+                mounted = relationship.MountAutomationPair();
+            }
             assertions.Check(mounted.Succeeded,
                 "Valid automation pair mounted.",
                 "Valid automation pair mount failed: " + FormatTransitionErrors(mounted));
@@ -337,6 +443,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             AssertMountedAuthority();
             attachmentLeaseAcquiredThisRow = relationship.Runtime.PresentationAttachmentLeaseActive;
+            poseLeaseAcquiredThisRow = relationship.Runtime.PoseConfigured;
             step = EngineStep.AwaitMountedFrame;
         }
 
@@ -346,10 +453,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 !snapshot.RiderStockAgent.AvoidanceDisabled && !snapshot.MountStockAgent.AvoidanceDisabled &&
                 !snapshot.RiderView.ForbidRotation && !snapshot.MountView.ForbidRotation &&
                 snapshot.RiderOverride == null && snapshot.MountOverride == null &&
-                snapshot.RiderOverrideComponentCount == 0 && snapshot.MountOverrideComponentCount == 0;
+                snapshot.RiderOverrideComponentCount == 0 && snapshot.MountOverrideComponentCount == 0 &&
+                snapshot.RiderPoseComponentCount == 0 && snapshot.MountPoseComponentCount == 0;
             assertions.Check(exact,
-                "Exact clean stock-agent, avoidance, rotation, override, and component baseline was captured.",
-                "Pre-mount pair contained disabled stock authority or retained avoidance, rotation, override, or component state.");
+                "Exact clean stock-agent, avoidance, rotation, override, movement-component, and pose-component baseline was captured.",
+                "Pre-mount pair contained disabled stock authority or retained avoidance, rotation, override, movement-component, or pose-component state.");
             return exact;
         }
 
@@ -365,9 +473,37 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            assertions.Check(relationship.Runtime.PoseConfigured && relationship.Runtime.PoseHealthy &&
+                    relationship.Runtime.PoseFrameApplied && relationship.Runtime.PoseApplicationFrameCount > 0,
+                "Exact supported rider pose was applied after ordinary animation on the next mounted frame.",
+                "Supported rider pose was not healthy and active on the next mounted frame: " +
+                    (relationship.Runtime.PoseFailure ?? "no adapter failure detail"));
+
             if (string.Equals(currentRow, "mounted-pair-create-and-clear", StringComparison.Ordinal))
             {
                 AssertCleanupTransition(relationship.Dismount(CleanupTrigger.Manual), CleanupTrigger.Manual);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mount-dismount-user-flow", StringComparison.Ordinal))
+            {
+                var availability = playerAction.GetAvailability();
+                assertions.Check(availability.IsVisible && availability.IsEnabled &&
+                        availability.Action == MountedPlayerActionKind.Dismount &&
+                        string.Equals(availability.Label, "Dismount", StringComparison.Ordinal),
+                    "Mounted player action became an enabled Dismount action.",
+                    "Mounted player action did not become enabled Dismount: " + availability.Feedback);
+                var selected = SelectionManager.Instance?.SelectedUnits;
+                assertions.Check(selected != null && selected.Count == 1 && selected[0] == snapshot.Rider,
+                    "Player action normalized selection to the rider.",
+                    "Player action did not retain exactly the rider as selected.");
+                var activated = playerAction.Activate();
+                lastCleanupTransition = relationship.LastTransition;
+                assertions.Check(activated,
+                    "Dismount player action completed through the relationship service.",
+                    "Dismount player action failed: " + playerAction.LastFeedback);
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Manual),
+                    "Dismount player action retained the Manual cleanup trigger.",
+                    "Dismount player action did not retain Manual cleanup: " + relationship.LastResult);
                 AwaitCleanupFrame();
             }
             else if (string.Equals(currentRow, "mounted-pair-double-mount-rejected", StringComparison.Ordinal))
@@ -418,6 +554,161 @@ namespace KingmakerMountedCombat.Diagnostics
             else if (string.Equals(currentRow, "mounted-pair-mod-disable-cleanup", StringComparison.Ordinal))
             {
                 AssertCleanupTransition(relationship.Dismount(CleanupTrigger.ModDisabled), CleanupTrigger.ModDisabled);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mounted-pair-combat-start-retained", StringComparison.Ordinal))
+            {
+                lifecycle.HandlePartyCombatStateChanged(true);
+                CaptureBoundaryExercise("pair", "IPartyCombatHandler.HandlePartyCombatStateChanged(true)");
+                assertions.Check(relationship.State == RelationshipState.Mounted,
+                    "Combat-start delivery retained the valid mounted pair.",
+                    "Combat-start delivery changed the valid pair to " + relationship.State + ".");
+                AssertObservedBoundary(
+                    NativeLifecycleBoundary.CombatStarted,
+                    "IPartyCombatHandler.HandlePartyCombatStateChanged(true)",
+                    RelationshipState.Mounted,
+                    RelationshipState.Mounted,
+                    null,
+                    false);
+                AssertCleanupTransition(relationship.Dismount(CleanupTrigger.Manual), CleanupTrigger.Manual);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mounted-pair-combat-end-retained", StringComparison.Ordinal))
+            {
+                lifecycle.HandlePartyCombatStateChanged(true);
+                lifecycle.HandlePartyCombatStateChanged(false);
+                CaptureBoundaryExercise("pair", "IPartyCombatHandler.HandlePartyCombatStateChanged(true/false)");
+                assertions.Check(relationship.State == RelationshipState.Mounted,
+                    "Combat-end delivery cancelled combat work without dismounting the valid pair.",
+                    "Combat-end delivery changed the valid pair to " + relationship.State + ".");
+                AssertObservedBoundary(
+                    NativeLifecycleBoundary.CombatStarted,
+                    "IPartyCombatHandler.HandlePartyCombatStateChanged(true)",
+                    RelationshipState.Mounted,
+                    RelationshipState.Mounted,
+                    null,
+                    false);
+                AssertObservedBoundary(
+                    NativeLifecycleBoundary.CombatEnded,
+                    "IPartyCombatHandler.HandlePartyCombatStateChanged(false)",
+                    RelationshipState.Mounted,
+                    RelationshipState.Mounted,
+                    null,
+                    false);
+                AssertCleanupTransition(relationship.Dismount(CleanupTrigger.Manual), CleanupTrigger.Manual);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mounted-pair-rider-death-cleanup", StringComparison.Ordinal) ||
+                string.Equals(currentRow, "mounted-pair-mount-death-cleanup", StringComparison.Ordinal))
+            {
+                var actorIsRider = string.Equals(currentRow, "mounted-pair-rider-death-cleanup", StringComparison.Ordinal);
+                var actor = actorIsRider ? snapshot.Rider : snapshot.Mount;
+                lifecycle.HandleUnitDeath(actor);
+                lastCleanupTransition = relationship.LastTransition;
+                CaptureBoundaryExercise(actorIsRider ? "rider" : "mount", "IUnitHandler.HandleUnitDeath");
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Death),
+                    "Exact pair-unit death delivery completed Death cleanup.",
+                    "Pair-unit death delivery did not complete Death cleanup: " + relationship.LastResult);
+                AssertObservedBoundary(
+                    NativeLifecycleBoundary.UnitDeath,
+                    "IUnitHandler.HandleUnitDeath",
+                    RelationshipState.Mounted,
+                    RelationshipState.Unmounted,
+                    CleanupTrigger.Death,
+                    true);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mounted-pair-rider-incapacitated-cleanup", StringComparison.Ordinal) ||
+                string.Equals(currentRow, "mounted-pair-mount-incapacitated-cleanup", StringComparison.Ordinal))
+            {
+                var actorIsRider = string.Equals(currentRow, "mounted-pair-rider-incapacitated-cleanup", StringComparison.Ordinal);
+                lastCleanupTransition = relationship.Dismount(CleanupTrigger.Incapacitated);
+                CaptureBoundaryExercise(actorIsRider ? "rider" : "mount", "relationship.Dismount(Incapacitated)");
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Incapacitated),
+                    "Direct fail-safe incapacitation boundary completed exact cleanup.",
+                    "Direct fail-safe incapacitation boundary did not complete exact cleanup: " + relationship.LastResult);
+                AwaitCleanupFrame();
+            }
+            else if (IsNativeIncapacitationRow(currentRow))
+            {
+                var actorIsRider = string.Equals(
+                    currentRow,
+                    "mounted-pair-rider-native-incapacitated-cleanup",
+                    StringComparison.Ordinal);
+                incapacitationActor = actorIsRider ? snapshot.Rider : snapshot.Mount;
+                var state = incapacitationActor?.Descriptor?.State;
+                var hitPoints = incapacitationActor == null ? 0 : (int)incapacitationActor.Stats.HitPoints;
+                var constitution = incapacitationActor == null ? 0 : (int)incapacitationActor.Stats.Constitution;
+                var damageBefore = incapacitationActor?.Damage ?? 0;
+                var requestedDamage = hitPoints + 1;
+                if (actorLifeTransition == null)
+                {
+                    actorLifeTransition = ActorLifeTransitionEvidence.Before(
+                        actorIsRider ? "rider" : "mount",
+                        incapacitationActor,
+                        requestedDamage);
+                }
+                assertions.Check(state != null && state.IsConscious && !state.IsDead && !state.IsFinallyDead,
+                    "Exact pair actor began the native incapacitation probe conscious and alive.",
+                    "Pair actor was not conscious and alive before the native incapacitation probe.");
+                assertions.Check(hitPoints > 0 && constitution > 1 && damageBefore < hitPoints &&
+                        requestedDamage > hitPoints && requestedDamage < hitPoints + constitution,
+                    "Requested damage is inside the exact stock unconscious-but-not-dead band.",
+                    "Requested damage was outside the stock unconscious band: damage=" + damageBefore +
+                        ";HP=" + hitPoints + ";Constitution=" + constitution +
+                        ";requested=" + requestedDamage + ".");
+                if (assertions.FailureCount != 0)
+                {
+                    RequestCleanup(CleanupTrigger.Exception);
+                    return;
+                }
+
+                incapacitationActor.Damage = requestedDamage;
+                actorLifeTransition.MutationIssued = true;
+                actorLifeTransition.DamageImmediatelyAfterMutation = incapacitationActor.Damage;
+                step = EngineStep.AwaitNativeIncapacitation;
+            }
+            else if (string.Equals(currentRow, "mounted-pair-companion-removal-cleanup", StringComparison.Ordinal))
+            {
+                lifecycle.HandleCompanionRemoved(snapshot.Mount);
+                lastCleanupTransition = relationship.LastTransition;
+                CaptureBoundaryExercise("mount", "IPartyHandler.HandleCompanionRemoved");
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.CompanionInvalidated),
+                    "Companion-removal delivery completed CompanionInvalidated cleanup.",
+                    "Companion-removal delivery did not complete exact cleanup: " + relationship.LastResult);
+                AssertObservedBoundary(
+                    NativeLifecycleBoundary.PartyRemoved,
+                    "IPartyHandler.HandleCompanionRemoved",
+                    RelationshipState.Mounted,
+                    RelationshipState.Unmounted,
+                    CleanupTrigger.CompanionInvalidated,
+                    true);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mounted-pair-view-destroyed-cleanup", StringComparison.Ordinal))
+            {
+                lifecycle.HandleUnitDestroyed(snapshot.Rider);
+                lastCleanupTransition = relationship.LastTransition;
+                CaptureBoundaryExercise("rider", "IUnitHandler.HandleUnitDestroyed");
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.ViewDetached),
+                    "Pair-view destruction delivery completed ViewDetached cleanup.",
+                    "Pair-view destruction delivery did not complete exact cleanup: " + relationship.LastResult);
+                AssertObservedBoundary(
+                    NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed,
+                    "IUnitHandler.HandleUnitDestroyed",
+                    RelationshipState.Mounted,
+                    RelationshipState.Unmounted,
+                    CleanupTrigger.ViewDetached,
+                    true);
+                AwaitCleanupFrame();
+            }
+            else if (string.Equals(currentRow, "mounted-pair-exception-cleanup", StringComparison.Ordinal))
+            {
+                lastCleanupTransition = relationship.Dismount(CleanupTrigger.Exception);
+                CaptureBoundaryExercise("pair", "relationship.Dismount(Exception)");
+                assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Exception),
+                    "Exception recovery completed exact relationship cleanup.",
+                    "Exception recovery did not complete exact cleanup: " + relationship.LastResult);
                 AwaitCleanupFrame();
             }
             else
@@ -523,6 +814,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     string.Equals(relationship.Runtime.PresentationAttachmentRiskState, "active and internally consistent", StringComparison.Ordinal),
                 "Rider owned one internally consistent scoped position-attachment lease.",
                 "Rider scoped position-attachment lease was absent, restored early, or internally inconsistent.");
+            assertions.Check(relationship.Runtime.PoseConfigured && relationship.Runtime.PoseHealthy &&
+                    relationship.Runtime.PoseComponentCount == snapshot.RiderPoseComponentCount + 1 &&
+                    relationship.Runtime.PoseBoneCount == 7 &&
+                    string.Equals(relationship.Runtime.PoseProfileId, "medium-humanoid-mammoth-v1", StringComparison.Ordinal),
+                "Rider owned exactly one healthy seven-bone Medium-humanoid Mammoth pose adapter.",
+                "Rider pose adapter count, health, profile, or typed bone inventory was not exact.");
         }
 
         private void AssertCleanupTransition(TransitionResult result, CleanupTrigger expectedTrigger)
@@ -592,6 +889,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 assertions.Check(snapshot.RiderView.GetComponents<RiderMovementAgent>().Length == snapshot.RiderOverrideComponentCount,
                     "Owned RiderMovementAgent component count returned to its exact prior value.",
                     "A RiderMovementAgent component remained or disappeared after cleanup.");
+                assertions.Check(snapshot.RiderView.GetComponents<MountedRiderPoseAdapter>().Length == snapshot.RiderPoseComponentCount &&
+                        (!poseLeaseAcquiredThisRow || relationship.Runtime.PoseBaselineRestoreVerified),
+                    "Owned pose component count returned to its exact prior value and its bone baseline restoration was verified.",
+                    "A mounted pose adapter or unverified bone baseline remained after cleanup.");
                 assertions.Check(snapshot.RiderView.ForbidRotation == snapshot.RiderForbidRotationWasEnabled,
                     "Rider rotation lease returned to its exact prior value.",
                     "Rider rotation lease remained changed after cleanup.");
@@ -861,7 +1162,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
             return new LifecycleEvidenceRecord
             {
-                SchemaVersion = 2,
+                SchemaVersion = IsNativeIncapacitationRow(currentRow ?? lastEvidenceRow)
+                    ? 7
+                    : IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? 3 : 2,
                 RunId = request.RunId,
                 Scenario = request.Scenario,
                 Row = currentRow ?? lastEvidenceRow,
@@ -922,18 +1225,33 @@ namespace KingmakerMountedCombat.Diagnostics
                     PostCorrectionRotationResidualDegrees = agent == null ? (double?)null : agent.LatestPostCorrectionRotationResidualDegrees
                 },
                 Attachment = CreateAttachmentEvidence(pair, riderView),
+                Pose = IsCombatLifecycleRow(currentRow ?? lastEvidenceRow) ? CreatePoseEvidence(riderView) : null,
+                BoundaryExercise = IsCombatLifecycleRow(currentRow ?? lastEvidenceRow)
+                    ? (boundaryExercise ?? BoundaryExerciseEvidence.Pending(currentRow ?? lastEvidenceRow))
+                    : null,
+                ActorLifeTransition = IsNativeIncapacitationRow(currentRow ?? lastEvidenceRow)
+                    ? actorLifeTransition
+                    : null,
                 RecordErrors = recordErrors == null ? new string[0] : recordErrors.ToArray()
             };
         }
 
         private TriggerScopeEvidence CreateTriggerScope(string row)
         {
+            var nativeIncapacitation = IsNativeIncapacitationRow(row);
             return new TriggerScopeEvidence
             {
                 ExpectedCleanupTrigger = GetExpectedCleanupTrigger(row).ToString(),
-                InvocationPath = UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct",
-                NativeDeliveryObserved = false,
-                ClaimLimit = DirectInvocationClaimLimit
+                InvocationPath = nativeIncapacitation
+                    ? "stock-life-controller-eventbus"
+                    : IsPlayerActionRow(row)
+                        ? "player-action-controller-direct"
+                        : (UsesLifecycleHandler(row) ? "lifecycle-handler-direct" : "relationship-service-direct"),
+                NativeDeliveryObserved = nativeIncapacitation &&
+                    actorLifeTransition != null && actorLifeTransition.NativeDeliveryCount > 0,
+                ClaimLimit = nativeIncapacitation
+                    ? NativeIncapacitationClaimLimit
+                    : IsPlayerActionRow(row) ? PlayerActionClaimLimit : DirectInvocationClaimLimit
             };
         }
 
@@ -961,6 +1279,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 AttachmentParent = relationship.Runtime.PresentationAttachmentParentName,
                 SourceAnchor = relationship.Runtime.PresentationSourceAnchorName,
                 RiskState = relationship.Runtime.PresentationAttachmentRiskState
+            };
+        }
+
+        private PoseEvidence CreatePoseEvidence(UnitEntityView riderView)
+        {
+            return new PoseEvidence
+            {
+                ProfileId = relationship.Runtime.PoseProfileId,
+                BoneInventory = relationship.Runtime.PoseBoneInventory,
+                Configured = relationship.Runtime.PoseConfigured,
+                Healthy = relationship.Runtime.PoseHealthy,
+                FrameApplied = relationship.Runtime.PoseFrameApplied,
+                BaselineRestoreVerified = relationship.Runtime.PoseBaselineRestoreVerified,
+                ComponentCount = riderView == null ? (int?)null : riderView.GetComponents<MountedRiderPoseAdapter>().Length,
+                BoneCount = relationship.Runtime.PoseBoneCount,
+                ApplicationFrameCount = relationship.Runtime.PoseApplicationFrameCount,
+                FootTargetClampCount = relationship.Runtime.PoseFootTargetClampCount,
+                MaximumFootTargetResidualWorldUnits = relationship.Runtime.PoseMaximumFootTargetResidualWorldUnits,
+                MaximumKneeTargetResidualWorldUnits = relationship.Runtime.PoseMaximumKneeTargetResidualWorldUnits,
+                MaximumSegmentLengthResidualWorldUnits = relationship.Runtime.PoseMaximumSegmentLengthResidualWorldUnits,
+                MaximumApplyMicroseconds = relationship.Runtime.PoseMaximumApplyMicroseconds,
+                AverageApplyMicroseconds = relationship.Runtime.PoseAverageApplyMicroseconds,
+                Failure = relationship.Runtime.PoseFailure
             };
         }
 
@@ -1080,7 +1421,47 @@ namespace KingmakerMountedCombat.Diagnostics
                     return new[] { row };
                 }
             }
+            foreach (var row in PlayerActionRows)
+            {
+                if (string.Equals(row, scenario, StringComparison.Ordinal))
+                {
+                    return new[] { row };
+                }
+            }
+            if (string.Equals(scenario, "combat-lifecycle-suite", StringComparison.Ordinal))
+            {
+                return CombatLifecycleRows;
+            }
+            foreach (var row in CombatLifecycleRows)
+            {
+                if (string.Equals(row, scenario, StringComparison.Ordinal))
+                {
+                    return new[] { row };
+                }
+            }
+            foreach (var row in NativeIncapacitationRows)
+            {
+                if (string.Equals(row, scenario, StringComparison.Ordinal))
+                {
+                    return new[] { row };
+                }
+            }
             return null;
+        }
+
+        private static bool IsCombatLifecycleRow(string row)
+        {
+            return Array.IndexOf(CombatLifecycleRows, row) >= 0 || IsNativeIncapacitationRow(row);
+        }
+
+        private static bool IsNativeIncapacitationRow(string row)
+        {
+            return Array.IndexOf(NativeIncapacitationRows, row) >= 0;
+        }
+
+        private static bool IsPlayerActionRow(string row)
+        {
+            return Array.IndexOf(PlayerActionRows, row) >= 0;
         }
 
         private static CleanupTrigger GetExpectedCleanupTrigger(string row)
@@ -1101,6 +1482,32 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 return CleanupTrigger.ModDisabled;
             }
+            if (string.Equals(row, "mounted-pair-rider-death-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-mount-death-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.Death;
+            }
+            if (string.Equals(row, "mounted-pair-rider-incapacitated-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-mount-incapacitated-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.Incapacitated;
+            }
+            if (IsNativeIncapacitationRow(row))
+            {
+                return CleanupTrigger.Incapacitated;
+            }
+            if (string.Equals(row, "mounted-pair-companion-removal-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.CompanionInvalidated;
+            }
+            if (string.Equals(row, "mounted-pair-view-destroyed-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.ViewDetached;
+            }
+            if (string.Equals(row, "mounted-pair-exception-cleanup", StringComparison.Ordinal))
+            {
+                return CleanupTrigger.Exception;
+            }
             return CleanupTrigger.Manual;
         }
 
@@ -1108,7 +1515,55 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             return string.Equals(row, "mounted-pair-death-cleanup", StringComparison.Ordinal) ||
                 string.Equals(row, "mounted-pair-combat-start-cleanup", StringComparison.Ordinal) ||
-                string.Equals(row, "mounted-pair-area-unload-cleanup", StringComparison.Ordinal);
+                string.Equals(row, "mounted-pair-area-unload-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-combat-start-retained", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-combat-end-retained", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-rider-death-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-mount-death-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-companion-removal-cleanup", StringComparison.Ordinal) ||
+                string.Equals(row, "mounted-pair-view-destroyed-cleanup", StringComparison.Ordinal);
+        }
+
+        private void CaptureBoundaryExercise(string actorRole, string invocationPath)
+        {
+            var deliveries = lifecycle.SnapshotNativeDeliveries()
+                .Where(record => record.Sequence > lifecycleDeliveryBaselineSequence)
+                .Select(BoundaryDeliveryEvidence.From)
+                .ToArray();
+            boundaryExercise = new BoundaryExerciseEvidence
+            {
+                Observed = true,
+                Row = currentRow,
+                ActorRole = actorRole,
+                ActorId = string.Equals(actorRole, "rider", StringComparison.Ordinal)
+                    ? snapshot.Rider.UniqueId.ToString()
+                    : (string.Equals(actorRole, "mount", StringComparison.Ordinal)
+                        ? snapshot.Mount.UniqueId.ToString()
+                        : null),
+                InvocationPath = invocationPath,
+                RelationshipStateAfterBoundary = relationship.State.ToString(),
+                Deliveries = deliveries
+            };
+        }
+
+        private void AssertObservedBoundary(
+            NativeLifecycleBoundary boundary,
+            string source,
+            RelationshipState before,
+            RelationshipState after,
+            CleanupTrigger? trigger,
+            bool cleanupAttempted)
+        {
+            var matches = lifecycle.SnapshotNativeDeliveries().Where(record =>
+                record.Sequence > lifecycleDeliveryBaselineSequence &&
+                record.Boundary == boundary &&
+                string.Equals(record.Source, source, StringComparison.Ordinal)).ToArray();
+            var exact = matches.Length == 1 && matches[0].StateBefore == before &&
+                matches[0].StateAfter == after && matches[0].CleanupTrigger == trigger &&
+                matches[0].CleanupAttempted == cleanupAttempted && matches[0].CleanupSucceeded;
+            assertions.Check(exact,
+                "Exact lifecycle delivery was recorded for " + boundary + ".",
+                "Lifecycle delivery was missing, duplicated, or semantically wrong for " + boundary + ".");
         }
 
         private static string FormatTransitionErrors(TransitionResult result)
@@ -1141,6 +1596,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             BeginRow,
             AwaitMountedFrame,
+            AwaitNativeIncapacitation,
             AwaitFirstIdempotentCleanupFrame,
             AwaitCleanupFrame
         }
@@ -1178,7 +1634,213 @@ namespace KingmakerMountedCombat.Diagnostics
             public TransformEvidence Spine { get; set; }
             public AnchorEvidence Anchor { get; set; }
             public AttachmentEvidence Attachment { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public PoseEvidence Pose { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public BoundaryExerciseEvidence BoundaryExercise { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public ActorLifeTransitionEvidence ActorLifeTransition { get; set; }
             public IReadOnlyList<string> RecordErrors { get; set; }
+        }
+
+        private sealed class ActorLifeTransitionEvidence
+        {
+            public string ActorRole { get; set; }
+            public string ActorId { get; set; }
+            public string MutationProperty { get; set; }
+            public bool MutationIssued { get; set; }
+            public string LifeStateBefore { get; set; }
+            public string LifeStateAfter { get; set; }
+            public bool ConsciousBefore { get; set; }
+            public bool AwakeBefore { get; set; }
+            public bool InAwakeUnitsBefore { get; set; }
+            public bool ConsciousAfter { get; set; }
+            public bool AwakeAfter { get; set; }
+            public bool InAwakeUnitsAfter { get; set; }
+            public bool DeadAfter { get; set; }
+            public bool FinallyDeadAfter { get; set; }
+            public int DamageBefore { get; set; }
+            public int RequestedDamage { get; set; }
+            public int DamageAfter { get; set; }
+            public int DamageImmediatelyAfterMutation { get; set; }
+            public int HitPoints { get; set; }
+            public int Constitution { get; set; }
+            public int NativeDeliveryCount { get; set; }
+            public int NativeLifeObservationCount { get; set; }
+            public string NativeObservedActorId { get; set; }
+            public string NativePreviousLifeState { get; set; }
+            public string NativeCurrentLifeState { get; set; }
+            public bool PostDeliveryRecoveryObserved { get; set; }
+
+            public static ActorLifeTransitionEvidence Before(string actorRole, UnitEntityData actor, int requestedDamage)
+            {
+                var state = actor?.Descriptor?.State;
+                return new ActorLifeTransitionEvidence
+                {
+                    ActorRole = actorRole,
+                    ActorId = actor?.UniqueId,
+                    MutationProperty = "UnitEntityData.Damage",
+                    MutationIssued = false,
+                    LifeStateBefore = state?.LifeState.ToString(),
+                    LifeStateAfter = null,
+                    ConsciousBefore = state != null && state.IsConscious,
+                    AwakeBefore = actor != null && actor.IsAwake,
+                    InAwakeUnitsBefore = actor != null && Game.Instance.State.AwakeUnits.Contains(actor),
+                    ConsciousAfter = false,
+                    AwakeAfter = false,
+                    InAwakeUnitsAfter = false,
+                    DeadAfter = false,
+                    FinallyDeadAfter = false,
+                    DamageBefore = actor?.Damage ?? 0,
+                    RequestedDamage = requestedDamage,
+                    DamageAfter = 0,
+                    DamageImmediatelyAfterMutation = 0,
+                    HitPoints = actor == null ? 0 : (int)actor.Stats.HitPoints,
+                    Constitution = actor == null ? 0 : (int)actor.Stats.Constitution,
+                    NativeDeliveryCount = 0,
+                    NativeLifeObservationCount = 0,
+                    NativeObservedActorId = null,
+                    NativePreviousLifeState = null,
+                    NativeCurrentLifeState = null,
+                    PostDeliveryRecoveryObserved = false
+                };
+            }
+
+            public void CaptureAfter(
+                UnitEntityData actor,
+                int nativeDeliveryCount,
+                IReadOnlyList<NativePairLifeStateObservation> lifeObservations)
+            {
+                var state = actor?.Descriptor?.State;
+                LifeStateAfter = state?.LifeState.ToString();
+                ConsciousAfter = state != null && state.IsConscious;
+                AwakeAfter = actor != null && actor.IsAwake;
+                InAwakeUnitsAfter = actor != null && Game.Instance.State.AwakeUnits.Contains(actor);
+                DeadAfter = state != null && state.IsDead;
+                FinallyDeadAfter = state != null && state.IsFinallyDead;
+                DamageAfter = actor?.Damage ?? 0;
+                NativeDeliveryCount = nativeDeliveryCount;
+                NativeLifeObservationCount = lifeObservations == null ? 0 : lifeObservations.Count;
+                var first = lifeObservations == null ? null : lifeObservations.FirstOrDefault();
+                NativeObservedActorId = first?.ActorId;
+                NativePreviousLifeState = first?.PreviousLifeState;
+                NativeCurrentLifeState = first?.CurrentLifeState;
+                PostDeliveryRecoveryObserved = first != null &&
+                    (!string.Equals(LifeStateAfter, first.CurrentLifeState, StringComparison.Ordinal) ||
+                     DamageAfter != DamageImmediatelyAfterMutation);
+            }
+        }
+
+        private sealed class BoundaryExerciseEvidence
+        {
+            public bool Observed { get; set; }
+            public string Row { get; set; }
+            public string ActorRole { get; set; }
+            public string ActorId { get; set; }
+            public string InvocationPath { get; set; }
+            public string RelationshipStateAfterBoundary { get; set; }
+            public IReadOnlyList<BoundaryDeliveryEvidence> Deliveries { get; set; }
+
+            public static BoundaryExerciseEvidence Pending(string row)
+            {
+                return new BoundaryExerciseEvidence
+                {
+                    Observed = false,
+                    Row = row,
+                    ActorRole = null,
+                    ActorId = null,
+                    InvocationPath = null,
+                    RelationshipStateAfterBoundary = null,
+                    Deliveries = new BoundaryDeliveryEvidence[0]
+                };
+            }
+        }
+
+        private void AwaitNativeIncapacitation()
+        {
+            if (incapacitationActor?.Descriptor?.State == null || actorLifeTransition == null)
+            {
+                FailCurrent("Native incapacitation actor or life evidence became unavailable.");
+                RequestCleanup(CleanupTrigger.Exception);
+                return;
+            }
+
+            var state = incapacitationActor.Descriptor.State;
+            var deliveries = lifecycle.SnapshotNativeDeliveries()
+                .Where(record => record.Sequence > lifecycleDeliveryBaselineSequence)
+                .ToArray();
+            var lifeObservations = lifecycle.SnapshotPairLifeTransitions()
+                .Where(record => record.Sequence > pairLifeTransitionBaselineSequence &&
+                    string.Equals(record.ActorId, incapacitationActor.UniqueId, StringComparison.Ordinal))
+                .ToArray();
+            actorLifeTransition.CaptureAfter(incapacitationActor, deliveries.Length, lifeObservations);
+            if (lifeObservations.Length == 0 || relationship.State != RelationshipState.Unmounted || deliveries.Length == 0)
+            {
+                return;
+            }
+
+            lastCleanupTransition = relationship.LastTransition;
+            CaptureBoundaryExercise(
+                actorLifeTransition.ActorRole,
+                "UnitEntityData.Damage -> UnitLifeController.TickOnUnit -> IUnitLifeStateChanged.HandleUnitLifeStateChanged");
+            assertions.Check(actorLifeTransition.NativeLifeObservationCount == 1 &&
+                    string.Equals(actorLifeTransition.NativeObservedActorId, incapacitationActor.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(actorLifeTransition.NativePreviousLifeState, "Conscious", StringComparison.Ordinal) &&
+                    string.Equals(actorLifeTransition.NativeCurrentLifeState, "Unconscious", StringComparison.Ordinal),
+                "Stock EventBus delivered one exact actor transition from Conscious to Unconscious.",
+                "Stock life transition delivery was not exact: " + actorLifeTransition.NativePreviousLifeState + " -> " +
+                    actorLifeTransition.NativeCurrentLifeState + ".");
+            assertions.Check(actorLifeTransition.MutationIssued &&
+                    actorLifeTransition.DamageImmediatelyAfterMutation == actorLifeTransition.RequestedDamage &&
+                    actorLifeTransition.DamageImmediatelyAfterMutation > actorLifeTransition.HitPoints &&
+                    actorLifeTransition.DamageImmediatelyAfterMutation < actorLifeTransition.HitPoints + actorLifeTransition.Constitution,
+                "Exact diagnostic damage mutation entered the intended nonlethal numeric band before stock processing.",
+                "Immediate diagnostic damage mutation evidence was not exact.");
+            assertions.Check(HasExactSuccessfulTrigger(CleanupTrigger.Incapacitated),
+                "Native life-state delivery completed exact Incapacitated cleanup.",
+                "Native life-state delivery did not complete Incapacitated cleanup: " + relationship.LastResult);
+            AssertObservedBoundary(
+                NativeLifecycleBoundary.UnitIncapacitated,
+                "IUnitLifeStateChanged.HandleUnitLifeStateChanged",
+                RelationshipState.Mounted,
+                RelationshipState.Unmounted,
+                CleanupTrigger.Incapacitated,
+                true);
+            assertions.Check(deliveries.Length == 1,
+                "Exactly one native pair-incapacitation lifecycle delivery was observed.",
+                "Native pair-incapacitation delivery count was " + deliveries.Length + " rather than one.");
+            AwaitCleanupFrame();
+        }
+
+        private sealed class BoundaryDeliveryEvidence
+        {
+            public string Boundary { get; set; }
+            public string Source { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public string Detail { get; set; }
+            public string StateBefore { get; set; }
+            public string StateAfter { get; set; }
+            public string CleanupTrigger { get; set; }
+            public bool CleanupAttempted { get; set; }
+            public bool CleanupSucceeded { get; set; }
+            [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+            public IReadOnlyList<string> CleanupErrors { get; set; }
+
+            public static BoundaryDeliveryEvidence From(NativeLifecycleDeliveryRecord record)
+            {
+                return new BoundaryDeliveryEvidence
+                {
+                    Boundary = record.Boundary.ToString(),
+                    Source = record.Source,
+                    Detail = record.Detail,
+                    StateBefore = record.StateBefore.ToString(),
+                    StateAfter = record.StateAfter.ToString(),
+                    CleanupTrigger = record.CleanupTrigger.HasValue ? record.CleanupTrigger.Value.ToString() : null,
+                    CleanupAttempted = record.CleanupAttempted,
+                    CleanupSucceeded = record.CleanupSucceeded,
+                    CleanupErrors = record.CleanupErrors != null && record.CleanupErrors.Count > 0 ? record.CleanupErrors : null
+                };
+            }
         }
 
         private sealed class TriggerScopeEvidence
@@ -1286,6 +1948,26 @@ namespace KingmakerMountedCombat.Diagnostics
             public string RiskState { get; set; }
         }
 
+        private sealed class PoseEvidence
+        {
+            public string ProfileId { get; set; }
+            public string BoneInventory { get; set; }
+            public bool Configured { get; set; }
+            public bool Healthy { get; set; }
+            public bool FrameApplied { get; set; }
+            public bool BaselineRestoreVerified { get; set; }
+            public int? ComponentCount { get; set; }
+            public int BoneCount { get; set; }
+            public long ApplicationFrameCount { get; set; }
+            public long FootTargetClampCount { get; set; }
+            public double MaximumFootTargetResidualWorldUnits { get; set; }
+            public double MaximumKneeTargetResidualWorldUnits { get; set; }
+            public double MaximumSegmentLengthResidualWorldUnits { get; set; }
+            public double MaximumApplyMicroseconds { get; set; }
+            public double AverageApplyMicroseconds { get; set; }
+            public string Failure { get; set; }
+        }
+
         private sealed class PositionEvidence
         {
             public float X { get; set; }
@@ -1341,6 +2023,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
             public int MountOverrideComponentCount { get; private set; }
 
+            public int RiderPoseComponentCount { get; private set; }
+
+            public int MountPoseComponentCount { get; private set; }
+
             public bool RiderForbidRotationWasEnabled { get; private set; }
 
             public bool MountForbidRotationWasEnabled { get; private set; }
@@ -1392,6 +2078,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     MountOverride = mount.View.AgentOverride,
                     RiderOverrideComponentCount = rider.View.GetComponents<RiderMovementAgent>().Length,
                     MountOverrideComponentCount = mount.View.GetComponents<RiderMovementAgent>().Length,
+                    RiderPoseComponentCount = rider.View.GetComponents<MountedRiderPoseAdapter>().Length,
+                    MountPoseComponentCount = mount.View.GetComponents<MountedRiderPoseAdapter>().Length,
                     RiderForbidRotationWasEnabled = rider.View.ForbidRotation,
                     MountForbidRotationWasEnabled = mount.View.ForbidRotation,
                     RiderParent = rider.View.transform.parent,

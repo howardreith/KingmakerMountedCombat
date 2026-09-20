@@ -128,4 +128,10 @@ The following remain intentionally unqualified:
 
 No generated proprietary metadata output exists to hash: inspection was read-only and in-memory. No Wrath asset was imported, copied, or required.
 
+## Phase 2A bounded pose decision
+
+Exact local assembly inspection confirms the selected rider view exposes an Animator, CharacterAvatar, and stock `IKController`/FinalIK surface, but Kingmaker contains no supported Mammoth-rider clip, mounted animator layer, or rider selector. The authorized fallback therefore owns only the standard Medium-humanoid transforms `Pelvis`, `L_Up_leg`, `L_leg`, `L_foot`, `R_Up_leg`, `R_leg`, and `R_foot`. Runtime eligibility rejects a missing or ambiguous match. The exact profile ID is `medium-humanoid-mammoth-v1`; no asset, animation clip, controller, skeleton, or extracted payload is added to the package.
+
+The pose deliberately leaves spine, arms, hands, and all equipment transforms under ordinary Kingmaker animation/IK. Runtime evidence will inventory every active/nonempty hand set available in the protected Working fixture and report one-handed, two-handed, and shield coverage truthfully; an unavailable safe variant is `FEATURE-NOT-PRESENT`, not synthetic coverage. Analytical residuals and baseline cleanup are technical gates. Pelvis burial, foot placement, silhouette, weapon/shield clearance, and ordinary-angle acceptability remain reserved for the mandatory human review of the exact packaged build.
+
 Visual classification: `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. This proves one remotely plausible Kingmaker-native presentation and prevents K9 from firing. The mandatory Phase 1 doorway, selection, and formation rows are now complete, but pose/animation quality remains a separately scoped Phase 2 prerequisite. This record does not authorize Phase 2.

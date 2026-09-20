@@ -7,9 +7,11 @@ if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw "Assembly is missing
 $name=[Reflection.AssemblyName]::GetAssemblyName($path)
 $assembly=[Reflection.Assembly]::ReflectionOnlyLoadFrom($path)
 $target=@($assembly.CustomAttributes|Where-Object AttributeType -eq ([Runtime.Versioning.TargetFrameworkAttribute])|Select-Object -First 1)
+$informational=@($assembly.CustomAttributes|Where-Object AttributeType -eq ([Reflection.AssemblyInformationalVersionAttribute])|Select-Object -First 1)
 $value=[ordered]@{
     name=$name.Name
     version=$name.Version.ToString()
+    informationalVersion=if($informational.Count-eq1){[string]$informational[0].ConstructorArguments[0].Value}else{$null}
     mvid=$assembly.ManifestModule.ModuleVersionId.ToString()
     targetFramework=if($target.Count-eq1){[string]$target[0].ConstructorArguments[0].Value}else{$null}
     references=@($assembly.GetReferencedAssemblies()|ForEach-Object Name|Sort-Object)

@@ -55,7 +55,7 @@ function Assert-RuntimeSaveDescriptor {
 }
 
 function Assert-RuntimeFixture {
-    param($Fixture)
+    param($Fixture, [Parameter(Mandatory = $true)][string]$Scenario)
     Assert-KmcExactProperties $Fixture @('baseline','working','writeAuthorization') 'runtime fixture'
     Assert-RuntimeSaveDescriptor $Fixture.baseline 'baseline'
     Assert-RuntimeSaveDescriptor $Fixture.working 'working'
@@ -65,11 +65,19 @@ function Assert-RuntimeFixture {
     }
     $authorization = $Fixture.writeAuthorization
     Assert-KmcExactProperties $authorization @('mode','allowedInternalName','allowedFileName','baselineImmutable') 'runtime fixture write authorization'
-    if ([string]$authorization.mode -cne 'working-only' -or
+    if ($Scenario -ceq 'manual-visual-review') {
+        if ([string]$authorization.mode -cne 'read-only' -or
+            $null -ne $authorization.allowedInternalName -or
+            $null -ne $authorization.allowedFileName -or
+            $authorization.baselineImmutable -ne $true) {
+            throw 'Manual review fixture is not exact read-only authorization.'
+        }
+    }
+    elseif ([string]$authorization.mode -cne 'working-only' -or
         [string]$authorization.allowedInternalName -cne 'KMC_AUTOMATION_WORKING' -or
         [string]$authorization.allowedFileName -cne [string]$Fixture.working.fileName -or
         $authorization.baselineImmutable -ne $true) {
-        throw 'Runtime fixture does not authorize writes solely to the exact Working descriptor.'
+        throw 'Automated runtime fixture does not authorize writes solely to the exact Working descriptor.'
     }
 }
 
@@ -81,26 +89,47 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $request @($commonRequired + @('saveAccessAllowed','saveName')) 'runtime request v1'
 }
 elseif ($schemaVersion -eq 2) {
-    Assert-KmcExactProperties $request @($commonRequired + @('fixture')) 'runtime request v2'
+    Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite')) 'runtime request v2'
 }
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
 $missionScenarios = @(
-    'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability',
+    'chunk4-ground-arrival-rt',
+    'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
+    'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
+    'player-action-availability', 'mount-dismount-user-flow',
     'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
     'mounted-pair-cleanup-idempotent', 'mounted-pair-death-cleanup', 'mounted-pair-combat-start-cleanup',
-    'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup', 'mounted-pair-open-ground',
-    'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-pair-selection',
+    'mounted-pair-area-unload-cleanup', 'mounted-pair-mod-disable-cleanup',
+    'mounted-pair-combat-start-retained', 'mounted-pair-combat-end-retained',
+    'mounted-pair-rider-death-cleanup', 'mounted-pair-mount-death-cleanup',
+    'mounted-pair-rider-incapacitated-cleanup', 'mounted-pair-mount-incapacitated-cleanup',
+    'mounted-pair-rider-native-incapacitated-cleanup', 'mounted-pair-mount-native-incapacitated-cleanup',
+    'mounted-pair-companion-removal-cleanup', 'mounted-pair-view-destroyed-cleanup', 'mounted-pair-exception-cleanup',
+    'mounted-pair-open-ground',
+    'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-distance-door-interaction', 'mounted-pair-selection',
     'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
     'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
-    'mounted-pair-load-safety', 'mounted-pair-area-transition-safety'
+    'mounted-pair-load-safety', 'mounted-pair-area-transition-safety',
+    'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
+    'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
+    'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
+    'camera-follow-and-command-routing', 'mounted-rider-melee-hit-rt', 'mounted-rider-melee-hit-tb',
+    'mounted-rider-melee-miss-rt', 'mounted-mammoth-primary-hit-rt', 'mounted-mammoth-primary-hit-tb',
+    'mounted-rider-melee-move-to-attack-rt', 'mounted-rider-melee-move-to-attack-tb',
+    'mounted-rider-melee-command-cancel-rt', 'mounted-rider-melee-command-cancel-tb',
+    'mounted-rider-melee-command-interrupt-rt', 'mounted-rider-melee-command-interrupt-tb',
+    'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
+    'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
-$aggregateScenarios = @('fixture-intake','lifecycle-suite','movement-suite','boundary-suite')
+$aggregateScenarios = @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
+$interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }
 if ([string]$request.branch -cnotmatch '^codex/mounted-combat-[A-Za-z0-9._/-]+$') { throw 'Runtime request branch is outside the KMC prefix.' }
 if ([string]$request.commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Runtime request commit must be a full lowercase Git SHA.' }
-if ([string]$request.productVersion -cne '0.0.1-feasibility') { throw 'Runtime request product version is not exact.' }
+$expectedProductVersion = [string](Read-KmcJson (Join-Path (Get-KmcRepositoryRoot) 'version.json')).productVersion
+if ([string]$request.productVersion -cne $expectedProductVersion) { throw 'Runtime request product version is not exact.' }
 if ([string]$request.dllSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime request DLL SHA-256 is invalid.' }
 if ([string]$request.transactionToken -cnotmatch '^[0-9a-f]{64}$') { throw 'Runtime request transaction token is invalid.' }
 $parsedMvid = [Guid]::Empty
@@ -115,8 +144,13 @@ if ($schemaVersion -eq 1) {
     if ($request.saveAccessAllowed -ne $false -or $null -ne $request.saveName) { throw 'Schema-v1 runtime request is not an exact no-save request.' }
 }
 else {
-    if (@($missionScenarios + $aggregateScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed Phase 1 allowlist.' }
-    Assert-RuntimeFixture $request.fixture
+    if (@($missionScenarios + $aggregateScenarios + $interactiveScenarios | Where-Object { $_ -ceq [string]$request.scenario }).Count -ne 1 -or [string]$request.scenario -ceq 'mod-load-smoke') { throw 'Schema-v2 scenario is outside the save-backed mission allowlist.' }
+    Assert-RuntimeFixture $request.fixture ([string]$request.scenario)
+    Assert-KmcExactProperties $request.qualificationSuite @('suiteId','snapshotSha256') 'runtime qualification-suite identity'
+    if ([string]$request.qualificationSuite.suiteId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or
+        [string]$request.qualificationSuite.snapshotSha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'Runtime qualification-suite identity is invalid.'
+    }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PackageManifestPath)) {
@@ -132,5 +166,5 @@ if (-not [string]::IsNullOrWhiteSpace($PackageManifestPath)) {
     }
 }
 
-$passCount = if ($schemaVersion -eq 1) { 12 } else { 31 }
+$passCount = if ($schemaVersion -eq 1) { 12 } else { 33 }
 Write-Host "TOTAL PASS=$passCount FAIL=0"

@@ -1,0 +1,123 @@
+$ErrorActionPreference='Stop'
+Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'runtime\RuntimeHarness.Common.ps1')
+$passed=0
+foreach($name in @('3h-rider-longbow-ordinary','3h-rider-longbow-primary','3h-rider-melee-ordinary',
+    '3h-rider-melee-primary','3h-horse-bite-ordinary','3h-horse-bite-primary','3h-paused-dismount',
+    '3h-paused-mount-stop','3h-paused-mount-execute','3h-paused-control-failure','3h-movement-allocation-partial')) {
+    if (@(Get-KmcPhase3dHorseRuntimeRows | Where-Object { $_ -ceq $name }).Count -ne 1) {
+        throw "Exact Phase 3H leaf is missing or duplicated in native result reconciliation: $name"
+    }
+}
+if ('3h-unrecognized-test' -cin @(Get-KmcPhase3dHorseRuntimeRows)) { throw 'Unknown leaf admitted.' }
+$passed++
+function New-ControlsEvidence {
+    param([bool]$TurnBased)
+    $rows=@()
+    foreach($name in @('3h-rider-longbow-ordinary','3h-rider-longbow-primary','3h-rider-melee-ordinary','3h-rider-melee-primary','3h-horse-bite-ordinary','3h-horse-bite-primary')) {
+        $mount=$name.StartsWith('3h-horse-');$actor=if($mount){'mount'}else{'rider'}
+        $rows+=@{name=$name;status='PASS';evidence=@{
+            inputKind='scripted-native-handler-integration';intentStarts=1;turnActor=$actor;mountDisplacement=if($name -cin @('3h-rider-melee-ordinary','3h-horse-bite-ordinary')){1}else{0}
+            actorBefore=@{standard=0};otherBefore=@{standard=0}
+            ledger=@{relationshipState='Mounted';rider=@{standard=if($mount){0}else{6};move=3};mount=@{standard=if($mount){6}else{0};move=0}}
+            rules=@{riderResolved=if($mount){0}elseif($name.EndsWith('-ordinary')){2}else{1};mountResolved=if(-not $mount){0}elseif($name.EndsWith('-ordinary')){2}else{1};pairForcedD20=0}
+            lastOutcome=@{result='Success';actorId=$actor;commandOwnerId=$actor;resourceOwnerId=$actor;childAttackStartCount=1;singleAttackMode=$name.EndsWith('-primary');nativeFullAttack=$name.EndsWith('-ordinary');nativePlannedAttackCount=if($name.EndsWith('-ordinary')){2}else{1};nativeCompletedAttackCount=if($name.EndsWith('-ordinary')){2}else{1}}
+        }}
+    }
+    if(-not $TurnBased){foreach($name in @('3h-paused-dismount','3h-paused-mount-stop','3h-paused-mount-execute')){
+        $stop=$name -ceq '3h-paused-mount-stop'
+        $rows+=@{name=$name;status='PASS';evidence=@{inputKind='scripted-native-handler-integration';queuedBeforeExecution=$true;finished=$true;acted=(!$stop);dispatchDelta=if($stop){0}else{1};result=if($stop){'Interrupt'}else{'Success'}}}
+    }}
+    return (@{schemaVersion=9;status='PASS';subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@();rows=$rows;observations=@{
+        riderId='rider';horseId='mount';phase3fActualConfiguration=@{enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enablePairedActivation=(!$TurnBased);enableDiagnosticOverlay=$false;overlayPresent=$false}
+    }}|ConvertTo-Json -Depth 15|ConvertFrom-Json)
+}
+foreach($mode in @('rt','tb')){
+    $request=[pscustomobject]@{scenario="phase3h-combat-loop-$mode"}
+    $artifact=New-ControlsEvidence ($mode -eq 'tb')
+    Assert-KmcPhase3hLoopEvidence $request $artifact PASS
+    $passed++
+    foreach($mutation in @('effect','owner','configuration','paired-path','paired-type','paired-missing','generation','missing','truncated','single','fullcost','pending-effect')){
+        $artifact=New-ControlsEvidence ($mode -eq 'tb')
+        switch($mutation){
+            effect {$artifact.rows[0].evidence.rules.riderResolved=0}
+            owner {$artifact.rows[0].evidence.lastOutcome.resourceOwnerId='mount'}
+            configuration {$artifact.observations.phase3fActualConfiguration.enableUnifiedMountedTurn=$true}
+            paired-path {$artifact.observations.phase3fActualConfiguration.enablePairedActivation=($mode -eq 'tb')}
+            paired-type {$artifact.observations.phase3fActualConfiguration.enablePairedActivation='true'}
+            paired-missing {$artifact.observations.phase3fActualConfiguration.PSObject.Properties.Remove('enablePairedActivation')}
+            generation {$artifact.rows[0].evidence.intentStarts=2}
+            missing {$artifact.rows=@($artifact.rows|Select-Object -Skip 1);$artifact.subscenarioPassCount--}
+            truncated {$artifact.rows[0].evidence.lastOutcome.nativeCompletedAttackCount=1}
+            single {$artifact.rows[1].evidence.lastOutcome.nativePlannedAttackCount=2}
+            fullcost {if($mode -eq 'tb'){$artifact.rows[0].evidence.ledger.rider.move=0}else{$artifact.rows[0].evidence.lastOutcome.nativeFullAttack=$false}}
+            pending-effect {$artifact.rows[4].evidence.rules.mountResolved=1}
+        }
+        $rejected=$false
+        try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
+        if(-not $rejected){throw "Accepted corrupt $mode $mutation evidence."}
+        $passed++
+    }
+    if($mode -eq 'tb'){
+        $artifact=New-ControlsEvidence $true
+        $artifact.rows[0].evidence.mountDisplacement=0.2
+        $rejected=$false
+        try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
+        if(-not $rejected){throw 'Accepted moving attack as stationary TB evidence.'}
+        $passed++
+        $artifact=New-ControlsEvidence $true
+        $artifact.rows[0].evidence.actorBefore=[pscustomobject]@{'$id'='1'}
+        $rejected=$false
+        try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
+        if(-not $rejected){throw 'Accepted a missing native before ledger.'}
+        $passed++
+    }
+}
+$request=[pscustomobject]@{scenario='phase3h-combat-loop-tb'}
+foreach($mutation in @('none','epoch','actor','debit','rider-tax','overclaim')) {
+    $artifact=New-ControlsEvidence $true
+    $samples=@(0..3 | ForEach-Object { [pscustomobject]@{
+        actor=if($_ % 2 -eq 0){'rider'}else{'mount'};roundStartTicks=if($_ -lt 2){100}else{200}
+        inputKind='scripted-native-handler-integration';partialMovementPassed=$true;displacement=0.6;nativeMoveResult='Success'
+        mountMoveBefore=0.1;mountMoveAfter=0.4;riderMoveBefore=0;riderMoveAfter=0;riderStandardBefore=0;riderStandardAfter=0
+    }})
+    $e=[pscustomobject]@{samples=$samples;firstRound=1;lastRound=2;completeResourceQualification=$false}
+    $artifact.rows+= [pscustomobject]@{name='3h-movement-allocation-partial';status='PASS';evidence=$e}
+    $artifact.subscenarioPassCount++
+    switch($mutation) {
+        epoch {foreach($s in $samples){$s.roundStartTicks=100}}
+        actor {foreach($s in $samples){$s.actor='rider'}}
+        debit {$samples[0].mountMoveAfter=0}
+        rider-tax {$samples[0].riderMoveAfter=3}
+        overclaim {$e.completeResourceQualification=$true}
+    }
+    $rejected=$false
+    try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
+    if($rejected -eq ($mutation -eq 'none')){throw "Partial movement mutation mismatch: $mutation"}
+    $passed++
+}
+$request=[pscustomobject]@{scenario='phase3h-combat-loop-rt'}
+foreach($mutation in @('none','missing','small-target','existing-hp','wrong-amount','missing-lease','wrong-mode')) {
+    $artifact=New-ControlsEvidence $false
+    $artifact.schemaVersion=10
+    foreach($row in $artifact.rows | Where-Object {-not $_.name.StartsWith('3h-paused-')}) {
+        $target=[pscustomobject]@{targetId='diagnostic-'+$row.name;distance=3.5;bidirectionalHostility=$true;
+            noLoot=$true;durabilityLease=$true;temporaryHitPointsBefore=0;
+            temporaryHitPointsAfterProvisioning=4096;durabilityLeaseAmount=4096}
+        $artifact.observations | Add-Member NoteProperty ('target-'+$row.name) $target
+    }
+    $target=$artifact.observations.'target-3h-horse-bite-ordinary'
+    switch($mutation) {
+        missing {$artifact.observations.PSObject.Properties.Remove('target-3h-horse-bite-ordinary')}
+        small-target {$target.temporaryHitPointsAfterProvisioning=128}
+        existing-hp {$target.temporaryHitPointsBefore=1}
+        wrong-amount {$target.durabilityLeaseAmount=4095}
+        missing-lease {$target.durabilityLease=$false}
+        wrong-mode {$request.scenario='phase3h-combat-loop-tb'}
+    }
+    $rejected=$false
+    try{Assert-KmcPhase3hLoopEvidence $request $artifact PASS}catch{$rejected=$true}
+    if($rejected -eq ($mutation -eq 'none')){throw "Repeated-sequence durability mutation mismatch: $mutation"}
+    $passed++
+}
+Write-Host "TOTAL Phase3H protocol PASS=$passed FAIL=0"

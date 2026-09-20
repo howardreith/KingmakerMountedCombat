@@ -7,6 +7,7 @@ namespace KingmakerMountedCombat.Tests
     {
         private const string Sha = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
         private const string Mvid = "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7";
+        private const string ProductVersion = BuildIdentity.ProductVersion;
 
         private static int Main()
         {
@@ -17,6 +18,67 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("request rejects save name in no-save mode", RequestRejectsSaveNameInNoSaveMode);
             runner.Run("request requires exact hash and MVID formats", RequestRequiresBuildIdentity);
             runner.Run("request accepts exact save-backed fixture", RequestAcceptsExactSaveBackedFixture);
+            runner.Run("request accepts combat core control suite", RequestAcceptsCombatCoreControlSuite);
+            runner.Run("request accepts observation-only horse native asset audit", RequestAcceptsHorseNativeAssetAudit);
+            runner.Run("request accepts horse companion blueprint registration audit", RequestAcceptsHorseCompanionBlueprintRegistration);
+            runner.Run("request accepts horse companion unmounted suite", RequestAcceptsHorseCompanionUnmountedSuite);
+            runner.Run("request accepts horse mounted alpha suite", RequestAcceptsHorseMountedAlphaSuite);
+            runner.Run("request accepts horse native-controls UX suite", RequestAcceptsHorseNativeControlsUxSuite);
+            runner.Run("request accepts Phase 3D Horse suites", RequestAcceptsPhase3dHorseSuites);
+            runner.Run("registration audit accepts exact Horse parent scenarios", RegistrationAuditAcceptsExactHorseParentScenarios);
+            foreach (var scenario in new[] { "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt" })
+            {
+                var exactScenario = scenario;
+                runner.Run("Chunk 4 focused registration: " + exactScenario, () =>
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = exactScenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Focused request rejected: " + exactScenario);
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(exactScenario),
+                        "Focused Horse registration missing: " + exactScenario);
+                });
+            }
+            runner.Run("Chunk 4 Charge envelopes retain every native row", () =>
+            {
+                foreach (var scenario in new[] { "chunk4-charge-safety-rt", "chunk4-charge-safety-tb" })
+                {
+                    var request = ValidSaveBackedRequest();
+                    request.Scenario = scenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Charge request rejected.");
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario), "Charge registration rejected.");
+                }
+                foreach (var name in new[] { "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider", "C4-CHARGE-mounted-mount", "C4-CHARGE-unrelated-actor", "C4-CHARGE-queued-state-change" })
+                {
+                    var result = new RuntimeSubscenarioResult { Name = name, Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                    TestRunner.Equal(0, result.Validate().Count, "Native Charge result was lost at serialization: " + name);
+                }
+            });
+            runner.Run("Chunk 4 sustained native envelopes retain each parameterized case", () =>
+            {
+                foreach (var scenario in new[] { "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = scenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Sustained request rejected.");
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario), "Sustained Horse registration rejected.");
+                }
+                foreach (var weapon in new[] { "melee", "ranged" })
+                    foreach (var input in new[] { "adjacent-held", "adjacent-repeat", "approach-held", "approach-repeat" })
+                    {
+                        var result = new RuntimeSubscenarioResult { Name = "C4-SUSTAINED-" + weapon + "-" + input,
+                            Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                        TestRunner.Equal(0, result.Validate().Count, "Sustained RT native leaf was lost at serialization.");
+                    }
+                foreach (var input in new[] { "rider-first", "mount-first", "rider-exhausted", "mount-exhausted", "early-end", "after-early-end" })
+                {
+                    var result = new RuntimeSubscenarioResult { Name = "C4-SUSTAINED-TB-" + input,
+                        Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                    TestRunner.Equal(0, result.Validate().Count, "Sustained TB native leaf was lost at serialization.");
+                }
+            });
+            runner.Run("request accepts private-alpha human-play combat rows", RequestAcceptsHumanPlayCombatRows);
+            runner.Run("request requires exact qualification-suite identity", RequestRequiresQualificationSuiteIdentity);
+            runner.Run("request accepts read-only manual visual review", RequestAcceptsReadOnlyManualReview);
+            runner.Run("request rejects writable manual visual review", RequestRejectsWritableManualReview);
+            runner.Run("request rejects read-only automated scenario", RequestRejectsReadOnlyAutomatedScenario);
             runner.Run("request rejects mismatched fixture identity", RequestRejectsMismatchedFixtureIdentity);
             runner.Run("request rejects non-Working write authorization", RequestRejectsNonWorkingAuthorization);
             runner.Run("result accepts complete PASS", ResultAcceptsCompletePass);
@@ -26,21 +88,72 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("result rejects inconsistent subscenario totals", ResultRejectsInconsistentSubscenarioTotals);
             runner.Run("result requires lowercase evidence manifest SHA-256", ResultRequiresEvidenceManifestSha256);
             MountedRelationshipTests.Register(runner);
+            MountedPlayerActionTests.Register(runner);
+            MountedCombatDomainTests.Register(runner);
+            ActorAllocationLifetimeTests.Register(runner);
+            PairedActivationTests.Register(runner);
+            ManualReviewBoundaryGuardTests.Register(runner);
             RuntimeSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);
+            SustainedRoutineProgressTests.Register(runner);
             BoundaryFailureDrainTests.Register(runner);
             BoundaryScenarioEvidenceContractTests.Register(runner);
             MovementScreenshotCaptureTests.Register(runner);
             MovementNavigationBoundaryPolicyTests.Register(runner);
             MovementRadialDistanceOrderTests.Register(runner);
             NavigationEndpointDistanceTrackerTests.Register(runner);
+            NativeLifecycleDeliveryLedgerTests.Register(runner);
+            NativeMountedAbilityActivationLedgerTests.Register(runner);
+            NativeAreaBoundaryProgressTests.Register(runner);
+            MountedRiderPoseTests.Register(runner);
+            MountedRiderGroundingPolicyTests.Register(runner);
+            MountedStabilizationPolicyTests.Register(runner);
+            NativeMountedControlPolicyTests.Register(runner);
+            UnifiedMountedTurnPolicyTests.Register(runner);
+            PairedCommandSchedulerTests.Register(runner);
+            MountedStockAttackPolicyTests.Register(runner);
+            runner.Run("Chunk 4 core native requests and leaves remain serializable", () =>
+            {
+                foreach (var scenario in new[] { "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb",
+                    "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-ground-arrival-rt", "chunk4-horse-strike-comparison-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = scenario;
+                    TestRunner.Equal(0, request.Validate().Count, "Core request rejected: " + scenario);
+                    TestRunner.True(HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario), "Core registration missing.");
+                }
+                foreach (var name in new[] { "C4-LIFE-rider-incapacitation", "C4-LIFE-rider-death-live-command", "C4-LIFE-mount-death-live-command",
+                    "C4-TARGETING-rider-heal", "C4-TARGETING-rider-hostile", "C4-TARGETING-mount-heal", "C4-TARGETING-mount-hostile", "C4-TARGETING-area-both",
+                    "C4-GROUND-mounted-arrival", "C4-GROUND-unmounted-arrival",
+                    "C4-HORSE-mounted-three-primaries", "C4-HORSE-unmounted-strike-recovery", "C4-RANGED-native-mixed-range", "C4-INTERRUPT-melee-pause-resume", "C4-INTERRUPT-melee-pause-stop-recover", "C4-INTERRUPT-melee-moving-target", "C4-INTERRUPT-melee-retarget-windup", "C4-INTERRUPT-melee-target-death-windup", "C4-INTERRUPT-melee-target-death-midroutine", "C4-INTERRUPT-ranged-pause-resume", "C4-INTERRUPT-ranged-pause-stop-recover", "C4-INTERRUPT-ranged-moving-target", "C4-INTERRUPT-ranged-retarget-windup", "C4-INTERRUPT-ranged-retarget-inflight", "C4-INTERRUPT-ranged-target-death-windup", "C4-INTERRUPT-ranged-target-death-inflight", "C4-INSPECTION-rider", "C4-INSPECTION-mount", "C4-SESSION-RT-1", "C4-SESSION-RT-2", "C4-SESSION-RT-3", "C4-SESSION-TB-1", "C4-SESSION-TB-2", "C4-SESSION-TB-3" })
+                {
+                    var result = new RuntimeSubscenarioResult { Name = name, Status = "PASS", AssertionPassCount = 1, Errors = new string[0] };
+                    TestRunner.Equal(0, result.Validate().Count, "Core native leaf missing: " + name);
+                }
+            });
+            MountedChargeSafetyTests.Register(runner);
+            MountedRangedRoutineCompletionTests.Register(runner);
+            OptionalPublicPropertyReaderTests.Register(runner);
+            ReactiveBooleanValueReaderTests.Register(runner);
+            StopEarlyCaptureBoundaryTests.Register(runner);
+            PresentationOverlayEvidenceTests.Register(runner);
+            ScopedDiagnosticAiLeaseTests.Register(runner);
+            ExpectedAttackDispatchLedgerTests.Register(runner);
+            ExactAppendOnlyArrayLeaseTests.Register(runner);
+            HorseCompanionLifeTransitionPolicyTests.Register(runner);
+            HorseCompanionProgressionPolicyTests.Register(runner);
+            HorseCompanionScenarioDeadlinePolicyTests.Register(runner);
+            DiagnosticTurnTraversalPolicyTests.Register(runner);
             return runner.Complete();
         }
 
         private static void DiagnosticSettingsDefaultsAreSafe()
         {
             var settings = new DiagnosticSettings();
-            TestRunner.Equal(false, settings.EnableUnsafeMovementExperiment, "Unsafe movement experiment must default off.");
+            TestRunner.Equal(true, settings.EnableUnsafeMovementExperiment, "Native mounted controls must default on for the enabled private alpha.");
+            TestRunner.Equal(false, settings.EnableUnifiedMountedTurn, "The bounded Phase 3E fallback must default to accepted Phase 3C separate turns.");
+            TestRunner.Equal(false, settings.EnablePairedCommandScheduler, "The unqualified paired-command scheduler must default off.");
+            TestRunner.Equal(false, settings.EnablePairedActivation, "The paired prototype requires explicit developer opt-in.");
+            TestRunner.Equal(false, settings.EnableDiagnosticOverlay, "The legacy diagnostic overlay must default hidden.");
             TestRunner.Equal(0.10d, settings.MaximumAnchorResidualWorldUnits, "Residual threshold changed.");
             TestRunner.Equal(null, settings.Validate(), "Default settings must validate.");
         }
@@ -100,6 +213,135 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(request.Validate().Count > 0, "Mismatched fixture campaign identity was accepted.");
         }
 
+        private static void RequestAcceptsCombatCoreControlSuite()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "combat-core-control-suite";
+            TestRunner.Equal(0, request.Validate().Count, "Combat core control suite request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseNativeAssetAudit()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-native-asset-audit";
+            TestRunner.Equal(0, request.Validate().Count, "Horse native-asset audit request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseCompanionBlueprintRegistration()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-companion-blueprint-registration";
+            TestRunner.Equal(0, request.Validate().Count, "Horse companion blueprint registration request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseCompanionUnmountedSuite()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-companion-unmounted-suite";
+            TestRunner.Equal(0, request.Validate().Count, "Horse companion unmounted suite request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseMountedAlphaSuite()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-mounted-alpha-suite";
+            TestRunner.Equal(0, request.Validate().Count, "Horse mounted alpha suite request was rejected.");
+        }
+
+        private static void RequestAcceptsHorseNativeControlsUxSuite()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = "horse-native-controls-ux-suite";
+            TestRunner.Equal(0, request.Validate().Count, "Horse native-controls UX suite request was rejected.");
+        }
+
+        private static void RequestAcceptsPhase3dHorseSuites()
+        {
+            foreach (var scenario in new[]
+            {
+                "phase3d-unified-combat-rt-suite",
+                "phase3d-unified-combat-tb-suite",
+                "phase3d-horse-presentation-suite",
+                "phase3h-combat-loop-rt", "phase3h-combat-loop-tb"
+            })
+            {
+                var request = ValidSaveBackedRequest();
+                request.Scenario = scenario;
+                TestRunner.Equal(0, request.Validate().Count, scenario + " request was rejected.");
+            }
+        }
+
+        private static void RegistrationAuditAcceptsExactHorseParentScenarios()
+        {
+            foreach (var scenario in new[]
+            {
+                "horse-companion-blueprint-registration",
+                "horse-companion-unmounted-suite",
+                "horse-mounted-alpha-suite",
+                "horse-native-controls-ux-suite",
+                "phase3d-unified-combat-rt-suite",
+                "phase3d-unified-combat-tb-suite",
+                "phase3d-horse-presentation-suite"
+            })
+            {
+                TestRunner.Equal(
+                    true,
+                    HorseCompanionRegistrationScenarioPolicy.SupportsScenario(scenario),
+                    scenario + " was rejected by the registration prerequisite.");
+            }
+
+            TestRunner.Equal(
+                false,
+                HorseCompanionRegistrationScenarioPolicy.SupportsScenario("foreign-horse-scenario"),
+                "The registration prerequisite accepted an unknown scenario.");
+        }
+
+        private static void RequestAcceptsHumanPlayCombatRows()
+        {
+            foreach (var scenario in new[]
+            {
+                "mounted-rider-melee-human-play-path-rt",
+                "mounted-rider-melee-human-play-path-tb"
+            })
+            {
+                var request = ValidSaveBackedRequest();
+                request.Scenario = scenario;
+                TestRunner.Equal(0, request.Validate().Count, scenario + " request was rejected.");
+            }
+        }
+
+        private static void RequestRequiresQualificationSuiteIdentity()
+        {
+            var request = ValidSaveBackedRequest();
+            request.QualificationSuite = null;
+            TestRunner.True(request.Validate().Count > 0, "Missing qualification-suite identity was accepted.");
+
+            request = ValidSaveBackedRequest();
+            request.QualificationSuite.SuiteId = "bad suite";
+            request.QualificationSuite.SnapshotSha256 = Sha.ToUpperInvariant();
+            TestRunner.True(request.Validate().Count >= 2, "Malformed qualification-suite identity was accepted.");
+        }
+
+        private static void RequestAcceptsReadOnlyManualReview()
+        {
+            var request = ValidReadOnlyManualReviewRequest();
+            TestRunner.Equal(0, request.Validate().Count, "Valid read-only manual review request was rejected.");
+        }
+
+        private static void RequestRejectsWritableManualReview()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = RuntimeRequest.ManualReviewScenario;
+            TestRunner.True(request.Validate().Count > 0, "Manual review accepted Working write authorization.");
+        }
+
+        private static void RequestRejectsReadOnlyAutomatedScenario()
+        {
+            var request = ValidReadOnlyManualReviewRequest();
+            request.Scenario = "presentation-suite";
+            TestRunner.True(request.Validate().Count > 0, "Automated presentation suite accepted read-only authorization identity.");
+        }
+
         private static void RequestRejectsNonWorkingAuthorization()
         {
             var request = ValidSaveBackedRequest();
@@ -146,7 +388,7 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "mod-load-smoke",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.0.1-feasibility",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-smoke-001",
@@ -166,7 +408,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.0.1-feasibility",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -188,11 +430,16 @@ namespace KingmakerMountedCombat.Tests
                 Scenario = "fixture-intake",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.0.1-feasibility",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 EvidenceRoot = "runtime-evidence/kmc-fixture-001",
                 TransactionToken = Sha,
+                QualificationSuite = new RuntimeQualificationSuiteIdentity
+                {
+                    SuiteId = "suite-001",
+                    SnapshotSha256 = Sha
+                },
                 Fixture = ValidFixture()
             };
         }
@@ -207,7 +454,7 @@ namespace KingmakerMountedCombat.Tests
                 Status = "PASS",
                 Branch = "codex/mounted-combat-feasibility",
                 Commit = "3801345720241eeab75f2944d91948f182ca26aa",
-                ProductVersion = "0.0.1-feasibility",
+                ProductVersion = ProductVersion,
                 DllSha256 = Sha,
                 DllMvid = Mvid,
                 TransactionToken = Sha,
@@ -240,6 +487,16 @@ namespace KingmakerMountedCombat.Tests
                     }
                 }
             };
+        }
+
+        private static RuntimeRequest ValidReadOnlyManualReviewRequest()
+        {
+            var request = ValidSaveBackedRequest();
+            request.Scenario = RuntimeRequest.ManualReviewScenario;
+            request.Fixture.WriteAuthorization.Mode = "read-only";
+            request.Fixture.WriteAuthorization.AllowedInternalName = null;
+            request.Fixture.WriteAuthorization.AllowedFileName = null;
+            return request;
         }
 
         private static RuntimeFixtureIdentity ValidFixture()

@@ -1,0 +1,170 @@
+# Phase 3E Paired-Scheduler Playtest
+
+Status: PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY
+
+## Final dev.12 evidence and fallback decision
+
+Clean guarded-published dev.12 is commit `7e7f67f150491064725ed450d65095369a8a1953`, version `0.1.0-phase3e-dev.12`. Its immutable package is `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.12-paired-scheduler-horse-tb-gate2-diagnostic.zip`; ZIP/manifest/DLL SHA-256 are `3c275cb83eba1a98f489ddccaa00094adf9f1b84d290a7ef86f281735fa778ed` / `af2b0aced125b28b86c2a00e8ad0fc810aa7182e2916a941427d2c9d7622fb8a` / `fbb6f2b21e7b8d8b8859c3fbc4a2557ddb7066e20bfa625263f1aa7a48fe5aff`; MVID is `31b11096-443b-47bb-9d97-3ab542d244d4`. Stable suite `20260905T064000Z-phase3e-dev12-horse-tb-suite11` has SHA-256 `a4c4fd95b21edc2d5b83660b1557938d9c439686b57d3b2ba78f2178c1875fbc`; full-continuity WhatIf passed.
+
+First fresh process `20260905T082300Z-phase3e-dev12-horse-tb-gate2` is immutable FAIL before scheduler admission. The out-of-combat Mount availability observation crossed a one-frame combat-start race; the later native shell was truthfully refused because the party was then in combat. The game timed out after 300 seconds. Registration/orchestration/runtime-artifacts/game/request/final SHA-256 are `b12797e701fe864c28f72809815e7640985758ef2f7eccb2f63acad96c767871`, `7e019e0c790a7f1bbc19289d1c355eb09e137bfb879e1e2b71f897da7fe45c81`, `09047191870a6d6c500ad3d928454cead510ed813bafbbdd27aa8e1f53285598`, `03d1fd7b0b597169c2e0fe4a62aa32bff4ad248852bfd08f8ed1392b2046fa2d`, `67c9e96d09c9584d989600f7fe14df7737923c853663426771df1327fdd78407`, and `a43cfe2163dec8d3f638f91b054352a002b5a0b83c01524fc908533a24687f97`. Independent audit proved exact save/Mods/process/lock/sentinel/deployment restoration before evidence inspection.
+
+The justified same-package rerun is `20260905T090000Z-phase3e-dev12-horse-tb-gate2-rerun`. Postrun validators passed `33/0`, `34/0`, `33/0`, and `29/0`; the independent audit then passed before gameplay read. Exact restoration identities were save metadata/content `2ea26a472764101745fd41636b562ba2088c13f2663877afaa355a0444215606` / `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45`, Mods `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`, Baseline/Working `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512` / `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, with no process, transaction lock, sentinel, staging, or live KMC residue.
+
+The rerun produced `8 PASS / 1 FAIL` Phase 3D rows (`31/1` Horse assertions). Its Mount Primary row is exact: Horse `fc251588-ac85-4b9a-bc5b-c4fae213f1e6` remained command/action/resource/rule initiator; natural weapon `35dfad6517f401145af54111be04d6cf` used `HorseAnimationSet_Bite`; one start, one `Success` terminal, one attack roll, at most one damage event, one mount Standard charge, zero rider Standard charge, zero duplicate-frame drive, zero foreign adoption, exact cleanup, rider current retained, and no native Horse turn. Native diagnostic traversal ended idle unrelated fixture turns four times with zero duplicate/foreign/resource mutation and preserved their order.
+
+The terminal row failed after a later ordinary rider command was interrupted with `CommandAdmissionFailure`: the log records `Unified mounted turn entered separate-turn fallback: ChooseNextUnit retained the exact redundant mount.` Horse controls then returned through native fallback and the relationship safely dismounted. This is K9 after repair cycle 2/2. Gate 1 remains `PASS 140/0`; exact Horse Mount Primary is additional positive evidence, but complete sequencing, TB melee/ranged, combat Mount/Dismount, and five-foot-step/AoO remain `DEFER — EVIDENCED`.
+
+Rerun registration/orchestration/Phase3D/runtime-artifacts/game/request/final SHA-256 are `558b1c0b3f24167cf78445ef88453788d64c4ae428d06891501af6e8cacc75ed`, `258f0100437971492583d307900d0da79c5b35843abed5e73c1f56ff7c144a10`, `7d83d6b35e52b0f35ef417b2169483632f1802b978aef6f931bf55883562fa14`, `f0d6557ef714cac24b3460bbd27432c71f974fb74665438537a17bab8ac7a5c4`, `c57904ba7d88a45e073b65266108357b80e8ecf53e7e927ca238aa462ecb500e`, `7539c4972f05819333316fbb901ab53723940e0e90d3654082c76c3edef7ab78`, and `a381d12cde50009cf6fbc950a4dda91c9336b3bffbb4ba5094d654bbb685e3ea`.
+
+The final fallback package is a clean `0.1.0-phase3e-fallback.1` build with both experimental gates default false. Its pre-package gate passes source `22/0`, Release, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly `402/0`, PowerShell `26/0`, JSON `7/0`, and diff. It relies on immutable accepted Phase 3C separate-turn and Phase 3D dev.17 RT/presentation/native-control evidence; no third unified-TB process was run.
+
+## Final fallback package authority
+
+The package-bound clean guarded-published commit is `16ccc71cabde70398130386f0e9e9380e1110495` on `codex/mounted-combat-phase3e-paired-scheduler`.
+
+```text
+Version:           0.1.0-phase3e-fallback.1
+Package:           C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip
+Package SHA-256:   9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698
+Manifest SHA-256:  43e783839fcb1c25c064c9f9f58934bb158f94ca6d7f81da332907789f2c0881
+DLL SHA-256:       5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f
+DLL MVID:          57f442aa-fc22-4277-810b-3328300e37e7
+Package validation:10 PASS / 0 FAIL
+```
+
+Stable suite `20260905T095500Z-phase3e-fallback1-suite12` is stored at `C:\Dev\KingmakerMountedCombatLab\runtime-state\qualification-suite-snapshots\20260905T095500Z-phase3e-fallback1-suite12.json`, SHA-256 `ada2b36ecc739f2f964d37a92d321b63a5110153a5f186e7673b653a5d7700ec`. It binds the exact package, manifest, DLL, MVID, branch, and package commit; its protected-save/Mods digests are `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45` / `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`.
+
+Guarded manual-review WhatIf `20260905T100000Z-phase3e-fallback1-manual-review-whatif` passed source and package validation plus exact zero mutation. A separate post-WhatIf audit then rechecked clean local/upstream equality at `16ccc71cabde70398130386f0e9e9380e1110495`, the exact package and suite hashes, no Kingmaker/Wrath/UMM/build process, and no runtime lock, transaction, or sentinel residue.
+
+This package is the bounded fallback, not a unified-TB alpha. It defaults `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`; do not enable either experimental gate for acceptance testing.
+
+## Install, verify, and uninstall
+
+Close Kingmaker and Unity Mod Manager before running these commands. Use only a disposable KMC fixture; never use a valued save.
+
+```powershell
+$deploymentGuard = 'C:\Dev\KingmakerMountedCombatLab\codex-policy\Manage-KingmakerMountedCombatDeployment.ps1'
+$fallbackPackage = 'C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip'
+
+# Install when KMC is absent.
+& $deploymentGuard -Operation Install -PackagePath $fallbackPackage -AllowDocumentationDescendant -Confirm:$false
+
+# Replace an existing exact KMC deployment.
+& $deploymentGuard -Operation Replace -PackagePath $fallbackPackage -AllowDocumentationDescendant -Confirm:$false
+
+# Verify the installed payload against this package.
+& $deploymentGuard -Operation VerifyInstalled -PackagePath $fallbackPackage -AllowDocumentationDescendant
+
+# Back up and uninstall only KMC, then verify absence.
+& $deploymentGuard -Operation Uninstall -Confirm:$false
+& $deploymentGuard -Operation VerifyAbsent
+```
+
+## Focused manual checklist
+
+1. Install and verify the exact package with Kingmaker/UMM closed; launch Kingmaker normally and confirm UMM reports version `0.1.0-phase3e-fallback.1`.
+2. Confirm `EnableUnifiedMountedTurn=false` and `EnablePairedCommandScheduler=false`. Leave both false for this review.
+3. In a disposable KMC fixture, Mount out of combat and confirm rider selection, portrait/action bar, camera, attachment, saddle icon, and Horse/Mammoth presentation remain healthy.
+4. Enter turn-based combat and confirm the rider and mount use separate native initiative turns and independent action ledgers. This is the accepted fallback behavior; do not expect one unified tracker entry.
+5. In real time, check ordinary adjacent and approach hostile-click melee, Rider Primary, and Mount Primary. Confirm the visible attacker, weapon/animation, target, and action cost belong to the selected actor.
+6. In real time, check Shortbow approach-to-range with no forced melee close, Crossbow reload, and Sling. Confirm only the Horse moves for mounted approach and native ammunition/reload behavior remains visible.
+7. Check native out-of-combat Mount/Dismount controls and the qualified Horse presentation. Perform the deferred unmounted Sling stock-control check separately.
+8. Exit to desktop, uninstall through the guard, and run `VerifyAbsent`.
+
+Known limitations: unified turn-based mounted combat is not qualified; combat Mount/Dismount action costs, mounted five-foot-step/AoO behavior, and broad unified TB melee/ranged sequencing remain `DEFER — EVIDENCED`; the automated unmounted Sling control remains deferred to manual review. There is no Paladin Divine Steed, persistent mounted state, automatic remount, enemy rider, additional-species, Small-rider, public-release, or `main`-merge claim.
+
+## Dev.12 offline gate
+
+The final bounded Gate 2 diagnostic candidate passes source `22/0`, Release build `0 warnings / 0 errors`, component `322/0`, visual/source-order `18/0`, harness/protocol `242/0`, assembly-backed contracts `402/0`, PowerShell parsing, and diff validation. Schema 6 requires one exact roster snapshot, one entry per native end-turn input, unchanged ledgers across `ForceToEnd(false)`, and zero duplicate, foreign, resource-mutation, or mounted-Horse observations. Historical evidence schemas remain accepted unchanged.
+
+No live qualification is claimed from these offline results. The next admissible evidence is one clean published dev.12 package and suite, a full-continuity WhatIf, then one fresh Horse TB process followed by an independent restoration audit before gameplay inspection.
+
+## Immutable dev.11 result and final dev.12 Gate 2 plan
+
+Dev.11 is clean published commit `b50a44cdfdf160f06f19ee48b8c5af7afc2385fa`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.11-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `4cc3fd262c06a112d5bdca92032ca0b65262623608c4ba454bc284307425a4a4` / `5ec192115aa6956f4be49e4c7b1accf137d98e02ea65286d9f131bb1f01789e9` / `4c486f8e35e8778c24b383a456c62c601e885990fd62ae1ad354794e9f8ef707`; MVID `4c9c76ec-c137-427a-bd8e-e71d61d258eb`. Suite10 `20260905T041800Z-phase3e-dev11-horse-tb-suite10` / `2577387f77bbf569e50a224b9acc5251be7078e92f9ec431a6785b18c5648b33` and full-continuity WhatIf passed.
+
+Live `20260905T051700Z-phase3e-dev11-horse-tb-gate2` remains immutable outer/game `FAIL 52/2`. Its independent audit passed before evidence read. Seven gameplay rows passed. The installed log then proves one exact post-Tick Horse skip with unrelated replacement `b6628a77-4962-47a4-a17c-88d9836fc9d5`, zero fallback, and no native Horse turn. That unrelated player-party unit stayed in native `Preparing`, correctly awaiting input; the scenario lacked an end-turn driver and expired before Mount Primary.
+
+Dev.12 is one final comprehensive diagnostic cycle. It must prove the roster by reference, traverse only exact idle fixture player turns through `ForceToEnd(false)`, record their natural sequence and unchanged ledgers, and fail on any mounted Horse, foreign/hostile, busy, duplicate, or resource-mutating case. One clean package, suite, full-continuity WhatIf, fresh process, and audit-before-read are required. A non-isolatable completion failure after this run triggers the bounded fallback disposition; there will be no additional piecemeal diagnostic package.
+
+## Immutable dev.10 result and dev.11 qualification plan
+
+Dev.10 is clean commit `0b4dd1cd494a2765035477325afb1ae0e1bd3ee9`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.10-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `820047c137fde066f93045638c7ca27b0e27638f00e0053da681ac1146260052` / `cedab82f6ba2d95feb916b9ec32ef81d0f1242082b501c8cab9d4b6b13e13320` / `72d15e9eec52a59c07156a29a8283f4495c597ccae570bcf71f0fcd04458a06a`; MVID is `e1b39018-3f0b-4eef-9eae-0229e7056fc0`. Suite9 `20260905T020200Z-phase3e-dev10-horse-tb-suite9` / `2f73d4867ee6fcc09875b3a7491258c225eaadf391dad539989ac312e8724214` and WhatIf passed.
+
+Live `20260905T030300Z-phase3e-dev10-horse-tb-gate2` is immutable outer/game `FAIL 52/2`. The independent restoration audit passed before evidence read. The first seven rows passed, including exact rider-only melee ownership/cardinality/cost and retained mounted state. On ending that rider turn, the old immediate recursive skip selected the Horse twice from the still-bound rider origin and entered fallback; the Horse remained native current unit in `Preparing` until the next-rider-turn deadline. No Horse scheduler lease or attack occurred, so this is not a repeat of Gate 1 and does not overturn its `140/0` qualification.
+
+Dev.11 consumes the first narrow completion repair and must use one fresh clean package. Before credit, full-continuity WhatIf and independent postrun restoration audit remain mandatory. Schema 5 must prove: the exact candidate was deferred while rider turn remained bound; the exact post-`Tick` skip occurred after it cleared; no native Horse turn was emitted; a later natural rider turn admitted one Horse Standard lease; the command started within two actionable frames; drive/start/terminal/resource cardinalities were `>=1/1/1/1` with zero duplicate frame, interrupt, foreign adoption, rider cost, fallback, or residue; Horse weapon/animation/rule identity remained exact. If the run passes beyond Mount Primary, every later sequencing/ranged/step/lifecycle row is attributed normally and no historical failure is relabeled.
+
+## Immutable dev.9 result and dev.10 test plan
+
+Dev.9 is clean guarded-published commit `f9082b166cd4958281d97707aac90e1c8a7f8ed4`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.9-paired-scheduler-horse-tb-gate2-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `adeb8a305f647738b765881869215cc1a48e669530ab926a3a607ebe6fb015f5` / `bd1c5d5f822331b5696030afea560d2847d71a0eb64d01379874b83c6f9807b9` / `5f3af2d7949dc674513cbef8297f8cfd70049d515b1c15873dfb6909b48d9bd2`; MVID is `72c99d26-4420-437a-86d2-2b331b7aa69a`. Suite `20260904T232500Z-phase3e-dev9-horse-tb-suite8` / `9cab4d8398ee9a5ea23e22e186b3e777a20e415c724041471ba0138f7f2e98a0` and full-continuity WhatIf passed.
+
+Immutable live `20260905T010000Z-phase3e-dev9-horse-tb-gate2` is game `FAIL 42/2`; the independent suite/save/Mods/process/lock/sentinel/deployment audit passed before evidence read. Admission was frame `4993`; stock encounter, eligibility, start, and terminal counts were each exact with zero rejects/duplicates; start and `Success` terminal occurred at frame `4994`. Rider remained current and the exact shell retained rider/Horse/Move/native provenance. KMC refused only the relationship transition under the intentional out-of-combat Mount policy, so no scheduler command or Gate 2 action ran.
+
+Dev.10 will not repeat that deferred policy test. One clean package starts with native out-of-combat Horse Mount, isolates the exact mounted pair before creating the target, transitions to TB through native settings, waits for the natural rider turn, and enters the existing explicit rider/mount plus ordinary hostile-click sequencing. Evidence schema 4 must prove pre-target mounted identity, no combat-Mount shell, rider-only tracker/UI/current-turn ownership, separate ledgers, and exact lease restoration. Combat Mount rows remain uncredited until their ordered Tranche 7 qualification. Offline gates pass `22/Release/315/18/242/402`, with PowerShell/JSON parsers `26/0` / `7/0`; package, WhatIf, live result, and audit are pending.
+
+## Immutable dev.8 intake result
+
+Dev.8 is clean guarded-published commit `35eedf9cf9f092f77c65a20ff9ea580702900032`. Its package ZIP/manifest/DLL SHA-256 are `bb2311b6c1da6e66ba0f22b0b9b68f2169d9e1b57b99eaec216deb6f292bc860` / `31bb9c7b87aa8afe67d83f433f22fb4afb4c09b6c29b5f5fe73e80a731676d1f` / `a7288d4548813951529a3fe835e3a0226fbbd567c1d5083f65d98507a9c172bc`; MVID is `b2eee65b-c935-4043-adc5-bdf21eabc610`. Suite `20260904T211500Z-phase3e-dev8-horse-tb-suite7` is `34a702dd9f6684f3a00f0ac4e8c09b1b930e18ee1e53e26c2d7754eff1bc8086`; WhatIf passed.
+
+Live `20260904T221700Z-phase3e-dev8-horse-tb-gate2` is immutable outer/game `FAIL 42/2`. Independent audit preceded evidence inspection and passed the exact suite, save metadata/content, Mods, Baseline, Working, process, lock, sentinel, and deployment checks. At native frame `5064`, the rider was naturally current in `Preparing`; pending next unit and UI guard were clear; actor/view/mode/action/selection/AI/commands/hands/equipment, adjacency, target, and ability predicates passed. The native Mount handler returned true with target selection/cast/refusal `1/1/1/0` and admitted the exact non-AI rider Move shell. Stock `CreatedByPlayer=false` tripped the diagnostic's incorrect true assertion immediately. Consequently there was no post-admission enumeration, relationship, scheduler lease, attack, rule, damage, resource, sequencing, or completion evidence.
+
+Dev.9 corrects that one provenance assertion and adds strict schema-3 evidence. The rider ability shell must have exact native click/cast origin, `CreatedByPlayer=false`, and `AiAction==null`; the KMC mount attack still must have explicit `CreatedByPlayer=true`. A fresh clean-package run is required for any new credit.
+
+Phase 3E Gate 1 is qualified by two fresh Kingmaker processes from one immutable dev.4 package and suite. Runs `20260904T133300Z-phase3e-dev4-mammoth-tb-passA` and `20260904T140400Z-phase3e-dev4-mammoth-tb-passB` each pass `70/0` after independent audit-before-read restoration. Scheduler production behavior has not changed since dev.2.
+
+The immutable observation input remains `20260904T060000Z-phase3e-dev1-mammoth-tb-observation-passA`: gameplay `FAIL 49/1` by design, exact command encounters `2,485`, stock false `2,485`, stock true `0`, scheduler drives `0`, and immediate independent restoration audit PASS. It selects Option A but is not a vertical-slice success.
+
+## Immutable dev.2 attempt
+
+Package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.2-paired-scheduler-vertical-slice-diagnostic.zip` is bound to commit `20d71e5a5b64b85b1815e9ea0c00ff3d7f03dd4e`. ZIP/manifest/DLL SHA-256 are `70a060cc287fa379de35cb02337ba7e2a3348788db54374e4d3e6f6efd5a852d` / `4dc7fa9ba3ab246b939035f3f6f1bd9fc4ab9eb2f3a52aeeb7d6d0a1d4c6b3d2` / `d71529ba6006bc6fa2c8916953cb773f1c5319e49ce4a0c9d70420e1aee26d87`; DLL MVID is `89de0fcc-ca6f-41cd-944b-097a5860716c`. Suite `20260904T084500Z-phase3e-dev2-paired-scheduler-suite1` has snapshot SHA-256 `3349e429905be71e2bde6db01c4788647c890cfea8b947d1c8d527eebaf2920f`. Its focused WhatIf passed exact zero mutation.
+
+Live run `20260904T094306Z-phase3e-dev2-mammoth-tb-passA` remains immutable `FAIL 69/1`. Request/combat/game/final/orchestration SHA-256 are `b345b142dab87dac64e4768f3d7947e0e80ce32836fc6347cd3b62a73a825cbd` / `cae5da2cd59f8ba89a3e8c6ff7a76adc3d6306e58eff9c399685376be45dd3de` / `2fe4316d545bf2009b87547bd0b0092a2bf9de9ddf01f2cc80d3ae60839c333c` / `f0a697c9948f877c222540d6d483b439e5dd5989c039a6e23a9fc6f0c12a9ebf` / `ffc8485c7924ea18cfaddf08a6e3643cc8419e125b39c98fb6db0de666b93603`.
+
+The scheduler admitted at frame `3982`; native `WaitingForUI` delayed the first eligible grant until `4293`; native start followed at `4294`; the last once-per-frame drive was `4527`. The run records `235` drives, one start, one `Success` terminal result, one mount Standard charge (`0 -> 6`), rider Standard unchanged (`0 -> 0`), one exact Mammoth attack/roll/damage chain, mount rule/weapon/resource ownership, rider `CurrentTurn.Unit` throughout, zero duplicate-frame drives, zero foreign adoption, no mount turn, no fault, and exact disposal. The single failure was the diagnostic expression `start - admission <= 2`; it counted native UI-blocked frames as actionable.
+
+The immediate independent suite-bound audit passed before evidence inspection: save content digest `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45`, Mods digest `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`, baseline `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512`, Working `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, and no process/lock/sentinel/live KMC.
+
+## Immutable dev.3 attempt
+
+Package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.3-paired-scheduler-vertical-slice-diagnostic.zip` is bound to clean published commit `1960bd12acd4976b762185064c058896db3aa376`. ZIP/manifest/DLL SHA-256 are `6f8d8e82e4f1f0b19e6eaa3ee9d6edee763fc91ade1018c28303c03446342e52` / `b93209e4f5d0d4c07c18e8b6dd92e70e1ece87ca42353a257968c2022c01ec05` / `933fc2107a3cd3579b81e6db872139cdff251966fa57aa1dec354918370016bd`; MVID is `88dfb6c3-d896-4f71-9dc0-a40f2891925b`. Suite `20260904T104000Z-phase3e-dev3-paired-scheduler-suite2` / `f1edd88a8a86bb89d64e62141bb1dfb3fee209b8e05910cdb56c153a1ab0c086` and focused full-continuity WhatIf passed.
+
+Fresh run `20260904T113800Z-phase3e-dev3-mammoth-tb-passA` remains outer `FAIL`, game `PASS 70/0`. Admission/first grant/start/last drive were frames `3987/4309/4310/4542`; `234` drives had zero duplicate frame. The run proves one exact mount-owned natural attack/roll/damage chain, one Success terminal, one mount Standard charge `0 -> 6`, unchanged rider Standard, rider current retained, no native mount turn, no foreign command, no fault, and exact cleanup. Immediate independent audit passed before read with exact suite/save/Mods/Baseline/Working state and no residue.
+
+The outer PASS validator still expected schema-55/56 action-actor `CanActInCombat=false` at entry and dispatch. Dev.21, dev.2, and dev.3 all recorded true; only dev.3 reached PASS far enough to expose this latent test-fixture contradiction. Dev.4 changes those two external predicates and the synthetic mutation to the truthful value. The corrected validator accepts immutable dev.3 evidence directly and the complete harness passes `241/0`; the historical outer result remains FAIL and uncredited.
+
+## Qualified dev.4 vertical slice
+
+The exact clean published input is commit `27e088b4dafe4d449127b5e2920f09b3a0ed4f79`, version `0.1.0-phase3e-dev.4`, package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.4-paired-scheduler-vertical-slice-diagnostic.zip`. ZIP/manifest/DLL SHA-256 are `c6636c54eaee15bc1ab7c1c72a867dd0d0bc9ff62ae14d3a62dbd61672da3d7a` / `de999807ffa2114a5b9468c1679b73c5da757329105464a606ef8eb5ce1945aa` / `7f17fbc50ad282eef797be74e807cb6b89d769e3e924d359d4d746939080a13c`; DLL MVID is `59008275-8bb0-4763-804a-b4175d917a99`. Suite `20260904T123300Z-phase3e-dev4-paired-scheduler-suite3` has snapshot SHA-256 `686f131a580377ca0b77ffc28bdd3d04eb12bfc0f6d24d8f59ad5ceb1963ce7b`; its full-continuity WhatIf passed with zero mutation.
+
+Pass A admitted/granted/started/last-drove at frames `3984/4295/4296/4529`; Pass B at `3968/4280/4281/4514`. Each records `235` unique-frame drives, one start, one `Success` terminal, one mount Standard charge `0 -> 6`, rider Standard `0 -> 0`, one mount-owned natural attack/roll/damage chain, zero duplicate drive, zero foreign adoption, zero fault, exact rider `CurrentTurn.Unit` at dispatch and outcome, no native mount turn, and disposed residue-free cleanup. A dealt `33`; B dealt `34`. Combined Gate 1 total is `140 PASS / 0 FAIL`.
+
+Pass A request/combat/manifest/game/orchestration/final SHA-256 are `f7ee9935321ce3a98310975d6e5ac19aa4d553d86507370eb6e50c6a720cdcdf` / `d14bb009213fdb8583cfd17bd0700bfc1ff40b3a62179323415945795873cda7` / `7766d36a3087df33e9936564c42ef22eb1bc137ae3ae61d3e55450f7ffbc1aef` / `dc57ae1a8c9d3e924958e8522e0e84a29e1c19327036bb38a3a2189e380cb071` / `6260266af65501a5fb2887c4f58a4df8bbd6783396479468afe01975357fba51` / `7d18fc2b14044b5828c2e1d04a4854ece39ecc204d1dbd13f212f96339754d2f`. Pass B values are `5e361d747663e018cd8ef4bef579cac801b8959606d76fdc83c429dd60de8de2` / `1571de0196761bf2f45ed230101a33a8eee3838a14927a35a11b01008a72360a` / `cf603d7870cd0e34ccef73fa97994f8f34a479ba5cf29c334f8f0b53b274e7a3` / `7cb4e2b80ef70d59374eafc22ae0b36f09f65e9cf886d7d6bda76d5b773ee250` / `6b37d9afe100765bbb37f60dbae0553129fcf0fdc9d310b783ff710ec17cb486` / `55dc38fea9945dc3e2790fb301df754bb64430e65beec5420ab2c108593ef0db`.
+
+Both independent audits re-proved save metadata/content `2ea26a472764101745fd41636b562ba2088c13f2663877afaa355a0444215606` / `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45`, Mods `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`, Baseline/Working `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512` / `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`, and zero process/lock/sentinel/live KMC. No scheduler repair cycle or kill criterion was consumed.
+
+## Immutable dev.5 Horse TB intake failure
+
+Dev.5 package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.5-paired-scheduler-horse-tb-gate2-diagnostic.zip` is bound to clean published commit `af29858b5ab78518f608bd429be81d2c2e6cec31`. ZIP/manifest/DLL SHA-256 are `7e7645e64721e2741e07609f917580e65692339f5afba4df6d792e63d790b908` / `6ef30249fdb26d5e0ff58cff3c3e0fa41d0ee2ef292c5a2aa5eba9988d0e3dd0` / `3b5b75e30ce2380d78a1807f53e5d30379dd7cd08acf4d588e3577f46b5bd0e8`; MVID is `4c87923d-2b5a-4232-be7f-d448d377a33f`. Suite `20260904T145300Z-phase3e-dev5-horse-tb-suite4` / `7e951c7b1a7ec8c0b59c2a48943d0ac9478700af8433d992c264d75984c04c69` and full-continuity WhatIf passed.
+
+Immutable live `20260904T155035Z-phase3e-dev5-horse-tb-gate2` failed at `AwaitRiderTurnForMount` before any tested Gate 2 action. The rider was exact actionable current for `2,520` frames; a foreign AI-created Horse Standard `UnitAttack` alone remained nonempty and unstarted. The scheduler correctly rejected it. Independent audit passed before read and proved exact suite/save/Mods/Baseline/Working restoration with no process, lock, sentinel, or live KMC residue.
+
+## Immutable dev.6 Horse TB Mount-shell intake failure
+
+Dev.6 package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.6-paired-scheduler-horse-tb-gate2-diagnostic.zip` is bound to clean published commit `90d0616ea8120496cdaf4397c069287f9338c985`. ZIP/manifest/DLL SHA-256 are `e97043c698db1b8860c9c485ffa39668ef36542b4f848151d626601f1f93ec75` / `0ae39630fe1d1cd248067a6b8313463284ba754668cc92795dd78b260da67a9f` / `8e7761a8cb8382e94f4aaf6b9be1ada5c0fe1a83aace87fee3fa5fe89ba1c0b`; MVID is `69d4c696-4a4b-4008-804b-6571ef0bca28`. Suite `20260904T164231Z-phase3e-dev6-horse-tb-suite5` / `0882d416094f857ca10da2c81371227cd0448ee3c0d59de70d0dc294dc11e44f` and full-continuity WhatIf `20260904T164720Z-phase3e-dev6-horse-tb-whatif` passed exact purity.
+
+Immutable live `20260904T174752Z-phase3e-dev6-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`. Dev.6's new Horse isolation succeeded: its exact AI lease acquired before target creation, validated raw/effective AI false plus an empty command container for two stable frames, and restored exactly. A separate rider AI Standard `UnitAttack` existed before diagnostic turn preparation. Native preparation removed it but left rider hands busy. The authentic rider-owned Mount `UnitUseAbility` entered the rider Move slot while `Preparing`, with exact rider executor, Horse target, type, legal proximity, and `CanStart=true`, but `executorHandsBusy=true`; it remained unstarted for the 30-second leaf. During cleanup, after RT was restored, the native command completed and KMC truthfully refused the Mount transition because the mode had changed. No mounted relationship, scheduler lease, mount command, attack/roll/damage, resource, sequencing, or completion behavior ran.
+
+Independent audit preceded evidence read and re-proved suite snapshot `0882d416094f857ca10da2c81371227cd0448ee3c0d59de70d0dc294dc11e44f`; save metadata/content `2ea26a472764101745fd41636b562ba2088c13f2663877afaa355a0444215606` / `ddba0c041443e8bd12e3cbf5929b6b6aba296b666b26e4d8e73bb97918ecbd45`; Mods `82f176c4cb9d8fcfcc21f84948b4fd4b8ed856a9c65dfc7836934a32e2fc61be`; Baseline/Working `c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512` / `5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6`; and no process, lock, sentinel, or live KMC residue. Request/Horse/manifest/game/orchestration/final SHA-256 are `ca65a3dce44517d40f950514c7c6cc9bc306a7860a8f3c374fe12fe851a322a1`, `2be7aaf4c7a42aa1ad81327c3209f83332b9a03925b7dd5c9b4ba522b2ea8308`, `263308ad408a3fbf7336bce7bc6b002988bfeae8d06b094bbb32719f766ef9e5`, `b30e3db2ea39d77fa07d44d57134489c43bd14958cff2fbebfbd0671a7d95af3`, `0caa719fba55f35cbd393cf84e12853b3aadde9198abd7f698ed3b10c46215b2`, and `1105819a49527506cf50d51dad82f5bf4e488afa97adfbafcc7a84730291f309`.
+
+## Immutable dev.7 Horse TB native-start failure
+
+Dev.7 is clean guarded-published commit `412fa949be558718200781df8221bd4b6f22af3c`, version `0.1.0-phase3e-dev.7`. Package `C:\Dev\KingmakerMountedCombatLab\artifacts\KingmakerMountedCombat-0.1.0-phase3e-dev.7-paired-scheduler-horse-tb-gate2-diagnostic.zip` has ZIP/manifest/DLL SHA-256 `4e6249211a496574a660935205711276319b80a3a819656acde3effc833f32fa` / `73eb397c5dc4ef3a9131da4088cbadd5e7dd7ec1b768dc28b35e3b8b612f99f2` / `c5d7cf5780ed02a0fb941090e74cd9a9f23642b4d94a067fbe47b2e9bf27a5d0`; DLL MVID is `7b485e8c-d192-4f77-a0f9-1b983250f4f1`. Suite `20260904T185200Z-phase3e-dev7-horse-tb-suite6` has snapshot SHA-256 `bb7ee7fe14bf3a9e8711b51234dc0f1f2e3cd24b653ba290c49114e22f9ea5d3`; full-continuity WhatIf passed exact purity.
+
+Immutable live `20260904T195400Z-phase3e-dev7-horse-tb-gate2` is outer/game `FAIL 42/2` at `AwaitCombatMount`. The independent audit passed before gameplay read and proved exact suite, save metadata/content, Mods, Baseline, Working, lock, sentinel, live-deployment, and process restoration. Both exact AI leases acquired and restored; adjacency was already legal at `0.843796432m` against `2.9m`; rider and Horse commands were empty; rider hands/equipment became idle; and rider remained the exact current turn with unused Standard/Move ledgers. One genuine native click-created rider `UnitUseAbility` for Mount entered the exact Move slot with exact Horse target, `CanStart=true`, `IsUnitEnoughClose=true`, no approach, available action, and no cooldown. Earlier prose incorrectly called this “player-created”; it did not establish `CreatedByPlayer=true`. It remained unstarted for the 30-second leaf and completed only after cleanup restored RT, where KMC correctly refused the now-invalid mode transition. No mounted relationship, scheduler lease, attack/roll/damage, resource transition, sequencing, or turn completion ran.
+
+Request/Horse/manifest/game/orchestration/final SHA-256 are `5615f99680e8f353f5e55efdc366bfb917c8a57ac70a89a55a163d9133c3b9c5`, `029ca4d0c423e165cb0a8a259a4622d5f8e2e9508ec2050aca6ef1f8f9a765b6`, `74bd44ddc1884c7fd02490b4730c4df8e164112097e14bba0e73326d422422ef`, `c738cc63a5c3a0e426958688b82aa32a6d53a1f6416012ebf3c9137cb988b9ca`, `2a470d37a709c081c6d174c5abd908aee5bcc9bad7f3f09153167a39cfd6c717`, and `6e60f5c99bba2407d766c062f6ae511e3bf27efa7bb504005b805f062e77f101`. This is a pre-scheduler diagnostic failure and consumes no repair cycle or kill criterion.
+
+## Next qualifying tranche
+
+Dev.9 preserves dev.8's comprehensive natural-turn lifecycle trace and corrects only its disproven rider-shell origin predicate. Schema-v3 evidence requires one exact native click/cast request, `CreatedByPlayer=false`, `AiAction==null`, and exact rider/Horse/ability/Move-slot identity; the production mount-attack lease remains independently `CreatedByPlayer=true`. A fresh clean-package process is required before any Gate 2-5 credit. `exact-turn-completion` remains TODO until native next-combatant advancement is observed; command termination alone is not credited.

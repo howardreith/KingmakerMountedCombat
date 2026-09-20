@@ -1,0 +1,153 @@
+using System;
+using System.Collections.Generic;
+
+namespace KingmakerMountedCombat.Domain
+{
+    // Entitlement is tied to an encounter and an observed native principal boundary.
+    // Costs are observations of native actors, never a spendable parallel bank.
+    public sealed class PairedActivation<TActor, TBoundary> where TActor : class where TBoundary : class
+    {
+        public sealed class ActorState
+        {
+            public TActor Actor { get; internal set; }
+            public bool Granted { get; internal set; }
+            public bool Prepared { get; internal set; }
+            public bool Ended { get; internal set; }
+            public float StandardSpent { get; private set; }
+            public float MoveSpent { get; private set; }
+            public float SwiftSpent { get; private set; }
+            private bool nativeForfeitRecorded;
+            private bool nativeForfeitSettled;
+            private float nativeForfeitStandardAdded;
+
+            public void RecordNativeStandardForfeit(float before, float after)
+            {
+                if (!Granted || !Prepared || !Ended || nativeForfeitRecorded || after < before)
+                    throw new InvalidOperationException("Native condition forfeiture requires one ended actor grant.");
+                nativeForfeitRecorded = true;
+                nativeForfeitStandardAdded = after - before;
+            }
+
+            public float SettleNativeStandardForfeit(float current, float nativeEnd)
+            {
+                if (!Ended || !nativeForfeitRecorded || nativeForfeitSettled) return Math.Max(current, nativeEnd);
+                nativeForfeitSettled = true;
+                // SelfHarm forfeits before its later native Standard charge.
+                // Native End normalizes that temporary total. Remove only the
+                // observed forfeiture contribution, retaining any other debt.
+                return Math.Max(nativeEnd, current - nativeForfeitStandardAdded);
+            }
+
+            public void Observe(float standard, float move, float swift)
+            {
+                if (!Granted) throw new InvalidOperationException("An observation cannot create entitlement.");
+                StandardSpent = Math.Max(StandardSpent, standard);
+                MoveSpent = Math.Max(MoveSpent, move);
+                SwiftSpent = Math.Max(SwiftSpent, swift);
+            }
+        }
+
+        private readonly HashSet<TBoundary> boundaries = new HashSet<TBoundary>();
+        public Guid EncounterId { get; } = Guid.NewGuid();
+        public long Sequence { get; private set; }
+        public TBoundary Boundary { get; private set; }
+        public TActor Principal { get; }
+        public TActor Partner { get; }
+        public ActorState Rider { get; private set; }
+        public ActorState Mount { get; private set; }
+        public bool Ending { get; private set; }
+        public bool Finalized { get; private set; }
+        public bool Split { get; private set; }
+        public bool Suspended { get; private set; }
+        public bool Open => Rider != null && Rider.Prepared && Mount.Prepared && !Ending && !Suspended;
+        public string Identity => EncounterId.ToString("N") + ":" + Sequence;
+
+        public PairedActivation(TActor principal, TActor partner)
+        {
+            Principal = principal ?? throw new ArgumentNullException(nameof(principal));
+            Partner = partner ?? throw new ArgumentNullException(nameof(partner));
+            if (ReferenceEquals(principal, partner)) throw new ArgumentException("Two distinct native actors are required.");
+        }
+
+        public bool Begin(TBoundary boundary)
+        {
+            if (boundary == null || Split || boundaries.Contains(boundary)) return false;
+            if (Boundary != null && !Finalized)
+                throw new InvalidOperationException("Previous paired activation has not been finalized.");
+            boundaries.Add(boundary);
+            Boundary = boundary;
+            Sequence++;
+            Rider = new ActorState { Actor = Principal };
+            Mount = new ActorState { Actor = Partner };
+            Ending = false; Finalized = false;
+            return true;
+        }
+
+        public bool Suspend(TBoundary boundary)
+        {
+            if (!CanAddress(Principal, boundary) || Rider.StandardSpent > 0f || Rider.MoveSpent > 0f ||
+                Rider.SwiftSpent > 0f || Mount.StandardSpent > 0f || Mount.MoveSpent > 0f || Mount.SwiftSpent > 0f)
+                return false;
+            Suspended = true;
+            return true;
+        }
+
+        public bool Resume(TBoundary boundary)
+        {
+            if (!Suspended || Split || Ending || boundary == null || boundaries.Contains(boundary)) return false;
+            boundaries.Add(boundary);
+            Boundary = boundary;
+            Suspended = false;
+            return true;
+        }
+
+        public bool BeginActorPreparation(TActor actor, TBoundary boundary)
+        {
+            var state = State(actor);
+            if (!ReferenceEquals(Boundary, boundary) || state == null || state.Granted || Ending) return false;
+            state.Granted = true;
+            return true;
+        }
+
+        public void FinishActorPreparation(TActor actor)
+        {
+            var state = State(actor);
+            if (state == null || !state.Granted || state.Prepared)
+                throw new InvalidOperationException("Preparation completion requires one reserved actor grant.");
+            state.Prepared = true;
+        }
+
+        public ActorState State(TActor actor) => ReferenceEquals(actor, Principal) ? Rider :
+            ReferenceEquals(actor, Partner) ? Mount : null;
+
+        // Native effects may remove control or split the relationship during
+        // preparation. The already reserved actor grant still owns that work.
+        public bool IsPreparingActor(TActor actor, TBoundary boundary)
+        {
+            var state = State(actor);
+            return ReferenceEquals(Boundary, boundary) && state != null && state.Granted &&
+                !state.Prepared && !state.Ended && !Ending && !Finalized && !Suspended;
+        }
+
+        public bool CanAddress(TActor actor, TBoundary boundary) => Open && !Split &&
+            ReferenceEquals(Boundary, boundary) && State(actor) != null && !State(actor).Ended;
+
+        public void BeginEnding() { Ending = true; Suspended = false; }
+        public void EndActor(TActor actor)
+        {
+            var state = State(actor);
+            if (state == null || !state.Granted) return;
+            state.Ended = true;
+        }
+        public bool FinalizeActivation()
+        {
+            if (Finalized) return false;
+            if (Boundary == null || Rider.Granted && !Rider.Ended || Mount.Granted && !Mount.Ended)
+                throw new InvalidOperationException("Every granted actor must end before paired finalization.");
+            BeginEnding();
+            Finalized = true;
+            return true;
+        }
+        public void Detach() { Split = true; }
+    }
+}

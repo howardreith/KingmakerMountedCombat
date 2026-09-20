@@ -1,3 +1,10 @@
+## Chunk 4 active boundary â€” 2026-09-09 checkpoint
+
+IN PROGRESS; paused at owner request. Exact Charge identity feeds stateless pair-local safety; native budgets/preparation, movement and ordinary attack routing remain separate authorities. M/N newly verify the native command-visibility correction and distinct actor budgets. R verifies ordinary melee interruption/life-target handling; Q verifies independent mount targeting. S introduces actual native visibility loss, requiring a matched cancellation/recovery observation before any repair. Draft area callback attribution, unmounted control and native life-exit observations remain unapplied local diagnostics. They do not change area effects or the scheduler. [One current report](../docs/CHUNK4-PLAYABILITY.md). Historical dependencies below retain their original scope.
+## Chunk 2 current dependencies
+
+IN PROGRESS. Native preparation adapters delegate retained-expenditure correction to the movement accounting adapter; record lifetime remains a separate domain boundary. Native movement/attack commands retain charging authority. The unresolved edge is legitimate actor grant/preparation to exactly-once continuation and later native participation, not another resource bank or attack shell. A05 native7 and A10 final10 have separate identities; the overall gate remains BLOCKED — CRITICAL. [Current contract and evidence](../docs/CHUNK2-ACTOR-ALLOCATIONS.md). Historical Phase1 graph below is unchanged.
+
 # Mounted subsystem dependency graph
 
 Status: PASS
@@ -85,7 +92,8 @@ No global replacement of `UnitMoveController.Tick`, `UnitCommand.TickApproaching
 2. a prefix on exact private `ClickGroundHandler.RunCommand` token `0x060093DC` that rewrites/skips only active-pair arguments;
 3. pair-scoped selection and Stop/Hold forwarding with identity guards;
 4. existing event-bus interfaces for cleanup, plus cleanup-only save/load and continuous-control guards, qualified only within the direct-handler/service and real-load/real-reload scopes recorded below;
-5. UMM lifecycle callbacks for composition-root cleanup.
+5. an exact-token `UnitEntityView.ForcePlaceAboveGround` prefix that suppresses only the exact active rider while Mounted, preventing Kingmaker's standing terrain snap from moving the parented rider view and logical entity; and
+6. UMM lifecycle callbacks for composition-root cleanup.
 
 This keeps non-mounted paths on their original code.
 
@@ -96,3 +104,5 @@ This keeps non-mounted paths on their original code.
 - F1 doorway, selection, and formation each pass twice in fresh processes under unchanged gates. Overall: 25 PASS, 0 attributable FAIL, 0 deferred.
 - Presentation is `MECHANICALLY VIABLE, NEW ANIMATION/POSE WORK REQUIRED`. No K1–K12 kill criterion fired, and no K13 exists. Final A/B/C/D scores are 41/71/77/89; Architecture B is selected.
 - Final status is `PHASE 1 COMPLETE — PROCEED RECOMMENDED`. The graph and tested seams support Architecture B within the recorded claim limits. Phase 2 still requires a separate mission and authorization.
+
+Chunk4 preview9: native command geometry -> scoped ranged terminal classification -> existing RT ordinary intent; native Interrupt -> synchronous terminal cleanup. New inspection/flight/session diagnostics observe existing native UI, Rulebook, EventBus and lifecycle boundaries; no production dependency on diagnostics or Wrath. See ASSEMBLY-CONTRACT-MATRIX.md and docs/CHUNK4-PLAYABILITY.md for exact evidence/open gates.
