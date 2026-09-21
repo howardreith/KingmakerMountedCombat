@@ -1,10 +1,10 @@
 # Chunk 5 persistence — 2026-09-21 UTC
 
-IN PROGRESS. [Single report](docs/CHUNK5-PERSISTENCE.md). Preview51 repairs the final P06 result registry after frozen50/source47da4725e8d4e10f1a91e3aa1685650f7e522708. Native P06-future-B PID17144 PASS33/0: three real load-entry refusals preserve A/debt/selection/controls and usable movement/attack. Both full validators now pass its unchanged records (39/0 and29/0); original launcher registration failure is retained. No gameplay change was needed.
+IN PROGRESS. [Single report](docs/CHUNK5-PERSISTENCE.md). Preview52 fixes a native ordering defect observed on frozen51/source401a347a4cdc695b960dbedc80d32512b82ddf81: LoadGameFromMainMenu disposes views before LoadRoutine, so owned movement leases must be released after admission and before that disposal. The dedicated housekeeping path discards references without End/forfeit; early refusals leave the current world untouched. Components436/0 and installed contracts92/0 pass; native repair qualification is next.
 
-Actual human preview.54/data/settings/caches/foreign Mods restored09:49:16.7669199UTC, no game/lock. Earlier49 exact analytics recovery and separate37/13 backups are preserved. Package/source/DLL/suite and active process/run pointers: lab analysis-cache/chunk5-persistence/ACTIVE.json. No permanent installation/main merge/public release.
+P06-legacy-C PID15708 failed cleanup before B completed (0/1); actual human preview.54/data/settings/caches/foreign Mods restored09:59:08.7796234UTC, no game/lock. Earlier future-B native33/0 and both corrected validators39/0,29/0 remain causal evidence. Separate37/13 backups are preserved. Exact package/source/DLL/suite and run pointers: lab analysis-cache/chunk5-persistence/ACTIVE.json. No permanent installation/main merge/public release.
 
-Next: freeze preview51, fresh suite53, native legacy B/A then schema1 and invalid actor/profile/campaign/policy variants. P06 native foreign campaign/combat-invalid coverage, P07 timeout/write/load recovery and lifecycle/removal, P08, and one exact-final P01–P08 suite remain mandatory. Paired=true; both legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY pending. Full Charge remains Chunk6.
+Next: freeze preview52, fresh suite54, native legacy B/A then remaining schema/invalid variants. P06 native foreign campaign/combat-invalid coverage, P07 timeout/write/load recovery and lifecycle/removal, P08, and one exact-final P01–P08 suite remain mandatory. Paired=true; both legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY pending. Full Charge remains Chunk6.
 
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC

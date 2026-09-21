@@ -105,7 +105,7 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) }, null, nameof(PatchMethods.SaveWorkerPostfix), nameof(PatchMethods.NativeArchiveCommitTranspiler));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGame", 0x06000CE0, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
-                PatchExact(typeof(Kingmaker.Game), "LoadGameFromMainMenu", 0x06000CE2, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
+                PatchExact(typeof(Kingmaker.Game), "LoadGameFromMainMenu", 0x06000CE2, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameMainMenuLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameForSmokeTest", 0x06000CE1, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameSmokeLoadAdmissionPrefix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix), nameof(PatchMethods.LoadPostfix));
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
@@ -874,6 +874,9 @@ namespace KingmakerMountedCombat.Integration
                 }
                 return PatchBridge.Persistence?.CanLoadBeforeWorldReplacement(saveInfo) != false;
             }
+
+            internal static bool GameMainMenuLoadAdmissionPrefix(SaveInfo saveInfo) =>
+                GameLoadAdmissionPrefix(saveInfo) && PatchBridge.Persistence?.PrepareForNativeWorldDisposal() != false;
 
             internal static bool GameSmokeLoadAdmissionPrefix(SaveInfo save) => GameLoadAdmissionPrefix(save);
 

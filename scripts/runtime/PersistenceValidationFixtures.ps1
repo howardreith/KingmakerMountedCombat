@@ -156,7 +156,8 @@ function Assert-KmcValidationPersistenceEvidence {
         }
         $semantics=if($Request.persistenceCase-ceq'legacy'){2}elseif($Request.persistenceCase-cin @('missing-rider','missing-mount')){3}else{4}
         $presentation=if($Request.persistenceCase-ceq'schema1'){2}else{1}
-        if($variant[0].detail.nativeCallback-ne$true-or$variant[0].detail.semantic-ne$semantics-or
+        if($variant[0].detail.nativeWorldDisposals-ne1-or$retry[0].detail.nativeWorldDisposals-ne2-or
+            $variant[0].detail.nativeCallback-ne$true-or$variant[0].detail.semantic-ne$semantics-or
             $variant[0].detail.presentation-ne$presentation-or$variant[0].detail.mounted-ne($Request.persistenceCase-ceq'schema1')-or
             $retry[0].detail.nativeCallback-ne$true-or$retry[0].detail.semantic-ne($semantics+2)-or
             $retry[0].detail.presentation-ne($presentation+1)-or$retry[0].detail.mounted-ne$true){

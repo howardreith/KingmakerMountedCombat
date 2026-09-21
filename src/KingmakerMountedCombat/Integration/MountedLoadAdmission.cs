@@ -9,6 +9,29 @@ namespace KingmakerMountedCombat.Integration
     {
         internal int RejectedLoadCount { get; private set; }
 
+        internal int NativeWorldDisposalCount { get; private set; }
+
+        internal bool PrepareForNativeWorldDisposal()
+        {
+            if (Kingmaker.Game.Instance?.CurrentlyLoadedArea == null) return true;
+            try
+            {
+                // LoadGameFromMainMenu destroys views before LoadRoutine is even
+                // created. Release this world's leases while their native owners
+                // still exist. DiscardPersistenceWorld does not End or forfeit.
+                BeginLoadHousekeeping();
+                NativeWorldDisposalCount++;
+                return true;
+            }
+            catch (Exception exception)
+            {
+                logger.Exception("Mounted cleanup failed before native world disposal", exception);
+                Report("Load canceled: the current mounted world could not release its owned references safely.");
+                return false;
+            }
+        }
+
+
         internal bool CanLoadBeforeWorldReplacement(SaveInfo save)
         {
             string rejection;

@@ -62,7 +62,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (validationStage == 1)
             {
                 if (!validationCallback || ++validationFrames < 10) return;
-                Check(!ReferenceEquals(validationPreviousPlayer, game.Player), "P06-native-B-world-replaced");
+                Check(!ReferenceEquals(validationPreviousPlayer, game.Player) && persistence.NativeWorldDisposalCount == 1,
+                    "P06-native-B-world-replaced-after-live-lease-cleanup");
                 rider = game.State.Units.Single(u => u.UniqueId == validationRiderId);
                 mount = game.State.Units.Single(u => u.UniqueId == validationMountId);
                 var expectedSemantics = request.PersistenceCase == "legacy" ? 2 :
@@ -92,7 +93,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (validationStage == 2)
             {
                 if (!validationCallback || ++validationFrames < 10) return;
-                Check(!ReferenceEquals(validationPreviousPlayer, game.Player), "P06-native-A-world-replaced-again");
+                Check(!ReferenceEquals(validationPreviousPlayer, game.Player) && persistence.NativeWorldDisposalCount == 2,
+                    "P06-native-A-world-replaced-again-after-live-lease-cleanup");
                 Check(relationship.State == RelationshipState.Mounted &&
                     relationship.Rider.UniqueId == validationRiderId && relationship.Mount.UniqueId == validationMountId &&
                     persistence.SemanticRestoreCount == validationSemantic + 2 &&
@@ -117,6 +119,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var nativeMount = MountedPersistenceService.CaptureActor(mount);
             var rejects = persistence.RejectedLoadCount;
             var semantic = persistence.SemanticRestoreCount;
+            var disposal = persistence.NativeWorldDisposalCount;
             var presentation = persistence.PresentationRestoreCount;
             var paused = game.IsPaused;
             var selectedUnits = SelectionManager.Instance.SelectedUnits.ToArray();
@@ -135,7 +138,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ReferenceEquals(data, persistence.LoadedData) && relationship.Rider == priorRider &&
                         relationship.Mount == priorMount && relationship.State == RelationshipState.Mounted,
                         "P06-refusal-preserves-existing-native-world");
-                    Check(persistence.SemanticRestoreCount == semantic && persistence.PresentationRestoreCount == presentation &&
+                    Check(persistence.NativeWorldDisposalCount == disposal && persistence.SemanticRestoreCount == semantic && persistence.PresentationRestoreCount == presentation &&
                         controls.CaptureSnapshot().ExactFactCount == beforeControls.ExactFactCount &&
                         controls.CaptureSnapshot().DuplicateFactCount == 0 &&
                         SelectionManager.Instance.SelectedUnits.SequenceEqual(selectedUnits) && game.IsPaused == paused,
@@ -178,7 +181,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["case"] = request.PersistenceCase, ["rejections"] = persistence.RejectedLoadCount,
             ["nativeCallback"] = validationCallback, ["semantic"] = persistence.SemanticRestoreCount,
             ["presentation"] = persistence.PresentationRestoreCount, ["feedback"] = persistence.Feedback,
-            ["mounted"] = relationship.State == RelationshipState.Mounted,
+            ["mounted"] = relationship.State == RelationshipState.Mounted, ["nativeWorldDisposals"] = persistence.NativeWorldDisposalCount,
             ["sourceHash"] = request.PersistenceLoad.Sha256, ["variantHash"] = request.PersistenceAlternate.Sha256
         };
     }
