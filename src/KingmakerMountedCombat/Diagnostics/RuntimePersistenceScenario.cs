@@ -51,7 +51,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
         private int completedSlotWrites;
         private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load";
-        private bool Cold => request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
+        private bool Cold => ValidationCase || request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
         private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load";
         private readonly MountedCombatController combat;
 
@@ -68,7 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -331,7 +331,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var row = new JObject
             {
                 ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
-                ["kind"] = kind, ["checkpoint"] = CombatCase || RealtimeCase ? Checkpoint : SlotCase ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
+                ["kind"] = kind, ["checkpoint"] = CombatCase || RealtimeCase ? Checkpoint : SlotCase || ValidationCase ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["source"] = request.Commit,
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
                 ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),

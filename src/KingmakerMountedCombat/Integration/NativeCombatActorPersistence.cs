@@ -86,6 +86,17 @@ namespace KingmakerMountedCombat.Integration
 
         internal static void RestoreActor(UnitEntityData unit, SavedCombatActor saved, long savedGameTicks)
         {
+            // Validate installed semantic references before changing any native debt or participation.
+            long validDescriptors = 0;
+            foreach (SpellDescriptor value in Enum.GetValues(typeof(SpellDescriptor))) validDescriptors |= (long)value;
+            if ((saved.StoryImmunity & ~validDescriptors) != 0)
+                throw new InvalidDataException("Saved native spell descriptor flags are not supported.");
+            var available = unit.Brain == null ? new Dictionary<string, BlueprintAiAction>(StringComparer.Ordinal) :
+                unit.Brain.AvailableActions.Select(a => a.Blueprint).Distinct()
+                    .ToDictionary(a => a.AssetGuidThreadSafe, StringComparer.Ordinal);
+            foreach (var action in saved.AiActions)
+                if (!available.ContainsKey(action.BlueprintId))
+                    throw new InvalidDataException("A saved AI action is absent from the loaded actor's native brain.");
             var state = unit.CombatState;
             // Native JoinCombat binds group ownership and the command-event
             // subscription. It performs no turn preparation or round callbacks.
@@ -98,24 +109,14 @@ namespace KingmakerMountedCombat.Integration
             ExecutedAttacks.SetValue(state, saved.ExecutedAttacks);
             LastMove.SetValue(state, TimeSpan.FromTicks(saved.LastMoveTicks));
             LastDeflect.SetValue(state, TimeSpan.FromTicks(saved.LastDeflectTicks));
-            long validDescriptors = 0;
-            foreach (SpellDescriptor value in Enum.GetValues(typeof(SpellDescriptor))) validDescriptors |= (long)value;
-            if ((saved.StoryImmunity & ~validDescriptors) != 0)
-                throw new InvalidDataException("Saved native spell descriptor flags are not supported.");
             state.StoryModeBuffImmunity = (SpellDescriptor)saved.StoryImmunity;
             state.StoryModeEnergyDrainImmuniy = saved.EnergyDrainImmunity;
             PreventNext.SetValue(state, saved.PreventNextReaction);
             state.ReturnPosition = saved.ReturnPoint == null ? (Vector3?)null :
                 new Vector3(saved.ReturnPoint[0], saved.ReturnPoint[1], saved.ReturnPoint[2]);
             state.ReturnOrientation = saved.ReturnYaw;
-            var available = unit.Brain == null ? new Dictionary<string, BlueprintAiAction>(StringComparer.Ordinal) :
-                unit.Brain.AvailableActions.Select(a => a.Blueprint).Distinct()
-                    .ToDictionary(a => a.AssetGuidThreadSafe, StringComparer.Ordinal);
             var cooldowns = (Dictionary<BlueprintAiAction, int>)AiCooldowns.GetValue(state.AIData);
             var counts = (Dictionary<BlueprintAiAction, int>)AiCounts.GetValue(state.AIData);
-            foreach (var action in saved.AiActions)
-                if (!available.ContainsKey(action.BlueprintId))
-                    throw new InvalidDataException("A saved AI action is absent from the loaded actor's native brain.");
             cooldowns.Clear(); counts.Clear();
             foreach (var action in saved.AiActions)
             {

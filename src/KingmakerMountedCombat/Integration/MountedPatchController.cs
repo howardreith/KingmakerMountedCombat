@@ -104,6 +104,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,
                     new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) }, null, nameof(PatchMethods.SaveWorkerPostfix), nameof(PatchMethods.NativeArchiveCommitTranspiler));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
+                PatchExact(typeof(Kingmaker.Game), "LoadGame", 0x06000CE0, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
+                PatchExact(typeof(Kingmaker.Game), "LoadGameFromMainMenu", 0x06000CE2, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
+                PatchExact(typeof(Kingmaker.Game), "LoadGameForSmokeTest", 0x06000CE1, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameSmokeLoadAdmissionPrefix));
                 PatchExact(typeof(SaveManager), "LoadRoutine", 0x0600802C, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.LoadPrefix), nameof(PatchMethods.LoadPostfix));
                 PatchExact(typeof(UnitEntityView), "ForcePlaceAboveGround", 0x06001848, Type.EmptyTypes, nameof(PatchMethods.ForcePlaceAboveGroundPrefix));
                 PatchExact(typeof(ClickUnitHandler), "OnClick", 0x060093ED, new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) }, nameof(PatchMethods.UnitClickPrefix));
@@ -845,6 +848,34 @@ namespace KingmakerMountedCombat.Integration
                     __result = PatchBridge.Persistence != null ? PatchBridge.Persistence.WrapSaveRoutine(__result) :
                         PatchBridge.NativeControls == null ? __result : PatchBridge.NativeControls.WrapSaveRoutine(__result);
             }
+
+            internal static bool GameLoadAdmissionPrefix(SaveInfo saveInfo)
+            {
+                var authorization = PatchBridge.SaveAuthorization;
+                if (authorization != null && authorization.IsActive)
+                {
+                    try
+                    {
+                        var reason = authorization.ValidateLoadBeforeWorldReplacement(
+                            saveInfo == null ? null : NativePersistenceIsolation.Project(saveInfo),
+                            Kingmaker.Game.Instance.SaveManager.SavePath);
+                        if (reason != null)
+                        {
+                            authorization.ReportFatalViolation(RuntimeSaveOperation.Load, reason);
+                            return false;
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        authorization.ReportFatalViolation(RuntimeSaveOperation.Load,
+                            "Early native load identity inspection failed (" + exception.GetType().Name + ").");
+                        return false;
+                    }
+                }
+                return PatchBridge.Persistence?.CanLoadBeforeWorldReplacement(saveInfo) != false;
+            }
+
+            internal static bool GameSmokeLoadAdmissionPrefix(SaveInfo save) => GameLoadAdmissionPrefix(save);
 
             internal static bool LoadPrefix(SaveManager __instance, SaveInfo saveInfo, bool isSmokeTest, ref IEnumerator<object> __result, out bool __state)
             {

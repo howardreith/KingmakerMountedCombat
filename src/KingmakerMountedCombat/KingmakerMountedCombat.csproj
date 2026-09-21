@@ -118,6 +118,8 @@
     <Compile Include="Integration\PairedActivationLifecycle.cs" />
     <Compile Include="Integration\NativePersistenceIsolation.cs" />
     <Compile Include="Integration\MountedSaveData.cs" />
+    <Compile Include="Integration\MountedLoadAdmissionPolicy.cs" />
+    <Compile Include="Integration\MountedLoadAdmission.cs" />
     <Compile Include="Integration\SavedCombatData.cs" />
     <Compile Include="Integration\NativeCombatActorPersistence.cs" />
     <Compile Include="Integration\NativeTurnPersistence.cs" />
@@ -190,6 +192,7 @@
     <Compile Include="Diagnostics\RuntimePersistenceRoundEffectScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceDelayScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceQueuedScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceValidationScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceReactionScenario.cs" />
     <Compile Include="Domain\CleanupTrigger.cs" />
     <Compile Include="Domain\AvoidanceRestorationExpectation.cs" />

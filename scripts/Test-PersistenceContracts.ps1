@@ -634,6 +634,13 @@ public static class KmcPersistenceContractProbe
         var stagedPath=Path.Combine(owned,"atomic-staged.zks");
         var originalSaver=Activator.CreateInstance(saverType,new object[]{originalPath});
         var stagedSaver=Activator.CreateInstance(saverType,new object[]{stagedPath});
+        foreach(var entry in new[]{new[]{"LoadGame","06000CE0"},new[]{"LoadGameFromMainMenu","06000CE2"},new[]{"LoadGameForSmokeTest","06000CE1"}})
+        {
+            var method=native.GetType("Kingmaker.Game",true).GetMethod(entry[0],BindingFlags.Instance|BindingFlags.Public,
+                null,new[]{native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true)},null);
+            Check(method!=null && method.MetadataToken==Convert.ToInt32(entry[1],16),
+                "exact native "+entry[0]+" admission precedes the queued load iterator");
+        }
         VerifyNativeColdDescriptor(native,candidate,owned);
         VerifyNativeEffectBoundary(native,candidate);
         var saveInfoType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);

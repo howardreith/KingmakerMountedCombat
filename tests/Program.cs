@@ -221,6 +221,31 @@ namespace KingmakerMountedCombat.Tests
                 request.PersistenceCase = "alternating"; request.Scenario = "persistence-p05-save";
                 TestRunner.True(request.Validate().Count > 0, "Source creation accepted cold archive authority.");
             });
+            runner.Run("P06 owns exactly two read-only archive identities and a bounded validation case", () =>
+            {
+                foreach (var name in new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign",
+                    "missing-rider", "missing-mount", "mismatched-profile", "policy" })
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p06-load"; request.PersistenceCase = name;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.True(request.Validate().Count > 0, "P06 accepted a missing validation copy.");
+                    request.PersistenceAlternate = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_812_KMC_P06.zks", Sha256 = new string('d', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "P06 exact archive pair rejected.");
+                    request.PersistenceAlternate.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "P06 allowed a foreign native campaign.");
+                    request.PersistenceAlternate.GameId = f.GameId;
+                    request.PersistenceAlternate.FileName = "../Manual_812_KMC_P06.zks";
+                    TestRunner.True(request.Validate().Count > 0, "P06 variant escaped its direct-child leaf.");
+                    request.PersistenceAlternate.FileName = "Manual_812_KMC_P06.zks";
+                    request.Scenario = "persistence-p01-load";
+                    TestRunner.True(request.Validate().Count > 0, "P06 variant leaked into an old scenario.");
+                }
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             DeferredSaveEnumeratorTests.Register(runner);

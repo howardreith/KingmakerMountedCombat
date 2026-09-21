@@ -5233,6 +5233,44 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'P06 requires exact owned current and validation archive descriptors' {
+        try {
+            $v2Request.scenario='persistence-p06-load'
+            $f=$v2Request.fixture.working
+            $v2Request['persistenceLoad']=[ordered]@{
+                internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+            }
+            $v2Request['persistenceAlternate']=[ordered]@{
+                internalName='KMC_P01';fileName='Manual_812_KMC_P06.zks';sha256=('d'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+            }
+            foreach($case in @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy')){
+                $v2Request['persistenceCase']=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            }
+            foreach($change in @(@('fileName','../Manual_812_KMC_P06.zks'),@('fileName','Manual_300_KMC_P01.zks'),
+                @('internalName','KMC_AUTOMATION_BASELINE'),@('gameId','c63b5e10-4db1-47d5-ae61-5c0788137a5d'))){
+                $d=$v2Request.persistenceAlternate;$old=$d[$change[0]];$d[$change[0]]=$change[1]
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'P06 broadened path, baseline or foreign campaign authority'
+                $d[$change[0]]=$old
+            }
+            $v2Request.scenario='persistence-p01-load'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P06 validation copy leaked into legacy scenario'
+        } finally {
+            $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad');$v2Request.Remove('persistenceAlternate')
+            $v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'P03 requires a declared native commitment and preserves strict other scenarios' {
         try{
             $v2Request.scenario='persistence-p03-save'

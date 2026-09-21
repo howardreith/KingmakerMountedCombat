@@ -200,6 +200,18 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        internal string ValidateLoadBeforeWorldReplacement(RuntimeSaveTarget target, string observedSaveRoot)
+        {
+            AuthorizationScope scope;
+            lock (sync) { scope = activeScope; }
+            if (scope == null) return null;
+            // Read-only admission: the real LoadRoutine remains the counted
+            // load boundary, and no previous-world cleanup has happened yet.
+            return persistenceScope == null ?
+                ValidateActiveRequest(scope, RuntimeSaveOperation.Load, target, observedSaveRoot, false) :
+                persistenceScope.Validate(RuntimeSaveOperation.Load, target, observedSaveRoot);
+        }
+
         public RuntimeSaveAuthorizationDecision Authorize(RuntimeSaveOperation operation, RuntimeSaveTarget target, string observedSaveRoot)
         {
             AuthorizationScope scope;

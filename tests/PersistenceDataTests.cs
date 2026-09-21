@@ -16,6 +16,37 @@ public static class PersistenceDataTests
     private static int count;
     private static void Check(bool value, string label)
     { if (!value) throw new Exception(label); count++; Console.WriteLine("PASS " + label); }
+    private static void LoadAdmission(string json)
+    {
+        var read = MountedSaveCodec.Decode(json);
+        var campaign = read.Data.CampaignId; var area = read.Data.AreaId;
+        Check(MountedLoadAdmissionPolicy.Rejection(read, campaign, area, true, true, false, false, true) == null,
+            "compatible current metadata is admitted without changing its saved debt");
+        Check(MountedLoadAdmissionPolicy.Rejection(MountedSaveCodec.Decode(null), campaign, area, false, false, true, true, false) == null,
+            "native legacy no-metadata load does not depend on mounted settings");
+        var future = MountedSaveCodec.Decode(json.Replace("\"SchemaVersion\":2", "\"SchemaVersion\":99"));
+        Check(MountedLoadAdmissionPolicy.Rejection(future, campaign, area, true, true, false, false, true) != null &&
+            future.Data == null && future.OriginalJson.Contains("\"SchemaVersion\":99"),
+            "future schema refuses before world replacement and preserves original data");
+        Check(MountedLoadAdmissionPolicy.Rejection(MountedSaveCodec.Decode("{"), campaign, area, true, true, false, false, true) != null,
+            "damaged metadata is not admitted as native fresh actions");
+        Check(MountedLoadAdmissionPolicy.Rejection(read, Guid.NewGuid().ToString(), area, true, true, false, false, true) != null &&
+            MountedLoadAdmissionPolicy.Rejection(read, campaign, new string('f',32), true, true, false, false, true) != null,
+            "native campaign or area mismatch refuses without actor construction");
+        Check(MountedLoadAdmissionPolicy.Rejection(read, campaign, area, false, true, false, false, true) != null,
+            "disabled operation cannot silently restore mounted participation");
+        foreach (var flags in new[] { new[] { false, false, false }, new[] { true, true, false }, new[] { true, false, true } })
+            Check(MountedLoadAdmissionPolicy.Rejection(read, campaign, area, true, flags[0], flags[1], flags[2], true) != null,
+                "incompatible active authority is reported rather than flipped");
+        Check(MountedSaveCodec.Encode(read.Data) == json && read.OriginalJson == json,
+            "load admission leaves every saved field and original JSON unchanged");
+        var empty = new MountedSaveData { SchemaVersion = 2, CampaignId = campaign, AreaId = area,
+            Policy = MountedSaveData.PairedPolicy, RulesId = MountedSaveData.Rules, Slots = new SavedMountedSlot[0] };
+        Check(MountedLoadAdmissionPolicy.Rejection(MountedSaveCodec.Decode(MountedSaveCodec.Encode(empty)),
+            campaign, area, false, false, false, false, false) == null,
+            "empty current metadata supports disabled native loading without inventing a pair");
+    }
+
     private static void CombatRoundTrip(string mountedJson)
     {
         var legacy = JObject.Parse(mountedJson);
@@ -63,6 +94,9 @@ public static class PersistenceDataTests
         };
         var json = MountedSaveCodec.Encode(data);
         var read = MountedSaveCodec.Decode(json);
+        Check(MountedLoadAdmissionPolicy.Rejection(read, data.CampaignId, data.AreaId, true, true, false, false, true) == null &&
+            MountedLoadAdmissionPolicy.Rejection(read, data.CampaignId, data.AreaId, true, true, false, false, false) != null,
+            "combat mode mismatch refuses before native preparation without changing settings");
         Check(read.Kind == MountedSaveReadKind.Current && read.Data.Combat.Current.Status == 3 &&
             read.Data.Combat.Paired.Activation.ToSnapshot().Sequence == 3 &&
             read.Data.Combat.Actors[0].Native.ReactionsRemaining == 0 &&
@@ -175,6 +209,7 @@ public static class PersistenceDataTests
         var slots = (JArray)oversized["Slots"];
         for (var i=0;i<129;i++) slots.Add(new JObject {["ActorId"]=rider.Id,["Index"]=i,["Kind"]=3});
         Check(MountedSaveCodec.Decode(oversized.ToString()).Kind == MountedSaveReadKind.Invalid, "unbounded slot data rejected");
+        LoadAdmission(frozen);
         CombatRoundTrip(frozen);
         Console.WriteLine("PERSISTENCE DATA PASS="+count+" FAIL=0; native cold qualification remains separate.");
     }

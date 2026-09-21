@@ -17,7 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Scenario = "persistence-isolation";
         internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
             value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" || value == "persistence-p04-save" || value == "persistence-p04-load" ||
-            value == "persistence-p05-save" || value == "persistence-p05-load";
+            value == "persistence-p05-save" || value == "persistence-p05-load" || value == "persistence-p06-load";
         internal PersistenceSaveAuthorization Authority => authority;
         private const string HarmonyId = "KingmakerMountedCombat.PersistenceIsolation";
         private readonly RuntimeRequest request;
@@ -96,6 +96,12 @@ namespace KingmakerMountedCombat.Diagnostics
                             InternalName = "KMC_P05_POST", SaveType = "Manual", Area = fixture.Area, Writable = true });
                     }
                 }
+                if (request.Scenario == "persistence-p06-load")
+                {
+                    var variant = request.PersistenceAlternate;
+                    entries.Add(new PersistenceSaveEntry { FileName = variant.FileName, InternalName = variant.InternalName,
+                        SaveType = "Manual", Area = variant.Area, InitialSha256 = variant.Sha256, Writable = false });
+                }
                 if (request.Scenario == "persistence-p05-load" && fixture.InternalName !=
                     RuntimePersistenceScenario.SlotName(RuntimePersistenceScenario.SlotType(request.PersistenceCase)))
                     throw new InvalidOperationException("Cold native slot name differs from the exact localized category.");
@@ -118,7 +124,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (!game.SaveManager.AreSavesUpToDate) return false;
             var saves = game.SaveManager.ToArray();
-            var expectedCount = request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ? 2 : 1;
+            var expectedCount = request.Scenario == "persistence-p06-load" || request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ? 2 : 1;
             if (saves.Length != expectedCount || saves.Any(save => authority.Validate(RuntimeSaveOperation.Load,
                 Project(save), game.SaveManager.SavePath) != null))
                 throw new InvalidOperationException("Isolated native enumeration differs from the single copied fixture.");
