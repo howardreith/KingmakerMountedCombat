@@ -108,5 +108,34 @@ $snapshot.Mount.ReactionsRemaining=0;$snapshot.Combat.Paired.Activation.Mount.En
 Must-Reject {Assert-KmcP03Snapshot $snapshot 'reaction'} 'Reaction fixture requires ended pair participation'
 $snapshot.Combat.Paired.Activation.Mount.Ended=$true;$snapshot.Combat.Actors[0].DisengageTargets=@()
 Must-Reject {Assert-KmcP03Snapshot $snapshot 'reaction'} 'Consumed native reaction target must survive'
+# Category tests use newly created synthetic archives under this owned obj root.
+foreach($case in @('manual','quick','auto')){
+    $type=if($case-ceq'manual'){'Manual'}elseif($case-ceq'quick'){'Quick'}else{'Auto'}
+    $leaf=if($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    $slotPath=Join-Path $saveRoot $leaf
+    if($type-cne'Manual'){
+        $slotStream=[IO.File]::Open($slotPath,[IO.FileMode]::CreateNew)
+        $slotArchive=[IO.Compression.ZipArchive]::new($slotStream,[IO.Compression.ZipArchiveMode]::Create,$false)
+        try{
+            $slotHeader=[ordered]@{Name=('native '+$type+' 1');Type=$type;CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}
+            foreach($member in @('header.json','kmc-mounted-state')){
+                $writer=[IO.StreamWriter]::new($slotArchive.CreateEntry($member).Open())
+                try{$writer.Write($(if($member-ceq'header.json'){$slotHeader|ConvertTo-Json -Compress}else{'{}'}))}finally{$writer.Dispose()}
+            }
+        }finally{$slotArchive.Dispose();$slotStream.Dispose()}
+    }
+    $slotHash=Get-KmcSha256 $slotPath
+    $result.scenario='persistence-p05-save';Write-KmcJsonAtomic $resultPath $result
+    Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p05-save';persistenceCase=$case;transactionToken=('a'*64)})
+    $slot=Get-KmcPersistenceSource $sourceId $slotHash $fixture -NativeCase $case
+    if($slot.path-cne$slotPath-or$slot.descriptor.sha256-cne$slotHash){throw 'Native category source identity changed'};$passes++
+    Must-Reject {Get-KmcPersistenceSource $sourceId $slotHash $fixture} 'P05 accepted missing category'
+    $wrong=if($case-ceq'quick'){'auto'}else{'quick'}
+    Must-Reject {Get-KmcPersistenceSource $sourceId $slotHash $fixture -NativeCase $wrong} 'P05 category and source ownership differed'
+    $result.modsRestored=$false;Write-KmcJsonAtomic $resultPath $result
+    Must-Reject {Get-KmcPersistenceSource $sourceId $slotHash $fixture -NativeCase $case} 'P05 admitted an unrestored source'
+    $result.modsRestored=$true;Write-KmcJsonAtomic $resultPath $result
+    if((Get-KmcSha256 $slotPath)-cne$slotHash){throw 'P05 source inspection changed archive'};$passes++
+}
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

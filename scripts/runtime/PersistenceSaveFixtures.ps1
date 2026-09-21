@@ -5,7 +5,8 @@ Set-StrictMode -Version Latest
 function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
-        [Parameter(Mandatory=$true)]$Fixture)
+        [Parameter(Mandatory=$true)]$Fixture,
+        [AllowNull()][ValidateSet('manual','quick','auto')][string]$NativeCase)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
     $lab=Get-KmcLabRoot
@@ -13,11 +14,17 @@ function Get-KmcPersistenceSource {
     Assert-KmcDirectoryTreeCloneable $root 'owned persistence source'
     $owner=Read-KmcJson (Join-Path $root 'owner.json')
     $result=Read-KmcJson (Join-Path $lab ('runtime-evidence/'+$SourceRunId+'/runtime-result.json'))
-    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')-or$result.status-cne'PASS'-or
+    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p05-save')-or$result.status-cne'PASS'-or
         $result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or
         $result.modsRestored-ne$true-or$result.workingRestored-ne$true-or
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
-    $path=Join-Path $root 'Saved Games/Manual_300_KMC_P01.zks'
+    $isSlot=$owner.scenario-ceq'persistence-p05-save'
+    if($isSlot){
+        if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
+    }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Native slot load requires a P05 source.'}
+    $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
+    $leaf=if($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    $path=Join-Path $root ('Saved Games/'+$leaf)
     Assert-KmcNotReparsePoint $path 'owned persistence source archive'
     Assert-KmcNotHardLink $path 'owned persistence source archive'
     if((Get-KmcSha256 $path)-cne$ExpectedSha256-or$ExpectedSha256-ceq$Fixture.baseline.sha256){throw 'Owned source archive hash differs.'}
@@ -36,13 +43,14 @@ function Get-KmcPersistenceSource {
         $json=$reader.ReadToEnd()
         Assert-KmcJsonObjectMembersUnique -Json $json -Description 'owned persistence header'
         $header=$json|ConvertFrom-Json
-        if($header.Name-cne'KMC_P01'-or$header.Type-cne'Manual'-or$header.CompatibilityVersion-ne1-or
+        $nameOk=if($type-ceq'Manual'){$header.Name-ceq'KMC_P01'}else{$header.Name-is[string]-and$header.Name.Length-gt0-and$header.Name.Length-le256-and$header.Name-cnotmatch'[\x00-\x1f\x7f]'}
+        if(-not$nameOk-or$header.Type-cne$type-or$header.CompatibilityVersion-ne1-or
             $header.GameId-cne$Fixture.working.gameId-or$header.GameName-cne$Fixture.working.gameName-or
             $header.Area-cne$Fixture.working.area){throw 'Owned archive native campaign/type/name differs.'}
     }finally{if($reader){$reader.Dispose()};if($archive){$archive.Dispose()};if($stream){$stream.Dispose()}}
     if((Get-KmcSha256 $path)-cne$ExpectedSha256){throw 'Owned archive changed during inspection.'}
     return [pscustomobject]@{path=$path;descriptor=[ordered]@{
-        internalName='KMC_P01';fileName=$file.Name;sha256=$ExpectedSha256;length=[long]$file.Length
+        internalName=[string]$header.Name;fileName=$file.Name;sha256=$ExpectedSha256;length=[long]$file.Length
         lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks
         gameId=[string]$header.GameId;gameName=[string]$header.GameName;area=[string]$header.Area
     }}
@@ -106,7 +114,7 @@ function Assert-KmcP03Snapshot {
 
 function Assert-KmcPersistenceScenarioEvidence {
     param($Request,$Manifest,[string]$Status,$GameResult)
-    if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load') -or $Status-cne'PASS'){return}
+    if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p05-save','persistence-p05-load') -or $Status-cne'PASS'){return}
     $artifact=@($Manifest.artifacts|Where-Object relativePath -CEQ 'persistence-observations.jsonl')
     if($artifact.Count-ne1-or$artifact[0].kind-cne'persistence-evidence'){throw 'P01 has no exact observation artifact.'}
     $path=Join-Path $Request.evidenceRoot 'persistence-observations.jsonl'
@@ -114,12 +122,13 @@ function Assert-KmcPersistenceScenarioEvidence {
     $rows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     if($rows.Count-lt6-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
     $isP03=$Request.scenario-cin @('persistence-p03-save','persistence-p03-load')
+    $isSlot=$Request.scenario-cin @('persistence-p05-save','persistence-p05-load')
     $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')
     $checkpoint=if(@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'){[string]$Request.persistenceCase}else{'partial-movement'}
     $isRoundEffect=$isP03-and$checkpoint-ceq'round-effect'
     $isReaction=$isP03-and$checkpoint-ceq'reaction'
     $isCommitment=$isP03-and-not$isRoundEffect-and-not$isReaction
-    $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')
+    $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p05-save')
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
     foreach($row in $rows){
@@ -127,7 +136,7 @@ function Assert-KmcPersistenceScenarioEvidence {
             $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or$row.relationship-cne'Mounted'-or
             $row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id-or
             $row.controls.DuplicateFactCount-ne0){throw 'P01 native state identity/relationship/control invariant differs.'}
-        if($isCombat-and$row.checkpoint-cne$checkpoint){throw 'P02 observation checkpoint differs from its bounded request.'}
+        if(($isCombat-or$isSlot)-and$row.checkpoint-cne$checkpoint){throw 'P02 observation checkpoint differs from its bounded request.'}
     }
     $required=@('usable-continuation-complete')
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent')){$required+=@('movement-dispatched','movement-completed')}
@@ -191,14 +200,32 @@ function Assert-KmcPersistenceScenarioEvidence {
         if(@($final.detail.turnVisits).Count-lt4){throw 'P02 lacks observed native unrelated participation.'}
     }
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
-    if($Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')){
+    if($isWrite){
         $written=@($rows|Where-Object kind -CEQ 'native-write-complete')
         if($written.Count-ne1){throw 'P01 save has no real completion observation.'}
         $d=$written[0].detail
         if($isP03){Assert-KmcP03Snapshot $d.snapshot $checkpoint}
         elseif($isCombat){Assert-KmcP02Snapshot $d.snapshot $checkpoint}
-        $archive=Join-Path $root 'Manual_300_KMC_P01.zks'
-        if($d.path-cne$archive-or$d.nativeType-cne'Manual'-or$d.nativeCallback-ne$true-or$d.operation-cne'None'-or
+        $type=if($isSlot-and$checkpoint-ceq'quick'){'Quick'}elseif($isSlot-and$checkpoint-ceq'auto'){'Auto'}else{'Manual'}
+        $leaf=if($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+        $archive=Join-Path $root $leaf
+        if($isSlot){
+            $requests=@($rows|Where-Object kind -CEQ 'native-slot-write-requested')
+            $commits=@($rows|Where-Object kind -CIn @('native-slot-write-complete','native-write-complete'))
+            if($requests.Count-ne3-or$commits.Count-ne3){throw 'P05 lacks all three native requests/completions.'}
+            for($i=0;$i-lt3;$i++){
+                $r=$requests[$i].detail;$w=$commits[$i].detail
+                if($r.ordinal-ne($i+1)-or$r.overwrite-ne($i-gt0)-or$r.nativeType-cne$type-or
+                    ($type-cne'Manual'-and$r.slotLimit-ne1)-or($type-ceq'Auto'-and$r.autosaveEnabled-ne$true)-or
+                    $w.ordinal-ne($i+1)-or$w.path-cne$archive-or$w.nativeType-cne$type-or
+                    $w.nativeCallback-ne$true-or$w.operation-cne'None'-or$w.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+                    $w.snapshot.Mounted-ne$true-or$w.snapshot.Rider.Id-cne$initial[0].rider.Id-or
+                    $w.snapshot.Mount.Id-cne$initial[0].mount.Id){throw 'P05 lost actual native rotation/metadata semantics.'}
+            }
+            if(@($commits|ForEach-Object{$_.detail.sha256}|Select-Object -Unique).Count-ne3){throw 'P05 did not write three distinct native archives.'}
+            if(@(Get-ChildItem -LiteralPath $root -File -Filter '*.zks').Count-ne2){throw 'P05 retained an unexpected archive or temporary leaf.'}
+        }
+        if($d.path-cne$archive-or$d.nativeType-cne$type-or$d.nativeCallback-ne$true-or$d.operation-cne'None'-or
             (Get-KmcSha256 $archive)-cne$d.sha256-or(Get-Item $archive).Length-ne$d.length-or
             $d.snapshot.Mounted-ne$true-or$d.snapshot.Rider.Id-cne$initial[0].rider.Id-or
             $d.snapshot.Mount.Id-cne$initial[0].mount.Id){throw 'P01 real archive/metadata/completion differs.'}

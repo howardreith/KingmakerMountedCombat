@@ -137,7 +137,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rejection != null) throw new InvalidOperationException(rejection);
                 var entry = entries[target.FileName];
                 entry.Writing = true;
-                return new WriteLease(this, target.FileName);
+                return new WriteLease(this, target.FileName, entry.Hash);
             }
         }
 
@@ -206,12 +206,50 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // Used only by the still-active native worker for its own newly
+        // allocated staging path; replacement destinations never enter this path.
+        internal void DeleteCompletedStaging(string path)
+        {
+            lock (sync)
+            {
+                if (Canonical(path) != path || Path.GetDirectoryName(path) != Root ||
+                    !entries.TryGetValue(Path.GetFileName(path), out var entry) ||
+                    !entry.Writable || entry.Writing || entry.Hash == null)
+                    throw new InvalidOperationException("Cleanup is not a completed owned staging archive.");
+                VerifyFile(Path.GetFileName(path), entry);
+                File.Delete(path);
+                if (File.Exists(path) || Directory.Exists(path)) throw new IOException("Owned staging cleanup failed.");
+                entry.Hash = null;
+            }
+        }
+
         internal sealed class WriteLease : IDisposable
         {
             private PersistenceSaveAuthorization owner;
             private readonly string leaf;
-            internal WriteLease(PersistenceSaveAuthorization owner, string leaf)
-            { this.owner = owner; this.leaf = leaf; }
+            private readonly string initialHash;
+            internal WriteLease(PersistenceSaveAuthorization owner, string leaf, string initialHash)
+            { this.owner = owner; this.leaf = leaf; this.initialHash = initialHash; }
+
+            internal void ClearStaging()
+            {
+                var current = owner;
+                if (current == null) throw new InvalidOperationException("Staging write scope is no longer active.");
+                lock (current.sync)
+                {
+                    if (owner == null || initialHash != null || !current.entries[leaf].Writing ||
+                        current.entries[leaf].Hash != null)
+                        throw new InvalidOperationException("Cleanup cannot delete an existing completed save.");
+                    RequireDirectory(current.Root);
+                    var path = Path.Combine(current.Root, leaf);
+                    if (Directory.Exists(path)) throw new IOException("Staging path became a directory.");
+                    if (!File.Exists(path)) return;
+                    if (ReadOwnedHash(path) == current.baselineHash)
+                        throw new InvalidOperationException("Staging bytes alias a protected baseline.");
+                    File.Delete(path);
+                    if (File.Exists(path)) throw new IOException("Owned staging cleanup failed.");
+                }
+            }
 
             internal void Complete()
             {

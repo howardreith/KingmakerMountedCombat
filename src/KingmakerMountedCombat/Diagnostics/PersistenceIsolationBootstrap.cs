@@ -16,7 +16,8 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string Scenario = "persistence-isolation";
         internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
-            value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load";
+            value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" ||
+            value == "persistence-p05-save" || value == "persistence-p05-load";
         internal PersistenceSaveAuthorization Authority => authority;
         private const string HarmonyId = "KingmakerMountedCombat.PersistenceIsolation";
         private readonly RuntimeRequest request;
@@ -52,13 +53,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 var entries = new System.Collections.Generic.List<PersistenceSaveEntry>
                 {
                     new PersistenceSaveEntry { FileName = fixture.FileName, InternalName = fixture.InternalName,
-                        SaveType = "Manual", Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
+                        SaveType = request.Scenario == "persistence-p05-load" ? RuntimePersistenceScenario.SlotType(request.PersistenceCase).ToString() : "Manual",
+                        Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
                 if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p03-save") entries.Add(new PersistenceSaveEntry
                 {
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
                     Writable = true
                 });
+                if (request.Scenario == "persistence-p05-save")
+                {
+                    var type = RuntimePersistenceScenario.SlotType(request.PersistenceCase);
+                    var name = RuntimePersistenceScenario.SlotName(type);
+                    for (var n = 0; n < 2; n++) entries.Add(new PersistenceSaveEntry {
+                        FileName = type == SaveInfo.SaveType.Manual ? "Manual_" + (300 + n) + "_KMC_P01.zks" : type + "_" + (1 + n) + ".zks",
+                        InternalName = name, SaveType = type.ToString(), Area = fixture.Area, Writable = true });
+                }
+                if (request.Scenario == "persistence-p05-load" && fixture.InternalName !=
+                    RuntimePersistenceScenario.SlotName(RuntimePersistenceScenario.SlotType(request.PersistenceCase)))
+                    throw new InvalidOperationException("Cold native slot name differs from the exact localized category.");
                 authority = new PersistenceSaveAuthorization(runRoot, fixture.GameId, fixture.GameName,
                     request.Fixture.Baseline.Sha256, entries);
                 var areas = Path.Combine(runRoot, "Areas");

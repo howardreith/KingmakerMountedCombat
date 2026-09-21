@@ -681,7 +681,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 CollectEngineErrors(boundaryEngine.Errors, "Boundary");
                 boundaryEngine = null;
             }
-            else if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p01-load" ||
+            else if (request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load" ||
+                request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p01-load" ||
                 request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load")
             {
                 if (persistenceEngine == null)

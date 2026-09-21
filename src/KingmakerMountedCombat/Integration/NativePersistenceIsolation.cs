@@ -19,9 +19,26 @@ namespace KingmakerMountedCombat.Integration
     internal static class NativePersistenceIsolation
     {
         private static PersistenceSaveAuthorization authority;
+        private static bool nativeSlotRotation;
+        internal static void EnableNativeSlotRotation()
+        {
+            if (authority == null) throw new InvalidOperationException("Native test slots require active isolated authority.");
+            nativeSlotRotation = true;
+        }
+        internal static void DisableNativeSlotRotation() => nativeSlotRotation = false;
+        internal static bool HasPendingWrites { get { lock (writeGate) return writes.Count != 0; } }
         private static readonly object writeGate = new object();
-        private static readonly Dictionary<ISaver, PersistenceSaveAuthorization.WriteLease> writes =
-            new Dictionary<ISaver, PersistenceSaveAuthorization.WriteLease>();
+        private sealed class WriteTransaction
+        {
+            internal readonly SaveInfo Save;
+            internal readonly string StagingPath;
+            internal readonly PersistenceSaveAuthorization.WriteLease Lease;
+            internal bool Committed;
+            internal WriteTransaction(SaveInfo save, string path, PersistenceSaveAuthorization.WriteLease lease)
+            { Save = save; StagingPath = path; Lease = lease; }
+        }
+        private static readonly Dictionary<ISaver, WriteTransaction> writes =
+            new Dictionary<ISaver, WriteTransaction>();
         private static readonly Guid ExpectedMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
 
         internal static void Bind(PersistenceSaveAuthorization authorizedScope)
@@ -41,6 +58,10 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Native settings cache refresh contract changed.");
             harmony.Patch(settingsRefresh, null, new HarmonyMethod(typeof(NativePersistenceIsolation).GetMethod(
                 "SettingsRefreshPostfix", BindingFlags.NonPublic | BindingFlags.Static)), null);
+            Patch(harmony, typeof(Kingmaker.UI.SettingsUI.SettingsEntitySlider), "get_CurrentValue", 0x060033EE,
+                Type.EmptyTypes, "NativeSlotCountPrefix", null);
+            Patch(harmony, typeof(Kingmaker.UI.SettingsUI.SettingsEntityBool), "get_CurrentValue", 0x06003364,
+                Type.EmptyTypes, "NativeAutosaveEnabledPrefix", null);
             Patch(harmony, typeof(SaveManager), "get_SavePath", 0x0600800C, Type.EmptyTypes, "SavePathPrefix", null);
             Patch(harmony, typeof(SaveManager), "UpdateSaveListAsync", 0x0600800E, Type.EmptyTypes, null, "SaveRootTranspiler");
             Patch(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, null, "SaveRootTranspiler");
@@ -80,6 +101,23 @@ namespace KingmakerMountedCombat.Integration
             {
                 throw new InvalidOperationException("Persistence patch construction failed: " + type.FullName + "." + name, exception);
             }
+        }
+
+        private static bool NativeSlotCountPrefix(Kingmaker.UI.SettingsUI.SettingsEntitySlider __instance, ref float __result)
+        {
+            if (authority == null || !nativeSlotRotation) return true;
+            var settings = Kingmaker.UI.SettingsUI.SettingsRoot.Instance;
+            if (!ReferenceEquals(__instance, settings.QuicksaveSlots) && !ReferenceEquals(__instance, settings.AutosaveSlots)) return true;
+            __result = 1f;
+            return false;
+        }
+
+        private static bool NativeAutosaveEnabledPrefix(Kingmaker.UI.SettingsUI.SettingsEntityBool __instance, ref bool __result)
+        {
+            if (authority == null || !nativeSlotRotation ||
+                !ReferenceEquals(__instance, Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutosaveEnabled)) return true;
+            __result = true;
+            return false;
         }
 
         private static void SettingsRefreshPostfix()
@@ -204,7 +242,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (save?.Saver == null || writes.ContainsKey(save.Saver))
                     throw new InvalidOperationException("Native writer was allocated ambiguously.");
-                writes.Add(save.Saver, authority.BeginWrite(Project(save), authority.Root));
+                writes.Add(save.Saver, new WriteTransaction(save, save.FolderName,
+                    authority.BeginWrite(Project(save), authority.Root)));
             }
         }
 
@@ -216,18 +255,42 @@ namespace KingmakerMountedCombat.Integration
             if (authority == null || IsSelectedReadOnlyArchive(__instance)) return;
             lock (writeGate)
             {
-                if (!writes.TryGetValue(__instance, out var lease)) return;
-                lease.Complete();
-                writes.Remove(__instance);
+                if (!writes.TryGetValue(__instance, out var transaction) || transaction.Committed)
+                    throw new InvalidOperationException("Native commit lost its unique active transaction.");
+                transaction.Lease.Complete();
+                transaction.Committed = true;
             }
         }
 
-        private static void ClearPrefix(ISaver __instance)
+        internal static void ObserveWorkerComplete(SaveInfo saveInfo)
         {
             if (authority == null) return;
             lock (writeGate)
-                if (!writes.ContainsKey(__instance))
-                    throw new InvalidOperationException("Native deletion has no exact run-owned write lease.");
+            {
+                foreach (var item in writes.Where(w => ReferenceEquals(w.Value.Save, saveInfo)).ToArray())
+                {
+                    try { item.Value.Lease.Dispose(); }
+                    finally { writes.Remove(item.Key); }
+                }
+            }
+        }
+
+        private static bool ClearPrefix(ISaver __instance)
+        {
+            if (authority == null) return true;
+            lock (writeGate)
+            {
+                if (!writes.TryGetValue(__instance, out var transaction) ||
+                    __instance.GetType() != NativeZipSaver ||
+                    (string)NativeZipSaver.GetProperty("FolderName").GetValue(__instance, null) != transaction.StagingPath)
+                    throw new InvalidOperationException("Native deletion is outside its exact active staging transaction.");
+                // Clear's native file deletion swallows IO failures. Close its
+                // cached handle first, then require exact owned cleanup success.
+                __instance.Dispose();
+                if (transaction.Committed) authority.DeleteCompletedStaging(transaction.StagingPath);
+                else transaction.Lease.ClearStaging();
+                return false;
+            }
         }
 
         private static void RenamePrefix()

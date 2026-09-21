@@ -48,7 +48,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disposed;
         internal bool Completed { get; private set; }
         internal RuntimeSubscenarioResult Result { get; private set; }
-        private bool Cold => request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load";
+        private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
+        private int completedSlotWrites;
+        private bool Cold => request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load";
         private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load";
         private readonly MountedCombatController combat;
 
@@ -133,6 +135,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     !beforeControls.SerializationSuspended, "controls-present-once");
                 Write("initial");
                 if (Cold) { stage = 2; return; }
+                if (SlotCase) { RequestNativeSlotWrite(); stage = 1; return; }
                 var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
                 Check(descriptor.Name == "KMC_P01" && descriptor.Type == SaveInfo.SaveType.Manual &&
                     game.SaveManager.IsSaveAllowed(), "actual-native-manual-admission");
@@ -141,13 +144,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (stage == 1)
             {
-                if (!callback) return;
-                var saved = game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01");
+                if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
+                var name = SlotCase ? SlotName(SlotType(request.PersistenceCase)) : "KMC_P01";
+                var saved = game.SaveManager.SingleOrDefault(s => s.Name == name);
                 if (saved == null || saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
                 var read = NativeMountedSaveStorage.Read(saved.Saver);
                 Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
                     read.Data.Rider.Id == rider.UniqueId && read.Data.Mount.Id == mount.UniqueId, "actual-archive-pair-metadata");
-                Check(persistence.SnapshotCount == 1 && relationship.State == RelationshipState.Mounted &&
+                Check(persistence.SnapshotCount == (SlotCase ? completedSlotWrites + 1 : 1) && relationship.State == RelationshipState.Mounted &&
                     relationship.Rider == rider && relationship.Mount == mount, "save-retains-live-pair");
                 var after = controls.CaptureSnapshot();
                 Check(after.ExactFactCount == beforeControls.ExactFactCount && after.DuplicateFactCount == 0 &&
@@ -159,12 +163,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     LegitimateContinuation(read.Data.Mount, MountedPersistenceService.CaptureActor(mount), elapsedGame),
                     "save-preserves-legitimate-native-debt");
                 var file = new FileInfo(saved.FolderName);
-                Write("native-write-complete", new JObject
+                completedSlotWrites++;
+                Write(SlotCase && completedSlotWrites < 3 ? "native-slot-write-complete" : "native-write-complete", new JObject
                 {
+                    ["ordinal"] = completedSlotWrites,
                     ["path"] = saved.FolderName, ["sha256"] = Hash(saved.FolderName), ["length"] = file.Length,
                     ["nativeType"] = saved.Type.ToString(), ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
                     ["nativeCallback"] = callback, ["operation"] = saved.OperationState.ToString()
                 });
+                if (SlotCase)
+                {
+                    Check(saved.Type == SlotType(request.PersistenceCase) && game.SaveManager.Count(s => s.Type == saved.Type &&
+                        s.Name == saved.Name) == 1, "one-actual-native-slot-after-write");
+                    var leaf = saved.Type == SaveInfo.SaveType.Manual ? "Manual_300_KMC_P01.zks" : saved.Type + "_1.zks";
+                    Check(saved.FileName == leaf && Directory.GetFiles(game.SaveManager.SavePath, "*.zks").Length == 2,
+                        "rotation-retains-exact-slot-and-read-only-fixture");
+                    if (completedSlotWrites < 3) { RequestNativeSlotWrite(); return; }
+                }
                 stage = 2; return;
             }
             if (stage == 2)
@@ -235,6 +250,41 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        internal static SaveInfo.SaveType SlotType(string value)
+        {
+            switch (value) {
+                case "manual": return SaveInfo.SaveType.Manual;
+                case "quick": return SaveInfo.SaveType.Quick;
+                case "auto": return SaveInfo.SaveType.Auto;
+                default: throw new InvalidOperationException("Unknown native slot category.");
+            }
+        }
+
+        internal static string SlotName(SaveInfo.SaveType type) =>
+            type == SaveInfo.SaveType.Manual ? "KMC_P01" :
+            (string)(type == SaveInfo.SaveType.Quick ? Kingmaker.Blueprints.Root.Strings.UIStrings.Instance.SaveLoadTexts.SavePrefixQuick :
+                Kingmaker.Blueprints.Root.Strings.UIStrings.Instance.SaveLoadTexts.SavePrefixAuto) + "1";
+
+        private void RequestNativeSlotWrite()
+        {
+            var game = Game.Instance;
+            var type = SlotType(request.PersistenceCase);
+            NativePersistenceIsolation.EnableNativeSlotRotation();
+            var descriptor = type == SaveInfo.SaveType.Quick ? game.SaveManager.GetNextQuickslot() :
+                type == SaveInfo.SaveType.Auto ? game.SaveManager.GetNextAutoslot() :
+                game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01") ?? game.SaveManager.CreateNewSave("KMC_P01");
+            Check(descriptor != null && descriptor.Type == type && descriptor.Name == SlotName(type) &&
+                game.SaveManager.IsSaveAllowed(), "actual-native-slot-admission");
+            Check((completedSlotWrites == 0) == !descriptor.IsActuallySaved, "native-new-or-oldest-slot-selection");
+            callback = false;
+            Write("native-slot-write-requested", new JObject { ["ordinal"] = completedSlotWrites + 1,
+                ["nativeType"] = type.ToString(), ["overwrite"] = descriptor.IsActuallySaved,
+                ["slotLimit"] = type == SaveInfo.SaveType.Quick ? Kingmaker.UI.SettingsUI.SettingsRoot.Instance.QuicksaveSlots.CurrentValue :
+                    type == SaveInfo.SaveType.Auto ? Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutosaveSlots.CurrentValue : 0f,
+                ["autosaveEnabled"] = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutosaveEnabled.CurrentValue });
+            game.SaveGame(descriptor, () => callback = true);
+        }
+
         private void BindOwnedControlSlots()
         {
             var kinds = new[] { controls.DismountAbility, controls.RiderPrimaryAbility };
@@ -273,7 +323,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var row = new JObject
             {
                 ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
-                ["kind"] = kind, ["checkpoint"] = CombatCase ? Checkpoint : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
+                ["kind"] = kind, ["checkpoint"] = CombatCase ? Checkpoint : SlotCase ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["source"] = request.Commit,
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
                 ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),
@@ -316,6 +366,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
+            if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtime?.Dispose();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
             settings.EnableUnsafeMovementExperiment = false;

@@ -234,6 +234,16 @@ public static class KmcPersistenceContractProbe
                 settingsRefresh.GetParameters().Length==0,"exact native boolean cache refresh seam");
             isolation.GetMethod("SettingsRefreshPostfix",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null);
             Check(true,"unbound persistence cache callback leaves ordinary configuration untouched");
+            var slider=native.GetType("Kingmaker.UI.SettingsUI.SettingsEntitySlider",true);
+            var boolean=native.GetType("Kingmaker.UI.SettingsUI.SettingsEntityBool",true);
+            patch.Invoke(null,new object[]{harmony,slider,"get_CurrentValue",0x060033EE,Type.EmptyTypes,"NativeSlotCountPrefix",null});
+            patch.Invoke(null,new object[]{harmony,boolean,"get_CurrentValue",0x06003364,Type.EmptyTypes,"NativeAutosaveEnabledPrefix",null});
+            Check(true,"exact native slot count and autosave getters accept scoped test prefixes");
+            var floatArgs=new object[]{null,7f};var boolArgs=new object[]{null,false};
+            Check((bool)isolation.GetMethod("NativeSlotCountPrefix",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,floatArgs) &&
+                (float)floatArgs[1]==7f &&
+                (bool)isolation.GetMethod("NativeAutosaveEnabledPrefix",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,boolArgs) &&
+                !(bool)boolArgs[1],"unbound native category getters preserve all settings");
             var nativeSaver=native.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver",true);
             patch.Invoke(null,new object[]{harmony,nativeSaver,"SaveJson",0x06008063,new[]{typeof(string),typeof(string)},"LoadHeaderJsonPrefix",null});
             patch.Invoke(null,new object[]{harmony,nativeSaver,"Save",0x06008068,Type.EmptyTypes,"LoadHeaderCommitPrefix",null});
@@ -417,16 +427,29 @@ public static class KmcPersistenceContractProbe
             var writeLease=authorityType.GetMethod("BeginWrite",BindingFlags.NonPublic|BindingFlags.Instance)
                 .Invoke(authority,new[]{target,isolated});
             var pending=(System.Collections.IDictionary)isolation.GetField("writes",binding).GetValue(null);
-            pending.Add(writeSaver,writeLease);
+            var transactionType=isolation.GetNestedType("WriteTransaction",BindingFlags.NonPublic);
+            var descriptor=Activator.CreateInstance(native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true));
+            var transaction=Activator.CreateInstance(transactionType,BindingFlags.NonPublic|BindingFlags.Instance,null,
+                new object[]{descriptor,writePath,writeLease},null);
+            pending.Add(writeSaver,transaction);
             try
             {
                 saverType.GetMethod("SaveJson").Invoke(writeSaver,new object[]{"header","{}"});
                 Check(!File.Exists(writePath),"authorized native metadata stage does not claim a disk write");
                 saverType.GetMethod("Save").Invoke(writeSaver,null);
-                Check(File.Exists(writePath) && !pending.Contains(writeSaver),"real native commit completes and releases its exact write lease");
+                Check(File.Exists(writePath) && pending.Contains(writeSaver),"real native archive commit retains ownership through the worker boundary");
                 authorityType.GetMethod("AssertReadableArchive",BindingFlags.NonPublic|BindingFlags.Instance)
                     .Invoke(authority,new object[]{writePath});
                 Check(true,"completed native archive becomes readable through the same strict authority");
+                var clear=isolation.GetMethod("ClearPrefix",binding);
+                Check(!(bool)clear.Invoke(null,new[]{writeSaver}) && !File.Exists(writePath) && pending.Contains(writeSaver),
+                    "failed native worker may remove only its own completed staging archive");
+                bool readDenied=false;
+                try { clear.Invoke(null,new[]{readSaver}); } catch(TargetInvocationException e){readDenied=e.InnerException is InvalidOperationException;}
+                Check(readDenied && Hash(readPath)==before,"worker cleanup cannot delete the read-only loaded archive");
+                isolation.GetMethod("ObserveWorkerComplete",binding).Invoke(null,new[]{descriptor});
+                isolation.GetMethod("ObserveWorkerComplete",binding).Invoke(null,new[]{descriptor});
+                Check(!pending.Contains(writeSaver),"native worker completion releases its transaction exactly once");
             }
             finally { ((IDisposable)writeSaver).Dispose(); ((IDisposable)writeLease).Dispose(); pending.Remove(writeSaver); if(File.Exists(writePath)) File.Delete(writePath); }
             isolation.GetField("authority",binding).SetValue(null,null);

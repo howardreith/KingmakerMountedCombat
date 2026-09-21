@@ -136,6 +136,23 @@ namespace KingmakerMountedCombat.Tests
                 invalid.PersistenceCase = "step"; invalid.Fixture = null;
                 TestRunner.True(invalid.Validate().Count > 0, "P03 bypassed fixture authority.");
             });
+            runner.Run("P05 requires exact native categories and isolated cold identity", () =>
+            {
+                foreach (var name in new[] { "manual", "quick", "auto" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = "persistence-p05-save";
+                    request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "P05 category rejected.");
+                    request.Scenario = "persistence-p03-save";
+                    TestRunner.True(request.Validate().Count > 0, "P05 category leaked into combat fixture.");
+                    request.Scenario = "persistence-p05-load";
+                    TestRunner.True(request.Validate().Count > 0, "P05 cold bypassed archive identity.");
+                }
+                var invalid = ValidSaveBackedRequest(); invalid.Scenario = "persistence-p05-save";
+                TestRunner.True(invalid.Validate().Count > 0, "P05 inferred an undeclared category.");
+                invalid.PersistenceCase = "reaction";
+                TestRunner.True(invalid.Validate().Count > 0, "P03 checkpoint leaked into P05.");
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             NativeLoadWorldTests.Register(runner);

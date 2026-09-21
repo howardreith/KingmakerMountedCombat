@@ -5086,6 +5086,33 @@ try {
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
 
+    Invoke-HarnessTest 'P05 requires an exact native slot category with isolated cold identity' {
+        try{
+            $v2Request.scenario='persistence-p05-save'
+            foreach($case in @('manual','quick','auto')){
+                $v2Request['persistenceCase']=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            }
+            foreach($case in @('reaction','../human','')){
+                $v2Request.persistenceCase=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'P05 admitted a foreign/unrecognized category'
+            }
+            $v2Request.persistenceCase='quick';$v2Request.scenario='persistence-p03-save'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P05 category leaked into another scenario'
+        }finally{
+            $v2Request.Remove('persistenceCase')
+            $v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'P03 requires a declared native commitment and preserves strict other scenarios' {
         try{
             $v2Request.scenario='persistence-p03-save'

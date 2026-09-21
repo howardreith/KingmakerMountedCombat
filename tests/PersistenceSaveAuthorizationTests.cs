@@ -14,6 +14,7 @@ namespace KingmakerMountedCombat.Tests
 
         public static void Register(TestRunner runner)
         {
+            runner.Run("staging failure cleanup preserves completed saves and rejects substituted bytes", StagingCleanup);
             runner.Run("isolated native slot replacement retains exact committed bytes across rotation", ReplacementCommit);
             runner.Run("failed or canceled owned replacement preserves both complete archives", ReplacementFailure);
             runner.Run("replacement rejects read-only native types aliases and outside-root paths", ReplacementBoundaries);
@@ -25,6 +26,36 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated saves retain read-only fixture and detect outside mutation", ReadOnly);
             runner.Run("isolated saves reject multiply linked files", HardLinks);
             runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
+        }
+
+        private static void StagingCleanup()
+        {
+            using (var files = new Files())
+            {
+                var target = files.Target("Manual");
+                var guard = files.Guard(Entry("Manual"));
+                using (var write = guard.BeginWrite(target, files.Root))
+                {
+                    write.ClearStaging();
+                    File.WriteAllText(target.FullPath, "partial owned archive");
+                    write.ClearStaging();
+                    TestRunner.True(!File.Exists(target.FullPath), "partial staging remained");
+                    File.WriteAllText(target.FullPath, "complete owned archive");
+                    write.Complete();
+                    MustThrow(() => write.ClearStaging());
+                }
+                var complete = Hash(target.FullPath);
+                using (var write = guard.BeginWrite(target, files.Root))
+                    MustThrow(() => write.ClearStaging());
+                TestRunner.Equal(complete, Hash(target.FullPath), "completed input lost through initial cleanup");
+                File.WriteAllText(target.FullPath, "outside replacement");
+                MustThrow(() => guard.DeleteCompletedStaging(target.FullPath));
+                File.WriteAllText(target.FullPath, "complete owned archive");
+                guard.DeleteCompletedStaging(target.FullPath);
+                TestRunner.True(!File.Exists(target.FullPath), "completed staging cleanup failed");
+                MustThrow(() => guard.AssertReadableArchive(target.FullPath));
+                using (guard.BeginWrite(target, files.Root)) { }
+            }
         }
 
         private static void ReplacementCommit()
