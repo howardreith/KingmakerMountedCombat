@@ -51,6 +51,15 @@ function Get-KmcPersistenceSource {
 function Assert-KmcP02Snapshot {
     param($Snapshot,[string]$Checkpoint)
     $c=$Snapshot.Combat
+    if($Checkpoint-ceq'reaction'){
+        $actor=@($c.Actors|Where-Object {$_.Native.Id-ceq$Snapshot.Mount.Id})
+        if($null-eq$c-or$c.Round-lt1-or$null-eq$c.Paired.Activation-or$null-eq$c.Current-or
+            $Snapshot.Mount.ReactionsRemaining-ne0-or$actor.Count-ne1-or
+            $c.Current.ActorId-cin @($Snapshot.Rider.Id,$Snapshot.Mount.Id)-or
+            -not$c.Paired.Activation.Rider.Ended-or-not$c.Paired.Activation.Mount.Ended-or
+            $actor[0].DisengageTargets-cnotcontains$c.Current.ActorId){throw 'P03 reaction snapshot lost its native count/participation/target.'}
+        return
+    }
     if($null-eq$c-or$c.Round-lt1-or$null-eq$c.Paired-or$null-eq$c.Paired.Activation-or$c.Paired.Activation.Sequence-lt1){
         throw 'P02 snapshot lacks native round and paired participation.'
     }
@@ -71,6 +80,15 @@ function Assert-KmcP02Snapshot {
 function Assert-KmcP03Snapshot {
     param($Snapshot,[string]$Checkpoint)
     $c=$Snapshot.Combat
+    if($Checkpoint-ceq'reaction'){
+        $actor=@($c.Actors|Where-Object {$_.Native.Id-ceq$Snapshot.Mount.Id})
+        if($null-eq$c-or$c.Round-lt1-or$null-eq$c.Paired.Activation-or$null-eq$c.Current-or
+            $Snapshot.Mount.ReactionsRemaining-ne0-or$actor.Count-ne1-or
+            $c.Current.ActorId-cin @($Snapshot.Rider.Id,$Snapshot.Mount.Id)-or
+            -not$c.Paired.Activation.Rider.Ended-or-not$c.Paired.Activation.Mount.Ended-or
+            $actor[0].DisengageTargets-cnotcontains$c.Current.ActorId){throw 'P03 reaction snapshot lost its native count/participation/target.'}
+        return
+    }
     if($null-eq$c-or$c.Round-lt1-or$null-eq$c.Paired-or$null-eq$c.Paired.Activation-or
         $c.Paired.Activation.Sequence-lt1-or$c.Current.ActorId-cne$Snapshot.Rider.Id-or
         $Snapshot.Rider.Standard-ne0-or$Snapshot.Rider.Move-ne0){throw 'P03 snapshot lost the native rider grant/remainder.'}
@@ -99,7 +117,8 @@ function Assert-KmcPersistenceScenarioEvidence {
     $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')
     $checkpoint=if(@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'){[string]$Request.persistenceCase}else{'partial-movement'}
     $isRoundEffect=$isP03-and$checkpoint-ceq'round-effect'
-    $isCommitment=$isP03-and-not$isRoundEffect
+    $isReaction=$isP03-and$checkpoint-ceq'reaction'
+    $isCommitment=$isP03-and-not$isRoundEffect-and-not$isReaction
     $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
@@ -113,7 +132,7 @@ function Assert-KmcPersistenceScenarioEvidence {
     $required=@('usable-continuation-complete')
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent')){$required+=@('movement-dispatched','movement-completed')}
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','between-partner-orders')){$required+=@('attack-dispatched','attack-delivered')}
-    if($isCombat-and-not$isRoundEffect-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
+    if($isCombat-and-not$isRoundEffect-and-not$isReaction-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
     if($isCombat-and$isWrite-and-not$isP03){
         $required+=@('partial-movement-dispatched','partial-movement-completed')
         if($checkpoint-cin @('rider-spent','exhausted')){$required+=@('setup-rider-attack-dispatched','setup-rider-attack-delivered')}
@@ -124,6 +143,11 @@ function Assert-KmcPersistenceScenarioEvidence {
         if($isWrite){$required+=@('commitment-dispatched','commitment-created')}
         if($checkpoint-ceq'step'){$required+=@('ordinary-movement-input-before','ordinary-movement-rejected','step-remainder-dispatched','step-remainder-completed')}
         else{$required+=@('converted-standard-rejected','conversion-remainder-dispatched','conversion-remainder-completed')}
+    }
+    if($isReaction){
+        $required+=@('reaction-return-dispatched','reaction-repeat-dispatched','reaction-repeat-rejected')
+        if($isWrite){$required+=@('reaction-approach-dispatched','reaction-approach-completed','reaction-dispatched','reaction-consumed')}
+        else{$required+='reaction-loaded'}
     }
     if($isRoundEffect){
         $required+='round-effect-retained'
@@ -140,6 +164,15 @@ function Assert-KmcPersistenceScenarioEvidence {
         $refresh=@($rows|Where-Object kind -CEQ 'next-paired-activation')
         if($refresh.Count-ne2-or$refresh[1].detail.sequence-ne($refresh[0].detail.sequence+1)){
             throw 'P02 did not observe two successive real paired activations.'
+        }
+        if($isReaction){
+            $repeated=@($rows|Where-Object kind -CEQ 'reaction-repeat-rejected')[0]
+            $expected=if($isWrite){1}else{0}
+            if($repeated.mount.ReactionsRemaining-ne0-or
+                $repeated.detail.rules.mountOpportunityAttackRules-ne$expected){throw 'P03 consumed reaction repeated or refreshed.'}
+            foreach($next in $refresh){
+                if($next.mount.ReactionsRemaining-ne1-or$next.mount.Reaction-ne0){throw 'P03 next native reaction refresh missing.'}
+            }
         }
         if($isRoundEffect){
             for($i=0;$i-lt2;$i++){

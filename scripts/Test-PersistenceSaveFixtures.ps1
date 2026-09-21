@@ -96,5 +96,17 @@ Assert-KmcP03Snapshot $snapshot 'round-effect';$passes++
 $snapshot.Mount.Standard=6
 Must-Reject {Assert-KmcP03Snapshot $snapshot 'round-effect'} 'Round effect cannot invent an unused action'
 Must-Reject {Assert-KmcP03Snapshot $snapshot 'unknown'} 'Unknown P03 checkpoint accepted'
+$snapshot.Mount|Add-Member NoteProperty ReactionsRemaining 0
+$snapshot.Combat.Current.ActorId='enemy'
+$snapshot.Combat.Paired.Activation|Add-Member NoteProperty Rider ([pscustomobject]@{Ended=$true})
+$snapshot.Combat.Paired.Activation|Add-Member NoteProperty Mount ([pscustomobject]@{Ended=$true})
+$snapshot.Combat|Add-Member NoteProperty Actors @([pscustomobject]@{Native=[pscustomobject]@{Id='m'};DisengageTargets=@('enemy')})
+Assert-KmcP03Snapshot $snapshot 'reaction';$passes++
+$snapshot.Mount.ReactionsRemaining=1
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'reaction'} 'Unspent reaction cannot qualify consumption'
+$snapshot.Mount.ReactionsRemaining=0;$snapshot.Combat.Paired.Activation.Mount.Ended=$false
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'reaction'} 'Reaction fixture requires ended pair participation'
+$snapshot.Combat.Paired.Activation.Mount.Ended=$true;$snapshot.Combat.Actors[0].DisengageTargets=@()
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'reaction'} 'Consumed native reaction target must survive'
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

@@ -44,12 +44,15 @@ A persistence-specific run-owned root/campaign/native-type/leaf/hash contract pr
 | P03-conversion-save-B / load-B, preview.17/sourcea818992, cold PID7480 | PASS46/0 and29/0, both outer PASS; native Move4.31344461/Standard0 retained, only remaining movement usable, two later refreshes |
 | P03-round-effect-save-A, preview.18/sourcebc7def0 | Prelaunch FAIL: missed exact-case request validator; no game/write. Preview19 adds the same bounded case and guard regression |
 | P03-round-effect-save-B, preview.19/source21b8b2c, PID16684 | FAIL135/1 before write; active self-cast mount buff due but never ticked, rider healed once |
+| P03-round-effect-save-C / load-C, preview.20/sourcef753b6e | PASS31/0 and24/0, both outer PASS; native timers/counts survive, no healing replay, both actors tick once on each of two later activations |
 
 Earlier P01 failures and exact historical identities remain in the journal and immutable lab evidence. P01-save-D archive SHA256 `84ffb91c85fe10b0ccacc92befe9a1e4fd2be88e639f197f79bf9bd678c83270`; P02-save-B archive SHA256 `e65a6d5ca94596c4d7f68e5e6b945a6022ea6a6c50dc6f8f86b6247697787439`, under its owned `runtime-staging/persistence-20260920-chunk5-P02-save-B/Saved Games/Manual_300_KMC_P01.zks`. The cold process reads those bytes and supplies no missing gameplay state. At round1/grant1, mount Move0.17698051 and rider Standard/Move0 survive; grants2/3 refresh normally. Source PID16516 exited and fully restored intake21:54:15.0066094Z; cold process started22:00:52.1487984Z.
 
 The P02-only diagnostic setting lease now reapplies its declared temporary boolean cache after the verified native SettingsRoot.HandleSettingsUpdated cache reset. It does not set persisted settings or actor/action state. Save-B confirms the causal fix; production restoration still respects active policy.
 
-Preview20 corrects the observed native buff eligibility gap. At exact BuffCollection.Tick token06002A02, only the two current-unit/owner-or-caster comparisons recognize the prepared paired partner. Native NextTickTime, TurnStartTime, RoundNumber, TickMechanics and removal remain authoritative. It does not call preparation or heal directly. Ownership survives cold rebinding and actor forfeit, independently of permission to act. Components415/0 and exact native assembly/storage contracts36/0 pass; native cold proof remains pending.
+Preview20 corrects the observed native buff eligibility gap. At exact BuffCollection.Tick token06002A02, only the two current-unit/owner-or-caster comparisons recognize the prepared paired partner. Native NextTickTime, TurnStartTime, RoundNumber, TickMechanics and removal remain authoritative. It does not call preparation or heal directly. Ownership survives cold rebinding and actor forfeit, independently of permission to act. Components415/0 and exact native assembly/storage contracts36/0 pass; Native save-C31/0 and cold-C24/0 both outer PASS. Actual archive1c86a3e7d2606a4155258722a318123a2fbf285905a038068bf10fa349c0f32b; loaded native buffs stay round1/damage2 with nextEvent434319140000, then both tick once on each of two later real activations.
+
+Preview21 adds a native reaction checkpoint on an unrelated actor's turn after both paired actors ended. Native movement provokes a real opportunity attack; no forced hit or synthetic reaction spend. The saved count and disengagement target must survive; repeated native movement cannot trigger again before the next actual paired preparation. The disposable target's native maneuver-immunity condition travels in native UnitState data and is never reapplied by cold code.
 
 ## Frozen checkpoint and remaining gates
 
@@ -61,7 +64,7 @@ Current preview17 build/source22/0 and owned-copy/commitment guards31/0 PASS; re
 |---|---|
 | P01 | Causal round trip PASS across previews6/7; exact-final rerun required |
 | P02 | All five causal boundaries PASS across9/12/13/14/15/16; exact-final reruns required |
-| P03 | Step cold slice PASS16; conversion cold slice PASS17; reaction/conditions/split/suspension/round effects TODO |
+| P03 | Step cold slice PASS16; conversion cold slice PASS17; round-effect cold slice PASS20; reaction fixture21 pending; conditions/split/suspension TODO |
 | P04 | TODO: native RT unmounted control, active commands/projectiles and loaded outcomes |
 | P05 | TODO: manual/quick/auto, overwrite/rotation, repeated requests, copies/renames and alternating saves |
 | P06 | TODO: native legacy/current/malformed/future schema, invalid pair and campaign cases |

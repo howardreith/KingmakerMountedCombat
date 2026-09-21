@@ -316,7 +316,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
-            targetService?.Dispose(); ruleProbe?.Dispose(); realtime?.Dispose();
+            targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtime?.Dispose();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
             settings.EnableUnsafeMovementExperiment = false;
             disposed = true;

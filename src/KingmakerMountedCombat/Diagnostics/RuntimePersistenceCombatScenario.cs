@@ -73,6 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (CommitmentCase && AdvanceCommitmentProbe(turn)) return;
             if (RoundEffectCase && AdvanceRoundEffectFixture(turn)) return;
+            if (ReactionCase && AdvanceReactionFixture(turn)) return;
             if (stage == 0)
             {
                 Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
@@ -89,17 +90,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(persistence.SemanticRestoreCount == data.Combat.Actors.Length &&
                         persistence.PresentationRestoreCount == 1 && controls.NativeCastRequestCount == 0,
                         "P02-no-replayed-mount-or-missing-early-actors");
-                    var elapsed = Checkpoint == "explicit-end" ?
+                    var elapsed = Checkpoint == "explicit-end" || ReactionCase ?
                         (game.TimeController.GameTime.Ticks - data.GameTimeTicks) / (double)TimeSpan.TicksPerSecond : 0;
                     Check(data.Combat.Actors.All(a => LegitimateContinuation(a.Native,
                         MountedPersistenceService.CaptureActor(game.State.Units.Single(u => u.UniqueId == a.Native.Id)), elapsed)),
                         "P02-exact-saved-native-remainder-for-every-actor");
-                    Check((turn?.Unit == rider || Checkpoint == "explicit-end") &&
+                    Check((ReactionCase ? turn?.Unit.UniqueId == data.Combat.Current?.ActorId :
+                        turn?.Unit == rider || Checkpoint == "explicit-end") &&
                         game.TurnBasedCombatController.RoundNumber == data.Combat.Round &&
                         combat.PairedActivationIdentity == data.Combat.Paired.Activation.EncounterId + ":" +
                             data.Combat.Paired.Activation.Sequence, "P02-same-round-boundary-and-grant");
                     ValidateCheckpoint(data);
-                    if (Checkpoint != "explicit-end")
+                    if (Checkpoint != "explicit-end" && !ReactionCase)
                     {
                         var movement = data.Combat.Allocations.Single(a => a.ActorId == mount.UniqueId).Movement;
                         Check(combat.PairedPartnerContext != null &&
@@ -118,6 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         beforeControls.ManagedHotbarSlotCount == data.Slots.Length, "P02-cold-controls-once");
                     Write("initial", CombatObservation());
                     if (RoundEffectCase) ObserveColdRoundEffects();
+                    if (ReactionCase) ObserveColdReaction();
                     ContinueSavedCheckpoint(); return;
                 }
                 UnitEntityData selectedRider; UnitEntityData selectedMount; string error;
@@ -130,6 +133,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (RoundEffectCase) InstallRoundEffects();
                 targetService = new DiagnosticCombatTargetService(logger);
                 combatTarget = targetService.Spawn(rider, mount, FindDestination(7f), request.RunId, true, false, true);
+                if (ReactionCase) InstallReactionTargetCondition();
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
                     targetService.QueueBidirectionalCombatMemory(rider, combatTarget), "P02-native-fixture-combat-request");
                 Write("initial", CombatObservation()); stage = 1; return;
@@ -146,6 +150,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 savedRound = game.TurnBasedCombatController.RoundNumber;
                 if (CommitmentCase) { BeginCommitmentFixture(); return; }
                 if (RoundEffectCase) { BeginRoundEffectFixture(); return; }
+                if (ReactionCase) { BeginReactionFixture(); return; }
                 BeginCombatMovement(0.75f, "partial-movement-dispatched",
                     Checkpoint == "between-partner-orders" ? (Vector3?)RiderReachDestination() : null);
                 stage = 2; return;
@@ -279,6 +284,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.CombatState.Cooldown.MoveAction == 0 && mount.CombatState.Cooldown.StandardAction == 0 &&
                     mount.CombatState.Cooldown.MoveAction == 0 && combat.PairedPartnerContext.TimeMoved == 0,
                     "P02-next-true-activation-refreshes-once-without-old-commitments");
+                if (ReactionCase) CheckReactionRefresh();
                 if (RoundEffectCase)
                 {
                     if (!RoundEffectsReady(turn, laterActivations + 2)) return;
@@ -310,6 +316,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 "P02-snapshot-has-native-round-and-participation");
             var riderSpent = data.Rider.Standard > 0;
             var mountSpent = data.Mount.Standard > 0;
+            if (ReactionCase)
+            {
+                Check(data.Mount.ReactionsRemaining == 0 && saved.Current != null &&
+                    saved.Current.ActorId != data.Rider.Id && saved.Current.ActorId != data.Mount.Id &&
+                    saved.Paired.Activation.Rider.Ended && saved.Paired.Activation.Mount.Ended &&
+                    saved.Actors.Single(a => a.Native.Id == data.Mount.Id).DisengageTargets.Contains(saved.Current.ActorId),
+                    "P03-snapshot-has-consumed-reaction-and-ended-pair-on-an-unrelated-turn");
+                return;
+            }
             if (RoundEffectCase)
             {
                 Check(!riderSpent && !mountSpent && data.Rider.Move == 0 && data.Mount.Move == 0 &&
@@ -352,6 +367,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (CommitmentCase) { ContinueCommitment(); return; }
             if (RoundEffectCase) { ContinueRoundEffects(); return; }
+            if (ReactionCase) { ContinueReaction(); return; }
             if (Checkpoint == "explicit-end") { stage = 32; return; }
             if (Checkpoint == "partial-movement" || Checkpoint == "rider-spent") { stage = 6; return; }
             BeginRejectedWork();

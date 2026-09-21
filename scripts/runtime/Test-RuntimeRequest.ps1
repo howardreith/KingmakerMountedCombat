@@ -91,7 +91,7 @@ if ($schemaVersion -eq 1) {
 elseif ($schemaVersion -eq 2) {
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect')){throw 'P03 requires its exact native commitment case.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact native commitment case.'}
     }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
     $extra=@(if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})

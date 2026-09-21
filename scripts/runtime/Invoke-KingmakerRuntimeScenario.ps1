@@ -37,7 +37,7 @@ param(
     [string]$PackagePath,
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -71,8 +71,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
 if($Scenario -cin @('persistence-p03-save','persistence-p03-load')){
-    if($PersistenceCase-cnotin @('step','conversion','round-effect')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
-}elseif($PersistenceCase-cin @('step','conversion','round-effect')){throw 'P03 checkpoint cannot run under another scenario.'}
+    if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
+}elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction')){throw 'P03 checkpoint cannot run under another scenario.'}
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
 $repoRoot=Get-KmcRepositoryRoot
