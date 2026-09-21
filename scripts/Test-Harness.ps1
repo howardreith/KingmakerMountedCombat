@@ -37,6 +37,13 @@ function Assert-TestThrows([scriptblock]$Body, [string]$Message) {
     if (-not $threw) { throw $Message }
 }
 
+Invoke-HarnessTest 'runtime scenario orchestrator parses before any transaction' {
+    $tokens=$null;$parseErrors=$null
+    [void][Management.Automation.Language.Parser]::ParseFile(
+        (Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1'),[ref]$tokens,[ref]$parseErrors)
+    Assert-Test (@($parseErrors).Count-eq0) ('Runtime orchestrator parse errors: '+(@($parseErrors)|Out-String))
+}
+
 function New-TestSaveArchive {
     param(
         [Parameter(Mandatory = $true)][string]$Path,

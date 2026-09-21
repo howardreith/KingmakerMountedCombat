@@ -486,8 +486,12 @@ try{
         & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
-        if($gamePassed-and(($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-ceq'condition')-or($Scenario-ceq'persistence-p04-load'-and(
-            $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-casting',[StringComparison]::Ordinal)))){
+        $compareRealtime=$Scenario-ceq'persistence-p04-load'-and(
+            $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or
+            $PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)-or
+            $PersistenceCase.EndsWith('-casting',[StringComparison]::Ordinal))
+        $compareCondition=$Scenario-ceq'persistence-p03-load'-and$PersistenceCase-ceq'condition'
+        if($gamePassed-and($compareRealtime-or$compareCondition)){
             Assert-KmcRealtimeColdSource -SourceRunId $PersistenceSourceRunId -Request $request
         }
         if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}
