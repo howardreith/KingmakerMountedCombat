@@ -20,6 +20,8 @@ Presentation then resolves the same unique eligible actors and restores owned co
 
 A persistence-specific run-owned root/campaign/native-type/leaf/hash contract protects human saves. Native enumeration, descriptors, screenshots, stash and ZIP temporary paths resolve within the isolated profile. Old scenarios retain strict Working-only authorization. P01–P03 retain one Manual destination. P05 admits only the requested native Manual/Quick/Auto final and temporary leaves, with three completed writes required. Temporary exact native slot getters select one slot and enable Auto only during the isolated fixture; persisted settings are untouched. Cold input is the actual prior PASS archive, copied after source ownership/restoration/hash validation. The runner supplies archive/header identity only. The selected native load's header-counter rewrite is suppressed to preserve source bytes; no suppressed save is counted as a write.
 
+P05 preview22/source485715e has native Manual save44/0 and cold20/0 PASS, plus Quick save44/0 PASS. Each source writes three distinct native archives through two overwrites/rotations, then moves and attacks. Quick cold0/1 failed before gameplay at a remaining Manual-only diagnostic descriptor check; preview23 corrects its exact request-bound type and adds a fixed renamed-copy cold case. Components421/0, harness256/0, fixture52/0, native assembly/storage55/0 pass. Auto and renamed native qualification are next; no complete P05 or Chunk5 claim.
+
 | Native evidence | Result |
 |---|---|
 | isolation-C, preview.2 | PASS14/0; native isolated enumeration/load |

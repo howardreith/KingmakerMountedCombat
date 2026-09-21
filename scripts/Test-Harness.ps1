@@ -5101,6 +5101,25 @@ try {
                 try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
                 Assert-Test $rejected 'P05 admitted a foreign/unrecognized category'
             }
+            $v2Request.scenario='persistence-p05-load'
+            foreach($case in @('manual','quick','auto','manual-renamed')){
+                $v2Request.persistenceCase=$case
+                $f=$v2Request.fixture.working
+                $v2Request['persistenceLoad']=[ordered]@{
+                    internalName=if($case-cin @('manual','manual-renamed')){'KMC_P01'}else{'Native slot 1'}
+                    fileName=switch($case){'manual'{'Manual_300_KMC_P01.zks'};'quick'{'Quick_1.zks'};'auto'{'Auto_1.zks'};'manual-renamed'{'Manual_811_KMC_RENAMED.zks'}}
+                    sha256=('c'*64);length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks
+                    gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+                }
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.persistenceLoad.fileName='../Manual_811_KMC_RENAMED.zks'
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'Cold archive admitted a path traversal'
+            }
+            $v2Request.Remove('persistenceLoad')
             $v2Request.persistenceCase='quick';$v2Request.scenario='persistence-p03-save'
             Write-KmcJsonAtomic $v2RequestPath $v2Request
             $rejected=$false
@@ -5108,6 +5127,7 @@ try {
             Assert-Test $rejected 'P05 category leaked into another scenario'
         }finally{
             $v2Request.Remove('persistenceCase')
+            $v2Request.Remove('persistenceLoad')
             $v2Request.scenario='mounted-pair-create-and-clear'
             Write-KmcJsonAtomic $v2RequestPath $v2Request
         }
@@ -5140,6 +5160,7 @@ try {
             Assert-Test $rejected 'P03 case leaked into another scenario'
         }finally{
             $v2Request.Remove('persistenceCase')
+            $v2Request.Remove('persistenceLoad')
             $v2Request.scenario='mounted-pair-create-and-clear'
             Write-KmcJsonAtomic $v2RequestPath $v2Request
         }
@@ -5167,6 +5188,7 @@ try {
             Assert-Test $rejected 'checkpoint leaked into an old strict scenario'
         }finally{
             $v2Request.Remove('persistenceCase')
+            $v2Request.Remove('persistenceLoad')
             $v2Request.scenario='mounted-pair-create-and-clear'
             Write-KmcJsonAtomic $v2RequestPath $v2Request
         }

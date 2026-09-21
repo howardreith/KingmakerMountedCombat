@@ -126,6 +126,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public RuntimeFixtureIdentity Fixture { get; set; }
 
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
+
+        internal string ExpectedNativeLoadType => Scenario == "persistence-p05-load" && PersistenceLoad != null ?
+            (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
         public string PersistenceCase { get; set; }
 
         public RuntimeQualificationSuiteIdentity QualificationSuite { get; set; }
@@ -273,7 +276,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
-            if (p05 ? Array.IndexOf(new[] { "manual", "quick", "auto" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction" }, PersistenceCase) < 0 :
+            if (p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
+                new[] { "manual", "quick", "auto", "manual-renamed" } : new[] { "manual", "quick", "auto" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");
@@ -283,7 +287,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 else
                 {
                     var nativeSlot = p05 && (PersistenceCase == "quick" || PersistenceCase == "auto");
-                    var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") : "^Manual_300_KMC_P01\\.zks$";
+                    var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
+                        p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
                     if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
                         PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
                         errors.Add("Cold native slot name is missing or oversized.");

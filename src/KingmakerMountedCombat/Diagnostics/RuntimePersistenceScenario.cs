@@ -253,7 +253,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static SaveInfo.SaveType SlotType(string value)
         {
             switch (value) {
-                case "manual": return SaveInfo.SaveType.Manual;
+                case "manual":
+                case "manual-renamed": return SaveInfo.SaveType.Manual;
                 case "quick": return SaveInfo.SaveType.Quick;
                 case "auto": return SaveInfo.SaveType.Auto;
                 default: throw new InvalidOperationException("Unknown native slot category.");

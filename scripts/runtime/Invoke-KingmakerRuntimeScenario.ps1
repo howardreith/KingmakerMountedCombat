@@ -37,7 +37,7 @@ param(
     [string]$PackagePath,
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','manual','quick','auto')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','manual','quick','auto','manual-renamed')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -71,8 +71,9 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p05-save','persistence-p05-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
 if($Scenario -cin @('persistence-p05-save','persistence-p05-load')){
-    if($PersistenceCase-cnotin @('manual','quick','auto')){throw 'P05 requires its exact native slot category.'}
-}elseif($PersistenceCase-cin @('manual','quick','auto')){throw 'P05 slot category cannot run under another scenario.'}
+    $slotCases=if($Scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed')}else{@('manual','quick','auto')}
+    if($PersistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
+}elseif($PersistenceCase-cin @('manual','quick','auto','manual-renamed')){throw 'P05 slot category cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p03-save','persistence-p03-load')){
     if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
 }elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction')){throw 'P03 checkpoint cannot run under another scenario.'}
@@ -317,9 +318,14 @@ try{
             $copySource=$lockedWorkingPath
             $copyDescriptor=$fixturePayload.working
             if($Scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p05-load')){
-                $sourceCase=if($Scenario-ceq'persistence-p05-load'){$PersistenceCase}else{$null}
+                $sourceCase=if($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}else{$null}
                 $source=Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase
                 $copySource=$source.path;$copyDescriptor=$source.descriptor
+                # Copy the admitted immutable archive under one exact new leaf.
+                # Only the destination descriptor changes; no archive/header rewrite.
+                if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'manual-renamed'){
+                    $copyDescriptor.fileName='Manual_811_KMC_RENAMED.zks'
+                }
                 $request['persistenceLoad']=$copyDescriptor
             }elseif(-not [string]::IsNullOrEmpty($PersistenceSourceRunId)-or-not [string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256)){
                 throw 'Only the dedicated cold-load scenario may select an owned archive.'

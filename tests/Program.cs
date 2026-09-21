@@ -153,6 +153,28 @@ namespace KingmakerMountedCombat.Tests
                 invalid.PersistenceCase = "reaction";
                 TestRunner.True(invalid.Validate().Count > 0, "P03 checkpoint leaked into P05.");
             });
+            runner.Run("cold category and renamed archive cannot broaden Working descriptor types", () =>
+            {
+                foreach (var name in new[] { "manual", "quick", "auto", "manual-renamed" })
+                {
+                    var request = ValidSaveBackedRequest(); var fixture = request.Fixture.Working;
+                    request.Scenario = "persistence-p05-load"; request.PersistenceCase = name;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = name == "quick" || name == "auto" ? "Native slot 1" : "KMC_P01",
+                        FileName = name == "quick" ? "Quick_1.zks" : name == "auto" ? "Auto_1.zks" :
+                            name == "manual-renamed" ? "Manual_811_KMC_RENAMED.zks" : "Manual_300_KMC_P01.zks",
+                        GameId = fixture.GameId, GameName = fixture.GameName, Area = fixture.Area,
+                        Sha256 = new string('c', 64), Length = 1024, LastWriteTimeUtcTicks = fixture.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact native cold category rejected.");
+                    TestRunner.Equal(name == "quick" ? "Quick" : name == "auto" ? "Auto" : "Manual",
+                        request.ExpectedNativeLoadType, "Declared native category lost before loader admission.");
+                    request.PersistenceLoad.FileName = "../Manual_811_KMC_RENAMED.zks";
+                    TestRunner.True(request.Validate().Count > 0, "Renamed archive traversal accepted.");
+                    request.Scenario = "persistence-p01-load";
+                    TestRunner.Equal("Manual", request.ExpectedNativeLoadType, "Native category escaped P05.");
+                    TestRunner.True(request.Validate().Count > 0, "P05 case escaped its scenario.");
+                }
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             NativeLoadWorldTests.Register(runner);

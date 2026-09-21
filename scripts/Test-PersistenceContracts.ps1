@@ -21,6 +21,41 @@ public static class KmcPersistenceContractProbe
         passes++;
         Console.WriteLine("PASS "+label);
     }
+    private static void SetMember(object instance, string name, object value)
+    {
+        var type=instance.GetType();var property=type.GetProperty(name);
+        if(property!=null) property.SetValue(instance,value,null);
+        else type.GetField(name).SetValue(instance,value);
+    }
+
+    private static void VerifyNativeColdDescriptor(Assembly native, Assembly candidate, string owned)
+    {
+        var infoType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
+        var expectedType=candidate.GetType("KingmakerMountedCombat.Diagnostics.RuntimeSaveDescriptor",true);
+        var verify=candidate.GetType("KingmakerMountedCombat.Diagnostics.WorkingFixtureLoader",true)
+            .GetMethod("VerifyDescriptor",BindingFlags.Static|BindingFlags.NonPublic);
+        foreach(var category in new[]{"Manual","Quick","Auto"})
+        {
+            var path=Path.Combine(owned,category+"_1.zks");
+            var info=Activator.CreateInstance(infoType);var expected=Activator.CreateInstance(expectedType);
+            foreach(var name in new[]{"Name","GameId","GameName"}) SetMember(info,name,"owned");
+            SetMember(info,"FolderName",path);SetMember(info,"CompatibilityVersion",1);
+            SetMember(info,"Type",Enum.Parse(infoType.GetNestedType("SaveType"),category));
+            foreach(var pair in new[]{new[]{"InternalName","owned"},new[]{"FileName",Path.GetFileName(path)},
+                new[]{"GameId","owned"},new[]{"GameName","owned"}}) SetMember(expected,pair[0],pair[1]);
+            verify.Invoke(null,new object[]{info,expected,path,category});
+            Check(true,"real native "+category+" descriptor admits only its declared category");
+            bool rejected=false;
+            try{verify.Invoke(null,new object[]{info,expected,path,category=="Manual"?"Quick":"Manual"});}
+            catch(TargetInvocationException e){rejected=e.InnerException is InvalidOperationException;}
+            Check(rejected,"real native "+category+" descriptor rejects category substitution");
+            SetMember(expected,"GameId","foreign");rejected=false;
+            try{verify.Invoke(null,new object[]{info,expected,path,category});}
+            catch(TargetInvocationException e){rejected=e.InnerException is InvalidOperationException;}
+            Check(rejected,"real native "+category+" descriptor retains campaign identity protection");
+        }
+    }
+
     private static string Hash(string path)
     {
         using(var algorithm=System.Security.Cryptography.SHA256.Create())
@@ -344,6 +379,7 @@ public static class KmcPersistenceContractProbe
         var stagedPath=Path.Combine(owned,"atomic-staged.zks");
         var originalSaver=Activator.CreateInstance(saverType,new object[]{originalPath});
         var stagedSaver=Activator.CreateInstance(saverType,new object[]{stagedPath});
+        VerifyNativeColdDescriptor(native,candidate,owned);
         var saveInfoType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
         var originalInfo=Activator.CreateInstance(saveInfoType);
         var stagedInfo=Activator.CreateInstance(saveInfoType);

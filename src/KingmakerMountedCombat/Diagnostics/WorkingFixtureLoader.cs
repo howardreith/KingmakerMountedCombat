@@ -114,7 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     throw new InvalidOperationException("Kingmaker could not read the exact Working descriptor.");
                 }
-                VerifyDescriptor(descriptor, working, candidate);
+                VerifyDescriptor(descriptor, working, candidate, request.ExpectedNativeLoadType);
 
                 file.Refresh();
                 if (!file.Exists || file.Length != working.Length || file.LastWriteTimeUtc.Ticks != working.LastWriteTimeUtcTicks ||
@@ -211,7 +211,7 @@ namespace KingmakerMountedCombat.Diagnostics
             State = WorkingFixtureLoadState.Failed;
         }
 
-        private static void VerifyDescriptor(SaveInfo observed, RuntimeSaveDescriptor expected, string expectedPath)
+        private static void VerifyDescriptor(SaveInfo observed, RuntimeSaveDescriptor expected, string expectedPath, string expectedNativeType)
         {
             var observedArea = observed.Area == null ? null : observed.Area.AssetGuidThreadSafe;
             if (!string.Equals(observed.Name, expected.InternalName, StringComparison.Ordinal) ||
@@ -220,7 +220,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 !string.Equals(observed.GameId, expected.GameId, StringComparison.Ordinal) ||
                 !string.Equals(observed.GameName, expected.GameName, StringComparison.Ordinal) ||
                 !string.Equals(observedArea, expected.Area, StringComparison.Ordinal) ||
-                observed.Type != SaveInfo.SaveType.Manual || observed.CompatibilityVersion != 1)
+                observed.Type.ToString() != expectedNativeType || observed.CompatibilityVersion != 1)
             {
                 throw new InvalidOperationException("Kingmaker Working SaveInfo differs from the request-bound descriptor.");
             }
