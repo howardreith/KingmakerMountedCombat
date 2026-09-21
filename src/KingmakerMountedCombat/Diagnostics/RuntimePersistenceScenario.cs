@@ -68,7 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -374,6 +374,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             castingEffects?.Dispose();
+            conditionLease?.Dispose(); conditionFact?.Dispose(); conditionTrace?.Dispose();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
             try { realtimeWeapon?.Dispose(); } finally { realtimeWeapon = null; }
             try { restoreRealtimeAi?.Invoke(); } finally { restoreRealtimeAi = null; }

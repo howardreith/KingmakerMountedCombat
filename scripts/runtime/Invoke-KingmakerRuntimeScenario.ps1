@@ -79,8 +79,8 @@ if($Scenario -cin @('persistence-p04-save','persistence-p04-load')){
     if($PersistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
 }elseif($PersistenceCase-cin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 checkpoint cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p03-save','persistence-p03-load')){
-    if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
-}elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction')){throw 'P03 checkpoint cannot run under another scenario.'}
+    if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction','condition')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
+}elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction','condition')){throw 'P03 checkpoint cannot run under another scenario.'}
 if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'Alternating cold loads require two distinct exact archive hashes.'}
 }elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads may select a second archive.'}
@@ -325,7 +325,7 @@ try{
             $copySource=$lockedWorkingPath
             $copyDescriptor=$fixturePayload.working
             if($Scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load')){
-                $sourceCase=if($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}elseif($Scenario-ceq'persistence-p04-load'){$PersistenceCase}else{$null}
+                $sourceCase=if($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}elseif($Scenario-ceq'persistence-p04-load'-or($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-ceq'condition')){$PersistenceCase}else{$null}
                 $source=Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase
                 $copySource=$source.path;$copyDescriptor=$source.descriptor
                 # Copy the admitted immutable archive under one exact new leaf.
@@ -486,8 +486,8 @@ try{
         & (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $process.Id -NotBeforeUtc $startedAt -VerifyLiveWorkingIdentity -ExpectedLiveWorkingPath $lockedWorkingPath
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
-        if($gamePassed-and$Scenario-ceq'persistence-p04-load'-and(
-            $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-casting',[StringComparison]::Ordinal))){
+        if($gamePassed-and(($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-ceq'condition')-or($Scenario-ceq'persistence-p04-load'-and(
+            $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-casting',[StringComparison]::Ordinal)))){
             Assert-KmcRealtimeColdSource -SourceRunId $PersistenceSourceRunId -Request $request
         }
         if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}

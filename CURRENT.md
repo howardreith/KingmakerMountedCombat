@@ -7,6 +7,8 @@ Exact private ZIP `KingmakerMountedCombat-0.1.0-chunk5-preview.38-p04-touch-comm
 All four owned processes exited normally and restored actual intake; last2026-09-21T06:04:24.2202368Z. Human preview.54 DLL verified; no game process. Saves/settings/caches/foreign Mods and separate37/13 backups preserved. Frozen38 is unchanged by this documentation checkpoint.
 
 Next: P03 native condition preparation/forfeit and split/suspended participation. Remaining P05 overlap, P06 invalid/legacy, P07 recovery/lifecycle/removal, P08 and one consolidated exact-final P01–P08 suite remain mandatory. Earlier causal evidence and failed hypotheses remain in the journal. Paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY TODO. No permanent installation/main merge/public release.
+Development39 adds a bounded P03 condition/forced-split source/cold fixture. The native self-harm command creates real damage and forfeiture; only the diagnostic condition/fact is removed before saving, with damage/cooldowns untouched. Cold resolves the saved native actors, rejects renewed mount work and exercises principal work plus two later independent preparations. Source22/0, components430/0, harness258/0, fixture157/0 PASS; existing installed contracts89/0 apply unchanged. DLL9d647b17a3e805a02d506916c6269176694f77c112661470df39c322b60e8869/MVID4dd994df-68d4-4d56-800b-f3edad323c22. Next freeze39/package/suite40 then condition-save-A/cold-A. No native39 claim; human54 remains restored.
+
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
 

@@ -383,5 +383,69 @@ Must-Reject {Assert-KmcCastingColdOutcome $castWrite @($castCold)} 'P04 cold rep
 $castCold.detail.actual.casting.heals=0;$castCold.processId=123
 Must-Reject {Assert-KmcCastingColdOutcome $castWrite @($castCold)} 'P04 accepted warm casting reload'
 
+
+# Condition/split proof keeps the already charged native obligation and real harm.
+$conditionSnapshot=[pscustomobject]@{Mounted=$false;Combat=[pscustomobject]@{
+ TurnBased=$true;Round=1;Current=[pscustomobject]@{ActorId='r'}
+ Actors=@([pscustomobject]@{Native=[pscustomobject]@{Id='r';Standard=0;Move=0}},
+          [pscustomobject]@{Native=[pscustomobject]@{Id='m';Standard=12;Move=3}})
+ Paired=[pscustomobject]@{RiderId='r';MountId='m';BoundaryIsCurrent=$true;Activation=[pscustomobject]@{
+ Split=$true;Rider=[pscustomobject]@{Ended=$false};Mount=[pscustomobject]@{Ended=$true;ForfeitRecorded=$true;ForfeitAdded=6}
+ }}
+}}
+Assert-KmcConditionSnapshot $conditionSnapshot;$passes++
+$conditionSnapshot.Mounted=$true
+Must-Reject {Assert-KmcConditionSnapshot $conditionSnapshot} 'P03 condition invented a remounted pair'
+$conditionSnapshot.Mounted=$false;$conditionSnapshot.Combat.Paired.Activation.Mount.Ended=$false
+Must-Reject {Assert-KmcConditionSnapshot $conditionSnapshot} 'P03 condition granted an ended actor'
+$conditionSnapshot.Combat.Paired.Activation.Mount.Ended=$true;$conditionSnapshot.Combat.Paired.Activation.Mount.ForfeitRecorded=$false
+Must-Reject {Assert-KmcConditionSnapshot $conditionSnapshot} 'P03 condition lost its forfeiture bookkeeping'
+$conditionSnapshot.Combat.Paired.Activation.Mount.ForfeitRecorded=$true;$conditionSnapshot.Combat.Actors[0].Native.Standard=6
+Must-Reject {Assert-KmcConditionSnapshot $conditionSnapshot} 'P03 condition consumed the principal remainder'
+$conditionSnapshot.Combat.Actors[0].Native.Standard=0
+$conditionState=[pscustomobject]@{
+ combat=[pscustomobject]@{round=1};damage=2;originalDamage=0;mountEnded=$true;riderEnded=$false
+ nativeRiderPreparations=1;nativeMountPreparations=1;conditionActive=$false;nativePartPresent=$false
+ stimulus=[pscustomobject]@{nativeSelfDamageRules=1;choiceOverrides=1;cleanupResourcesUnchanged=$true;directControlRestored=$true}
+ fact=[pscustomobject]@{damageRestorationEnabled=$false;healPerRound=0;restored=$true}
+}
+function New-ConditionProof([string]$kind,$detail){
+ [pscustomobject]@{runId=$sourceId;scenario='persistence-p03-save';source='source';dll='dll';processId=123;checkpoint='condition'
+ kind=$kind;relationship='Unmounted';rider=[pscustomobject]@{Id='r';Standard=0};mount=[pscustomobject]@{Id='m';Standard=12}
+ controls=[pscustomobject]@{DuplicateFactCount=0;NativeCastRequestCount=0};native=[pscustomobject]@{targetId='t'};detail=$detail}
+}
+$conditionWrite=[pscustomobject]@{condition=$conditionState;snapshot=$conditionSnapshot;path=$path;nativeType='Manual'
+ operation='None';nativeCallback=$true;sha256=(Get-KmcSha256 $path);length=(Get-Item -LiteralPath $path).Length}
+$conditionRows=@((New-ConditionProof 'initial' $conditionState),
+ (New-ConditionProof 'condition-forfeit-retained' $conditionState),
+ (New-ConditionProof 'condition-remainder-before-input' $conditionState),
+ (New-ConditionProof 'native-write-complete' $conditionWrite),
+ (New-ConditionProof 'attack-delivered' ([pscustomobject]@{rules=1;rolls=1})),
+ (New-ConditionProof 'usable-continuation-complete' ([pscustomobject]@{riderPreparations=2;mountPreparations=2;turnVisits=@('1r','1t','2r','2m')})))
+foreach($ordinal in @(1,2)){foreach($actor in @('r','m')){
+ $conditionRows+=New-ConditionProof 'next-independent-activation' ([pscustomobject]@{actor=$actor;count=$ordinal;round=($ordinal+1)})
+}}
+$conditionRequest=[pscustomobject]@{runId=$sourceId;scenario='persistence-p03-save';commit='source';dllSha256='dll'}
+Assert-KmcConditionPersistenceEvidence $conditionRequest $conditionRows ([pscustomobject]@{processId=123});$passes++
+$conditionState.fact.damageRestorationEnabled=$true
+Must-Reject {Assert-KmcConditionPersistenceEvidence $conditionRequest $conditionRows ([pscustomobject]@{processId=123})} 'P03 test cleanup erased native harm'
+$conditionState.fact.damageRestorationEnabled=$false;$conditionState.stimulus.nativeSelfDamageRules=2
+Must-Reject {Assert-KmcConditionPersistenceEvidence $conditionRequest $conditionRows ([pscustomobject]@{processId=123})} 'P03 duplicated native condition resolution'
+$conditionState.stimulus.nativeSelfDamageRules=1;$conditionRows[-1].detail.count=1
+Must-Reject {Assert-KmcConditionPersistenceEvidence $conditionRequest $conditionRows ([pscustomobject]@{processId=123})} 'P03 missed a later true actor preparation'
+$conditionRows[-1].detail.count=2
+$conditionColdState=$conditionState|ConvertTo-Json -Depth 8|ConvertFrom-Json
+$conditionColdState.nativeRiderPreparations=0;$conditionColdState.nativeMountPreparations=0
+$conditionColdState.stimulus=$null;$conditionColdState.fact=$null
+$conditionCold=New-ConditionProof 'initial' $conditionColdState
+$conditionCold.processId=456
+Assert-KmcConditionColdOutcome $conditionRows @($conditionCold);$passes++
+$conditionCold.detail.damage=0
+Must-Reject {Assert-KmcConditionColdOutcome $conditionRows @($conditionCold)} 'P03 lost native self-harm on load'
+$conditionCold.detail.damage=2;$conditionCold.detail.nativeMountPreparations=1
+Must-Reject {Assert-KmcConditionColdOutcome $conditionRows @($conditionCold)} 'P03 cold replayed preparation'
+$conditionCold.detail.nativeMountPreparations=0;$conditionCold.processId=123
+Must-Reject {Assert-KmcConditionColdOutcome $conditionRows @($conditionCold)} 'P03 accepted a warm condition reload'
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.
