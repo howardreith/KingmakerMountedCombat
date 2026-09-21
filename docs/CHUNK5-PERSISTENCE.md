@@ -10,7 +10,7 @@ The native header-write barrier captures one immutable game-thread snapshot befo
 
 Schema2 supplements native saves with combat actor current debt/reaction obligations, initiative/roster/current turn, native AI cooldown/use obligations, game-clock timers, paired participation/condition forfeiture and movement/step/conversion commitments. Historical high-water observations remain bookkeeping; they are never written into native current cooldowns as expenditure. The supported initial combat barrier waits for finished commands in TB. RT and active-command semantics are not yet qualified.
 
-P04 development27/source d25214b retains native RT debt without creating TB turns and uses read-only native projectile collections with weak completed-OnHit markers. Source22/0, components423/0, assembly/storage63/0 pass; unchanged harness258/0, metadata44/0 and fixtures77/0. Unmounted27 source-A3/1 failed at diagnostic auto-pause ordering;28 source-B reached two real attacks but failed while enabled AI reacquired after native Stop. Both failed before saving and restored human intake (last03:30:27.1982642Z). Preview29 uses native AI-off source fixture state and verifies that state on cold load without setting it. No production action/cancellation change. Next unmounted source/cold-C, then mounted. Active-command defer remains mandatory; no RT native PASS yet.
+P04 idle RT passes on frozen/published29/source645a7907a87ed9ba0c96ceae1beaa853d4ca4564: unmounted source21/0+cold18/0 and mounted source24/0+cold18/0. Actual manual archives639f5124c345bdbb440ec54ad1db025049c92ac977b2979e61f5a248d4528d43 (855658 bytes) and3c6ef9a96469fd3a3323c00cf004eaceb7447be55392ab127c7a8786fe87120e (855847 bytes) retain Standard cooldown4.33194733/5.233952. Four new native actors rebind; mounted presentation/controls restore once without Mount execution. Both continuations wait for saved debt and observe two later ordinary deliveries/once-per-expiry refreshes. Source fixture AI-off is a native saved setting, verified without cold injection. Native27/28 diagnostic failures remain in the journal; no gameplay cancellation rule changed. Last complete human restoration03:45:19.3679256Z, preview54 verified/no game. Active commands/projectiles and exact-final P04 remain TODO.
 
 ## Load semantics
 
@@ -74,7 +74,7 @@ Current preview17 build/source22/0 and owned-copy/commitment guards31/0 PASS; re
 | P01 | Causal round trip PASS across previews6/7; exact-final rerun required |
 | P02 | All five causal boundaries PASS across9/12/13/14/15/16; exact-final reruns required |
 | P03 | Step cold slice PASS16; conversion cold slice PASS17; round-effect cold slice PASS20; reaction cold slice PASS21; conditions/split/suspension TODO |
-| P04 | TODO: native RT unmounted control, active commands/projectiles and loaded outcomes |
+| P04 | Causal idle RT mounted/unmounted save+cold PASS on29; TODO active commands/projectiles and exact-final qualification |
 | P05 | TODO: manual/quick/auto, overwrite/rotation, repeated requests, copies/renames and alternating saves |
 | P06 | TODO: native legacy/current/malformed/future schema, invalid pair and campaign cases |
 | P07 | TODO: failed/canceled operations, views/areas, disable/re-enable and bounded removal |
