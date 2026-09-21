@@ -188,12 +188,14 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (turn == null) return;
                 if (ReferenceEquals(turn, savedBoundary)) { EndConditionTurn(turn); return; }
-                // Preparing permits native End input, but this fixture must
-                // observe the actor's actual preparation/Acting state first.
-                if ((turn.Unit == rider || turn.Unit == mount) && !turn.IsActing) return;
+                // Native Prepare ends in Preparing for controllable actors.
+                // Tick enters Acting only after input, costs or lost control.
+                // Observe the completed ready phase before issuing native End.
+                var ready = turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing;
+                if ((turn.Unit == rider || turn.Unit == mount) && (!ready || controller.WaitingForUI)) return;
                 var riderGrants = conditionTrace.GrantCount(rider) - conditionInitialRiderGrants;
                 var mountGrants = conditionTrace.GrantCount(mount) - conditionInitialMountGrants;
-                if ((turn.Unit == rider || turn.Unit == mount) && turn.IsActing &&
+                if ((turn.Unit == rider || turn.Unit == mount) && ready &&
                     !ReferenceEquals(turn, endedBoundary) && turn.Unit.Commands.Empty && conditionRefreshed.Add(turn))
                 {
                     var count = turn.Unit == rider ? riderGrants : mountGrants;
@@ -201,7 +203,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         turn.Unit.CombatState.Cooldown.StandardAction == 0 && turn.Unit.CombatState.Cooldown.MoveAction == 0,
                         "P03-real-next-independent-preparation-refreshes-once");
                     Write("next-independent-activation", new JObject { ["actor"] = turn.Unit.UniqueId, ["count"] = count,
-                        ["round"] = controller.RoundNumber, ["riderPreparations"] = riderGrants, ["mountPreparations"] = mountGrants });
+                        ["round"] = controller.RoundNumber, ["status"] = turn.Status.ToString(),
+                        ["prepared"] = turn.Unit.CombatState.Prepared,
+                        ["riderPreparations"] = riderGrants, ["mountPreparations"] = mountGrants });
                 }
                 if (riderGrants == 2 && mountGrants == 2 && conditionRefreshed.Count == 4)
                 {
