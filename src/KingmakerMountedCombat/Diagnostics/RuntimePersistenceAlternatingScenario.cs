@@ -143,6 +143,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     data.Rider == null && data.Mount == null && data.ProfileId == null, "B-does-not-inherit-A-pair");
             controls.Update();
             var actual = controls.CapturePersistentSlots();
+            Write("alternate-controls-observed", new JObject {
+                ["mounted"] = mounted,
+                ["saved"] = JArray.FromObject(data.Slots, MountedSaveCodec.CreateSerializer()),
+                ["actual"] = JArray.FromObject(actual, MountedSaveCodec.CreateSerializer()) });
             Check(actual.Length == data.Slots.Length && data.Slots.All(s =>
                 actual.Any(a => a.ActorId == s.ActorId && a.Index == s.Index && a.Kind == s.Kind)),
                 "selected-archive-owned-control-bindings");

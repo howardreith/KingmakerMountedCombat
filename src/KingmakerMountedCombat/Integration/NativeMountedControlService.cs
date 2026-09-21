@@ -907,14 +907,21 @@ namespace KingmakerMountedCombat.Integration
         internal SavedMountedSlot[] CapturePersistentSlots()
         {
             var result = new List<SavedMountedSlot>();
-            foreach (var unit in CollectCandidateUnits())
+            foreach (var unit in CollectCurrentCandidateUnits())
             {
                 var slots = unit?.UISettings?.Slots;
                 if (slots == null) continue;
                 for (var i = 0; i < slots.Length; i++)
                 {
-                    var kind = ResolveKind((slots[i] as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
-                    if (kind != NativeMountedControlKind.None)
+                    var ability = (slots[i] as MechanicActionBarSlotAbility)?.Ability;
+                    var kind = ResolveKind(ability?.Blueprint);
+                    if (kind == NativeMountedControlKind.None || !ShouldLease(unit, kind)) continue;
+                    var fact = unit.Descriptor.Abilities.GetAbility(ability.Blueprint);
+                    // Native hotbars can retain AbilityData after its runtime fact
+                    // was removed by a real dismount. That is not a live control
+                    // binding and must not require inventing a fact after loading.
+                    if (fact != null && fact.Active && ReferenceEquals(fact.Data, ability) &&
+                        ability.Caster?.Unit == unit)
                         result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = (int)kind });
                 }
             }
