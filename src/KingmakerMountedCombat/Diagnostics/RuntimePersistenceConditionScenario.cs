@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int conditionSavedDamage;
         private int conditionInitialRiderGrants;
         private int conditionInitialMountGrants;
+        private int conditionFutureVisits;
         private readonly System.Collections.Generic.HashSet<TurnController> conditionRefreshed =
             new System.Collections.Generic.HashSet<TurnController>();
         private readonly System.Collections.Generic.HashSet<TurnController> conditionTurns =
@@ -113,6 +114,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 turnVisits.Add(controller.RoundNumber + "|" + turn.Unit.UniqueId);
                 if (savedBoundary != null && turn.Unit == mount)
                     Check(controller.RoundNumber > savedRound, "P03-forfeited-mount-no-second-turn-in-saved-round");
+                if (stage == 6 && !ReferenceEquals(turn, savedBoundary) && (turn.Unit == rider || turn.Unit == mount) &&
+                    conditionFutureVisits++ < 4)
+                    Write("condition-next-turn-observed", ConditionObservation());
             }
             if (stage == 1)
             {
@@ -184,6 +188,9 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (turn == null) return;
                 if (ReferenceEquals(turn, savedBoundary)) { EndConditionTurn(turn); return; }
+                // Preparing permits native End input, but this fixture must
+                // observe the actor's actual preparation/Acting state first.
+                if ((turn.Unit == rider || turn.Unit == mount) && !turn.IsActing) return;
                 var riderGrants = conditionTrace.GrantCount(rider) - conditionInitialRiderGrants;
                 var mountGrants = conditionTrace.GrantCount(mount) - conditionInitialMountGrants;
                 if ((turn.Unit == rider || turn.Unit == mount) && turn.IsActing &&
