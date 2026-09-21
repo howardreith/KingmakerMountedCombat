@@ -72,7 +72,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
-                try { Write("scenario-failed", new JObject { ["error"] = errors[0], ["stack"] = exception.ToString() }); }
+                try { Write("scenario-failed", new JObject { ["error"] = errors[0], ["stack"] = exception.ToString(),
+                    ["delay"] = SuspendedCase && delayTrace != null ? DelayFailure() : null }); }
                 catch (Exception error) { errors.Add("Failure observation: " + error.Message); }
                 try { Dispose(); }
                 catch (Exception error) { errors.Add("P01 cleanup: " + error.Message); }
@@ -377,6 +378,7 @@ namespace KingmakerMountedCombat.Diagnostics
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             castingEffects?.Dispose();
             conditionLease?.Dispose(); conditionFact?.Dispose(); conditionTrace?.Dispose();
+            delayTrace?.Dispose(); RestoreDelayInitiative();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
             try { realtimeWeapon?.Dispose(); } finally { realtimeWeapon = null; }
             try { restoreRealtimeAi?.Invoke(); } finally { restoreRealtimeAi = null; }

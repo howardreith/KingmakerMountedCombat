@@ -280,7 +280,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
             if (p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating" } : new[] { "manual", "quick", "auto", "alternating" }, PersistenceCase) < 0 :
-                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing" }, PersistenceCase) < 0 :
+                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");

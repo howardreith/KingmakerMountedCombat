@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing')][string]$NativeCase,
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -24,7 +24,7 @@ function Get-KmcPersistenceSource {
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
         if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
-    }elseif($NativeCase-cin @('condition','condition-preparing')){
+    }elseif($NativeCase-cin @('condition','condition-preparing','suspended')){
         if($owner.scenario-cne'persistence-p03-save'-or$owner.persistenceCase-cne$NativeCase){throw 'P03 condition source case differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P03/P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
@@ -94,6 +94,7 @@ function Assert-KmcP02Snapshot {
 
 function Assert-KmcP03Snapshot {
     param($Snapshot,[string]$Checkpoint)
+    if($Checkpoint-ceq'suspended'){Assert-KmcSuspendedSnapshot $Snapshot;return}
     $c=$Snapshot.Combat
     if($Checkpoint-ceq'reaction'){
         $actor=@($c.Actors|Where-Object {$_.Native.Id-ceq$Snapshot.Mount.Id})
@@ -277,7 +278,9 @@ function Assert-KmcRealtimeColdSource {
     }
     $sourceRows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     $coldRows=@(Get-Content -LiteralPath (Join-Path $Request.evidenceRoot 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
-    if($Request.persistenceCase-cin @('condition','condition-preparing')){
+    if($Request.persistenceCase-ceq'suspended'){
+        Assert-KmcSuspendedColdOutcome $sourceRows $coldRows
+    }elseif($Request.persistenceCase-cin @('condition','condition-preparing')){
         Assert-KmcConditionColdOutcome $sourceRows $coldRows
     }elseif($Request.persistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)){
         Assert-KmcApproachColdOutcome $sourceRows $coldRows
@@ -435,7 +438,8 @@ function Assert-KmcPersistenceScenarioEvidence {
     $isSlot=$Request.scenario-cin @('persistence-p05-save','persistence-p05-load')
     $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')
     $checkpoint=if(@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'){[string]$Request.persistenceCase}else{'partial-movement'}
-    $isRoundEffect=$isP03-and$checkpoint-ceq'round-effect'
+    $isSuspended=$isP03-and$checkpoint-ceq'suspended'
+    $isRoundEffect=$isP03-and$checkpoint-cin @('round-effect','suspended')
     $isReaction=$isP03-and$checkpoint-ceq'reaction'
     $isCommitment=$isP03-and-not$isRoundEffect-and-not$isReaction
     $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')
@@ -449,8 +453,8 @@ function Assert-KmcPersistenceScenarioEvidence {
         if(($isCombat-or$isSlot)-and$row.checkpoint-cne$checkpoint){throw 'P02 observation checkpoint differs from its bounded request.'}
     }
     $required=@('usable-continuation-complete')
-    if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent')){$required+=@('movement-dispatched','movement-completed')}
-    if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','between-partner-orders')){$required+=@('attack-dispatched','attack-delivered')}
+    if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','suspended')){$required+=@('movement-dispatched','movement-completed')}
+    if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','between-partner-orders','suspended')){$required+=@('attack-dispatched','attack-delivered')}
     if($isCombat-and-not$isRoundEffect-and-not$isReaction-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
     if($isCombat-and$isWrite-and-not$isP03){
         $required+=@('partial-movement-dispatched','partial-movement-completed')
@@ -502,13 +506,14 @@ function Assert-KmcPersistenceScenarioEvidence {
                 }
             }
         }
-        if($checkpoint-cin @('partial-movement','rider-spent')){
+        if($checkpoint-cin @('partial-movement','rider-spent','suspended')){
             $continuation=@($rows|Where-Object kind -CEQ 'movement-completed')[0]
             if($continuation.mount.Move-le0-or$continuation.rider.Move-ne0){throw 'P02 lost transport expenditure or taxed the rider.'}
         }
         $final=@($rows|Where-Object kind -CEQ 'usable-continuation-complete')[0]
         if(@($final.detail.turnVisits).Count-lt4){throw 'P02 lacks observed native unrelated participation.'}
     }
+    if($isSuspended){Assert-KmcSuspendedEvidence $rows $isWrite}
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     if($isWrite){
         $written=@($rows|Where-Object kind -CEQ 'native-write-complete')
@@ -650,6 +655,77 @@ function Assert-KmcConditionPersistenceEvidence {
             (Get-KmcSha256 (Join-Path $root $Request.persistenceLoad.fileName))-cne$Request.persistenceLoad.sha256-or
             $initial[0].relationship-cne'Unmounted'-or$initial[0].persistence.presentation-ne0){
             throw 'P03 condition cold load changed its source or invented a pair.'
+        }
+    }
+}
+
+function Assert-KmcSuspendedSnapshot {
+    param($Snapshot)
+    $c=$Snapshot.Combat;$p=$c.Paired;$a=$p.Activation
+    if($null-eq$c-or$c.Round-lt1-or$null-eq$a-or$a.Sequence-lt1-or
+        -not$a.Suspended-or$a.Split-or$a.Ending-or$a.Rider.Ended-or$a.Mount.Ended-or
+        $p.BoundaryIsCurrent-or$p.Boundary.ActorId-cne$Snapshot.Rider.Id-or$p.Boundary.Status-ne4-or
+        ($null-ne$c.Current-and$c.Current.ActorId-cin @($Snapshot.Rider.Id,$Snapshot.Mount.Id))-or
+        $Snapshot.Rider.Move-ne0-or$Snapshot.Mount.Standard-ne0-or$Snapshot.Mount.Move-ne0){
+        throw 'P03 suspended archive lost its unused grant or actual delayed boundary.'
+    }
+}
+
+function Assert-KmcSuspendedEvidence {
+    param($Rows,[bool]$Write)
+    $retained=@($Rows|Where-Object kind -CEQ 'suspended-retained')
+    $resumed=@($Rows|Where-Object kind -CEQ 'suspended-grant-resumed')
+    $rejected=@($Rows|Where-Object kind -CEQ 'cross-round-delay-rejected')
+    $refresh=@($Rows|Where-Object kind -CEQ 'next-paired-activation')
+    if($retained.Count-ne1-or$resumed.Count-ne1-or$rejected.Count-ne1-or$refresh.Count-ne2){
+        throw 'P03 suspended grant lacks its real resume/rejection/refresh observations.'
+    }
+    $before=$retained[0].detail
+    $samples=@($resumed[0],$rejected[0],$refresh[0],$refresh[1])
+    for($i=0;$i-lt4;$i++){
+        $d=$samples[$i].detail;$increment=[Math]::Max(0,$i-1)
+        if($d.sequence-ne($before.sequence+$increment)-or$d.round-ne($before.round+$increment)){
+            throw 'P03 Delay invented a grant or resumed across a native round.'
+        }
+        foreach($actor in @('rider','mount')){
+            foreach($boundary in @('clear-after','round-state-after')){
+                if($null-eq$d.delayNativeCounts-or
+                    $d.delayNativeCounts.$actor.$boundary-ne($before.delayNativeCounts.$actor.$boundary+$increment)){
+                    throw 'P03 Delay repeated or suppressed native preparation.'
+                }
+            }
+        }
+        if($i-lt2-and($d.roundEffects.rider.rounds-ne1-or$d.roundEffects.mount.rounds-ne1-or
+            $d.roundEffects.rider.damage-ne2-or$d.roundEffects.mount.damage-ne2)){
+            throw 'P03 Delay replayed or removed native healing.'
+        }
+    }
+    if($Write){
+        $input=@($Rows|Where-Object kind -CEQ 'delay-request-before')
+        $after=@($Rows|Where-Object kind -CEQ 'delay-request-after')
+        if($input.Count-ne1-or$after.Count-ne1-or$input[0].detail.targetWait-ge$input[0].detail.nextRoundWait-or
+            $input[0].detail.delayTarget-cin @($input[0].rider.Id,$input[0].mount.Id)-or
+            $after[0].detail.current-ceq$input[0].rider.Id-or
+            $after[0].detail.activation-cne$before.activation){
+            throw 'P03 lacks an actual pending same-round native Delay.'
+        }
+    }
+}
+
+function Assert-KmcSuspendedColdOutcome {
+    param($SourceRows,$ColdRows)
+    $source=@($SourceRows|Where-Object kind -CEQ 'suspended-retained')
+    $cold=@($ColdRows|Where-Object kind -CEQ 'suspended-retained')
+    if($source.Count-ne1-or$cold.Count-ne1-or$source[0].processId-eq$cold[0].processId-or
+        $source[0].detail.activation-cne$cold[0].detail.activation-or
+        $source[0].rider.Id-cne$cold[0].rider.Id-or$source[0].mount.Id-cne$cold[0].mount.Id){
+        throw 'P03 suspended cold outcome lacks the same saved actors/grant in a fresh process.'
+    }
+    foreach($actor in @('rider','mount')){
+        foreach($field in @('actor','damage','rounds','nextEventTicks','endTicks','active','suppressed')){
+            if($source[0].detail.roundEffects.$actor.$field-cne$cold[0].detail.roundEffects.$actor.$field){
+                throw 'P03 suspended cold outcome changed a native buff or its timer.'
+            }
         }
     }
 }

@@ -96,7 +96,7 @@ elseif ($schemaVersion -eq 2) {
     }elseif($request.scenario-cin @('persistence-p04-save','persistence-p04-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
     }elseif($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction','condition','condition-preparing')){throw 'P03 requires its exact native commitment case.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction','condition','condition-preparing','suspended')){throw 'P03 requires its exact native commitment case.'}
     }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
     $alternating=$request.scenario-ceq'persistence-p05-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'alternating'

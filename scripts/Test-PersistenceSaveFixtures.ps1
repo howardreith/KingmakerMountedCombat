@@ -476,5 +476,37 @@ $allConditionRows=@($conditionRows)+$preparationRows
 foreach($row in $allConditionRows){$row.checkpoint='condition-preparing'}
 Assert-KmcConditionPersistenceEvidence $conditionRequest $allConditionRows ([pscustomobject]@{processId=123});$passes++
 
+$delaySnapshot=[pscustomobject]@{Rider=[pscustomobject]@{Id='r';Standard=1;Move=0};Mount=[pscustomobject]@{Id='m';Standard=0;Move=0};Combat=[pscustomobject]@{
+    Round=2;Current=$null;Paired=[pscustomobject]@{BoundaryIsCurrent=$false;Boundary=[pscustomobject]@{ActorId='r';Status=4};Activation=[pscustomobject]@{
+        Sequence=2;Suspended=$true;Split=$false;Ending=$false;Rider=[pscustomobject]@{Ended=$false};Mount=[pscustomobject]@{Ended=$false}}}}}
+Assert-KmcP03Snapshot $delaySnapshot 'suspended';$passes++
+$delaySnapshot.Combat.Paired.Activation.Suspended=$false
+Must-Reject {Assert-KmcP03Snapshot $delaySnapshot 'suspended'} 'Delay snapshot without suspended participation accepted'
+$delaySnapshot.Combat.Paired.Activation.Suspended=$true;$delaySnapshot.Combat.Paired.Activation.Rider.Ended=$true
+Must-Reject {Assert-KmcP03Snapshot $delaySnapshot 'suspended'} 'Delay renewed ended rider accepted'
+$delaySnapshot.Combat.Paired.Activation.Rider.Ended=$false;$delaySnapshot.Combat.Paired.Boundary.Status=2
+Must-Reject {Assert-KmcP03Snapshot $delaySnapshot 'suspended'} 'Preparing boundary accepted as pending Delay'
+$delaySnapshot.Combat.Paired.Boundary.Status=4;$delaySnapshot.Combat.Current=[pscustomobject]@{ActorId='r'}
+Must-Reject {Assert-KmcP03Snapshot $delaySnapshot 'suspended'} 'Already resumed save accepted as suspended'
+$delaySnapshot.Combat.Current=$null;$delaySnapshot.Mount.Standard=6
+Must-Reject {Assert-KmcP03Snapshot $delaySnapshot 'suspended'} 'Spent mount accepted as unused suspended pair'
+$delaySnapshot.Mount.Standard=0
+$delayRows=@()
+foreach($kind in @('suspended-retained','suspended-grant-resumed','cross-round-delay-rejected','next-paired-activation','next-paired-activation')){
+    $increment=if($delayRows.Count-lt3){0}else{$delayRows.Count-2}
+    $effect=[pscustomobject]@{rounds=1;damage=2}
+    $counts=[pscustomobject]@{'clear-after'=$increment;'round-state-after'=$increment}
+    $delayRows += [pscustomobject]@{kind=$kind;detail=[pscustomobject]@{sequence=(2+$increment);round=(2+$increment);
+        delayNativeCounts=[pscustomobject]@{rider=($counts|ConvertTo-Json|ConvertFrom-Json);mount=($counts|ConvertTo-Json|ConvertFrom-Json)};
+        roundEffects=[pscustomobject]@{rider=$effect;mount=$effect}}}
+}
+Assert-KmcSuspendedEvidence $delayRows $false;$passes++
+$delayRows[1].detail.delayNativeCounts.mount.'round-state-after'=1
+Must-Reject {Assert-KmcSuspendedEvidence $delayRows $false} 'Load replayed mount round effect accepted'
+$delayRows[1].detail.delayNativeCounts.mount.'round-state-after'=0;$delayRows[4].detail.delayNativeCounts.rider.'clear-after'=1
+Must-Reject {Assert-KmcSuspendedEvidence $delayRows $false} 'Missing real next-round clear accepted'
+$delayRows[4].detail.delayNativeCounts.rider.'clear-after'=2;$delayRows[1].detail.sequence=3
+Must-Reject {Assert-KmcSuspendedEvidence $delayRows $false} 'Delay fresh activation fallback accepted'
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.
