@@ -56,7 +56,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (clock.Elapsed.TotalSeconds > 150)
                 throw new InvalidOperationException("P04 " + Checkpoint + " timed out at " + stage + ": " + persistence.Feedback);
             var game = Game.Instance;
-            if (LoadingProcess.Instance.IsLoadingInProcess || game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
+            if (LoadingProcess.Instance.IsLoadingInProcess ||
+                (game.CurrentMode != Kingmaker.GameModes.GameModeType.Default &&
+                 game.CurrentMode != Kingmaker.GameModes.GameModeType.Pause)) return;
             if (stage > 0 && !Cold && combatTarget != null && !targetService.RefreshBidirectionalCombatMemoryLease())
                 throw new InvalidOperationException("RT owned native combat memory was lost.");
             if (stage > 0 && game.IsPaused)
