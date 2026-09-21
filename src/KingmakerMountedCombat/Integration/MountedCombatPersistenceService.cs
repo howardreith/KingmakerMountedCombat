@@ -28,11 +28,9 @@ namespace KingmakerMountedCombat.Integration
                 settings.EnablePairedCommandScheduler || CombatRestorationPending ||
                 (CombatController.IsInTurnBasedCombat() && !Game.Instance.TurnBasedCombatController.Initialized))
                 return true;
-            var actors = CombatActors();
-            var unsettled = unifiedTurn.HasUnsettledPreparation || actors.Any(u => !u.Commands.Empty) ||
-                NativeSaveEffectBoundary.HasUnresolvedProjectiles();
-            if (unsettled) Report("Combat save is waiting for native commands to finish.");
-            return unsettled;
+            // The native queue now defers its selected save before pausing the
+            // game clock. UI admission does not pretend that effects are settled.
+            return false;
         }
 
         private UnitEntityData[] CombatActors() =>
@@ -42,7 +40,7 @@ namespace KingmakerMountedCombat.Integration
 
         private SavedCombatData CaptureCombat()
         {
-            if (NativeCombatBlocksSave(Game.Instance.Player))
+            if (NativeCombatBlocksSave(Game.Instance.Player) || !SaveEffectsReady())
                 throw new InvalidOperationException("Combat save has not reached the supported native command boundary.");
             var saved = NativeCombatTurnPersistence.Capture(Game.Instance.TurnBasedCombatController, CombatActors());
             unifiedTurn.CapturePersistence(saved);

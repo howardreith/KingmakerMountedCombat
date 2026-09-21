@@ -56,6 +56,86 @@ public static class KmcPersistenceContractProbe
         }
     }
 
+    private sealed class DisposeProbe : System.Collections.Generic.IEnumerator<object>
+    {
+        internal int Disposals;
+        internal bool FailDispose;
+        public object Current { get { return null; } }
+        object System.Collections.IEnumerator.Current { get { return Current; } }
+        public bool MoveNext() { return true; }
+        public void Reset() { throw new NotSupportedException(); }
+        public void Dispose() { Disposals++; if(FailDispose) throw new InvalidOperationException("owned disposal"); }
+    }
+    private static void VerifyNativeDeferredOwner(Assembly native, Assembly candidate)
+    {
+        var ownerType=native.GetType("Kingmaker.EntitySystem.Persistence.LoadingProcess",true);
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+        var queuedType=ownerType.GetNestedType("QueuedProcess",BindingFlags.NonPublic);
+        var process=queuedType.GetField("Process");
+        var owner=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(ownerType);
+        var queue=Activator.CreateInstance(ownerType.GetField("m_Queue",flags).FieldType);
+        ownerType.GetField("m_Queue",flags).SetValue(owner,queue);
+        var wrapperType=candidate.GetType("KingmakerMountedCombat.Domain.DeferredSaveEnumerator`1",true).MakeGenericType(typeof(object));
+        var constructor=wrapperType.GetConstructors(flags)[0];
+        var currentInner=new DisposeProbe { FailDispose=true };
+        var queuedInner=new DisposeProbe();
+        var foreign=new DisposeProbe();
+        var restored=0; var failures=0;
+        Func<DisposeProbe,object> wrap=inner=>constructor.Invoke(new object[]{inner,
+            new Func<bool>(()=>false),new Func<double>(()=>0),new Action(()=>{}),new Action(()=>{}),
+            new Action(()=>restored++),30d});
+        var current=wrap(currentInner);var next=wrap(queuedInner);
+        wrapperType.GetMethod("Activate",flags).Invoke(current,new object[]{new Action(()=>{})});
+        var record=Activator.CreateInstance(queuedType,true);process.SetValue(record,current);
+        ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,record);
+        foreach(var item in new object[]{next,foreign})
+        {
+            var entry=Activator.CreateInstance(queuedType,true);process.SetValue(entry,item);
+            queue.GetType().GetMethod("Enqueue").Invoke(queue,new[]{entry});
+        }
+        var adapter=candidate.GetType("KingmakerMountedCombat.Integration.NativeDeferredSave",true);
+        var waiting=adapter.GetMethod("Waiting",BindingFlags.NonPublic|BindingFlags.Static);
+        Check((bool)waiting.Invoke(null,new[]{owner}),"selected native queued save owns the live wait");
+        var abandon=adapter.GetMethod("AbandonOwned",BindingFlags.NonPublic|BindingFlags.Static);
+        var report=new Action<Exception>(e=>{failures++;});
+        abandon.Invoke(null,new object[]{owner,report});abandon.Invoke(null,new object[]{owner,report});
+        Check(!(bool)waiting.Invoke(null,new[]{owner}) && currentInner.Disposals==1 && queuedInner.Disposals==1 &&
+            restored==1 && failures==1,"native owner cancellation releases current and queued owned iterators despite disposal failure");
+        Check(foreign.Disposals==0 && (int)queue.GetType().GetProperty("Count").GetValue(queue,null)==2,
+            "owned cleanup leaves foreign iterators and native queue mutation to native StopAll");
+        ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,null);
+        Check(!(bool)waiting.Invoke(null,new[]{owner}),"no current save leaves the native loading predicate unchanged");
+        var commandType=native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand",true);
+        var attack=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(native.GetType("Kingmaker.UnitLogic.Commands.UnitAttack",true));
+        var reaction=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(native.GetType("Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity",true));
+        var effect=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveEffectBoundary",true);
+        var settle=effect.GetMethod("CommandNeedsSettlement",BindingFlags.Static|BindingFlags.NonPublic);
+        var mayStart=effect.GetMethod("MayStartDuringWait",BindingFlags.Static|BindingFlags.NonPublic);
+        Check(!(bool)settle.Invoke(null,new[]{attack}) && !(bool)mayStart.Invoke(null,new[]{attack}),
+            "unstarted native ordinary intent can snapshot without starting a new attack");
+        Check((bool)settle.Invoke(null,new[]{reaction}) && (bool)mayStart.Invoke(null,new[]{reaction}),
+            "already charged native reaction must start and settle before the snapshot");
+        commandType.GetProperty("IsStarted").GetSetMethod(true).Invoke(attack,new object[]{true});
+        Check((bool)settle.Invoke(null,new[]{attack}),"started native action remains outside the snapshot barrier");
+        commandType.GetProperty("IsFinished").GetSetMethod(true).Invoke(reaction,new object[]{true});
+        Check(!(bool)settle.Invoke(null,new[]{reaction}),"completed native reaction does not delay its already delivered effect");
+        var service=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+        var saveScope=service.GetNestedType("SaveScope",BindingFlags.NonPublic);
+        var scope=Activator.CreateInstance(saveScope,true);
+        var track=service.GetMethod("TrackNativeSave",BindingFlags.Static|BindingFlags.NonPublic);
+        var empty=new object[0];
+        var tracked=(System.Collections.Generic.IEnumerator<object>)track.Invoke(null,new object[]{
+            ((System.Collections.Generic.IEnumerable<object>)empty).GetEnumerator(),scope});
+        var noSnapshotRejected=false;
+        try{tracked.MoveNext();}catch(InvalidOperationException){noSnapshotRejected=true;}finally{tracked.Dispose();}
+        Check(noSnapshotRejected,"empty native save enumeration cannot report a successful write");
+        saveScope.GetField("Json",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(scope,"bounded snapshot");
+        tracked=(System.Collections.Generic.IEnumerator<object>)track.Invoke(null,new object[]{
+            ((System.Collections.Generic.IEnumerable<object>)empty).GetEnumerator(),scope});
+        Check(!tracked.MoveNext(),"normal native completion retains its actual captured snapshot boundary");tracked.Dispose();
+
+    }
+
     private static void VerifyNativeEffectBoundary(Assembly native, Assembly candidate)
     {
         var controllerType=native.GetType("Kingmaker.Controllers.Projectiles.ProjectileController",true);
@@ -182,6 +262,48 @@ public static class KmcPersistenceContractProbe
                 System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(adapter.TypeHandle);
                 Check(true,"exact native field/signature bindings: "+adapterName);
             }
+            var deferred=candidate.GetType("KingmakerMountedCombat.Integration.NativeDeferredSave",true);
+            var startOriginal=native.ManifestModule.ResolveMethod(0x06007FC5);
+            var startLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
+            var startOps=new System.Collections.Generic.List<object>();
+            var startOperands=new System.Collections.Generic.List<object>();
+            foreach(var instruction in (System.Collections.IEnumerable)read.Invoke(null,new object[]{startOriginal,null}))
+            {
+                var t=instruction.GetType();var op=t.GetField("opcode").GetValue(instruction);
+                var operand=t.GetField("operand").GetValue(instruction);
+                startOps.Add(op);startOperands.Add(operand);
+                startLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{op,operand}));
+            }
+            var startResult=(System.Collections.IEnumerable)deferred.GetMethod("TransformStart",
+                BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{startLegacy});
+            int startIndex=0,startChanges=0;
+            var gotInserted=false;
+            foreach(var instruction in startResult)
+            {
+                var op=legacyInstruction.GetField("opcode").GetValue(instruction);
+                var operand=legacyInstruction.GetField("operand").GetValue(instruction);
+                var expected=startOperands[startIndex] as MethodInfo;
+                if(expected!=null && expected.MetadataToken==0x06007FC9 && expected.Module==native.ManifestModule)
+                {
+                    if(!gotInserted)
+                    {
+                        if(!op.Equals(System.Reflection.Emit.OpCodes.Ldarg_1) || operand!=null)
+                            throw new InvalidOperationException("Native queued operation argument was not preserved.");
+                        gotInserted=true;continue;
+                    }
+                    var replacement=operand as MethodInfo;
+                    if(replacement==null || replacement.DeclaringType!=deferred || replacement.Name!="StartScreen" ||
+                        !op.Equals(System.Reflection.Emit.OpCodes.Call))
+                        throw new InvalidOperationException("Unexpected native loading activation rewrite.");
+                    startChanges++;
+                }
+                else if(!Equals(op,startOps[startIndex]) || !Equals(operand,startOperands[startIndex]))
+                    throw new InvalidOperationException("Native loading queue/owner/timer instruction changed.");
+                startIndex++;
+            }
+            Check(startChanges==1 && startIndex==startOps.Count && gotInserted,
+                "real native activation rewrite changes only screen admission; queue owner, callbacks and timers retained");
+            VerifyNativeDeferredOwner(native,candidate);
             var saveGate=native.ManifestModule.ResolveMethod(0x06008028);
             var saveInstructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{saveGate,null});
             var saveLegacy=(System.Collections.IList)Activator.CreateInstance(listType);

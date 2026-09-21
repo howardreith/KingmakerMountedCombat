@@ -138,7 +138,7 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("P04 requires a declared RT boundary and actual cold archive", () =>
             {
-                foreach (var name in new[] { "unmounted-spent", "mounted-spent" })
+                foreach (var name in new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack" })
                 {
                     var request = ValidSaveBackedRequest(); var fixture = request.Fixture.Working;
                     request.Scenario = "persistence-p04-save"; request.PersistenceCase = name;
@@ -223,6 +223,7 @@ namespace KingmakerMountedCombat.Tests
             });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
+            DeferredSaveEnumeratorTests.Register(runner);
             NativeLoadWorldTests.Register(runner);
             PersistenceSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);

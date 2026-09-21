@@ -3,6 +3,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using Kingmaker;
 using Kingmaker.Controllers.Projectiles;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -35,6 +37,14 @@ namespace KingmakerMountedCombat.Integration
             return ((HashSet<Projectile>)Active.GetValue(controller)).Any(Unresolved)
                 || ((List<Projectile>)Pending.GetValue(controller)).Any(Unresolved);
         }
+
+        internal static bool CommandNeedsSettlement(UnitCommand command) =>
+            command != null && !command.IsFinished && command.GetType() != typeof(UnitMoveContiniously) &&
+            (command.IsRunning || command is UnitAttackOfOpportunity);
+
+        // Native reaction debt is charged when Run queues this command, before
+        // Start. It must be allowed to deliver before a save can snapshot it.
+        internal static bool MayStartDuringWait(UnitCommand command) => command is UnitAttackOfOpportunity;
 
         private static bool Unresolved(Projectile projectile) =>
             !projectile.Cleared && !completed.TryGetValue(projectile, out var marker);

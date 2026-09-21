@@ -156,7 +156,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alter
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase manual -Alternate} 'Alternate escaped its case'
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating} 'Primary accepted alternate hash'
 if((Get-KmcSha256 $path)-cne$hash-or(Get-KmcSha256 $alternatePath)-cne$alternateHash){throw 'Alternating source inspection changed inputs'};$passes++
-foreach($case in @('unmounted-spent','mounted-spent')){
+foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack')){
     $result.scenario='persistence-p04-save';Write-KmcJsonAtomic $resultPath $result
     Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p04-save';persistenceCase=$case;transactionToken=('a'*64)})
     $rt=Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase $case
@@ -256,5 +256,25 @@ Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame
 $rtRows[9].detail.riderRounds=3;$rtWrite.nativeCallback=$false
 Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame} 'P04 accepted an incomplete native write'
 $rtWrite.nativeCallback=$true
+$rtRequest.persistenceCase='unmounted-attack'
+foreach($row in $rtRows){$row.checkpoint=$rtRequest.persistenceCase}
+$rtSnapshot|Add-Member -NotePropertyName GameTimeTicks -NotePropertyValue 5
+$rtWrite|Add-Member -NotePropertyName actual -NotePropertyValue ([pscustomobject]@{
+    deferredSaves=1;snapshotCount=1;resolved=3;unresolvedProjectiles=$false})
+$activeDetail=[pscustomobject]@{resolved=2;snapshotCount=0;nativeCommands=@([pscustomobject]@{
+    actor='r';raw=@([pscustomobject]@{started=$true;acted=$false;finished=$false})})}
+$waitDetail=[pscustomobject]@{nativeSaveWaiting=$true;deferredSaves=1;snapshotCount=0}
+$activeRow=New-RtProof 'rt-active-attack-save-request' 3 $activeDetail
+$waitRow=New-RtProof 'rt-native-wait-started' 4 $waitDetail
+$activeRows=@($rtRows)+@($activeRow,$waitRow)
+Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame;$passes++
+$activeDetail.nativeCommands[0].raw[0].acted=$true
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 active accepted an already delivered request'
+$activeDetail.nativeCommands[0].raw[0].acted=$false;$waitDetail.snapshotCount=1
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 active took its snapshot before effect settlement'
+$waitDetail.snapshotCount=0;$rtWrite.actual.resolved=4
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 active accepted a duplicate native effect'
+$rtWrite.actual.resolved=3;$rtSnapshot.GameTimeTicks=3
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 active clock did not advance while waiting'
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

@@ -15,7 +15,10 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed partial class RuntimePersistenceScenario
     {
-        private bool RealtimeMounted => Checkpoint == "mounted-spent";
+        private bool RealtimeMounted => Checkpoint.StartsWith("mounted-", StringComparison.Ordinal);
+        private bool RealtimeActiveAttack => Checkpoint.EndsWith("-attack", StringComparison.Ordinal);
+        private int realtimePreSaveResolved;
+        private bool realtimeWaitObserved;
         private Phase3dCombatRuleProbe realtimeProbe;
         private RealtimeRoundProbe realtimeRounds;
         private long realtimeSavedTicks;
@@ -46,10 +49,13 @@ namespace KingmakerMountedCombat.Diagnostics
             ["rules"] = realtimeProbe?.CapturePairEvidence(),
             ["riderCommandsEmpty"] = rider?.Commands.Empty, ["mountCommandsEmpty"] = mount?.Commands.Empty,
             ["unresolvedProjectiles"] = NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
+            ["deferredSaves"] = persistence.DeferredSaveCount, ["snapshotCount"] = persistence.SnapshotCount,
+            ["nativeSaveWaiting"] = NativeDeferredSave.Waiting(LoadingProcess.Instance),
+            ["preSaveResolved"] = realtimePreSaveResolved,
             ["nativeCommands"] = new JArray(Game.Instance.State.Units.Where(u => u.IsInCombat).Select(u => new JObject {
                 ["actor"] = u.UniqueId, ["standard"] = u.CombatState.Cooldown.StandardAction,
                 ["raw"] = new JArray(u.Commands.Raw.Where(c => c != null).Select(c => new JObject {
-                    ["type"] = c.GetType().Name, ["started"] = c.IsStarted, ["finished"] = c.IsFinished })),
+                    ["type"] = c.GetType().Name, ["started"] = c.IsStarted, ["acted"] = c.IsActed, ["finished"] = c.IsFinished })),
                 ["queue"] = new JArray(u.Commands.Queue.Select(c => c.GetType().Name)) })),
             ["savedTicks"] = realtimeSavedTicks, ["readyTicks"] = realtimeReadyTicks };
 
@@ -141,9 +147,24 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (realtimeProbe.RiderNonOpportunityAttackRuleCount < 2 || realtimeProbe.RiderResolvedCount < 2) return;
                 Check(realtimeProbe.PairForcedD20Count == 0, "RT-ordinary-attacks-have-native-rolls");
-                StopRealtimePartyOrders();
+                if (!RealtimeActiveAttack) StopRealtimePartyOrders();
                 Write("rt-repeated-attack-resolved", RealtimeObservation());
-                stage = 3; return;
+                stage = RealtimeActiveAttack ? 20 : 3; return;
+            }
+            if (stage == 20)
+            {
+                var attack = rider.Commands.Raw.FirstOrDefault(c => c != null && c.IsRunning && !c.IsActed);
+                if (attack == null) return;
+                Check(realtimeProbe.RiderResolvedCount == 2 && realtimeProbe.PairForcedD20Count == 0,
+                    "RT-request-during-next-native-attack-before-delivery");
+                realtimePreSaveResolved = realtimeProbe.RiderResolvedCount;
+                Write("rt-active-attack-save-request", RealtimeObservation());
+                RequestRealtimeSave();
+                Check(persistence.DeferredSaveCount == 1 && persistence.SnapshotCount == 0 &&
+                    NativeDeferredSave.Waiting(LoadingProcess.Instance) &&
+                    !persistence.SaveSuspended && !controls.SerializationSuspended,
+                    "RT-native-save-queued-before-pause-with-live-controls");
+                return;
             }
             if (stage == 3)
             {
@@ -159,15 +180,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 Check(rider.CombatState.Cooldown.StandardAction > 0.1f && game.SaveManager.IsSaveAllowed(),
                     "RT-actual-spent-native-standard-at-safe-save-boundary");
-                Write("rt-before-save", RealtimeObservation());
-                var save = game.SaveManager.CreateNewSave("KMC_P01");
-                callback = false;
-                game.SaveGame(save, () => callback = true);
-                Write("rt-native-save-requested", RealtimeObservation());
-                stage = 4; return;
+                RequestRealtimeSave(); return;
             }
             if (stage == 4)
             {
+                if (RealtimeActiveAttack && NativeDeferredSave.Waiting(LoadingProcess.Instance) && !realtimeWaitObserved)
+                {
+                    Write("rt-native-wait-started", RealtimeObservation());
+                    realtimeWaitObserved = true;
+                }
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
                 var save = game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01");
                 if (save == null || !save.HasFileOnDisk || save.OperationState != SaveInfo.StateType.None) return;
@@ -176,6 +197,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     !read.Data.Combat.TurnBased && read.Data.Mounted == RealtimeMounted &&
                     persistence.SnapshotCount == 1, "RT-actual-native-archive-contains-current-combat-debt");
                 ValidateRealtimeRemainder(read.Data);
+                if (RealtimeActiveAttack)
+                    Check(realtimeWaitObserved && persistence.DeferredSaveCount == 1 &&
+                        realtimeProbe.RiderResolvedCount == realtimePreSaveResolved + 1 &&
+                        !NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
+                        "RT-deferred-save-contains-once-delivered-attack-and-its-cost");
                 Check(!persistence.SaveSuspended && !controls.SerializationSuspended &&
                     controls.CaptureSnapshot().ExactFactCount == beforeControls.ExactFactCount &&
                     controls.CaptureSnapshot().ManagedHotbarSlotCount == beforeControls.ManagedHotbarSlotCount,
@@ -219,6 +245,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
                 Completed = true;
             }
+        }
+
+        private void RequestRealtimeSave()
+        {
+            var game = Game.Instance;
+            Check(game.SaveManager.IsSaveAllowed(), "RT-native-save-admission-retains-policy");
+            Write("rt-before-save", RealtimeObservation());
+            var save = game.SaveManager.CreateNewSave("KMC_P01");
+            callback = false;
+            game.SaveGame(save, () => callback = true);
+            Write("rt-native-save-requested", RealtimeObservation());
+            stage = 4;
         }
 
         private void BindRealtimeObservers()

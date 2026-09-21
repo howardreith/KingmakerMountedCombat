@@ -49,6 +49,8 @@
     <Compile Include="PersistenceSaveAuthorizationTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.cs" />
     <Compile Include="ScopedEnumeratorTests.cs" />
+    <Compile Include="DeferredSaveEnumeratorTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\DeferredSaveEnumerator.cs" />
     <Compile Include="NativeLoadWorldTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\NativeLoadWorld.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\ScopedEnumerator.cs" />

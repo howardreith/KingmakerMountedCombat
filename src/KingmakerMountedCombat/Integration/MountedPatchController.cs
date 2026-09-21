@@ -63,7 +63,7 @@ namespace KingmakerMountedCombat.Integration
                     new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
                 PatchExact(typeof(UnitCommands), "AddToQueueInternal", 0x060026B8,
                     new[] { typeof(UnitCommand), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
-                PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.ChargeExecutionPrefix));
+                PatchExact(typeof(UnitCommand), "Start", 0x060027A5, Type.EmptyTypes, nameof(PatchMethods.SaveCommandStartPrefix));
                 PatchExact(typeof(UnitCommand), "Tick", 0x060027A7, Type.EmptyTypes, nameof(PatchMethods.ChargeExecutionPrefix));
                 PatchExact(typeof(ClickWithSelectedAbilityHandler), "OnClick", 0x060093F6,
                     new[] { typeof(UnityEngine.GameObject), typeof(UnityEngine.Vector3), typeof(int), typeof(bool), typeof(bool) },
@@ -90,6 +90,12 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SelectionManagerBase), "Stop", 0x060000B9, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(SelectionManagerBase), "Hold", 0x060000BA, Type.EmptyTypes, nameof(PatchMethods.StopOrHoldPrefix));
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
+                PatchExact(typeof(LoadingProcess), "StartLoadingProcessInternal", 0x06007FC5, null,
+                    null, null, nameof(PatchMethods.DeferredSaveStartTranspiler));
+                PatchExact(typeof(LoadingProcess), "get_IsLoadingInProcess", 0x06007FBC, Type.EmptyTypes,
+                    null, nameof(PatchMethods.DeferredSaveLoadingPostfix));
+                PatchExact(typeof(LoadingProcess), "StopAll", 0x06007FC3, Type.EmptyTypes,
+                    nameof(PatchMethods.AbandonOwnedLoadingPrefix));
                 PatchExact(typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, null, nameof(PatchMethods.SavePreparedPostfix));
                 PatchExact(typeof(SaveManager).Assembly.GetType("Kingmaker.EntitySystem.Persistence.ZipSaver", true),
                     "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, nameof(PatchMethods.NativeSaveHeaderPrefix));
@@ -309,6 +315,23 @@ namespace KingmakerMountedCombat.Integration
             internal static bool ChargeAdmissionPrefix(UnitCommand cmd) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
+
+            internal static bool SaveCommandStartPrefix(UnitCommand __instance) =>
+                PatchBridge.Persistence?.CombatRestorationPending != true &&
+                (PatchBridge.Persistence?.Enabled != true || NativeSaveEffectBoundary.MayStartDuringWait(__instance) ||
+                 !NativeDeferredSave.Waiting(LoadingProcess.Instance)) &&
+                ChargeExecutionPrefix(__instance);
+
+            internal static void DeferredSaveLoadingPostfix(LoadingProcess __instance, ref bool __result)
+            {
+                if (__result && NativeDeferredSave.Waiting(__instance)) __result = false;
+            }
+
+            internal static IEnumerable<CodeInstruction> DeferredSaveStartTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                NativeDeferredSave.TransformStart(instructions);
+
+            internal static void AbandonOwnedLoadingPrefix(LoadingProcess __instance) =>
+                NativeDeferredSave.AbandonOwned(__instance, error => PatchBridge.Persistence?.ReportAbandonedSave(error));
 
             internal static bool ChargeExecutionPrefix(UnitCommand __instance) =>
                 PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance);

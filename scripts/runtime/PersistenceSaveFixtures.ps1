@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent')][string]$NativeCase,
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -23,7 +23,7 @@ function Get-KmcPersistenceSource {
     if($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
-        if($NativeCase-cnotin @('unmounted-spent','mounted-spent')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
+        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
@@ -120,7 +120,7 @@ function Assert-KmcP03Snapshot {
 function Assert-KmcRealtimePersistenceEvidence {
     param($Request,$Rows,$GameResult)
     $source=$Request.scenario-ceq'persistence-p04-save'
-    $mounted=$Request.persistenceCase-ceq'mounted-spent'
+    $mounted=$Request.persistenceCase.StartsWith('mounted-',[StringComparison]::Ordinal)
     $state=if($mounted){'Mounted'}else{'Unmounted'}
     $initial=@($Rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P04 lacks an initial native world.'}
@@ -153,6 +153,20 @@ function Assert-KmcRealtimePersistenceEvidence {
         }
         $attacks=@($Rows|Where-Object kind -CEQ 'rt-repeated-attack-resolved')[0].detail
         if($attacks.ordinaryAttacks-lt2-or$attacks.resolved-lt2-or$attacks.forcedD20-ne0){throw 'P04 requires two naturally rolled native attacks.'}
+        if($Request.persistenceCase.EndsWith('-attack',[StringComparison]::Ordinal)){
+            $active=@($Rows|Where-Object kind -CEQ 'rt-active-attack-save-request')
+            $deferred=@($Rows|Where-Object kind -CEQ 'rt-native-wait-started')
+            if($active.Count-ne1-or$deferred.Count-ne1){throw 'P04 active save lacks its actual pre-delivery wait.'}
+            $running=@($active[0].detail.nativeCommands|Where-Object {$_.actor-ceq$initial[0].rider.Id}|
+                ForEach-Object {$_.raw}|Where-Object {$_.started-eq$true-and$_.acted-eq$false-and$_.finished-eq$false})
+            if($running.Count-ne1-or$active[0].detail.resolved-ne2-or$active[0].detail.snapshotCount-ne0-or
+                $deferred[0].detail.nativeSaveWaiting-ne$true-or$deferred[0].detail.deferredSaves-ne1-or
+                $deferred[0].detail.snapshotCount-ne0-or$d.actual.deferredSaves-ne1-or$d.actual.snapshotCount-ne1-or
+                $d.actual.resolved-ne3-or$d.actual.unresolvedProjectiles-ne$false-or
+                $snapshot.GameTimeTicks-le$active[0].gameTicks){
+                throw 'P04 active save did not settle exactly one native attack before the actual snapshot.'
+            }
+        }
     }else{
         if($initial[0].persistence.semantics-ne$snapshot.Combat.Actors.Count-or
             $initial[0].persistence.presentation-ne$(if($mounted){1}else{0})-or$initial[0].controls.NativeCastRequestCount-ne0){

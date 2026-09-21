@@ -49,7 +49,7 @@ namespace KingmakerMountedCombat.Integration
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> routine)
         {
             var scope = new SaveScope();
-            return new ScopedEnumerator<object>(routine, () =>
+            var scoped = new ScopedEnumerator<object>(TrackNativeSave(routine, scope), () =>
             {
                 if (activeSave != null) throw new InvalidOperationException("Overlapping native save enumerations.");
                 activeSave = scope;
@@ -69,6 +69,17 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
             });
+            return Enabled ? DeferNativeSave(scoped) : scoped;
+        }
+
+        private static IEnumerator<object> TrackNativeSave(IEnumerator<object> routine, SaveScope scope)
+        {
+            using (routine)
+            {
+                while (routine.MoveNext()) yield return routine.Current;
+            }
+            if (scope.Json == null)
+                throw new InvalidOperationException("Native save ended without a mounted snapshot; no completed write is reported.");
         }
 
         internal void ObservePreparedSave(SaveInfo save)
