@@ -5089,7 +5089,7 @@ try {
     Invoke-HarnessTest 'P03 requires a declared native commitment and preserves strict other scenarios' {
         try{
             $v2Request.scenario='persistence-p03-save'
-            foreach($case in @('step','conversion')){
+            foreach($case in @('step','conversion','round-effect')){
                 $v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
