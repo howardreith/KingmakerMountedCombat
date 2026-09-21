@@ -38,6 +38,13 @@ namespace KingmakerMountedCombat.Integration
                 || ((List<Projectile>)Pending.GetValue(controller)).Any(Unresolved);
         }
 
+        internal static Projectile[] CaptureUnresolvedProjectiles(ProjectileController controller)
+        {
+            if (controller == null) return new Projectile[0];
+            return ((HashSet<Projectile>)Active.GetValue(controller))
+                .Concat((List<Projectile>)Pending.GetValue(controller)).Distinct().Where(Unresolved).ToArray();
+        }
+
         internal static bool CommandNeedsSettlement(UnitCommand command) =>
             command != null && !command.IsFinished && command.GetType() != typeof(UnitMoveContiniously) &&
             (command.IsRunning || command is UnitAttackOfOpportunity);

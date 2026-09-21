@@ -144,6 +144,7 @@ public static class KmcPersistenceContractProbe
         var flags=BindingFlags.Static|BindingFlags.NonPublic;
         var read=boundary.GetMethod("HasUnresolvedProjectiles",flags,null,new[]{controllerType},null);
         var mark=boundary.GetMethod("HitCompleted",flags);var clear=boundary.GetMethod("Clear",flags);
+        var snapshot=boundary.GetMethod("CaptureUnresolvedProjectiles",flags);
         var controller=Activator.CreateInstance(controllerType);
         var pending=(System.Collections.IList)controllerType.GetField("m_NewProjectiles",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(controller);
         var active=controllerType.GetField("m_Projectiles",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(controller);
@@ -166,6 +167,9 @@ public static class KmcPersistenceContractProbe
             Check(outer.MoveNext() && (bool)updating.GetValue(controller),"native outer projectile iteration is active");
             Check((bool)read.Invoke(null,new[]{controller}) && (bool)updating.GetValue(controller),
                 "nested save admission must preserve the native outer projectile iteration");
+            var captured=(Array)snapshot.Invoke(null,new[]{controller});
+            Check(captured.Length==1 && ReferenceEquals(captured.GetValue(0),q) && (bool)updating.GetValue(controller),
+                "native pending effect observation retains exact identity without changing outer iteration");
         }
         finally { while(outer.MoveNext()) { } var disposable=outer as IDisposable; if(disposable!=null) disposable.Dispose(); }
         mark.Invoke(null,new[]{q});mark.Invoke(null,new[]{q});

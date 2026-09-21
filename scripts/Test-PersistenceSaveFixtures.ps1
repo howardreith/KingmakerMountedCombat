@@ -156,7 +156,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alter
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase manual -Alternate} 'Alternate escaped its case'
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating} 'Primary accepted alternate hash'
 if((Get-KmcSha256 $path)-cne$hash-or(Get-KmcSha256 $alternatePath)-cne$alternateHash){throw 'Alternating source inspection changed inputs'};$passes++
-foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack')){
+foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')){
     $result.scenario='persistence-p04-save';Write-KmcJsonAtomic $resultPath $result
     Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p04-save';persistenceCase=$case;transactionToken=('a'*64)})
     $rt=Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase $case
@@ -276,5 +276,36 @@ $waitDetail.snapshotCount=0;$rtWrite.actual.resolved=4
 Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 active accepted a duplicate native effect'
 $rtWrite.actual.resolved=3;$rtSnapshot.GameTimeTicks=3
 Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 active clock did not advance while waiting'
+$rtSnapshot.GameTimeTicks=5
+$rtRequest.persistenceCase='unmounted-projectile'
+foreach($row in $activeRows){$row.checkpoint=$rtRequest.persistenceCase}
+$activeRow.kind='rt-projectile-save-request'
+$projectile=[pscustomobject]@{actor='r';target='t';arrived=$false;weapon=$true;resolve=$true}
+$activeDetail|Add-Member -NotePropertyMembers @{projectiles=@($projectile);target='t';riderRanged=$true;ordinaryAttacks=3;unresolvedProjectiles=$true}
+Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame;$passes++
+$projectile.arrived=$true
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 accepted a post-arrival projectile request'
+$projectile.arrived=$false;$projectile.actor='foreign'
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 accepted a foreign projectile'
+$projectile.actor='r';$activeDetail.resolved=3
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 accepted a replayed projectile effect'
+$activeDetail.resolved=2;$rtWrite.actual.unresolvedProjectiles=$true
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $activeRows $proofGame} 'P04 snapshot retained undelivered projectile'
+$rtWrite.actual.unresolvedProjectiles=$false
+$rtWrite.actual|Add-Member -NotePropertyMembers @{target='t';targetDamage=7;riderWeapon='bow';riderRanged=$true}
+$coldActual=[pscustomobject]@{target='t';targetDamage=7;riderWeapon='bow';riderRanged=$true;unresolvedProjectiles=$false;
+    resolved=0;ordinaryAttacks=0;rules=[pscustomobject]@{pairDamageRules=0;pairDamage=0}}
+$coldRow=[pscustomobject]@{kind='rt-cold-debt-restored';processId=456;detail=[pscustomobject]@{actual=$coldActual}}
+Assert-KmcProjectileColdOutcome $rtRows @($coldRow);$passes++
+$coldActual.targetDamage=14
+Must-Reject {Assert-KmcProjectileColdOutcome $rtRows @($coldRow)} 'P04 accepted duplicated projectile damage'
+$coldActual.targetDamage=0
+Must-Reject {Assert-KmcProjectileColdOutcome $rtRows @($coldRow)} 'P04 accepted lost projectile damage'
+$coldActual.targetDamage=7;$coldActual.riderWeapon='replacement'
+Must-Reject {Assert-KmcProjectileColdOutcome $rtRows @($coldRow)} 'P04 accepted cold equipment repair'
+$coldActual.riderWeapon='bow';$coldActual.resolved=1
+Must-Reject {Assert-KmcProjectileColdOutcome $rtRows @($coldRow)} 'P04 accepted replayed cold resolution'
+$coldActual.resolved=0;$coldRow.processId=123
+Must-Reject {Assert-KmcProjectileColdOutcome $rtRows @($coldRow)} 'P04 accepted a warm projectile load'
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

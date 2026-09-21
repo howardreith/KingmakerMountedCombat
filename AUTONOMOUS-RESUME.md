@@ -7,6 +7,9 @@ Private ZIP `KingmakerMountedCombat-0.1.0-chunk5-preview.30-p04-active-attack-di
 All four processes exited/restored; last human preview54 restoration04:23:25.3290312Z. Installed DLL2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 verified/no game. Actual saves/settings/caches/foreign Mods and separate37/13 backups remain protected. This documentation checkpoint does not rebuild frozen30.
 
 Next: native projectile source/cold comparison, then partial approach. P03 conditions/split/suspension, remaining P05/P06/P07 failure/invalid/lifecycle/removal, P08 and consolidated exact-final P01–P08 remain mandatory. Earlier P01/P02/P03/idle RT/P05 causal evidence remains in the journal and single report. Paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY TODO. No permanent installation/main merge/public release.
+
+Development31 adds the bounded P04 projectile comparison. Source-only stock Longbow equipment travels through the native archive; cold code only verifies it. Requests require an actual launched, unresolved native weapon projectile. Source completion requires exactly one further resolution; post-process comparison checks identical target identity/damage/equipment and zero cold replay, using hashed evidence only after the native result. The runner supplies no gameplay state. Source22/0, components430/0, harness258/0, fixtures109/0 and installed contracts75/0 PASS. DLLc0ee212eeddd470245e31e959e3ead833d2ceb18643199d15d27f0e721cc57f1/MVID57b444dc-05b7-4e57-8976-ea80baf0787c. Next freeze/package31/suite32 and unmounted-projectile source/cold, followed by mounted if it passes. No native31 or full P04 claim.
+
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
 

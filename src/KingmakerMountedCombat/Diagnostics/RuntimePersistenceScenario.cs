@@ -372,6 +372,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
+            try { realtimeWeapon?.Dispose(); } finally { realtimeWeapon = null; }
             try { restoreRealtimeAi?.Invoke(); } finally { restoreRealtimeAi = null; }
             settings.EnableUnsafeMovementExperiment = false;
             disposed = true;

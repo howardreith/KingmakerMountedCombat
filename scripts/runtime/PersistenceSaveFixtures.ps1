@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack')][string]$NativeCase,
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -23,7 +23,7 @@ function Get-KmcPersistenceSource {
     if($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
-        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
+        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
@@ -120,6 +120,7 @@ function Assert-KmcP03Snapshot {
 function Assert-KmcRealtimePersistenceEvidence {
     param($Request,$Rows,$GameResult)
     $source=$Request.scenario-ceq'persistence-p04-save'
+    $projectile=$Request.persistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)
     $mounted=$Request.persistenceCase.StartsWith('mounted-',[StringComparison]::Ordinal)
     $state=if($mounted){'Mounted'}else{'Unmounted'}
     $initial=@($Rows|Where-Object kind -CEQ 'initial')
@@ -153,12 +154,20 @@ function Assert-KmcRealtimePersistenceEvidence {
         }
         $attacks=@($Rows|Where-Object kind -CEQ 'rt-repeated-attack-resolved')[0].detail
         if($attacks.ordinaryAttacks-lt2-or$attacks.resolved-lt2-or$attacks.forcedD20-ne0){throw 'P04 requires two naturally rolled native attacks.'}
-        if($Request.persistenceCase.EndsWith('-attack',[StringComparison]::Ordinal)){
-            $active=@($Rows|Where-Object kind -CEQ 'rt-active-attack-save-request')
+        if($projectile-or$Request.persistenceCase.EndsWith('-attack',[StringComparison]::Ordinal)){
+            $activeKind=if($projectile){'rt-projectile-save-request'}else{'rt-active-attack-save-request'}
+            $active=@($Rows|Where-Object kind -CEQ $activeKind)
             $deferred=@($Rows|Where-Object kind -CEQ 'rt-native-wait-started')
             if($active.Count-ne1-or$deferred.Count-ne1){throw 'P04 active save lacks its actual pre-delivery wait.'}
-            $running=@($active[0].detail.nativeCommands|Where-Object {$_.actor-ceq$initial[0].rider.Id}|
-                ForEach-Object {$_.raw}|Where-Object {$_.started-eq$true-and$_.acted-eq$false-and$_.finished-eq$false})
+            if($projectile){
+                $running=@($active[0].detail.projectiles|Where-Object {$_.actor-ceq$initial[0].rider.Id-and
+                    $_.target-ceq$active[0].detail.target-and$_.arrived-eq$false-and$_.weapon-eq$true-and$_.resolve-eq$true})
+                if($active[0].detail.riderRanged-ne$true-or$active[0].detail.ordinaryAttacks-ne3-or
+                    $active[0].detail.unresolvedProjectiles-ne$true){throw 'P04 projectile request lacks native ranged launch state.'}
+            }else{
+                $running=@($active[0].detail.nativeCommands|Where-Object {$_.actor-ceq$initial[0].rider.Id}|
+                    ForEach-Object {$_.raw}|Where-Object {$_.started-eq$true-and$_.acted-eq$false-and$_.finished-eq$false})
+            }
             if($running.Count-ne1-or$active[0].detail.resolved-ne2-or$active[0].detail.snapshotCount-ne0-or
                 $deferred[0].detail.nativeSaveWaiting-ne$true-or$deferred[0].detail.deferredSaves-ne1-or
                 $deferred[0].detail.snapshotCount-ne0-or$d.actual.deferredSaves-ne1-or$d.actual.snapshotCount-ne1-or
@@ -187,6 +196,44 @@ function Assert-KmcRealtimePersistenceEvidence {
             $later[$i].detail.riderRounds-ne($queued[0].detail.riderRounds+$i+1)-or
             $later[$i].detail.forcedD20-ne0){throw 'P04 loaded work fired early, duplicated or refreshed incorrectly.'}
     }
+}
+
+# Evidence-only comparison after the cold native result. No expected gameplay
+# values are sent to the game or written into an archive.
+function Assert-KmcProjectileColdOutcome {
+    param($SourceRows,$ColdRows)
+    $written=@($SourceRows|Where-Object kind -CEQ 'native-write-complete')
+    $loaded=@($ColdRows|Where-Object kind -CEQ 'rt-cold-debt-restored')
+    if($written.Count-ne1-or$loaded.Count-ne1){throw 'Projectile comparison lacks exact native source/cold observations.'}
+    $a=$written[0].detail.actual;$b=$loaded[0].detail.actual
+    if($written[0].processId-eq$loaded[0].processId-or$a.target-cne$b.target-or
+        $a.targetDamage-ne$b.targetDamage-or$a.riderWeapon-cne$b.riderWeapon-or
+        $a.riderRanged-ne$true-or$b.riderRanged-ne$true-or
+        $a.unresolvedProjectiles-ne$false-or$b.unresolvedProjectiles-ne$false-or
+        $b.resolved-ne0-or$b.ordinaryAttacks-ne0-or$b.rules.pairDamageRules-ne0-or
+        $b.rules.pairDamage-ne0){
+        throw 'Cold projectile outcome changed native health/equipment or replayed delivery.'
+    }
+}
+
+function Assert-KmcProjectileColdSource {
+    param([string]$SourceRunId,$Request)
+    [void](Get-KmcPersistenceSource -SourceRunId $SourceRunId -ExpectedSha256 $Request.persistenceLoad.sha256 -Fixture $Request.fixture -NativeCase $Request.persistenceCase)
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$SourceRunId)
+    Assert-KmcDirectoryTreeCloneable $root 'completed projectile evidence'
+    $result=Read-KmcJson (Join-Path $root 'runtime-result.json')
+    $manifestPath=Join-Path $root 'runtime-artifacts.json'
+    if((Get-KmcSha256 $manifestPath)-cne$result.evidenceManifestSha256){throw 'Source projectile manifest changed.'}
+    $manifest=Read-KmcJson $manifestPath
+    $artifact=@($manifest.artifacts|Where-Object relativePath -CEQ 'persistence-observations.jsonl')
+    $path=Join-Path $root 'persistence-observations.jsonl'
+    if($artifact.Count-ne1-or$artifact[0].kind-cne'persistence-evidence'-or
+        (Get-KmcSha256 $path)-cne$artifact[0].sha256-or(Get-Item -LiteralPath $path).Length-ne$artifact[0].length){
+        throw 'Source projectile observations changed.'
+    }
+    $sourceRows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
+    $coldRows=@(Get-Content -LiteralPath (Join-Path $Request.evidenceRoot 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
+    Assert-KmcProjectileColdOutcome $sourceRows $coldRows
 }
 
 function Assert-KmcAlternatingPersistenceEvidence {

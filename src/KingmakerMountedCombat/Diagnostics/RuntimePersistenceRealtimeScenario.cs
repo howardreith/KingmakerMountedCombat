@@ -17,6 +17,9 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private bool RealtimeMounted => Checkpoint.StartsWith("mounted-", StringComparison.Ordinal);
         private bool RealtimeActiveAttack => Checkpoint.EndsWith("-attack", StringComparison.Ordinal);
+        private bool RealtimeProjectile => Checkpoint.EndsWith("-projectile", StringComparison.Ordinal);
+        private bool RealtimeActiveSave => RealtimeActiveAttack || RealtimeProjectile;
+        private Phase3dRangedWeaponLease realtimeWeapon;
         private int realtimePreSaveResolved;
         private bool realtimeWaitObserved;
         private Phase3dCombatRuleProbe realtimeProbe;
@@ -43,6 +46,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JObject RealtimeObservation() => new JObject {
             ["target"] = combatTarget?.UniqueId, ["targetDamage"] = combatTarget?.Damage,
+            ["riderWeapon"] = rider?.GetFirstWeapon()?.Blueprint?.AssetGuid,
+            ["riderRanged"] = rider?.GetFirstWeapon()?.Blueprint?.IsRanged,
+            ["projectiles"] = new JArray(NativeSaveEffectBoundary.CaptureUnresolvedProjectiles(Game.Instance.ProjectileController)
+                .Select(p => new JObject { ["actor"] = p.Launcher?.UniqueId, ["target"] = p.Target?.Unit?.UniqueId,
+                    ["arrived"] = p.IsHit, ["weapon"] = p.IsFromWeapon, ["result"] = p.AttackResult.ToString(),
+                    ["resolve"] = p.OnHitTrigger is Kingmaker.RuleSystem.Rules.RuleAttackWithWeaponResolve })),
+
             ["riderAiEnabled"] = rider?.IsAIEnabled, ["mountAiEnabled"] = mount?.IsAIEnabled,
             ["riderRounds"] = realtimeRounds?.Count, ["resolved"] = realtimeProbe?.RiderResolvedCount,
             ["ordinaryAttacks"] = realtimeProbe?.RiderNonOpportunityAttackRuleCount, ["forcedD20"] = realtimeProbe?.PairForcedD20Count,
@@ -100,6 +110,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         persistence.PresentationRestoreCount == (RealtimeMounted ? 1 : 0) &&
                         controls.NativeCastRequestCount == 0, "RT-no-new-acquisition-mount-or-duplicate-restore");
                     Check(!rider.IsAIEnabled && !mount.IsAIEnabled, "RT-native-saved-AI-switch-without-cold-injection");
+                    if (RealtimeProjectile)
+                        Check(rider.GetFirstWeapon()?.Blueprint?.Category == Kingmaker.Enums.WeaponCategory.Longbow &&
+                            rider.GetFirstWeapon().Blueprint.IsRanged && !NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
+                            "RT-native-saved-ranged-equipment-without-replay-or-cold-equip");
                     BindRealtimeObservers();
                     ValidateRealtimeRemainder(data);
                     Write("initial", RealtimeObservation());
@@ -121,6 +135,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 var mountAi = (bool)ai.GetValue(mount);
                 restoreRealtimeAi = () => { rider.IsAIEnabled = riderAi; mount.IsAIEnabled = mountAi; };
                 rider.IsAIEnabled = false; mount.IsAIEnabled = false;
+                if (RealtimeProjectile)
+                {
+                    realtimeWeapon = new Phase3dRangedWeaponLease(rider);
+                    realtimeWeapon.Acquire(Kingmaker.Enums.WeaponCategory.Longbow);
+                    Check(realtimeWeapon.IsReady, "RT-owned-native-ranged-equipment-before-combat");
+                }
                 if (RealtimeMounted) Check(relationship.MountRiderOn(rider, mount).Succeeded, "RT-source-mounted-before-combat");
                 controls.Update();
                 if (RealtimeMounted) BindOwnedControlSlots();
@@ -147,18 +167,29 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (realtimeProbe.RiderNonOpportunityAttackRuleCount < 2 || realtimeProbe.RiderResolvedCount < 2) return;
                 Check(realtimeProbe.PairForcedD20Count == 0, "RT-ordinary-attacks-have-native-rolls");
-                if (!RealtimeActiveAttack) StopRealtimePartyOrders();
+                if (!RealtimeActiveSave) StopRealtimePartyOrders();
                 Write("rt-repeated-attack-resolved", RealtimeObservation());
-                stage = RealtimeActiveAttack ? 20 : 3; return;
+                stage = RealtimeActiveSave ? 20 : 3; return;
             }
             if (stage == 20)
             {
-                var attack = rider.Commands.Raw.FirstOrDefault(c => c != null && c.IsRunning && !c.IsActed);
-                if (attack == null) return;
+                if (RealtimeProjectile)
+                {
+                    if (!NativeSaveEffectBoundary.CaptureUnresolvedProjectiles(game.ProjectileController).Any(p =>
+                        p.Launcher == rider && p.Target?.Unit == combatTarget && p.IsFromWeapon && !p.IsHit &&
+                        p.OnHitTrigger is Kingmaker.RuleSystem.Rules.RuleAttackWithWeaponResolve)) return;
+                    Check(realtimeProbe.RiderNonOpportunityAttackRuleCount == 3,
+                        "RT-native-third-projectile-launched-but-not-resolved");
+                }
+                else
+                {
+                    var attack = rider.Commands.Raw.FirstOrDefault(c => c != null && c.IsRunning && !c.IsActed);
+                    if (attack == null) return;
+                }
                 Check(realtimeProbe.RiderResolvedCount == 2 && realtimeProbe.PairForcedD20Count == 0,
                     "RT-request-during-next-native-attack-before-delivery");
                 realtimePreSaveResolved = realtimeProbe.RiderResolvedCount;
-                Write("rt-active-attack-save-request", RealtimeObservation());
+                Write(RealtimeProjectile ? "rt-projectile-save-request" : "rt-active-attack-save-request", RealtimeObservation());
                 RequestRealtimeSave();
                 Check(persistence.DeferredSaveCount == 1 && persistence.SnapshotCount == 0 &&
                     NativeDeferredSave.Waiting(LoadingProcess.Instance) &&
@@ -184,7 +215,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (stage == 4)
             {
-                if (RealtimeActiveAttack && NativeDeferredSave.Waiting(LoadingProcess.Instance) && !realtimeWaitObserved)
+                if (RealtimeActiveSave && NativeDeferredSave.Waiting(LoadingProcess.Instance) && !realtimeWaitObserved)
                 {
                     Write("rt-native-wait-started", RealtimeObservation());
                     realtimeWaitObserved = true;
@@ -197,7 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     !read.Data.Combat.TurnBased && read.Data.Mounted == RealtimeMounted &&
                     persistence.SnapshotCount == 1, "RT-actual-native-archive-contains-current-combat-debt");
                 ValidateRealtimeRemainder(read.Data);
-                if (RealtimeActiveAttack)
+                if (RealtimeActiveSave)
                     Check(realtimeWaitObserved && persistence.DeferredSaveCount == 1 &&
                         realtimeProbe.RiderResolvedCount == realtimePreSaveResolved + 1 &&
                         !NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
