@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool SaveSuspended => relationship.SaveSerializationSuspended;
         internal string Feedback { get; private set; } = "No mounted save has been loaded.";
         internal int SnapshotCount { get; private set; }
+        internal event Action SaveSnapshotStaged;
         internal int SemanticRestoreCount { get; private set; }
         internal int PresentationRestoreCount { get; private set; }
         internal MountedSaveData LoadedData => loaded?.Data;
@@ -111,6 +112,7 @@ namespace KingmakerMountedCombat.Integration
             scope.RestoreAi = relationship.Runtime.SuspendSerializedAiLease();
             NativeMountedSaveStorage.Stage(saver, scope.Json);
             SnapshotCount++;
+            SaveSnapshotStaged?.Invoke();
             logger.Info("Mounted immutable snapshot staged at native header barrier; capture=" + SnapshotCount + ".");
         }
 

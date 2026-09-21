@@ -181,6 +181,7 @@
     <Compile Include="Diagnostics\RuntimePersistenceScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAlternatingScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceRealtimeScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceApproachScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCombatScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCommitmentScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceRoundEffectScenario.cs" />

@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')][string]$NativeCase,
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -23,7 +23,7 @@ function Get-KmcPersistenceSource {
     if($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
-        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
+        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
@@ -121,6 +121,7 @@ function Assert-KmcRealtimePersistenceEvidence {
     param($Request,$Rows,$GameResult)
     $source=$Request.scenario-ceq'persistence-p04-save'
     $projectile=$Request.persistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)
+    $approach=$Request.persistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)
     $mounted=$Request.persistenceCase.StartsWith('mounted-',[StringComparison]::Ordinal)
     $state=if($mounted){'Mounted'}else{'Unmounted'}
     $initial=@($Rows|Where-Object kind -CEQ 'initial')
@@ -132,14 +133,14 @@ function Assert-KmcRealtimePersistenceEvidence {
             $row.relationship-cne$state-or$row.controls.DuplicateFactCount-ne0-or$row.native.tbSetting-ne$false-or
             $row.native.tbInitialized-ne$false){throw 'P04 native identity, mode or control invariant differs.'}
     }
-    $kind=if($source){'native-write-complete'}else{'rt-cold-debt-restored'}
+    $kind=if($source){'native-write-complete'}elseif($approach){'rt-cold-approach-restored'}else{'rt-cold-debt-restored'}
     $saved=@($Rows|Where-Object kind -CEQ $kind)
     if($saved.Count-ne1){throw 'P04 lacks actual selected native save metadata.'}
     $d=$saved[0].detail;$snapshot=$d.snapshot
     $activation=if($null-ne$snapshot.Combat.Paired){$snapshot.Combat.Paired.Activation}else{$null}
     $actor=@($snapshot.Combat.Actors|Where-Object {$_.Native.Id-ceq$initial[0].rider.Id})
     if($snapshot.Mounted-ne$mounted-or$snapshot.Combat.TurnBased-ne$false-or$actor.Count-ne1-or
-        $actor[0].Native.Standard-le0.1-or$null-ne$snapshot.Combat.Current-or$snapshot.Combat.Roster.Count-ne0-or
+        $(if($approach){$actor[0].Native.Standard-ne0}else{$actor[0].Native.Standard-le0.1})-or$null-ne$snapshot.Combat.Current-or$snapshot.Combat.Roster.Count-ne0-or
         $null-ne$activation-or$snapshot.CampaignId-cne$Request.fixture.working.gameId-or
         $snapshot.AreaId-cne$Request.fixture.working.area){throw 'P04 snapshot lost real-time spent state or invented a turn.'}
     if($source){
@@ -149,11 +150,28 @@ function Assert-KmcRealtimePersistenceEvidence {
             (Get-KmcSha256 $path)-cne$d.sha256-or(Get-Item -LiteralPath $path).Length-ne$d.length){
             throw 'P04 did not complete the actual native manual archive.'
         }
-        foreach($required in @('rt-repeated-attack-requested','rt-repeated-attack-resolved','rt-before-save','rt-native-save-requested')){
-            if(@($Rows|Where-Object kind -CEQ $required).Count-ne1){throw 'P04 native spent-action setup is incomplete.'}
+        $setup=if($approach){@('rt-approach-dispatched','rt-approach-save-request','rt-native-snapshot')}else{@('rt-repeated-attack-requested','rt-repeated-attack-resolved')}
+        foreach($required in ($setup+@('rt-before-save','rt-native-save-requested'))){
+            if(@($Rows|Where-Object kind -CEQ $required).Count-ne1){throw 'P04 native action setup is incomplete.'}
         }
-        $attacks=@($Rows|Where-Object kind -CEQ 'rt-repeated-attack-resolved')[0].detail
-        if($attacks.ordinaryAttacks-lt2-or$attacks.resolved-lt2-or$attacks.forcedD20-ne0){throw 'P04 requires two naturally rolled native attacks.'}
+        if($approach){
+            $requestRow=@($Rows|Where-Object kind -CEQ 'rt-approach-save-request')[0]
+            $barrier=@($Rows|Where-Object kind -CEQ 'rt-native-snapshot')[0]
+            foreach($row in @($requestRow,$barrier)){
+                if($row.detail.approach.moving-ne$true-or$row.detail.approach.travelled-lt0.5-or$row.detail.approach.remaining-le4-or
+                    $row.detail.resolved-ne0-or$row.detail.ordinaryAttacks-ne0-or$row.detail.inputRequests-ne1){
+                    throw 'P04 did not snapshot partial movement before its native attack started.'
+                }
+            }
+            if($barrier.gameTicks-ne$snapshot.GameTimeTicks-or$barrier.detail.snapshotCount-ne1-or
+                $barrier.detail.deferredSaves-ne0-or$barrier.controls.SerializationSuspended-ne$true-or
+                $requestRow.detail.snapshotCount-ne0-or$d.actual.resolved-ne0){
+                throw 'P04 approach did not retain the native partial-position snapshot boundary.'
+            }
+        }else{
+            $attacks=@($Rows|Where-Object kind -CEQ 'rt-repeated-attack-resolved')[0].detail
+            if($attacks.ordinaryAttacks-lt2-or$attacks.resolved-lt2-or$attacks.forcedD20-ne0){throw 'P04 requires two naturally rolled native attacks.'}
+        }
         if($projectile-or$Request.persistenceCase.EndsWith('-attack',[StringComparison]::Ordinal)){
             $activeKind=if($projectile){'rt-projectile-save-request'}else{'rt-active-attack-save-request'}
             $active=@($Rows|Where-Object kind -CEQ $activeKind)
@@ -180,6 +198,16 @@ function Assert-KmcRealtimePersistenceEvidence {
         if($initial[0].persistence.semantics-ne$snapshot.Combat.Actors.Count-or
             $initial[0].persistence.presentation-ne$(if($mounted){1}else{0})-or$initial[0].controls.NativeCastRequestCount-ne0){
             throw 'P04 cold restoration duplicated semantic state or replayed Mount.'
+        }
+    }
+    if($approach){
+        $first=@($Rows|Where-Object kind -CEQ 'rt-approach-first-delivery')
+        $continue=@($Rows|Where-Object kind -CEQ 'rt-approach-continuation')
+        if($first.Count-ne1-or$continue.Count-ne1-or$first[0].detail.resolved-ne1-or
+            $continue[0].detail.resolved-ne0-or$continue[0].detail.ordinaryAttacks-ne0-or
+            $first[0].detail.inputRequests-ne1-or$continue[0].detail.inputRequests-ne1-or
+            $first[0].detail.riderRounds-ne$continue[0].detail.riderRounds){
+            throw 'P04 approach continuation replayed input, attack or preparation.'
         }
     }
     $queued=@($Rows|Where-Object kind -CEQ 'rt-spent-attack-queued')
@@ -216,7 +244,7 @@ function Assert-KmcProjectileColdOutcome {
     }
 }
 
-function Assert-KmcProjectileColdSource {
+function Assert-KmcRealtimeColdSource {
     param([string]$SourceRunId,$Request)
     [void](Get-KmcPersistenceSource -SourceRunId $SourceRunId -ExpectedSha256 $Request.persistenceLoad.sha256 -Fixture $Request.fixture -NativeCase $Request.persistenceCase)
     $root=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$SourceRunId)
@@ -233,7 +261,29 @@ function Assert-KmcProjectileColdSource {
     }
     $sourceRows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     $coldRows=@(Get-Content -LiteralPath (Join-Path $Request.evidenceRoot 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
-    Assert-KmcProjectileColdOutcome $sourceRows $coldRows
+    if($Request.persistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)){
+        Assert-KmcApproachColdOutcome $sourceRows $coldRows
+    }else{Assert-KmcProjectileColdOutcome $sourceRows $coldRows}
+}
+
+function Assert-KmcApproachColdOutcome {
+    param($SourceRows,$ColdRows)
+    $barrier=@($SourceRows|Where-Object kind -CEQ 'rt-native-snapshot')
+    $loaded=@($ColdRows|Where-Object kind -CEQ 'rt-cold-approach-restored')
+    if($barrier.Count-ne1-or$loaded.Count-ne1-or$barrier[0].processId-eq$loaded[0].processId){
+        throw 'Approach comparison lacks its native snapshot and fresh cold process.'
+    }
+    $a=$barrier[0].detail;$b=$loaded[0].detail.actual
+    if($a.target-cne$b.target-or$a.targetDamage-ne$b.targetDamage-or$b.resolved-ne0-or$b.ordinaryAttacks-ne0-or
+        $b.inputRequests-ne0-or$b.unresolvedProjectiles-ne$false){
+        throw 'Cold approach lost its native outcome or replayed transient intent.'
+    }
+    foreach($name in @('riderPosition','mountPosition')){
+        if($a.$name.Count-ne3-or$b.$name.Count-ne3){throw 'Approach native positions are incomplete.'}
+        $dx=[double]$a.$name[0]-[double]$b.$name[0];$dz=[double]$a.$name[2]-[double]$b.$name[2]
+        if([double]::IsNaN($dx)-or[double]::IsInfinity($dx)-or[double]::IsNaN($dz)-or[double]::IsInfinity($dz)-or
+            [Math]::Sqrt($dx*$dx+$dz*$dz)-gt0.2){throw 'Cold approach lost the native saved horizontal position.'}
+    }
 }
 
 function Assert-KmcAlternatingPersistenceEvidence {

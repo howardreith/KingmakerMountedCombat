@@ -94,7 +94,7 @@ elseif ($schemaVersion -eq 2) {
         $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating')}else{@('manual','quick','auto','alternating')}
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
     }elseif($request.scenario-cin @('persistence-p04-save','persistence-p04-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')){throw 'P04 requires its exact native RT checkpoint.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')){throw 'P04 requires its exact native RT checkpoint.'}
     }elseif($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact native commitment case.'}
     }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or

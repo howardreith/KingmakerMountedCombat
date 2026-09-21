@@ -62,6 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.request = request; this.relationship = relationship; this.controls = controls;
             this.persistence = persistence; this.combat = combat; this.settings = settings; this.logger = logger;
             evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
+            if (RealtimeCase && RealtimeApproach && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
         }
 
         internal void Update()
@@ -369,6 +370,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
+            persistence.SaveSnapshotStaged -= ObserveApproachSnapshot;
             if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);

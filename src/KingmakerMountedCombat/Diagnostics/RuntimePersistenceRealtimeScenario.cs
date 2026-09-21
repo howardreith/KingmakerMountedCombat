@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool RealtimeActiveAttack => Checkpoint.EndsWith("-attack", StringComparison.Ordinal);
         private bool RealtimeProjectile => Checkpoint.EndsWith("-projectile", StringComparison.Ordinal);
         private bool RealtimeActiveSave => RealtimeActiveAttack || RealtimeProjectile;
+        private bool RealtimeApproach => Checkpoint.EndsWith("-approach", StringComparison.Ordinal);
+        private int realtimeInputRequests;
         private Phase3dRangedWeaponLease realtimeWeapon;
         private int realtimePreSaveResolved;
         private bool realtimeWaitObserved;
@@ -46,6 +48,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JObject RealtimeObservation() => new JObject {
             ["target"] = combatTarget?.UniqueId, ["targetDamage"] = combatTarget?.Damage,
+            ["riderPosition"] = RealtimePoint(rider), ["mountPosition"] = RealtimePoint(mount),
+            ["approach"] = RealtimeApproachObservation(), ["inputRequests"] = realtimeInputRequests,
             ["riderWeapon"] = rider?.GetFirstWeapon()?.Blueprint?.AssetGuid,
             ["riderRanged"] = rider?.GetFirstWeapon()?.Blueprint?.IsRanged,
             ["projectiles"] = new JArray(NativeSaveEffectBoundary.CaptureUnresolvedProjectiles(Game.Instance.ProjectileController)
@@ -65,7 +69,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["nativeCommands"] = new JArray(Game.Instance.State.Units.Where(u => u.IsInCombat).Select(u => new JObject {
                 ["actor"] = u.UniqueId, ["standard"] = u.CombatState.Cooldown.StandardAction,
                 ["raw"] = new JArray(u.Commands.Raw.Where(c => c != null).Select(c => new JObject {
-                    ["type"] = c.GetType().Name, ["started"] = c.IsStarted, ["acted"] = c.IsActed, ["finished"] = c.IsFinished })),
+                    ["type"] = c.GetType().Name, ["started"] = c.IsStarted, ["acted"] = c.IsActed, ["finished"] = c.IsFinished,
+                    ["nativeSequenceStarted"] = (c as MountedPairAttackCommand)?.NativeSequenceStarted })),
                 ["queue"] = new JArray(u.Commands.Queue.Select(c => c.GetType().Name)) })),
             ["savedTicks"] = realtimeSavedTicks, ["readyTicks"] = realtimeReadyTicks };
 
@@ -119,10 +124,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     BindRealtimeObservers();
                     ValidateRealtimeRemainder(data);
                     Write("initial", RealtimeObservation());
-                    Write("rt-cold-debt-restored", new JObject {
+                    Write(RealtimeApproach ? "rt-cold-approach-restored" : "rt-cold-debt-restored", new JObject {
                         ["snapshot"] = JObject.FromObject(data, MountedSaveCodec.CreateSerializer()),
                         ["actual"] = RealtimeObservation() });
-                    BeginRealtimeContinuation();
+                    if (RealtimeApproach) BeginApproachContinuation(); else BeginRealtimeContinuation();
                     return;
                 }
                 string error;
@@ -148,7 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (RealtimeMounted) BindOwnedControlSlots();
                 beforeControls = controls.CaptureSnapshot();
                 targetService = new DiagnosticCombatTargetService(logger);
-                combatTarget = targetService.Spawn(rider, mount, FindDestination(7f), request.RunId, true, false, true);
+                combatTarget = targetService.Spawn(rider, mount, FindDestination(RealtimeApproach ? 12f : 7f), request.RunId, true, false, true);
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
                     targetService.QueueBidirectionalCombatMemory(rider, combatTarget), "RT-native-unmounted-or-mounted-control-combat");
                 BindRealtimeObservers();
@@ -161,9 +166,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(!CombatController.IsInTurnBasedCombat(), "RT-native-combat-mode");
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
                     targetService.BeginExpectedAttackDispatch(combatTarget), "RT-owned-target-native-input-ready");
+                realtimeApproachOrigin = (RealtimeMounted ? mount : rider).Position;
                 QueueRealtimeAttack();
-                Write("rt-repeated-attack-requested", RealtimeObservation());
-                stage = 2; return;
+                Write(RealtimeApproach ? "rt-approach-dispatched" : "rt-repeated-attack-requested", RealtimeObservation());
+                stage = RealtimeApproach ? 21 : 2; return;
             }
             if (stage == 2)
             {
@@ -173,6 +179,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("rt-repeated-attack-resolved", RealtimeObservation());
                 stage = RealtimeActiveSave ? 20 : 3; return;
             }
+            if (stage == 21) { AdvanceApproachRequest(); return; }
+            if (stage == 22) { AdvanceApproachContinuation(); return; }
             if (stage == 20)
             {
                 if (RealtimeProjectile)
@@ -243,8 +251,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["path"] = save.FolderName, ["sha256"] = Hash(save.FolderName), ["length"] = new FileInfo(save.FolderName).Length,
                     ["nativeType"] = save.Type.ToString(), ["nativeCallback"] = callback, ["operation"] = save.OperationState.ToString(),
                     ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
-                    ["actual"] = RealtimeObservation() });
-                BeginRealtimeContinuation(); return;
+                    ["actual"] = RealtimeObservation(), ["barrier"] = realtimeApproachBarrier });
+                if (RealtimeApproach) BeginApproachContinuation(); else BeginRealtimeContinuation();
+                return;
             }
             if (stage == 10)
             {
@@ -305,7 +314,8 @@ namespace KingmakerMountedCombat.Diagnostics
             realtimeSavedTicks = data.GameTimeTicks;
             var elapsed = (game.TimeController.GameTime.Ticks - data.GameTimeTicks) / (double)TimeSpan.TicksPerSecond;
             var saved = data.Combat.Actors.Single(a => a.Native.Id == rider.UniqueId);
-            Check(saved.Native.Standard > 0.1f && rider.CombatState.Cooldown.StandardAction > 0 &&
+            Check((RealtimeApproach ? saved.Native.Standard == 0 && rider.CombatState.Cooldown.StandardAction == 0 :
+                saved.Native.Standard > 0.1f && rider.CombatState.Cooldown.StandardAction > 0) &&
                 data.Combat.Current == null && data.Combat.Roster.Length == 0 &&
                 data.Combat.Paired?.Activation == null && !game.TurnBasedCombatController.Initialized,
                 "RT-no-fresh-standard-or-turn-based-activation");
@@ -323,19 +333,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 controls.CaptureSnapshot().DuplicateFactCount == 0, "RT-exact-owned-controls-once");
         }
 
-        private void BeginRealtimeContinuation()
+        private void BeginRealtimeContinuation(bool issueInput = true)
         {
             realtimeAttackBaseline = realtimeProbe.RiderResolvedCount;
             realtimeRoundBaseline = realtimeRounds.Count;
             realtimeReadyTicks = Game.Instance.TimeController.GameTime.Ticks +
                 (long)(rider.CombatState.Cooldown.StandardAction * TimeSpan.TicksPerSecond);
-            QueueRealtimeAttack();
+            if (issueInput) QueueRealtimeAttack();
             Write("rt-spent-attack-queued", RealtimeObservation());
             stage = 10;
         }
 
         private void QueueRealtimeAttack()
         {
+            realtimeInputRequests++;
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             Game.Instance.DefaultPointerController.ClearPointerMode();
             using (var input = new NativeOrdinaryAttackInput(combatTarget))

@@ -156,7 +156,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alter
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase manual -Alternate} 'Alternate escaped its case'
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating} 'Primary accepted alternate hash'
 if((Get-KmcSha256 $path)-cne$hash-or(Get-KmcSha256 $alternatePath)-cne$alternateHash){throw 'Alternating source inspection changed inputs'};$passes++
-foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')){
+foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')){
     $result.scenario='persistence-p04-save';Write-KmcJsonAtomic $resultPath $result
     Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p04-save';persistenceCase=$case;transactionToken=('a'*64)})
     $rt=Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase $case
@@ -307,5 +307,40 @@ $coldActual.riderWeapon='bow';$coldActual.resolved=1
 Must-Reject {Assert-KmcProjectileColdOutcome $rtRows @($coldRow)} 'P04 accepted replayed cold resolution'
 $coldActual.resolved=0;$coldRow.processId=123
 Must-Reject {Assert-KmcProjectileColdOutcome $rtRows @($coldRow)} 'P04 accepted a warm projectile load'
+$rtRequest.persistenceCase='unmounted-approach'
+$rtSnapshot.Combat.Actors[0].Native.Standard=0
+$rtWrite.actual.resolved=0
+$approachActual=[pscustomobject]@{approach=[pscustomobject]@{moving=$true;travelled=0.7;remaining=10};
+    resolved=0;ordinaryAttacks=0;inputRequests=1;snapshotCount=0;deferredSaves=0;target='t';targetDamage=0;
+    riderPosition=@(1.0,2.0,3.0);mountPosition=@(2.0,2.0,3.0)}
+$approachRequest=New-RtProof 'rt-approach-save-request' 3 $approachActual
+$approachBarrier=New-RtProof 'rt-native-snapshot' 5 ($approachActual|ConvertTo-Json -Depth 8|ConvertFrom-Json)
+$approachBarrier.detail.snapshotCount=1
+$approachBarrier.controls|Add-Member -NotePropertyName SerializationSuspended -NotePropertyValue $true
+$approachRows=@($rtRows|Where-Object {$_.kind-cnotin @('rt-repeated-attack-requested','rt-repeated-attack-resolved')})
+foreach($row in $approachRows){$row.checkpoint=$rtRequest.persistenceCase}
+$approachRows+=@((New-RtProof 'rt-approach-dispatched' 1 $null),$approachRequest,$approachBarrier,
+    (New-RtProof 'rt-approach-continuation' 6 ([pscustomobject]@{resolved=0;ordinaryAttacks=0;inputRequests=1;riderRounds=0})),
+    (New-RtProof 'rt-approach-first-delivery' 6 ([pscustomobject]@{resolved=1;ordinaryAttacks=1;inputRequests=1;riderRounds=0})))
+Assert-KmcRealtimePersistenceEvidence $rtRequest $approachRows $proofGame;$passes++
+$approachBarrier.detail.approach.travelled=0
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $approachRows $proofGame} 'P04 accepted stationary approach evidence'
+$approachBarrier.detail.approach.travelled=0.7;$approachBarrier.detail.ordinaryAttacks=1
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $approachRows $proofGame} 'P04 approach accepted an already launched attack'
+$approachBarrier.detail.ordinaryAttacks=0;$approachBarrier.detail.deferredSaves=1
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $approachRows $proofGame} 'P04 approach silently changed native snapshot timing'
+$approachBarrier.detail.deferredSaves=0;$approachRows[-1].detail.inputRequests=2
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $approachRows $proofGame} 'P04 warm approach concealed discarded intent with new input'
+$approachRows[-1].detail.inputRequests=1
+$approachLoaded=[pscustomobject]@{kind='rt-cold-approach-restored';processId=456;detail=[pscustomobject]@{actual=[pscustomobject]@{
+    target='t';targetDamage=0;resolved=0;ordinaryAttacks=0;inputRequests=0;unresolvedProjectiles=$false;
+    riderPosition=@(1.0,2.0,3.0);mountPosition=@(2.0,2.0,3.0)}}}
+Assert-KmcApproachColdOutcome @($approachBarrier) @($approachLoaded);$passes++
+$approachLoaded.detail.actual.riderPosition[0]=0
+Must-Reject {Assert-KmcApproachColdOutcome @($approachBarrier) @($approachLoaded)} 'P04 cold movement returned to the origin'
+$approachLoaded.detail.actual.riderPosition[0]=1;$approachLoaded.detail.actual.inputRequests=1
+Must-Reject {Assert-KmcApproachColdOutcome @($approachBarrier) @($approachLoaded)} 'P04 injected cold approach before observation'
+$approachLoaded.detail.actual.inputRequests=0;$approachLoaded.processId=123
+Must-Reject {Assert-KmcApproachColdOutcome @($approachBarrier) @($approachLoaded)} 'P04 accepted a warm approach reload'
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

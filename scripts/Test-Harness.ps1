@@ -5089,7 +5089,7 @@ try {
     Invoke-HarnessTest 'P04 requires an explicit RT case and exact owned cold descriptor' {
         try{
             $f=$v2Request.fixture.working
-            foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile')){
+            foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')){
                 $v2Request.scenario='persistence-p04-save';$v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath

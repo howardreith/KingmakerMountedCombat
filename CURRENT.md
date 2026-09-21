@@ -7,6 +7,9 @@ Private ZIP `KingmakerMountedCombat-0.1.0-chunk5-preview.32-p04-compatible-proje
 All four processes exited/restored; last human preview54 restoration04:48:39.6247517Z. Installed DLL2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 verified/no game. Saves/settings/caches/foreign Mods and separate37/13 backups remain protected. Source31's failed incompatible Longbow fixture and frozen package remain historical;32 uses native stock eligibility/proficiency checks, without adding feats or cold equipment. This documentation checkpoint does not rebuild frozen32.
 
 Next: partial-approach native save/cold comparison. P03 conditions/split/suspension, remaining P05/P06/P07 failure/invalid/lifecycle/removal, P08 and consolidated exact-final P01–P08 remain mandatory. Earlier P01/P02/P03/idle and active RT/P05 causal evidence remains in the journal/report. Paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY TODO. No permanent installation/main merge/public release.
+
+Development33 adds only partial-approach qualification and an owned observation at the immutable native header barrier. It records moving actor positions and current debt before attack launch; same-session continuation must retain the original order without new input. Cold observation precedes new ordinary input and compares native horizontal positions/outcome to that barrier. Source22/0, components430/0, harness258/0, fixtures126/0 and native contracts75/0 PASS. DLL a867ca4c2c9e254fba91ad6960962ac513d1d20f8a306fe318d2c2150a87fe31/MVID a695a552-a0d8-4b5f-958f-bccb77ddf504. Production action/approach classification remains unchanged pending native evidence. Next freeze33/suite34, unmounted-approach save/load-A, then mounted comparison.
+
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
 
