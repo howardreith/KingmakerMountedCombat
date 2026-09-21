@@ -10,6 +10,9 @@ namespace KingmakerMountedCombat.Integration
     // another. A save barrier cannot infer completed effects from IsHit alone.
     internal static class NativeSaveEffectBoundary
     {
+        private static readonly System.Reflection.FieldInfo Active =
+            NativeCombatActorPersistence.Field(typeof(ProjectileController), "m_Projectiles",
+                0x04005E2B, typeof(HashSet<Projectile>));
         private static readonly System.Reflection.FieldInfo Pending =
             NativeCombatActorPersistence.Field(typeof(ProjectileController), "m_NewProjectiles",
                 0x04005E2C, typeof(List<Projectile>));
@@ -27,11 +30,13 @@ namespace KingmakerMountedCombat.Integration
         internal static bool HasUnresolvedProjectiles(ProjectileController controller)
         {
             if (controller == null) { Clear(); return false; }
-            // Finish this native iterator: its updating flag is reset only after
-            // full enumeration. Any/First directly on it would leave that flag set.
-            var active = controller.Projectiles.ToArray()
-                .Concat((List<Projectile>)Pending.GetValue(controller)).Distinct().ToArray();
-            return active.Any(p => !p.Cleared && !completed.TryGetValue(p, out var marker));
+            // Game-thread reads only. The public Projectiles iterator changes
+            // m_Updating, even when nested inside an existing native iteration.
+            return ((HashSet<Projectile>)Active.GetValue(controller)).Any(Unresolved)
+                || ((List<Projectile>)Pending.GetValue(controller)).Any(Unresolved);
         }
+
+        private static bool Unresolved(Projectile projectile) =>
+            !projectile.Cleared && !completed.TryGetValue(projectile, out var marker);
     }
 }

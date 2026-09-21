@@ -78,7 +78,16 @@ public static class KmcPersistenceContractProbe
         projectileType.GetProperty("IsHit").GetSetMethod(true).Invoke(q,new object[]{true});
         SetMember(p,"Cleared",true);
         Check((bool)read.Invoke(null,new[]{controller}) && !(bool)updating.GetValue(controller),
-            "arrival is not delivery and complete native enumeration restores its updating flag");
+            "arrival is not delivery and save admission leaves the native updating flag unchanged");
+        var enumerable=(System.Collections.IEnumerable)controllerType.GetProperty("Projectiles").GetValue(controller,null);
+        var outer=enumerable.GetEnumerator();
+        try
+        {
+            Check(outer.MoveNext() && (bool)updating.GetValue(controller),"native outer projectile iteration is active");
+            Check((bool)read.Invoke(null,new[]{controller}) && (bool)updating.GetValue(controller),
+                "nested save admission must preserve the native outer projectile iteration");
+        }
+        finally { while(outer.MoveNext()) { } var disposable=outer as IDisposable; if(disposable!=null) disposable.Dispose(); }
         mark.Invoke(null,new[]{q});mark.Invoke(null,new[]{q});
         Check(!(bool)read.Invoke(null,new[]{controller}) && !(bool)updating.GetValue(controller),
             "completed delivery is idempotent and need not wait for visual particle expiry");
