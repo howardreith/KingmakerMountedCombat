@@ -584,7 +584,8 @@ function Assert-KmcConditionPreparationEvidence {
     }
     $r=$request[0].detail;$w=$wait[0].detail;$b=$barrier[0].detail
     if($r.nativePreparing-ne$true-or$r.commandPresent-ne$false-or$r.snapshotCount-ne0-or
-        $w.waiting-ne$true-or$w.deferredSaves-ne1-or$w.snapshotCount-ne0-or
+        $w.waiting-ne$true-or$w.ownedPreparationStart-ne$true-or$w.unownedOrdinaryStart-ne$false-or
+        $w.deferredSaves-ne1-or$w.snapshotCount-ne0-or
         $w.condition.command.type-cne'Kingmaker.UnitLogic.Commands.UnitSelfHarm'-or
         $w.condition.command.ignoreCooldown-ne$false-or$b.snapshotCount-ne0-or$b.deferredSaves-ne1-or
         $b.condition.command.started-ne$true-or$b.condition.command.finished-ne$true-or

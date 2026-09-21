@@ -28,7 +28,8 @@ $prefs=Get-KmcPersistencePlayerPrefs
 if((Get-KmcSha256 $snapshot.paramsPath)-cne$CurrentParamsSha256-or(Get-KmcTextSha256 $prefs)-cne$CurrentPrefsSha256){
     throw 'Current settings differ from the exact reviewed recovery pins.'
 }
-[void]@(Get-KmcPersistencePreferenceChanges -BeforeJson $snapshot.playerPrefsJson -AfterJson $prefs)
+Assert-KmcObservedPreparationTimeoutRecord $RunId
+[void]@(Get-KmcPersistencePreferenceChanges -BeforeJson $snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $RunId)
 $original=Join-Path $backups ('profile-'+$RunId+'/Params.xml')
 Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath))
 if(-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){

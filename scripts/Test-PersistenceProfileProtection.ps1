@@ -49,5 +49,16 @@ try{
     $rejected=$false
     try{Assert-KmcNativeUmmStartupDelta $original ($after.Replace('Enabled="true"','Enabled="false"'))}catch{$rejected=$true}
     if(!$rejected){throw 'Unrelated UMM value accepted.'};$passes++
+    $known='20260921-chunk5-P03-condition-preparing-save-A'
+    $old=[pscustomobject]@{name='EternalKingdom_h3591390253';kind='Binary';value='RmFsc2UA'}
+    $new=[pscustomobject]@{name=$old.name;kind='Binary';value='VHJ1ZQA='}
+    if(-not(Test-KmcObservedPreparationResetPreference $known $old $new)){throw 'Exact attributed reset was not recognized.'};$passes++
+    if(Test-KmcObservedPreparationResetPreference 'other-run' $old $new){throw 'Another run can use the one-run reset recovery.'};$passes++
+    $new.value='RmFsc2UA'
+    if(Test-KmcObservedPreparationResetPreference $known $old $new){throw 'Unobserved reset value accepted.'};$passes++
+    $new.value='VHJ1ZQA=';$old.kind='String'
+    if(Test-KmcObservedPreparationResetPreference $known $old $new){throw 'Unobserved reset type accepted.'};$passes++
+    $old.kind='Binary';$old.name='Unrelated';$new.name='Unrelated'
+    if(Test-KmcObservedPreparationResetPreference $known $old $new){throw 'Unrelated key accepted by reset recovery.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}

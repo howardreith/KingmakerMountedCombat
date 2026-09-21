@@ -319,6 +319,7 @@ namespace KingmakerMountedCombat.Integration
             internal static bool SaveCommandStartPrefix(UnitCommand __instance) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 (PatchBridge.Persistence?.Enabled != true || NativeSaveEffectBoundary.MayStartDuringWait(__instance) ||
+                 PatchBridge.UnifiedTurn?.MayStartNativePreparationDuringSave(__instance) == true ||
                  !NativeDeferredSave.Waiting(LoadingProcess.Instance)) &&
                 ChargeExecutionPrefix(__instance);
 

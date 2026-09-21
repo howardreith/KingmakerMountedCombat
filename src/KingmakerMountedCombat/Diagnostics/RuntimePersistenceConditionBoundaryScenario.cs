@@ -44,8 +44,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 conditionWaitObserved = true;
                 conditionCommand = mount.Get<UnitPartConfusion>()?.Cmd;
+                var unowned = new Kingmaker.UnitLogic.Commands.UnitAttack(combatTarget);
+                unowned.Init(mount); // Query only: never queued or started.
+                var ownedStart = combat.MayStartNativePreparationDuringSave(conditionCommand);
+                var otherStart = combat.MayStartNativePreparationDuringSave(unowned);
+                Check(ownedStart && !otherStart && !combat.MayStartNativePreparationDuringSave(null),
+                    "P03-save-wait-admits-only-the-exact-owned-preparation-command");
                 Write("condition-preparation-wait", new JObject {
-                    ["waiting"] = true, ["deferredSaves"] = persistence.DeferredSaveCount,
+                    ["waiting"] = true, ["ownedPreparationStart"] = ownedStart, ["unownedOrdinaryStart"] = otherStart,
+                    ["deferredSaves"] = persistence.DeferredSaveCount,
                     ["snapshotCount"] = persistence.SnapshotCount, ["condition"] = ConditionObservation()
                 });
             }
@@ -85,7 +92,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 (int)conditionLease.Evidence["choiceOverrides"] == 1 &&
                 mount.Damage > conditionOriginalDamage && combat.PairedActorEnded(mount) && !combat.PairedActorEnded(rider) &&
                 ReferenceEquals(Game.Instance.TurnBasedCombatController.CurrentTurn, savedBoundary) &&
-                relationship.State == Domain.RelationshipState.Unmounted && PairIdle &&
+                relationship.State == Domain.RelationshipState.Unmounted && persistence.SaveEffectsReady() &&
                 rider.CombatState.Cooldown.StandardAction == 0 && rider.CombatState.Cooldown.MoveAction == 0,
                 "P03-native-condition-forfeits-only-mount-and-retains-principal");
             conditionSavedDamage = mount.Damage;

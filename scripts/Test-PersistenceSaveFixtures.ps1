@@ -452,7 +452,7 @@ Must-Reject {Assert-KmcConditionColdOutcome $conditionRows @($conditionCold)} 'P
 $preparationRequest=New-ConditionProof 'condition-preparation-save-request' ([pscustomobject]@{
  nativePreparing=$true;commandPresent=$false;snapshotCount=0})
 $preparationWait=New-ConditionProof 'condition-preparation-wait' ([pscustomobject]@{
- waiting=$true;deferredSaves=1;snapshotCount=0;condition=[pscustomobject]@{
+ waiting=$true;ownedPreparationStart=$true;unownedOrdinaryStart=$false;deferredSaves=1;snapshotCount=0;condition=[pscustomobject]@{
  command=[pscustomobject]@{type='Kingmaker.UnitLogic.Commands.UnitSelfHarm';ignoreCooldown=$false}}})
 $preparationBarrier=New-ConditionProof 'condition-preparation-barrier' ([pscustomobject]@{
  snapshotCount=0;deferredSaves=1;condition=[pscustomobject]@{
@@ -464,7 +464,9 @@ $preparationRequest.detail.commandPresent=$true
 Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 preparation request occurred after command creation'
 $preparationRequest.detail.commandPresent=$false;$preparationWait.detail.snapshotCount=1
 Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 serialized before preparation completed'
-$preparationWait.detail.snapshotCount=0;$preparationBarrier.detail.condition.command.finished=$false
+$preparationWait.detail.snapshotCount=0;$preparationWait.detail.unownedOrdinaryStart=$true
+Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 preparation wait permitted an unowned ordinary attack'
+$preparationWait.detail.unownedOrdinaryStart=$false;$preparationBarrier.detail.condition.command.finished=$false
 Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 preparation barrier abandoned a native command'
 $preparationBarrier.detail.condition.command.finished=$true;$preparationBarrier.detail.condition.mountEnded=$false
 Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 preparation barrier lost native forfeiture'

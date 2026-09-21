@@ -151,6 +151,7 @@ namespace KingmakerMountedCombat.Integration
         internal long PairedActivationSequence => unifiedTurn.ActivationSequence;
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);
         internal bool PairedActorEnded(UnitEntityData actor) => unifiedTurn.PairedActorEnded(actor);
+        internal bool MayStartNativePreparationDuringSave(UnitCommand command) => unifiedTurn.MayStartNativePreparationDuringSave(command);
         internal TurnController PairedPartnerContext => unifiedTurn.PartnerContext;
         internal bool PairedPartnerCanGetUp => unifiedTurn.PartnerCanGetUp;
 

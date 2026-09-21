@@ -76,8 +76,28 @@ function Assert-KmcPersistenceProfileUnchanged {
     return $true
 }
 
+# One observed owned LoadGameException reset changed this exact boolean.
+# Normal runs retain the original three-key startup contract.
+function Test-KmcObservedPreparationResetPreference {
+    param([string]$RunId,$Before,$After)
+    return $RunId-ceq'20260921-chunk5-P03-condition-preparing-save-A'-and
+        $Before.name-ceq'EternalKingdom_h3591390253'-and$After.name-ceq$Before.name-and
+        $Before.kind-ceq'Binary'-and$After.kind-ceq'Binary'-and
+        $Before.value-ceq'RmFsc2UA'-and$After.value-ceq'VHJ1ZQA='
+}
+
+function Assert-KmcObservedPreparationTimeoutRecord {
+    param([string]$RunId)
+    if($RunId-cne'20260921-chunk5-P03-condition-preparing-save-A'){return}
+    $path=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$RunId+'/runtime-game-result.json')
+    Assert-KmcRecoveryLeafNoLinks $path 'owned preparation failure evidence'
+    if((Get-KmcSha256 $path)-cne'ed6919f6ee3ec26fa2d9eea2db91c2247722ec47fab32948460a65b9fc03157c'){
+        throw 'Exact attributed preparation failure evidence differs.'
+    }
+}
+
 function Get-KmcPersistencePreferenceChanges {
-    param([string]$BeforeJson,[string]$AfterJson)
+    param([string]$BeforeJson,[string]$AfterJson,[string]$ObservedResetRunId)
     $before=ConvertFrom-Json -InputObject $BeforeJson
     $after=ConvertFrom-Json -InputObject $AfterJson
     if(@($before).Count-ne@($after).Count){throw 'PlayerPrefs key set changed; automatic restoration refused.'}
@@ -86,8 +106,11 @@ function Get-KmcPersistencePreferenceChanges {
         if($matches.Count-ne1){throw 'PlayerPrefs key identity is ambiguous.'}
         $new=$matches[0]
         if(($old|ConvertTo-Json -Depth 8 -Compress)-ceq($new|ConvertTo-Json -Depth 8 -Compress)){continue}
-        if($old.name-cnotin@('KingdomDifficulty_h4200925179','unity.player_session_count_h922449978','unity.player_sessionid_h1351336811')-or
-            $old.kind-cne'Binary'-or$new.kind-cne'Binary'){throw 'PlayerPrefs delta is outside the observed native startup changes.'}
+        $ownedReset=Test-KmcObservedPreparationResetPreference $ObservedResetRunId $old $new
+        if(($old.name-cnotin@('KingdomDifficulty_h4200925179','unity.player_session_count_h922449978','unity.player_sessionid_h1351336811')-and
+            -not$ownedReset)-or$old.kind-cne'Binary'-or$new.kind-cne'Binary'){
+            throw 'PlayerPrefs delta is outside the observed native startup changes.'
+        }
         [void][Convert]::FromBase64String([string]$old.value)
         [void][Convert]::FromBase64String([string]$new.value)
         [pscustomobject]@{name=[string]$old.name;before=[string]$old.value;after=[string]$new.value}
@@ -129,12 +152,13 @@ function Restore-KmcPersistenceStartupSettings {
     }
     $profile=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
     if((Get-KmcPersistenceProfileDigest $profile)-cne$Snapshot.profileDigest){throw 'Profile/cache bytes changed outside the startup settings seam.'}
-    $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs)
+    Assert-KmcObservedPreparationTimeoutRecord $Snapshot.runId
+    $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
     if($restoreParams){
         Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams))
     }
-    if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and three observed native startup preference keys',
+    if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     if((Get-KmcSha256 $expectedParams)-cne$paramsHash-or(Get-KmcPersistencePlayerPrefs)-cne$prefs){
