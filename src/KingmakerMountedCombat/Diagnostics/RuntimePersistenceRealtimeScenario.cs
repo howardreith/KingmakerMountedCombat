@@ -124,6 +124,7 @@ namespace KingmakerMountedCombat.Diagnostics
                             "RT-native-saved-ranged-equipment-without-replay-or-cold-equip");
                     BindRealtimeObservers();
                     if (RealtimeCasting) BindNativeCasting();
+                    if (RealtimeCasting) Write("rt-cold-state-observed", DescribeRealtimeSnapshot(data));
                     ValidateRealtimeRemainder(data);
                     Write("initial", RealtimeObservation());
                     Write(RealtimeApproach ? "rt-cold-approach-restored" : "rt-cold-debt-restored", new JObject {
@@ -244,6 +245,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(read.Kind == MountedSaveReadKind.Current && read.Data.Combat != null &&
                     !read.Data.Combat.TurnBased && read.Data.Mounted == RealtimeMounted &&
                     persistence.SnapshotCount == 1, "RT-actual-native-archive-contains-current-combat-debt");
+                if (RealtimeCasting) Write("rt-native-write-observed", DescribeRealtimeSnapshot(read.Data));
                 ValidateRealtimeRemainder(read.Data);
                 if (RealtimeCasting)
                     Check(realtimeWaitObserved && persistence.DeferredSaveCount == 1 && CastingHealCount == 1 &&
@@ -319,6 +321,27 @@ namespace KingmakerMountedCombat.Diagnostics
             realtimeProbe = new Phase3dCombatRuleProbe(rider, mount);
             realtimeProbe.Arm(combatTarget, false);
             realtimeRounds = new RealtimeRoundProbe(rider);
+        }
+
+        private JObject DescribeRealtimeSnapshot(MountedSaveData data)
+        {
+            var elapsed = (Game.Instance.TimeController.GameTime.Ticks - data.GameTimeTicks) /
+                (double)TimeSpan.TicksPerSecond;
+            return new JObject {
+                ["snapshot"] = JObject.FromObject(data, MountedSaveCodec.CreateSerializer()),
+                ["actual"] = RealtimeObservation(), ["elapsed"] = elapsed,
+                ["actors"] = new JArray(data.Combat.Actors.Select(saved => {
+                    var actor = Game.Instance.State.Units.Single(u => u.UniqueId == saved.Native.Id);
+                    var actual = MountedPersistenceService.CaptureActor(actor);
+                    return new JObject {
+                        ["id"] = actor.UniqueId, ["savedPrepared"] = saved.Prepared,
+                        ["prepared"] = actor.CombatState.Prepared, ["savedCombat"] = saved.InCombat,
+                        ["combat"] = actor.IsInCombat, ["saved"] = JObject.FromObject(saved.Native, MountedSaveCodec.CreateSerializer()),
+                        ["actual"] = JObject.FromObject(actual, MountedSaveCodec.CreateSerializer()),
+                        ["legitimate"] = LegitimateContinuation(saved.Native, actual, elapsed)
+                    };
+                }))
+            };
         }
 
         private void ValidateRealtimeRemainder(MountedSaveData data)

@@ -62,7 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.request = request; this.relationship = relationship; this.controls = controls;
             this.persistence = persistence; this.combat = combat; this.settings = settings; this.logger = logger;
             evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
-            if (RealtimeCase && RealtimeApproach && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
+            if (RealtimeCase && (RealtimeApproach || RealtimeCasting) && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
         }
 
         internal void Update()
