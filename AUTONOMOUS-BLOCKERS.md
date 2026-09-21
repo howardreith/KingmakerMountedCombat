@@ -1,6 +1,8 @@
-# Active Chunk 5 - 2026-09-20
+# Active Chunk 5 — owner-requested stop, 2026-09-21 UTC
 
-IN PROGRESS. No critical hard stop. The owner approved the DLL-only5 MiB capacity change; harness253/0 and package11/0 pass with all other guards retained. P01-save-D passes23/0 and fresh-process P01-load-B passes20/0 native plus outer PASS: same pair/controls and ordinary movement/attack, no runner gameplay injection. Actual human preview.54 and data restored20:19:07.2823584Z; no game/lock remains. P02 combat/action/participation rehydration is next. P01 exact-final rerun and P02-P08 remain mandatory. [Single report](docs/CHUNK5-PERSISTENCE.md).
+IN PROGRESS; no critical hard stop is proven. The owner requested a quota stopping point after preview57. Last native area-reload source FAIL9/1 on a requirement that both cross-scene party views be replaced; the pair/controls had restored, but post-area writing and cold continuation were not reached. Native cross-scene destruction is conditional; retain this failed evidence and obtain post-reload view IDs/call-site semantics before repair. No additional run is authorized by this stop.
+
+Actual human54 and current data/settings/caches/foreign Mods restored12:33:37.2983296UTC; no game/lock. [Single report](docs/CHUNK5-PERSISTENCE.md) and [resume pointer](AUTONOMOUS-RESUME.md) retain the exact next action and mandatory remaining gates. The approved DLL-only5 MiB limit remains the sole capacity exception.
 
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
