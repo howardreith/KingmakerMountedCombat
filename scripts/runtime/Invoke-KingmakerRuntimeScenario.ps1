@@ -38,7 +38,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','manual','quick','auto','manual-renamed','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','manual','quick','auto','manual-renamed','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -76,8 +76,8 @@ if($Scenario -cin @('persistence-p05-save','persistence-p05-load')){
     if($PersistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
 }elseif($PersistenceCase-cin @('manual','quick','auto','manual-renamed','alternating')){throw 'P05 slot category cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p04-save','persistence-p04-load')){
-    if($PersistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')){throw 'P04 requires its exact native RT checkpoint.'}
-}elseif($PersistenceCase-cin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')){throw 'P04 checkpoint cannot run under another scenario.'}
+    if($PersistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
+}elseif($PersistenceCase-cin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 checkpoint cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p03-save','persistence-p03-load')){
     if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
 }elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction')){throw 'P03 checkpoint cannot run under another scenario.'}
@@ -487,7 +487,7 @@ try{
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
         if($gamePassed-and$Scenario-ceq'persistence-p04-load'-and(
-            $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal))){
+            $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)-or$PersistenceCase.EndsWith('-casting',[StringComparison]::Ordinal))){
             Assert-KmcRealtimeColdSource -SourceRunId $PersistenceSourceRunId -Request $request
         }
         if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}

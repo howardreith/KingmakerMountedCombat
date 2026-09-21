@@ -25,7 +25,8 @@ namespace KingmakerMountedCombat.Integration
             return !unifiedTurn.HasUnsettledPreparation &&
                 !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
                     .Any(NativeSaveEffectBoundary.CommandNeedsSettlement)) &&
-                !NativeSaveEffectBoundary.HasUnresolvedProjectiles();
+                !NativeSaveEffectBoundary.HasUnresolvedProjectiles() &&
+                !NativeSaveEffectBoundary.HasUnresolvedAbilities();
         }
 
         private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine)

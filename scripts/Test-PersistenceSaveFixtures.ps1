@@ -156,7 +156,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alter
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase manual -Alternate} 'Alternate escaped its case'
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating} 'Primary accepted alternate hash'
 if((Get-KmcSha256 $path)-cne$hash-or(Get-KmcSha256 $alternatePath)-cne$alternateHash){throw 'Alternating source inspection changed inputs'};$passes++
-foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')){
+foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){
     $result.scenario='persistence-p04-save';Write-KmcJsonAtomic $resultPath $result
     Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p04-save';persistenceCase=$case;transactionToken=('a'*64)})
     $rt=Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase $case
@@ -342,5 +342,46 @@ $approachLoaded.detail.actual.riderPosition[0]=1;$approachLoaded.detail.actual.i
 Must-Reject {Assert-KmcApproachColdOutcome @($approachBarrier) @($approachLoaded)} 'P04 injected cold approach before observation'
 $approachLoaded.detail.actual.inputRequests=0;$approachLoaded.processId=123
 Must-Reject {Assert-KmcApproachColdOutcome @($approachBarrier) @($approachLoaded)} 'P04 accepted a warm approach reload'
+# Casting evidence has no injected health/slot data in the native request.
+$rtRequest.persistenceCase='unmounted-casting'
+$castBefore=[pscustomobject]@{caster='c';subject='m';blueprint='heal';slotCount=1;availableSlots=1;slotAvailable=$true;
+    spellAvailable=$true;inputs=1;heals=0;damage=3;standard=0;
+    commands=@([pscustomobject]@{blueprint='heal';started=$true;acted=$false;finished=$false})}
+$castAfter=[pscustomobject]@{caster='c';subject='m';blueprint='heal';slotCount=1;availableSlots=0;slotAvailable=$false;
+    spellAvailable=$false;inputs=1;heals=1;damage=0;standard=4;commands=@()}
+$castRequest=New-RtProof 'rt-casting-save-request' 3 ([pscustomobject]@{casting=$castBefore;snapshotCount=0})
+$castWait=New-RtProof 'rt-native-wait-started' 4 ([pscustomobject]@{nativeSaveWaiting=$true;snapshotCount=0;deferredSaves=1})
+$castActual=[pscustomobject]@{casting=$castAfter;inputRequests=0;resolved=0;deferredSaves=1;snapshotCount=1;
+    unresolvedAbilities=$false;unresolvedProjectiles=$false}
+$rtSnapshot.Combat.Actors=@([pscustomobject]@{Native=[pscustomobject]@{Id='r';Standard=0}},[pscustomobject]@{Native=[pscustomobject]@{Id='c';Standard=4}})
+$rtWrite.actual=$castActual
+$castingRows=@($rtRows|Where-Object {$_.kind-cnotin @('rt-repeated-attack-requested','rt-repeated-attack-resolved')})
+foreach($row in $castingRows){$row.checkpoint=$rtRequest.persistenceCase}
+$castingRows+=@((New-RtProof 'rt-casting-input' 1 $null),$castRequest,$castWait,
+    (New-RtProof 'rt-casting-continuation' 6 ([pscustomobject]@{resolved=0;casting=$castAfter})),
+    (New-RtProof 'rt-casting-first-delivery' 6 ([pscustomobject]@{resolved=1;inputRequests=1;casting=$castAfter})))
+Assert-KmcRealtimePersistenceEvidence $rtRequest $castingRows $proofGame;$passes++
+$castAfter.heals=2
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $castingRows $proofGame} 'P04 duplicated a spell effect before saving'
+$castAfter.heals=1;$castAfter.availableSlots=1
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $castingRows $proofGame} 'P04 refunded the native spell slot'
+$castAfter.availableSlots=0;$castActual.unresolvedAbilities=$true
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $castingRows $proofGame} 'P04 erased an unfinished native spell process'
+$castActual.unresolvedAbilities=$false;$castBefore.commands[0].acted=$true
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $castingRows $proofGame} 'P04 cast request occurred after delivery'
+$castBefore.commands[0].acted=$false
+$castCold=New-RtProof 'rt-cold-debt-restored' 6 ([pscustomobject]@{actual=($castActual|ConvertTo-Json -Depth 10|ConvertFrom-Json)})
+$castCold.processId=456;$castCold.detail.actual.casting.inputs=0;$castCold.detail.actual.casting.heals=0
+$castWrite=@($castingRows|Where-Object kind -CEQ 'native-write-complete')
+Assert-KmcCastingColdOutcome $castWrite @($castCold);$passes++
+$castCold.detail.actual.casting.damage=3
+Must-Reject {Assert-KmcCastingColdOutcome $castWrite @($castCold)} 'P04 lost native healing on cold load'
+$castCold.detail.actual.casting.damage=0;$castCold.detail.actual.casting.availableSlots=1
+Must-Reject {Assert-KmcCastingColdOutcome $castWrite @($castCold)} 'P04 cold reconstructed a consumed slot'
+$castCold.detail.actual.casting.availableSlots=0;$castCold.detail.actual.casting.heals=1
+Must-Reject {Assert-KmcCastingColdOutcome $castWrite @($castCold)} 'P04 cold replayed healing'
+$castCold.detail.actual.casting.heals=0;$castCold.processId=123
+Must-Reject {Assert-KmcCastingColdOutcome $castWrite @($castCold)} 'P04 accepted warm casting reload'
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

@@ -66,6 +66,29 @@ public static class KmcPersistenceContractProbe
         public void Reset() { throw new NotSupportedException(); }
         public void Dispose() { Disposals++; if(FailDispose) throw new InvalidOperationException("owned disposal"); }
     }
+    private static void VerifyNativeAbilitySettlement(Assembly native, Assembly candidate)
+    {
+        var controllerType=native.GetType("Kingmaker.Controllers.AbilityExecutionController",true);
+        var processType=native.GetType("Kingmaker.Controllers.AbilityExecutionProcess",true);
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+        var field=controllerType.GetField("m_Abilities",flags);
+        var controller=Activator.CreateInstance(controllerType);
+        var list=(System.Collections.IList)field.GetValue(controller);
+        var adapter=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveEffectBoundary",true);
+        var read=adapter.GetMethod("HasUnresolvedAbilities",BindingFlags.Static|BindingFlags.NonPublic,null,new[]{controllerType},null);
+        Check(field.MetadataToken==0x04005D50 && !(bool)read.Invoke(null,new[]{controller}),
+            "exact native empty ability controller is save-safe");
+        var process=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(processType);
+        list.Add(process);
+        Check((bool)read.Invoke(null,new[]{controller}),"native ability effect remains unsettled without any live command");
+        Check(list.Count==1 && object.ReferenceEquals(list[0],process) && processType.GetField("m_Process",flags).GetValue(process)==null,
+            "save admission does not enumerate or retire native ability effects");
+        processType.GetProperty("IsEnded").GetSetMethod(true).Invoke(process,new object[]{true});
+        Check(!(bool)read.Invoke(null,new[]{controller}),"completed native ability awaiting controller retirement permits a save");
+        list.Add(System.Runtime.Serialization.FormatterServices.GetUninitializedObject(processType));
+        Check((bool)read.Invoke(null,new[]{controller}),"a second unfinished native spell cannot hide behind a completed process");
+    }
+
     private static void VerifyNativeDeferredOwner(Assembly native, Assembly candidate)
     {
         var ownerType=native.GetType("Kingmaker.EntitySystem.Persistence.LoadingProcess",true);
@@ -327,6 +350,7 @@ public static class KmcPersistenceContractProbe
             Check(startChanges==1 && startIndex==startOps.Count && gotInserted,
                 "real native activation rewrite changes only screen admission; queue owner, callbacks and timers retained");
             VerifyNativeDeferredOwner(native,candidate);
+            VerifyNativeAbilitySettlement(native,candidate);
             var saveGate=native.ManifestModule.ResolveMethod(0x06008028);
             var saveInstructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{saveGate,null});
             var saveLegacy=(System.Collections.IList)Activator.CreateInstance(listType);

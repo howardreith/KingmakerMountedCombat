@@ -8,6 +8,8 @@ All four owned processes exited and restored actual intake; last2026-09-21T05:23
 
 Next: native casting save/cold comparison and exact ability-execution settlement seam. P03 condition/split/suspension, remaining P05 overlap, P06 invalid/legacy, P07 recovery/lifecycle/removal, P08 and one consolidated exact-final P01–P08 suite remain mandatory. Earlier causal evidence and failed hypotheses remain in the journal. Paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY TODO. No permanent installation/main merge/public release.
 
+Preview35 adds a bounded native Cure Light Wounds save/cold comparison using the fixture's actual prepared spell. Source wounds only the disposable mount through a native damage rule and submits native selected-ability input; cold code never adds health, spells, slots or actors. The verified native ability execution list (AbilityExecutionController.m_Abilities04005D50) must contain no unfinished process at the snapshot, since spell delivery can outlive UnitUseAbility. Existing command/projectile/debt rules stay intact. Build/source22/0, components430/0, installed assembly/storage84/0, owned fixtures144/0 and harness258/0 PASS. Native35 remains TODO. Next freeze35/suite36, unmounted-casting save/load-A, then mounted comparison. Last human54 restoration05:23:34.0383290Z; no game/transaction.
+
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
 

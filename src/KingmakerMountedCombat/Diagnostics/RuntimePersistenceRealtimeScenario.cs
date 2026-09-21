@@ -18,7 +18,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool RealtimeMounted => Checkpoint.StartsWith("mounted-", StringComparison.Ordinal);
         private bool RealtimeActiveAttack => Checkpoint.EndsWith("-attack", StringComparison.Ordinal);
         private bool RealtimeProjectile => Checkpoint.EndsWith("-projectile", StringComparison.Ordinal);
-        private bool RealtimeActiveSave => RealtimeActiveAttack || RealtimeProjectile;
+        private bool RealtimeActiveSave => RealtimeActiveAttack || RealtimeProjectile || RealtimeCasting;
         private bool RealtimeApproach => Checkpoint.EndsWith("-approach", StringComparison.Ordinal);
         private int realtimeInputRequests;
         private Phase3dRangedWeaponLease realtimeWeapon;
@@ -49,7 +49,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject RealtimeObservation() => new JObject {
             ["target"] = combatTarget?.UniqueId, ["targetDamage"] = combatTarget?.Damage,
             ["riderPosition"] = RealtimePoint(rider), ["mountPosition"] = RealtimePoint(mount),
-            ["approach"] = RealtimeApproachObservation(), ["inputRequests"] = realtimeInputRequests,
+            ["approach"] = RealtimeApproachObservation(), ["casting"] = CastingObservation(), ["inputRequests"] = realtimeInputRequests,
             ["riderWeapon"] = rider?.GetFirstWeapon()?.Blueprint?.AssetGuid,
             ["riderRanged"] = rider?.GetFirstWeapon()?.Blueprint?.IsRanged,
             ["projectiles"] = new JArray(NativeSaveEffectBoundary.CaptureUnresolvedProjectiles(Game.Instance.ProjectileController)
@@ -63,6 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["rules"] = realtimeProbe?.CapturePairEvidence(),
             ["riderCommandsEmpty"] = rider?.Commands.Empty, ["mountCommandsEmpty"] = mount?.Commands.Empty,
             ["unresolvedProjectiles"] = NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
+            ["unresolvedAbilities"] = NativeSaveEffectBoundary.HasUnresolvedAbilities(),
             ["deferredSaves"] = persistence.DeferredSaveCount, ["snapshotCount"] = persistence.SnapshotCount,
             ["nativeSaveWaiting"] = NativeDeferredSave.Waiting(LoadingProcess.Instance),
             ["preSaveResolved"] = realtimePreSaveResolved,
@@ -122,12 +123,14 @@ namespace KingmakerMountedCombat.Diagnostics
                             !NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
                             "RT-native-saved-ranged-equipment-without-replay-or-cold-equip");
                     BindRealtimeObservers();
+                    if (RealtimeCasting) BindNativeCasting();
                     ValidateRealtimeRemainder(data);
                     Write("initial", RealtimeObservation());
                     Write(RealtimeApproach ? "rt-cold-approach-restored" : "rt-cold-debt-restored", new JObject {
                         ["snapshot"] = JObject.FromObject(data, MountedSaveCodec.CreateSerializer()),
                         ["actual"] = RealtimeObservation() });
-                    if (RealtimeApproach) BeginApproachContinuation(); else BeginRealtimeContinuation();
+                    if (RealtimeCasting) BeginCastingContinuation();
+                    else if (RealtimeApproach) BeginApproachContinuation(); else BeginRealtimeContinuation();
                     return;
                 }
                 string error;
@@ -142,6 +145,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var mountAi = (bool)ai.GetValue(mount);
                 restoreRealtimeAi = () => { rider.IsAIEnabled = riderAi; mount.IsAIEnabled = mountAi; };
                 rider.IsAIEnabled = false; mount.IsAIEnabled = false;
+                if (RealtimeCasting) BindNativeCasting();
                 if (RealtimeProjectile)
                 {
                     realtimeWeapon = new Phase3dRangedWeaponLease(rider);
@@ -164,6 +168,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!game.Player.IsInCombat || !rider.CombatState.CanActInCombat) return;
                 Check(!CombatController.IsInTurnBasedCombat(), "RT-native-combat-mode");
+                if (RealtimeCasting) { BeginNativeCastingInput(); return; }
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
                     targetService.BeginExpectedAttackDispatch(combatTarget), "RT-owned-target-native-input-ready");
                 realtimeApproachOrigin = (RealtimeMounted ? mount : rider).Position;
@@ -179,6 +184,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("rt-repeated-attack-resolved", RealtimeObservation());
                 stage = RealtimeActiveSave ? 20 : 3; return;
             }
+            if (stage == 30) { AdvanceCastingRequest(); return; }
+            if (stage == 31) { AdvanceCastingContinuation(); return; }
             if (stage == 21) { AdvanceApproachRequest(); return; }
             if (stage == 22) { AdvanceApproachContinuation(); return; }
             if (stage == 20)
@@ -210,7 +217,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 3)
             {
                 if (game.State.Units.Any(u => u.IsInCombat && !u.Commands.Empty) ||
-                    NativeSaveEffectBoundary.HasUnresolvedProjectiles())
+                    NativeSaveEffectBoundary.HasUnresolvedProjectiles() || NativeSaveEffectBoundary.HasUnresolvedAbilities())
                 {
                     if (!realtimeBoundaryObserved)
                     {
@@ -238,7 +245,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     !read.Data.Combat.TurnBased && read.Data.Mounted == RealtimeMounted &&
                     persistence.SnapshotCount == 1, "RT-actual-native-archive-contains-current-combat-debt");
                 ValidateRealtimeRemainder(read.Data);
-                if (RealtimeActiveSave)
+                if (RealtimeCasting)
+                    Check(realtimeWaitObserved && persistence.DeferredSaveCount == 1 && CastingHealCount == 1 &&
+                        !castingSlot.Available && mount.Damage < castingWound &&
+                        !NativeSaveEffectBoundary.HasUnresolvedAbilities() && castingActor.Commands.Empty,
+                        "RT-deferred-save-contains-once-delivered-spell-and-native-slot-cost");
+                else if (RealtimeActiveSave)
                     Check(realtimeWaitObserved && persistence.DeferredSaveCount == 1 &&
                         realtimeProbe.RiderResolvedCount == realtimePreSaveResolved + 1 &&
                         !NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
@@ -252,7 +264,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["nativeType"] = save.Type.ToString(), ["nativeCallback"] = callback, ["operation"] = save.OperationState.ToString(),
                     ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
                     ["actual"] = RealtimeObservation(), ["barrier"] = realtimeApproachBarrier });
-                if (RealtimeApproach) BeginApproachContinuation(); else BeginRealtimeContinuation();
+                if (RealtimeCasting) BeginCastingContinuation();
+                else if (RealtimeApproach) BeginApproachContinuation(); else BeginRealtimeContinuation();
                 return;
             }
             if (stage == 10)
@@ -313,9 +326,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             realtimeSavedTicks = data.GameTimeTicks;
             var elapsed = (game.TimeController.GameTime.Ticks - data.GameTimeTicks) / (double)TimeSpan.TicksPerSecond;
-            var saved = data.Combat.Actors.Single(a => a.Native.Id == rider.UniqueId);
-            Check((RealtimeApproach ? saved.Native.Standard == 0 && rider.CombatState.Cooldown.StandardAction == 0 :
-                saved.Native.Standard > 0.1f && rider.CombatState.Cooldown.StandardAction > 0) &&
+            var debtActor = RealtimeCasting ? castingActor : rider;
+            var saved = data.Combat.Actors.Single(a => a.Native.Id == debtActor.UniqueId);
+            Check((RealtimeApproach ? saved.Native.Standard == 0 && debtActor.CombatState.Cooldown.StandardAction == 0 :
+                saved.Native.Standard > 0.1f && debtActor.CombatState.Cooldown.StandardAction > 0) &&
                 data.Combat.Current == null && data.Combat.Roster.Length == 0 &&
                 data.Combat.Paired?.Activation == null && !game.TurnBasedCombatController.Initialized,
                 "RT-no-fresh-standard-or-turn-based-activation");
@@ -324,7 +338,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return actor.CombatState.Prepared == a.Prepared && actor.IsInCombat == a.InCombat &&
                     LegitimateContinuation(a.Native, MountedPersistenceService.CaptureActor(actor), elapsed);
             }), "RT-current-native-debt-follows-restored-game-clock");
-            Check(rider.CombatState.ExecutedAttackNumber == saved.ExecutedAttacks &&
+            Check(debtActor.CombatState.ExecutedAttackNumber == saved.ExecutedAttacks &&
                 relationship.State == (RealtimeMounted ? RelationshipState.Mounted : RelationshipState.Unmounted),
                 "RT-no-replayed-round-effect-or-invented-pair");
             var bindings = controls.CapturePersistentSlots();

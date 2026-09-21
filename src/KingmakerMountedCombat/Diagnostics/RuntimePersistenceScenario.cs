@@ -373,6 +373,7 @@ namespace KingmakerMountedCombat.Diagnostics
             persistence.SaveSnapshotStaged -= ObserveApproachSnapshot;
             if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
+            castingEffects?.Dispose();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
             try { realtimeWeapon?.Dispose(); } finally { realtimeWeapon = null; }
             try { restoreRealtimeAi?.Invoke(); } finally { restoreRealtimeAi = null; }

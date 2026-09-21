@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Kingmaker;
+using Kingmaker.Controllers;
 using Kingmaker.Controllers.Projectiles;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -18,6 +19,9 @@ namespace KingmakerMountedCombat.Integration
         private static readonly System.Reflection.FieldInfo Pending =
             NativeCombatActorPersistence.Field(typeof(ProjectileController), "m_NewProjectiles",
                 0x04005E2C, typeof(List<Projectile>));
+        private static readonly System.Reflection.FieldInfo Abilities =
+            NativeCombatActorPersistence.Field(typeof(AbilityExecutionController), "m_Abilities",
+                0x04005D50, typeof(List<AbilityExecutionProcess>));
         private static ConditionalWeakTable<Projectile, object> completed = new ConditionalWeakTable<Projectile, object>();
         private static readonly object completedMarker = new object();
 
@@ -44,6 +48,12 @@ namespace KingmakerMountedCombat.Integration
             return ((HashSet<Projectile>)Active.GetValue(controller))
                 .Concat((List<Projectile>)Pending.GetValue(controller)).Distinct().Where(Unresolved).ToArray();
         }
+
+        // Native spell delivery and spreading effects may outlive UnitUseAbility.
+        // Observe their controller-owned process; never advance or reconstruct it.
+        internal static bool HasUnresolvedAbilities() => HasUnresolvedAbilities(Game.Instance?.AbilityExecutor);
+        internal static bool HasUnresolvedAbilities(AbilityExecutionController controller) =>
+            controller != null && ((List<AbilityExecutionProcess>)Abilities.GetValue(controller)).Any(p => !p.IsEnded);
 
         internal static bool CommandNeedsSettlement(UnitCommand command) =>
             command != null && !command.IsFinished && command.GetType() != typeof(UnitMoveContiniously) &&

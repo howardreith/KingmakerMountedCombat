@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')][string]$NativeCase,
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -23,7 +23,7 @@ function Get-KmcPersistenceSource {
     if($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
-        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
+        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
@@ -122,6 +122,7 @@ function Assert-KmcRealtimePersistenceEvidence {
     $source=$Request.scenario-ceq'persistence-p04-save'
     $projectile=$Request.persistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)
     $approach=$Request.persistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)
+    $casting=$Request.persistenceCase.EndsWith('-casting',[StringComparison]::Ordinal)
     $mounted=$Request.persistenceCase.StartsWith('mounted-',[StringComparison]::Ordinal)
     $state=if($mounted){'Mounted'}else{'Unmounted'}
     $initial=@($Rows|Where-Object kind -CEQ 'initial')
@@ -138,7 +139,8 @@ function Assert-KmcRealtimePersistenceEvidence {
     if($saved.Count-ne1){throw 'P04 lacks actual selected native save metadata.'}
     $d=$saved[0].detail;$snapshot=$d.snapshot
     $activation=if($null-ne$snapshot.Combat.Paired){$snapshot.Combat.Paired.Activation}else{$null}
-    $actor=@($snapshot.Combat.Actors|Where-Object {$_.Native.Id-ceq$initial[0].rider.Id})
+    $debtActor=if($casting){$d.actual.casting.caster}else{$initial[0].rider.Id}
+    $actor=@($snapshot.Combat.Actors|Where-Object {$_.Native.Id-ceq$debtActor})
     if($snapshot.Mounted-ne$mounted-or$snapshot.Combat.TurnBased-ne$false-or$actor.Count-ne1-or
         $(if($approach){$actor[0].Native.Standard-ne0}else{$actor[0].Native.Standard-le0.1})-or$null-ne$snapshot.Combat.Current-or$snapshot.Combat.Roster.Count-ne0-or
         $null-ne$activation-or$snapshot.CampaignId-cne$Request.fixture.working.gameId-or
@@ -150,11 +152,13 @@ function Assert-KmcRealtimePersistenceEvidence {
             (Get-KmcSha256 $path)-cne$d.sha256-or(Get-Item -LiteralPath $path).Length-ne$d.length){
             throw 'P04 did not complete the actual native manual archive.'
         }
-        $setup=if($approach){@('rt-approach-dispatched','rt-approach-save-request','rt-native-snapshot')}else{@('rt-repeated-attack-requested','rt-repeated-attack-resolved')}
+        $setup=if($casting){@('rt-casting-input','rt-casting-save-request')}elseif($approach){@('rt-approach-dispatched','rt-approach-save-request','rt-native-snapshot')}else{@('rt-repeated-attack-requested','rt-repeated-attack-resolved')}
         foreach($required in ($setup+@('rt-before-save','rt-native-save-requested'))){
             if(@($Rows|Where-Object kind -CEQ $required).Count-ne1){throw 'P04 native action setup is incomplete.'}
         }
-        if($approach){
+        if($casting){
+            Assert-KmcCastingSaveOutcome $Rows $saved[0]
+        }elseif($approach){
             $requestRow=@($Rows|Where-Object kind -CEQ 'rt-approach-save-request')[0]
             $barrier=@($Rows|Where-Object kind -CEQ 'rt-native-snapshot')[0]
             foreach($row in @($requestRow,$barrier)){
@@ -198,6 +202,16 @@ function Assert-KmcRealtimePersistenceEvidence {
         if($initial[0].persistence.semantics-ne$snapshot.Combat.Actors.Count-or
             $initial[0].persistence.presentation-ne$(if($mounted){1}else{0})-or$initial[0].controls.NativeCastRequestCount-ne0){
             throw 'P04 cold restoration duplicated semantic state or replayed Mount.'
+        }
+    }
+    if($casting){
+        $continuation=@($Rows|Where-Object kind -CEQ 'rt-casting-continuation')
+        $first=@($Rows|Where-Object kind -CEQ 'rt-casting-first-delivery')
+        if($continuation.Count-ne1-or$first.Count-ne1-or$continuation[0].detail.resolved-ne0-or
+            $first[0].detail.resolved-ne1-or$first[0].detail.inputRequests-ne1-or
+            $continuation[0].detail.casting.slotAvailable-ne$false-or$first[0].detail.casting.slotAvailable-ne$false-or
+            $first[0].detail.casting.heals-ne$(if($source){1}else{0})){
+            throw 'P04 casting continuation replayed a spell or replenished its slot.'
         }
     }
     if($approach){
@@ -263,7 +277,46 @@ function Assert-KmcRealtimeColdSource {
     $coldRows=@(Get-Content -LiteralPath (Join-Path $Request.evidenceRoot 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
     if($Request.persistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)){
         Assert-KmcApproachColdOutcome $sourceRows $coldRows
+    }elseif($Request.persistenceCase.EndsWith('-casting',[StringComparison]::Ordinal)){
+        Assert-KmcCastingColdOutcome $sourceRows $coldRows
     }else{Assert-KmcProjectileColdOutcome $sourceRows $coldRows}
+}
+
+function Assert-KmcCastingSaveOutcome {
+    param($Rows,$Written)
+    $request=@($Rows|Where-Object kind -CEQ 'rt-casting-save-request')
+    $wait=@($Rows|Where-Object kind -CEQ 'rt-native-wait-started')
+    if($request.Count-ne1-or$wait.Count-ne1){throw 'Casting save lacks its actual live-action wait.'}
+    $before=$request[0].detail;$after=$Written.detail.actual
+    $a=$before.casting;$b=$after.casting
+    $commands=@($a.commands|Where-Object {$_.blueprint-ceq$a.blueprint-and$_.started-eq$true-and$_.acted-eq$false-and$_.finished-eq$false})
+    if($commands.Count-ne1-or$a.caster-cne$b.caster-or$a.subject-cne$b.subject-or$a.blueprint-cne$b.blueprint-or
+        $a.slotCount-ne1-or$b.slotCount-ne1-or$a.availableSlots-ne1-or$b.availableSlots-ne0-or
+        $a.slotAvailable-ne$true-or$b.slotAvailable-ne$false-or$b.spellAvailable-ne$false-or
+        $a.inputs-ne1-or$b.inputs-ne1-or$a.heals-ne0-or$b.heals-ne1-or$a.damage-le0-or$b.damage-ge$a.damage-or
+        $before.snapshotCount-ne0-or$wait[0].detail.nativeSaveWaiting-ne$true-or$wait[0].detail.snapshotCount-ne0-or
+        $wait[0].detail.deferredSaves-ne1-or$after.deferredSaves-ne1-or$after.snapshotCount-ne1-or
+        $after.unresolvedAbilities-ne$false-or$after.unresolvedProjectiles-ne$false-or$b.standard-le0.1-or
+        $Written.detail.snapshot.GameTimeTicks-le$request[0].gameTicks){
+        throw 'Casting save lost or replayed native effects, slot expenditure or the settlement barrier.'
+    }
+}
+
+function Assert-KmcCastingColdOutcome {
+    param($SourceRows,$ColdRows)
+    $written=@($SourceRows|Where-Object kind -CEQ 'native-write-complete')
+    $loaded=@($ColdRows|Where-Object kind -CEQ 'rt-cold-debt-restored')
+    if($written.Count-ne1-or$loaded.Count-ne1-or$written[0].processId-eq$loaded[0].processId){
+        throw 'Casting comparison lacks a completed source and fresh cold process.'
+    }
+    $a=$written[0].detail.actual.casting;$actual=$loaded[0].detail.actual;$b=$actual.casting
+    if($a.caster-cne$b.caster-or$a.subject-cne$b.subject-or$a.blueprint-cne$b.blueprint-or
+        $a.damage-ne$b.damage-or$a.slotCount-ne$b.slotCount-or$a.availableSlots-ne0-or$b.availableSlots-ne0-or
+        $a.slotAvailable-ne$false-or$b.slotAvailable-ne$false-or$b.spellAvailable-ne$false-or
+        $a.heals-ne1-or$b.heals-ne0-or$b.inputs-ne0-or$actual.inputRequests-ne0-or
+        $actual.resolved-ne0-or$actual.unresolvedAbilities-ne$false-or$actual.unresolvedProjectiles-ne$false){
+        throw 'Cold casting outcome changed native health/slots or replayed an effect.'
+    }
 }
 
 function Assert-KmcApproachColdOutcome {
