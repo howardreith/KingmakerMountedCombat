@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -30,7 +30,7 @@ function Get-KmcPersistenceSource {
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
     $manualName=if($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
-    $leaf=if($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    $leaf=if($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
     $path=Join-Path $root ('Saved Games/'+$leaf)
     Assert-KmcNotReparsePoint $path 'owned persistence source archive'
     Assert-KmcNotHardLink $path 'owned persistence source archive'
@@ -436,6 +436,7 @@ function Assert-KmcPersistenceScenarioEvidence {
     }
     $isP03=$Request.scenario-cin @('persistence-p03-save','persistence-p03-load')
     $isSlot=$Request.scenario-cin @('persistence-p05-save','persistence-p05-load')
+    $isQueued=$isSlot-and$Request.persistenceCase-ceq'queued'
     $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')
     $checkpoint=if(@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'){[string]$Request.persistenceCase}else{'partial-movement'}
     $isSuspended=$isP03-and$checkpoint-ceq'suspended'
@@ -522,9 +523,10 @@ function Assert-KmcPersistenceScenarioEvidence {
         if($isP03){Assert-KmcP03Snapshot $d.snapshot $checkpoint}
         elseif($isCombat){Assert-KmcP02Snapshot $d.snapshot $checkpoint}
         $type=if($isSlot-and$checkpoint-ceq'quick'){'Quick'}elseif($isSlot-and$checkpoint-ceq'auto'){'Auto'}else{'Manual'}
-        $leaf=if($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+        $leaf=if($isQueued){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
         $archive=Join-Path $root $leaf
-        if($isSlot){
+        if($isQueued){Assert-KmcQueuedSaveEvidence $rows $root}
+        if($isSlot-and-not$isQueued){
             $requests=@($rows|Where-Object kind -CEQ 'native-slot-write-requested')
             $commits=@($rows|Where-Object kind -CIn @('native-slot-write-complete','native-write-complete'))
             if($requests.Count-ne3-or$commits.Count-ne3){throw 'P05 lacks all three native requests/completions.'}
@@ -727,5 +729,33 @@ function Assert-KmcSuspendedColdOutcome {
                 throw 'P03 suspended cold outcome changed a native buff or its timer.'
             }
         }
+    }
+}
+
+function Assert-KmcQueuedSaveEvidence {
+    param($Rows,[string]$Root)
+    $requests=@($Rows|Where-Object kind -CEQ 'queued-native-requests')
+    $callbacks=@($Rows|Where-Object kind -CEQ 'queued-native-callback')
+    $writes=@($Rows|Where-Object kind -CIn @('queued-native-write-complete','native-write-complete'))
+    $names=@('KMC_P05_QUEUE_1','KMC_P05_QUEUE_2','KMC_P01')
+    if($requests.Count-ne1-or$requests[0].detail.count-ne3-or$requests[0].detail.snapshots-ne0-or
+        $requests[0].detail.callbacks-ne0-or($requests[0].detail.names-join'|')-cne($names-join'|')-or
+        $callbacks.Count-ne3-or$writes.Count-ne3){
+        throw 'P05 native queue lacks three actual deferred requests, callbacks and committed archives.'
+    }
+    for($i=0;$i-lt3;$i++){
+        $callback=$callbacks[$i].detail;$w=$writes[$i].detail
+        $path=Join-Path $Root ('Manual_'+(300+$i)+'_'+$names[$i]+'.zks')
+        if($callback.ordinal-ne($i+1)-or$callback.snapshots-ne($i+1)-or$w.ordinal-ne($i+1)-or
+            $w.path-cne$path-or$w.nativeType-cne'Manual'-or$w.nativeCallback-ne$true-or$w.operation-cne'None'-or
+            $w.snapshot.Mounted-ne$true-or$w.snapshot.Rider.Id-cne$requests[0].rider.Id-or
+            $w.snapshot.Mount.Id-cne$requests[0].mount.Id-or
+            (Get-KmcSha256 $path)-cne$w.sha256-or(Get-Item -LiteralPath $path).Length-ne$w.length){
+            throw 'P05 queue reordered, duplicated or lost an actual native snapshot/write.'
+        }
+    }
+    if(@($writes|ForEach-Object{$_.detail.sha256}|Select-Object -Unique).Count-ne3-or
+        @(Get-ChildItem -LiteralPath $Root -File -Filter '*.zks').Count-ne4){
+        throw 'P05 native queue must retain three distinct archives and the protected input only.'
     }
 }

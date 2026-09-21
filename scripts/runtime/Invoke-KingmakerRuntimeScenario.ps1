@@ -38,7 +38,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -72,9 +72,9 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
 if($Scenario -cin @('persistence-p05-save','persistence-p05-load')){
-    $slotCases=if($Scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating')}else{@('manual','quick','auto','alternating')}
+    $slotCases=if($Scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
     if($PersistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
-}elseif($PersistenceCase-cin @('manual','quick','auto','manual-renamed','alternating')){throw 'P05 slot category cannot run under another scenario.'}
+}elseif($PersistenceCase-cin @('manual','quick','auto','manual-renamed','alternating','queued')){throw 'P05 slot category cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p04-save','persistence-p04-load')){
     if($PersistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
 }elseif($PersistenceCase-cin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 checkpoint cannot run under another scenario.'}

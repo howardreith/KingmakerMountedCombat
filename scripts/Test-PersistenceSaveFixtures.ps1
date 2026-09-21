@@ -508,5 +508,40 @@ Must-Reject {Assert-KmcSuspendedEvidence $delayRows $false} 'Missing real next-r
 $delayRows[4].detail.delayNativeCounts.rider.'clear-after'=2;$delayRows[1].detail.sequence=3
 Must-Reject {Assert-KmcSuspendedEvidence $delayRows $false} 'Delay fresh activation fallback accepted'
 
+# Three synthetic files exercise only the outer queue evidence validator.
+$queueRoot=Join-Path $script:ownedTestLab 'queued-completion'
+[void][IO.Directory]::CreateDirectory($queueRoot)
+[IO.File]::WriteAllText((Join-Path $queueRoot 'Working.zks'),'protected-input')
+$queueNames=@('KMC_P05_QUEUE_1','KMC_P05_QUEUE_2','KMC_P01')
+$queueRows=@([pscustomobject]@{kind='queued-native-requests';rider=[pscustomobject]@{Id='r'};mount=[pscustomobject]@{Id='m'};
+    detail=[pscustomobject]@{count=3;snapshots=0;callbacks=0;names=$queueNames}})
+for($i=0;$i-lt3;$i++){
+ $queueRows += [pscustomobject]@{kind='queued-native-callback';detail=[pscustomobject]@{ordinal=($i+1);snapshots=($i+1)}}
+ $queuePath=Join-Path $queueRoot ('Manual_'+(300+$i)+'_'+$queueNames[$i]+'.zks')
+ [IO.File]::WriteAllText($queuePath,('owned-synthetic-'+$i))
+ $queueRows += [pscustomobject]@{kind=$(if($i-lt2){'queued-native-write-complete'}else{'native-write-complete'});
+  detail=[pscustomobject]@{ordinal=($i+1);path=$queuePath;nativeType='Manual';nativeCallback=$true;operation='None';
+   sha256=(Get-KmcSha256 $queuePath);length=(Get-Item $queuePath).Length;
+   snapshot=[pscustomobject]@{Mounted=$true;Rider=[pscustomobject]@{Id='r'};Mount=[pscustomobject]@{Id='m'}}}}
+}
+Assert-KmcQueuedSaveEvidence $queueRows $queueRoot;$passes++
+$queueRows[0].detail.snapshots=1
+Must-Reject {Assert-KmcQueuedSaveEvidence $queueRows $queueRoot} 'Queue creation counted as native snapshot'
+$queueRows[0].detail.snapshots=0;$queueRows[3].detail.ordinal=1
+Must-Reject {Assert-KmcQueuedSaveEvidence $queueRows $queueRoot} 'Duplicate native callback accepted'
+$queueRows[3].detail.ordinal=2;$queueRows[4].detail.operation='Saving'
+Must-Reject {Assert-KmcQueuedSaveEvidence $queueRows $queueRoot} 'Callback accepted as completed native archive'
+$queueRows[4].detail.operation='None';$queueRows[6].detail.sha256=('a'*64)
+Must-Reject {Assert-KmcQueuedSaveEvidence $queueRows $queueRoot} 'Wrong queued archive accepted'
+$queueRows[6].detail.sha256=Get-KmcSha256 $queueRows[6].detail.path
+Copy-Item -LiteralPath (Join-Path $saveRoot 'Manual_300_KMC_P01.zks') -Destination (Join-Path $saveRoot 'Manual_302_KMC_P01.zks')
+$result.scenario='persistence-p05-save';$result.status='PASS';$result.modsRestored=$true;$result.workingRestored=$true
+Write-KmcJsonAtomic $resultPath $result
+Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p05-save';persistenceCase='queued';transactionToken=('a'*64)})
+$queuedHash=Get-KmcSha256 (Join-Path $saveRoot 'Manual_302_KMC_P01.zks')
+$queuedSource=Get-KmcPersistenceSource $sourceId $queuedHash $fixture -NativeCase queued
+if($queuedSource.descriptor.fileName-cne'Manual_302_KMC_P01.zks'){throw 'Queued cold source silently substituted another archive'};$passes++
+Must-Reject {Get-KmcPersistenceSource $sourceId $queuedHash $fixture -NativeCase manual} 'Queued source admitted wrong category/leaf'
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

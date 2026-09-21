@@ -138,6 +138,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     !beforeControls.SerializationSuspended, "controls-present-once");
                 Write("initial");
                 if (Cold) { stage = 2; return; }
+                if (QueuedCase) { QueueNativeManualSaves(); stage = 1; return; }
                 if (SlotCase) { RequestNativeSlotWrite(); stage = 1; return; }
                 var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
                 Check(descriptor.Name == "KMC_P01" && descriptor.Type == SaveInfo.SaveType.Manual &&
@@ -147,6 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (stage == 1)
             {
+                if (QueuedCase) { if (ObserveQueuedWrites()) stage = 2; return; }
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
                 var name = SlotCase ? SlotName(SlotType(request.PersistenceCase)) : "KMC_P01";
                 var saved = game.SaveManager.SingleOrDefault(s => s.Name == name);
@@ -258,6 +260,7 @@ namespace KingmakerMountedCombat.Diagnostics
             switch (value) {
                 case "manual":
                 case "manual-renamed":
+                case "queued":
                 case "alternating": return SaveInfo.SaveType.Manual;
                 case "quick": return SaveInfo.SaveType.Quick;
                 case "auto": return SaveInfo.SaveType.Auto;

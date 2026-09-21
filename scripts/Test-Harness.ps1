@@ -5149,12 +5149,12 @@ try {
                 Assert-Test $rejected 'P05 admitted a foreign/unrecognized category'
             }
             $v2Request.scenario='persistence-p05-load'
-            foreach($case in @('manual','quick','auto','manual-renamed')){
+            foreach($case in @('manual','quick','auto','manual-renamed','queued')){
                 $v2Request.persistenceCase=$case
                 $f=$v2Request.fixture.working
                 $v2Request['persistenceLoad']=[ordered]@{
-                    internalName=if($case-cin @('manual','manual-renamed')){'KMC_P01'}else{'Native slot 1'}
-                    fileName=switch($case){'manual'{'Manual_300_KMC_P01.zks'};'quick'{'Quick_1.zks'};'auto'{'Auto_1.zks'};'manual-renamed'{'Manual_811_KMC_RENAMED.zks'}}
+                    internalName=if($case-cin @('manual','manual-renamed','queued')){'KMC_P01'}else{'Native slot 1'}
+                    fileName=switch($case){'manual'{'Manual_300_KMC_P01.zks'};'quick'{'Quick_1.zks'};'auto'{'Auto_1.zks'};'manual-renamed'{'Manual_811_KMC_RENAMED.zks'};'queued'{'Manual_302_KMC_P01.zks'}}
                     sha256=('c'*64);length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks
                     gameId=$f.gameId;gameName=$f.gameName;area=$f.area
                 }

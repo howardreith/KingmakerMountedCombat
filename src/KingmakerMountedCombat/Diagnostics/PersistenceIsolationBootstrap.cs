@@ -61,13 +61,22 @@ namespace KingmakerMountedCombat.Diagnostics
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
                     Writable = true
                 });
-                if (request.Scenario == "persistence-p05-save" && request.PersistenceCase != "alternating")
+                if (request.Scenario == "persistence-p05-save" && request.PersistenceCase != "alternating" && request.PersistenceCase != "queued")
                 {
                     var type = RuntimePersistenceScenario.SlotType(request.PersistenceCase);
                     var name = RuntimePersistenceScenario.SlotName(type);
                     for (var n = 0; n < 2; n++) entries.Add(new PersistenceSaveEntry {
                         FileName = type == SaveInfo.SaveType.Manual ? "Manual_" + (300 + n) + "_KMC_P01.zks" : type + "_" + (1 + n) + ".zks",
                         InternalName = name, SaveType = type.ToString(), Area = fixture.Area, Writable = true });
+                }
+                if (request.Scenario == "persistence-p05-save" && request.PersistenceCase == "queued")
+                {
+                    for (var n = 0; n < 3; n++)
+                    {
+                        var name = n == 2 ? "KMC_P01" : "KMC_P05_QUEUE_" + (n + 1);
+                        entries.Add(new PersistenceSaveEntry { FileName = "Manual_" + (300 + n) + "_" + name + ".zks",
+                            InternalName = name, SaveType = "Manual", Area = fixture.Area, Writable = true });
+                    }
                 }
                 if (request.PersistenceCase == "alternating")
                 {

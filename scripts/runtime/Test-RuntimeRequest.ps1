@@ -91,7 +91,7 @@ if ($schemaVersion -eq 1) {
 elseif ($schemaVersion -eq 2) {
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
-        $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating')}else{@('manual','quick','auto','alternating')}
+        $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
     }elseif($request.scenario-cin @('persistence-p04-save','persistence-p04-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
@@ -112,7 +112,7 @@ elseif ($schemaVersion -eq 2) {
         $second=$alternating-and[object]::ReferenceEquals($d,$request.persistenceAlternate)
         Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cold archive descriptor'
         $nativeSlot=$request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-cin @('quick','auto')
-        $leaf=if($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        $leaf=if($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
         $nameOk=if($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}else{$d.internalName-ceq'KMC_P01'}
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or

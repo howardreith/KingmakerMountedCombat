@@ -279,7 +279,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
             if (p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
-                new[] { "manual", "quick", "auto", "manual-renamed", "alternating" } : new[] { "manual", "quick", "auto", "alternating" }, PersistenceCase) < 0 :
+                new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
                 p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
@@ -291,6 +291,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var nativeSlot = p05 && (PersistenceCase == "quick" || PersistenceCase == "auto");
                     var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
+                        p05 && PersistenceCase == "queued" ? "^Manual_302_KMC_P01\\.zks$" :
                         p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
                     if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
                         PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
