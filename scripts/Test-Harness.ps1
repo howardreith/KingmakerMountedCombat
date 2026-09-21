@@ -5133,6 +5133,59 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'P05 alternating cold loads require two distinct exact owned descriptors' {
+        try{
+            $v2Request.scenario='persistence-p05-load'
+            $v2Request['persistenceCase']='alternating'
+            $f=$v2Request.fixture.working
+            $v2Request['persistenceLoad']=[ordered]@{
+                internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks
+                gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+            }
+            $good=[ordered]@{
+                internalName='KMC_P05_UNMOUNTED';fileName='Manual_301_KMC_P05_UNMOUNTED.zks';sha256=('d'*64)
+                length=1025;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks
+                gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+            }
+            $v2Request['persistenceAlternate']=$good
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            foreach($change in @(
+                @('fileName','../Manual_301_KMC_P05_UNMOUNTED.zks'),
+                @('fileName','Manual_300_KMC_P01.zks'),
+                @('internalName','KMC_AUTOMATION_BASELINE'),
+                @('sha256',('c'*64)),@('gameId','00000000-0000-0000-0000-000000000001')
+            )){
+                $original=$good[$change[0]];$good[$change[0]]=$change[1]
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'Alternating cold descriptor admitted a path/hash/campaign alias'
+                $good[$change[0]]=$original
+            }
+            foreach($case in @('manual','quick')){
+                $v2Request.persistenceCase=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'Secondary descriptor leaked into a single-save scenario'
+            }
+            $v2Request.persistenceCase='alternating';$v2Request.Remove('persistenceAlternate')
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'Alternating load admitted missing second archive'
+            $v2Request.Remove('persistenceLoad');$v2Request.scenario='persistence-p05-save'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+        }finally{
+            $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad');$v2Request.Remove('persistenceAlternate')
+            $v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'P03 requires a declared native commitment and preserves strict other scenarios' {
         try{
             $v2Request.scenario='persistence-p03-save'

@@ -137,5 +137,72 @@ foreach($case in @('manual','quick','auto')){
     $result.modsRestored=$true;Write-KmcJsonAtomic $resultPath $result
     if((Get-KmcSha256 $slotPath)-cne$slotHash){throw 'P05 source inspection changed archive'};$passes++
 }
+$alternatePath=Join-Path $saveRoot 'Manual_301_KMC_P05_UNMOUNTED.zks'
+$slotStream=[IO.File]::Open($alternatePath,[IO.FileMode]::CreateNew)
+$slotArchive=[IO.Compression.ZipArchive]::new($slotStream,[IO.Compression.ZipArchiveMode]::Create,$false)
+try{
+    $slotHeader=[ordered]@{Name='KMC_P05_UNMOUNTED';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}
+    foreach($member in @('header.json','kmc-mounted-state')){
+        $writer=[IO.StreamWriter]::new($slotArchive.CreateEntry($member).Open())
+        try{$writer.Write($(if($member-ceq'header.json'){$slotHeader|ConvertTo-Json -Compress}else{'{}'}))}finally{$writer.Dispose()}
+    }
+}finally{$slotArchive.Dispose();$slotStream.Dispose()}
+$alternateHash=Get-KmcSha256 $alternatePath
+Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p05-save';persistenceCase='alternating';transactionToken=('a'*64)})
+$a=Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alternating
+$b=Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating -Alternate
+if($a.path-cne$path-or$b.path-cne$alternatePath-or$b.descriptor.internalName-cne'KMC_P05_UNMOUNTED'){throw 'Alternating exact source selection failed'};$passes++
+Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alternating -Alternate} 'Alternate accepted primary hash'
+Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase manual -Alternate} 'Alternate escaped its case'
+Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating} 'Primary accepted alternate hash'
+if((Get-KmcSha256 $path)-cne$hash-or(Get-KmcSha256 $alternatePath)-cne$alternateHash){throw 'Alternating source inspection changed inputs'};$passes++
+# Evidence mutation checks use synthetic bytes in a separate owned root.
+$proofId='owned-alternating-evidence'
+$proofRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$proofId+'/Saved Games')
+[void][IO.Directory]::CreateDirectory($proofRoot)
+foreach($leaf in @('Manual_299_KMC_AUTOMATION_WORKING.zks','Manual_300_KMC_P01.zks','Manual_301_KMC_P05_UNMOUNTED.zks')){
+    [IO.File]::WriteAllText((Join-Path $proofRoot $leaf),('synthetic '+$leaf),[Text.UTF8Encoding]::new($false))
+}
+$proof=[pscustomobject]@{runId=$proofId;scenario='persistence-p05-save';commit=('e'*40);dllSha256=('f'*64);fixture=$fixture}
+$proofGame=[pscustomobject]@{processId=123}
+function New-ProofRow([string]$kind,[string]$state,$detail){
+    return [pscustomobject]@{kind=$kind;runId=$proof.runId;scenario=$proof.scenario;source=$proof.commit;dll=$proof.dllSha256;
+        processId=123;checkpoint='alternating';rider=[pscustomobject]@{Id='r'};mount=[pscustomobject]@{Id='m'};
+        relationship=$state;controls=[pscustomobject]@{DuplicateFactCount=0};detail=$detail}
+}
+function New-ProofWrite([string]$label,[int]$ordinal,[string]$leaf,[bool]$mounted){
+    $p=Join-Path $proofRoot $leaf
+    $d=[pscustomobject]@{label=$label;ordinal=$ordinal;path=$p;nativeType='Manual';nativeCallback=$true;operation='None';
+        sha256=(Get-KmcSha256 $p);length=(Get-Item -LiteralPath $p).Length;
+        snapshot=[pscustomobject]@{Mounted=$mounted;Rider=$null;Mount=$null;ProfileId=$null;
+            CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area}}
+    if($mounted){$d.snapshot.Rider=[pscustomobject]@{Id='r'};$d.snapshot.Mount=[pscustomobject]@{Id='m'};$d.snapshot.ProfileId='Mammoth'}
+    return $d
+}
+$rows=@(
+    (New-ProofRow 'initial' 'Mounted' $null),
+    (New-ProofRow 'alternate-write-requested' 'Mounted' $null),
+    (New-ProofRow 'alternate-native-write-complete' 'Mounted' (New-ProofWrite 'A' 1 'Manual_300_KMC_P01.zks' $true)),
+    (New-ProofRow 'alternate-voluntary-dismount' 'Unmounted' $null),
+    (New-ProofRow 'alternate-write-requested' 'Unmounted' $null),
+    (New-ProofRow 'alternate-native-write-complete' 'Unmounted' (New-ProofWrite 'B' 2 'Manual_301_KMC_P05_UNMOUNTED.zks' $false)),
+    (New-ProofRow 'alternating-source-complete' 'Unmounted' $null)
+)
+Assert-KmcAlternatingPersistenceEvidence $proof $rows $proofGame;$passes++
+$rows[5].detail.snapshot.Rider=[pscustomobject]@{Id='r'}
+Must-Reject {Assert-KmcAlternatingPersistenceEvidence $proof $rows $proofGame} 'Unmounted evidence accepted stale pair'
+$rows[5].detail.snapshot.Rider=$null
+$rows[2].detail.nativeCallback=$false
+Must-Reject {Assert-KmcAlternatingPersistenceEvidence $proof $rows $proofGame} 'Incomplete native write qualified'
+$rows[2].detail.nativeCallback=$true
+$rows[2].detail.sha256=('0'*64)
+Must-Reject {Assert-KmcAlternatingPersistenceEvidence $proof $rows $proofGame} 'Observed archive hash mismatch qualified'
+$rows[2].detail.sha256=Get-KmcSha256 $rows[2].detail.path
+$rows[3].relationship='Mounted'
+Must-Reject {Assert-KmcAlternatingPersistenceEvidence $proof $rows $proofGame} 'Missing legitimate dismount qualified'
+$rows[3].relationship='Unmounted'
+$rows[4].processId=124
+Must-Reject {Assert-KmcAlternatingPersistenceEvidence $proof $rows $proofGame} 'Foreign process observation qualified'
+$rows[4].processId=123
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

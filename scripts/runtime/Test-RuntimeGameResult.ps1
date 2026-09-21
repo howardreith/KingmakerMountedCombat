@@ -287,8 +287,9 @@ Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArti
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
-    $expectedNativeWrites = if ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')) { 1 } else { 0 }
-    $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
+    $alternating=$game.scenario-cin @('persistence-p05-save','persistence-p05-load')-and$request.persistenceCase-ceq'alternating'
+    $expectedNativeWrites = if($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')) { 1 } else { 0 }
+    $expectedWorkingLoads = if($alternating-and$game.scenario-ceq'persistence-p05-load'){3} elseif ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
         [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne $expectedNativeWrites) {

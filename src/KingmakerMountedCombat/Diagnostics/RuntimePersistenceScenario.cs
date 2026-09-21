@@ -66,7 +66,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -254,7 +254,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             switch (value) {
                 case "manual":
-                case "manual-renamed": return SaveInfo.SaveType.Manual;
+                case "manual-renamed":
+                case "alternating": return SaveInfo.SaveType.Manual;
                 case "quick": return SaveInfo.SaveType.Quick;
                 case "auto": return SaveInfo.SaveType.Auto;
                 default: throw new InvalidOperationException("Unknown native slot category.");

@@ -37,7 +37,8 @@ param(
     [string]$PackagePath,
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','manual','quick','auto','manual-renamed')][string]$PersistenceCase,
+    [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','manual','quick','auto','manual-renamed','alternating')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -71,12 +72,15 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p05-save','persistence-p05-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
 if($Scenario -cin @('persistence-p05-save','persistence-p05-load')){
-    $slotCases=if($Scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed')}else{@('manual','quick','auto')}
+    $slotCases=if($Scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating')}else{@('manual','quick','auto','alternating')}
     if($PersistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
-}elseif($PersistenceCase-cin @('manual','quick','auto','manual-renamed')){throw 'P05 slot category cannot run under another scenario.'}
+}elseif($PersistenceCase-cin @('manual','quick','auto','manual-renamed','alternating')){throw 'P05 slot category cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p03-save','persistence-p03-load')){
     if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
 }elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction')){throw 'P03 checkpoint cannot run under another scenario.'}
+if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
+    if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'Alternating cold loads require two distinct exact archive hashes.'}
+}elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads may select a second archive.'}
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
 $repoRoot=Get-KmcRepositoryRoot
@@ -327,6 +331,14 @@ try{
                     $copyDescriptor.fileName='Manual_811_KMC_RENAMED.zks'
                 }
                 $request['persistenceLoad']=$copyDescriptor
+                if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
+                    $alternate=Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceAlternateSha256 -Fixture $fixturePayload -NativeCase alternating -Alternate
+                    $secondPath=Join-Path $isolatedSaves $alternate.descriptor.fileName
+                    Copy-Item -LiteralPath $alternate.path -Destination $secondPath
+                    [IO.File]::SetLastWriteTimeUtc($secondPath,[IO.File]::GetLastWriteTimeUtc($alternate.path))
+                    if((Get-KmcSha256 $secondPath)-cne$alternate.descriptor.sha256){throw 'Second exact owned archive changed during copy.'}
+                    $request['persistenceAlternate']=$alternate.descriptor
+                }
             }elseif(-not [string]::IsNullOrEmpty($PersistenceSourceRunId)-or-not [string]::IsNullOrEmpty($ExpectedPersistenceSourceSha256)){
                 throw 'Only the dedicated cold-load scenario may select an owned archive.'
             }

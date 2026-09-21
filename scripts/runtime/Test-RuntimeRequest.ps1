@@ -91,24 +91,32 @@ if ($schemaVersion -eq 1) {
 elseif ($schemaVersion -eq 2) {
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
-        $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed')}else{@('manual','quick','auto')}
+        $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating')}else{@('manual','quick','auto','alternating')}
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
     }elseif($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact native commitment case.'}
     }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
-    $extra=@(if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p05-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
+    $alternating=$request.scenario-ceq'persistence-p05-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'alternating'
+    $extra=@(if($alternating){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p05-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
     if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p05-load')){
-        $d=$request.persistenceLoad
+        $descriptors=@($request.persistenceLoad)
+        if($alternating){
+            $descriptors+=@($request.persistenceAlternate)
+            if($request.persistenceAlternate.sha256-ceq$request.persistenceLoad.sha256){throw 'Alternating archives cannot alias the same bytes.'}
+        }
+        foreach($d in $descriptors){
+        $second=$alternating-and[object]::ReferenceEquals($d,$request.persistenceAlternate)
         Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cold archive descriptor'
         $nativeSlot=$request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-cin @('quick','auto')
-        $leaf=if($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
-        $nameOk=if($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}else{$d.internalName-ceq'KMC_P01'}
+        $leaf=if($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        $nameOk=if($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}else{$d.internalName-ceq'KMC_P01'}
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
             -not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or$d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Cold archive identity is invalid.'}
         foreach($name in @('gameId','gameName','area')){if($d.$name-cne$request.fixture.working.$name){throw 'Cold archive campaign differs.'}}
+        }
     }
 }
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }

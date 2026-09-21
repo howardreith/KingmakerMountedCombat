@@ -175,6 +175,31 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.True(request.Validate().Count > 0, "P05 case escaped its scenario.");
                 }
             });
+            runner.Run("alternating cold loads require two distinct exact native archives", () =>
+            {
+                var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                request.Scenario = "persistence-p05-save"; request.PersistenceCase = "alternating";
+                TestRunner.Equal(0, request.Validate().Count, "Alternating source rejected.");
+                request.Scenario = "persistence-p05-load";
+                request.PersistenceLoad = new RuntimeSaveDescriptor {
+                    InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                    GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                TestRunner.True(request.Validate().Count > 0, "Missing alternate archive was accepted.");
+                request.PersistenceAlternate = new RuntimeSaveDescriptor {
+                    InternalName = "KMC_P05_UNMOUNTED", FileName = "Manual_301_KMC_P05_UNMOUNTED.zks", Sha256 = new string('d', 64),
+                    GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                TestRunner.Equal(0, request.Validate().Count, "Exact distinct A/B archives rejected.");
+                request.PersistenceAlternate.Sha256 = request.PersistenceLoad.Sha256;
+                TestRunner.True(request.Validate().Count > 0, "A/B aliased identical archive bytes.");
+                request.PersistenceAlternate.Sha256 = new string('d', 64);
+                request.PersistenceAlternate.FileName = "../Manual_301_KMC_P05_UNMOUNTED.zks";
+                TestRunner.True(request.Validate().Count > 0, "Alternate traversal accepted.");
+                request.PersistenceAlternate.FileName = "Manual_301_KMC_P05_UNMOUNTED.zks";
+                request.PersistenceCase = "manual";
+                TestRunner.True(request.Validate().Count > 0, "Alternate archive leaked into single-load scenario.");
+                request.PersistenceCase = "alternating"; request.Scenario = "persistence-p05-save";
+                TestRunner.True(request.Validate().Count > 0, "Source creation accepted cold archive authority.");
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             NativeLoadWorldTests.Register(runner);

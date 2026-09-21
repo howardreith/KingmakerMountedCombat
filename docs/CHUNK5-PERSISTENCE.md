@@ -22,6 +22,8 @@ A persistence-specific run-owned root/campaign/native-type/leaf/hash contract pr
 
 P05 Manual source44/0/cold20/0 and Quick source44/0 pass on22/source485715e. Each source writes three distinct native archives through two overwrites/rotations, then moves and attacks. Quick cold-A0/1 failed before gameplay at a remaining Manual-only diagnostic check. Preview23/source64d524a fixes its exact request-bound type: Quick cold-B20/0, Auto source44/0/cold20/0 and renamed Manual cold20/0 all native/outer PASS. The renamed profile contains only Manual_811_KMC_RENAMED.zks; its bytes match the source archive exactly, and the same pair/controls move and attack in the fresh process. Last full human restoration01:51:40.3925922Z; installed preview54 verified. Components421/0, harness256/0, fixtures52/0 and native assembly/storage55/0 pass. Alternating A/B/A loads, a subsequent save after cold restoration and failures still require qualification; no complete P05 or Chunk5 claim.
 
+Preview24 adds the exact two-archive P05 fixture and negative admission/evidence checks: source22/0, components422/0, harness257/0, owned fixtures63/0 PASS. Native A/B/A plus a subsequent save is pending. The runner copies only two fixed, same-campaign, distinct-hash archives and supplies no actor/action state.
+
 | Native evidence | Result |
 |---|---|
 | isolation-C, preview.2 | PASS14/0; native isolated enumeration/load |

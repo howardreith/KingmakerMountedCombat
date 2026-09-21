@@ -6,7 +6,8 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto')][string]$NativeCase)
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating')][string]$NativeCase,
+        [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
     $lab=Get-KmcLabRoot
@@ -22,8 +23,10 @@ function Get-KmcPersistenceSource {
     if($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Native slot load requires a P05 source.'}
+    if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
-    $leaf=if($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    $manualName=if($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
+    $leaf=if($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
     $path=Join-Path $root ('Saved Games/'+$leaf)
     Assert-KmcNotReparsePoint $path 'owned persistence source archive'
     Assert-KmcNotHardLink $path 'owned persistence source archive'
@@ -43,7 +46,7 @@ function Get-KmcPersistenceSource {
         $json=$reader.ReadToEnd()
         Assert-KmcJsonObjectMembersUnique -Json $json -Description 'owned persistence header'
         $header=$json|ConvertFrom-Json
-        $nameOk=if($type-ceq'Manual'){$header.Name-ceq'KMC_P01'}else{$header.Name-is[string]-and$header.Name.Length-gt0-and$header.Name.Length-le256-and$header.Name-cnotmatch'[\x00-\x1f\x7f]'}
+        $nameOk=if($type-ceq'Manual'){$header.Name-ceq$manualName}else{$header.Name-is[string]-and$header.Name.Length-gt0-and$header.Name.Length-le256-and$header.Name-cnotmatch'[\x00-\x1f\x7f]'}
         if(-not$nameOk-or$header.Type-cne$type-or$header.CompatibilityVersion-ne1-or
             $header.GameId-cne$Fixture.working.gameId-or$header.GameName-cne$Fixture.working.gameName-or
             $header.Area-cne$Fixture.working.area){throw 'Owned archive native campaign/type/name differs.'}
@@ -112,6 +115,73 @@ function Assert-KmcP03Snapshot {
     if(-not$valid){throw 'P03 actual archive does not match its declared native commitment.'}
 }
 
+function Assert-KmcAlternatingPersistenceEvidence {
+    param($Request,$Rows,$GameResult)
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    if($initial.Count-ne1){throw 'Alternating fixture lacks its initial native world.'}
+    foreach($row in $Rows){
+        if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
+            $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or$row.checkpoint-cne'alternating'-or
+            $row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id-or
+            $row.relationship-cnotin @('Mounted','Unmounted')-or$row.controls.DuplicateFactCount-ne0){
+            throw 'Alternating native identity/control invariant differs.'
+        }
+    }
+    $source=$Request.scenario-ceq'persistence-p05-save'
+    $writes=@($Rows|Where-Object kind -CEQ 'alternate-native-write-complete')
+    $expectedWrites=if($source){2}else{1}
+    if($writes.Count-ne$expectedWrites-or@($Rows|Where-Object kind -CEQ 'alternate-write-requested').Count-ne$expectedWrites){
+        throw 'Alternating fixture lacks its actual native write requests/completions.'
+    }
+    for($i=0;$i-lt$writes.Count;$i++){
+        $d=$writes[$i].detail
+        $mounted=-not($source-and$i-eq1)
+        $label=if(-not$source){'post-cold'}elseif($i-eq0){'A'}else{'B'}
+        $leaf=if(-not$source){'Manual_302_KMC_P05_POST.zks'}elseif($i-eq0){'Manual_300_KMC_P01.zks'}else{'Manual_301_KMC_P05_UNMOUNTED.zks'}
+        $path=Join-Path $root $leaf
+        if($d.label-cne$label-or$d.ordinal-ne($i+1)-or$d.path-cne$path-or$d.nativeType-cne'Manual'-or
+            $d.nativeCallback-ne$true-or$d.operation-cne'None'-or$d.snapshot.Mounted-ne$mounted-or
+            (Get-KmcSha256 $path)-cne$d.sha256-or(Get-Item -LiteralPath $path).Length-ne$d.length-or
+            $d.snapshot.CampaignId-cne$Request.fixture.working.gameId-or$d.snapshot.AreaId-cne$Request.fixture.working.area){
+            throw 'Alternating actual native archive differs from its observed snapshot.'
+        }
+        if($mounted){
+            if($d.snapshot.Rider.Id-cne$initial[0].rider.Id-or$d.snapshot.Mount.Id-cne$initial[0].mount.Id){throw 'Alternating mounted archive lost actor identity.'}
+        }elseif($null-ne$d.snapshot.Rider-or$null-ne$d.snapshot.Mount-or$null-ne$d.snapshot.ProfileId){
+            throw 'Unmounted B contains a stale pair.'
+        }
+    }
+    if(@(Get-ChildItem -LiteralPath $root -File -Filter '*.zks').Count-ne3){throw 'Alternating fixture archive inventory differs.'}
+    if($source){
+        foreach($kind in @('alternate-voluntary-dismount','alternating-source-complete')){
+            $row=@($Rows|Where-Object kind -CEQ $kind)
+            if($row.Count-ne1-or$row[0].relationship-cne'Unmounted'){throw 'B lacks real native dismount/continuation.'}
+        }
+        if($writes[0].detail.sha256-ceq$writes[1].detail.sha256){throw 'A and B were not distinct native archives.'}
+    }else{
+        foreach($descriptor in @($Request.persistenceLoad,$Request.persistenceAlternate)){
+            if((Get-KmcSha256 (Join-Path $root $descriptor.fileName))-cne$descriptor.sha256){throw 'Alternating cold input was changed.'}
+        }
+        $worlds=@($Rows|Where-Object kind -CEQ 'alternate-world-loaded')
+        if($worlds.Count-ne3-or@($Rows|Where-Object kind -CEQ 'alternate-load-requested').Count-ne2){throw 'A/B/A native loads are incomplete.'}
+        for($i=0;$i-lt3;$i++){
+            $d=$worlds[$i].detail;$mounted=$i-ne1
+            $label=if($mounted){'A'}else{'B'}
+            $state=if($mounted){'Mounted'}else{'Unmounted'}
+            if($d.index-ne$i-or$d.label-cne$label-or$d.mounted-ne$mounted-or$worlds[$i].relationship-cne$state-or
+                $d.semanticCount-ne$(if($i-eq2){4}else{2})-or$d.presentationCount-ne$(if($i-eq2){2}else{1})-or
+                $d.freshNativeObjects-ne$true){throw 'Alternating load carried a previous world/pair or replayed restoration.'}
+        }
+        foreach($kind in @('alternating-cycle-complete','movement-dispatched','movement-completed','attack-dispatched','attack-delivered','usable-continuation-complete')){
+            $row=@($Rows|Where-Object kind -CEQ $kind)
+            if($row.Count-ne1-or$row[0].relationship-cne'Mounted'){throw 'Alternating cold play is incomplete.'}
+        }
+        $attack=@($Rows|Where-Object kind -CEQ 'attack-delivered')[0]
+        if($attack.detail.rules-lt1-or$attack.detail.rolls-lt1){throw 'Alternating cold attack did not resolve natively.'}
+    }
+}
+
 function Assert-KmcPersistenceScenarioEvidence {
     param($Request,$Manifest,[string]$Status,$GameResult)
     if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p05-save','persistence-p05-load') -or $Status-cne'PASS'){return}
@@ -121,6 +191,10 @@ function Assert-KmcPersistenceScenarioEvidence {
     if((Get-KmcSha256 $path)-cne$artifact[0].sha256){throw 'P01 observations changed.'}
     $rows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     if($rows.Count-lt6-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
+    if($Request.scenario-cin @('persistence-p05-save','persistence-p05-load')-and$Request.persistenceCase-ceq'alternating'){
+        Assert-KmcAlternatingPersistenceEvidence $Request $rows $GameResult
+        return
+    }
     $isP03=$Request.scenario-cin @('persistence-p03-save','persistence-p03-load')
     $isSlot=$Request.scenario-cin @('persistence-p05-save','persistence-p05-load')
     $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')

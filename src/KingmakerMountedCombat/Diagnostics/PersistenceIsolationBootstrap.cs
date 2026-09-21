@@ -61,13 +61,31 @@ namespace KingmakerMountedCombat.Diagnostics
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
                     Writable = true
                 });
-                if (request.Scenario == "persistence-p05-save")
+                if (request.Scenario == "persistence-p05-save" && request.PersistenceCase != "alternating")
                 {
                     var type = RuntimePersistenceScenario.SlotType(request.PersistenceCase);
                     var name = RuntimePersistenceScenario.SlotName(type);
                     for (var n = 0; n < 2; n++) entries.Add(new PersistenceSaveEntry {
                         FileName = type == SaveInfo.SaveType.Manual ? "Manual_" + (300 + n) + "_KMC_P01.zks" : type + "_" + (1 + n) + ".zks",
                         InternalName = name, SaveType = type.ToString(), Area = fixture.Area, Writable = true });
+                }
+                if (request.PersistenceCase == "alternating")
+                {
+                    if (request.Scenario == "persistence-p05-save")
+                    {
+                        entries.Add(new PersistenceSaveEntry { FileName = "Manual_300_KMC_P01.zks",
+                            InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area, Writable = true });
+                        entries.Add(new PersistenceSaveEntry { FileName = "Manual_301_KMC_P05_UNMOUNTED.zks",
+                            InternalName = "KMC_P05_UNMOUNTED", SaveType = "Manual", Area = fixture.Area, Writable = true });
+                    }
+                    else
+                    {
+                        var alternate = request.PersistenceAlternate;
+                        entries.Add(new PersistenceSaveEntry { FileName = alternate.FileName, InternalName = alternate.InternalName,
+                            SaveType = "Manual", Area = alternate.Area, InitialSha256 = alternate.Sha256, Writable = false });
+                        entries.Add(new PersistenceSaveEntry { FileName = "Manual_302_KMC_P05_POST.zks",
+                            InternalName = "KMC_P05_POST", SaveType = "Manual", Area = fixture.Area, Writable = true });
+                    }
                 }
                 if (request.Scenario == "persistence-p05-load" && fixture.InternalName !=
                     RuntimePersistenceScenario.SlotName(RuntimePersistenceScenario.SlotType(request.PersistenceCase)))
@@ -91,8 +109,9 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (!game.SaveManager.AreSavesUpToDate) return false;
             var saves = game.SaveManager.ToArray();
-            if (saves.Length != 1 || authority.Validate(RuntimeSaveOperation.Load,
-                Project(saves[0]), game.SaveManager.SavePath) != null)
+            var expectedCount = request.Scenario == "persistence-p05-load" && request.PersistenceCase == "alternating" ? 2 : 1;
+            if (saves.Length != expectedCount || saves.Any(save => authority.Validate(RuntimeSaveOperation.Load,
+                Project(save), game.SaveManager.SavePath) != null))
                 throw new InvalidOperationException("Isolated native enumeration differs from the single copied fixture.");
             Ready = true;
             return true;

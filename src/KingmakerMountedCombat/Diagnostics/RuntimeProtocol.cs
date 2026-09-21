@@ -126,6 +126,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public RuntimeFixtureIdentity Fixture { get; set; }
 
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
+        public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
 
         internal string ExpectedNativeLoadType => Scenario == "persistence-p05-load" && PersistenceLoad != null ?
             (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
@@ -244,7 +245,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateLegacyNoSaveRequest(List<string> errors)
         {
-            if (PersistenceLoad != null) errors.Add("No-save requests cannot select an archive.");
+            if (PersistenceLoad != null || PersistenceAlternate != null) errors.Add("No-save requests cannot select an archive.");
             if (PersistenceCase != null) errors.Add("No-save requests cannot select a persistence case.");
             if (SaveAccessAllowed)
             {
@@ -277,7 +278,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             if (p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
-                new[] { "manual", "quick", "auto", "manual-renamed" } : new[] { "manual", "quick", "auto" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction" }, PersistenceCase) < 0 :
+                new[] { "manual", "quick", "auto", "manual-renamed", "alternating" } : new[] { "manual", "quick", "auto", "alternating" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");
@@ -300,6 +301,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
+            if (Scenario == "persistence-p05-load" && PersistenceCase == "alternating")
+            {
+                if (PersistenceAlternate == null) errors.Add("Alternating native loads require the second exact archive.");
+                else
+                {
+                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", "KMC_P05_UNMOUNTED",
+                        "^Manual_301_KMC_P05_UNMOUNTED\\.zks$"));
+                    if (PersistenceLoad == null || PersistenceAlternate.Sha256 == PersistenceLoad.Sha256 ||
+                        PersistenceAlternate.GameId != PersistenceLoad.GameId ||
+                        PersistenceAlternate.GameName != PersistenceLoad.GameName ||
+                        PersistenceAlternate.Area != PersistenceLoad.Area)
+                        errors.Add("Alternating archive must be distinct and from the exact same native campaign/area.");
+                }
+            }
+            else if (PersistenceAlternate != null) errors.Add("Only alternating P05 cold loads may select a second archive.");
             if (SaveAccessAllowed || !string.IsNullOrEmpty(SaveName))
             {
                 errors.Add("Schema v2 uses only its exact fixture write authorization.");

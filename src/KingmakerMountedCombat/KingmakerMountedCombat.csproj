@@ -175,6 +175,7 @@
     <Compile Include="Diagnostics\PersistenceSaveAuthorization.cs" />
     <Compile Include="Diagnostics\PersistenceIsolationBootstrap.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceAlternatingScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCombatScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCommitmentScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceRoundEffectScenario.cs" />
