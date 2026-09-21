@@ -11,7 +11,7 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed partial class RuntimePersistenceScenario
     {
-        private bool RecoveryCase => request.Scenario == "persistence-p07-save";
+        private bool RecoveryCase => request.Scenario == "persistence-p07-save" && !AreaCase;
         private bool RecoveryCommitFailure => request.PersistenceCase == "locked-replace";
         private FileStream recoveryArchiveLock;
         private bool recoveryContinuation;

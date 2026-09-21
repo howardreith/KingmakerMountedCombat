@@ -106,6 +106,11 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,
                     new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) }, null, nameof(PatchMethods.SaveWorkerPostfix), nameof(PatchMethods.NativeArchiveCommitTranspiler));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
+                PatchExact(typeof(Kingmaker.Game), "LoadArea", 0x06000CD5,
+                    new[] { typeof(Kingmaker.Blueprints.Area.BlueprintArea), typeof(Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint),
+                        typeof(AutoSaveMode), typeof(bool), typeof(SaveInfo) }, nameof(PatchMethods.AreaTransitionPrefix));
+                PatchExact(typeof(Kingmaker.Game), "OnAreaLoaded", 0x06000CD7, Type.EmptyTypes,
+                    null, nameof(PatchMethods.AreaEntitiesReadyPostfix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGame", 0x06000CE0, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameFromMainMenu", 0x06000CE2, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameMainMenuLoadAdmissionPrefix));
                 PatchExact(typeof(Kingmaker.Game), "LoadGameForSmokeTest", 0x06000CE1, new[] { typeof(SaveInfo) }, nameof(PatchMethods.GameSmokeLoadAdmissionPrefix));
@@ -855,6 +860,10 @@ namespace KingmakerMountedCombat.Integration
                     __result = PatchBridge.Persistence != null ? PatchBridge.Persistence.WrapSaveRoutine(__result, saveInfo) :
                         PatchBridge.NativeControls == null ? __result : PatchBridge.NativeControls.WrapSaveRoutine(__result);
             }
+
+            internal static void AreaTransitionPrefix(Kingmaker.Blueprints.Area.BlueprintArea area, SaveInfo saveInfo) =>
+                PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo);
+            internal static void AreaEntitiesReadyPostfix() => PatchBridge.Persistence?.RestoreAreaPair();
 
             internal static bool GameLoadAdmissionPrefix(SaveInfo saveInfo)
             {

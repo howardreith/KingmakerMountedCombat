@@ -240,10 +240,23 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        private bool areaSuspended;
+        internal void SuspendAreaControls()
+        {
+            if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
+            areaSuspended = true;
+            RemoveAllManagedFacts(true);
+        }
+        internal void ResumeAreaControls()
+        {
+            areaSuspended = false;
+            if (!disposed && enabled) Update();
+        }
+
         internal void Update()
         {
             ObservePendingRiderPrimaryOutcome();
-            if (disposed || !enabled || serializationSuspended)
+            if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
                 return;
             }
@@ -264,7 +277,7 @@ namespace KingmakerMountedCombat.Integration
             NativeMountedControlKind kind,
             UnitEntityData caster)
         {
-            if (disposed || !enabled || !registered || serializationSuspended)
+            if (disposed || !enabled || !registered || serializationSuspended || areaSuspended)
             {
                 return new NativeMountedControlAvailability(false, false, "Mounted control services are not active.");
             }

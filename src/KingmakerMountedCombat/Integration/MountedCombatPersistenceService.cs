@@ -145,6 +145,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void BeginLoadHousekeeping()
         {
+            CancelAreaTransition();
             NativeSaveEffectBoundary.Clear();
             unifiedTurn.DiscardPersistenceWorld();
             if (!relationship.GuardBoundary(CleanupTrigger.LoadRequested))

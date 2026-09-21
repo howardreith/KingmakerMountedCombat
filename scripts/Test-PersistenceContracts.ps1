@@ -422,6 +422,29 @@ public static class KmcPersistenceContractProbe
             foreach(var method in processor.GetMethods(BindingFlags.Public|BindingFlags.Static))
                 if(method.Name=="GetOriginalInstructions" && method.GetParameters().Length==2 &&
                     !method.GetParameters()[1].ParameterType.IsByRef) read=method;
+            var areaLoad=native.ManifestModule.ResolveMethod(0x06000CD5);
+            var areaReady=native.ManifestModule.ResolveMethod(0x06000CD7);
+            Check(areaLoad.DeclaringType.FullName=="Kingmaker.Game" && areaLoad.Name=="LoadArea" &&
+                areaLoad.GetParameters().Length==5 && areaLoad.GetParameters()[0].Name=="area" &&
+                areaLoad.GetParameters()[4].Name=="saveInfo" && areaReady.Name=="OnAreaLoaded",
+                "exact native area request and post-placement Harmony parameter contract");
+            var areaCalls=new System.Collections.Generic.List<int>();
+            foreach(var ins in (System.Collections.IEnumerable)read.Invoke(null,new object[]{areaLoad,null})) {
+                var call=ins.GetType().GetField("operand").GetValue(ins) as MethodBase;
+                if(call!=null && call.Module==native.ManifestModule) areaCalls.Add(call.MetadataToken);
+            }
+            Check(areaCalls.IndexOf(0x06008029)<areaCalls.IndexOf(0x06000CD7) &&
+                areaCalls.LastIndexOf(0x06008029)>areaCalls.IndexOf(0x06000CD7) &&
+                areaCalls.IndexOf(0x06000CD8)>areaCalls.LastIndexOf(0x06008029),
+                "native before-exit and after-entry saves surround entity placement before final completion");
+            var readyCalls=new System.Collections.Generic.List<int>();
+            foreach(var ins in (System.Collections.IEnumerable)read.Invoke(null,new object[]{areaReady,null})) {
+                var call=ins.GetType().GetField("operand").GetValue(ins) as MethodBase;
+                if(call!=null && call.Module==native.ManifestModule) readyCalls.Add(call.MetadataToken);
+            }
+            Check(readyCalls.IndexOf(0x06001906)>readyCalls.IndexOf(0x06000DD1) &&
+                readyCalls.IndexOf(0x06000DD1)>readyCalls.IndexOf(0x06007E66),
+                "native area post-hook follows scene activation, party load and navmesh placement");
             var original=native.ManifestModule.ResolveMethod(0x06008025);
             var instructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{original,null});
             var legacyInstruction=harmonyAssembly.GetType("Harmony12.CodeInstruction",true);

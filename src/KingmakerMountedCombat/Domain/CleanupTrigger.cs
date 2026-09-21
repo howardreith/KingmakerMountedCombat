@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Domain
         Death = 80,
         CombatStarted = 90,
         AreaUnloading = 100,
+        AreaSuspension = 101,
         ModDisabled = 110,
         Exception = 120,
         ProcessTeardown = 130

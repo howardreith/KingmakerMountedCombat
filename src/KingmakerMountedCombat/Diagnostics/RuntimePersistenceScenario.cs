@@ -68,7 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -331,7 +331,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var row = new JObject
             {
                 ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
-                ["kind"] = kind, ["checkpoint"] = CombatCase || RealtimeCase ? Checkpoint : SlotCase || ValidationCase || RecoveryCase || request.Scenario == "persistence-p07-load" ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
+                ["kind"] = kind, ["checkpoint"] = CombatCase || RealtimeCase ? Checkpoint : SlotCase || ValidationCase || RecoveryCase || AreaCase || request.Scenario == "persistence-p07-load" ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["source"] = request.Commit,
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
                 ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),

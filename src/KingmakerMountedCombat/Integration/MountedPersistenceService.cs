@@ -182,6 +182,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal IEnumerator<object> WrapLoadRoutine(IEnumerator<object> routine, SaveInfo save)
         {
+            CancelAreaTransition();
             var scope = new LoadScope { Sequence = ++loadSequence };
             // Queueing B invalidates unfinished restoration of A immediately.
             // A completed world's save semantics remain valid until B actually
@@ -284,6 +285,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void Update()
         {
+            CompleteAreaTransitionIfReady();
             TryRestoreCombat();
             if (CombatRestorationPending) return;
             if (!Enabled || !presentationPending || SaveSuspended || restoreLoad == null ||

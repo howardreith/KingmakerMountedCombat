@@ -17,18 +17,20 @@ namespace KingmakerMountedCombat.Integration
         private readonly NativeLifecycleDeliveryLedger ledger;
         private readonly MountedCombatController combat;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
+        private readonly MountedPersistenceService persistence;
         private readonly IDisposable subscription;
         private readonly object lifeTransitionGate = new object();
         private readonly List<NativePairLifeStateObservation> pairLifeTransitions = new List<NativePairLifeStateObservation>();
         private long pairLifeTransitionSequence;
         private bool disposed;
 
-        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn)
+        public MountedLifecycleSubscriber(GameMountedRelationshipService service, NativeLifecycleDeliveryLedger ledger, MountedCombatController combat, UnifiedMountedTurnCoordinator unifiedTurn, MountedPersistenceService persistence)
         {
             this.service = service ?? throw new ArgumentNullException(nameof(service));
             this.ledger = ledger ?? throw new ArgumentNullException(nameof(ledger));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.unifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
+            this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             subscription = EventBus.Subscribe(this);
         }
 
@@ -68,7 +70,8 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandlePartyLeaveArea(BlueprintArea currentArea, BlueprintAreaEnterPoint targetArea)
         {
-            Cleanup(NativeLifecycleBoundary.AreaBeginUnload, "IPartyLeaveAreaHandler.HandlePartyLeaveArea", CleanupTrigger.AreaUnloading);
+            persistence.BeginAreaTransition(targetArea?.Area, null);
+            SuspendArea("IPartyLeaveAreaHandler.HandlePartyLeaveArea");
         }
 
         public void HandleTurnBasedModeStateChanged(bool enabled)
@@ -93,7 +96,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void OnAreaBeginUnloading()
         {
-            Cleanup(NativeLifecycleBoundary.AreaBeginUnload, "ISceneHandler.OnAreaBeginUnloading", CleanupTrigger.AreaUnloading);
+            SuspendArea("ISceneHandler.OnAreaBeginUnloading");
         }
 
         public void OnAreaDidLoad()
@@ -231,6 +234,13 @@ namespace KingmakerMountedCombat.Integration
             return unitIsSupportedMount || ownsSupportedMount;
         }
 
+        private void SuspendArea(string source)
+        {
+            if (persistence.SuspendAreaPair())
+                Observe(NativeLifecycleBoundary.AreaBeginUnload, source + "(mounted area suspension)");
+            else Cleanup(NativeLifecycleBoundary.AreaBeginUnload, source, CleanupTrigger.AreaUnloading);
+        }
+
         private bool Cleanup(NativeLifecycleBoundary boundary, string source, CleanupTrigger trigger, string detail = null)
         {
             var before = service.State;
@@ -250,6 +260,7 @@ namespace KingmakerMountedCombat.Integration
         private void ObserveOrCleanupGameMode(NativeLifecycleBoundary boundary, string source, GameModeType gameMode)
         {
             if (service.SaveSerializationSuspended ||
+                (gameMode == GameModeType.None && persistence.AreaTransitionPending) ||
                 MountedGameModePolicy.CanRetainMountedRelationship(gameMode.ToString()) || service.State != RelationshipState.Mounted)
             {
                 Observe(boundary, source, service.CapturePresentationObservation(false));

@@ -546,7 +546,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $queuedHash $fixture -NativeCase
 
 $result.scenario='persistence-p07-save'
 Write-KmcJsonAtomic $resultPath $result
-foreach($case in @('timeout','cancel-wait','locked-replace')){
+foreach($case in @('timeout','cancel-wait','locked-replace','area-reload')){
     Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p07-save';persistenceCase=$case;transactionToken=('a'*64)})
     $recoveryHash=Get-KmcSha256 $path
     $recoverySource=Get-KmcPersistenceSource $sourceId $recoveryHash $fixture -NativeCase $case
@@ -602,6 +602,37 @@ foreach($bad in @('no-commit-failure','no-snapshot','clock-rewind')){
         'clock-rewind' {$copy[2].gameTicks=99}
     }
     Must-Reject {Assert-KmcRecoveryPersistenceEvidence $recoveryRequest $copy} ('P07 accepted '+$bad)
+}
+
+$areaRequest=[pscustomobject]@{persistenceCase='area-reload';fixture=[pscustomobject]@{working=[pscustomobject]@{area=('a'*32)}}}
+$areaRows=@(
+    foreach($kind in @('area-initial-write','area-reload-requested','area-reload-complete','native-write-complete')){
+        [pscustomobject]@{kind=$kind;gameTicks=100;native=[pscustomobject]@{paused=$false};
+            persistence=[pscustomobject]@{semantics=0;presentation=0};
+            controls=[pscustomobject]@{ExactFactCount=5;ManagedHotbarSlotCount=2;SerializationSuspended=$false};
+            rider=[pscustomobject]@{Standard=2;Move=1;Swift=3;Initiative=0;Reaction=1;ReactionsRemaining=0};
+            mount=[pscustomobject]@{Standard=0;Move=2;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1};
+            detail=[pscustomobject]@{area=('a'*32);suspensions=0;resumes=0;pending=$false;
+                suspensionObserved=$true;loadingFrames=10;sameWorld=$true;riderView=1;mountView=2;
+                nativeCastRequests=0;ordinal=2;sha256=('a'*64)}}
+    }
+)
+$areaRows[2].detail.suspensions=1;$areaRows[2].detail.resumes=1
+$areaRows[2].detail.riderView=3;$areaRows[2].detail.mountView=4;$areaRows[3].detail.sha256=('b'*64)
+Assert-KmcAreaPersistenceEvidence $areaRequest $areaRows;$passes++
+foreach($bad in @('same-views','no-unload','duplicate-resume','wrong-world','remount','debt-refund','reaction-refresh','missing-slots')){
+    $copy=($areaRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json
+    switch($bad){
+        'same-views' {$copy[2].detail.riderView=1}
+        'no-unload' {$copy[2].detail.suspensionObserved=$false}
+        'duplicate-resume' {$copy[2].detail.resumes=2}
+        'wrong-world' {$copy[2].detail.sameWorld=$false}
+        'remount' {$copy[2].detail.nativeCastRequests=1}
+        'debt-refund' {$copy[2].rider.Standard=0}
+        'reaction-refresh' {$copy[2].rider.ReactionsRemaining=1}
+        'missing-slots' {$copy[2].controls.ManagedHotbarSlotCount=0}
+    }
+    Must-Reject {Assert-KmcAreaPersistenceEvidence $areaRequest $copy} ('P07 area accepted '+$bad)
 }
 
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"

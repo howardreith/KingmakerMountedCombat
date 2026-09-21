@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','area-reload','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -21,7 +21,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','area-reload')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -520,7 +520,10 @@ function Assert-KmcPersistenceScenarioEvidence {
         $final=@($rows|Where-Object kind -CEQ 'usable-continuation-complete')[0]
         if(@($final.detail.turnVisits).Count-lt4){throw 'P02 lacks observed native unrelated participation.'}
     }
-    if($Request.scenario-ceq'persistence-p07-save'){Assert-KmcRecoveryPersistenceEvidence $Request $rows}
+    if($Request.scenario-ceq'persistence-p07-save'){
+        if($Request.persistenceCase-ceq'area-reload'){Assert-KmcAreaPersistenceEvidence $Request $rows}
+        else{Assert-KmcRecoveryPersistenceEvidence $Request $rows}
+    }
     if($isSuspended){Assert-KmcSuspendedEvidence $rows $isWrite}
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     if($isWrite){
@@ -804,5 +807,36 @@ function Assert-KmcRecoveryPersistenceEvidence {
         $loaded[0].detail.nativeCallback-ne$true-or$written[0].detail.ordinal-ne2-or
         $written[0].detail.sha256-ceq$hash){
         throw 'P07 lost recovery, completed-world ownership, real native reload or subsequent nonempty write semantics.'
+    }
+}
+
+function Assert-KmcAreaPersistenceEvidence {
+    param($Request,$Rows)
+    $before=@($Rows|Where-Object kind -CEQ 'area-reload-requested')
+    $after=@($Rows|Where-Object kind -CEQ 'area-reload-complete')
+    $initial=@($Rows|Where-Object kind -CEQ 'area-initial-write')
+    $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
+    if($Request.persistenceCase-cne'area-reload'-or$before.Count-ne1-or$after.Count-ne1-or$initial.Count-ne1-or$written.Count-ne1){
+        throw 'P07 area case lacks its exact native request, replacement, and two write completions.'
+    }
+    $a=$before[0];$b=$after[0];$d=$b.detail
+    if($a.detail.suspensions-ne0-or$a.detail.resumes-ne0-or$d.suspensions-ne1-or$d.resumes-ne1-or
+        $d.pending-ne$false-or$d.suspensionObserved-ne$true-or$d.loadingFrames-lt1-or$d.sameWorld-ne$true-or
+        $d.area-cne$Request.fixture.working.area-or$a.detail.area-cne$d.area-or
+        $d.riderView-eq$a.detail.riderView-or$d.mountView-eq$a.detail.mountView-or$d.nativeCastRequests-ne0-or
+        $b.persistence.semantics-ne0-or$b.persistence.presentation-ne0-or$b.native.paused-ne$false-or
+        $b.controls.ExactFactCount-ne$a.controls.ExactFactCount-or
+        $b.controls.ManagedHotbarSlotCount-ne$a.controls.ManagedHotbarSlotCount-or
+        $b.controls.SerializationSuspended-ne$false-or$written[0].detail.ordinal-ne2-or
+        $initial[0].detail.sha256-ceq$written[0].detail.sha256){
+        throw 'P07 area replacement lost native identity, exactly-once controls or actual post-area save.'
+    }
+    $elapsed=[Math]::Max(0,([double]$b.gameTicks-[double]$a.gameTicks)/10000000)
+    foreach($actor in @('rider','mount')){
+        foreach($cost in @('Standard','Move','Swift','Initiative','Reaction')){
+            $expected=[Math]::Max(0,[double]$a.$actor.$cost-$elapsed)
+            if([Math]::Abs([double]$b.$actor.$cost-$expected)-gt0.075){throw 'P07 area changed legitimate current debt.'}
+        }
+        if($a.$actor.ReactionsRemaining-ne$b.$actor.ReactionsRemaining){throw 'P07 area refreshed native reactions.'}
     }
 }

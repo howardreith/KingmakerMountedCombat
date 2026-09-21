@@ -56,7 +56,7 @@ namespace KingmakerMountedCombat
                 unifiedTurn.BindCombat(combat);
                 animation = new MountedAnimationAdapter(relationship, combat, horsePrimaryAttackAnimation, logger);
                 dollRoomIk = new MountedDollRoomIkAdapter(relationship, logger);
-                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn);
+
                 saveAuthorization = new RuntimeSaveAuthorization();
                 playerAction = new MountedPlayerActionController(relationship, settings, logger, combat);
                 nativeControls = new NativeMountedControlService(
@@ -68,6 +68,7 @@ namespace KingmakerMountedCombat
                     lifecycleLedger,
                     logger);
                 persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger);
+                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
@@ -224,7 +225,7 @@ namespace KingmakerMountedCombat
                 return;
             }
 
-            if (persistence.SaveSuspended || persistence.CombatRestorationPending) return;
+            if (persistence.SaveSuspended || persistence.AreaTransitionPending || persistence.CombatRestorationPending) return;
             combat.Update();
             unifiedTurn.Update();
             relationship.ValidateActivePair();
