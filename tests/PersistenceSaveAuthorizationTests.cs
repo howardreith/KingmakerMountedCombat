@@ -14,6 +14,10 @@ namespace KingmakerMountedCombat.Tests
 
         public static void Register(TestRunner runner)
         {
+            runner.Run("queued native requests use unique declared slots before actual allocation", QueuedRequests);
+            runner.Run("queued request projection cannot launder foreign paths campaign type or area", ProjectionBoundaries);
+            runner.Run("queued request projection rejects active read-only and unowned existing destinations", ProjectionOwnership);
+            runner.Run("ambiguous queued destinations retain native prediction and strict validation", AmbiguousProjection);
             runner.Run("staging failure cleanup preserves completed saves and rejects substituted bytes", StagingCleanup);
             runner.Run("isolated native slot replacement retains exact committed bytes across rotation", ReplacementCommit);
             runner.Run("failed or canceled owned replacement preserves both complete archives", ReplacementFailure);
@@ -26,6 +30,92 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated saves retain read-only fixture and detect outside mutation", ReadOnly);
             runner.Run("isolated saves reject multiply linked files", HardLinks);
             runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
+        }
+
+        private static void QueuedRequests()
+        {
+            using (var files = new Files())
+            {
+                var entries = Enumerable.Range(0, 3).Select(i => new PersistenceSaveEntry {
+                    FileName = "Manual_" + (300 + i) + "_queued_" + i + ".zks", InternalName = "queued " + i,
+                    SaveType = "Manual", Area = Area, Writable = true }).ToArray();
+                var guard = files.Guard(entries);
+                for (var i = 0; i < entries.Length; i++)
+                {
+                    var predicted = files.Target("Manual");
+                    predicted.InternalName = entries[i].InternalName;
+                    predicted.FileName = "Manual_300_queued_" + i + ".zks";
+                    predicted.FullPath = Path.Combine(files.Root, predicted.FileName);
+                    var request = guard.ProjectNewRequest(predicted, files.Root);
+                    TestRunner.Equal(entries[i].FileName, request.FileName, "Queue creation guessed another native slot.");
+                    TestRunner.True(guard.Validate(RuntimeSaveOperation.Write, request, files.Root) == null, "Exact unallocated request rejected.");
+                    TestRunner.True(guard.Validate(RuntimeSaveOperation.Load, request, files.Root) != null, "Projection invented completed bytes.");
+                    if (i > 0) MustThrow(() => guard.BeginWrite(predicted, files.Root));
+                    using (var lease = guard.BeginWrite(request, files.Root))
+                    {
+                        File.WriteAllText(request.FullPath, "owned queued complete " + i);
+                        lease.Complete();
+                    }
+                    guard.AssertReadableArchive(request.FullPath);
+                }
+                TestRunner.Equal(3, Directory.GetFiles(files.Root).Length, "Unexpected queue alias created.");
+            }
+        }
+
+        private static void ProjectionBoundaries()
+        {
+            using (var files = new Files())
+            {
+                var entry = Entry("Manual"); entry.FileName = "Manual_302_owned.zks";
+                var guard = files.Guard(entry);
+                var target = files.Target("Manual");
+                target.FullPath = Path.Combine(files.RunRoot, target.FileName);
+                MustThrow(() => guard.ProjectNewRequest(target, files.Root));
+                target = files.Target("Manual");
+                MustThrow(() => guard.ProjectNewRequest(target, files.RunRoot));
+                target.GameId = "another campaign";
+                MustThrow(() => guard.ProjectNewRequest(target, files.Root));
+                target = files.Target("Manual"); target.InternalName = "KMC_unlisted";
+                Reject(guard, guard.ProjectNewRequest(target, files.Root), files.Root);
+                target = files.Target("Manual"); target.SaveType = "Quick";
+                Reject(guard, guard.ProjectNewRequest(target, files.Root), files.Root);
+                target = files.Target("Manual"); target.Area = new string('f', 32);
+                Reject(guard, guard.ProjectNewRequest(target, files.Root), files.Root);
+            }
+        }
+
+        private static void ProjectionOwnership()
+        {
+            using (var files = new Files())
+            {
+                var entry = Entry("Manual"); entry.FileName = "Manual_302_owned.zks";
+                var guard = files.Guard(entry);
+                var predicted = files.Target("Manual");
+                var actual = guard.ProjectNewRequest(predicted, files.Root);
+                using (guard.BeginWrite(actual, files.Root))
+                    Reject(guard, guard.ProjectNewRequest(predicted, files.Root), files.Root);
+                File.WriteAllText(actual.FullPath, "unowned outside creation");
+                MustThrow(() => guard.ProjectNewRequest(predicted, files.Root));
+            }
+            using (var files = new Files())
+            {
+                var entry = Entry("Manual"); entry.FileName = "Manual_302_owned.zks"; entry.Writable = false;
+                var guard = files.Guard(entry);
+                Reject(guard, guard.ProjectNewRequest(files.Target("Manual"), files.Root), files.Root);
+            }
+        }
+
+        private static void AmbiguousProjection()
+        {
+            using (var files = new Files())
+            {
+                var first = Entry("Manual"); first.FileName = "Manual_301_owned.zks";
+                var second = Entry("Manual"); second.FileName = "Manual_302_owned.zks";
+                var guard = files.Guard(first, second);
+                var native = files.Target("Manual");
+                TestRunner.True(ReferenceEquals(native, guard.ProjectNewRequest(native, files.Root)), "Ambiguous request guessed a destination.");
+                Reject(guard, native, files.Root);
+            }
         }
 
         private static void StagingCleanup()

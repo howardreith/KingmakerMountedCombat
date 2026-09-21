@@ -226,13 +226,13 @@ namespace KingmakerMountedCombat.Integration
             var suffix = save.Type == SaveInfo.SaveType.Manual ? "_" +
                 System.Text.RegularExpressions.Regex.Replace(save.Name, "[^a-zA-Z0-9]", "_") : string.Empty;
             var leaf = save.Type + "_" + manager.FindUnusedSaveNumber(save.Type) + suffix + ".zks";
-            return new RuntimeSaveTarget
+            return authority.ProjectNewRequest(new RuntimeSaveTarget
             {
                 InternalName = save.Name, FileName = leaf, FullPath = Path.Combine(authority.Root, leaf),
                 SaveType = save.Type.ToString(), GameId = Kingmaker.Game.Instance.Player.GameId,
                 GameName = Kingmaker.Game.Instance.Player.MainCharacter.Value.CharacterName,
                 Area = Kingmaker.Game.Instance.CurrentlyLoadedArea.AssetGuidThreadSafe
-            };
+            }, authority.Root);
         }
 
         internal static void ObservePreparedWrite(SaveInfo save)

@@ -90,6 +90,37 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // Request creation precedes native queue ordering and slot allocation.
+        // A unique, still-empty declared destination can identify the request;
+        // BeginWrite still validates the actual PrepareSave path before storage.
+        internal RuntimeSaveTarget ProjectNewRequest(RuntimeSaveTarget predicted, string observedRoot)
+        {
+            lock (sync)
+            {
+                if (predicted == null || Canonical(observedRoot) != Root ||
+                    Canonical(predicted.FullPath) != Path.Combine(Root, predicted.FileName) ||
+                    predicted.FileName != Path.GetFileName(predicted.FullPath))
+                    throw new InvalidOperationException("New request projection escaped its exact isolated root.");
+                RequireDirectory(Root);
+                if (predicted.GameId != gameId || predicted.GameName != gameName)
+                    throw new InvalidOperationException("New request campaign differs from its run.");
+                var candidates = entries.Where(p => p.Value.Name == predicted.InternalName &&
+                    p.Value.Type == predicted.SaveType && p.Value.Area == predicted.Area &&
+                    p.Value.Writable && !p.Value.Writing && p.Value.Hash == null).ToArray();
+                // Existing rotation contracts may deliberately declare two leaves.
+                // Keep their native prediction and let normal validation decide.
+                if (candidates.Length != 1) return predicted;
+                var candidate = candidates[0];
+                VerifyFile(candidate.Key, candidate.Value);
+                return new RuntimeSaveTarget
+                {
+                    InternalName = predicted.InternalName, FileName = candidate.Key,
+                    FullPath = Path.Combine(Root, candidate.Key), SaveType = predicted.SaveType,
+                    GameId = predicted.GameId, GameName = predicted.GameName, Area = predicted.Area
+                };
+            }
+        }
+
         internal string Validate(RuntimeSaveOperation operation, RuntimeSaveTarget target, string observedRoot)
         {
             lock (sync) return ValidateLocked(operation, target, observedRoot);
