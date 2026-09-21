@@ -111,8 +111,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         controls.NativeCastRequestCount == 0, "RT-no-new-acquisition-mount-or-duplicate-restore");
                     Check(!rider.IsAIEnabled && !mount.IsAIEnabled, "RT-native-saved-AI-switch-without-cold-injection");
                     if (RealtimeProjectile)
-                        Check(rider.GetFirstWeapon()?.Blueprint?.Category == Kingmaker.Enums.WeaponCategory.Longbow &&
-                            rider.GetFirstWeapon().Blueprint.IsRanged && !NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
+                        Check(rider.GetFirstWeapon()?.Blueprint?.IsRanged == true &&
+                            rider.GetFirstWeapon().Blueprint.VisualParameters.Projectiles.Length > 0 &&
+                            rider.Descriptor.Proficiencies.Contains(rider.GetFirstWeapon().Blueprint.Category) &&
+                            !NativeSaveEffectBoundary.HasUnresolvedProjectiles(),
                             "RT-native-saved-ranged-equipment-without-replay-or-cold-equip");
                     BindRealtimeObservers();
                     ValidateRealtimeRemainder(data);
@@ -138,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (RealtimeProjectile)
                 {
                     realtimeWeapon = new Phase3dRangedWeaponLease(rider);
-                    realtimeWeapon.Acquire(Kingmaker.Enums.WeaponCategory.Longbow);
+                    realtimeWeapon.AcquireCompatibleRanged();
                     Check(realtimeWeapon.IsReady, "RT-owned-native-ranged-equipment-before-combat");
                 }
                 if (RealtimeMounted) Check(relationship.MountRiderOn(rider, mount).Succeeded, "RT-source-mounted-before-combat");
