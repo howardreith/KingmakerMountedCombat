@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int realtimeLaterAttacks;
         private bool realtimeDebtWaitObserved;
         private bool realtimeBoundaryObserved;
+        private Action restoreRealtimeAi;
 
         private sealed class RealtimeRoundProbe : IUnitNewCombatRoundHandler, IDisposable
         {
@@ -39,6 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private JObject RealtimeObservation() => new JObject {
             ["target"] = combatTarget?.UniqueId, ["targetDamage"] = combatTarget?.Damage,
+            ["riderAiEnabled"] = rider?.IsAIEnabled, ["mountAiEnabled"] = mount?.IsAIEnabled,
             ["riderRounds"] = realtimeRounds?.Count, ["resolved"] = realtimeProbe?.RiderResolvedCount,
             ["ordinaryAttacks"] = realtimeProbe?.RiderNonOpportunityAttackRuleCount, ["forcedD20"] = realtimeProbe?.PairForcedD20Count,
             ["rules"] = realtimeProbe?.CapturePairEvidence(),
@@ -91,6 +93,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(persistence.SemanticRestoreCount == data.Combat.Actors.Length &&
                         persistence.PresentationRestoreCount == (RealtimeMounted ? 1 : 0) &&
                         controls.NativeCastRequestCount == 0, "RT-no-new-acquisition-mount-or-duplicate-restore");
+                    Check(!rider.IsAIEnabled && !mount.IsAIEnabled, "RT-native-saved-AI-switch-without-cold-injection");
                     BindRealtimeObservers();
                     ValidateRealtimeRemainder(data);
                     Write("initial", RealtimeObservation());
@@ -104,6 +107,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!relationship.TryResolveAutomationPair(out rider, out mount, out error))
                     throw new InvalidOperationException(error);
                 Check(!game.Player.IsInCombat, "RT-source-starts-outside-combat");
+                // Native Stop retires only unstarted orders. Use the player's
+                // native AI-off state for this idle control so finished manual
+                // routines cannot immediately reacquire an autonomous target.
+                var ai = NativeCombatActorPersistence.Field(typeof(UnitEntityData), "m_AiEnabled", 0x040054BA, typeof(bool));
+                var riderAi = (bool)ai.GetValue(rider);
+                var mountAi = (bool)ai.GetValue(mount);
+                restoreRealtimeAi = () => { rider.IsAIEnabled = riderAi; mount.IsAIEnabled = mountAi; };
+                rider.IsAIEnabled = false; mount.IsAIEnabled = false;
                 if (RealtimeMounted) Check(relationship.MountRiderOn(rider, mount).Succeeded, "RT-source-mounted-before-combat");
                 controls.Update();
                 if (RealtimeMounted) BindOwnedControlSlots();
