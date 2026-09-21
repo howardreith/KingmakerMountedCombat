@@ -38,7 +38,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','timeout','cancel-wait','locked-replace')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -89,8 +89,8 @@ if($Scenario -cin @('persistence-p07-save','persistence-p07-load')){
     if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace')){throw 'P07 requires its exact owned recovery case.'}
 }elseif($PersistenceCase-cin @('timeout','cancel-wait','locked-replace')){throw 'Recovery faults require the exact P07 scenario.'}
 if($Scenario-ceq'persistence-p06-load'){
-    if($PersistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy')){throw 'P06 requires its exact validation variant.'}
-}elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy')){throw 'Validation variants require the exact P06 scenario.'}
+    if($PersistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){throw 'P06 requires its exact validation variant.'}
+}elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){throw 'Validation variants require the exact P06 scenario.'}
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
 $repoRoot=Get-KmcRepositoryRoot
@@ -334,7 +334,7 @@ try{
             if($Scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){
                 $sourceCase=if($Scenario-ceq'persistence-p07-load'){$PersistenceCase}elseif($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}elseif($Scenario-ceq'persistence-p04-load'-or($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-cin @('condition','condition-preparing','suspended'))){$PersistenceCase}else{$null}
                 $source=if($Scenario-ceq'persistence-p06-load'){
-                    Get-KmcPersistenceValidationSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload
+                    Get-KmcPersistenceValidationSource $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload -Case $PersistenceCase
                 }elseif($null-eq$sourceCase){Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload}
                 else{Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase}
                 $copySource=$source.path;$copyDescriptor=$source.descriptor

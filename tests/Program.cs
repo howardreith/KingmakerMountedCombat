@@ -224,7 +224,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("P06 owns exactly two read-only archive identities and a bounded validation case", () =>
             {
                 foreach (var name in new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign",
-                    "missing-rider", "missing-mount", "mismatched-profile", "policy" })
+                    "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai" })
                 {
                     var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
                     request.Scenario = "persistence-p06-load"; request.PersistenceCase = name;

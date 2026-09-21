@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 # Offline, owned copies only. Native entity/header/screenshot bytes are never
 # edited. This is fixture derivation, not a production save or migration writer.
 function Get-KmcPersistenceValidationSource {
-    param([string]$SourceRunId,[string]$ExpectedSha256,$Fixture)
+    param([string]$SourceRunId,[string]$ExpectedSha256,$Fixture,[string]$Case)
     if($SourceRunId-cnotmatch'^[A-Za-z0-9._-]{1,120}$'-or$SourceRunId-in@('.','..')){
         throw 'Invalid validation source run.'
     }
@@ -11,6 +11,12 @@ function Get-KmcPersistenceValidationSource {
     Assert-KmcDirectoryTreeCloneable $root 'validation source'
     $owner=Read-KmcJson (Join-Path $root 'owner.json')
     $category=$null
+    if($Case-cin @('combat-missing','combat-ai')){
+        if($owner.scenario-cne'persistence-p02-save'-or$owner.persistenceCase-cne'partial-movement'){
+            throw 'Combat validation requires an exact completed partial-movement TB source.'
+        }
+        return Get-KmcPersistenceSource $SourceRunId $ExpectedSha256 $Fixture
+    }
     if($owner.scenario-ceq'persistence-p05-save'){
         if($owner.persistenceCase-cnotin@('manual','queued')){throw 'Validation requires a completed outside-combat manual source.'}
         $category=[string]$owner.persistenceCase
@@ -44,9 +50,9 @@ function Get-KmcValidationMemberHashes {
 
 function New-KmcPersistenceValidationCopy {
     param([string]$SourceRunId,[string]$ExpectedSha256,$Fixture,
-        [ValidateSet('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy')][string]$Case)
+        [ValidateSet('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')][string]$Case)
     Assert-KmcNoGameProcesses
-    $source=Get-KmcPersistenceValidationSource $SourceRunId $ExpectedSha256 $Fixture
+    $source=Get-KmcPersistenceValidationSource $SourceRunId $ExpectedSha256 $Fixture -Case $Case
     $before=Get-KmcValidationMemberHashes $source.path
     $parent=Join-Path (Get-KmcLabRoot) 'analysis-cache/chunk5-validation-fixtures'
     [void][IO.Directory]::CreateDirectory($parent)
@@ -74,10 +80,14 @@ function New-KmcPersistenceValidationCopy {
         try{$json=$reader.ReadToEnd()}finally{$reader.Dispose()}
         Assert-KmcJsonObjectMembersUnique -Json $json -Description 'validation source metadata'
         $data=$json|ConvertFrom-Json
-        if($data.SchemaVersion-ne2-or$data.Mounted-ne$true-or$null-ne$data.Combat-or
+        $combat=$Case-cin @('combat-missing','combat-ai')
+        if($data.SchemaVersion-ne2-or$data.Mounted-ne$true-or
+            ($combat-and($null-eq$data.Combat-or$data.Combat.TurnBased-ne$true))-or
+            (-not$combat-and$null-ne$data.Combat)-or
             $data.CampaignId-cne$Fixture.working.gameId-or$data.AreaId-cne$Fixture.working.area){
-            throw 'Only the current outside-combat mounted source may seed these variants.'
+            throw 'The current mounted source does not match its exact validation mode.'
         }
+        if($combat){Assert-KmcP02Snapshot $data 'partial-movement'}
         switch -CaseSensitive ($Case){
             'legacy' { $json=$null }
             'schema1' { $data.SchemaVersion=1;$data.PSObject.Properties.Remove('Combat');$json=$data|ConvertTo-Json -Depth 12 -Compress }
@@ -89,6 +99,17 @@ function New-KmcPersistenceValidationCopy {
             'missing-mount' { $data.Mount.Id='c63b5e10-4db1-47d5-ae61-5c0788137a5d';$json=$data|ConvertTo-Json -Depth 12 -Compress }
             'mismatched-profile' { $data.ProfileId=if($data.ProfileId-ceq'medium-humanoid-mammoth-v1'){'medium-humanoid-horse-v1'}else{'medium-humanoid-mammoth-v1'};$json=$data|ConvertTo-Json -Depth 12 -Compress }
             'policy' { } # Exact same bytes, interpreted under an incompatible active policy.
+            'combat-missing' {
+                $others=@($data.Combat.Actors|Where-Object {$_.Native.Id-cnotin@($data.Rider.Id,$data.Mount.Id)})
+                if($others.Count-lt1){throw 'Combat fixture has no unrelated actor to invalidate'}
+                $json=$json.Replace([string]$others[0].Native.Id,'c63b5e10-4db1-47d5-ae61-5c0788137a5d')
+            }
+            'combat-ai' {
+                $actor=@($data.Combat.Actors|Where-Object {$_.Native.Id-ceq$data.Mount.Id})
+                if($actor.Count-ne1){throw 'Combat fixture mount is ambiguous'}
+                $actor[0].AiActions=@([ordered]@{BlueprintId='c63b5e104db147d5ae615c0788137a5d';Cooldown=1;Count=1})
+                $json=$data|ConvertTo-Json -Depth 12 -Compress
+            }
             default { throw 'Unknown bounded validation variant.' }
         }
         if($Case-cne'policy'){
@@ -133,7 +154,46 @@ function Assert-KmcValidationPersistenceEvidence {
         }
     }
     $refused=$Request.persistenceCase-cin @('future','malformed','profile','campaign','policy')
-    if($refused){
+    $combat=$Request.persistenceCase-cin @('combat-missing','combat-ai')
+    if($combat){
+        $loads=@($Rows|Where-Object kind -CEQ 'validation-native-load-requested')
+        $blocked=@($Rows|Where-Object kind -CEQ 'validation-combat-blocked')
+        $canceled=@($Rows|Where-Object kind -CEQ 'validation-canceled-replacement')
+        $retry=@($Rows|Where-Object kind -CEQ 'validation-valid-retry')
+        $resumed=@($Rows|Where-Object kind -CEQ 'validation-combat-retry-initial')
+        $next=@($Rows|Where-Object kind -CEQ 'next-paired-activation')
+        if($loads.Count-ne2-or$blocked.Count-ne1-or$canceled.Count-ne1-or$retry.Count-ne1-or$resumed.Count-ne1-or$next.Count-ne2-or
+            $loads[0].detail.label-cne'B'-or$loads[1].detail.label-cne'A'-or
+            $loads[0].detail.sha256-cne$Request.persistenceAlternate.sha256-or$loads[1].detail.sha256-cne$Request.persistenceLoad.sha256){
+            throw 'P06 combat lacks its native damaged load, canceled replacement and valid retry.'
+        }
+        $n=[int]$blocked[0].detail.initialActorCount
+        $sem=2*$n-$(if($Request.persistenceCase-ceq'combat-missing'){1}else{0})
+        if($n-lt2-or$n-gt64-or$initial[0].persistence.semantics-ne$n-or
+            $blocked[0].detail.semantic-ne$sem-or$canceled[0].detail.semantic-ne$sem-or
+            $blocked[0].detail.blocked-ne$true-or$canceled[0].detail.blocked-ne$true-or
+            $blocked[0].relationship-cne'Unmounted'-or$canceled[0].relationship-cne'Unmounted'-or
+            $blocked[0].detail.nativeWorldDisposals-ne1-or$canceled[0].detail.nativeWorldDisposals-ne1-or
+            $canceled[0].detail.canceledCallback-ne$false-or
+            $blocked[0].detail.nativeAdmissionProbes-ne1-or$canceled[0].detail.nativeAdmissionProbes-ne2-or
+            $blocked[0].detail.feedback-cnotmatch'restoration is blocked'-or$canceled[0].detail.feedback-cnotmatch'restoration is blocked'-or
+            $retry[0].detail.blocked-ne$false-or$retry[0].detail.nativeWorldDisposals-ne2-or
+            $retry[0].detail.semantic-ne($sem+$n)-or$retry[0].detail.presentation-ne2-or
+            $retry[0].detail.duplicateNotifications-ne4-or$retry[0].detail.nativeCallback-ne$true-or
+            $retry[0].relationship-cne'Mounted'-or
+            $next[0].detail.sequence-ne($resumed[0].detail.sequence+1)-or
+            $next[1].detail.sequence-ne($next[0].detail.sequence+1)){
+            throw 'P06 invalid combat granted readiness, lost its canceled-load fence or failed valid native recovery.'
+        }
+        foreach($actor in @('rider','mount')){
+            foreach($field in @('Standard','Move','Swift','Initiative','Reaction','ReactionsRemaining','LastSurpriseTicks')){
+                if($blocked[0].$actor.$field-ne$canceled[0].$actor.$field){throw 'Canceled invalid combat changed a resolvable obligation'}
+            }
+            foreach($row in $next){
+                if($row.$actor.Standard-ne0-or$row.$actor.Move-ne0){throw 'Valid retry failed its true next activation refresh'}
+            }
+        }
+    }elseif($refused){
         $denied=@($Rows|Where-Object kind -CEQ 'validation-native-load-refused')
         $retained=@($Rows|Where-Object kind -CEQ 'validation-original-world-retained')
         if($denied.Count-ne3-or$retained.Count-ne1){throw 'P06 did not exercise all three native refusal entries.'}

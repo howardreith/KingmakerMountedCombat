@@ -300,7 +300,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (host?.persistenceMode == null || host.completed ||
                 host.request.Scenario != "persistence-p02-save" && host.request.Scenario != "persistence-p02-load" &&
                 host.request.Scenario != "persistence-p03-save" && host.request.Scenario != "persistence-p03-load" &&
-                host.request.Scenario != "persistence-p04-save" && host.request.Scenario != "persistence-p04-load") return;
+                host.request.Scenario != "persistence-p04-save" && host.request.Scenario != "persistence-p04-load" &&
+                !(host.request.Scenario == "persistence-p06-load" && RuntimePersistenceScenario.IsCombatValidation(host.request.PersistenceCase))) return;
             if (host.persistenceMode.ReapplyTemporaryCacheAfterNativeRefresh())
                 host.logger.Info("Declared persistence combat mode cache reapplied after native settings refresh; no persisted setting or gameplay state written.");
         }
@@ -516,7 +517,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
                     saveAuthorization.BindPersistenceScope(persistenceBootstrap.Authority);
                 }
-                if (request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load")
+                if (request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load" ||
+                    request.Scenario == "persistence-p06-load" && RuntimePersistenceScenario.IsCombatValidation(request.PersistenceCase))
                 {
                     // Test configuration only, chosen before reading the selected archive.
                     persistenceMode = new NativeModeTransitionProbe(request.Scenario != "persistence-p04-save" && request.Scenario != "persistence-p04-load");

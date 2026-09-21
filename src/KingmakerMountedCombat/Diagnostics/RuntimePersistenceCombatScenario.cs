@@ -33,7 +33,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private SavedNativeActor rejectedRider;
         private SavedNativeActor rejectedMount;
         private int rejectedFrame;
-        private string Checkpoint => request.PersistenceCase ?? "partial-movement";
+        private string Checkpoint => ValidationCombatCase ? "partial-movement" : request.PersistenceCase ?? "partial-movement";
 
         private bool PairIdle => rider.Commands.Empty && mount.Commands.Empty &&
             !rider.AreHandsBusyWithAnimation && !mount.AreHandsBusyWithAnimation &&
@@ -89,8 +89,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(rider.UniqueId == data.Rider.Id && mount.UniqueId == data.Mount.Id &&
                         game.State.Units.Count(u => u.UniqueId == rider.UniqueId) == 1 &&
                         game.State.Units.Count(u => u.UniqueId == mount.UniqueId) == 1, "P02-same-unique-native-actors");
-                    Check(persistence.SemanticRestoreCount == data.Combat.Actors.Length &&
-                        persistence.PresentationRestoreCount == 1 && controls.NativeCastRequestCount == 0,
+                    Check(persistence.SemanticRestoreCount == (ValidationCombatCase ? validationSemantic : data.Combat.Actors.Length) &&
+                        persistence.PresentationRestoreCount == (ValidationCombatCase ? validationPresentation : 1) && controls.NativeCastRequestCount == 0,
                         "P02-no-replayed-mount-or-missing-early-actors");
                     var elapsed = Checkpoint == "explicit-end" || ReactionCase || SuspendedCase ?
                         (game.TimeController.GameTime.Ticks - data.GameTimeTicks) / (double)TimeSpan.TicksPerSecond : 0;
@@ -120,7 +120,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     controls.Update(); beforeControls = controls.CaptureSnapshot();
                     Check(beforeControls.ExactFactCount == 3 && beforeControls.DuplicateFactCount == 0 &&
                         beforeControls.ManagedHotbarSlotCount == data.Slots.Length, "P02-cold-controls-once");
-                    Write("initial", CombatObservation());
+                    Write(ValidationCombatCase ? "validation-combat-retry-initial" : "initial", CombatObservation());
                     if (HasRoundEffectFixture) ObserveColdRoundEffects();
                     if (ReactionCase) ObserveColdReaction();
                     ContinueSavedCheckpoint(); return;

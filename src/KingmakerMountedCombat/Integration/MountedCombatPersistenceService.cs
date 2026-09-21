@@ -14,15 +14,17 @@ namespace KingmakerMountedCombat.Integration
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
         private bool combatRestored;
         private string combatRestoreFailure;
+        private readonly NativeLoadFailureFence<Player> abandonedCombat = new NativeLoadFailureFence<Player>();
 
         // Commands and preparation stay blocked until the selected world's
         // semantic state is rebound. Presentation may wait for views separately.
-        internal bool CombatRestorationPending => Enabled && loaded?.Data?.Combat != null &&
-            restoreLoad != null && !combatRestored;
+        internal bool CombatRestorationPending => Enabled && (abandonedCombat.Blocks(Game.Instance?.Player) ||
+            loaded?.Data?.Combat != null && restoreLoad != null && !combatRestored);
         internal bool LoadingWorld => restoreLoad != null && !restoreLoad.World.NativeCompleted;
 
         internal bool NativeCombatBlocksSave(Player player)
         {
+            if (CombatRestorationPending) return true;
             if (!player.IsInCombat) return false;
             if (!Enabled || !settings.EnablePairedActivation || settings.EnableUnifiedMountedTurn ||
                 settings.EnablePairedCommandScheduler || CombatRestorationPending ||
@@ -64,7 +66,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal void TryRestoreCombat()
         {
-            if (!CombatRestorationPending || combatRestoreFailure != null) return;
+            if (!CombatRestorationPending || combatRestoreFailure != null ||
+                loaded?.Data?.Combat == null || restoreLoad == null) return;
             var game = Game.Instance;
             var data = loaded.Data;
             if (game?.Player == null || game.Player.GameId != selectedCampaign ||
@@ -74,21 +77,29 @@ namespace KingmakerMountedCombat.Integration
                 settings.EnablePairedCommandScheduler ||
                 data.Combat.TurnBased != SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue)
             {
-                combatRestoreFailure = "Saved combat policy differs from the active paired/mode settings; restoration is blocked and metadata retained.";
-                Report(combatRestoreFailure);
+                BlockCombatRestoration("Saved combat policy differs from the active paired/mode settings.");
                 return;
             }
             var controller = game.TurnBasedCombatController;
-            if ((data.Combat.TurnBased && !controller.Initialized) ||
-                data.Combat.Actors.Any(a => !restoredActors.ContainsKey(a.Native.Id))) return;
+            if (data.Combat.Actors.Any(a => !restoredActors.ContainsKey(a.Native.Id)))
+            {
+                if (restoreLoad.World.NativeCompleted)
+                    BlockCombatRestoration("A saved combat actor did not resolve during native entity restoration.");
+                return;
+            }
+            if (data.Combat.TurnBased && !controller.Initialized)
+            {
+                if (restoreLoad.World.NativeCompleted)
+                    BlockCombatRestoration("The native turn controller did not become available for the saved combat.");
+                return;
+            }
             var actors = new Dictionary<string, UnitEntityData>(StringComparer.Ordinal);
             foreach (var row in data.Combat.Actors)
             {
                 var matches = game.State.Units.Where(u => u.UniqueId == row.Native.Id).ToArray();
                 if (matches.Length != 1 || matches[0] != restoredActors[row.Native.Id])
                 {
-                    combatRestoreFailure = "Saved combat actor is absent or not unique; participation restoration is blocked.";
-                    Report(combatRestoreFailure);
+                    BlockCombatRestoration("A saved combat actor is absent or not unique.");
                     return;
                 }
                 if (matches[0].View?.AgentASP == null) return;
@@ -105,10 +116,28 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                combatRestoreFailure = "Combat rebind failed; admission remains blocked and metadata retained: " + exception.Message;
-                Report(combatRestoreFailure);
+                BlockCombatRestoration("Combat rebind failed: " + exception.Message);
                 throw;
             }
+        }
+
+        private void BlockCombatRestoration(string reason)
+        {
+            var message = "Mounted combat restoration is blocked. " + reason +
+                " Existing expenditure and source data are retained; load a valid save to resume.";
+            if (combatRestoreFailure == message) return;
+            combatRestoreFailure = message;
+            Report(message);
+            try { Kingmaker.PubSubSystem.EventBus.RaiseEvent<Kingmaker.PubSubSystem.IWarningNotificationUIHandler>(
+                handler => handler.HandleWarning(message, true)); }
+            catch (Exception display) { logger.Exception("Combat restoration warning could not be displayed", display); }
+        }
+
+        private void FenceAbandonedCombat()
+        {
+            if (loaded?.Data?.Combat == null) return;
+            abandonedCombat.Hold(Game.Instance?.Player);
+            BlockCombatRestoration("The selected combat restoration was interrupted before completion.");
         }
 
         private void BeginLoadHousekeeping()
@@ -119,6 +148,7 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Loaded world cleanup retained mounted references.");
             combatRestored = false;
             combatRestoreFailure = null;
+            abandonedCombat.Clear();
         }
     }
 }

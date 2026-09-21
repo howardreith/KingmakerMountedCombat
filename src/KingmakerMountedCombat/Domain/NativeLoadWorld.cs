@@ -45,4 +45,21 @@ namespace KingmakerMountedCombat.Domain
             current = null;
         }
     }
+
+    // An interrupted combat rehydration cannot become a fresh-action world.
+    // A weak, exact-world fence survives disposal of an unstarted replacement,
+    // without retaining entities or blocking another world with the same IDs.
+    internal sealed class NativeLoadFailureFence<TWorld> where TWorld : class
+    {
+        private WeakReference<TWorld> failed;
+        internal void Hold(TWorld world) { failed = world == null ? null : new WeakReference<TWorld>(world); }
+        internal void Clear() { failed = null; }
+        internal bool Blocks(TWorld world)
+        {
+            if (failed == null) return false;
+            if (world != null && failed.TryGetTarget(out var target) && ReferenceEquals(target, world)) return true;
+            failed = null;
+            return false;
+        }
+    }
 }

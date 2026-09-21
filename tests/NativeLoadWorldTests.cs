@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("queued load creation cannot bind the old world", Creation);
             runner.Run("canceled load cannot leak semantic or presentation ownership", Cancel);
             runner.Run("completed load rejects another same-campaign world", ReplacedWorld);
+            runner.Run("canceled queued replacement preserves only the failed world's combat fence", FailureFence);
         }
 
         private sealed class World { internal string Campaign; }
@@ -65,6 +66,24 @@ namespace KingmakerMountedCombat.Tests
             boundary.Close();
             var next = new NativeLoadWorld<World>(); next.Begin(a);
             TestRunner.True(next.TryBind(b) && !next.TryBind(a), "Next load could not isolate its world.");
+        }
+
+
+        private static void FailureFence()
+        {
+            var a = new World { Campaign = "same" }; var b = new World { Campaign = "same" };
+            var fence = new NativeLoadFailureFence<World>();
+            fence.Hold(a); fence.Hold(a);
+            using (var queued = new ScopedEnumerator<int>(Empty(), () => fence.Clear(), () => { }))
+            {
+                TestRunner.True(fence.Blocks(a), "Queue creation removed failed combat admission.");
+            }
+            TestRunner.True(fence.Blocks(a), "Canceling an unstarted load granted failed-world admission.");
+            TestRunner.True(!fence.Blocks(b) && !fence.Blocks(a), "An exact new world retained an old-world failure.");
+            fence.Hold(b); fence.Clear(); fence.Clear();
+            TestRunner.True(!fence.Blocks(b), "A new admitted load did not release the abandoned-world fence.");
+            fence.Hold(a);
+            TestRunner.True(!fence.Blocks(null) && !fence.Blocks(a), "A disposed world retained a failure reference.");
         }
 
         private static IEnumerator<int> Empty() { yield break; }

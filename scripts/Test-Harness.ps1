@@ -5245,7 +5245,7 @@ try {
                 internalName='KMC_P01';fileName='Manual_812_KMC_P06.zks';sha256=('d'*64)
                 length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area
             }
-            foreach($case in @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy')){
+            foreach($case in @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){
                 $v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath

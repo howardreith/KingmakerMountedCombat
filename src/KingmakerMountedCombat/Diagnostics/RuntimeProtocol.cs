@@ -281,7 +281,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
             if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace" }, PersistenceCase) < 0 :
-                p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy" }, PersistenceCase) < 0 :
+                p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
                 p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :

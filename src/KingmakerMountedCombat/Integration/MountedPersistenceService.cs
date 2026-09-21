@@ -188,6 +188,7 @@ namespace KingmakerMountedCombat.Integration
             // starts; disposing an unstarted iterator cannot erase that world.
             if (restoreLoad != null && (!restoreLoad.World.NativeCompleted || presentationPending))
             {
+                FenceAbandonedCombat();
                 restoreLoad.World.Close();
                 restoreLoad = null;
                 presentationPending = false;
@@ -210,11 +211,13 @@ namespace KingmakerMountedCombat.Integration
                 if (scope.Sequence != loadSequence) { scope.World.Close(); return; }
                 if (!scope.World.NativeCompleted)
                 {
+                    FenceAbandonedCombat();
                     scope.World.Close();
                     presentationPending = false;
                     restoredActors.Clear();
                     loaded = null;
-                    Report("Native load was canceled or failed; unfinished mounted restoration discarded.");
+                    if (combatRestoreFailure == null)
+                        Report("Native load was canceled or failed; unfinished mounted restoration discarded.");
                 }
             });
         }
@@ -261,7 +264,18 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidOperationException("Loaded mounted actor ID is not unique.");
                 return;
             }
-            if (combatActor != null) NativeCombatActorPersistence.RestoreActor(unit, combatActor, data.GameTimeTicks);
+            if (combatActor != null)
+            {
+                try { NativeCombatActorPersistence.RestoreActor(unit, combatActor, data.GameTimeTicks); }
+                catch (System.IO.InvalidDataException exception)
+                {
+                    // Installed semantic validation precedes JoinCombat/Prepare.
+                    // Preserve independently valid expenditure without accepting
+                    // an unknown AI action or granting native participation.
+                    NativeCombatActorPersistence.RestoreDebt(unit, saved);
+                    BlockCombatRestoration("An actor's saved semantic references are incompatible: " + exception.Message);
+                }
+            }
             else NativeCombatActorPersistence.RestoreDebt(unit, saved);
             restoredActors.Add(unit.UniqueId, unit);
             SemanticRestoreCount++;

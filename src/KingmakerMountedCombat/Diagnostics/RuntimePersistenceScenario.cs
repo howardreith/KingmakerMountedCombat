@@ -68,7 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
