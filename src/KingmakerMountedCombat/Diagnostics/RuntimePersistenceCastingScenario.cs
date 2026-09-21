@@ -31,11 +31,17 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             // Use the fixture's actual prepared spell and native saved slots.
             // Cold code never adds a spell, slot, actor, wound or proficiency.
-            var candidates = Game.Instance.Player.PartyCharacters.Select(r => r.Value).Where(u =>
-                u != null && u != rider && u != mount && u.Descriptor.State.IsConscious &&
+            var party = Game.Instance.Player.Party.Where(u => u != null && u != mount).ToArray();
+            var inventory = new JArray(party.Select(u => new JObject { ["actor"] = u.UniqueId,
+                ["rider"] = u == rider, ["conscious"] = u.Descriptor.State.IsConscious,
+                ["prepared"] = new JArray(u.Descriptor.Spellbooks.SelectMany(b => b.GetAllMemorizedSpells())
+                    .Take(64).Select(s => new JObject { ["blueprint"] = s.Spell.Blueprint.AssetGuid,
+                        ["available"] = s.Available })) }));
+            var candidates = party.Where(u => u.Descriptor.State.IsConscious &&
                 u.Descriptor.Spellbooks.Any(b => b.GetAllMemorizedSpells().Any(s =>
                     s.Spell.Blueprint.AssetGuid == CastingHealBlueprint))).ToArray();
-            Check(candidates.Length == 1, "RT-one-native-prepared-healer-without-acquisition");
+            Check(candidates.Length == 1, "RT-one-native-prepared-healer-without-acquisition; native inventory=" +
+                inventory.ToString(Newtonsoft.Json.Formatting.None));
             castingActor = candidates[0];
             var slots = castingActor.Descriptor.Spellbooks.SelectMany(b => b.GetAllMemorizedSpells())
                 .Where(s => s.Spell.Blueprint.AssetGuid == CastingHealBlueprint).ToArray();
@@ -49,7 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     !NativeSaveEffectBoundary.HasUnresolvedAbilities(),
                     "RT-cold-native-caster-and-spent-slot-without-live-command-replay");
             }
-            else
+            else if (castingActor != rider && castingActor != mount)
             {
                 var wasEnabled = castingActor.IsAIEnabled;
                 var prior = restoreRealtimeAi;
