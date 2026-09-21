@@ -51,6 +51,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["sequence"] = combat.PairedActivationSequence,
             ["nativeRiderStandardAvailable"] = rider?.HasStandardAction(),
             ["nativeMountStandardAvailable"] = mount?.HasStandardAction(),
+            ["roundEffects"] = RoundEffectCase && riderRoundEffect != null ? RoundEffects() : null,
             ["partner"] = combat.PairedPartnerContext == null ? null :
                 JObject.FromObject(NativeTurnPersistence.Capture(combat.PairedPartnerContext), MountedSaveCodec.CreateSerializer())
         };
@@ -71,6 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 turnVisits.Add(game.TurnBasedCombatController.RoundNumber + "|" + turn.Unit.UniqueId);
             }
             if (CommitmentCase && AdvanceCommitmentProbe(turn)) return;
+            if (RoundEffectCase && AdvanceRoundEffectFixture(turn)) return;
             if (stage == 0)
             {
                 Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
@@ -115,6 +117,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(beforeControls.ExactFactCount == 3 && beforeControls.DuplicateFactCount == 0 &&
                         beforeControls.ManagedHotbarSlotCount == data.Slots.Length, "P02-cold-controls-once");
                     Write("initial", CombatObservation());
+                    if (RoundEffectCase) ObserveColdRoundEffects();
                     ContinueSavedCheckpoint(); return;
                 }
                 UnitEntityData selectedRider; UnitEntityData selectedMount; string error;
@@ -124,6 +127,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(!game.Player.IsInCombat && relationship.MountRiderOn(rider, mount).Succeeded,
                     "P02-mounted-before-native-combat");
                 controls.Update(); BindOwnedControlSlots(); beforeControls = controls.CaptureSnapshot();
+                if (RoundEffectCase) InstallRoundEffects();
                 targetService = new DiagnosticCombatTargetService(logger);
                 combatTarget = targetService.Spawn(rider, mount, FindDestination(7f), request.RunId, true, false, true);
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
@@ -141,6 +145,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 savedBoundary = turn; savedSequence = combat.PairedActivationSequence;
                 savedRound = game.TurnBasedCombatController.RoundNumber;
                 if (CommitmentCase) { BeginCommitmentFixture(); return; }
+                if (RoundEffectCase) { BeginRoundEffectFixture(); return; }
                 BeginCombatMovement(0.75f, "partial-movement-dispatched",
                     Checkpoint == "between-partner-orders" ? (Vector3?)RiderReachDestination() : null);
                 stage = 2; return;
@@ -274,6 +279,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.CombatState.Cooldown.MoveAction == 0 && mount.CombatState.Cooldown.StandardAction == 0 &&
                     mount.CombatState.Cooldown.MoveAction == 0 && combat.PairedPartnerContext.TimeMoved == 0,
                     "P02-next-true-activation-refreshes-once-without-old-commitments");
+                if (RoundEffectCase)
+                {
+                    if (!RoundEffectsReady(turn, laterActivations + 2)) return;
+                    CheckRoundEffects(laterActivations + 2, "P03-next-real-round-applies-native-effect-once");
+                }
                 if (CommitmentCase)
                     Check(CurrentCommitment.MetresStepped == 0 && CurrentCommitment.TimeStepped == 0,
                         "P03-next-true-activation-refreshes-step-commitment-once");
@@ -300,6 +310,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "P02-snapshot-has-native-round-and-participation");
             var riderSpent = data.Rider.Standard > 0;
             var mountSpent = data.Mount.Standard > 0;
+            if (RoundEffectCase)
+            {
+                Check(!riderSpent && !mountSpent && data.Rider.Move == 0 && data.Mount.Move == 0 &&
+                    saved.Current?.ActorId == data.Rider.Id, "P03-round-effect-snapshot-has-unused-native-actions");
+                return;
+            }
             if (CommitmentCase)
             {
                 var allocation = saved.Allocations.Single(a => a.ActorId == data.Mount.Id);
@@ -335,6 +351,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ContinueSavedCheckpoint()
         {
             if (CommitmentCase) { ContinueCommitment(); return; }
+            if (RoundEffectCase) { ContinueRoundEffects(); return; }
             if (Checkpoint == "explicit-end") { stage = 32; return; }
             if (Checkpoint == "partial-movement" || Checkpoint == "rider-spent") { stage = 6; return; }
             BeginRejectedWork();

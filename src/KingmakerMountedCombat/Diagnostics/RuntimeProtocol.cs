@@ -271,7 +271,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void ValidateSaveBackedRequest(List<string> errors)
         {
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
-            if (p03 ? Array.IndexOf(new[] { "step", "conversion" }, PersistenceCase) < 0 :
+            if (p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");

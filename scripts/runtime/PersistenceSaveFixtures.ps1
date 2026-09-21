@@ -80,6 +80,7 @@ function Assert-KmcP03Snapshot {
     $valid=switch -CaseSensitive ($Checkpoint){
         'step' { $Snapshot.Mount.Standard-eq0-and$Snapshot.Mount.Move-eq0-and$a.Movement.MetresStepped-gt0-and$a.Movement.TimeStepped-gt0 }
         'conversion' { $Snapshot.Mount.Standard-eq0-and$Snapshot.Mount.Move-gt3-and$Snapshot.Mount.Move-lt6-and$a.Movement.TimeMoved-gt3 }
+        'round-effect' { $Snapshot.Mount.Standard-eq0-and$Snapshot.Mount.Move-eq0 }
         default { $false }
     }
     if(-not$valid){throw 'P03 actual archive does not match its declared native commitment.'}
@@ -94,9 +95,11 @@ function Assert-KmcPersistenceScenarioEvidence {
     if((Get-KmcSha256 $path)-cne$artifact[0].sha256){throw 'P01 observations changed.'}
     $rows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     if($rows.Count-lt6-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
-    $isCommitment=$Request.scenario-cin @('persistence-p03-save','persistence-p03-load')
+    $isP03=$Request.scenario-cin @('persistence-p03-save','persistence-p03-load')
     $isCombat=$Request.scenario-cin @('persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load')
     $checkpoint=if(@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'){[string]$Request.persistenceCase}else{'partial-movement'}
+    $isRoundEffect=$isP03-and$checkpoint-ceq'round-effect'
+    $isCommitment=$isP03-and-not$isRoundEffect
     $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
@@ -110,8 +113,8 @@ function Assert-KmcPersistenceScenarioEvidence {
     $required=@('usable-continuation-complete')
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent')){$required+=@('movement-dispatched','movement-completed')}
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','between-partner-orders')){$required+=@('attack-dispatched','attack-delivered')}
-    if($isCombat-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
-    if($isCombat-and$isWrite-and-not$isCommitment){
+    if($isCombat-and-not$isRoundEffect-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
+    if($isCombat-and$isWrite-and-not$isP03){
         $required+=@('partial-movement-dispatched','partial-movement-completed')
         if($checkpoint-cin @('rider-spent','exhausted')){$required+=@('setup-rider-attack-dispatched','setup-rider-attack-delivered')}
         if($checkpoint-cin @('between-partner-orders','exhausted')){$required+=@('setup-mount-attack-dispatched','setup-mount-attack-delivered')}
@@ -121,6 +124,11 @@ function Assert-KmcPersistenceScenarioEvidence {
         if($isWrite){$required+=@('commitment-dispatched','commitment-created')}
         if($checkpoint-ceq'step'){$required+=@('ordinary-movement-input-before','ordinary-movement-rejected','step-remainder-dispatched','step-remainder-completed')}
         else{$required+=@('converted-standard-rejected','conversion-remainder-dispatched','conversion-remainder-completed')}
+    }
+    if($isRoundEffect){
+        $required+='round-effect-retained'
+        if($isWrite){$required+=@('round-effect-provisioned','round-effect-applied')}
+        else{$required+='round-effect-loaded'}
     }
     foreach($kind in $required){
         if(@($rows|Where-Object kind -CEQ $kind).Count-ne1){throw "Persistence is missing native outcome: $kind"}
@@ -132,6 +140,15 @@ function Assert-KmcPersistenceScenarioEvidence {
         $refresh=@($rows|Where-Object kind -CEQ 'next-paired-activation')
         if($refresh.Count-ne2-or$refresh[1].detail.sequence-ne($refresh[0].detail.sequence+1)){
             throw 'P02 did not observe two successive real paired activations.'
+        }
+        if($isRoundEffect){
+            for($i=0;$i-lt2;$i++){
+                foreach($actor in @('rider','mount')){
+                    $effect=$refresh[$i].detail.roundEffects.$actor
+                    if($null-eq$effect-or$effect.rounds-ne($i+2)-or$effect.damage-ne(1-$i)-or
+                        -not$effect.active-or$effect.suppressed){throw 'P03 next native round effect was duplicated or missing.'}
+                }
+            }
         }
         if($checkpoint-cin @('partial-movement','rider-spent')){
             $continuation=@($rows|Where-Object kind -CEQ 'movement-completed')[0]
@@ -145,7 +162,7 @@ function Assert-KmcPersistenceScenarioEvidence {
         $written=@($rows|Where-Object kind -CEQ 'native-write-complete')
         if($written.Count-ne1){throw 'P01 save has no real completion observation.'}
         $d=$written[0].detail
-        if($isCommitment){Assert-KmcP03Snapshot $d.snapshot $checkpoint}
+        if($isP03){Assert-KmcP03Snapshot $d.snapshot $checkpoint}
         elseif($isCombat){Assert-KmcP02Snapshot $d.snapshot $checkpoint}
         $archive=Join-Path $root 'Manual_300_KMC_P01.zks'
         if($d.path-cne$archive-or$d.nativeType-cne'Manual'-or$d.nativeCallback-ne$true-or$d.operation-cne'None'-or

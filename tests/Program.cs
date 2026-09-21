@@ -119,7 +119,7 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("P03 preserves disjoint native commitment and save authority", () =>
             {
-                foreach (var name in new[] { "step", "conversion" })
+                foreach (var name in new[] { "step", "conversion", "round-effect" })
                 {
                     var request = ValidSaveBackedRequest(); request.Scenario = "persistence-p03-save";
                     request.PersistenceCase = name;

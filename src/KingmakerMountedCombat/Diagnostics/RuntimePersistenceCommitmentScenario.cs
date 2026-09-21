@@ -20,8 +20,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private SavedNativeActor commitmentDebt;
         private SavedMovementValues commitmentBefore;
         private int commitmentFrame;
-        private bool CommitmentCase => request.Scenario == "persistence-p03-save" ||
-            request.Scenario == "persistence-p03-load";
+        private bool CommitmentCase => Checkpoint == "step" || Checkpoint == "conversion";
 
         private SavedMovementValues CurrentCommitment =>
             NativeTurnPersistence.Capture(combat.PairedPartnerContext).Movement;

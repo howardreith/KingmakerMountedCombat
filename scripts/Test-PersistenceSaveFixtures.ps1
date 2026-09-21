@@ -91,6 +91,10 @@ $snapshot.Combat.Allocations[0].Movement.TimeMoved=0
 Must-Reject {Assert-KmcP03Snapshot $snapshot 'conversion'} 'Conversion without native movement time accepted'
 $snapshot.Combat.Allocations[0].Movement.TimeMoved=4;$snapshot.Mount.Move=6
 Must-Reject {Assert-KmcP03Snapshot $snapshot 'conversion'} 'Conversion fixture without available remainder accepted'
+$snapshot.Mount.Move=0
+Assert-KmcP03Snapshot $snapshot 'round-effect';$passes++
+$snapshot.Mount.Standard=6
+Must-Reject {Assert-KmcP03Snapshot $snapshot 'round-effect'} 'Round effect cannot invent an unused action'
 Must-Reject {Assert-KmcP03Snapshot $snapshot 'unknown'} 'Unknown P03 checkpoint accepted'
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.
