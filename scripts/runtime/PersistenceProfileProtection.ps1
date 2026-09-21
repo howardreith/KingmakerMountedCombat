@@ -151,7 +151,7 @@ function Restore-KmcPersistenceStartupSettings {
         throw 'Current settings changed after the restoration review; refusing a stale overwrite.'
     }
     $profile=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    if((Get-KmcPersistenceProfileDigest $profile)-cne$Snapshot.profileDigest){throw 'Profile/cache bytes changed outside the startup settings seam.'}
+    $createdAnalytics=@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $profile)
     Assert-KmcObservedPreparationTimeoutRecord $Snapshot.runId
     $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
@@ -163,6 +163,21 @@ function Restore-KmcPersistenceStartupSettings {
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     if((Get-KmcSha256 $expectedParams)-cne$paramsHash-or(Get-KmcPersistencePlayerPrefs)-cne$prefs){
         throw 'Settings changed immediately before restoration.'
+    }
+    if($createdAnalytics.Count-ne0){
+        $directory=@($createdAnalytics|Where-Object kind -CEQ 'directory')
+        if($directory.Count-ne1){throw 'Observed cache recovery lacks its exact directory.'}
+        $source=Assert-KmcChildPath (Join-Path $Snapshot.profile $directory[0].path) $Snapshot.profile 'exact new owned analytics cache'
+        $destination=Assert-KmcChildPath (Join-Path $BackupRoot ('profile-'+$Lock.RunId+'/created-analytics-178998321600004.7fa040cf')) $BackupRoot 'owned analytics evidence'
+        Assert-KmcDirectoryTreeCloneable $source 'owned analytics cache'
+        if(Test-Path -LiteralPath $destination){throw 'Analytics quarantine already exists; refusing an ambiguous move.'}
+        $now=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
+        [void]@(Get-KmcPersistenceProfileRecoveryDelta $Snapshot $now)
+        # Both resolved absolute roots and the exact four contents were checked.
+        # Same-volume rename keeps evidence intact; no recursive delete is used.
+        [IO.Directory]::Move($source,$destination)
+        $verified=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
+        if((Get-KmcPersistenceProfileDigest $verified)-cne$Snapshot.profileDigest){throw 'Profile differs after exact cache quarantine.'}
     }
     if($restoreParams){
         [IO.File]::WriteAllBytes($expectedParams,[IO.File]::ReadAllBytes($saved))
@@ -177,4 +192,53 @@ function Restore-KmcPersistenceStartupSettings {
         }finally{if($null-ne$key){$key.Dispose()}}
     }
     [void](Assert-KmcPersistenceProfileUnchanged $Snapshot)
+}
+
+# Exact one-run cache delta: native Unity analytics archived four new files on
+# exit. No preexisting profile entry changed. Keep the archive as lab evidence.
+function Test-KmcObservedValidationAnalyticsEntry {
+    param([string]$RunId,$Entry)
+    if($RunId-cne'20260921-chunk5-P06-future-A'){return $false}
+    $root='Unity/2b02a6f4-4611-4ce0-b230-f9998567c3af/Analytics/ArchivedEvents/178998321600004.7fa040cf'
+    if($Entry.path-ceq$root){return $Entry.kind-ceq'directory'-and$Entry.length-eq0-and$null-eq$Entry.sha256}
+    $pins=@{
+        c=@(1,'6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b')
+        e=@(1367,'865b2b8da5e0dfb27245ba38f50debd5d221a2e117d32fdaa69455b07105eead')
+        g=@(1,'d4735e3a265e16eee03f59718b9b5d03019c07d8b6c51f90da3a666eec13ab35')
+        s=@(366,'fcb8d4ca679b2110deb0e304797f489539370adb40e611762cf5db1967e872e0')
+    }
+    foreach($leaf in $pins.Keys){
+        if($Entry.path-ceq($root+'/'+$leaf)){
+            return $Entry.kind-ceq'file'-and$Entry.length-eq$pins[$leaf][0]-and$Entry.sha256-ceq$pins[$leaf][1]
+        }
+    }
+    return $false
+}
+
+function Get-KmcPersistenceProfileRecoveryDelta {
+    param($Snapshot,$Current)
+    if((Get-KmcPersistenceProfileDigest $Current)-ceq$Snapshot.profileDigest){return @()}
+    $run=$Snapshot.runId
+    if($run-cne'20260921-chunk5-P06-future-A'-or$Snapshot.token-cne'e8a5fd891fd0d5f75c750242c1f4e19ed985708e94fdfe09fc33057ab9513337'){
+        throw 'Profile/cache bytes changed outside the exact owned recovery seam.'
+    }
+    $evidence=Join-Path (Get-KmcLabRoot) ('runtime-evidence/'+$run+'/runtime-game-result.json')
+    Assert-KmcRecoveryLeafNoLinks $evidence 'exact owned P06 native outcome'
+    if((Get-KmcSha256 $evidence)-cne'6fb1fed240ea6dba377616b8d205f097f321a03678f055985f8ab0167ca3c215'){
+        throw 'Owned P06 native outcome changed before cache recovery.'
+    }
+    $retained=[pscustomobject]@{entries=@($Current.entries|Where-Object{-not(Test-KmcObservedValidationAnalyticsEntry $run $_)})}
+    $created=@($Current.entries|Where-Object{Test-KmcObservedValidationAnalyticsEntry $run $_})
+    if($created.Count-ne5-or(Get-KmcPersistenceProfileDigest $retained)-cne$Snapshot.profileDigest-or
+        @($Snapshot.inventory.entries|Where-Object{Test-KmcObservedValidationAnalyticsEntry $run $_}).Count-ne0){
+        throw 'Cache recovery would change preexisting or unobserved profile entries.'
+    }
+    return $created
+}
+
+function Read-KmcPersistenceProfileSnapshot {
+    param([string]$Path)
+    # Durable snapshots are UTF-8 without a BOM; Windows PowerShell's default
+    # Get-Content encoding otherwise corrupts non-ASCII native cache filenames.
+    return [IO.File]::ReadAllText($Path,[Text.Encoding]::UTF8)|ConvertFrom-Json
 }

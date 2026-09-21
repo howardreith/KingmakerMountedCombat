@@ -15,7 +15,7 @@ if(-not(Wait-KmcStableNoKingmakerProcess -ExpectedProcessId 0)){throw 'Game proc
 $snapshotPath=Assert-KmcChildPath (Join-Path $backups ('profile-'+$RunId+'/snapshot.json')) $backups 'profile snapshot'
 Assert-KmcRecoveryLeafNoLinks $snapshotPath 'profile snapshot'
 if((Get-KmcSha256 $snapshotPath)-cne$SnapshotSha256){throw 'Profile snapshot pin differs.'}
-$snapshot=Read-KmcJson $snapshotPath
+$snapshot=Read-KmcPersistenceProfileSnapshot $snapshotPath
 $raw=Read-KmcJson (Join-Path $stateRoot 'active-transaction.lock')
 $state=Read-KmcRunTransactionState -StatePath (Get-KmcRunTransactionStatePath $stateRoot $RunId)
 if($raw.runId-cne$RunId-or$snapshot.runId-cne$RunId-or$raw.token-cne$snapshot.token-or
@@ -28,6 +28,8 @@ $prefs=Get-KmcPersistencePlayerPrefs
 if((Get-KmcSha256 $snapshot.paramsPath)-cne$CurrentParamsSha256-or(Get-KmcTextSha256 $prefs)-cne$CurrentPrefsSha256){
     throw 'Current settings differ from the exact reviewed recovery pins.'
 }
+$currentProfile=Get-KmcQualificationTreeInventory -Root $snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
+[void]@(Get-KmcPersistenceProfileRecoveryDelta $snapshot $currentProfile)
 Assert-KmcObservedPreparationTimeoutRecord $RunId
 [void]@(Get-KmcPersistencePreferenceChanges -BeforeJson $snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $RunId)
 $original=Join-Path $backups ('profile-'+$RunId+'/Params.xml')

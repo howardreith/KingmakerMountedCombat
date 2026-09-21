@@ -60,5 +60,24 @@ try{
     if(Test-KmcObservedPreparationResetPreference $known $old $new){throw 'Unobserved reset type accepted.'};$passes++
     $old.kind='Binary';$old.name='Unrelated';$new.name='Unrelated'
     if(Test-KmcObservedPreparationResetPreference $known $old $new){throw 'Unrelated key accepted by reset recovery.'};$passes++
+    $unicode=[pscustomobject]@{path=('cache-'+[char]0x00e9+[char]0xfffd);value='unchanged'}
+    $unicodePath=Join-Path $root 'utf8-snapshot.json'
+    [IO.File]::WriteAllText($unicodePath,($unicode|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    $read=Read-KmcPersistenceProfileSnapshot $unicodePath
+    if($read.path-cne$unicode.path-or$read.value-cne$unicode.value){throw 'UTF-8 snapshot path did not round trip.'};$passes++
+    $analytics=[pscustomobject]@{kind='file';path='Unity/2b02a6f4-4611-4ce0-b230-f9998567c3af/Analytics/ArchivedEvents/178998321600004.7fa040cf/c';
+        length=1;sha256='6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b'}
+    $ownedRun='20260921-chunk5-P06-future-A'
+    if(-not(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics)){throw 'Exact observed owned cache rejected.'};$passes++
+    if(Test-KmcObservedValidationAnalyticsEntry 'another-run' $analytics){throw 'Another run gained cache recovery.'};$passes++
+    $analytics.sha256='a'*64
+    if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Changed cache bytes admitted.'};$passes++
+    $analytics.sha256='6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b'
+    $analytics.length=2
+    if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Changed cache length admitted.'};$passes++
+    $analytics.length=1;$analytics.path='../'+$analytics.path
+    if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Cache traversal admitted.'};$passes++
+    $analytics.path='Saved Games/human.zks'
+    if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Human save admitted as owned cache.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}
