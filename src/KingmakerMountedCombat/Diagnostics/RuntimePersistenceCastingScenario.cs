@@ -75,7 +75,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["caster"] = castingActor.UniqueId, ["subject"] = mount.UniqueId,
                 ["blueprint"] = CastingHealBlueprint, ["slotCount"] = spells.Length,
                 ["availableSlots"] = spells.Count(s => s.Available), ["slotAvailable"] = castingSlot.Available,
-                ["spellAvailable"] = castingSlot.Spell.IsAvailableForCast, ["inputs"] = castingInputs,
+                ["spellAvailable"] = castingSlot.Spell.IsAvailable,
+                ["casterEligible"] = castingSlot.Spell.IsAvailableForCast, ["inputs"] = castingInputs,
                 ["damage"] = mount.Damage, ["wound"] = castingWound, ["heals"] = CastingHealCount,
                 ["standard"] = castingActor.CombatState.Cooldown.StandardAction,
                 ["move"] = castingActor.CombatState.Cooldown.MoveAction,
@@ -137,7 +138,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginCastingContinuation()
         {
-            Check(!castingSlot.Available && !castingSlot.Spell.IsAvailableForCast &&
+            Check(!castingSlot.Available && !castingSlot.Spell.IsAvailable &&
                 CastingHealCount == (Cold ? 0 : 1), "RT-consumed-native-spell-cannot-be-recast-or-replayed");
             Check(realtimeProbe.RiderResolvedCount == 0, "RT-casting-save-did-not-invent-rider-attacks");
             QueueRealtimeAttack();

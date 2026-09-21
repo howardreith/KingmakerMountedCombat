@@ -6,6 +6,7 @@ using Kingmaker.Controllers;
 using Kingmaker.Controllers.Projectiles;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.UnitLogic.Parts;
 
 namespace KingmakerMountedCombat.Integration
 {
@@ -61,11 +62,19 @@ namespace KingmakerMountedCombat.Integration
             // Match native unmounted approach: position/debt can snapshot until
             // the real attack sequence begins; never classify its effects as movement.
             (!(command is MountedPairAttackCommand mounted) || mounted.NativeSequenceStarted) &&
-            (command.IsRunning || command is UnitAttackOfOpportunity);
+            (command.IsRunning || command is UnitAttackOfOpportunity || IsCommittedTouchDelivery(command));
 
         // Native reaction debt is charged when Run queues this command, before
         // Start. It must be allowed to deliver before a save can snapshot it.
-        internal static bool MayStartDuringWait(UnitCommand command) => command is UnitAttackOfOpportunity;
+        internal static bool MayStartDuringWait(UnitCommand command) =>
+            command is UnitAttackOfOpportunity || IsCommittedTouchDelivery(command);
+
+        // AbilityEffectStickyTouch spends the source spell, creates the actor's
+        // native UnitPartTouch and queues its exact Ability.Data for delivery.
+        // This is the second half of that commitment, not a new selected spell.
+        internal static bool IsCommittedTouchDelivery(UnitCommand command) =>
+            command is UnitUseAbility cast && !cast.IsFinished && cast.Spell != null &&
+            ReferenceEquals(cast.Spell, cast.Executor?.Get<UnitPartTouch>()?.Ability?.Data);
 
         private static bool Unresolved(Projectile projectile) =>
             !projectile.Cleared && !completed.TryGetValue(projectile, out var marker);

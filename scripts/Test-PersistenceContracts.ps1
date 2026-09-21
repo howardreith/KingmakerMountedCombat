@@ -66,6 +66,48 @@ public static class KmcPersistenceContractProbe
         public void Reset() { throw new NotSupportedException(); }
         public void Dispose() { Disposals++; if(FailDispose) throw new InvalidOperationException("owned disposal"); }
     }
+    private static void VerifyNativeTouchCommitment(Assembly native, Assembly candidate)
+    {
+        var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+        Func<Type,object> blank=t=>System.Runtime.Serialization.FormatterServices.GetUninitializedObject(t);
+        var actorType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+        var descriptorType=native.GetType("Kingmaker.UnitLogic.UnitDescriptor",true);
+        var partType=native.GetType("Kingmaker.UnitLogic.Parts.UnitPartTouch",true);
+        var abilityType=native.GetType("Kingmaker.UnitLogic.Abilities.Ability",true);
+        var dataType=native.GetType("Kingmaker.UnitLogic.Abilities.AbilityData",true);
+        var commandType=native.GetType("Kingmaker.UnitLogic.Commands.UnitUseAbility",true);
+        var baseCommand=native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand",true);
+        var actor=blank(actorType);var descriptor=blank(descriptorType);
+        actorType.GetField("<Descriptor>k__BackingField",flags).SetValue(actor,descriptor);
+        var partsField=descriptorType.GetField("m_Parts",flags);
+        var manager=Activator.CreateInstance(partsField.FieldType,new[]{descriptor});
+        partsField.SetValue(descriptor,manager);
+        var parts=(System.Collections.IDictionary)manager.GetType().GetField("m_Parts",flags).GetValue(manager);
+        var command=blank(commandType);var ability=blank(abilityType);var data=blank(dataType);var part=blank(partType);
+        var effect=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveEffectBoundary",true);
+        var settle=effect.GetMethod("CommandNeedsSettlement",BindingFlags.Static|BindingFlags.NonPublic);
+        var start=effect.GetMethod("MayStartDuringWait",BindingFlags.Static|BindingFlags.NonPublic);
+        Check(!(bool)settle.Invoke(null,new[]{command}) && !(bool)start.Invoke(null,new[]{command}),
+            "new unowned native cast cannot start during a save wait");
+        baseCommand.GetField("<Executor>k__BackingField",flags).SetValue(command,actor);
+        commandType.GetField("Spell").SetValue(command,data);
+        abilityType.GetField("Data").SetValue(ability,data);
+        partType.GetField("<Ability>k__BackingField",flags).SetValue(part,ability);
+        parts.Add(partType,part);
+        Check((bool)settle.Invoke(null,new[]{command}) && (bool)start.Invoke(null,new[]{command}),
+            "exact native held-touch command starts and settles the already spent spell");
+        commandType.GetField("Spell").SetValue(command,blank(dataType));
+        Check(!(bool)settle.Invoke(null,new[]{command}) && !(bool)start.Invoke(null,new[]{command}),
+            "another selected spell cannot use an existing touch part to bypass the wait");
+        commandType.GetField("Spell").SetValue(command,data);parts.Remove(partType);
+        Check(!(bool)settle.Invoke(null,new[]{command}) && !(bool)start.Invoke(null,new[]{command}),
+            "removed native touch ownership cannot authorize stale delivery");
+        parts.Add(partType,part);
+        baseCommand.GetProperty("IsFinished").GetSetMethod(true).Invoke(command,new object[]{true});
+        Check(!(bool)settle.Invoke(null,new[]{command}) && !(bool)start.Invoke(null,new[]{command}),
+            "completed touch delivery cannot run again or delay the save");
+    }
+
     private static void VerifyNativeAbilitySettlement(Assembly native, Assembly candidate)
     {
         var controllerType=native.GetType("Kingmaker.Controllers.AbilityExecutionController",true);
@@ -351,6 +393,7 @@ public static class KmcPersistenceContractProbe
                 "real native activation rewrite changes only screen admission; queue owner, callbacks and timers retained");
             VerifyNativeDeferredOwner(native,candidate);
             VerifyNativeAbilitySettlement(native,candidate);
+            VerifyNativeTouchCommitment(native,candidate);
             var saveGate=native.ManifestModule.ResolveMethod(0x06008028);
             var saveInstructions=(System.Collections.IEnumerable)read.Invoke(null,new object[]{saveGate,null});
             var saveLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
