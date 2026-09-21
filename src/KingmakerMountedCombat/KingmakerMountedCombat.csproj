@@ -113,6 +113,7 @@
     <Compile Include="Domain\ScopedEnumerator.cs" />
     <Compile Include="Domain\DeferredSaveEnumerator.cs" />
     <Compile Include="Integration\NativeDeferredSave.cs" />
+    <Compile Include="Integration\NativeSaveWorkerBoundary.cs" />
     <Compile Include="Integration\MountedDeferredSave.cs" />
     <Compile Include="Domain\NativeLoadWorld.cs" />
     <Compile Include="Integration\PairedActivationLifecycle.cs" />

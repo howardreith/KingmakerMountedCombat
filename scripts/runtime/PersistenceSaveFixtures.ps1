@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -21,7 +21,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -771,7 +771,9 @@ function Assert-KmcRecoveryPersistenceEvidence {
     param($Request,$Rows)
     $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
     $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
-    $failed=@($Rows|Where-Object kind -CEQ 'recovery-unwritten-operation')
+    $commit=$Request.persistenceCase-ceq'locked-replace'
+    $failedKind=if($commit){'recovery-failed-commit'}else{'recovery-unwritten-operation'}
+    $failed=@($Rows|Where-Object kind -CEQ $failedKind)
     $loaded=@($Rows|Where-Object kind -CEQ 'recovery-last-good-loaded')
     $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
     if($initial.Count-ne1-or$wait.Count-ne1-or$failed.Count-ne1-or$loaded.Count-ne1-or$written.Count-ne1){
@@ -781,18 +783,23 @@ function Assert-KmcRecoveryPersistenceEvidence {
     $hash=$initial[0].detail.sha256
     foreach($row in @($initial[0],$wait[0],$failed[0],$loaded[0])){
         if($row.checkpoint-cne$Request.persistenceCase-or$row.detail.path-cne$archive-or
-            $row.detail.sha256-cne$hash-or$row.detail.snapshots-ne1-or
+            $row.detail.sha256-cne$hash-or
+            $row.detail.snapshots-ne$(if($commit-and$row.kind-cin @('recovery-failed-commit','recovery-last-good-loaded')){2}else{1})-or
             $row.detail.failedSaveCallback-ne$false-or$row.detail.canceledLoadCallback-ne$false){
             throw 'P07 unwritten request changed the previous archive or claimed success.'
         }
     }
-    $failures=if($Request.persistenceCase-ceq'timeout'){1}else{0}
+    $failures=if($Request.persistenceCase-ceq'cancel-wait'){0}else{1}
+    if($commit-and($wait[0].detail.replacementFailures-ne0-or$failed[0].detail.replacementFailures-ne1)){
+        throw 'P07 lacks the actual failed replacement of its completed staging archive.'
+    }
     if($failed[0].detail.failedSaves-ne$failures-or
         $wait[0].persistence.semantics-ne2-or$failed[0].persistence.semantics-ne2-or
         $wait[0].persistence.presentation-ne1-or$failed[0].persistence.presentation-ne1-or
         $failed[0].detail.nativeWorldDisposals-ne1-or$loaded[0].detail.nativeWorldDisposals-ne2-or
         $loaded[0].persistence.semantics-ne4-or$loaded[0].persistence.presentation-ne2-or
-        $failed[0].gameTicks-le$wait[0].gameTicks-or$failed[0].native.paused-ne$false-or
+        ($commit-and$failed[0].gameTicks-lt$wait[0].gameTicks)-or
+        (-not$commit-and$failed[0].gameTicks-le$wait[0].gameTicks)-or$failed[0].native.paused-ne$false-or
         $failed[0].native.mode-cne'Default'-or$failed[0].controls.SerializationSuspended-ne$false-or
         $loaded[0].detail.nativeCallback-ne$true-or$written[0].detail.ordinal-ne2-or
         $written[0].detail.sha256-ceq$hash){

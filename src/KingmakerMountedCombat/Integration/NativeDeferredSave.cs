@@ -67,7 +67,7 @@ namespace KingmakerMountedCombat.Integration
 
         private static bool RetireFailedSave(object record, DeferredSaveEnumerator<object> operation, Exception exception)
         {
-            if (record == null || operation?.FailedBeforeSerialization != true ||
+            if (record == null || operation == null || (!operation.FailedBeforeSerialization && !operation.FailedAfterNativeCleanup) ||
                 !ReferenceEquals(Enumerator(record), operation)) return false;
             Callback.SetValue(record, null);
             MountedPatchController.ReportFailedSave(exception);

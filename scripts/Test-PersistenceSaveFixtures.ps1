@@ -546,7 +546,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $queuedHash $fixture -NativeCase
 
 $result.scenario='persistence-p07-save'
 Write-KmcJsonAtomic $resultPath $result
-foreach($case in @('timeout','cancel-wait')){
+foreach($case in @('timeout','cancel-wait','locked-replace')){
     Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p07-save';persistenceCase=$case;transactionToken=('a'*64)})
     $recoveryHash=Get-KmcSha256 $path
     $recoverySource=Get-KmcPersistenceSource $sourceId $recoveryHash $fixture -NativeCase $case
@@ -579,6 +579,27 @@ foreach($bad in @('false-success','new-world','no-clock','changed-last-good','no
         'changed-last-good' {$copy[2].detail.sha256=('b'*64)}
         'no-reload' {$copy[3].detail.nativeWorldDisposals=1}
         'no-retry' {$copy[4].detail.sha256=('a'*64)}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $recoveryRequest $copy} ('P07 accepted '+$bad)
+}
+
+$commitRows=($recoveryRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json
+$recoveryRequest.persistenceCase='locked-replace'
+foreach($row in $commitRows){
+    $row.checkpoint='locked-replace'
+    $row.detail|Add-Member replacementFailures 0
+}
+$commitRows[2].kind='recovery-failed-commit'
+$commitRows[2].detail.snapshots=2;$commitRows[3].detail.snapshots=2
+$commitRows[2].detail.replacementFailures=1
+$commitRows[2].gameTicks=$commitRows[1].gameTicks
+Assert-KmcRecoveryPersistenceEvidence $recoveryRequest $commitRows;$passes++
+foreach($bad in @('no-commit-failure','no-snapshot','clock-rewind')){
+    $copy=($commitRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json
+    switch($bad){
+        'no-commit-failure' {$copy[2].detail.replacementFailures=0}
+        'no-snapshot' {$copy[2].detail.snapshots=1}
+        'clock-rewind' {$copy[2].gameTicks=99}
     }
     Must-Reject {Assert-KmcRecoveryPersistenceEvidence $recoveryRequest $copy} ('P07 accepted '+$bad)
 }

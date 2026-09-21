@@ -375,6 +375,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (disposed) return;
             recoveryFault?.Dispose(); recoveryFault = null;
+            recoveryArchiveLock?.Dispose(); recoveryArchiveLock = null;
             persistence.SaveSnapshotStaged -= ObserveApproachSnapshot;
             persistence.SaveSnapshotStarting -= BeforeConditionPreparationSnapshot;
             if (conditionLease != null) conditionLease.NativeChoiceObserved -= RequestConditionPreparationSave;

@@ -248,7 +248,7 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("P07 recovery requests retain exact source and cold archive authority", () =>
             {
-                foreach (var name in new[] { "timeout", "cancel-wait" })
+                foreach (var name in new[] { "timeout", "cancel-wait", "locked-replace" })
                 {
                     var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
                     request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;

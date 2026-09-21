@@ -801,8 +801,8 @@ namespace KingmakerMountedCombat.Integration
                     unit != null && game?.State?.AwakeUnits != null && game.State.AwakeUnits.Contains(unit));
             }
 
-            internal static IEnumerable<CodeInstruction> NativeArchiveCommitTranspiler(IEnumerable<CodeInstruction> instructions) =>
-                NativeMountedArchiveCommit.Transform(instructions);
+            internal static IEnumerable<CodeInstruction> NativeArchiveCommitTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
+                NativeSaveWorkerBoundary.Transform(NativeMountedArchiveCommit.Transform(instructions), __originalMethod);
 
             internal static IEnumerable<CodeInstruction> CombatSaveAdmissionTranspiler(IEnumerable<CodeInstruction> instructions)
             {

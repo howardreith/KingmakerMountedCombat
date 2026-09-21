@@ -60,9 +60,10 @@ public static class KmcPersistenceContractProbe
     {
         internal int Disposals, Moves;
         internal bool FailDispose, FailMove;
+        internal Exception MoveException;
         public object Current { get { return null; } }
         object System.Collections.IEnumerator.Current { get { return Current; } }
-        public bool MoveNext() { Moves++; if(FailMove) throw new InvalidOperationException("native move"); return true; }
+        public bool MoveNext() { Moves++; if(MoveException!=null) throw MoveException; if(FailMove) throw new InvalidOperationException("native move"); return true; }
         public void Reset() { throw new NotSupportedException(); }
         public void Dispose() { Disposals++; if(FailDispose) throw new InvalidOperationException("owned disposal"); }
     }
@@ -222,6 +223,23 @@ public static class KmcPersistenceContractProbe
             Check(rejected && object.ReferenceEquals(callbackField.GetValue(entry),callback),
                 "save recovery propagates "+phase+" failures without clearing a native callback");
         }
+        foreach(var cleanupFails in new[]{false,true})
+        {
+            var marker=(Exception)Activator.CreateInstance(candidate.GetType(
+                "KingmakerMountedCombat.Domain.CompletedSaveFailureException",true),
+                BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{"completed failed worker"},null);
+            var inner=new DisposeProbe {MoveException=marker,FailDispose=cleanupFails};
+            var operation=constructor.Invoke(new object[]{inner,new Func<bool>(()=>true),
+                new Func<double>(()=>0),new Action(()=>{}),new Action(()=>{}),new Action(()=>{}),30d});
+            wrapperType.GetMethod("Activate",flags).Invoke(operation,new object[]{new Action(()=>{})});
+            var entry=Activator.CreateInstance(queuedType,true);process.SetValue(entry,operation);
+            callbackField.SetValue(entry,callback);ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,entry);
+            var threw=false;var result=true;
+            try {result=(bool)tick.Invoke(null,new object[]{operation,owner});}catch(TargetInvocationException){threw=true;}
+            Check(threw==cleanupFails && (cleanupFails ? object.ReferenceEquals(callbackField.GetValue(entry),callback) :
+                !result && callbackField.GetValue(entry)==null) && inner.Disposals==1,
+                "completed worker failure retires success only after complete cleanup; cleanup-fails="+cleanupFails);
+        }
         ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,null);
 
         var commandType=native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand",true);
@@ -270,7 +288,35 @@ public static class KmcPersistenceContractProbe
         saveScope.GetField("Json",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(scope,"bounded snapshot");
         tracked=(System.Collections.Generic.IEnumerator<object>)track.Invoke(null,new object[]{
             ((System.Collections.Generic.IEnumerable<object>)empty).GetEnumerator(),scope});
-        Check(!tracked.MoveNext(),"normal native completion retains its actual captured snapshot boundary");tracked.Dispose();
+        var foreignCompletionRejected=false;
+        try{tracked.MoveNext();}catch(InvalidOperationException){foreignCompletionRejected=true;}finally{tracked.Dispose();}
+        Check(foreignCompletionRejected,"snapshot data alone cannot turn a foreign empty iterator into a completed native write");
+
+        var worker=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveWorkerBoundary",true);
+        var nativeIterator=native.GetType("Kingmaker.EntitySystem.Persistence.SaveManager+<SaveRoutine>d__46",true);
+        var taskField=nativeIterator.GetField("<saveTask>5__2",flags);
+        var taskSource=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        var iteratorBlank=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(nativeIterator);
+        taskField.SetValue(iteratorBlank,taskSource.Task);
+        Check(taskField.MetadataToken==0x04008CEA &&
+            object.ReferenceEquals(worker.GetMethod("TaskOf",BindingFlags.NonPublic|BindingFlags.Static)
+                .Invoke(null,new[]{iteratorBlank}),taskSource.Task),
+            "exact native iterator exposes its real background save task independently of enumerator completion");
+        var sources=new System.Threading.Tasks.TaskCompletionSource<bool>[4];
+        for(int n=0;n<4;n++)sources[n]=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        sources[0].SetException(new IOException("bounded serializer fault"));sources[2].SetResult(true);
+        var started=new System.Threading.ManualResetEventSlim();
+        var drain=System.Threading.Tasks.Task.Factory.StartNew(()=>{
+            started.Set();
+            try { worker.GetMethod("WaitForAll",BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{
+                new[]{sources[0].Task,sources[2].Task},sources[1].Task,sources[3].Task});return false; }
+            catch(TargetInvocationException e){return e.InnerException is AggregateException;}
+        });
+        bool waited;
+        try {started.Wait();waited=!drain.Wait(100);}
+        finally {sources[1].SetResult(true);sources[3].SetResult(true);}
+        Check(waited && drain.Wait(5000) && drain.Result,
+            "a native serializer fault is reported only after all four worker tasks drain");
 
     }
 
@@ -576,6 +622,41 @@ public static class KmcPersistenceContractProbe
                 commitOps.Add(op);commitOperands.Add(operand);
                 commitLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{op,operand}));
             }
+            var workerBoundary=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveWorkerBoundary",true);
+            var workerLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
+            for(int i=0;i<commitOps.Count;i++)
+                workerLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{commitOps[i],commitOperands[i]}));
+            var workerChanged=new System.Collections.Generic.List<object>();
+            foreach(var instruction in (System.Collections.IEnumerable)workerBoundary.GetMethod("Transform",
+                BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{workerLegacy,commit})) workerChanged.Add(instruction);
+            int workerCursor=0,workerReplaced=0;
+            for(int i=0;i<commitOps.Count;i++)
+            {
+                var oldCall=commitOperands[i] as MethodInfo;
+                if(oldCall!=null && oldCall.DeclaringType==typeof(System.Threading.Tasks.Task) && oldCall.Name=="WaitAny")
+                {
+                    foreach(var expectedLocal in new[]{4,6}) {
+                        var instruction=workerChanged[workerCursor++];
+                        var local=legacyInstruction.GetField("operand").GetValue(instruction) as LocalVariableInfo;
+                        if(!legacyInstruction.GetField("opcode").GetValue(instruction).Equals(System.Reflection.Emit.OpCodes.Ldloc_S) ||
+                            local==null || local.LocalIndex!=expectedLocal) throw new Exception("Save worker task argument changed");
+                    }
+                    var replacement=workerChanged[workerCursor++];
+                    var call=legacyInstruction.GetField("operand").GetValue(replacement) as MethodInfo;
+                    if(call==null || call.DeclaringType!=workerBoundary || call.Name!="WaitForAll" ||
+                        !legacyInstruction.GetField("opcode").GetValue(replacement).Equals(System.Reflection.Emit.OpCodes.Call))
+                        throw new Exception("Save worker wait replacement changed");
+                    workerReplaced++;
+                }
+                else {
+                    var instruction=workerChanged[workerCursor++];
+                    if(!Equals(legacyInstruction.GetField("opcode").GetValue(instruction),commitOps[i]) ||
+                        !Equals(legacyInstruction.GetField("operand").GetValue(instruction),commitOperands[i]))
+                        throw new Exception("Unrelated native save worker instruction changed");
+                }
+            }
+            Check(workerReplaced==1 && workerCursor==workerChanged.Count && workerCursor==commitOps.Count+2,
+                "exact worker drains all four real tasks; snapshot, commit, catches and native cleanup instructions retained");
             var atomic=candidate.GetType("KingmakerMountedCombat.Integration.NativeMountedArchiveCommit",true);
             var changedCommit=new System.Collections.Generic.List<object>();
             foreach(var instruction in (System.Collections.IEnumerable)atomic.GetMethod("Transform",

@@ -5274,7 +5274,7 @@ try {
 
     Invoke-HarnessTest 'P07 owns bounded wait recovery and exact cold archive without widening old scenarios' {
         try {
-            foreach($case in @('timeout','cancel-wait')){
+            foreach($case in @('timeout','cancel-wait','locked-replace')){
                 $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath

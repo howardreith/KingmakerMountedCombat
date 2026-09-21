@@ -79,10 +79,27 @@ namespace KingmakerMountedCombat.Integration
         {
             using (routine)
             {
-                while (routine.MoveNext()) yield return routine.Current;
+                while (true)
+                {
+                    NativeSaveWorkerBoundary.RestoreCompletedPlayerReference(routine, scope.World, scope.PartyState);
+                    if (!routine.MoveNext()) break;
+                    yield return routine.Current;
+                }
             }
             if (scope.Json == null)
-                throw new InvalidOperationException("Native save ended without a mounted snapshot; no completed write is reported.");
+                throw new CompletedSaveFailureException("Native save ended before its snapshot; no completed write is reported.");
+            // Native SaveRoutine can finish its TurnOn phase while the archive
+            // worker is still committing. Keep completion/controls scoped until
+            // the real worker has finished, rather than reporting that callback.
+            var task = NativeSaveWorkerBoundary.TaskOf(routine);
+            if (task == null) throw new InvalidOperationException("Native snapshot did not start its save worker.");
+            while (!task.IsCompleted) yield return null;
+            NativeSaveWorkerBoundary.RestoreCompletedPlayerReference(routine, scope.World, scope.PartyState);
+            if (!ReferenceEquals(Game.Instance?.Player, scope.World))
+                throw new InvalidOperationException("Native save world changed before completion.");
+            if (task.IsFaulted || task.IsCanceled || scope.Prepared.OperationState != SaveInfo.StateType.None ||
+                string.IsNullOrEmpty(scope.Prepared.FolderName) || !System.IO.File.Exists(scope.Prepared.FolderName))
+                throw new CompletedSaveFailureException("The native archive worker did not commit the requested save.");
         }
 
         internal void ObservePreparedSave(SaveInfo save)
@@ -100,6 +117,8 @@ namespace KingmakerMountedCombat.Integration
             if (scope.Json != null) throw new InvalidOperationException("A native save crossed the snapshot barrier twice.");
             // This call is in SaveRoutine's game-thread header block, before
             // TurnOff/PreSave or any entity serialization worker is started.
+            scope.World = Game.Instance.Player;
+            scope.PartyState = scope.World.CrossSceneState;
             SaveSnapshotStarting?.Invoke();
             if (loaded != null && loaded.Kind != MountedSaveReadKind.Current && loaded.Kind != MountedSaveReadKind.Missing)
             {
@@ -305,6 +324,8 @@ namespace KingmakerMountedCombat.Integration
         private sealed class SaveScope
         {
             internal SaveInfo Prepared;
+            internal Player World;
+            internal Kingmaker.EntitySystem.SceneEntitiesState PartyState;
             internal string Json;
             internal bool ControlsSuspended;
             internal Action RestoreAi;

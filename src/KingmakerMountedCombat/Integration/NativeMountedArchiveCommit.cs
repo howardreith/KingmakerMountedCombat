@@ -18,6 +18,8 @@ namespace KingmakerMountedCombat.Integration
         private static readonly FieldInfo PathField = NativeCombatActorPersistence.Field(
             Zip, "m_FolderName", 0x04005431, typeof(string));
         private static readonly MethodInfo Rename = ResolveRename();
+        private static int replacementFailures;
+        internal static int ReplacementFailureCount => System.Threading.Volatile.Read(ref replacementFailures);
 
         private static MethodInfo ResolveRename()
         {
@@ -53,7 +55,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 // Same-directory replacement commits the already complete native
                 // archive atomically. No original deletion and no content rewrite.
-                File.Replace(source, destination, null);
+                try { File.Replace(source, destination, null); }
+                catch (IOException) { System.Threading.Interlocked.Increment(ref replacementFailures); throw; }
                 PathField.SetValue(staged, destination);
                 ownership?.Complete();
             }

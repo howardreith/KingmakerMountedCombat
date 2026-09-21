@@ -38,7 +38,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','timeout','cancel-wait')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','timeout','cancel-wait','locked-replace')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -86,8 +86,8 @@ if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'Alternating cold loads require two distinct exact archive hashes.'}
 }elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads may select a second archive.'}
 if($Scenario -cin @('persistence-p07-save','persistence-p07-load')){
-    if($PersistenceCase-cnotin @('timeout','cancel-wait')){throw 'P07 requires its exact owned recovery case.'}
-}elseif($PersistenceCase-cin @('timeout','cancel-wait')){throw 'Recovery faults require the exact P07 scenario.'}
+    if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace')){throw 'P07 requires its exact owned recovery case.'}
+}elseif($PersistenceCase-cin @('timeout','cancel-wait','locked-replace')){throw 'Recovery faults require the exact P07 scenario.'}
 if($Scenario-ceq'persistence-p06-load'){
     if($PersistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy')){throw 'P06 requires its exact validation variant.'}
 }elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy')){throw 'Validation variants require the exact P06 scenario.'}

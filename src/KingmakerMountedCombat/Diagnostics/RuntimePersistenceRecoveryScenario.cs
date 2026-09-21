@@ -12,6 +12,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class RuntimePersistenceScenario
     {
         private bool RecoveryCase => request.Scenario == "persistence-p07-save";
+        private bool RecoveryCommitFailure => request.PersistenceCase == "locked-replace";
+        private FileStream recoveryArchiveLock;
         private bool recoveryContinuation;
         private int recoveryStage;
         private int recoveryFrames;
@@ -43,26 +45,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 else if (persistence.FailedSaveCount == 0) return;
                 if (LoadingProcess.Instance.IsLoadingInProcess) return;
-                recoveryFault.Dispose(); recoveryFault = null;
+                recoveryFault?.Dispose(); recoveryFault = null;
+                recoveryArchiveLock?.Dispose(); recoveryArchiveLock = null;
                 Check(ReferenceEquals(game.Player, recoveryWorld) && ReferenceEquals(persistence.LoadedData, recoveryData) &&
                     persistence.SemanticRestoreCount == 2 && persistence.PresentationRestoreCount == 1,
                     "P07-failure-or-unstarted-load-cancellation-preserves-completed-world");
-                Check(!failedSaveCallback && !canceledLoadCallback && persistence.SnapshotCount == 1 &&
-                    persistence.FailedSaveCount == (request.PersistenceCase == "timeout" ? 1 : 0),
-                    "P07-unwritten-operation-never-reports-save-or-load-success");
+                Check(!failedSaveCallback && !canceledLoadCallback && persistence.SnapshotCount == (RecoveryCommitFailure ? 2 : 1) &&
+                    persistence.FailedSaveCount == (request.PersistenceCase == "cancel-wait" ? 0 : 1),
+                    "P07-failed-operation-never-reports-save-or-load-success");
+                if (RecoveryCommitFailure)
+                    Check(NativeMountedArchiveCommit.ReplacementFailureCount == 1,
+                        "P07-real-complete-archive-replacement-failed-at-held-owned-destination");
                 Check(!NativeDeferredSave.Waiting(LoadingProcess.Instance) && !persistence.SaveSuspended &&
                     !NativePersistenceIsolation.HasPendingWrites && !game.IsPaused &&
                     game.CurrentMode == Kingmaker.GameModes.GameModeType.Default,
                     "P07-native-wait-input-and-save-scopes-recovered");
                 var elapsed = (game.TimeController.GameTime.Ticks - recoveryWaitTicks) / (double)TimeSpan.TicksPerSecond;
-                Check(elapsed > 0 && LegitimateContinuation(recoveryRiderDebt, MountedPersistenceService.CaptureActor(rider), elapsed) &&
+                Check((RecoveryCommitFailure ? elapsed >= 0 : elapsed > 0) &&
+                    LegitimateContinuation(recoveryRiderDebt, MountedPersistenceService.CaptureActor(rider), elapsed) &&
                     LegitimateContinuation(recoveryMountDebt, MountedPersistenceService.CaptureActor(mount), elapsed),
-                    "P07-wait-clock-advances-without-action-refund-or-tax");
+                    "P07-native-clock-and-legitimate-debt-survive-failed-request");
                 VerifyRecoveryControls();
                 var saved = RecoveryArchive();
-                Check(Hash(saved.FolderName) == recoveryGoodHash && persistence.SnapshotCount == 1,
-                    "P07-previous-complete-archive-unchanged-after-unwritten-request");
-                Write("recovery-unwritten-operation", RecoveryDetail(saved));
+                Check(Hash(saved.FolderName) == recoveryGoodHash && persistence.SnapshotCount == (RecoveryCommitFailure ? 2 : 1),
+                    "P07-previous-complete-archive-unchanged-after-failed-request");
+                Write(RecoveryCommitFailure ? "recovery-failed-commit" : "recovery-unwritten-operation", RecoveryDetail(saved));
                 RequestRecoveryLoad(saved);
                 recoveryStage = 3;
                 return;
@@ -108,11 +115,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 recoveryWaitTicks = game.TimeController.GameTime.Ticks;
                 recoveryRiderDebt = MountedPersistenceService.CaptureActor(rider);
                 recoveryMountDebt = MountedPersistenceService.CaptureActor(mount);
-                recoveryFault = persistence.ArmOwnedSaveWait(archive);
+                if (RecoveryCommitFailure)
+                {
+                    NativePersistenceIsolation.RequireOwnedWrite(archive);
+                    Check(NativeMountedArchiveCommit.ReplacementFailureCount == 0,
+                        "P07-no-prior-native-replacement-failure");
+                    recoveryArchiveLock = new FileStream(archive.FolderName, FileMode.Open, FileAccess.Read, FileShare.Read);
+                }
+                else recoveryFault = persistence.ArmOwnedSaveWait(archive);
                 callback = false;
                 game.SaveGame(archive, () => failedSaveCallback = true);
-                Check(NativeDeferredSave.Waiting(LoadingProcess.Instance) && persistence.SnapshotCount == 1,
-                    "P07-fault-is-one-owned-native-request-before-snapshot");
+                if (!RecoveryCommitFailure)
+                    Check(NativeDeferredSave.Waiting(LoadingProcess.Instance) && persistence.SnapshotCount == 1,
+                        "P07-fault-is-one-owned-native-request-before-snapshot");
                 if (request.PersistenceCase == "cancel-wait")
                 {
                     var queued = game.SaveManager.LoadRoutine(archive, false);
@@ -127,7 +142,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (recoveryStage == 4)
             {
                 var read = NativeMountedSaveStorage.Read(archive.Saver);
-                Check(persistence.SnapshotCount == 2 && read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
+                Check(persistence.SnapshotCount == (RecoveryCommitFailure ? 3 : 2) && read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
                     read.Data.Rider.Id == recoveryRiderId && read.Data.Mount.Id == recoveryMountId &&
                     Hash(archive.FolderName) != recoveryGoodHash && !failedSaveCallback && !canceledLoadCallback,
                     "P07-subsequent-real-native-save-completes-after-recovery");
@@ -170,6 +185,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["length"] = new FileInfo(save.FolderName).Length, ["nativeCallback"] = callback,
             ["failedSaveCallback"] = failedSaveCallback, ["canceledLoadCallback"] = canceledLoadCallback,
             ["snapshots"] = persistence.SnapshotCount, ["failedSaves"] = persistence.FailedSaveCount,
+            ["replacementFailures"] = NativeMountedArchiveCommit.ReplacementFailureCount,
             ["nativeWorldDisposals"] = persistence.NativeWorldDisposalCount,
             ["previousHash"] = recoveryGoodHash, ["waitGameTicks"] = recoveryWaitTicks
         };

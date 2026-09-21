@@ -99,7 +99,7 @@ namespace KingmakerMountedCombat.Integration
         internal void ReportFailedSave(Exception exception)
         {
             FailedSaveCount++;
-            NotifySaveStatus("Save was not written; the previous complete save is unchanged. " + exception.Message);
+            NotifySaveStatus("Save did not complete; the previous complete save is unchanged. " + exception.Message);
         }
 
         private void NotifySaveStatus(string message)

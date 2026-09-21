@@ -4,6 +4,13 @@ using System.Collections.Generic;
 
 namespace KingmakerMountedCombat.Domain
 {
+    // Raised only after native enumeration/disposal and worker completion. It
+    // distinguishes a reported failed write from successful empty completion.
+    internal sealed class CompletedSaveFailureException : InvalidOperationException
+    {
+        internal CompletedSaveFailureException(string message) : base(message) { }
+    }
+
     // The native loading queue owns ordering. This one operation owns only its
     // pre-serialization wait; no mutable "last save" or second request queue.
     internal sealed class DeferredSaveEnumerator<T> : IEnumerator<T>
@@ -24,6 +31,7 @@ namespace KingmakerMountedCombat.Domain
         internal bool Waiting { get; private set; }
         internal bool SerializationStarted { get; private set; }
         internal bool FailedBeforeSerialization { get; private set; }
+        internal bool FailedAfterNativeCleanup { get; private set; }
 
         internal DeferredSaveEnumerator(IEnumerator<T> inner, Func<bool> ready, Func<double> elapsed,
             Action beginWait, Action tickWait, Action endWait, double maximumWait)
@@ -134,9 +142,10 @@ namespace KingmakerMountedCombat.Domain
         {
             try { Dispose(); }
             catch (Exception cleanup) { throw new AggregateException(original, cleanup); }
-            // Recovery is permitted only after complete owned cleanup, before
-            // native serialization. Disposal failures retain native failure flow.
+            // Only a pre-snapshot failure or a completed worker's explicit
+            // failure marker may recover. Cleanup failures retain native flow.
             FailedBeforeSerialization = activated && !SerializationStarted;
+            FailedAfterNativeCleanup = activated && SerializationStarted && original is CompletedSaveFailureException;
         }
     }
 }
