@@ -42,6 +42,12 @@ Invoke-HarnessTest 'runtime scenario orchestrator parses before any transaction'
     [void][Management.Automation.Language.Parser]::ParseFile(
         (Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1'),[ref]$tokens,[ref]$parseErrors)
     Assert-Test (@($parseErrors).Count-eq0) ('Runtime orchestrator parse errors: '+(@($parseErrors)|Out-String))
+    $command=Get-Command (Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1')
+    $cases=@($command.Parameters['PersistenceCase'].Attributes|Where-Object {$_ -is [Management.Automation.ValidateSetAttribute]})
+    Assert-Test ($cases.Count-eq1) 'Runtime case parameter has no unique bounded set.'
+    foreach($case in @('step','conversion','round-effect','reaction','condition')){
+        Assert-Test ($cases[0].ValidValues-ccontains$case) ('Runtime parameter rejects declared P03 case: '+$case)
+    }
 }
 
 function New-TestSaveArchive {

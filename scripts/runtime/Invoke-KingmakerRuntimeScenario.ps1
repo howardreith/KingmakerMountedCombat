@@ -38,7 +38,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','manual','quick','auto','manual-renamed','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','manual','quick','auto','manual-renamed','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
