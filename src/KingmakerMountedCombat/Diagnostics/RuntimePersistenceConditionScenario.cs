@@ -188,8 +188,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (turn == null) return;
                 if (ReferenceEquals(turn, savedBoundary)) { EndConditionTurn(turn); return; }
-                // Preparing permits native End input, but this fixture must
-                // observe the actor's actual preparation/Acting state first.
+                // Preparing permits native End input, but this fixture must
+                // observe the actor's actual preparation/Acting state first.
                 if ((turn.Unit == rider || turn.Unit == mount) && !turn.IsActing) return;
                 var riderGrants = conditionTrace.GrantCount(rider) - conditionInitialRiderGrants;
                 var mountGrants = conditionTrace.GrantCount(mount) - conditionInitialMountGrants;
