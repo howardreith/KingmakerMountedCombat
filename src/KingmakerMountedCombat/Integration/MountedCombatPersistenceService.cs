@@ -83,13 +83,16 @@ namespace KingmakerMountedCombat.Integration
             var controller = game.TurnBasedCombatController;
             if (data.Combat.Actors.Any(a => !restoredActors.ContainsKey(a.Native.Id)))
             {
-                if (restoreLoad.World.NativeCompleted)
+                if (restoreLoad.World.NativeCompleted && !Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance.IsLoadingInProcess)
                     BlockCombatRestoration("A saved combat actor did not resolve during native entity restoration.");
                 return;
             }
             if (data.Combat.TurnBased && !controller.Initialized)
             {
-                if (restoreLoad.World.NativeCompleted)
+                // SaveManager.LoadRoutine finishes before the area-loading
+                // queue initializes this controller. Keep admission blocked
+                // while those native steps run; do not classify that gap as bad data.
+                if (restoreLoad.World.NativeCompleted && !Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance.IsLoadingInProcess)
                     BlockCombatRestoration("The native turn controller did not become available for the saved combat.");
                 return;
             }
