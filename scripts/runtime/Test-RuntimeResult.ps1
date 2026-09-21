@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 
 function Assert-NoDuplicateJsonObjectProperties {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
@@ -152,7 +153,7 @@ function Assert-FixtureEcho {
 function Assert-SubscenarioResults {
     param($Result)
     $missionScenarios = @(
-        'persistence-p01-save', 'persistence-p01-load', 'persistence-p02-save', 'persistence-p02-load', 'persistence-p03-save', 'persistence-p03-load', 'persistence-p04-save', 'persistence-p04-load', 'persistence-p05-save', 'persistence-p05-load',
+        'persistence-p01-save', 'persistence-p01-load', 'persistence-p02-save', 'persistence-p02-load', 'persistence-p03-save', 'persistence-p03-load', 'persistence-p04-save', 'persistence-p04-load', 'persistence-p05-save', 'persistence-p05-load', 'persistence-p06-load',
         'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',

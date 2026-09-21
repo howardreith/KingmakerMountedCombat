@@ -26,7 +26,14 @@ foreach($definition in @($ast.EndBlock.Statements|Where-Object {$_-is[Management
 Assert-SubscenarioResults $game
 $rows=@(Get-Content -LiteralPath (Join-Path $root 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
 Assert-KmcValidationPersistenceEvidence $request $rows $game
-$passes=2
+$final=Read-KmcJson (Join-Path $root 'runtime-result.json')
+$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'runtime/Test-RuntimeResult.ps1'),[ref]$tokens,[ref]$parseErrors)
+if($parseErrors.Count){throw 'Final result validator has syntax errors.'}
+foreach($definition in @($ast.EndBlock.Statements|Where-Object {$_-is[Management.Automation.Language.FunctionDefinitionAst]})){
+    . ([ScriptBlock]::Create($definition.Extent.Text))
+}
+Assert-SubscenarioResults $final
+$passes=3
 foreach($case in @('missing-entry','world-refresh','wrong-archive','no-attack')){
     $copy=($rows|ConvertTo-Json -Depth 32)|ConvertFrom-Json
     switch($case){
