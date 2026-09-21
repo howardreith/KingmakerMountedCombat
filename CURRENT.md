@@ -1,12 +1,10 @@
-# Chunk 5 persistence - 2026-09-21 UTC
+# Chunk 5 persistence — 2026-09-21 UTC
 
-IN PROGRESS. [Single report](docs/CHUNK5-PERSISTENCE.md). Branch codex/mounted-combat-phase3f-playable-core; frozen preview.45/source 08219d63ffe04305f4a218c67e50aa1a0e9a9944. P03 save requested during native preparation and cold-load PASS28/0+17/0, both outer PASS. The exact native command completes before serialization; an unowned ordinary attack remains held. Harm9, mount forfeiture and unused rider attack survive cold; each actor refreshes once in the next two rounds.
+IN PROGRESS. [Single report](docs/CHUNK5-PERSISTENCE.md). Frozen preview.46/source 6aa19a32309974a8900c87085f592912b035481c on codex/mounted-combat-phase3f-playable-core. Suspended same-round Delay source/cold PASS82/0+66/0, both outer PASS. Cold resume retains grant/unused work and applies no native clear or round effect; the next two real activations refresh each actor once. Movement, ordinary attack and cross-round Delay rejection pass.
 
-Private ZIP KingmakerMountedCombat-0.1.0-chunk5-preview.45-p03-preparation-obligation-diagnostic.zip: SHA2b4f699517fab0eebb7de60a0bb3f4e35d8f891db1409777512985174cf9f761; DLLd405096d8046e6be94006369277eee49feb886a984f57fae542e79fd400aeb95/MVID258a1528-bf1b-4dae-a012-49d866ba3098. Suite47; complete identities in analysis-cache/chunk5-persistence/ACTIVE.json. Source22/components430/contracts89/fixtures164/profile13/package11 PASS; unchanged full harness259 from44 applies.
+Exact ZIP/DLL/MVID and suite48 are in the report and lab analysis-cache/chunk5-persistence/ACTIVE.json. Source22/components430/contracts89/fixtures174/harness259/package11 PASS. Both owned processes exited normally; final outer restoration audit PASS2026-09-21T08:22:35.0060226Z. Human preview.54 DLL verified/no game; current saves/settings/caches/foreign Mods and separate37/13 backups preserved. Frozen46 is unchanged by this documentation checkpoint.
 
-Both owned processes exited normally and restored actual intake; last2026-09-21T07:56:37.6368956Z. Human preview.54 DLL verified/no game. Saves/settings/caches/foreign Mods and separate37/13 backups preserved. Earlier native44 timeout FAIL and one-run profile recovery remain historical evidence; full P07 graceful owned-save failure recovery remains mandatory. This documentation checkpoint does not rebuild frozen45.
-
-Next: P03 suspended same-round Delay with no repeated round effects or resource grant. Remaining P05 overlap, P06 invalid/legacy, P07 recovery/lifecycle/removal, P08 and one consolidated exact-final P01-P08 suite remain mandatory. Paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY TODO. No permanent installation/main merge/public release.
+Next: P05 overlapping native requests, then P06 invalid/legacy, P07 recovery/lifecycle/removal, P08 and one consolidated exact-final P01–P08 suite. The native44 timeout/world-reset defect remains mandatory P07 work. Paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY TODO. No permanent installation/main merge/public release.
 
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
