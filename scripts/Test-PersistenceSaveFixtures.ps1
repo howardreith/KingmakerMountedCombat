@@ -425,7 +425,7 @@ $conditionRows=@((New-ConditionProof 'initial' $conditionState),
 foreach($ordinal in @(1,2)){foreach($actor in @('r','m')){
  $conditionRows+=New-ConditionProof 'next-independent-activation' ([pscustomobject]@{actor=$actor;count=$ordinal;round=($ordinal+1)})
 }}
-$conditionRequest=[pscustomobject]@{runId=$sourceId;scenario='persistence-p03-save';commit='source';dllSha256='dll'}
+$conditionRequest=[pscustomobject]@{runId=$sourceId;scenario='persistence-p03-save';persistenceCase='condition';commit='source';dllSha256='dll'}
 Assert-KmcConditionPersistenceEvidence $conditionRequest $conditionRows ([pscustomobject]@{processId=123});$passes++
 $conditionState.fact.damageRestorationEnabled=$true
 Must-Reject {Assert-KmcConditionPersistenceEvidence $conditionRequest $conditionRows ([pscustomobject]@{processId=123})} 'P03 test cleanup erased native harm'
@@ -446,6 +446,33 @@ $conditionCold.detail.damage=2;$conditionCold.detail.nativeMountPreparations=1
 Must-Reject {Assert-KmcConditionColdOutcome $conditionRows @($conditionCold)} 'P03 cold replayed preparation'
 $conditionCold.detail.nativeMountPreparations=0;$conditionCold.processId=123
 Must-Reject {Assert-KmcConditionColdOutcome $conditionRows @($conditionCold)} 'P03 accepted a warm condition reload'
+
+# The preparation request occurs before native command creation; serialization
+# waits for real completion/forfeiture and never serializes that command.
+$preparationRequest=New-ConditionProof 'condition-preparation-save-request' ([pscustomobject]@{
+ nativePreparing=$true;commandPresent=$false;snapshotCount=0})
+$preparationWait=New-ConditionProof 'condition-preparation-wait' ([pscustomobject]@{
+ waiting=$true;deferredSaves=1;snapshotCount=0;condition=[pscustomobject]@{
+ command=[pscustomobject]@{type='Kingmaker.UnitLogic.Commands.UnitSelfHarm';ignoreCooldown=$false}}})
+$preparationBarrier=New-ConditionProof 'condition-preparation-barrier' ([pscustomobject]@{
+ snapshotCount=0;deferredSaves=1;condition=[pscustomobject]@{
+ command=[pscustomobject]@{started=$true;finished=$true;result='Success'}
+ damage=2;mountEnded=$true;riderEnded=$false}})
+$preparationRows=@($preparationRequest,$preparationWait,$preparationBarrier)
+Assert-KmcConditionPreparationEvidence $preparationRows;$passes++
+$preparationRequest.detail.commandPresent=$true
+Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 preparation request occurred after command creation'
+$preparationRequest.detail.commandPresent=$false;$preparationWait.detail.snapshotCount=1
+Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 serialized before preparation completed'
+$preparationWait.detail.snapshotCount=0;$preparationBarrier.detail.condition.command.finished=$false
+Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 preparation barrier abandoned a native command'
+$preparationBarrier.detail.condition.command.finished=$true;$preparationBarrier.detail.condition.mountEnded=$false
+Must-Reject {Assert-KmcConditionPreparationEvidence $preparationRows} 'P03 preparation barrier lost native forfeiture'
+$preparationBarrier.detail.condition.mountEnded=$true
+$conditionRequest.persistenceCase='condition-preparing'
+$allConditionRows=@($conditionRows)+$preparationRows
+foreach($row in $allConditionRows){$row.checkpoint='condition-preparing'}
+Assert-KmcConditionPersistenceEvidence $conditionRequest $allConditionRows ([pscustomobject]@{processId=123});$passes++
 
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

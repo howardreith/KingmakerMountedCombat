@@ -371,6 +371,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (disposed) return;
             persistence.SaveSnapshotStaged -= ObserveApproachSnapshot;
+            persistence.SaveSnapshotStarting -= BeforeConditionPreparationSnapshot;
+            if (conditionLease != null) conditionLease.NativeChoiceObserved -= RequestConditionPreparationSave;
             if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             castingEffects?.Dispose();

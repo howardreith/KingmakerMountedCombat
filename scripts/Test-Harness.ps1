@@ -45,7 +45,7 @@ Invoke-HarnessTest 'runtime scenario orchestrator parses before any transaction'
     $command=Get-Command (Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1')
     $cases=@($command.Parameters['PersistenceCase'].Attributes|Where-Object {$_ -is [Management.Automation.ValidateSetAttribute]})
     Assert-Test ($cases.Count-eq1) 'Runtime case parameter has no unique bounded set.'
-    foreach($case in @('step','conversion','round-effect','reaction','condition')){
+    foreach($case in @('step','conversion','round-effect','reaction','condition','condition-preparing')){
         Assert-Test ($cases[0].ValidValues-ccontains$case) ('Runtime parameter rejects declared P03 case: '+$case)
     }
 }
@@ -5236,7 +5236,7 @@ try {
     Invoke-HarnessTest 'P03 requires a declared native commitment and preserves strict other scenarios' {
         try{
             $v2Request.scenario='persistence-p03-save'
-            foreach($case in @('step','conversion','round-effect','reaction','condition')){
+            foreach($case in @('step','conversion','round-effect','reaction','condition','condition-preparing')){
                 $v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath

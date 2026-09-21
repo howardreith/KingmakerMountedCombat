@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition')][string]$NativeCase,
+        [AllowNull()][ValidateSet('manual','quick','auto','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -24,8 +24,8 @@ function Get-KmcPersistenceSource {
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
         if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
-    }elseif($NativeCase-ceq'condition'){
-        if($owner.scenario-cne'persistence-p03-save'-or$owner.persistenceCase-cne'condition'){throw 'P03 condition source case differs.'}
+    }elseif($NativeCase-cin @('condition','condition-preparing')){
+        if($owner.scenario-cne'persistence-p03-save'-or$owner.persistenceCase-cne$NativeCase){throw 'P03 condition source case differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P03/P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
     $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
@@ -277,7 +277,7 @@ function Assert-KmcRealtimeColdSource {
     }
     $sourceRows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     $coldRows=@(Get-Content -LiteralPath (Join-Path $Request.evidenceRoot 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
-    if($Request.persistenceCase-ceq'condition'){
+    if($Request.persistenceCase-cin @('condition','condition-preparing')){
         Assert-KmcConditionColdOutcome $sourceRows $coldRows
     }elseif($Request.persistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)){
         Assert-KmcApproachColdOutcome $sourceRows $coldRows
@@ -427,7 +427,7 @@ function Assert-KmcPersistenceScenarioEvidence {
         Assert-KmcAlternatingPersistenceEvidence $Request $rows $GameResult
         return
     }
-    if($Request.scenario-cin @('persistence-p03-save','persistence-p03-load')-and$Request.persistenceCase-ceq'condition'){
+    if($Request.scenario-cin @('persistence-p03-save','persistence-p03-load')-and$Request.persistenceCase-cin @('condition','condition-preparing')){
         Assert-KmcConditionPersistenceEvidence $Request $rows $GameResult
         return
     }
@@ -574,18 +574,39 @@ function Assert-KmcConditionColdOutcome {
     }
 }
 
+function Assert-KmcConditionPreparationEvidence {
+    param($Rows)
+    $request=@($Rows|Where-Object kind -CEQ 'condition-preparation-save-request')
+    $wait=@($Rows|Where-Object kind -CEQ 'condition-preparation-wait')
+    $barrier=@($Rows|Where-Object kind -CEQ 'condition-preparation-barrier')
+    if($request.Count-ne1-or$wait.Count-ne1-or$barrier.Count-ne1){
+        throw 'P03 preparation save lacks its unique request, live wait or barrier.'
+    }
+    $r=$request[0].detail;$w=$wait[0].detail;$b=$barrier[0].detail
+    if($r.nativePreparing-ne$true-or$r.commandPresent-ne$false-or$r.snapshotCount-ne0-or
+        $w.waiting-ne$true-or$w.deferredSaves-ne1-or$w.snapshotCount-ne0-or
+        $w.condition.command.type-cne'Kingmaker.UnitLogic.Commands.UnitSelfHarm'-or
+        $w.condition.command.ignoreCooldown-ne$false-or$b.snapshotCount-ne0-or$b.deferredSaves-ne1-or
+        $b.condition.command.started-ne$true-or$b.condition.command.finished-ne$true-or
+        $b.condition.command.result-cne'Success'-or$b.condition.damage-le0-or
+        $b.condition.mountEnded-ne$true-or$b.condition.riderEnded-ne$false){
+        throw 'P03 preparation save did not preserve its exact native completion and costs.'
+    }
+}
+
 function Assert-KmcConditionPersistenceEvidence {
     param($Request,$Rows,$GameResult)
     $write=$Request.scenario-ceq'persistence-p03-save'
+    if($write-and$Request.persistenceCase-ceq'condition-preparing'){Assert-KmcConditionPreparationEvidence $Rows}
     $initial=@($Rows|Where-Object kind -CEQ 'initial')
     $before=@($Rows|Where-Object kind -CEQ 'condition-remainder-before-input')
     $final=@($Rows|Where-Object kind -CEQ 'usable-continuation-complete')
     if($initial.Count-ne1-or$before.Count-ne1-or$final.Count-ne1){throw 'P03 condition lacks unique initial/remainder/final states.'}
     foreach($row in $Rows){
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
-            $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or$row.checkpoint-cne'condition'-or
+            $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or$row.checkpoint-cne$Request.persistenceCase-or
             $row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id-or$row.controls.DuplicateFactCount-ne0-or
-            ($row.kind-cnotin @('initial','condition-command-observed')-and$row.relationship-cne'Unmounted')){
+            ($row.kind-cnotin @('initial','condition-command-observed','condition-preparation-save-request','condition-preparation-wait')-and$row.relationship-cne'Unmounted')){
             throw 'P03 condition native identity or control invariant differs.'
         }
     }

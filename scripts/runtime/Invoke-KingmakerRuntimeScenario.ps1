@@ -38,7 +38,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','manual','quick','auto','manual-renamed','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','manual','quick','auto','manual-renamed','alternating','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageManifestSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedDllSha256,
@@ -79,8 +79,8 @@ if($Scenario -cin @('persistence-p04-save','persistence-p04-load')){
     if($PersistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
 }elseif($PersistenceCase-cin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 checkpoint cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p03-save','persistence-p03-load')){
-    if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction','condition')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
-}elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction','condition')){throw 'P03 checkpoint cannot run under another scenario.'}
+    if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction','condition','condition-preparing')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
+}elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction','condition','condition-preparing')){throw 'P03 checkpoint cannot run under another scenario.'}
 if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'Alternating cold loads require two distinct exact archive hashes.'}
 }elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads may select a second archive.'}
@@ -325,7 +325,7 @@ try{
             $copySource=$lockedWorkingPath
             $copyDescriptor=$fixturePayload.working
             if($Scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load')){
-                $sourceCase=if($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}elseif($Scenario-ceq'persistence-p04-load'-or($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-ceq'condition')){$PersistenceCase}else{$null}
+                $sourceCase=if($Scenario-ceq'persistence-p05-load'){if($PersistenceCase-ceq'manual-renamed'){'manual'}else{$PersistenceCase}}elseif($Scenario-ceq'persistence-p04-load'-or($Scenario-ceq'persistence-p03-load'-and$PersistenceCase-cin @('condition','condition-preparing'))){$PersistenceCase}else{$null}
                 $source=Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase
                 $copySource=$source.path;$copyDescriptor=$source.descriptor
                 # Copy the admitted immutable archive under one exact new leaf.
@@ -490,7 +490,7 @@ try{
             $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or
             $PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)-or
             $PersistenceCase.EndsWith('-casting',[StringComparison]::Ordinal))
-        $compareCondition=$Scenario-ceq'persistence-p03-load'-and$PersistenceCase-ceq'condition'
+        $compareCondition=$Scenario-ceq'persistence-p03-load'-and$PersistenceCase-cin @('condition','condition-preparing')
         if($gamePassed-and($compareRealtime-or$compareCondition)){
             Assert-KmcRealtimeColdSource -SourceRunId $PersistenceSourceRunId -Request $request
         }

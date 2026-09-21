@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool SaveSuspended => relationship.SaveSerializationSuspended;
         internal string Feedback { get; private set; } = "No mounted save has been loaded.";
         internal int SnapshotCount { get; private set; }
+        internal event Action SaveSnapshotStarting;
         internal event Action SaveSnapshotStaged;
         internal int SemanticRestoreCount { get; private set; }
         internal int PresentationRestoreCount { get; private set; }
@@ -98,6 +99,7 @@ namespace KingmakerMountedCombat.Integration
             if (scope.Json != null) throw new InvalidOperationException("A native save crossed the snapshot barrier twice.");
             // This call is in SaveRoutine's game-thread header block, before
             // TurnOff/PreSave or any entity serialization worker is started.
+            SaveSnapshotStarting?.Invoke();
             if (loaded != null && loaded.Kind != MountedSaveReadKind.Current && loaded.Kind != MountedSaveReadKind.Missing)
             {
                 if (loaded.OriginalJson == null)

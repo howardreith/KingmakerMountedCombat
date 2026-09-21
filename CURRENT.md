@@ -8,6 +8,8 @@ Both owned processes exited normally and restored actual intake; last2026-09-21T
 
 Next: P03 save requested during native preparation and suspended same-round participation. Remaining P05 overlap, P06 invalid/legacy, P07 recovery/lifecycle/removal, P08 and one consolidated exact-final P01-P08 suite remain mandatory. Earlier causal evidence/failures remain in the journal. Paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY TODO. No permanent installation/main merge/public release.
 
+Development44 adds only the exact condition-preparing fixture and a pre-snapshot observation event. The real save is requested inside native D100 preparation before its command exists; actual wait, completion, harm/forfeit and pre-DTO stimulus removal are observed. Command admission is unchanged for this causal measurement. Source22/components430/contracts89/package pending; fixture163 and full harness259 PASS. Next freeze44/suite46 and condition-preparing-save-A; cold only on source PASS.
+
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
 

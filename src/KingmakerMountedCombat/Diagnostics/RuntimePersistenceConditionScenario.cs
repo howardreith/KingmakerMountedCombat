@@ -16,7 +16,7 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed partial class RuntimePersistenceScenario
     {
-        private bool ConditionCase => CombatCase && Checkpoint == "condition";
+        private bool ConditionCase => CombatCase && (Checkpoint == "condition" || ConditionPreparingCase);
         private PairedNativeConditionLease conditionLease;
         private NativeAllocationRoundFactLease conditionFact;
         private NativeActorAllocationTrace conditionTrace;
@@ -53,6 +53,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (clock.Elapsed.TotalSeconds > 150)
                 throw new InvalidOperationException("P03 condition stage timed out: " + stage + "; " + persistence.Feedback);
             var game = Game.Instance;
+            ObserveConditionPreparationWait();
             if (LoadingProcess.Instance.IsLoadingInProcess || persistence.CombatRestorationPending) return;
             if (targetService != null && !targetService.RefreshBidirectionalCombatMemoryLease())
                 throw new InvalidOperationException("P03 condition fixture lost native combat memory.");
@@ -103,6 +104,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Its temporary fact is removed before any save is requested.
                 conditionFact = new NativeAllocationRoundFactLease(mount, false);
                 conditionLease = new PairedNativeConditionLease(mount, combat, conditionTrace, conditionFact, 60);
+                if (ConditionPreparingCase)
+                {
+                    conditionLease.NativeChoiceObserved += RequestConditionPreparationSave;
+                    persistence.SaveSnapshotStarting += BeforeConditionPreparationSnapshot;
+                }
                 targetService = new DiagnosticCombatTargetService(logger);
                 combatTarget = targetService.Spawn(rider, mount, FindDestination(7f), request.RunId, true, false, true);
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
@@ -132,22 +138,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 2)
             {
                 if (!conditionCommand.IsFinished || !PairIdle || relationship.State != RelationshipState.Unmounted) return;
-                Check(conditionCommand.Result == UnitCommand.ResultType.Success &&
-                    (int)conditionLease.Evidence["nativeSelfDamageRules"] == 1 &&
-                    (int)conditionLease.Evidence["choiceOverrides"] == 1 &&
-                    mount.Damage > conditionOriginalDamage && combat.PairedActorEnded(mount) && !combat.PairedActorEnded(rider) &&
-                    ReferenceEquals(turn, savedBoundary) && rider.CombatState.Cooldown.StandardAction == 0 &&
-                    rider.CombatState.Cooldown.MoveAction == 0, "P03-native-condition-forfeits-only-mount-and-retains-principal");
-                conditionSavedDamage = mount.Damage;
-                conditionLease.Dispose(); conditionFact.Dispose();
-                Check(mount.Damage == conditionSavedDamage &&
-                    (bool)conditionLease.Evidence["cleanupResourcesUnchanged"] &&
-                    (bool)conditionLease.Evidence["directControlRestored"] && (bool)conditionFact.Capture()["restored"],
-                    "P03-test-stimuli-removed-before-save-with-native-harm-and-costs-retained");
-                controls.Update(); beforeControls = controls.CaptureSnapshot();
-                conditionInitialRiderGrants = conditionTrace.GrantCount(rider);
-                conditionInitialMountGrants = conditionTrace.GrantCount(mount);
-                Write("condition-forfeit-retained", ConditionObservation()); stage = 3; return;
+                if (ConditionPreparingCase) return; // Native header retires only the test stimulus.
+                RetireConditionStimulus(); stage = 3; return;
             }
             if (stage == 3) { RequestCombatSave(); return; }
             if (stage == 4)
