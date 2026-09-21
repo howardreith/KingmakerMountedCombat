@@ -543,5 +543,45 @@ $queuedSource=Get-KmcPersistenceSource $sourceId $queuedHash $fixture -NativeCas
 if($queuedSource.descriptor.fileName-cne'Manual_302_KMC_P01.zks'){throw 'Queued cold source silently substituted another archive'};$passes++
 Must-Reject {Get-KmcPersistenceSource $sourceId $queuedHash $fixture -NativeCase manual} 'Queued source admitted wrong category/leaf'
 
+
+$result.scenario='persistence-p07-save'
+Write-KmcJsonAtomic $resultPath $result
+foreach($case in @('timeout','cancel-wait')){
+    Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p07-save';persistenceCase=$case;transactionToken=('a'*64)})
+    $recoveryHash=Get-KmcSha256 $path
+    $recoverySource=Get-KmcPersistenceSource $sourceId $recoveryHash $fixture -NativeCase $case
+    if($recoverySource.descriptor.fileName-cne'Manual_300_KMC_P01.zks'){throw 'P07 cold archive was substituted'};$passes++
+    Must-Reject {Get-KmcPersistenceSource $sourceId $recoveryHash $fixture -NativeCase manual} 'P07 admitted a mismatched source category'
+    Must-Reject {Get-KmcPersistenceSource $sourceId $recoveryHash $fixture} 'P07 source omitted its explicit case'
+}
+$recoveryRequest=[pscustomobject]@{runId='owned-recovery';persistenceCase='timeout'}
+$recoveryArchive=Join-Path $script:ownedTestLab 'runtime-staging/persistence-owned-recovery/Saved Games/Manual_300_KMC_P01.zks'
+$recoveryRows=@(
+    foreach($kind in @('recovery-initial-write','recovery-wait-started','recovery-unwritten-operation','recovery-last-good-loaded','native-write-complete')){
+        [pscustomobject]@{kind=$kind;checkpoint='timeout';gameTicks=100;
+            persistence=[pscustomobject]@{semantics=2;presentation=1};
+            native=[pscustomobject]@{paused=$false;mode='Default'};
+            controls=[pscustomobject]@{SerializationSuspended=$false};
+            detail=[pscustomobject]@{path=$recoveryArchive;sha256=('a'*64);snapshots=1;failedSaveCallback=$false;
+                canceledLoadCallback=$false;failedSaves=1;nativeWorldDisposals=1;nativeCallback=$true;ordinal=2}}
+    }
+)
+$recoveryRows[2].gameTicks=110
+$recoveryRows[3].persistence.semantics=4;$recoveryRows[3].persistence.presentation=2
+$recoveryRows[3].detail.nativeWorldDisposals=2;$recoveryRows[4].detail.sha256=('b'*64)
+Assert-KmcRecoveryPersistenceEvidence $recoveryRequest $recoveryRows;$passes++
+foreach($bad in @('false-success','new-world','no-clock','changed-last-good','no-reload','no-retry')){
+    $copy=($recoveryRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json
+    switch($bad){
+        'false-success' {$copy[2].detail.failedSaveCallback=$true}
+        'new-world' {$copy[2].persistence.semantics=4}
+        'no-clock' {$copy[2].gameTicks=100}
+        'changed-last-good' {$copy[2].detail.sha256=('b'*64)}
+        'no-reload' {$copy[3].detail.nativeWorldDisposals=1}
+        'no-retry' {$copy[4].detail.sha256=('a'*64)}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $recoveryRequest $copy} ('P07 accepted '+$bad)
+}
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

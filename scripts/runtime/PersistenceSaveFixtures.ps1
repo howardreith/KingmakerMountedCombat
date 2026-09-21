@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -15,12 +15,14 @@ function Get-KmcPersistenceSource {
     Assert-KmcDirectoryTreeCloneable $root 'owned persistence source'
     $owner=Read-KmcJson (Join-Path $root 'owner.json')
     $result=Read-KmcJson (Join-Path $lab ('runtime-evidence/'+$SourceRunId+'/runtime-result.json'))
-    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')-or$result.status-cne'PASS'-or
+    if($owner.runId-cne$SourceRunId-or$owner.scenario-cnotin @('persistence-p07-save','persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')-or$result.status-cne'PASS'-or
         $result.runId-cne$SourceRunId-or$result.scenario-cne$owner.scenario-or
         $result.modsRestored-ne$true-or$result.workingRestored-ne$true-or
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
-    if($isSlot){
+    if($owner.scenario-ceq'persistence-p07-save'){
+        if($NativeCase-cnotin @('timeout','cancel-wait')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+    }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
         if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
@@ -415,7 +417,7 @@ function Assert-KmcAlternatingPersistenceEvidence {
 
 function Assert-KmcPersistenceScenarioEvidence {
     param($Request,$Manifest,[string]$Status,$GameResult)
-    if($Request.scenario -cnotin @('persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load') -or $Status-cne'PASS'){return}
+    if($Request.scenario -cnotin @('persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load') -or $Status-cne'PASS'){return}
     $artifact=@($Manifest.artifacts|Where-Object relativePath -CEQ 'persistence-observations.jsonl')
     if($artifact.Count-ne1-or$artifact[0].kind-cne'persistence-evidence'){throw 'P01 has no exact observation artifact.'}
     $path=Join-Path $Request.evidenceRoot 'persistence-observations.jsonl'
@@ -447,7 +449,7 @@ function Assert-KmcPersistenceScenarioEvidence {
     $isRoundEffect=$isP03-and$checkpoint-cin @('round-effect','suspended')
     $isReaction=$isP03-and$checkpoint-ceq'reaction'
     $isCommitment=$isP03-and-not$isRoundEffect-and-not$isReaction
-    $isWrite=$Request.scenario-cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')
+    $isWrite=$Request.scenario-cin @('persistence-p07-save','persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
     foreach($row in $rows){
@@ -518,6 +520,7 @@ function Assert-KmcPersistenceScenarioEvidence {
         $final=@($rows|Where-Object kind -CEQ 'usable-continuation-complete')[0]
         if(@($final.detail.turnVisits).Count-lt4){throw 'P02 lacks observed native unrelated participation.'}
     }
+    if($Request.scenario-ceq'persistence-p07-save'){Assert-KmcRecoveryPersistenceEvidence $Request $rows}
     if($isSuspended){Assert-KmcSuspendedEvidence $rows $isWrite}
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     if($isWrite){
@@ -761,5 +764,38 @@ function Assert-KmcQueuedSaveEvidence {
     if(@($writes|ForEach-Object{$_.detail.sha256}|Select-Object -Unique).Count-ne3-or
         @(Get-ChildItem -LiteralPath $Root -File -Filter '*.zks').Count-ne4){
         throw 'P05 native queue must retain three distinct archives and the protected input only.'
+    }
+}
+
+function Assert-KmcRecoveryPersistenceEvidence {
+    param($Request,$Rows)
+    $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
+    $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
+    $failed=@($Rows|Where-Object kind -CEQ 'recovery-unwritten-operation')
+    $loaded=@($Rows|Where-Object kind -CEQ 'recovery-last-good-loaded')
+    $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
+    if($initial.Count-ne1-or$wait.Count-ne1-or$failed.Count-ne1-or$loaded.Count-ne1-or$written.Count-ne1){
+        throw 'P07 lacks its exact real write, wait, failure/cancel, prior-save reload and subsequent write observations.'
+    }
+    $archive=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games/Manual_300_KMC_P01.zks')
+    $hash=$initial[0].detail.sha256
+    foreach($row in @($initial[0],$wait[0],$failed[0],$loaded[0])){
+        if($row.checkpoint-cne$Request.persistenceCase-or$row.detail.path-cne$archive-or
+            $row.detail.sha256-cne$hash-or$row.detail.snapshots-ne1-or
+            $row.detail.failedSaveCallback-ne$false-or$row.detail.canceledLoadCallback-ne$false){
+            throw 'P07 unwritten request changed the previous archive or claimed success.'
+        }
+    }
+    $failures=if($Request.persistenceCase-ceq'timeout'){1}else{0}
+    if($failed[0].detail.failedSaves-ne$failures-or
+        $wait[0].persistence.semantics-ne2-or$failed[0].persistence.semantics-ne2-or
+        $wait[0].persistence.presentation-ne1-or$failed[0].persistence.presentation-ne1-or
+        $failed[0].detail.nativeWorldDisposals-ne1-or$loaded[0].detail.nativeWorldDisposals-ne2-or
+        $loaded[0].persistence.semantics-ne4-or$loaded[0].persistence.presentation-ne2-or
+        $failed[0].gameTicks-le$wait[0].gameTicks-or$failed[0].native.paused-ne$false-or
+        $failed[0].native.mode-cne'Default'-or$failed[0].controls.SerializationSuspended-ne$false-or
+        $loaded[0].detail.nativeCallback-ne$true-or$written[0].detail.ordinal-ne2-or
+        $written[0].detail.sha256-ceq$hash){
+        throw 'P07 lost recovery, completed-world ownership, real native reload or subsequent nonempty write semantics.'
     }
 }

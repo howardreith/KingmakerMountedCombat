@@ -82,6 +82,7 @@ namespace KingmakerMountedCombat.Tests
             var failed = false;
             try { iterator.MoveNext(); } catch (InvalidOperationException) { failed = true; }
             TestRunner.True(failed && !iterator.Waiting && !iterator.SerializationStarted, "Timeout reported normal completion.");
+            TestRunner.True(iterator.FailedBeforeSerialization, "Completed timeout cleanup was not distinguishable from a native writer failure.");
             TestRunner.Equal(0, writer.Moves, "Timed-out wait wrote native data.");
             TestRunner.Equal(1, restored, "Timeout stranded pause.");
         }
@@ -102,6 +103,7 @@ namespace KingmakerMountedCombat.Tests
                 } catch (AggregateException) { failed = true; }
                 iterator.Dispose();
                 TestRunner.True(failed && !iterator.Waiting, "Failure stranded gate: " + phase);
+                TestRunner.True(!iterator.FailedBeforeSerialization, "Failed cleanup was marked safe to retire: " + phase);
                 TestRunner.Equal(phase == "screen" ? 0 : 1, restored, "Partial scope not released: " + phase);
                 TestRunner.Equal(0, writer.Moves, "Failed pre-save boundary serialized: " + phase);
                 TestRunner.Equal(1, writer.Disposals, "Failed dispose repeated: " + phase);

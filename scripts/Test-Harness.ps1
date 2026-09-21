@@ -5271,6 +5271,39 @@ try {
         }
     }
 
+
+    Invoke-HarnessTest 'P07 owns bounded wait recovery and exact cold archive without widening old scenarios' {
+        try {
+            foreach($case in @('timeout','cancel-wait')){
+                $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.scenario='persistence-p07-load'
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'P07 cold load accepted no archive'
+                $f=$v2Request.fixture.working
+                $v2Request['persistenceLoad']=[ordered]@{
+                    internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64)
+                    length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+                }
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.Remove('persistenceLoad')
+                $v2Request.scenario='persistence-p01-save'
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'P07 fault leaked into an old scenario'
+            }
+        } finally {
+            $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad')
+            $v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'P03 requires a declared native commitment and preserves strict other scenarios' {
         try{
             $v2Request.scenario='persistence-p03-save'

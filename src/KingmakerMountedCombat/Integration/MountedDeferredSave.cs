@@ -13,6 +13,39 @@ namespace KingmakerMountedCombat.Integration
     internal sealed partial class MountedPersistenceService
     {
         internal int DeferredSaveCount { get; private set; }
+        internal int FailedSaveCount { get; private set; }
+
+        private SaveWaitFault diagnosticWait;
+
+        // The fixture owns one exact already-authorized native save request.
+        // This does not authorize storage or synthesize gameplay/load state.
+        internal IDisposable ArmOwnedSaveWait(SaveInfo save)
+        {
+            NativePersistenceIsolation.RequireOwnedWrite(save);
+            if (diagnosticWait != null) throw new InvalidOperationException("An owned wait fault is already armed.");
+            diagnosticWait = new SaveWaitFault(this, save);
+            return diagnosticWait;
+        }
+
+        private sealed class SaveWaitFault : IDisposable
+        {
+            private readonly MountedPersistenceService owner;
+            internal readonly SaveInfo Save;
+            internal bool Active = true;
+            private bool claimed;
+            internal SaveWaitFault(MountedPersistenceService owner, SaveInfo save) { this.owner = owner; Save = save; }
+            internal bool TryClaim(SaveInfo request)
+            {
+                if (!Active || claimed || !ReferenceEquals(Save, request)) return false;
+                claimed = true;
+                return true;
+            }
+            public void Dispose()
+            {
+                Active = false;
+                if (ReferenceEquals(owner.diagnosticWait, this)) owner.diagnosticWait = null;
+            }
+        }
 
         internal bool SaveEffectsReady()
         {
@@ -29,7 +62,7 @@ namespace KingmakerMountedCombat.Integration
                 !NativeSaveEffectBoundary.HasUnresolvedAbilities();
         }
 
-        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine)
+        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault)
         {
             var timer = Stopwatch.StartNew();
             Player world = null;
@@ -47,20 +80,34 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (world != null && !ReferenceEquals(Game.Instance?.Player, world))
                     throw new InvalidOperationException("Save was not written: its native world was replaced.");
-                return SaveEffectsReady();
+                return fault?.Active != true && SaveEffectsReady();
             };
             return new DeferredSaveEnumerator<object>(routine, ready, () => timer.Elapsed.TotalSeconds,
                 () =>
                 {
                     world = Game.Instance.Player;
                     DeferredSaveCount++;
-                    Report("Saving after current actions and projectiles finish; new actions are briefly held.");
+                    NotifySaveStatus("Saving after current actions and projectiles finish; new actions are briefly held.");
                     tick();
                 }, tick, () =>
                 {
                     if (restorePause && ReferenceEquals(Game.Instance?.Player, world)) Game.Instance.IsPaused = true;
                     world = null;
                 }, 30d);
+        }
+
+        internal void ReportFailedSave(Exception exception)
+        {
+            FailedSaveCount++;
+            NotifySaveStatus("Save was not written; the previous complete save is unchanged. " + exception.Message);
+        }
+
+        private void NotifySaveStatus(string message)
+        {
+            Report(message);
+            try { Kingmaker.PubSubSystem.EventBus.RaiseEvent<Kingmaker.PubSubSystem.IWarningNotificationUIHandler>(
+                handler => handler.HandleWarning(message, true)); }
+            catch (Exception display) { logger.Exception("Save failure notification could not be displayed", display); }
         }
 
         internal void ReportAbandonedSave(Exception exception) =>

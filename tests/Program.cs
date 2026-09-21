@@ -246,6 +246,25 @@ namespace KingmakerMountedCombat.Tests
                     TestRunner.True(request.Validate().Count > 0, "P06 variant leaked into an old scenario.");
                 }
             });
+            runner.Run("P07 recovery requests retain exact source and cold archive authority", () =>
+            {
+                foreach (var name in new[] { "timeout", "cancel-wait" })
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "Exact recovery save rejected.");
+                    request.Scenario = "persistence-p07-load";
+                    TestRunner.True(request.Validate().Count > 0, "Recovery cold load accepted no archive.");
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact recovery cold archive rejected.");
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "Recovery cold request allowed a foreign campaign.");
+                    request.PersistenceLoad = null; request.Scenario = "persistence-p01-save";
+                    TestRunner.True(request.Validate().Count > 0, "Recovery fault leaked into an old scenario.");
+                }
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
             DeferredSaveEnumeratorTests.Register(runner);

@@ -48,7 +48,7 @@ namespace KingmakerMountedCombat.Integration
             this.logger = logger;
         }
 
-        internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> routine)
+        internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> routine, SaveInfo requestedSave)
         {
             var scope = new SaveScope();
             var scoped = new ScopedEnumerator<object>(TrackNativeSave(routine, scope), () =>
@@ -71,7 +71,8 @@ namespace KingmakerMountedCombat.Integration
                     }
                 }
             });
-            return Enabled ? DeferNativeSave(scoped) : scoped;
+            var fault = diagnosticWait?.TryClaim(requestedSave) == true ? diagnosticWait : null;
+            return Enabled ? DeferNativeSave(scoped, fault) : scoped;
         }
 
         private static IEnumerator<object> TrackNativeSave(IEnumerator<object> routine, SaveScope scope)
@@ -164,14 +165,23 @@ namespace KingmakerMountedCombat.Integration
         {
             var scope = new LoadScope { Sequence = ++loadSequence };
             // Queueing B invalidates unfinished restoration of A immediately.
-            restoreLoad?.World.Close();
-            restoreLoad = null;
-            presentationPending = false;
-            restoredActors.Clear();
-            loaded = null;
+            // A completed world's save semantics remain valid until B actually
+            // starts; disposing an unstarted iterator cannot erase that world.
+            if (restoreLoad != null && (!restoreLoad.World.NativeCompleted || presentationPending))
+            {
+                restoreLoad.World.Close();
+                restoreLoad = null;
+                presentationPending = false;
+                restoredActors.Clear();
+                loaded = null;
+            }
             return new ScopedEnumerator<object>(TrackNativeLoad(routine, scope), () =>
             {
                 if (scope.Sequence != loadSequence) return;
+                restoreLoad?.World.Close();
+                presentationPending = false;
+                restoredActors.Clear();
+                loaded = null;
                 restoreLoad = scope;
                 scope.World.Begin(Game.Instance?.Player);
                 BeginLoadHousekeeping();

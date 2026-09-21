@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Integration
             typeof(LoadingProcess), "m_Queue", 0x040053DF, typeof(Queue<>).MakeGenericType(Queued));
         private static readonly FieldInfo Process = NativeCombatActorPersistence.Field(
             Queued, "Process", 0x04008CAE, typeof(IEnumerator));
+        private static readonly FieldInfo Callback = NativeCombatActorPersistence.Field(
+            Queued, "Callback", 0x04008CAF, typeof(Action));
         private static readonly MethodInfo ShowScreen = ResolveScreen();
 
         private static MethodInfo ResolveScreen()
@@ -41,8 +43,50 @@ namespace KingmakerMountedCombat.Integration
         internal static void StartScreen(LoadingProcess owner, ILoadingScreen screen, object queued)
         {
             Action start = () => ShowScreen.Invoke(owner, new object[] { screen });
-            if (Enumerator(queued) is DeferredSaveEnumerator<object> operation) operation.Activate(start);
-            else start();
+            if (!(Enumerator(queued) is DeferredSaveEnumerator<object> operation)) { start(); return; }
+            try { operation.Activate(start); }
+            catch (Exception exception)
+            {
+                if (!RetireFailedSave(queued, operation, exception)) throw;
+            }
+        }
+
+        internal static bool MoveNext(IEnumerator iterator, LoadingProcess owner)
+        {
+            try { return iterator.MoveNext(); }
+            catch (Exception exception)
+            {
+                var record = Current.GetValue(owner);
+                if (!ReferenceEquals(Enumerator(record), iterator) ||
+                    !RetireFailedSave(record, iterator as DeferredSaveEnumerator<object>, exception)) throw;
+                // Native TickLoading still owns progress, screen release and the
+                // next queued operation. A failed write has no success callback.
+                return false;
+            }
+        }
+
+        private static bool RetireFailedSave(object record, DeferredSaveEnumerator<object> operation, Exception exception)
+        {
+            if (record == null || operation?.FailedBeforeSerialization != true ||
+                !ReferenceEquals(Enumerator(record), operation)) return false;
+            Callback.SetValue(record, null);
+            MountedPatchController.ReportFailedSave(exception);
+            return true;
+        }
+
+        internal static IEnumerable<CodeInstruction> TransformTick(IEnumerable<CodeInstruction> instructions)
+        {
+            var code = instructions.ToList();
+            var move = typeof(IEnumerator).GetMethod(nameof(IEnumerator.MoveNext));
+            var hits = Enumerable.Range(0, code.Count).Where(i => Equals(code[i].operand, move)).ToArray();
+            if (hits.Length != 1 || code[hits[0]].labels.Count != 0 ||
+                code.Count(i => Equals(i.operand, Callback)) != 1)
+                throw new InvalidOperationException("Native loading completion/callback order changed.");
+            var call = code[hits[0]];
+            call.opcode = OpCodes.Call;
+            call.operand = typeof(NativeDeferredSave).GetMethod(nameof(MoveNext), BindingFlags.Static | BindingFlags.NonPublic);
+            code.Insert(hits[0], new CodeInstruction(OpCodes.Ldarg_0));
+            return code;
         }
 
         internal static void AbandonOwned(LoadingProcess owner, Action<Exception> report)

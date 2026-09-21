@@ -41,6 +41,13 @@ namespace KingmakerMountedCombat.Integration
             new Dictionary<ISaver, WriteTransaction>();
         private static readonly Guid ExpectedMvid = new Guid("07fa1e4d-8618-41b3-9b8d-faa17d3b26f7");
 
+        internal static void RequireOwnedWrite(SaveInfo save)
+        {
+            if (authority == null || save == null ||
+                authority.Validate(RuntimeSaveOperation.Write, Project(save), authority.Root) != null)
+                throw new InvalidOperationException("Fault injection requires an exact writable isolated native descriptor.");
+        }
+
         internal static void Bind(PersistenceSaveAuthorization authorizedScope)
         {
             if (authorizedScope == null) throw new ArgumentNullException(nameof(authorizedScope));

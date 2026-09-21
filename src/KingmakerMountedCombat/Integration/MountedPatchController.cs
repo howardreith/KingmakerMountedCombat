@@ -92,6 +92,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitMoveContiniously), "Init", 0x060026F0, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.ContinuousMovePrefix));
                 PatchExact(typeof(LoadingProcess), "StartLoadingProcessInternal", 0x06007FC5, null,
                     null, null, nameof(PatchMethods.DeferredSaveStartTranspiler));
+                PatchExact(typeof(LoadingProcess), "TickLoading", 0x06007FC2, Type.EmptyTypes,
+                    null, null, nameof(PatchMethods.DeferredSaveTickTranspiler));
                 PatchExact(typeof(LoadingProcess), "get_IsLoadingInProcess", 0x06007FBC, Type.EmptyTypes,
                     null, nameof(PatchMethods.DeferredSaveLoadingPostfix));
                 PatchExact(typeof(LoadingProcess), "StopAll", 0x06007FC3, Type.EmptyTypes,
@@ -266,6 +268,8 @@ namespace KingmakerMountedCombat.Integration
                 transpiler == null ? null : new HarmonyMethod(transpiler));
         }
 
+        internal static void ReportFailedSave(Exception exception) => PatchBridge.Persistence?.ReportFailedSave(exception);
+
         private static class PatchBridge
         {
             internal static MountedChargeSafetyService ChargeSafety;
@@ -333,6 +337,9 @@ namespace KingmakerMountedCombat.Integration
 
             internal static IEnumerable<CodeInstruction> DeferredSaveStartTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 NativeDeferredSave.TransformStart(instructions);
+
+            internal static IEnumerable<CodeInstruction> DeferredSaveTickTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                NativeDeferredSave.TransformTick(instructions);
 
             internal static void AbandonOwnedLoadingPrefix(LoadingProcess __instance) =>
                 NativeDeferredSave.AbandonOwned(__instance, error => PatchBridge.Persistence?.ReportAbandonedSave(error));
@@ -842,10 +849,10 @@ namespace KingmakerMountedCombat.Integration
                 return authorized;
             }
 
-            internal static void SavePostfix(ref IEnumerator<object> __result, bool __state)
+            internal static void SavePostfix(SaveInfo saveInfo, ref IEnumerator<object> __result, bool __state)
             {
                 if (__state && __result != null)
-                    __result = PatchBridge.Persistence != null ? PatchBridge.Persistence.WrapSaveRoutine(__result) :
+                    __result = PatchBridge.Persistence != null ? PatchBridge.Persistence.WrapSaveRoutine(__result, saveInfo) :
                         PatchBridge.NativeControls == null ? __result : PatchBridge.NativeControls.WrapSaveRoutine(__result);
             }
 

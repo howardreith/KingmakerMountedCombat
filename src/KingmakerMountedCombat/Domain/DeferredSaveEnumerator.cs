@@ -23,6 +23,7 @@ namespace KingmakerMountedCombat.Domain
 
         internal bool Waiting { get; private set; }
         internal bool SerializationStarted { get; private set; }
+        internal bool FailedBeforeSerialization { get; private set; }
 
         internal DeferredSaveEnumerator(IEnumerator<T> inner, Func<bool> ready, Func<double> elapsed,
             Action beginWait, Action tickWait, Action endWait, double maximumWait)
@@ -133,6 +134,9 @@ namespace KingmakerMountedCombat.Domain
         {
             try { Dispose(); }
             catch (Exception cleanup) { throw new AggregateException(original, cleanup); }
+            // Recovery is permitted only after complete owned cleanup, before
+            // native serialization. Disposal failures retain native failure flow.
+            FailedBeforeSerialization = activated && !SerializationStarted;
         }
     }
 }

@@ -17,7 +17,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Scenario = "persistence-isolation";
         internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
             value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" || value == "persistence-p04-save" || value == "persistence-p04-load" ||
-            value == "persistence-p05-save" || value == "persistence-p05-load" || value == "persistence-p06-load";
+            value == "persistence-p07-save" || value == "persistence-p07-load" || value == "persistence-p05-save" || value == "persistence-p05-load" || value == "persistence-p06-load";
         internal PersistenceSaveAuthorization Authority => authority;
         private const string HarmonyId = "KingmakerMountedCombat.PersistenceIsolation";
         private readonly RuntimeRequest request;
@@ -61,6 +61,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
                     Writable = true
                 });
+                if (request.Scenario == "persistence-p07-save")
+                {
+                    for (var n = 0; n < 2; n++) entries.Add(new PersistenceSaveEntry {
+                        FileName = "Manual_" + (300 + n) + "_KMC_P01.zks", InternalName = "KMC_P01",
+                        SaveType = "Manual", Area = fixture.Area, Writable = true });
+                }
                 if (request.Scenario == "persistence-p05-save" && request.PersistenceCase != "alternating" && request.PersistenceCase != "queued")
                 {
                     var type = RuntimePersistenceScenario.SlotType(request.PersistenceCase);

@@ -58,11 +58,11 @@ public static class KmcPersistenceContractProbe
 
     private sealed class DisposeProbe : System.Collections.Generic.IEnumerator<object>
     {
-        internal int Disposals;
-        internal bool FailDispose;
+        internal int Disposals, Moves;
+        internal bool FailDispose, FailMove;
         public object Current { get { return null; } }
         object System.Collections.IEnumerator.Current { get { return Current; } }
-        public bool MoveNext() { return true; }
+        public bool MoveNext() { Moves++; if(FailMove) throw new InvalidOperationException("native move"); return true; }
         public void Reset() { throw new NotSupportedException(); }
         public void Dispose() { Disposals++; if(FailDispose) throw new InvalidOperationException("owned disposal"); }
     }
@@ -133,6 +133,24 @@ public static class KmcPersistenceContractProbe
 
     private static void VerifyNativeDeferredOwner(Assembly native, Assembly candidate)
     {
+        var serviceType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);
+        var faultType=serviceType.GetNestedType("SaveWaitFault",BindingFlags.NonPublic);
+        var saveType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
+        var faultSave=Activator.CreateInstance(saveType);
+        var faultOwner=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(serviceType);
+        var fault=faultType.GetConstructors(BindingFlags.Instance|BindingFlags.NonPublic)[0].Invoke(new[]{faultOwner,faultSave});
+        var claim=faultType.GetMethod("TryClaim",BindingFlags.Instance|BindingFlags.NonPublic);
+        Check(!(bool)claim.Invoke(fault,new object[]{null}) && !(bool)claim.Invoke(fault,new[]{Activator.CreateInstance(saveType)}) &&
+            (bool)claim.Invoke(fault,new[]{faultSave}) && !(bool)claim.Invoke(fault,new[]{faultSave}),
+            "owned wait fault can affect only one exact native request");
+        ((IDisposable)fault).Dispose();
+        Check(!(bool)claim.Invoke(fault,new[]{faultSave}),"disposed wait fault cannot affect another save");
+        var requireOwned=candidate.GetType("KingmakerMountedCombat.Integration.NativePersistenceIsolation",true)
+            .GetMethod("RequireOwnedWrite",BindingFlags.Static|BindingFlags.NonPublic);
+        var unboundRejected=false;
+        try{requireOwned.Invoke(null,new[]{faultSave});}
+        catch(TargetInvocationException e){unboundRejected=e.InnerException is InvalidOperationException;}
+        Check(unboundRejected,"fault injection cannot arm outside isolated write authority");
         var ownerType=native.GetType("Kingmaker.EntitySystem.Persistence.LoadingProcess",true);
         var flags=BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
         var queuedType=ownerType.GetNestedType("QueuedProcess",BindingFlags.NonPublic);
@@ -170,6 +188,42 @@ public static class KmcPersistenceContractProbe
             "owned cleanup leaves foreign iterators and native queue mutation to native StopAll");
         ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,null);
         Check(!(bool)waiting.Invoke(null,new[]{owner}),"no current save leaves the native loading predicate unchanged");
+
+        var callbackField=queuedType.GetField("Callback");
+        Check(callbackField.MetadataToken==0x04008CAF,"exact native completion callback signature");
+        var tick=adapter.GetMethod("MoveNext",BindingFlags.Static|BindingFlags.NonPublic);
+        var now=0d; var timeoutInner=new DisposeProbe(); var timeoutRestored=0;
+        var timeout=constructor.Invoke(new object[]{timeoutInner,new Func<bool>(()=>false),
+            new Func<double>(()=>now),new Action(()=>{}),new Action(()=>{}),new Action(()=>timeoutRestored++),30d});
+        wrapperType.GetMethod("Activate",flags).Invoke(timeout,new object[]{new Action(()=>{})}); now=31;
+        var failedRecord=Activator.CreateInstance(queuedType,true);process.SetValue(failedRecord,timeout);
+        var callback=new Action(()=>{throw new Exception("Failed save callback must never run");});
+        callbackField.SetValue(failedRecord,callback);ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,failedRecord);
+        Check(!(bool)tick.Invoke(null,new object[]{timeout,owner}) && callbackField.GetValue(failedRecord)==null &&
+            timeoutInner.Disposals==1 && timeoutInner.Moves==0 && timeoutRestored==1 &&
+            object.ReferenceEquals(ownerType.GetField("m_CurrentProcess",flags).GetValue(owner),failedRecord),
+            "owned timeout retires only its success callback after full cleanup and retains native queue ownership");
+        foreach(var phase in new[]{"foreign","serialized","cleanup","unselected"})
+        {
+            var inner=new DisposeProbe { FailMove=phase=="foreign"||phase=="serialized",FailDispose=phase=="cleanup" };
+            now=0;object iterator=inner;
+            if(phase!="foreign") {
+                iterator=constructor.Invoke(new object[]{inner,new Func<bool>(()=>phase=="serialized"),
+                    new Func<double>(()=>now),new Action(()=>{}),new Action(()=>{}),new Action(()=>{}),30d});
+                wrapperType.GetMethod("Activate",flags).Invoke(iterator,new object[]{new Action(()=>{})});
+                now=31;
+            }
+            var entry=Activator.CreateInstance(queuedType,true);
+            process.SetValue(entry,phase=="unselected"?(object)new DisposeProbe():iterator);
+            callbackField.SetValue(entry,callback);ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,entry);
+            var rejected=false;
+            try { tick.Invoke(null,new object[]{iterator,owner}); }
+            catch(TargetInvocationException) { rejected=true; }
+            Check(rejected && object.ReferenceEquals(callbackField.GetValue(entry),callback),
+                "save recovery propagates "+phase+" failures without clearing a native callback");
+        }
+        ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,null);
+
         var commandType=native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand",true);
         var attack=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(native.GetType("Kingmaker.UnitLogic.Commands.UnitAttack",true));
         var reaction=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(native.GetType("Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity",true));
@@ -391,6 +445,39 @@ public static class KmcPersistenceContractProbe
             }
             Check(startChanges==1 && startIndex==startOps.Count && gotInserted,
                 "real native activation rewrite changes only screen admission; queue owner, callbacks and timers retained");
+
+            var tickOriginal=native.ManifestModule.ResolveMethod(0x06007FC2);
+            var tickLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
+            var tickOps=new System.Collections.Generic.List<object>();
+            var tickOperands=new System.Collections.Generic.List<object>();
+            foreach(var instruction in (System.Collections.IEnumerable)read.Invoke(null,new object[]{tickOriginal,null})) {
+                var t=instruction.GetType();var op=t.GetField("opcode").GetValue(instruction);
+                var operand=t.GetField("operand").GetValue(instruction);
+                tickOps.Add(op);tickOperands.Add(operand);
+                tickLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{op,operand}));
+            }
+            var tickResult=(System.Collections.IEnumerable)deferred.GetMethod("TransformTick",
+                BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{tickLegacy});
+            var tickIndex=0;var tickChanges=0;var tickInserted=false;
+            foreach(var instruction in tickResult) {
+                var op=legacyInstruction.GetField("opcode").GetValue(instruction);
+                var operand=legacyInstruction.GetField("operand").GetValue(instruction);
+                var expected=tickOperands[tickIndex] as MethodInfo;
+                if(expected!=null && expected.DeclaringType==typeof(System.Collections.IEnumerator) && expected.Name=="MoveNext") {
+                    if(!tickInserted) {
+                        if(!op.Equals(System.Reflection.Emit.OpCodes.Ldarg_0)||operand!=null) throw new Exception("Native owner argument differs");
+                        tickInserted=true;continue;
+                    }
+                    var replacement=operand as MethodInfo;
+                    if(replacement==null||replacement.DeclaringType!=deferred||replacement.Name!="MoveNext"||
+                        !op.Equals(System.Reflection.Emit.OpCodes.Call)) throw new Exception("Unexpected native tick rewrite");
+                    tickChanges++;
+                } else if(!Equals(op,tickOps[tickIndex])||!Equals(operand,tickOperands[tickIndex])) throw new Exception("Native queue completion changed");
+                tickIndex++;
+            }
+            Check(tickChanges==1 && tickIndex==tickOps.Count && tickInserted,
+                "exact native tick rewrite preserves progress, queue, screen, timer and callback bookkeeping");
+
             VerifyNativeDeferredOwner(native,candidate);
             VerifyNativeAbilitySettlement(native,candidate);
             VerifyNativeTouchCommitment(native,candidate);
