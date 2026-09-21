@@ -14,6 +14,9 @@ namespace KingmakerMountedCombat.Tests
 
         public static void Register(TestRunner runner)
         {
+            runner.Run("isolated native slot replacement retains exact committed bytes across rotation", ReplacementCommit);
+            runner.Run("failed or canceled owned replacement preserves both complete archives", ReplacementFailure);
+            runner.Run("replacement rejects read-only native types aliases and outside-root paths", ReplacementBoundaries);
             runner.Run("isolated saves authorize exact native types and immutable input contract", NativeTypes);
             runner.Run("isolated saves reject traversal root substitution and foreign identity", ForeignTargets);
             runner.Run("isolated saves reject baseline aliases and protected bytes", Baseline);
@@ -22,6 +25,93 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated saves retain read-only fixture and detect outside mutation", ReadOnly);
             runner.Run("isolated saves reject multiply linked files", HardLinks);
             runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
+        }
+
+        private static void ReplacementCommit()
+        {
+            foreach (var type in new[] { "Manual", "Quick", "Auto" })
+            using (var files = new Files())
+            {
+                var original = Entry(type);
+                var staged = Entry(type); staged.FileName = type + "_2_owned.zks";
+                File.WriteAllText(Path.Combine(files.Root, original.FileName), "previous complete guard surrogate");
+                File.WriteAllText(Path.Combine(files.Root, staged.FileName), "next complete guard surrogate");
+                original.InitialSha256 = Hash(Path.Combine(files.Root, original.FileName));
+                staged.InitialSha256 = Hash(Path.Combine(files.Root, staged.FileName));
+                var expected = staged.InitialSha256;
+                var guard = files.Guard(original, staged);
+                var source = Path.Combine(files.Root, staged.FileName);
+                var destination = Path.Combine(files.Root, original.FileName);
+                using (var replacement = guard.BeginReplacement(source, destination))
+                {
+                    MustThrow(() => guard.AssertReadableArchive(destination));
+                    MustThrow(() => guard.BeginReplacement(source, destination));
+                    File.Replace(source, destination, null);
+                    replacement.Complete();
+                    MustThrow(() => replacement.Complete());
+                }
+                TestRunner.Equal(expected, Hash(destination), "exact completed archive became the native slot");
+                guard.AssertReadableArchive(destination);
+                MustThrow(() => guard.AssertReadableArchive(source));
+                var next = files.Target(type); next.FileName = staged.FileName; next.FullPath = source;
+                using (var write = guard.BeginWrite(next, files.Root))
+                {
+                    File.WriteAllText(source, "later completed guard surrogate"); write.Complete();
+                }
+                using (var replacement = guard.BeginReplacement(source, destination))
+                { File.Replace(source, destination, null); replacement.Complete(); }
+                guard.AssertReadableArchive(destination);
+            }
+        }
+
+        private static void ReplacementFailure()
+        {
+            using (var files = new Files())
+            {
+                var original = Entry("Manual");
+                var staged = Entry("Manual"); staged.FileName = "Manual_2_owned.zks";
+                var source = Path.Combine(files.Root, staged.FileName);
+                var destination = Path.Combine(files.Root, original.FileName);
+                File.WriteAllText(destination, "last good");
+                File.WriteAllText(source, "next complete");
+                original.InitialSha256 = Hash(destination); staged.InitialSha256 = Hash(source);
+                var guard = files.Guard(original, staged);
+                using (var replacement = guard.BeginReplacement(source, destination))
+                using (var held = new FileStream(destination, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    MustThrow(() => File.Replace(source, destination, null));
+                TestRunner.Equal(original.InitialSha256, Hash(destination), "failed native replacement preserves last-good bytes");
+                TestRunner.Equal(staged.InitialSha256, Hash(source), "failed replacement retains its complete staging bytes");
+                guard.AssertReadableArchive(destination); guard.AssertReadableArchive(source);
+                // A canceled lease also leaves both prior identities readable.
+                using (guard.BeginReplacement(source, destination)) { }
+                guard.AssertReadableArchive(destination); guard.AssertReadableArchive(source);
+            }
+        }
+
+        private static void ReplacementBoundaries()
+        {
+            using (var files = new Files())
+            {
+                var original = Entry("Manual"); original.Writable = false;
+                var staged = Entry("Manual"); staged.FileName = "Manual_2_owned.zks";
+                var foreign = Entry("Quick");
+                foreach (var entry in new[] { original, staged, foreign })
+                {
+                    var path = Path.Combine(files.Root, entry.FileName);
+                    File.WriteAllText(path, entry.FileName);
+                    entry.InitialSha256 = Hash(path);
+                }
+                var guard = files.Guard(original, staged, foreign);
+                var source = Path.Combine(files.Root, staged.FileName);
+                var destination = Path.Combine(files.Root, original.FileName);
+                MustThrow(() => guard.BeginReplacement(source, destination));
+                MustThrow(() => guard.BeginReplacement(source, Path.Combine(files.Root, foreign.FileName)));
+                MustThrow(() => guard.BeginReplacement(source, source));
+                MustThrow(() => guard.BeginReplacement(source, Path.Combine(files.RunRoot, original.FileName)));
+                MustThrow(() => guard.BeginReplacement(source, Path.Combine(files.Root, "..", "Saved Games", original.FileName)));
+                MustThrow(() => guard.BeginReplacement(source, Path.Combine(files.Root, "KMC_unowned.zks")));
+                guard.AssertReadableArchive(destination);
+            }
         }
 
         private static void NativeTypes()

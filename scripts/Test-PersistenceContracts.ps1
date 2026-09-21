@@ -188,6 +188,46 @@ public static class KmcPersistenceContractProbe
                     Type.GetType("Newtonsoft.Json.JsonPropertyAttribute, Newtonsoft.Json",true)),
                     "native serialized buff timer member "+field);
             }
+            var commit=native.ManifestModule.ResolveMethod(0x0600802A);
+            var commitLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
+            var commitOps=new System.Collections.Generic.List<object>();
+            var commitOperands=new System.Collections.Generic.List<object>();
+            foreach(var instruction in (System.Collections.IEnumerable)read.Invoke(null,new object[]{commit,null}))
+            {
+                var type=instruction.GetType();var op=type.GetField("opcode").GetValue(instruction);
+                var operand=type.GetField("operand").GetValue(instruction);
+                commitOps.Add(op);commitOperands.Add(operand);
+                commitLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{op,operand}));
+            }
+            var atomic=candidate.GetType("KingmakerMountedCombat.Integration.NativeMountedArchiveCommit",true);
+            var changedCommit=new System.Collections.Generic.List<object>();
+            foreach(var instruction in (System.Collections.IEnumerable)atomic.GetMethod("Transform",
+                BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{commitLegacy})) changedCommit.Add(instruction);
+            int commitCursor=0, replacementCalls=0;
+            for(int i=0;i<commitOps.Count;i++)
+            {
+                var nativeCall=commitOperands[i] as MethodInfo;
+                var token=nativeCall==null || nativeCall.Module!=native.ManifestModule ? 0 : nativeCall.MetadataToken;
+                var instruction=changedCommit[commitCursor];
+                var op=legacyInstruction.GetField("opcode").GetValue(instruction);
+                var operand=legacyInstruction.GetField("operand").GetValue(instruction);
+                if(token==0x06007FB2 || token==0x0600806D)
+                {
+                    if(!op.Equals(token==0x06007FB2 ? System.Reflection.Emit.OpCodes.Ldarg_1 : System.Reflection.Emit.OpCodes.Ldarg_3))
+                        throw new InvalidOperationException("Native commit argument identity changed.");
+                    instruction=changedCommit[++commitCursor];
+                    var hook=legacyInstruction.GetField("operand").GetValue(instruction) as MethodInfo;
+                    if(!legacyInstruction.GetField("opcode").GetValue(instruction).Equals(System.Reflection.Emit.OpCodes.Call) ||
+                        hook==null || hook.DeclaringType!=atomic || hook.Name!=(token==0x06007FB2 ? "PreservePrevious" : "Replace"))
+                        throw new InvalidOperationException("Native commit replacement hook differs.");
+                    replacementCalls++;
+                }
+                else if(!Equals(op,commitOps[i]) || !Equals(operand,commitOperands[i]))
+                    throw new InvalidOperationException("Native serialization, callbacks or failure handling changed.");
+                commitCursor++;
+            }
+            Check(replacementCalls==2 && commitCursor==changedCommit.Count && commitCursor==commitOps.Count+2,
+                "native worker only replaces original-delete/ZIP-rename; serialization, folder path and failure handling unchanged");
             var settingsRefresh=native.GetType("Kingmaker.UI.SettingsUI.SettingsRoot",true)
                 .GetMethod("HandleSettingsUpdated",BindingFlags.Public|BindingFlags.Static);
             Check(settingsRefresh!=null && settingsRefresh.MetadataToken==0x0600346B &&
@@ -288,6 +328,47 @@ public static class KmcPersistenceContractProbe
         {
             ((IDisposable)saver).Dispose();
             foreach(var file in new[]{path,renamed}) if(File.Exists(file)) File.Delete(file);
+        }
+        var atomicType=candidate.GetType("KingmakerMountedCombat.Integration.NativeMountedArchiveCommit",true);
+        var originalPath=Path.Combine(owned,"atomic-original.zks");
+        var stagedPath=Path.Combine(owned,"atomic-staged.zks");
+        var originalSaver=Activator.CreateInstance(saverType,new object[]{originalPath});
+        var stagedSaver=Activator.CreateInstance(saverType,new object[]{stagedPath});
+        var saveInfoType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
+        var originalInfo=Activator.CreateInstance(saveInfoType);
+        var stagedInfo=Activator.CreateInstance(saveInfoType);
+        saveInfoType.GetProperty("Saver").SetValue(originalInfo,originalSaver,null);
+        saveInfoType.GetProperty("Saver").SetValue(stagedInfo,stagedSaver,null);
+        try
+        {
+            saverType.GetMethod("SaveJson").Invoke(originalSaver,new object[]{"header","{\"Name\":\"old native slot\"}"});
+            saverType.GetMethod("SaveBytes").Invoke(originalSaver,new object[]{member,System.Text.Encoding.UTF8.GetBytes("old metadata")});
+            saverType.GetMethod("Save").Invoke(originalSaver,null);
+            saverType.GetMethod("SaveJson").Invoke(stagedSaver,new object[]{"header","{\"Name\":\"new native snapshot\"}"});
+            saverType.GetMethod("SaveBytes").Invoke(stagedSaver,new object[]{member,System.Text.Encoding.UTF8.GetBytes(metadata)});
+            saverType.GetMethod("Save").Invoke(stagedSaver,null);
+            var oldHash=Hash(originalPath);var newHash=Hash(stagedPath);
+            atomicType.GetMethod("PreservePrevious",flags).Invoke(null,new[]{originalSaver,stagedInfo});
+            Check(Hash(originalPath)==oldHash,"native replacement preparation retains last-good complete bytes");
+            bool failed=false;
+            using(var held=new FileStream(originalPath,FileMode.Open,FileAccess.Read,FileShare.Read))
+            {
+                try { atomicType.GetMethod("Replace",flags).Invoke(null,new[]{stagedSaver,originalPath,originalInfo}); }
+                catch(TargetInvocationException error){failed=error.InnerException is IOException;}
+            }
+            Check(failed && Hash(originalPath)==oldHash && Hash(stagedPath)==newHash,
+                "failed actual native-saver replacement leaves both complete archives intact");
+            atomicType.GetMethod("Replace",flags).Invoke(null,new[]{stagedSaver,originalPath,originalInfo});
+            Check(!File.Exists(stagedPath) && Hash(originalPath)==newHash &&
+                (string)saverType.GetProperty("FolderName").GetValue(stagedSaver,null)==originalPath,
+                "actual native-saver replacement atomically moves exact complete archive and rebinds path");
+            Check(System.Text.Encoding.UTF8.GetString((byte[])saverType.GetMethod("ReadBytes").Invoke(stagedSaver,new object[]{member}))==metadata,
+                "atomic replacement preserves archive-scoped metadata without rewriting contents");
+        }
+        finally
+        {
+            ((IDisposable)originalSaver).Dispose();((IDisposable)stagedSaver).Dispose();
+            foreach(var file in new[]{originalPath,stagedPath}) if(File.Exists(file))File.Delete(file);
         }
         var isolated=Path.Combine(owned,"Saved Games");
         Directory.CreateDirectory(isolated);

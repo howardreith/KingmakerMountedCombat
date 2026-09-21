@@ -208,6 +208,9 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal static PersistenceSaveAuthorization.ReplacementLease BeginArchiveReplacement(string source, string destination) =>
+            authority?.BeginReplacement(source, destination);
+
         private static void CommitPostfix(ISaver __instance)
         {
             if (authority == null || IsSelectedReadOnlyArchive(__instance)) return;

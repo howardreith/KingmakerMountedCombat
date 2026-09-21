@@ -122,6 +122,7 @@
     <Compile Include="Integration\PairedActivationPersistence.cs" />
     <Compile Include="Integration\NativeCombatTurnPersistence.cs" />
     <Compile Include="Integration\NativeMountedSaveStorage.cs" />
+    <Compile Include="Integration\NativeMountedArchiveCommit.cs" />
     <Compile Include="Integration\MountedPersistenceService.cs" />
     <Compile Include="Integration\MountedCombatPersistenceService.cs" />
     <Compile Include="Integration\PairedNativeConditionCommands.cs" />

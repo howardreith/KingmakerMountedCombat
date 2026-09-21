@@ -141,6 +141,71 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // Replacement is admitted only for two completed archives already owned
+        // by this run, with the same native slot identity. The native worker owns
+        // ordering; this lease does not authorize arbitrary rename destinations.
+        internal ReplacementLease BeginReplacement(string source, string destination)
+        {
+            lock (sync)
+            {
+                if (Canonical(source) != source || Canonical(destination) != destination ||
+                    Path.GetDirectoryName(source) != Root || Path.GetDirectoryName(destination) != Root ||
+                    string.Equals(source, destination, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Replacement must use two distinct exact run-owned leaves.");
+                var from = Path.GetFileName(source);
+                var to = Path.GetFileName(destination);
+                if (!entries.TryGetValue(from, out var staged) || !entries.TryGetValue(to, out var original) ||
+                    !staged.Writable || !original.Writable || staged.Hash == null || original.Hash == null ||
+                    staged.Writing || original.Writing || staged.Name != original.Name ||
+                    staged.Type != original.Type || staged.Area != original.Area)
+                    throw new InvalidOperationException("Replacement is outside the exact completed native slot contract.");
+                VerifyFile(from, staged); VerifyFile(to, original);
+                staged.Writing = true; original.Writing = true;
+                return new ReplacementLease(this, from, to, staged.Hash);
+            }
+        }
+
+        internal sealed class ReplacementLease : IDisposable
+        {
+            private PersistenceSaveAuthorization owner;
+            private readonly string source;
+            private readonly string destination;
+            private readonly string committedHash;
+            internal ReplacementLease(PersistenceSaveAuthorization owner, string source, string destination, string hash)
+            { this.owner = owner; this.source = source; this.destination = destination; committedHash = hash; }
+
+            internal void Complete()
+            {
+                var current = owner;
+                if (current == null) throw new InvalidOperationException("Replacement scope is no longer active.");
+                lock (current.sync)
+                {
+                    if (owner == null) throw new InvalidOperationException("Replacement scope is no longer active.");
+                    RequireDirectory(current.Root);
+                    var from = Path.Combine(current.Root, source);
+                    if (File.Exists(from) || Directory.Exists(from) ||
+                        ReadOwnedHash(Path.Combine(current.Root, destination)) != committedHash)
+                        throw new IOException("Native replacement did not move the exact completed archive.");
+                    current.entries[source].Hash = null;
+                    current.entries[destination].Hash = committedHash;
+                    Dispose();
+                }
+            }
+
+            public void Dispose()
+            {
+                var current = owner;
+                if (current == null) return;
+                lock (current.sync)
+                {
+                    if (owner == null) return;
+                    owner = null;
+                    current.entries[source].Writing = false;
+                    current.entries[destination].Writing = false;
+                }
+            }
+        }
+
         internal sealed class WriteLease : IDisposable
         {
             private PersistenceSaveAuthorization owner;
