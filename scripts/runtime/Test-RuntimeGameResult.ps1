@@ -158,7 +158,7 @@ function Assert-FixtureEcho {
 function Assert-SubscenarioResults {
     param($Game)
     $missionScenarios = @(
-        'persistence-p01-save', 'persistence-p01-load', 'persistence-p02-save', 'persistence-p02-load', 'persistence-p03-save', 'persistence-p03-load', 'persistence-p05-save', 'persistence-p05-load',
+        'persistence-p01-save', 'persistence-p01-load', 'persistence-p02-save', 'persistence-p02-load', 'persistence-p03-save', 'persistence-p03-load', 'persistence-p04-save', 'persistence-p04-load', 'persistence-p05-save', 'persistence-p05-load',
         'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
@@ -288,7 +288,7 @@ Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArt
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
     $alternating=$game.scenario-cin @('persistence-p05-save','persistence-p05-load')-and$request.persistenceCase-ceq'alternating'
-    $expectedNativeWrites = if($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save')) { 1 } else { 0 }
+    $expectedNativeWrites = if($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save')) { 1 } else { 0 }
     $expectedWorkingLoads = if($alternating-and$game.scenario-ceq'persistence-p05-load'){3} elseif ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or

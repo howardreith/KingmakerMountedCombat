@@ -5086,6 +5086,40 @@ try {
         Write-KmcJsonAtomic $v2RequestPath $v2Request
     }
 
+    Invoke-HarnessTest 'P04 requires an explicit RT case and exact owned cold descriptor' {
+        try{
+            $f=$v2Request.fixture.working
+            foreach($case in @('unmounted-spent','mounted-spent')){
+                $v2Request.scenario='persistence-p04-save';$v2Request['persistenceCase']=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.scenario='persistence-p04-load'
+                $v2Request['persistenceLoad']=[ordered]@{
+                    internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64)
+                    length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks
+                    gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+                }
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.persistenceLoad.fileName='Quick_1.zks'
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected 'RT cold load broadened its native type or leaf'
+                $v2Request.Remove('persistenceLoad')
+            }
+            $v2Request.scenario='persistence-p04-save';$v2Request.persistenceCase='rider-spent'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P04 inferred its mode from a TB case'
+        }finally{
+            $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad')
+            $v2Request.scenario='mounted-pair-create-and-clear'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+        }
+    }
+
     Invoke-HarnessTest 'P05 requires an exact native slot category with isolated cold identity' {
         try{
             $v2Request.scenario='persistence-p05-save'

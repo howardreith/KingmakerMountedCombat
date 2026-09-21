@@ -136,6 +136,27 @@ namespace KingmakerMountedCombat.Tests
                 invalid.PersistenceCase = "step"; invalid.Fixture = null;
                 TestRunner.True(invalid.Validate().Count > 0, "P03 bypassed fixture authority.");
             });
+            runner.Run("P04 requires a declared RT boundary and actual cold archive", () =>
+            {
+                foreach (var name in new[] { "unmounted-spent", "mounted-spent" })
+                {
+                    var request = ValidSaveBackedRequest(); var fixture = request.Fixture.Working;
+                    request.Scenario = "persistence-p04-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "Exact RT source rejected.");
+                    request.Scenario = "persistence-p04-load";
+                    TestRunner.True(request.Validate().Count > 0, "RT cold load accepted missing archive.");
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks",
+                        GameId = fixture.GameId, GameName = fixture.GameName, Area = fixture.Area,
+                        Sha256 = new string('c', 64), Length = 1024, LastWriteTimeUtcTicks = fixture.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact RT cold archive rejected.");
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "RT admitted a foreign campaign.");
+                    request.PersistenceLoad.GameId = fixture.GameId;
+                    request.Scenario = "persistence-p03-load";
+                    TestRunner.True(request.Validate().Count > 0, "RT case escaped into TB qualification.");
+                }
+            });
             runner.Run("P05 requires exact native categories and isolated cold identity", () =>
             {
                 foreach (var name in new[] { "manual", "quick", "auto" })

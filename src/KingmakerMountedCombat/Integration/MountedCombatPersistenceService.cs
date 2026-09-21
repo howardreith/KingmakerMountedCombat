@@ -26,10 +26,11 @@ namespace KingmakerMountedCombat.Integration
             if (!player.IsInCombat) return false;
             if (!Enabled || !settings.EnablePairedActivation || settings.EnableUnifiedMountedTurn ||
                 settings.EnablePairedCommandScheduler || CombatRestorationPending ||
-                !CombatController.IsInTurnBasedCombat() || !Game.Instance.TurnBasedCombatController.Initialized)
+                (CombatController.IsInTurnBasedCombat() && !Game.Instance.TurnBasedCombatController.Initialized))
                 return true;
             var actors = CombatActors();
-            var unsettled = unifiedTurn.HasUnsettledPreparation || actors.Any(u => !u.Commands.Empty);
+            var unsettled = unifiedTurn.HasUnsettledPreparation || actors.Any(u => !u.Commands.Empty) ||
+                NativeSaveEffectBoundary.HasUnresolvedProjectiles();
             if (unsettled) Report("Combat save is waiting for native commands to finish.");
             return unsettled;
         }
@@ -80,7 +81,8 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             var controller = game.TurnBasedCombatController;
-            if (!controller.Initialized || data.Combat.Actors.Any(a => !restoredActors.ContainsKey(a.Native.Id))) return;
+            if ((data.Combat.TurnBased && !controller.Initialized) ||
+                data.Combat.Actors.Any(a => !restoredActors.ContainsKey(a.Native.Id))) return;
             var actors = new Dictionary<string, UnitEntityData>(StringComparer.Ordinal);
             foreach (var row in data.Combat.Actors)
             {
@@ -113,6 +115,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void BeginLoadHousekeeping()
         {
+            NativeSaveEffectBoundary.Clear();
             unifiedTurn.DiscardPersistenceWorld();
             if (!relationship.GuardBoundary(CleanupTrigger.LoadRequested))
                 throw new InvalidOperationException("Loaded world cleanup retained mounted references.");

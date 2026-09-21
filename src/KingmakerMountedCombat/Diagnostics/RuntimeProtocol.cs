@@ -73,7 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "ui-selection-portrait-actionbar",
             "camera-follow-and-command-routing",
             "fixture-intake",
-            "persistence-isolation", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p05-save", "persistence-p05-load",
+            "persistence-isolation", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load",
             "lifecycle-suite",
             "combat-lifecycle-suite",
             "chunk4-traversal-core", "chunk4-traversal-slope", "chunk4-area-cleanup", "movement-suite",
@@ -277,12 +277,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
+            var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
             if (p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
-                new[] { "manual", "quick", "auto", "manual-renamed", "alternating" } : new[] { "manual", "quick", "auto", "alternating" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction" }, PersistenceCase) < 0 :
+                new[] { "manual", "quick", "auto", "manual-renamed", "alternating" } : new[] { "manual", "quick", "auto", "alternating" }, PersistenceCase) < 0 :
+                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");
-            if (Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p05-load")
+            if (Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load")
             {
                 if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");
                 else
@@ -529,7 +531,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
-            "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p05-save", "persistence-p05-load",
+            "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load",
                     "C4-LIFE-rider-incapacitation",
         "C4-LIFE-rider-death-live-command",
         "C4-LIFE-mount-death-live-command",

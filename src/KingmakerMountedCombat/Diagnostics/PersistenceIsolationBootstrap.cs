@@ -16,7 +16,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string Scenario = "persistence-isolation";
         internal static bool Supports(string value) => value == Scenario || value == "persistence-p01-save" || value == "persistence-p01-load" ||
-            value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" ||
+            value == "persistence-p02-save" || value == "persistence-p02-load" || value == "persistence-p03-save" || value == "persistence-p03-load" || value == "persistence-p04-save" || value == "persistence-p04-load" ||
             value == "persistence-p05-save" || value == "persistence-p05-load";
         internal PersistenceSaveAuthorization Authority => authority;
         private const string HarmonyId = "KingmakerMountedCombat.PersistenceIsolation";
@@ -56,7 +56,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         SaveType = request.Scenario == "persistence-p05-load" ? RuntimePersistenceScenario.SlotType(request.PersistenceCase).ToString() : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
-                if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p03-save") entries.Add(new PersistenceSaveEntry
+                if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p04-save") entries.Add(new PersistenceSaveEntry
                 {
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
                     Writable = true

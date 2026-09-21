@@ -47,7 +47,12 @@ namespace KingmakerMountedCombat.Integration
         internal static SavedCombatData Capture(CombatController controller, UnitEntityData[] actors)
         {
             var tb = CombatController.IsInTurnBasedCombat();
-            if (!tb) throw new InvalidOperationException("Real-time combat save boundary is not yet qualified.");
+            if (!tb) return new SavedCombatData
+            {
+                TurnBased = false, Actors = actors.Select(NativeCombatActorPersistence.Capture).ToArray(),
+                Engagements = NativeCombatActorPersistence.CaptureEngagements(actors),
+                Roster = new SavedRosterActor[0]
+            };
             var roster = (List<CombatController.TBUnitInfo>)Units.GetValue(controller);
             return new SavedCombatData
             {
@@ -70,7 +75,13 @@ namespace KingmakerMountedCombat.Integration
         internal static void Restore(CombatController controller, SavedCombatData saved,
             IDictionary<string, UnitEntityData> actors)
         {
-            if (!saved.TurnBased || !controller.Initialized)
+            if (!saved.TurnBased)
+            {
+                if (CombatController.IsInTurnBasedCombat() || controller.Initialized)
+                    throw new InvalidOperationException("Real-time restoration cannot replace active turn-based input.");
+                return; // RT has no TurnController, roster or paired activation to prepare.
+            }
+            if (!controller.Initialized)
                 throw new InvalidOperationException("Native turn input must be initialized before saved combat rebind.");
             var restoredTurn = NativeTurnPersistence.Restore(saved.Current, actors);
             try

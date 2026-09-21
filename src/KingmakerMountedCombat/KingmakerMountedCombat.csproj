@@ -121,6 +121,7 @@
     <Compile Include="Integration\MountedMovementPersistence.cs" />
     <Compile Include="Integration\PairedActivationPersistence.cs" />
     <Compile Include="Integration\NativeCombatTurnPersistence.cs" />
+    <Compile Include="Integration\NativeSaveEffectBoundary.cs" />
     <Compile Include="Integration\NativeMountedSaveStorage.cs" />
     <Compile Include="Integration\NativeMountedArchiveCommit.cs" />
     <Compile Include="Integration\MountedPersistenceService.cs" />
@@ -176,6 +177,7 @@
     <Compile Include="Diagnostics\PersistenceIsolationBootstrap.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAlternatingScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceRealtimeScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCombatScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCommitmentScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceRoundEffectScenario.cs" />

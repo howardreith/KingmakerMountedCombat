@@ -56,6 +56,40 @@ public static class KmcPersistenceContractProbe
         }
     }
 
+    private static void VerifyNativeEffectBoundary(Assembly native, Assembly candidate)
+    {
+        var controllerType=native.GetType("Kingmaker.Controllers.Projectiles.ProjectileController",true);
+        var projectileType=native.GetType("Kingmaker.Controllers.Projectiles.Projectile",true);
+        var boundary=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveEffectBoundary",true);
+        var flags=BindingFlags.Static|BindingFlags.NonPublic;
+        var read=boundary.GetMethod("HasUnresolvedProjectiles",flags,null,new[]{controllerType},null);
+        var mark=boundary.GetMethod("HitCompleted",flags);var clear=boundary.GetMethod("Clear",flags);
+        var controller=Activator.CreateInstance(controllerType);
+        var pending=(System.Collections.IList)controllerType.GetField("m_NewProjectiles",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(controller);
+        var active=controllerType.GetField("m_Projectiles",BindingFlags.NonPublic|BindingFlags.Instance).GetValue(controller);
+        var updating=controllerType.GetField("m_Updating",BindingFlags.NonPublic|BindingFlags.Instance);
+        var p=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(projectileType);
+        var q=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(projectileType);
+        clear.Invoke(null,null);
+        Check(!(bool)read.Invoke(null,new[]{controller}),"native empty projectile controller is save-safe");
+        pending.Add(p);
+        Check((bool)read.Invoke(null,new[]{controller}),"pending native projectile cannot escape the save barrier");
+        active.GetType().GetMethod("Add").Invoke(active,new[]{q});
+        projectileType.GetProperty("IsHit").GetSetMethod(true).Invoke(q,new object[]{true});
+        SetMember(p,"Cleared",true);
+        Check((bool)read.Invoke(null,new[]{controller}) && !(bool)updating.GetValue(controller),
+            "arrival is not delivery and complete native enumeration restores its updating flag");
+        mark.Invoke(null,new[]{q});mark.Invoke(null,new[]{q});
+        Check(!(bool)read.Invoke(null,new[]{controller}) && !(bool)updating.GetValue(controller),
+            "completed delivery is idempotent and need not wait for visual particle expiry");
+        clear.Invoke(null,null);
+        Check((bool)read.Invoke(null,new[]{controller}),"old-world completion cannot classify a new restoration");
+        pending.Clear();active.GetType().GetMethod("Clear").Invoke(active,null);clear.Invoke(null,null);
+        Check(native.GetType("Kingmaker.Controllers.Combat.UnitCombatPrepareController",true).GetMethod("Tick").MetadataToken==0x0600936F &&
+            projectileType.GetMethod("OnHit").MetadataToken==0x06009270,
+            "exact native RT preparation and completed projectile delivery seams");
+    }
+
     private static string Hash(string path)
     {
         using(var algorithm=System.Security.Cryptography.SHA256.Create())
@@ -380,6 +414,7 @@ public static class KmcPersistenceContractProbe
         var originalSaver=Activator.CreateInstance(saverType,new object[]{originalPath});
         var stagedSaver=Activator.CreateInstance(saverType,new object[]{stagedPath});
         VerifyNativeColdDescriptor(native,candidate,owned);
+        VerifyNativeEffectBoundary(native,candidate);
         var saveInfoType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
         var originalInfo=Activator.CreateInstance(saveInfoType);
         var stagedInfo=Activator.CreateInstance(saveInfoType);

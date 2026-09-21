@@ -156,6 +156,15 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alter
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase manual -Alternate} 'Alternate escaped its case'
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating} 'Primary accepted alternate hash'
 if((Get-KmcSha256 $path)-cne$hash-or(Get-KmcSha256 $alternatePath)-cne$alternateHash){throw 'Alternating source inspection changed inputs'};$passes++
+foreach($case in @('unmounted-spent','mounted-spent')){
+    $result.scenario='persistence-p04-save';Write-KmcJsonAtomic $resultPath $result
+    Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p04-save';persistenceCase=$case;transactionToken=('a'*64)})
+    $rt=Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase $case
+    if($rt.path-cne$path){throw 'P04 source selected another archive'};$passes++
+    Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture} 'P04 accepted a missing checkpoint'
+    Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase manual} 'P04 accepted a P05 category'
+    Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase $case -Alternate} 'P04 accepted a secondary archive'
+}
 # Evidence mutation checks use synthetic bytes in a separate owned root.
 $proofId='owned-alternating-evidence'
 $proofRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$proofId+'/Saved Games')
@@ -204,5 +213,48 @@ $rows[3].relationship='Unmounted'
 $rows[4].processId=124
 Must-Reject {Assert-KmcAlternatingPersistenceEvidence $proof $rows $proofGame} 'Foreign process observation qualified'
 $rows[4].processId=123
+# P04 evidence checks use synthetic bytes and copied observation shapes only.
+$rtProofId='owned-realtime-evidence'
+$rtProofRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$rtProofId+'/Saved Games')
+[void][IO.Directory]::CreateDirectory($rtProofRoot)
+$rtPath=Join-Path $rtProofRoot 'Manual_300_KMC_P01.zks'
+[IO.File]::WriteAllText($rtPath,'synthetic real-time archive',[Text.UTF8Encoding]::new($false))
+$rtRequest=[pscustomobject]@{runId=$rtProofId;scenario='persistence-p04-save';persistenceCase='unmounted-spent';commit=('e'*40);dllSha256=('f'*64);fixture=$fixture}
+function New-RtProof([string]$kind,[long]$ticks,$detail){
+    return [pscustomobject]@{runId=$rtProofId;scenario=$rtRequest.scenario;source=$rtRequest.commit;dll=$rtRequest.dllSha256;processId=123;
+        kind=$kind;checkpoint=$rtRequest.persistenceCase;gameTicks=$ticks;relationship='Unmounted';
+        rider=[pscustomobject]@{Id='r';Standard=5};mount=[pscustomobject]@{Id='m'};
+        controls=[pscustomobject]@{DuplicateFactCount=0};native=[pscustomobject]@{tbSetting=$false;tbInitialized=$false};detail=$detail}
+}
+$rtSnapshot=[pscustomobject]@{Mounted=$false;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;
+    Combat=[pscustomobject]@{TurnBased=$false;Current=$null;Roster=@();Paired=$null;
+        Actors=@([pscustomobject]@{Native=[pscustomobject]@{Id='r';Standard=5}})}}
+$rtWrite=[pscustomobject]@{path=$rtPath;sha256=(Get-KmcSha256 $rtPath);length=(Get-Item -LiteralPath $rtPath).Length;
+    nativeType='Manual';nativeCallback=$true;operation='None';snapshot=$rtSnapshot}
+$rtRows=@(
+    (New-RtProof 'initial' 0 $null),
+    (New-RtProof 'rt-repeated-attack-requested' 1 $null),
+    (New-RtProof 'rt-repeated-attack-resolved' 2 ([pscustomobject]@{ordinaryAttacks=2;resolved=2;forcedD20=0})),
+    (New-RtProof 'rt-before-save' 3 $null),
+    (New-RtProof 'rt-native-save-requested' 4 $null),
+    (New-RtProof 'native-write-complete' 5 $rtWrite),
+    (New-RtProof 'rt-spent-attack-queued' 6 ([pscustomobject]@{readyTicks=50000000;resolved=2;riderRounds=1})),
+    (New-RtProof 'rt-native-debt-wait' 7 $null),
+    (New-RtProof 'rt-later-attack' 50000000 ([pscustomobject]@{resolved=3;riderRounds=2;forcedD20=0})),
+    (New-RtProof 'rt-later-attack' 110000000 ([pscustomobject]@{resolved=4;riderRounds=3;forcedD20=0})),
+    (New-RtProof 'usable-continuation-complete' 110000001 $null)
+)
+Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame;$passes++
+$rtSnapshot.Combat.TurnBased=$true
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame} 'P04 accepted a TB context'
+$rtSnapshot.Combat.TurnBased=$false;$rtRows[8].detail.resolved=4
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame} 'P04 accepted duplicate effects'
+$rtRows[8].detail.resolved=3;$rtRows[8].gameTicks=8
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame} 'P04 accepted an early refunded attack'
+$rtRows[8].gameTicks=50000000;$rtRows[9].detail.riderRounds=4
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame} 'P04 accepted an extra round refresh'
+$rtRows[9].detail.riderRounds=3;$rtWrite.nativeCallback=$false
+Must-Reject {Assert-KmcRealtimePersistenceEvidence $rtRequest $rtRows $proofGame} 'P04 accepted an incomplete native write'
+$rtWrite.nativeCallback=$true
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

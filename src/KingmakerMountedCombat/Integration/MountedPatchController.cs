@@ -108,6 +108,9 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitAttack), "GetApproachRadius", 0x06002685, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.AttackRangePostfix));
                 PatchExact(typeof(UnitCombatState), "AttackOfOpportunity", 0x060093A1, new[] { typeof(UnitEntityData), typeof(bool) }, nameof(PatchMethods.AttackOfOpportunityPrefix));
                 PatchExact(typeof(UnitCombatCooldownsController), "TickOnUnit", 0x0600934A, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.CombatCooldownPrefix), nameof(PatchMethods.CombatCooldownPostfix));
+                PatchExact(typeof(UnitCombatPrepareController), "Tick", 0x0600936F, Type.EmptyTypes, nameof(PatchMethods.CombatPreparePrefix));
+                PatchExact(typeof(Kingmaker.Controllers.Projectiles.Projectile), "OnHit", 0x06009270,
+                    Type.EmptyTypes, null, nameof(PatchMethods.ProjectileHitPostfix));
                 PatchExact(typeof(UnitCommand), "Interrupt", 0x060027AC, new[] { typeof(bool) }, nameof(PatchMethods.CommandInterruptPrefix));
                 PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));
                 PatchExact(typeof(AttackHandInfo), "CreateAnimationHandleForAttack", 0x0600265A, new[] { typeof(IEnumerable<AttackHandInfo>) }, null, nameof(PatchMethods.AttackAnimationPostfix));
@@ -735,11 +738,19 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            internal static void CombatCooldownPrefix(UnitEntityData unit, out float __state)
+            internal static void ProjectileHitPostfix(Kingmaker.Controllers.Projectiles.Projectile __instance)
+            {
+                if (PatchBridge.Persistence?.Enabled == true) NativeSaveEffectBoundary.HitCompleted(__instance);
+            }
+
+            internal static bool CombatPreparePrefix() => PatchBridge.Persistence?.CombatRestorationPending != true;
+
+            internal static bool CombatCooldownPrefix(UnitEntityData unit, out float __state)
             {
                 __state = unit?.CombatState == null
                     ? float.NaN
                     : unit.CombatState.Cooldown.Initiative;
+                return PatchBridge.Persistence?.CombatRestorationPending != true;
             }
 
             internal static void CombatCooldownPostfix(UnitEntityData unit, float __state)

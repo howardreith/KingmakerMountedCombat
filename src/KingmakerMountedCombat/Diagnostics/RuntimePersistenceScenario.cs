@@ -50,7 +50,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal RuntimeSubscenarioResult Result { get; private set; }
         private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
         private int completedSlotWrites;
-        private bool Cold => request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load";
+        private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load";
+        private bool Cold => request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
         private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load";
         private readonly MountedCombatController combat;
 
@@ -66,7 +67,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -320,12 +321,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void Write(string kind, JObject detail = null)
         {
-            var observedTarget = CombatCase ? combatTarget : targetService?.Target;
+            var observedTarget = CombatCase || RealtimeCase ? combatTarget : targetService?.Target;
             var targetLife = DiagnosticTargetLifeSnapshot.Capture(observedTarget);
             var row = new JObject
             {
                 ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
-                ["kind"] = kind, ["checkpoint"] = CombatCase ? Checkpoint : SlotCase ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
+                ["kind"] = kind, ["checkpoint"] = CombatCase || RealtimeCase ? Checkpoint : SlotCase ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["source"] = request.Commit,
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
                 ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),
@@ -369,7 +370,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (disposed) return;
             if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
-            targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtime?.Dispose();
+            targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
             settings.EnableUnsafeMovementExperiment = false;
             disposed = true;

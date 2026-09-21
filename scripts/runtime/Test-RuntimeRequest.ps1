@@ -93,14 +93,16 @@ elseif ($schemaVersion -eq 2) {
     if($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
         $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating')}else{@('manual','quick','auto','alternating')}
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
+    }elseif($request.scenario-cin @('persistence-p04-save','persistence-p04-load')){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent')){throw 'P04 requires its exact native RT checkpoint.'}
     }elseif($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction')){throw 'P03 requires its exact native commitment case.'}
     }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
     $alternating=$request.scenario-ceq'persistence-p05-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'alternating'
-    $extra=@(if($alternating){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p05-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
+    $extra=@(if($alternating){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
-    if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p05-load')){
+    if($request.scenario -cin @('persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load')){
         $descriptors=@($request.persistenceLoad)
         if($alternating){
             $descriptors+=@($request.persistenceAlternate)
@@ -150,7 +152,7 @@ $missionScenarios = @(
     'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
     'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
-$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p05-save','persistence-p05-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
+$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }

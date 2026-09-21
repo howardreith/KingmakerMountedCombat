@@ -93,6 +93,22 @@ public static class PersistenceDataTests
             Check(MountedSaveCodec.Decode(bad.ToString()).Kind == MountedSaveReadKind.Invalid,
                 "damaged combat participation or clock cannot create a safe-looking fallback");
         }
+        var realtime = MountedSaveCodec.Decode(json).Data;
+        var oldTurn = realtime.Combat.Current;
+        realtime.Combat.TurnBased = false;
+        realtime.Combat.Current = null; realtime.Combat.NextActor = null;
+        realtime.Combat.Roster = new SavedRosterActor[0];
+        realtime.Combat.Paired = null;
+        realtime.Combat.Allocations = new SavedMovementAllocation[0];
+        var rt = MountedSaveCodec.Decode(MountedSaveCodec.Encode(realtime));
+        Check(rt.Kind == MountedSaveReadKind.Current && !rt.Data.Combat.TurnBased &&
+            rt.Data.Combat.Current == null && rt.Data.Combat.Actors[0].Native.Standard == realtime.Rider.Standard &&
+            rt.Data.Combat.Actors[0].Native.ReactionsRemaining == realtime.Rider.ReactionsRemaining,
+            "real-time primitive combat snapshot retains debt without a turn grant");
+        var invalidRt = JObject.Parse(MountedSaveCodec.Encode(realtime));
+        invalidRt["Combat"]["Current"] = JObject.FromObject(oldTurn, MountedSaveCodec.CreateSerializer());
+        Check(MountedSaveCodec.Decode(invalidRt.ToString()).Kind == MountedSaveReadKind.Invalid,
+            "real-time snapshot cannot smuggle a native turn context");
     }
 
     public static void Run()
