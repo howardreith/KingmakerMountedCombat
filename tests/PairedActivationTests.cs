@@ -7,6 +7,7 @@ namespace KingmakerMountedCombat.Tests
     {
         internal static void Register(TestRunner runner)
         {
+            runner.Run("native round-effect ownership survives restoration and actor forfeiture", RoundEffectOwnership);
             runner.Run("saved paired remainder binds new actors without granting a new activation", RestoreRemainder);
             runner.Run("saved ended actors and condition settlement cannot act or settle twice", RestoreForfeiture);
             runner.Run("saved suspension and split retain the current participation identity", RestoreSuspension);
@@ -24,6 +25,27 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native condition End settles only its observed forfeiture once", NativeForfeitSettlement);
             runner.Run("native condition settlement preserves other debt and new grants carry no settlement", NativeForfeitConservation);
         }
+        private static void RoundEffectOwnership()
+        {
+            var pair = new PairedActivation<object, object>(new object(), new object());
+            var boundary = new object();
+            TestRunner.Equal(false, pair.OwnsRoundEffects(pair.Partner, boundary), "arming does not claim a native timer");
+            Prepare(pair, boundary);
+            pair.EndActor(pair.Partner);
+            TestRunner.Equal(false, pair.CanAddress(pair.Partner, boundary), "forfeit still prevents actions");
+            TestRunner.Equal(true, pair.OwnsRoundEffects(pair.Partner, boundary), "forfeit cannot erase harmful or beneficial due effects");
+            var loadedBoundary = new object();
+            var restored = PairedActivation<object, object>.Restore(pair.Capture(), new object(), new object(), loadedBoundary);
+            TestRunner.Equal(true, restored.OwnsRoundEffects(restored.Partner, loadedBoundary), "restored native timers retain their owner");
+            TestRunner.Equal(false, restored.OwnsRoundEffects(pair.Partner, loadedBoundary), "no old-world timer ownership");
+            TestRunner.Equal(false, restored.OwnsRoundEffects(restored.Partner, boundary), "no previous-world boundary");
+            restored.Detach();
+            TestRunner.Equal(false, restored.OwnsRoundEffects(restored.Partner, loadedBoundary), "split releases paired timer eligibility");
+            pair = new PairedActivation<object, object>(new object(), new object());
+            boundary = new object(); Prepare(pair, boundary); pair.Suspend(boundary);
+            TestRunner.Equal(false, pair.OwnsRoundEffects(pair.Partner, boundary), "suspension retains native timing authority");
+        }
+
         private static void RestoreRemainder()
         {
             var original = new PairedActivation<object, object>(new object(), new object());

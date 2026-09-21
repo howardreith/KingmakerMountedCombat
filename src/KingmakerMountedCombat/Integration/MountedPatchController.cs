@@ -13,6 +13,7 @@ using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Buffs;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using Kingmaker.Visual.Animation;
@@ -114,6 +115,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "HandleCombatStart", 0x06000BE2, new[] { typeof(bool) }, nameof(PatchMethods.PairedEncounterPrefix), nameof(PatchMethods.PairedEncounterPostfix));
                 PatchExact(typeof(CombatController), "Disable", 0x06000BEA, Type.EmptyTypes, nameof(PatchMethods.PairedModeExitPrefix));
                 PatchExact(typeof(CombatController), "RemoveUnit", 0x06000BE6, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.PairedActorRemovalPrefix));
+                PatchExact(typeof(BuffCollection), "Tick", 0x06002A02, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedBuffTimerTranspiler));
                 PatchExact(typeof(CombatController), "TickTime", 0x06000BD6, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
                 PatchExact(typeof(CombatController).GetNestedType("<>c", BindingFlags.NonPublic), "<HandleCombatStart>b__79_2",
                     0x0600A2BE, null, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
@@ -504,6 +506,12 @@ namespace KingmakerMountedCombat.Integration
                 if (PatchBridge.UnifiedTurn == null) controller.Tick();
                 else PatchBridge.UnifiedTurn.TickPreparationConfusion(controller, turn);
             }
+            internal static bool PairedBuffTimerActor(UnitEntityData current, UnitEntityData actor) =>
+                ReferenceEquals(current, actor) ||
+                (PatchBridge.Persistence?.CombatRestorationPending != true &&
+                    PatchBridge.UnifiedTurn?.OwnsPartnerRoundEffects(current, actor) == true);
+            internal static IEnumerable<CodeInstruction> PairedBuffTimerTranspiler(IEnumerable<CodeInstruction> instructions) =>
+                PairedActivationTranspilers.BuffTimerEligibility(instructions, Hook(nameof(PairedBuffTimerActor)));
             private static MethodInfo Hook(string name) => typeof(PatchMethods).GetMethod(name, BindingFlags.Static | BindingFlags.NonPublic);
             internal static IEnumerable<CodeInstruction> PairedSelectorTranspiler(IEnumerable<CodeInstruction> instructions) =>
                 PairedActivationTranspilers.Selector(instructions, Hook(nameof(SkipPairedCandidate)));

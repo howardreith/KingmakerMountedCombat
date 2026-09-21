@@ -163,6 +163,15 @@ namespace KingmakerMountedCombat.Domain
                 !state.Prepared && !state.Ended && !Ending && !Finalized && !Suspended;
         }
 
+        // Native timer eligibility is independent of permission to spend actions.
+        // An ended/forfeited actor still owns effects due at its current boundary.
+        public bool OwnsRoundEffects(TActor actor, TBoundary boundary)
+        {
+            var state = State(actor);
+            return Boundary != null && ReferenceEquals(Boundary, boundary) && !Split && !Suspended &&
+                state != null && state.Granted && state.Prepared;
+        }
+
         public bool CanAddress(TActor actor, TBoundary boundary) => Open && !Split &&
             ReferenceEquals(Boundary, boundary) && State(actor) != null && !State(actor).Ended;
 

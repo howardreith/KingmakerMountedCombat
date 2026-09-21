@@ -140,6 +140,54 @@ public static class KmcPersistenceContractProbe
             }
             Check(gateChanges==1 && gateCount==originalOps.Count,
                 "native area/game-over/dialog/cutscene/encounter/dual-companion gates and branches retained");
+            var buffTick=native.ManifestModule.ResolveMethod(0x06002A02);
+            var buffLegacy=(System.Collections.IList)Activator.CreateInstance(listType);
+            var buffOps=new System.Collections.Generic.List<object>();
+            var buffOperands=new System.Collections.Generic.List<object>();
+            var currentSites=new System.Collections.Generic.List<int>();
+            foreach(var instruction in (System.Collections.IEnumerable)read.Invoke(null,new object[]{buffTick,null}))
+            {
+                var type=instruction.GetType();
+                var op=type.GetField("opcode").GetValue(instruction);
+                var operand=type.GetField("operand").GetValue(instruction);
+                var buffMember=operand as MethodInfo;
+                if(buffMember!=null && buffMember.Module==native.ManifestModule && buffMember.MetadataToken==0x06000BFA)
+                    currentSites.Add(buffOps.Count);
+                buffOps.Add(op); buffOperands.Add(operand);
+                buffLegacy.Add(Activator.CreateInstance(legacyInstruction,new[]{op,operand}));
+            }
+            Check(currentSites.Count==2,"exact native buff owner and caster comparisons");
+            var changedBuff=new System.Collections.Generic.List<object>();
+            foreach(var instruction in (System.Collections.IEnumerable)persistencePatches.GetMethod("PairedBuffTimerTranspiler",
+                BindingFlags.NonPublic|BindingFlags.Static).Invoke(null,new object[]{buffLegacy})) changedBuff.Add(instruction);
+            int cursor=0;
+            for(int i=0;i<buffOps.Count;i++)
+            {
+                var op=legacyInstruction.GetField("opcode").GetValue(changedBuff[cursor]);
+                var operand=legacyInstruction.GetField("operand").GetValue(changedBuff[cursor]);
+                if(i==currentSites[0]+4 || i==currentSites[1]+5)
+                {
+                    var hook=operand as MethodInfo;
+                    var branch=changedBuff[++cursor];
+                    if(!op.Equals(System.Reflection.Emit.OpCodes.Call) || hook==null || hook.Name!="PairedBuffTimerActor" ||
+                        !legacyInstruction.GetField("opcode").GetValue(branch).Equals(System.Reflection.Emit.OpCodes.Brtrue) ||
+                        !Equals(legacyInstruction.GetField("operand").GetValue(branch),buffOperands[i]))
+                        throw new InvalidOperationException("Native buff eligibility replacement changed its continuation.");
+                }
+                else if(!Equals(op,buffOps[i]) || !Equals(operand,buffOperands[i]))
+                    throw new InvalidOperationException("Native timer or effect body changed.");
+                cursor++;
+            }
+            Check(cursor==changedBuff.Count && cursor==buffOps.Count+2,
+                "both buff eligibility comparisons extended; native timers, loops, death cleanup and delivery unchanged");
+            var buffType=native.GetType("Kingmaker.UnitLogic.Buffs.Buff",true);
+            foreach(var field in new[]{"RoundNumber","NextTickTime","TickTime"})
+            {
+                var property=buffType.GetProperty(field,BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic);
+                Check(property!=null && Attribute.IsDefined(property,
+                    Type.GetType("Newtonsoft.Json.JsonPropertyAttribute, Newtonsoft.Json",true)),
+                    "native serialized buff timer member "+field);
+            }
             var settingsRefresh=native.GetType("Kingmaker.UI.SettingsUI.SettingsRoot",true)
                 .GetMethod("HandleSettingsUpdated",BindingFlags.Public|BindingFlags.Static);
             Check(settingsRefresh!=null && settingsRefresh.MetadataToken==0x0600346B &&
