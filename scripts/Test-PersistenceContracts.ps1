@@ -117,6 +117,25 @@ public static class KmcPersistenceContractProbe
             "already charged native reaction must start and settle before the snapshot");
         commandType.GetProperty("IsStarted").GetSetMethod(true).Invoke(attack,new object[]{true});
         Check((bool)settle.Invoke(null,new[]{attack}),"started native action remains outside the snapshot barrier");
+        var mountedType=candidate.GetType("KingmakerMountedCombat.Integration.MountedPairAttackCommand",true);
+        var mounted=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(mountedType);
+        var transactionType=candidate.GetType("KingmakerMountedCombat.Domain.MountedCombatTransaction",true);
+        var transaction=Activator.CreateInstance(transactionType);
+        mountedType.GetField("transaction",BindingFlags.NonPublic|BindingFlags.Instance).SetValue(mounted,transaction);
+        var actionType=candidate.GetType("KingmakerMountedCombat.Domain.MountedCombatActionKind",true);
+        transactionType.GetMethod("Arm").Invoke(transaction,new[]{Enum.Parse(actionType,"RiderMelee")});
+        transactionType.GetMethod("AcceptTarget").Invoke(transaction,new object[]{"owned-target",true});
+        commandType.GetProperty("IsStarted").GetSetMethod(true).Invoke(mounted,new object[]{true});
+        Check(!(bool)settle.Invoke(null,new[]{mounted}),
+            "running mounted approach wrapper can snapshot like unmounted native approach");
+        transactionType.GetMethod("Arrive").Invoke(transaction,new object[]{"owned-target"});
+        Check(!(bool)settle.Invoke(null,new[]{mounted}),
+            "arrival alone is not the native attack start or a delivered effect");
+        transactionType.GetMethod("TryStartSingleAttack").Invoke(transaction,new object[]{"owned-target"});
+        Check((bool)settle.Invoke(null,new[]{mounted}),
+            "started mounted native attack still waits for complete effects before saving");
+        commandType.GetProperty("IsFinished").GetSetMethod(true).Invoke(mounted,new object[]{true});
+        Check(!(bool)settle.Invoke(null,new[]{mounted}),"completed mounted attack does not delay the next native snapshot");
         commandType.GetProperty("IsFinished").GetSetMethod(true).Invoke(reaction,new object[]{true});
         Check(!(bool)settle.Invoke(null,new[]{reaction}),"completed native reaction does not delay its already delivered effect");
         var service=candidate.GetType("KingmakerMountedCombat.Integration.MountedPersistenceService",true);

@@ -47,6 +47,10 @@ namespace KingmakerMountedCombat.Integration
 
         internal static bool CommandNeedsSettlement(UnitCommand command) =>
             command != null && !command.IsFinished && command.GetType() != typeof(UnitMoveContiniously) &&
+            // The mounted wrapper starts to own approach before UnitAttack.OnStart.
+            // Match native unmounted approach: position/debt can snapshot until
+            // the real attack sequence begins; never classify its effects as movement.
+            (!(command is MountedPairAttackCommand mounted) || mounted.NativeSequenceStarted) &&
             (command.IsRunning || command is UnitAttackOfOpportunity);
 
         // Native reaction debt is charged when Run queues this command, before
