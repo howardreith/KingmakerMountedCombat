@@ -177,9 +177,35 @@ namespace KingmakerMountedCombat.Integration
         // queue commands into the graphs being written. So the world is held --
         // paused, with every unit command refused at UnitCommands -- until the
         // worker settles, and the user's prior pause state is then restored.
+        // Pause is a counted, asynchronously switched game mode: Game.set_IsPaused
+        // only requests StartMode/StopMode, both are queued while the game-mode
+        // tick runs, DoStopMode pops only the mode on top, and IsModeActive is
+        // m_ModesCount[Pause] > 0. StopAll ending the loading process also lets
+        // the engine push its own post-load pause next to ours. So the hold is
+        // judged and undone by DEPTH -- restore exactly the depth the user had,
+        // one pop per frame until it is reached, bounded -- never by a single
+        // same-frame IsPaused read.
+        private static readonly System.Reflection.FieldInfo ModesCount =
+            NativeCombatActorPersistence.Field(typeof(Game), "m_ModesCount", 0x040006AE, typeof(int[]));
         private bool drainPauseCaptured;
         private bool drainPausedBefore;
+        private int drainPauseDepthBefore;
         private Player drainPauseWorld;
+        private bool worldReleasePending;
+        private int worldReleaseFrames;
+        internal int WorldHoldDepthBefore => drainPauseDepthBefore;
+        internal bool WorldHoldReleasePending => worldReleasePending;
+        internal int WorldHoldReleasedCount { get; private set; }
+        internal int WorldReleasePops { get; private set; }
+
+        internal static int NativePauseDepth()
+        {
+            var game = Game.Instance;
+            if (game == null) return 0;
+            var counts = (int[])ModesCount.GetValue(game);
+            var index = (int)Kingmaker.GameModes.GameModeType.Pause;
+            return counts != null && index < counts.Length ? counts[index] : 0;
+        }
         internal int ResetToMainMenuDeferredCount { get; private set; }
         internal bool ResetToMainMenuPending => resetPending;
         private bool resetPending;
@@ -193,23 +219,45 @@ namespace KingmakerMountedCombat.Integration
             drainPauseCaptured = true;
             drainPauseWorld = game.Player;
             drainPausedBefore = game.IsPaused;
+            drainPauseDepthBefore = NativePauseDepth();
             try { game.IsPaused = true; }
             catch (Exception exception) { logger.Exception("Drain could not pause the world", exception); }
         }
 
+        // Begins the restore; ContinueWorldRelease finishes it over the following
+        // frames, because a StopMode issued during the game-mode tick is queued
+        // and because more than one Pause may be on the count.
         private void ReleaseWorldAfterDrain()
         {
-            if (!drainPauseCaptured) return;
-            drainPauseCaptured = false;
+            if (!drainPauseCaptured || worldReleasePending) return;
+            worldReleasePending = true;
+            worldReleaseFrames = 0;
+            ContinueWorldRelease();
+        }
+
+        private void ContinueWorldRelease()
+        {
+            if (!worldReleasePending) return;
             var game = Game.Instance;
             // Restore the user's prior state only into the same world; a replaced
             // world has its own pause semantics.
-            if (game != null && ReferenceEquals(game.Player, drainPauseWorld))
+            var sameWorld = game != null && ReferenceEquals(game.Player, drainPauseWorld);
+            var depth = sameWorld ? NativePauseDepth() : drainPauseDepthBefore;
+            if (!sameWorld || depth <= drainPauseDepthBefore || ++worldReleaseFrames > 30)
             {
-                try { game.IsPaused = drainPausedBefore; }
-                catch (Exception exception) { logger.Exception("Drain could not restore the prior pause state", exception); }
+                worldReleasePending = false;
+                drainPauseCaptured = false;
+                drainPauseWorld = null;
+                WorldHoldReleasedCount++;
+                if (sameWorld && depth > drainPauseDepthBefore)
+                    logger.Warning("Drain could not restore the prior pause depth within its bound; the game remains paused.");
+                return;
             }
-            drainPauseWorld = null;
+            // One pop per frame: DoStopMode pops only the mode on top, and a
+            // request made while the mode tick runs is applied next frame.
+            if (game.CurrentMode != Kingmaker.GameModes.GameModeType.Pause) return;
+            try { game.IsPaused = false; WorldReleasePops++; }
+            catch (Exception exception) { logger.Exception("Drain could not restore the prior pause state", exception); }
         }
 
         // Prefix decision for Game.ResetToMainMenu: while an owned worker can
@@ -654,6 +702,7 @@ namespace KingmakerMountedCombat.Integration
         {
             DrainAbandonedSave();
             ReplayDeferredResetIfSettled();
+            ContinueWorldRelease();
             CompleteAreaTransitionIfReady();
             TryRestoreCombat();
             if (CombatRestorationPending) return;

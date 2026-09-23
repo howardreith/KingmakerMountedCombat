@@ -64,6 +64,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool drainPausedBeforeStop;
         private bool drainHeldPaused;
         private bool drainPauseRequestedAtStop;
+        private int drainPauseDepthBeforeStop;
+        private int drainPauseDepthAtSettle = -1;
         private bool drainPauseRestored;
         private bool drainResetDeferred;
         private string drainSimUnrelatedId;
@@ -171,6 +173,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // The real native cancellation path. The user's pause state before
                 // it is recorded so its restoration at settlement can be checked.
                 drainPausedBeforeStop = game.IsPaused;
+                drainPauseDepthBeforeStop = MountedPersistenceService.NativePauseDepth();
                 LoadingProcess.Instance.StopAll();
                 // KMC requests the hold the moment the abandonment defers, but the
                 // engine applies it asynchronously: Game.set_IsPaused only sets
@@ -342,7 +345,10 @@ namespace KingmakerMountedCombat.Diagnostics
                             NativeSaveWorkerBoundary.WorkerHeld + " draining=" + persistence.SaveDraining);
                     return;
                 }
-                if (++drainFrames < 12) return;
+                // Wait for the world release too: it restores the prior pause
+                // DEPTH one pop per frame, because the engine queues mode changes
+                // during its tick and may have pushed its own post-load pause.
+                if (++drainFrames < 12 || (persistence.WorldHoldReleasePending && drainFrames < 90)) return;
                 // Measured: the commit replaces the target archive in place and
                 // rebinds the path, so the interrupted save lands wherever the
                 // scope's prepared descriptor now points, not at its leaf name.
@@ -350,7 +356,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var committed = persistence.LastDrainedSaveCommitted;
                 var currentHash = Hash(drainGoodPath);
                 // The user's prior pause state comes back with settlement.
-                drainPauseRestored = game.IsPaused == drainPausedBeforeStop;
+                drainPauseDepthAtSettle = MountedPersistenceService.NativePauseDepth();
+                drainPauseRestored = drainPauseDepthAtSettle == drainPauseDepthBeforeStop &&
+                    game.IsPaused == drainPausedBeforeStop && !persistence.WorldHoldReleasePending;
                 Write("drain-settled", DrainDetail(currentHash));
                 Check(drainPauseRestored, "P07-user-pause-state-is-restored-at-settlement");
                 Check(persistence.DrainedSaveCount == 1 && !persistence.SaveDraining &&
@@ -530,6 +538,14 @@ namespace KingmakerMountedCombat.Diagnostics
             ["pausedBeforeStop"] = drainPausedBeforeStop,
             ["heldPaused"] = drainHeldPaused,
             ["pauseRequestedAtStop"] = drainPauseRequestedAtStop,
+            // Pause is a counted mode; the hold is judged and undone by depth.
+            ["pauseDepthBeforeStop"] = drainPauseDepthBeforeStop,
+            ["pauseDepthNow"] = MountedPersistenceService.NativePauseDepth(),
+            ["pauseDepthAtSettle"] = drainPauseDepthAtSettle,
+            ["holdDepthBefore"] = persistence.WorldHoldDepthBefore,
+            ["worldReleasePending"] = persistence.WorldHoldReleasePending,
+            ["worldReleases"] = persistence.WorldHoldReleasedCount,
+            ["worldReleasePops"] = persistence.WorldReleasePops,
             ["pauseRestored"] = drainPauseRestored,
             ["resetDeferred"] = drainResetDeferred,
             ["resetDeferrals"] = persistence.ResetToMainMenuDeferredCount,
