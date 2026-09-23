@@ -242,11 +242,21 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites) return;
                 if (++drainFrames < 10) return;
-                // A real subsequent save must still work after the drain. It uses
-                // a fresh descriptor rather than the one the interrupted save
-                // already replaced and rebound, matching the ordinary save path.
+                // A real subsequent save must still work after the drain. The
+                // descriptor is re-resolved from the manager's current
+                // enumeration rather than reusing the object the interrupted save
+                // replaced and rebound; CreateNewSave cannot be used here because
+                // it has no assigned leaf yet and the isolated authority refuses
+                // an undeclared one.
                 callback = false;
-                game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);
+                var target = game.SaveManager.FirstOrDefault(s => s.FolderName == drainGoodPath)
+                    ?? game.SaveManager.Where(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
+                        .OrderByDescending(s => new FileInfo(s.FolderName).LastWriteTimeUtc).First();
+                Write("drain-subsequent-requested", new JObject {
+                    ["path"] = target.FolderName, ["fileName"] = target.FileName,
+                    ["operation"] = target.OperationState.ToString(),
+                    ["sha256"] = Hash(target.FolderName) });
+                game.SaveGame(target, () => callback = true);
                 drainFrames = 0; drainStage = 4;
                 return;
             }
