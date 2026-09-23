@@ -33,6 +33,18 @@ namespace KingmakerMountedCombat.Integration
             return (Task)SaveTask.GetValue(routine);
         }
 
+        // Observation form: yields null instead of throwing for a routine that is
+        // not the native save iterator, so capturing the worker never changes
+        // control flow or masks another failure.
+        internal static Task TaskIfNative(IEnumerator<object> routine) =>
+            routine != null && routine.GetType() == Iterator ? (Task)SaveTask.GetValue(routine) : null;
+
+        // May an owned save scope release its protections now? Only when no
+        // worker ever started, or the one that did can no longer commit. A
+        // faulted or canceled task is finished and therefore releasable; a
+        // running one is not, and nothing in the engine can cancel it.
+        internal static bool CanReleaseScope(Task worker) => worker == null || worker.IsCompleted;
+
         internal static void RestoreCompletedPlayerReference(IEnumerator<object> routine, Player world, SceneEntitiesState party)
         {
             if (world == null || party == null) return;

@@ -19,6 +19,27 @@ namespace KingmakerMountedCombat.Integration
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private SaveScope activeSave;
+        // A save whose wrapper was disposed early while its archive worker was
+        // still able to commit. Its protections stay held until the worker
+        // settles, so this is never null at the same time as a released scope.
+        private SaveScope drainingSave;
+
+        internal int DeferredSaveCancellationCount { get; private set; }
+        internal int DrainedSaveCount { get; private set; }
+        internal bool LastDrainedSaveCommitted { get; private set; }
+        internal bool SaveDraining => drainingSave != null;
+        // Per-operation identity, so a test can prove THIS save's worker was
+        // still running when interruption was requested rather than relying on a
+        // cumulative count.
+        internal string ActiveSaveLeaf => (activeSave ?? drainingSave)?.Prepared?.FileName;
+        internal int ActiveSaveWorkerId
+        {
+            get { var task = (activeSave ?? drainingSave)?.Worker; return task == null ? -1 : task.Id; }
+        }
+        internal bool ActiveSaveWorkerRunning
+        {
+            get { var task = (activeSave ?? drainingSave)?.Worker; return task != null && !task.IsCompleted; }
+        }
         private long loadSequence;
         private LoadScope restoreLoad;
         private MountedSaveReadResult loaded;
@@ -63,19 +84,25 @@ namespace KingmakerMountedCombat.Integration
                 activeSave = scope;
             }, () =>
             {
-                try
+                // A native StopAll disposes this wrapper without the archive
+                // worker having finished, and disposal never reaches the
+                // completion path's wait. Releasing here would resume AI,
+                // controls and serialization while the worker can still commit,
+                // and would clear the overlap guard. Nothing can cancel a started
+                // worker, so defer the release and let Update drain it; the
+                // outcome is only reported once the worker settles.
+                if (ReferenceEquals(activeSave, scope) && !NativeSaveWorkerBoundary.CanReleaseScope(scope.Worker))
                 {
-                    try { scope.RestoreAi?.Invoke(); }
-                    finally { if (scope.ControlsSuspended) controls.EndSaveSerializationScope(); }
-                }
-                finally
-                {
-                    if (ReferenceEquals(activeSave, scope))
+                    if (drainingSave == null)
                     {
-                        relationship.SaveSerializationSuspended = false;
-                        activeSave = null;
+                        drainingSave = scope;
+                        DeferredSaveCancellationCount++;
+                        NotifySaveStatus("This save is already writing and cannot be canceled; " +
+                            "finishing it before mounted controls resume.");
                     }
+                    return;
                 }
+                ReleaseSaveScope(scope);
             });
             var fault = diagnosticWait?.TryClaim(requestedSave) == true ? diagnosticWait : null;
             return Enabled ? DeferNativeSave(scoped, fault) : scoped;
@@ -83,11 +110,17 @@ namespace KingmakerMountedCombat.Integration
 
         private static IEnumerator<object> TrackNativeSave(IEnumerator<object> routine, SaveScope scope)
         {
+            scope.Routine = routine;
             using (routine)
             {
                 while (true)
                 {
                     NativeSaveWorkerBoundary.RestoreCompletedPlayerReference(routine, scope.World, scope.PartyState);
+                    // Capture the archive worker as soon as the native iterator
+                    // starts it. An interrupted save must be able to tell whether
+                    // its own worker can still commit, which a cumulative counter
+                    // cannot answer for one exact operation.
+                    if (scope.Worker == null) scope.Worker = NativeSaveWorkerBoundary.TaskIfNative(routine);
                     if (!routine.MoveNext()) break;
                     yield return routine.Current;
                 }
@@ -106,6 +139,51 @@ namespace KingmakerMountedCombat.Integration
             if (task.IsFaulted || task.IsCanceled || scope.Prepared.OperationState != SaveInfo.StateType.None ||
                 string.IsNullOrEmpty(scope.Prepared.FolderName) || !System.IO.File.Exists(scope.Prepared.FolderName))
                 throw new CompletedSaveFailureException("The native archive worker did not commit the requested save.");
+        }
+
+        private void ReleaseSaveScope(SaveScope scope)
+        {
+            try
+            {
+                try { scope.RestoreAi?.Invoke(); }
+                finally { if (scope.ControlsSuspended) controls.EndSaveSerializationScope(); }
+            }
+            finally
+            {
+                if (ReferenceEquals(activeSave, scope))
+                {
+                    relationship.SaveSerializationSuspended = false;
+                    activeSave = null;
+                }
+                if (ReferenceEquals(drainingSave, scope)) drainingSave = null;
+            }
+        }
+
+        // Non-blocking: called once per frame so required completion work keeps
+        // running while the abandoned worker finishes on its own thread.
+        private void DrainAbandonedSave()
+        {
+            var scope = drainingSave;
+            if (scope?.Worker == null || !scope.Worker.IsCompleted) return;
+            var committed = !scope.Worker.IsFaulted && !scope.Worker.IsCanceled && scope.Json != null &&
+                scope.Prepared != null && !string.IsNullOrEmpty(scope.Prepared.FolderName) &&
+                scope.Prepared.OperationState == SaveInfo.StateType.None &&
+                System.IO.File.Exists(scope.Prepared.FolderName);
+            try
+            {
+                // The worker temporarily clears this reference; the completion
+                // path restores it, and an abandoned one must do the same.
+                if (scope.Routine != null)
+                    NativeSaveWorkerBoundary.RestoreCompletedPlayerReference(scope.Routine, scope.World, scope.PartyState);
+            }
+            catch (Exception exception) { logger.Exception("Abandoned save could not restore its native world reference", exception); }
+            DrainedSaveCount++;
+            LastDrainedSaveCommitted = committed;
+            if (!committed) FailedSaveCount++;
+            ReleaseSaveScope(scope);
+            NotifySaveStatus(committed
+                ? "The interrupted save had already started writing and finished; that archive is complete."
+                : "The interrupted save did not complete; the previous complete save is unchanged.");
         }
 
         internal void ObservePreparedSave(SaveInfo save)
@@ -308,6 +386,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal void Update()
         {
+            DrainAbandonedSave();
             CompleteAreaTransitionIfReady();
             TryRestoreCombat();
             if (CombatRestorationPending) return;
@@ -368,6 +447,10 @@ namespace KingmakerMountedCombat.Integration
             internal string Json;
             internal bool ControlsSuspended;
             internal Action RestoreAi;
+            // Captured once the native iterator starts its archive worker, so an
+            // early disposal can tell whether that worker can still commit.
+            internal System.Threading.Tasks.Task Worker;
+            internal IEnumerator<object> Routine;
         }
     }
 }
