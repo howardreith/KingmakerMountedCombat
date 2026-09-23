@@ -604,9 +604,16 @@ foreach($bad in @('no-commit-failure','no-snapshot','clock-rewind')){
     Must-Reject {Assert-KmcRecoveryPersistenceEvidence $recoveryRequest $copy} ('P07 accepted '+$bad)
 }
 
+# An ordinary native transfer keeps CrossSceneRoot, so the party pair retains
+# its exact views; the qualification is that they stay live, bound and singly
+# owned, and that the recorded label agrees with the measured instance IDs.
 $areaRequest=[pscustomobject]@{persistenceCase='area-reload';fixture=[pscustomobject]@{working=[pscustomobject]@{area=('a'*32)}}}
+function New-KmcAreaActorRow { param([string]$Id,[int]$View)
+    [pscustomobject]@{id=$Id;nativeActorCount=1;baselineViewId=$View;viewId=$View;viewAlive=$true;
+        viewBound=$true;viewDisposition='retained';viewExactForPair=$true;boundToRelationship=$true}
+}
 $areaRows=@(
-    foreach($kind in @('area-initial-write','area-reload-requested','area-reload-complete','native-write-complete')){
+    foreach($kind in @('area-initial-write','area-reload-requested','area-reload-observed','area-reload-complete','native-write-complete')){
         [pscustomobject]@{kind=$kind;gameTicks=100;native=[pscustomobject]@{paused=$false};
             persistence=[pscustomobject]@{semantics=0;presentation=0};
             controls=[pscustomobject]@{ExactFactCount=5;ManagedHotbarSlotCount=2;SerializationSuspended=$false};
@@ -614,23 +621,41 @@ $areaRows=@(
             mount=[pscustomobject]@{Standard=0;Move=2;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1};
             detail=[pscustomobject]@{area=('a'*32);suspensions=0;resumes=0;pending=$false;
                 suspensionObserved=$true;loadingFrames=10;sameWorld=$true;riderView=1;mountView=2;
-                nativeCastRequests=0;ordinal=2;sha256=('a'*64)}}
+                nativeCastRequests=0;ordinal=2;sha256=('a'*64);expectedViewDisposition='retained';
+                loadingInProcess=$false;queuedLoads=0;deferredSaveWaiting=$false;mountedInvariant=$null;
+                presentation='relationship=Mounted;riderViewExact=True';
+                riderActor=(New-KmcAreaActorRow 'owned-rider' 1);mountActor=(New-KmcAreaActorRow 'owned-mount' 2)}}
     }
 )
-$areaRows[2].detail.suspensions=1;$areaRows[2].detail.resumes=1
-$areaRows[2].detail.riderView=3;$areaRows[2].detail.mountView=4;$areaRows[3].detail.sha256=('b'*64)
+foreach($i in 2,3){$areaRows[$i].detail.suspensions=1;$areaRows[$i].detail.resumes=1}
+$areaRows[4].detail.sha256=('b'*64)
 Assert-KmcAreaPersistenceEvidence $areaRequest $areaRows;$passes++
-foreach($bad in @('same-views','no-unload','duplicate-resume','wrong-world','remount','debt-refund','reaction-refresh','missing-slots')){
+foreach($bad in @('replaced-views','mislabeled-disposition','missing-view','unbound-view','stale-pair-view',
+    'duplicate-native-actor','broken-invariant','relabeled-expectation','no-observation','late-observation',
+    'legacy-view-drift','unsettled-queue','observed-mid-load','no-unload','duplicate-resume','wrong-world',
+    'remount','debt-refund','reaction-refresh','missing-slots')){
     $copy=($areaRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json
     switch($bad){
-        'same-views' {$copy[2].detail.riderView=1}
-        'no-unload' {$copy[2].detail.suspensionObserved=$false}
-        'duplicate-resume' {$copy[2].detail.resumes=2}
-        'wrong-world' {$copy[2].detail.sameWorld=$false}
-        'remount' {$copy[2].detail.nativeCastRequests=1}
-        'debt-refund' {$copy[2].rider.Standard=0}
-        'reaction-refresh' {$copy[2].rider.ReactionsRemaining=1}
-        'missing-slots' {$copy[2].controls.ManagedHotbarSlotCount=0}
+        'replaced-views' {$copy[3].detail.riderActor.viewId=9;$copy[3].detail.riderActor.viewDisposition='replaced';$copy[3].detail.riderView=9}
+        'mislabeled-disposition' {$copy[3].detail.mountActor.viewId=9}
+        'missing-view' {$copy[2].detail.riderActor.viewAlive=$false;$copy[2].detail.riderActor.viewId=$null}
+        'unbound-view' {$copy[3].detail.mountActor.viewBound=$false}
+        'stale-pair-view' {$copy[3].detail.riderActor.viewExactForPair=$false}
+        'duplicate-native-actor' {$copy[3].detail.mountActor.nativeActorCount=2}
+        'broken-invariant' {$copy[3].detail.mountedInvariant='A mounted unit view was detached or replaced.'}
+        'relabeled-expectation' {foreach($i in 1,2,3){$copy[$i].detail.expectedViewDisposition='replaced'}}
+        'no-observation' {$copy=@($copy[0],$copy[1],$copy[3],$copy[4])}
+        'late-observation' {$copy=@($copy[0],$copy[1],$copy[3],$copy[2],$copy[4])}
+        'legacy-view-drift' {$copy[3].detail.mountView=9}
+        'unsettled-queue' {$copy[3].detail.queuedLoads=1}
+        'observed-mid-load' {$copy[2].detail.loadingInProcess=$true}
+        'no-unload' {$copy[3].detail.suspensionObserved=$false}
+        'duplicate-resume' {$copy[3].detail.resumes=2}
+        'wrong-world' {$copy[3].detail.sameWorld=$false}
+        'remount' {$copy[3].detail.nativeCastRequests=1}
+        'debt-refund' {$copy[3].rider.Standard=0}
+        'reaction-refresh' {$copy[3].rider.ReactionsRemaining=1}
+        'missing-slots' {$copy[3].controls.ManagedHotbarSlotCount=0}
     }
     Must-Reject {Assert-KmcAreaPersistenceEvidence $areaRequest $copy} ('P07 area accepted '+$bad)
 }

@@ -810,26 +810,73 @@ function Assert-KmcRecoveryPersistenceEvidence {
     }
 }
 
+# One actor's native view evidence. A disposition label alone proves nothing:
+# it must agree with the measured instance IDs, and the view must still be the
+# live, bound, singly owned view of that exact actor.
+function Assert-KmcAreaViewEvidence {
+    param($Actor,[string]$Expected,[string]$Label)
+    if($null-eq$Actor){throw "P07 area evidence has no $Label native view observation."}
+    if($Actor.nativeActorCount-ne1-or$Actor.viewAlive-ne$true-or$Actor.viewBound-ne$true-or
+        $Actor.viewExactForPair-ne$true-or$Actor.boundToRelationship-ne$true-or
+        [string]::IsNullOrEmpty([string]$Actor.id)-or$null-eq$Actor.viewId){
+        throw "P07 area $Label view is missing, duplicated, unbound or not the owned pair view."
+    }
+    if($Actor.viewDisposition-cne$Expected){
+        throw "P07 area $Label native view was $($Actor.viewDisposition), not the verified $Expected contract."
+    }
+    if((([int]$Actor.viewId-eq[int]$Actor.baselineViewId))-ne($Expected-ceq'retained')){
+        throw "P07 area $Label view disposition label contradicts its measured native instance IDs."
+    }
+}
+
 function Assert-KmcAreaPersistenceEvidence {
     param($Request,$Rows)
     $before=@($Rows|Where-Object kind -CEQ 'area-reload-requested')
+    $observed=@($Rows|Where-Object kind -CEQ 'area-reload-observed')
     $after=@($Rows|Where-Object kind -CEQ 'area-reload-complete')
     $initial=@($Rows|Where-Object kind -CEQ 'area-initial-write')
     $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
-    if($Request.persistenceCase-cne'area-reload'-or$before.Count-ne1-or$after.Count-ne1-or$initial.Count-ne1-or$written.Count-ne1){
-        throw 'P07 area case lacks its exact native request, replacement, and two write completions.'
+    if($Request.persistenceCase-cne'area-reload'-or$before.Count-ne1-or$observed.Count-ne1-or$after.Count-ne1-or
+        $initial.Count-ne1-or$written.Count-ne1){
+        throw 'P07 area case lacks its exact native request, pre-qualification view observation and two write completions.'
     }
-    $a=$before[0];$b=$after[0];$d=$b.detail
+    $kinds=@($Rows|ForEach-Object{$_.kind})
+    if([Array]::IndexOf($kinds,'area-reload-observed')-le[Array]::IndexOf($kinds,'area-reload-requested')-or
+        [Array]::IndexOf($kinds,'area-reload-observed')-ge[Array]::IndexOf($kinds,'area-reload-complete')){
+        throw 'P07 area view observation must be recorded after the native request and before its qualification.'
+    }
+    $a=$before[0];$o=$observed[0];$b=$after[0];$d=$b.detail
+    # Installed Game.LoadArea 06000CD5 passes (saveInfo != null) as
+    # SceneLoader.UnloadEntitiesCoroutine 06008096's unloadCrossScene, and an
+    # ordinary transfer passes none, so CrossSceneRoot and the party pair's
+    # exact native views survive. Replacement is the save-load contract.
+    $expectedDisposition='retained'
+    if($d.expectedViewDisposition-cne$expectedDisposition-or$o.detail.expectedViewDisposition-cne$expectedDisposition-or
+        $a.detail.expectedViewDisposition-cne$expectedDisposition){
+        throw 'P07 area case must qualify the verified retained native cross-scene view contract.'
+    }
+    foreach($row in @($a,$o,$b)){
+        Assert-KmcAreaViewEvidence $row.detail.riderActor $expectedDisposition 'rider'
+        Assert-KmcAreaViewEvidence $row.detail.mountActor $expectedDisposition 'mount'
+        if(-not[string]::IsNullOrEmpty([string]$row.detail.mountedInvariant)){
+            throw ('P07 area left a broken mounted attachment invariant: '+$row.detail.mountedInvariant)
+        }
+    }
+    if($o.detail.loadingInProcess-ne$false-or$o.detail.suspensions-ne1-or$o.detail.resumes-ne1-or
+        $o.detail.sameWorld-ne$true-or$o.detail.area-cne$d.area-or$o.detail.nativeCastRequests-ne0-or
+        $d.loadingInProcess-ne$false-or$d.queuedLoads-ne0-or$d.deferredSaveWaiting-ne$false){
+        throw 'P07 area was qualified before the native world, suspension or loading queue actually settled.'
+    }
     if($a.detail.suspensions-ne0-or$a.detail.resumes-ne0-or$d.suspensions-ne1-or$d.resumes-ne1-or
         $d.pending-ne$false-or$d.suspensionObserved-ne$true-or$d.loadingFrames-lt1-or$d.sameWorld-ne$true-or
         $d.area-cne$Request.fixture.working.area-or$a.detail.area-cne$d.area-or
-        $d.riderView-eq$a.detail.riderView-or$d.mountView-eq$a.detail.mountView-or$d.nativeCastRequests-ne0-or
+        $d.riderView-ne$a.detail.riderView-or$d.mountView-ne$a.detail.mountView-or$d.nativeCastRequests-ne0-or
         $b.persistence.semantics-ne0-or$b.persistence.presentation-ne0-or$b.native.paused-ne$false-or
         $b.controls.ExactFactCount-ne$a.controls.ExactFactCount-or
         $b.controls.ManagedHotbarSlotCount-ne$a.controls.ManagedHotbarSlotCount-or
         $b.controls.SerializationSuspended-ne$false-or$written[0].detail.ordinal-ne2-or
         $initial[0].detail.sha256-ceq$written[0].detail.sha256){
-        throw 'P07 area replacement lost native identity, exactly-once controls or actual post-area save.'
+        throw 'P07 area transfer lost native identity, exactly-once controls or actual post-area save.'
     }
     $elapsed=[Math]::Max(0,([double]$b.gameTicks-[double]$a.gameTicks)/10000000)
     foreach($actor in @('rider','mount')){
