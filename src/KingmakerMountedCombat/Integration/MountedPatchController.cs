@@ -274,7 +274,13 @@ namespace KingmakerMountedCombat.Integration
                 transpiler == null ? null : new HarmonyMethod(transpiler));
         }
 
-        internal static void ReportFailedSave(Exception exception) => PatchBridge.Persistence?.ReportFailedSave(exception);
+        internal static void ReportFailedSave(Exception exception, object operation) =>
+            PatchBridge.Persistence?.ReportFailedSave(exception, operation);
+
+        // Observation for the unload-refusal probe: the bridged services are
+        // still installed. This only ever turns false once Dispose has run.
+        internal static bool BridgeInstalled =>
+            PatchBridge.Persistence != null && PatchBridge.NativeControls != null && PatchBridge.Service != null;
 
         // A native loading process that failed and is not an owned save being
         // retired. Observation only: the exception is rethrown unchanged.

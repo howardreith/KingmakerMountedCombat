@@ -79,7 +79,8 @@ namespace KingmakerMountedCombat.Integration
             if (record == null || operation == null || (!operation.FailedBeforeSerialization && !operation.FailedAfterNativeCleanup) ||
                 !ReferenceEquals(Enumerator(record), operation)) return false;
             Callback.SetValue(record, null);
-            MountedPatchController.ReportFailedSave(exception);
+            // The retired wrapper identifies WHICH queued operation failed.
+            MountedPatchController.ReportFailedSave(exception, operation);
             return true;
         }
 

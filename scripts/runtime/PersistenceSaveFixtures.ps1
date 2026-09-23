@@ -1013,6 +1013,14 @@ function Assert-KmcDisableLifecycleEvidence {
     if($refused.detail.failedSaves-ne0-or$saved.detail.failedSaves-ne0){
         throw 'P07 refused disable damaged the save it declined to interrupt.'
     }
+    # The registered unload at the same boundary: refused after its bounded
+    # teardown wait, having unpatched and released nothing. A wait that expired
+    # is recorded as NOT settled, never as permission.
+    if($refused.detail.unloadRefused-ne$true-or$refused.detail.patchesIntactAfterUnload-ne$true-or
+        $refused.detail.teardownSettledAtProbe-ne$false-or
+        $refused.detail.teardownDrainsAtProbe-ne($refused.detail.teardownDrainsBefore+1)){
+        throw 'P07 registered unload was not refused with the root, patches and leases intact.'
+    }
     # The serializer may omit default or null members, so absent and explicitly
     # empty both count as "no pair"; anything present and populated does not.
     $snapshot=$written[0].detail.snapshot

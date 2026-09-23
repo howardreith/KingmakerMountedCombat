@@ -107,15 +107,17 @@ namespace KingmakerMountedCombat.Integration
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> routine, SaveInfo requestedSave)
         {
-            var scope = new SaveScope {
-                CommitsAtStart = NativeMountedArchiveCommit.CommitCount,
-                RequestedPath = requestedSave?.FolderName
-            };
-            scope.PreviousExisted = !string.IsNullOrEmpty(scope.RequestedPath) &&
-                System.IO.File.Exists(scope.RequestedPath);
+            var scope = new SaveScope { RequestedPath = requestedSave?.FolderName };
             var scoped = new ScopedEnumerator<object>(TrackNativeSave(routine, scope), () =>
             {
                 if (activeSave != null) throw new InvalidOperationException("Overlapping native save enumerations.");
+                // The operation starts here, after every earlier queued save has
+                // finished, so this is where its commit bracket and the state of
+                // its slot are taken.
+                scope.Began = true;
+                scope.CommitsAtStart = NativeMountedArchiveCommit.CommitCount;
+                scope.PreviousExisted = !string.IsNullOrEmpty(scope.RequestedPath) &&
+                    System.IO.File.Exists(scope.RequestedPath);
                 activeSave = scope;
             }, () =>
             {
@@ -142,7 +144,51 @@ namespace KingmakerMountedCombat.Integration
                 ReleaseSaveScope(scope);
             });
             var fault = diagnosticWait?.TryClaim(requestedSave) == true ? diagnosticWait : null;
-            return Enabled ? DeferNativeSave(scoped, fault) : scoped;
+            var operation = Enabled ? DeferNativeSave(scoped, fault) : scoped;
+            // The object handed to the native queue is the key a retired failure
+            // comes back with, so its outcome is described from its own scope.
+            ScopesByOperation.Add(operation, scope);
+            return operation;
+        }
+
+        // Operation-keyed, never process-global: queued saves are wrapped long
+        // before they run, and only the wrapper the native queue retires can say
+        // which operation actually failed.
+        private System.Runtime.CompilerServices.ConditionalWeakTable<object, SaveScope> scopesByOperation;
+        private System.Runtime.CompilerServices.ConditionalWeakTable<object, SaveScope> ScopesByOperation =>
+            scopesByOperation ?? (scopesByOperation = new System.Runtime.CompilerServices.ConditionalWeakTable<object, SaveScope>());
+
+        // Saves whose archive was committed and whose later cleanup, descriptor
+        // rebinding or notification then failed. They are reported as written,
+        // not as failed, and are counted here rather than in FailedSaveCount.
+        internal int CommittedThenFailedCount { get; private set; }
+
+        // The single factual description shared by ordinary completion, an
+        // abandoned operation that drained, and a commit whose cleanup failed.
+        private NativeSaveOutcomeReport DescribeOutcome(SaveScope scope, string detail)
+        {
+            // An operation that never began its routine cannot have committed,
+            // and the state of its slot now IS its previous state.
+            var kind = !scope.Began
+                ? NativeSaveCommitKind.NotWritten
+                : NativeSaveCommitOutcome.Decide(scope.CommitsAtStart, NativeMountedArchiveCommit.CommitCount,
+                    NativeMountedArchiveCommit.LastCommittedDestination, scope.RequestedPath,
+                    scope.Prepared?.FolderName, System.IO.File.Exists);
+            var present = !string.IsNullOrEmpty(scope.RequestedPath) && System.IO.File.Exists(scope.RequestedPath);
+            var previousExisted = scope.Began ? scope.PreviousExisted : present;
+            return NativeSaveOutcomeReport.Describe(kind, previousExisted, present, detail);
+        }
+
+        internal NativeSaveOutcomeReport DescribeFailedOperation(object operation, Exception exception)
+        {
+            SaveScope scope;
+            if (operation == null || !ScopesByOperation.TryGetValue(operation, out scope))
+            {
+                // Not an operation this service wrapped: nothing about its
+                // archive is known, and nothing about it may be promised.
+                return NativeSaveOutcomeReport.Describe(NativeSaveCommitKind.Unconfirmed, false, false, exception?.Message);
+            }
+            return DescribeOutcome(scope, exception?.Message);
         }
 
         private static IEnumerator<object> TrackNativeSave(IEnumerator<object> routine, SaveScope scope)
@@ -215,6 +261,10 @@ namespace KingmakerMountedCombat.Integration
 
         private void ReleaseSaveScope(SaveScope scope)
         {
+            // Exactly once, whichever path gets here first: the end action of
+            // an ordinary enumeration, the per-frame drain, or teardown.
+            if (scope == null || scope.Released) return;
+            scope.Released = true;
             try
             {
                 try { scope.RestoreAi?.Invoke(); }
@@ -237,20 +287,35 @@ namespace KingmakerMountedCombat.Integration
         // which to finish. Nothing can cancel a started worker, so wait for it —
         // bounded, so a stuck worker can never hang the game's own unload, and
         // reporting whether it actually settled rather than assuming it did.
-        internal bool DrainForTeardown(int milliseconds)
+        // The verdict must be CONSUMED by the caller: Refused means nothing was
+        // released and nothing may be unpatched or cleaned up. A bounded wait
+        // expiring is not evidence that cleanup is safe, and ownership that could
+        // not be established never authorizes it. Logger-free on purpose, so the
+        // decision is testable on a bare service; the caller reports.
+        internal OwnedWorkerTeardownVerdict DrainForTeardown(int milliseconds)
         {
-            System.Threading.Tasks.Task worker;
-            // Only a settled, genuinely absent worker means "nothing to wait for".
-            // If ownership could not be established, wait rather than assume.
-            if (ResolveWorker(activeSave ?? drainingSave, out worker) && worker == null) return true;
-            if (worker == null) return true;
-            TeardownDrainCount++;
-            var settled = NativeSaveWorkerBoundary.WaitForWorkerSettlement(worker, milliseconds);
-            LastTeardownDrainSettled = settled;
-            if (settled) DrainAbandonedSave();
-            else logger.Error("An owned archive worker had not finished within the bounded teardown wait; " +
-                "mounted teardown proceeded without it.");
-            return settled;
+            var scope = activeSave ?? drainingSave;
+            System.Threading.Tasks.Task worker = null;
+            var established = scope != null && ResolveWorker(scope, out worker);
+            if (scope != null) TeardownDrainCount++;
+            var verdict = OwnedWorkerTeardownPolicy.Decide(scope != null, established, worker,
+                NativeSaveWorkerBoundary.WaitForWorkerSettlement, milliseconds);
+            LastTeardownDrainSettled = verdict != OwnedWorkerTeardownVerdict.Refused;
+            if (verdict == OwnedWorkerTeardownVerdict.Settled) FinalizeSettledScope(scope);
+            return verdict;
+        }
+
+        // The worker, if there was one, has settled, so nothing on another
+        // thread reads the live graphs any more. Finalize exactly once whichever
+        // scope owns the operation: a draining one reports its truthful outcome;
+        // an active one that was never abandoned is released here, because
+        // teardown leaves no later frame for its own end action, which then
+        // finds the scope already released and does nothing.
+        private void FinalizeSettledScope(SaveScope scope)
+        {
+            if (scope == null || scope.Released) return;
+            if (ReferenceEquals(drainingSave, scope)) { DrainAbandonedSave(); return; }
+            ReleaseSaveScope(scope);
         }
 
         // Non-blocking: called once per frame so required completion work keeps
@@ -275,11 +340,9 @@ namespace KingmakerMountedCombat.Integration
             // still written the save, and a faulted task alone never establishes
             // that the previous archive is untouched.
             var landed = NativeMountedArchiveCommit.LastCommittedDestination;
-            var outcome = NativeSaveCommitOutcome.Decide(scope.CommitsAtStart,
-                NativeMountedArchiveCommit.CommitCount, landed, scope.RequestedPath,
-                scope.Prepared?.FolderName, System.IO.File.Exists);
-            var committed = outcome == NativeSaveCommitKind.Committed;
-            var outcomeEstablished = outcome != NativeSaveCommitKind.Unconfirmed;
+            var report = DescribeOutcome(scope, null);
+            var committed = report.Kind == NativeSaveCommitKind.Committed;
+            var outcomeEstablished = report.Kind != NativeSaveCommitKind.Unconfirmed;
             try
             {
                 // The worker temporarily clears this reference; the completion
@@ -295,33 +358,11 @@ namespace KingmakerMountedCombat.Integration
             // the prepared leaf does not: the commit replaces its target in place
             // and rebinds the path.
             LastDrainedSavePath = committed ? landed : null;
-            if (!committed) FailedSaveCount++;
+            if (report.CountsAsFailed) FailedSaveCount++;
             ReleaseSaveScope(scope);
-            if (committed)
-            {
-                NotifySaveStatus("The interrupted save had already finished writing; that archive is complete.");
-            }
-            else if (!outcomeEstablished)
-            {
-                // Never promise unchanged bytes here: this is exactly the case
-                // where the outcome was not established.
-                NotifySaveStatus("The interrupted save could not be confirmed. Check this save slot before " +
-                    "relying on it.");
-            }
-            else if (scope.PreviousExisted && System.IO.File.Exists(scope.RequestedPath))
-            {
-                NotifySaveStatus("The interrupted save did not write; the previous complete save is unchanged.");
-            }
-            else if (scope.PreviousExisted)
-            {
-                NotifySaveStatus("The interrupted save did not write, and the earlier save is no longer in place. " +
-                    "Check this save slot before relying on it.");
-            }
-            else
-            {
-                NotifySaveStatus("The interrupted save did not write, and there was no earlier save in this slot " +
-                    "to keep.");
-            }
+            // Same factual report as the ordinary completion path; only the
+            // prefix says this one was interrupted.
+            NotifySaveStatus("Interrupted save: " + report.Message);
         }
 
         internal void ObservePreparedSave(SaveInfo save)
@@ -588,13 +629,21 @@ namespace KingmakerMountedCombat.Integration
             // Captured once the native iterator starts its archive worker, so an
             // early disposal can tell whether that worker can still commit.
             internal System.Threading.Tasks.Task Worker;
-            // Captured when the scope opens, so the drain can tell a commit of ITS
-            // own from any other, and can say whether a previous archive existed
-            // at all rather than promising one that never did.
+            // Captured when the operation actually BEGINS its native routine, not
+            // when it is wrapped: queued saves are wrapped long before they run,
+            // and an earlier queued save committing to the same slot in between
+            // would otherwise be attributed to this one. Lets the outcome tell a
+            // commit of ITS own from any other, and say whether a previous
+            // archive existed at all rather than promising one that never did.
+            internal bool Began;
             internal int CommitsAtStart;
             internal string RequestedPath;
             internal bool PreviousExisted;
             internal IEnumerator<object> Routine;
+            // Exactly-once finalization across every path that can end the
+            // scope: ordinary completion, StopAll, disable, unload, update
+            // failure and session stop.
+            internal bool Released;
         }
     }
 }

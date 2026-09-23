@@ -96,10 +96,16 @@ namespace KingmakerMountedCombat.Integration
                 }, 30d);
         }
 
-        internal void ReportFailedSave(Exception exception)
+        // The ordinary completion path's failure report. What is said depends on
+        // what happened to THIS operation's archive, decided at the commit
+        // boundary: a worker that committed and then failed in cleanup has still
+        // written the save, and "the previous save is unchanged" is only said
+        // when one existed and is still there.
+        internal void ReportFailedSave(Exception exception, object operation)
         {
-            FailedSaveCount++;
-            NotifySaveStatus("Save did not complete; the previous complete save is unchanged. " + exception.Message);
+            var report = DescribeFailedOperation(operation, exception);
+            if (report.CountsAsFailed) FailedSaveCount++; else CommittedThenFailedCount++;
+            NotifySaveStatus(report.Message);
         }
 
         private void NotifySaveStatus(string message)

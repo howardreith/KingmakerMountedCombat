@@ -131,6 +131,7 @@
     <Compile Include="Integration\NativeMountedSaveStorage.cs" />
     <Compile Include="Integration\NativeMountedArchiveCommit.cs" />
     <Compile Include="Integration\NativeSaveCommitOutcome.cs" />
+    <Compile Include="Domain\OwnedWorkerTeardownPolicy.cs" />
     <Compile Include="Integration\MountedPersistenceService.cs" />
     <Compile Include="Integration\MountedAreaPersistence.cs" />
     <Compile Include="Integration\MountedCombatPersistenceService.cs" />
