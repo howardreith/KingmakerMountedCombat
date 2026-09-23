@@ -124,10 +124,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 campaignSaveTicks = game.TimeController.GameTime.Ticks;
                 campaignBindings = controls.CapturePersistentSlots();
                 Check(campaignBindings.Length > 0, "P07-campaign-B-owned-bindings-exist-before-departure");
-                // A NEW archive for the post-expenditure state: CreateNewSave
-                // allocates the next declared leaf rather than replacing 300.
+                // A NEW archive for the post-expenditure state, under its own
+                // name: CreateNewSave 06008015 makes a repeated name unique, so a
+                // second "KMC_P01" would land on an undeclared leaf and be
+                // refused; the numbered leaf itself is allocated by PrepareSave.
                 callback = false;
-                var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
+                var descriptor = game.SaveManager.CreateNewSave(NativeCampaignBootstrap.SecondFixtureName);
                 Check(descriptor.Type == SaveInfo.SaveType.Manual && game.SaveManager.IsSaveAllowed(),
                     "P07-campaign-B-second-A-save-admission");
                 game.SaveGame(descriptor, () => callback = true);
@@ -138,7 +140,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!callback || NativePersistenceIsolation.HasPendingWrites || LoadingProcess.Instance.IsLoadingInProcess)
                 { if (++campaignFrames > 2400) throw new InvalidOperationException("P07 campaign B second A save never completed: " + persistence.Feedback); return; }
-                var second = game.SaveManager.Where(s => s.Name == "KMC_P01" && s.HasFileOnDisk && s.FileName == "Manual_301_KMC_P01.zks").ToArray();
+                var second = game.SaveManager.Where(s => s.Name == NativeCampaignBootstrap.SecondFixtureName && s.HasFileOnDisk &&
+                    s.FileName == NativeCampaignBootstrap.SecondFixtureLeaf).ToArray();
                 Check(second.Length == 1 && second[0].OperationState == SaveInfo.StateType.None,
                     "P07-second-A-archive-is-the-exact-declared-leaf");
                 aSecondPath = second[0].FolderName; aSecondHash = Hash(aSecondPath);
@@ -294,7 +297,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["aFirstSha256"] = Hash(aFirstPath), ["aSecondSha256"] = Hash(aSecondPath) }));
                 // Back to A through the ordinary main-menu load path, from
                 // inside B's live world: exactly what a player does.
-                var target = game.SaveManager.Single(s => s.FileName == "Manual_301_KMC_P01.zks");
+                var target = game.SaveManager.Single(s => s.FileName == NativeCampaignBootstrap.SecondFixtureLeaf);
                 Check(target.GameId == request.Fixture.Working.GameId && target.HasFileOnDisk, "P07-A-return-target-is-the-expended-archive");
                 callback = false; campaignFrames = 0;
                 game.SaveManager.AddCallbackAfterLoad(() => callback = true);

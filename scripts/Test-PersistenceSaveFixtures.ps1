@@ -888,8 +888,8 @@ function New-KmcSyntheticArchive { param([string]$Path,[hashtable]$Header,$Kmc)
     }finally{$z.Dispose();$s.Dispose()}
     return (Get-KmcSha256 $Path)
 }
-$aSecondPath=Join-Path $campaignRoot 'Manual_301_KMC_P01.zks'
-$aSecondSha=New-KmcSyntheticArchive $aSecondPath ([ordered]@{Name='KMC_P01';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true})
+$aSecondPath=Join-Path $campaignRoot 'Manual_301_KMC_P01B.zks'
+$aSecondSha=New-KmcSyntheticArchive $aSecondPath ([ordered]@{Name='KMC_P01B';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true})
 $bKmc=[ordered]@{SchemaVersion=2;CampaignId=$bGameId;AreaId=$bArea;Mounted=$false;Slots=@()}
 $bAutoPath=Join-Path $campaignRoot 'Auto_1.zks'
 $bAutoSha=New-KmcSyntheticArchive $bAutoPath ([ordered]@{Name='Autosave1';Type='Auto';CompatibilityVersion=1;GameId=$bGameId;GameName=$bName;Area=$bArea}) $bKmc
@@ -918,7 +918,7 @@ $campaignRows=@(
         detail=[pscustomobject]@{ordinal=1;path=(Join-Path $campaignRoot 'Manual_300_KMC_P01.zks');sha256=$aFirstSha;length=10;nativeType='Manual'
             snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}},
     (New-KmcCampaignRow 'campaign-b-expenditure' 902 'Mounted' @{moved=2.5;bindings=2;loadedArea=$fixture.working.area
-        secondArchive=[pscustomobject]@{path=$aSecondPath;leaf='Manual_301_KMC_P01.zks';sha256=$aSecondSha;length=10;nativeType='Manual';gameId=$fixture.working.gameId
+        secondArchive=[pscustomobject]@{path=$aSecondPath;leaf='Manual_301_KMC_P01B.zks';sha256=$aSecondSha;length=10;nativeType='Manual';gameId=$fixture.working.gameId
             snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}}),
     (New-KmcCampaignRow 'campaign-b-departed' 903 'Unmounted' @{}),
     (New-KmcCampaignRow 'campaign-b-started' 903 'Unmounted' @{presetSource='dlc-endless';dlcEnabled=$true;presetArea=$bArea;enterPointArea=$bArea
@@ -999,13 +999,13 @@ foreach($bad in @('no-expenditure','out-of-order','not-moved','second-aliases-fi
 # leaks A's campaign is refused from its bytes, not from its row.
 $leakRoot=Join-Path $script:ownedTestLab 'runtime-staging/persistence-campaign-leak/Saved Games'
 [void][IO.Directory]::CreateDirectory($leakRoot)
-[void](New-KmcSyntheticArchive (Join-Path $leakRoot 'Manual_301_KMC_P01.zks') ([ordered]@{Name='KMC_P01';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true}))
+[void](New-KmcSyntheticArchive (Join-Path $leakRoot 'Manual_301_KMC_P01B.zks') ([ordered]@{Name='KMC_P01B';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true}))
 $leakSha=New-KmcSyntheticArchive (Join-Path $leakRoot 'Auto_1.zks') ([ordered]@{Name='Autosave1';Type='Auto';CompatibilityVersion=1;GameId=$bGameId;GameName=$bName;Area=$bArea}) ([ordered]@{SchemaVersion=2;CampaignId=$fixture.working.gameId;AreaId=$bArea;Mounted=$false;Slots=@()})
 $leak=($campaignRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
 $leakRequest=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='campaign-b';runId='campaign-leak';fixture=$fixture}
 foreach($row in $leak){ if($null-ne$row.detail){ foreach($p in @('path')){ if($null-ne$row.detail.PSObject.Properties[$p]){$row.detail.$p=$row.detail.$p.Replace('persistence-campaign-source','persistence-campaign-leak')} } } }
 $leak[2].detail.secondArchive.path=$leak[2].detail.secondArchive.path.Replace('persistence-campaign-source','persistence-campaign-leak')
-$leak[2].detail.secondArchive.sha256=(Get-KmcSha256 (Join-Path $leakRoot 'Manual_301_KMC_P01.zks'))
+$leak[2].detail.secondArchive.sha256=(Get-KmcSha256 (Join-Path $leakRoot 'Manual_301_KMC_P01B.zks'))
 $leak[5].detail.autosave.path=Join-Path $leakRoot 'Auto_1.zks';$leak[5].detail.autosave.sha256=$leakSha;$leak[5].detail.autosave.length=(Get-Item -LiteralPath (Join-Path $leakRoot 'Auto_1.zks')).Length
 $leak[5].detail.manualAllowed=$false;$leak[5].detail.manualSaved=$false;$leak[5].detail.manual=$null;$leak[6].detail.bManualSha256=$null
 $leak[3].detail.aSecondHash=$leak[2].detail.secondArchive.sha256;$leak[5].detail.aSecondSha256=$leak[2].detail.secondArchive.sha256;$leak[6].detail.aSecondSha256=$leak[2].detail.secondArchive.sha256

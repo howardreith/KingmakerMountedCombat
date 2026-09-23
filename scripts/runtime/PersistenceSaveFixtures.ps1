@@ -1180,7 +1180,7 @@ function Assert-KmcCampaignBEvidence {
     }
     $second=$e.secondArchive
     if($stages['campaign-b-expenditure'].relationship-cne'Mounted'-or$e.moved-le1-or$e.bindings-le0-or$e.snapshots-ne2-or
-        $null-eq$second-or$second.path-cne(Join-Path $root 'Manual_301_KMC_P01.zks')-or$second.leaf-cne'Manual_301_KMC_P01.zks'-or
+        $null-eq$second-or$second.path-cne(Join-Path $root 'Manual_301_KMC_P01B.zks')-or$second.leaf-cne'Manual_301_KMC_P01B.zks'-or
         $second.sha256-cnotmatch'^[0-9a-f]{64}$'-or$second.sha256-ceq$w.sha256-or$second.nativeType-cne'Manual'-or
         $second.gameId-cne$fixtureGameId-or$second.snapshot.Mounted-ne$true-or
         $second.snapshot.Rider.Id-cne$riderId-or$second.snapshot.Mount.Id-cne$mountId-or

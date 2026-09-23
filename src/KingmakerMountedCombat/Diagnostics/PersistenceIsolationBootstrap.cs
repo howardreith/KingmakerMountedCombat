@@ -110,11 +110,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     var afterEntry = cross && request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry";
                     // Manual writes are requested after arrival, so both of their
                     // boundaries already observe the destination.
-                    for (var n = 0; n < 2; n++) entries.Add(new PersistenceSaveEntry {
-                        FileName = "Manual_" + (300 + n) + "_KMC_P01.zks", InternalName = "KMC_P01",
-                        SaveType = "Manual",
-                        Area = cross ? request.PersistenceAreaTarget.Area : fixture.Area,
-                        Writable = true });
+                    // SaveManager.CreateNewSave 06008015 passes the requested name
+                    // through MakeNameUnique, so a second NEW archive under a name
+                    // the list already holds would be renamed and refused. Campaign
+                    // B's second A archive therefore carries its own exact name.
+                    for (var n = 0; n < 2; n++)
+                    {
+                        var name = n == 1 && request.PersistenceCase == "campaign-b" ? NativeCampaignBootstrap.SecondFixtureName : "KMC_P01";
+                        entries.Add(new PersistenceSaveEntry {
+                            FileName = "Manual_" + (300 + n) + "_" + name + ".zks", InternalName = name,
+                            SaveType = "Manual",
+                            Area = cross ? request.PersistenceAreaTarget.Area : fixture.Area,
+                            Writable = true });
+                    }
                     if (cross) entries.Add(new PersistenceSaveEntry {
                         FileName = "Auto_1.zks", InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto),
                         SaveType = "Auto",
