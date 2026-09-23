@@ -723,5 +723,69 @@ foreach($mode in @('AfterEntry','BeforeExit')){
     }
 }
 
+# The transition autosave cold-loaded on its own. This is a different claim from
+# the destination Manual cold load: it proves the authored Auto archive is itself
+# a loadable world. BeforeExit must reopen the departure area and must not
+# inherit the destination identity or transfer state of the process that wrote it.
+function New-KmcColdActorRow { param([string]$Id,[int]$View)
+    [pscustomobject]@{id=$Id;nativeActorCount=1;baselineViewId=$View;viewId=$View;viewAlive=$true;
+        viewBound=$true;viewDisposition='cold-world';viewExactForPair=$true;boundToRelationship=$true}
+}
+foreach($mode in @('AfterEntry','BeforeExit')){
+    $case=if($mode-ceq'AfterEntry'){'area-cross-entry-auto'}else{'area-cross-exit-auto'}
+    $source=('a'*32);$target=('e'*32);$campaign='89c49a86-a171-4ea9-871a-f6b3b53d19b9'
+    # AfterEntry committed in the destination after restoration; BeforeExit
+    # committed in the departure area before suspension.
+    $openArea=if($mode-ceq'AfterEntry'){$target}else{$source}
+    $otherArea=if($mode-ceq'AfterEntry'){$source}else{$target}
+    $otherMode=if($mode-ceq'AfterEntry'){'BeforeExit'}else{'AfterEntry'}
+    $sourceSha=('c'*64)
+    $autoRequest=[pscustomobject]@{persistenceCase=$case
+        fixture=[pscustomobject]@{working=[pscustomobject]@{area=$source;gameId=$campaign}}
+        persistenceAreaTarget=[pscustomobject]@{enterPoint=('d'*32);area=$target;autoSaveMode=$mode}
+        persistenceLoad=[pscustomobject]@{fileName='Auto_1.zks';sha256=$sourceSha}}
+    $autoRows=@(
+        [pscustomobject]@{kind='auto-cold-loaded';detail=[pscustomobject]@{
+            case=$case;autoSaveMode=$mode;expectedArea=$openArea;loadedArea=$openArea;archiveArea=$openArea
+            archiveCampaign=$campaign;sourceFileName='Auto_1.zks';sourceSha256=$sourceSha
+            suspensions=0;resumes=0;pending=$false
+            riderActor=(New-KmcColdActorRow 'owned-rider' 11);mountActor=(New-KmcColdActorRow 'owned-mount' 12)}},
+        [pscustomobject]@{kind='native-write-complete';detail=[pscustomobject]@{
+            ordinal=1;sha256=('b'*64);nativeType='Manual'
+            snapshot=[pscustomobject]@{Mounted=$true;AreaId=$openArea;CampaignId=$campaign}}}
+    )
+    Assert-KmcTransitionAutoColdEvidence $autoRequest $autoRows;$passes++
+    foreach($bad in @('no-load','no-write','wrong-case','swapped-mode','swapped-leg-area','loaded-wrong-area',
+        'archive-wrong-area','foreign-campaign','wrong-source-hash','source-role-manual','write-not-manual',
+        'write-aliases-source','write-wrong-area','write-unmounted','write-foreign-campaign',
+        'inherited-suspension','inherited-resume','pending-transfer','retained-cold-view')){
+        $copy=($autoRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json
+        switch($bad){
+            'no-load' {$copy=@($copy[1])}
+            'no-write' {$copy=@($copy[0])}
+            'wrong-case' {$copy[0].detail.case='area-cross-entry'}
+            'swapped-mode' {$copy[0].detail.autoSaveMode=$otherMode}
+            # The whole point of the BeforeExit case: opening the other leg's area.
+            'swapped-leg-area' {$copy[0].detail.expectedArea=$otherArea;$copy[0].detail.loadedArea=$otherArea
+                $copy[0].detail.archiveArea=$otherArea;$copy[1].detail.snapshot.AreaId=$otherArea}
+            'loaded-wrong-area' {$copy[0].detail.loadedArea=('f'*32)}
+            'archive-wrong-area' {$copy[0].detail.archiveArea=('f'*32)}
+            'foreign-campaign' {$copy[0].detail.archiveCampaign='00000000-0000-0000-0000-000000000001'}
+            'wrong-source-hash' {$copy[0].detail.sourceSha256=('d'*64)}
+            'source-role-manual' {$copy[0].detail.sourceFileName='Manual_300_KMC_P01.zks'}
+            'write-not-manual' {$copy[1].detail.nativeType='Auto'}
+            'write-aliases-source' {$copy[1].detail.sha256=$sourceSha}
+            'write-wrong-area' {$copy[1].detail.snapshot.AreaId=('f'*32)}
+            'write-unmounted' {$copy[1].detail.snapshot.Mounted=$false}
+            'write-foreign-campaign' {$copy[1].detail.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
+            'inherited-suspension' {$copy[0].detail.suspensions=1}
+            'inherited-resume' {$copy[0].detail.resumes=1}
+            'pending-transfer' {$copy[0].detail.pending=$true}
+            'retained-cold-view' {$copy[0].detail.riderActor.viewDisposition='retained'}
+        }
+        Must-Reject {Assert-KmcTransitionAutoColdEvidence $autoRequest $copy} ('P07 transition auto cold accepted '+$bad+' ('+$mode+')')
+    }
+}
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.
