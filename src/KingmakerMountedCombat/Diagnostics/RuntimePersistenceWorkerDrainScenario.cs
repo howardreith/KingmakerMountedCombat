@@ -37,6 +37,39 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool drainNativePaused;
         private bool drainNativeLoading;
         private string drainNativeMode;
+        // Simulation probe: the worker serializes live object graphs, so what
+        // matters is whether entity state can still change under those reads.
+        private long drainSimTicksAtProbe;
+        private long drainSimTicksAdvanced;
+        private UnityEngine.Vector3 drainSimPositionAtProbe;
+        private float drainSimMoved;
+        private bool? drainSimAreaTurnedOn;
+        private bool? drainSimAreaTurnedOnAfter;
+        private bool drainSimCommandQueued;
+        private bool drainSimCommandStarted;
+        private bool drainSimWorkerStillHeld;
+        private Kingmaker.UnitLogic.Commands.Base.UnitCommand drainSimProbe;
+
+        // Best effort and never fatal: the substantive measurements are whether
+        // the clock advanced, the actor moved, and the command started.
+        private bool? AreaSimulationOn()
+        {
+            try
+            {
+                var area = Game.Instance?.State?.LoadedAreaState;
+                if (area == null) return null;
+                var property = area.GetType().GetProperty("IsTurnedOn",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public |
+                    System.Reflection.BindingFlags.NonPublic);
+                if (property != null && property.PropertyType == typeof(bool)) return (bool)property.GetValue(area);
+                var field = area.GetType().GetField("m_TurnedOn",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                if (field != null && field.FieldType == typeof(bool)) return (bool)field.GetValue(area);
+                return null;
+            }
+            catch (Exception exception)
+            { logger.Exception("Drain area simulation state unavailable", exception); return null; }
+        }
 
         private void AdvanceWorkerDrain()
         {
@@ -167,11 +200,47 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(Hash(drainGoodPath) == drainGoodHash,
                     "P07-last-good-archive-is-untouched-while-the-worker-is-held");
                 Write("drain-cancellation-deferred", DrainDetail(null));
-                drainHold.Dispose(); drainHold = null;
+                // The worker serializes LIVE object graphs - Game.Instance.Player,
+                // the cross-scene state and the loaded area - so the question is
+                // whether simulation can still advance under those reads once
+                // StopAll has removed the loading operation. Measure it rather
+                // than infer it from a pause flag or from retained KMC leases.
+                drainSimTicksAtProbe = game.TimeController.GameTime.Ticks;
+                drainSimPositionAtProbe = rider.Position;
+                drainSimAreaTurnedOn = AreaSimulationOn();
+                try
+                {
+                    var destination = rider.Position + UnityEngine.Vector3.forward * 2f;
+                    var probe = new Kingmaker.UnitLogic.Commands.UnitMoveTo(destination) { CreatedByPlayer = true };
+                    rider.Commands.Run(probe);
+                    drainSimCommandQueued = rider.Commands.Raw.Concat(rider.Commands.Queue).Contains(probe);
+                    drainSimProbe = probe;
+                }
+                catch (Exception exception)
+                { logger.Exception("Drain simulation probe could not be dispatched", exception); }
                 drainFrames = 0; drainStage = 2;
                 return;
             }
             if (drainStage == 2)
+            {
+                // Let the engine run while the worker is still held.
+                if (++drainFrames < 40) return;
+                drainSimTicksAdvanced = game.TimeController.GameTime.Ticks - drainSimTicksAtProbe;
+                drainSimMoved = (rider.Position - drainSimPositionAtProbe).magnitude;
+                drainSimCommandStarted = drainSimProbe != null && drainSimProbe.IsStarted;
+                drainSimAreaTurnedOnAfter = AreaSimulationOn();
+                drainSimWorkerStillHeld = NativeSaveWorkerBoundary.WorkerHeld;
+                Write("drain-simulation-probe", DrainDetail(null));
+                // The worker must still have been held for this to mean anything.
+                Check(drainSimWorkerStillHeld && persistence.SaveDraining && persistence.DrainedSaveCount == 0,
+                    "P07-simulation-probe-observed-while-the-worker-was-still-held");
+                try { drainSimProbe?.Interrupt(); } catch (Exception exception)
+                { logger.Exception("Drain simulation probe could not be interrupted", exception); }
+                drainHold.Dispose(); drainHold = null;
+                drainFrames = 0; drainStage = 3;
+                return;
+            }
+            if (drainStage == 3)
             {
                 drainFrames++;
                 if (persistence.DrainedSaveCount == 0)
@@ -235,10 +304,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     LegitimateContinuation(drainMountDebt, MountedPersistenceService.CaptureActor(mount), 0),
                     "P07-drain-conserves-native-action-debt");
                 drainSettledHash = Hash(drainGoodPath);
-                drainFrames = 0; drainStage = 3;
+                drainFrames = 0; drainStage = 4;
                 return;
             }
-            if (drainStage == 3)
+            if (drainStage == 4)
             {
                 if (LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites) return;
                 if (++drainFrames < 10) return;
@@ -257,10 +326,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["operation"] = target.OperationState.ToString(),
                     ["sha256"] = Hash(target.FolderName) });
                 game.SaveGame(target, () => callback = true);
-                drainFrames = 0; drainStage = 4;
+                drainFrames = 0; drainStage = 5;
                 return;
             }
-            if (drainStage == 4)
+            if (drainStage == 5)
             {
                 if (!callback || LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites)
                 {
@@ -326,6 +395,14 @@ namespace KingmakerMountedCombat.Diagnostics
             ["nativePausedAtHold"] = drainNativePaused,
             ["nativeLoadingAtHold"] = drainNativeLoading,
             ["nativeModeAtHold"] = drainNativeMode,
+            // Simulation probe, recorded rather than assumed.
+            ["simTicksAdvanced"] = drainSimTicksAdvanced,
+            ["simMovedDistance"] = drainSimMoved,
+            ["simCommandQueued"] = drainSimCommandQueued,
+            ["simCommandStarted"] = drainSimCommandStarted,
+            ["simAreaTurnedOnAtProbe"] = drainSimAreaTurnedOn,
+            ["simAreaTurnedOnAfter"] = drainSimAreaTurnedOnAfter,
+            ["simWorkerStillHeld"] = drainSimWorkerStillHeld,
             ["nativePausedNow"] = Game.Instance?.IsPaused,
             ["nativeLoadingNow"] = LoadingProcess.Instance.IsLoadingInProcess,
             ["nativeModeNow"] = Game.Instance?.CurrentMode.ToString(),

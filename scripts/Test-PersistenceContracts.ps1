@@ -330,6 +330,29 @@ public static class KmcPersistenceContractProbe
             "a faulted archive worker is finished and releases the owned save scope");
         Check((bool)release.Invoke(null,new object[]{stopped.Task}),
             "a canceled archive worker is finished and releases the owned save scope");
+        // The step that publishes the worker can run after the cache was last
+        // refreshed, so a scope whose cached task is null but whose routine
+        // already carries a RUNNING worker must not be treated as releasable.
+        // Reading only before MoveNext left exactly that window.
+        var resolve=service.GetMethod("ResolveWorker",BindingFlags.NonPublic|BindingFlags.Static);
+        var latePublish=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        var lateIterator=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(nativeIterator);
+        taskField.SetValue(lateIterator,latePublish.Task);
+        var lateScope=Activator.CreateInstance(saveScope,true);
+        saveScope.GetField("Routine",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(lateScope,lateIterator);
+        Check(saveScope.GetField("Worker",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(lateScope)==null,
+            "a scope that has not cached its worker starts with none");
+        var resolved=resolve.Invoke(null,new[]{lateScope});
+        Check(object.ReferenceEquals(resolved,latePublish.Task),
+            "the release decision resolves a late-published worker from its own routine");
+        Check(!(bool)release.Invoke(null,new object[]{resolved}),
+            "a late-published running worker still defers the owned save scope release");
+        latePublish.SetResult(true);
+        Check((bool)release.Invoke(null,new object[]{resolve.Invoke(null,new[]{lateScope})}),
+            "that same late-published worker releases once it finishes");
+        var emptyScope=Activator.CreateInstance(saveScope,true);
+        Check(resolve.Invoke(null,new[]{emptyScope})==null,
+            "a scope with no routine resolves no worker instead of failing");
         running.SetResult(true);
         Check((bool)release.Invoke(null,new object[]{running.Task}),
             "the same worker releases its scope once it actually finishes");
