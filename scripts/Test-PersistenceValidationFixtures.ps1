@@ -269,17 +269,18 @@ foreach($index in 2,3){
     $failRows[$index].relationship='Unmounted'
     $d=$failRows[$index].detail
     $d.nativeLoadFailures=1;$d.nativeLoadFailure='JsonReaderException: unexpected end of input'
-    $d.nativeWorldDisposals=1;$d.currentAreaNull=$true;$d.loadedDataNull=$true;$d.afterLoadCallback=$true;$d.gameMode='None'
+    $d.nativeWorldDisposals=1;$d.currentAreaNull=$true;$d.afterLoadCallback=$true;$d.gameMode='None'
+    $d.semantic=4;$d.presentation=1;$d.loadedDataNull=$false
     $d.relationship='Unmounted';$d.unitCount=0
 }
 $failRows[4].detail.label='A';$failRows[4].detail.sha256=$failHash
 $failRows[5].detail.label='A';$failRows[5].detail.sha256=$failHash
 $failRows[5].detail.nativeLoadFailures=1;$failRows[5].detail.afterLoadCallback=$true;$failRows[5].detail.gameMode='Default'
-$failRows[5].detail.semantic=4;$failRows[5].detail.presentation=2
+$failRows[5].detail.semantic=6;$failRows[5].detail.presentation=2
 $failRows[5].detail.nativeWorldDisposals=2
 Assert-KmcValidationPersistenceEvidence $failRequest $failRows $failGame;$script:passes++
-foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mode','world-survived','metadata-retained',
-    'combat-fence','restored-actor','stale-pair','stale-unit','save-suspended','pending-writes','wrong-member',
+foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mode','world-survived','presented-without-world',
+    'combat-fence','semantic-rolled-back','stale-pair','stale-unit','save-suspended','pending-writes','wrong-member',
     'empty-failure-text','retry-no-callback','retry-still-unmounted','retry-extra-failure','retry-wrong-semantics',
     'retry-no-metadata','stale-actor-in-worldless-row','missing-observation','missing-recovery','out-of-order','wrong-selection')){
     $negative=($failRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
@@ -289,9 +290,9 @@ foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mo
         'no-disposal' {$negative[2].detail.nativeWorldDisposals=0}
         'active-game-mode' {$negative[2].detail.gameMode='Default'}
         'world-survived' {$negative[2].detail.currentAreaNull=$false}
-        'metadata-retained' {$negative[2].detail.loadedDataNull=$false}
+        'presented-without-world' {$negative[2].detail.presentation=2}
         'combat-fence' {$negative[2].detail.combatRestorationPending=$true}
-        'restored-actor' {$negative[2].detail.semantic=3}
+        'semantic-rolled-back' {$negative[2].detail.semantic=1}
         'stale-pair' {$negative[2].detail.relationship='Mounted'}
         'stale-unit' {$negative[2].detail.unitCount=1}
         'save-suspended' {$negative[2].detail.saveSuspended=$true}
@@ -301,7 +302,7 @@ foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mo
         'retry-no-callback' {$negative[5].detail.afterLoadCallback=$false}
         'retry-still-unmounted' {$negative[5].detail.relationship='Unmounted'}
         'retry-extra-failure' {$negative[5].detail.nativeLoadFailures=2}
-        'retry-wrong-semantics' {$negative[5].detail.semantic=5}
+        'retry-wrong-semantics' {$negative[5].detail.semantic=7}
         'retry-no-metadata' {$negative[5].detail.loadedDataNull=$true}
         'stale-actor-in-worldless-row' {$negative[2].rider=[pscustomobject]@{Id=$failData.Rider.Id}}
         'missing-observation' {$negative=@($negative[0],$negative[1],$negative[3],$negative[4],$negative[5],$negative[6],$negative[7],$negative[8],$negative[9],$negative[10])}
