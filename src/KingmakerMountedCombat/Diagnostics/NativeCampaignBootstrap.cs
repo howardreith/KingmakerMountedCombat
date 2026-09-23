@@ -29,6 +29,10 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string AutosaveLeaf = "Auto_1.zks";
         internal const string ManualLeaf = "Manual_302_KMC_B.zks";
         internal const string ManualName = "KMC_B";
+        // A's post-expenditure archive: a NEW native save under its own name,
+        // because CreateNewSave 06008015 makes a repeated name unique.
+        internal const string SecondFixtureName = "KMC_P01B";
+        internal const string SecondFixtureLeaf = "Manual_301_KMC_P01B.zks";
 
         // The stand-alone Beneath the Stolen Lands start is the smallest
         // authored new game, and it is used only when the installed license
