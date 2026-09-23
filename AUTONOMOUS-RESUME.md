@@ -1,3 +1,26 @@
+# Chunk 5: code-review remediation R1-R4/R7 qualified; R5/R6 incomplete — 2026-09-23 UTC
+
+**IN PROGRESS — NOT completed acceptance.** Frozen source 245a340 / 0.1.0-chunk5-preview.86, qualifier chunk5-remediation. DLL 86e27fa5beb98aaba1968f614de710369bf1801787439dfdf1857cc9a03d13a5, MVID 05c5cdbf-35ce-4882-9ddc-e0e009dbf556. Package SHA a83d80d0b3cf6e9cbae97dada4b377160347c0a29a4e13de4ee87309e271593b, manifest b44fa858, suite101. Source26/components30/contracts**140**/data56/owned-fixtures321/validation-copies104/harness261/profile**48**/package11 PASS. Required paired=true; legacy authorities/overlay=false.
+
+**Status correction.** The preview.83 report was a PARTIAL qualification checkpoint, not completed acceptance: mandatory cases were unstarted and it compared a turn-based failure against an old failed candidate. The branch is now published at 245a340 so the reviewed source resolves; the external review had only 8ea70c8, the old branch head.
+
+**R1 worker ownership.** The double capture and boundary re-read were already present. Added: the latch is taken in a finally, and the read reports whether ownership was ESTABLISHED, so an unreadable routine defers instead of releasing. Static inspection settles the premise: the native iterator stores <saveTask>5__2 0x04008CEA exactly once at IL_0621 of MoveNext and never rewrites or nulls it, so it outlives disposal. A per-frame drain bug this introduced (releasing a null scope every quiet frame) was caught by the first native run and fixed, with a source contract pinning the ordering.
+
+**R2 interrupted-save consistency.** The worker reads LIVE state on its own thread: Game.Instance.Player.CrossSceneState at IL_0063-006D, the live LoadedAreaState three times, and b__2 stashes the live area state. Area transfer now refuses while an owned worker can still commit, joining save, load and teardown. New serialization-cancel-output case stops at settlement so the interrupted archive survives: **final86-p07-output PASS46/0 and final86-p07-output-cold PASS20/0** load that operation's OWN committed bytes, hash d8805fdd, in a fresh process.
+
+**R3 outcome reporting.** The commit is recorded the instant the native replacement returns, before descriptor rebinding and ownership completion. Outcome is committed / not written / unconfirmed, decided at that boundary rather than inferred from task state. Unchanged previous bytes are claimed only when a previous archive existed and is still present; a first-ever save says so instead.
+
+**R4 turn-based.** Reclassified against the ACCEPTED Chunk 4 controls, which all match their accepted counts here: ordinary-attack-controls-tb 64/0 (HG), chunk4-sustained-tb 52/0 (GN), mounted-mammoth-primary-hit-tb 66/0 (HL). The Phase 3H fixture's own evidence shows nativeFullAttack=false, actualFullAttackRestrictedByMove=true, one planned and one completed attack with range satisfied: a disproved obsolete fixture expectation. Original FAIL retained; fixture not rebuilt; nothing forced.
+
+**R7 profile/harness.** Byte-identical Params.xml passes without requiring a SkipIntro append. The analytics exception is shape-based, one-sided-only (creation or dispatch), keeps both-sides entries in the identity digest, and reports every admitted entry with exact path/length/hash. Four path-shape negatives plus the in-place-rewrite negative.
+
+**NOT DONE.** R5's bounded Prepare-to-Disable/removal contract and mod-absent loading are not implemented; disable during a live load is guarded in production and covered by source contracts only, not natively qualified. R6's disposable campaign B, A->B->A isolation and the remaining P04 active TB/overlapping-effect boundaries are not done. P05 quick/auto/rotation/queued/renamed and P07 area transitions were not re-run on this payload.
+
+**Recorded, not dropped:** one ordinary-attack-controls-tb attempt on this payload failed 60/2 on a 30-second Phase3gControls leaf deadline; the re-run passed 64/0. Unexplained intermittent timing failure.
+
+Two runs needed harness recovery this session and both used the project's own narrow paths: Recover-KmcPersistenceProfile for two blocked profile comparisons, and Recover-KingmakerRuntimeTransaction after a scenario exceeded the 360s harness bound and left the game running. All external state restored: human chunk4-preview54 DLL 2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 installed, 275 saves, seven mod directories, both fixtures byte-identical (BASELINE c29d965c, WORKING 5eb4e0b4), no game process or lock.
+
+---
 # Chunk 5: save-worker lifetime after interruption qualified — 2026-09-23 UTC
 
 IN PROGRESS. Frozen source 0eb6b98 / 0.1.0-chunk5-preview.70. DLL 552cc09c1f25e96b64f5a17642d34292f139c4b842492170eb754d16b47559bd, MVID a0ba85f3-0a99-453e-8e20-f324a53eff30. Package KingmakerMountedCombat-0.1.0-chunk5-preview.70-p07-worker-drain-diagnostic.zip SHAdcdf26824a89981b88046031476f1c9c9e35cdaee8eae844c85db243270637c9, suite83 SHA1b843459a1c513b9. Source22/components439/contracts**116**/data56/owned-fixtures**321**/validation-copies104/harness261/profile38/package11 PASS. Required paired=true; legacy authorities/overlay=false.

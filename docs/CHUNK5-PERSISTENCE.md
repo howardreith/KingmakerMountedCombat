@@ -29,6 +29,60 @@ These are causal engineering checkpoints, **not the consolidated final-candidate
 | P07 | Preview53 canceled wait/queued load60/0+cold20/0; real timeout58/0+cold20/0. Same world/debt/controls, unchanged last-good native reload, subsequent actual write and usable play. Preview54 locked replacement59/0+cold20/0: one actual replacement failure, no success callback, previous bytes intact, real retry write. Preview58 same-area reload33/0+cold20/0: measured retained cross-scene views, real post-area write and ordinary continuation. Preview63 cross-area entry34/0+cold20/0 and preview64 cross-area exit34/0+cold20/0 at the campaign's own hub: real transfers, retained views, both authored autosave modes proven distinct at their native barriers, destination writes and cold round trips. Preview69 transition-autosave cold load24/0 each: both authored Auto archives themselves open, in a fresh process, the exact world each captured | Native failed-load, serialization cancellation and disable/re-enable are now qualified (see the exact-final set below); removal and the remaining harmful lifecycle paths stay open |
 | P08 | Accepted Chunk 4 evidence remains historical | Exact-final gameplay regression and post-load variants |
 
+## Code-review remediation (R1-R7)
+
+Candidate `0.1.0-chunk5-preview.86`, qualifier `chunk5-remediation`, source
+`245a340a192ea6725938fdcbaf884ef1188f26b0`. ZIP
+`a83d80d0b3cf6e9cbae97dada4b377160347c0a29a4e13de4ee87309e271593b`, manifest
+`b44fa858a42d8f2bdd1de33280f2ea80659399b9fd2f518fe94f4ae09de99730`, DLL
+`86e27fa5beb98aaba1968f614de710369bf1801787439dfdf1857cc9a03d13a5`, MVID
+`05c5cdbf-35ce-4882-9ddc-e0e009dbf556`, suite `20260923-chunk5-suite101`.
+
+The external review resolved only `8ea70c8`, which was the published branch head;
+the branch is now published at the candidate's descendant, so the reviewed source
+is retrievable. Every finding below was checked against the local implementation
+before being changed.
+
+| Finding | Disposition | Evidence |
+|---|---|---|
+| R1 first-yield worker ownership | **Partly already present, completed.** The double capture around the native step and the re-read at the release boundary were already there. Added: the latch is now taken in a `finally` so a step that creates the worker and then throws cannot leave it unobserved, and the read reports whether the answer was *established* -- an unreadable routine defers instead of releasing. Static inspection settles the premise: `<saveTask>5__2` (`0x04008CEA`) is stored exactly once, at `IL_0621` of `MoveNext`, and never rewritten or nulled, so it outlives disposal. | contracts 140/0 incl. 6 new ownership checks; `final86-p07-cancel` 47/0 |
+| R2 interrupted-save consistency | **Boundary established and the missing artifact delivered.** The worker reads LIVE state on its own thread: `Game.Instance.Player.CrossSceneState` at `IL_0063-006D`, the live `LoadedAreaState` three times, and `b__2` stashes the live area state. Area transfer now joins save, load and teardown in refusing while an owned worker can still commit. A new `serialization-cancel-output` case stops at settlement so the interrupted operation's own archive survives and is cold-loaded directly. | `final86-p07-output` 46/0; **`final86-p07-output-cold` 20/0** on hash `d8805fdd72099fd5dd16b53df097d4c825c625c5d2adca0e5a170bd05272b398` |
+| R3 commit vs cleanup reporting | **Fixed.** The commit is recorded the instant the native replacement returns, before descriptor rebinding and ownership completion, and the outcome is decided from that boundary: committed, not written, or unconfirmed. Unchanged previous bytes are claimed only when a previous archive existed and is still present; a first-ever save says so instead. | contracts 140/0 incl. the post-commit-fault case; source contract pins the recording order |
+| R4 turn-based regression | **Reclassified.** The previous comparison used Phase 3H preview.6, an old failed candidate. The accepted Chunk 4 controls all match their accepted counts on this payload. The Phase 3H fixture's own evidence shows `nativeFullAttack=false`, `actorFullAttackRestrictedByMove=true`, one planned and one completed attack, range satisfied -- a **disproved obsolete fixture expectation**, original FAIL retained, fixture not rebuilt. | `ordinary-attack-controls-tb` 64/0 (HG 64/0), `chunk4-sustained-tb` 52/0 (GN 52/0), `mounted-mammoth-primary-hit-tb` 66/0 (HL 66/0); receipt `tb-regression-classification86.md` |
+| R5 disable/re-enable, load refusal, removal | **Partly done.** Disable/re-enable and disable-during-save are natively qualified; disable during a live load is guarded in production and covered by source contracts only. The bounded Prepare-to-Disable/removal contract and mod-absent loading are **NOT IMPLEMENTED**. | `final86-p07-disable` 51/0 |
+| R6 campaign isolation, missing cases | **NOT DONE.** Disposable campaign B, A->B->A isolation, and the remaining P04 active TB/overlapping-effect boundaries are not implemented. | BLOCKED/NOT RUN below |
+| R7 profile/harness exceptions | **Reviewed and narrowed.** A byte-identical `Params.xml` now passes without requiring a SkipIntro append. The analytics exception is shape-based, applies only to entries present on exactly one side (creation or dispatch), keeps any entry present on both sides in the identity digest, and reports every admitted entry with its exact path, length and hash. | profile protection 48/0 incl. four path-shape negatives and the in-place-rewrite negative |
+
+### Case-level P01-P08 on preview.86
+
+| Gate | Coverage run | Result |
+|---|---|---|
+| P01 | `final86-p01-save` / `final86-p01-load` | PASS 23/0, PASS 20/0 |
+| P02 | `final86-p02-*-partial-movement` | PASS 32/0, PASS 26/0 |
+| P03 | `final86-p03-*-step` | PASS 34/0, PASS 28/0 |
+| P04 | `final86-p04-*-mounted-attack` | PASS 27/0, PASS 18/0 |
+| P04 | active TB / overlapping-effect boundaries | **NOT RUN** |
+| P05 | `final86-p05-*-manual` | PASS 44/0, PASS 20/0 |
+| P05 | quick/auto, rotation, queued, renamed, A/B/A | **NOT RUN on this payload** (earlier payload evidence only) |
+| P06 | `final86-p06-legacy`, `final86-p06-failedarea` | PASS 34/0, PASS 26/0 |
+| P06 | genuine other-campaign isolation | **BLOCKED** (needs disposable campaign B) |
+| P07 | `final86-p07-cancel`, `final86-p07-disable` | PASS 47/0, PASS 51/0 |
+| P07 | `final86-p07-output` + `final86-p07-output-cold` | PASS 46/0, PASS 20/0 |
+| P07 | area transitions | **NOT RUN on this payload** |
+| P07 | removal contract, mod-absent load | **NOT IMPLEMENTED** |
+| P08 | `final86-p08-rt` | PASS 54/0 |
+| P08 | `ordinary-attack-controls-tb`, `chunk4-sustained-tb`, `mounted-mammoth-primary-hit-tb` | PASS 64/0, 52/0, 66/0 |
+
+One intermittent failure is recorded rather than dropped: an earlier
+`ordinary-attack-controls-tb` attempt on this payload failed 60/2 on a 30-second
+`Phase3gControls` leaf deadline, a timing bound rather than a behavioural
+assertion. The re-run passed 64/0. It is an unexplained intermittent timing
+failure, not a disproved one.
+
+Offline gates on this source: source 26, components 30, contracts 140, data 56,
+owned fixtures 321, P06 guards 104, harness 261, profile 48, package 11 -- all
+FAIL=0.
+
 ## Exact-final acceptance set on one frozen candidate
 
 Frozen candidate `0.1.0-chunk5-preview.83`, qualifier `chunk5-final`, source
