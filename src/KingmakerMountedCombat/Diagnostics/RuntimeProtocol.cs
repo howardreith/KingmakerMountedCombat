@@ -134,6 +134,19 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsCrossAreaCase(string persistenceCase) =>
             persistenceCase == "area-cross-entry" || persistenceCase == "area-cross-exit";
 
+        // Cold-only cases that load the transition autosave a cross-area source
+        // actually produced, rather than its separate destination manual
+        // archive. AfterEntry committed in the destination; BeforeExit committed
+        // in the departure area before suspension, so each expects its own world.
+        internal static bool IsTransitionAutoCase(string persistenceCase) =>
+            persistenceCase == "area-cross-entry-auto" || persistenceCase == "area-cross-exit-auto";
+
+        internal static bool IsCrossAreaFamilyCase(string persistenceCase) =>
+            IsCrossAreaCase(persistenceCase) || IsTransitionAutoCase(persistenceCase);
+
+        internal string ExpectedTransitionAutoArea =>
+            PersistenceCase == "area-cross-entry-auto" ? PersistenceAreaTarget?.Area : Fixture?.Working?.Area;
+
         internal string ExpectedNativeLoadType => Scenario == "persistence-p05-load" && PersistenceLoad != null ?
             (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
         public string PersistenceCase { get; set; }
@@ -286,7 +299,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "area-reload", "area-cross-entry", "area-cross-exit" }, PersistenceCase) < 0 :
+            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
@@ -299,7 +312,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");
                 else
                 {
-                    var nativeSlot = p05 && (PersistenceCase == "quick" || PersistenceCase == "auto");
+                    var nativeSlot = p05 && (PersistenceCase == "quick" || PersistenceCase == "auto") ||
+                        IsTransitionAutoCase(PersistenceCase);
                     var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
                         p05 && PersistenceCase == "queued" ? "^Manual_302_KMC_P01\\.zks$" :
                         p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
@@ -310,19 +324,30 @@ namespace KingmakerMountedCombat.Diagnostics
                         nativeSlot ? PersistenceLoad.InternalName : "KMC_P01", slotPattern));
                     // A cross-area source archive is committed after the transition,
                     // so its native header carries the declared destination area.
-                    var expectedArea = IsCrossAreaCase(PersistenceCase) && PersistenceAreaTarget != null
-                        ? PersistenceAreaTarget.Area : Fixture?.Working?.Area;
+                    // A transition autosave instead carries the area it actually
+                    // committed in: the destination for AfterEntry, the departure
+                    // area for BeforeExit.
+                    var expectedArea = PersistenceAreaTarget == null ? Fixture?.Working?.Area :
+                        IsTransitionAutoCase(PersistenceCase) ? ExpectedTransitionAutoArea :
+                        IsCrossAreaCase(PersistenceCase) ? PersistenceAreaTarget.Area : Fixture?.Working?.Area;
                     if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
                         PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea)
                         errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
                 }
             }
             else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
-            if (IsCrossAreaCase(PersistenceCase))
+            if (IsCrossAreaFamilyCase(PersistenceCase))
             {
                 if (!p07) errors.Add("A cross-area transfer requires the exact P07 scenario.");
                 if (PersistenceAreaTarget == null) errors.Add("A cross-area transfer requires its declared native destination.");
                 else errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", Fixture?.Working?.Area));
+                // The transition autosave already exists; it is only ever loaded.
+                if (IsTransitionAutoCase(PersistenceCase) && Scenario != "persistence-p07-load")
+                    errors.Add("A transition autosave case is cold-load only.");
+                if (IsTransitionAutoCase(PersistenceCase) && PersistenceAreaTarget != null &&
+                    PersistenceAreaTarget.AutoSaveMode !=
+                    (PersistenceCase == "area-cross-entry-auto" ? "AfterEntry" : "BeforeExit"))
+                    errors.Add("A transition autosave case must declare the mode that produced it.");
             }
             else if (PersistenceAreaTarget != null)
                 errors.Add("Only an exact cross-area transfer may declare a native destination.");

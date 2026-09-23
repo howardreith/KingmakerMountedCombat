@@ -248,6 +248,40 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("P07 recovery requests retain exact source and cold archive authority", () =>
             {
+                // The transition autosave each cross-area source produced is a
+                // distinct cold artifact from its destination manual archive:
+                // AfterEntry committed in the destination, BeforeExit in the
+                // departure area, and neither may be swapped for the other.
+                foreach (var entry in new[] { true, false })
+                {
+                    var target = new string('e', 32);
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceCase = entry ? "area-cross-entry-auto" : "area-cross-exit-auto";
+                    request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                        EnterPoint = new string('d', 32), Area = target,
+                        AutoSaveMode = entry ? "AfterEntry" : "BeforeExit" };
+                    var committed = entry ? target : f.Area;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "Auto 1", FileName = "Auto_1.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = committed,
+                        Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact transition autosave cold request rejected.");
+                    request.PersistenceLoad.Area = entry ? f.Area : target;
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted the other leg's area.");
+                    request.PersistenceLoad.Area = committed;
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a manual leaf.");
+                    request.PersistenceLoad.FileName = "Auto_1.zks";
+                    request.PersistenceAreaTarget.AutoSaveMode = entry ? "BeforeExit" : "AfterEntry";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted the other authored mode.");
+                    request.PersistenceAreaTarget.AutoSaveMode = entry ? "AfterEntry" : "BeforeExit";
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a foreign campaign.");
+                    request.PersistenceLoad.GameId = f.GameId;
+                    request.Scenario = "persistence-p07-save";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a writing scenario.");
+                }
                 foreach (var name in new[] { "timeout", "cancel-wait", "locked-replace", "area-reload",
                     "area-cross-entry", "area-cross-exit" })
                 {

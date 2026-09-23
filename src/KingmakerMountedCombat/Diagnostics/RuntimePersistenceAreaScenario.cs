@@ -37,6 +37,72 @@ namespace KingmakerMountedCombat.Diagnostics
         // True in both processes of a declared transfer: the cold load also opens
         // in the destination, where the party arrived at one enter point.
         private bool CrossAreaFixture => request.PersistenceAreaTarget != null;
+
+        // A cold process loading the transition autosave itself. AfterEntry
+        // committed in the destination after restoration; BeforeExit committed
+        // in the departure area before suspension. Each must open in its own
+        // world with no inherited transfer state from the source process.
+        private bool AreaAutoColdCase => request.Scenario == "persistence-p07-load" &&
+            RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase);
+        private string ExpectedAutoColdArea => request.PersistenceCase == "area-cross-entry-auto"
+            ? request.PersistenceAreaTarget.Area : request.Fixture.Working.Area;
+
+        private void QualifyTransitionAutoColdLoad()
+        {
+            var game = Game.Instance;
+            Check(game.CurrentlyLoadedArea.AssetGuidThreadSafe == ExpectedAutoColdArea &&
+                persistence.LoadedData.AreaId == ExpectedAutoColdArea,
+                "P07-auto-cold-opens-the-area-its-own-archive-captured");
+            Check(persistence.AreaSuspensionCount == 0 && persistence.AreaResumeCount == 0 &&
+                !persistence.AreaTransitionPending,
+                "P07-auto-cold-inherits-no-transfer-state-from-its-source-process");
+            // Compared against the archive's own native clock, never the source
+            // run's end state after further travel or combat.
+            var elapsed = Math.Max(0, (game.TimeController.GameTime.Ticks -
+                persistence.LoadedData.GameTimeTicks) / (double)TimeSpan.TicksPerSecond);
+            Check(LegitimateContinuation(persistence.LoadedData.Rider, MountedPersistenceService.CaptureActor(rider), elapsed) &&
+                LegitimateContinuation(persistence.LoadedData.Mount, MountedPersistenceService.CaptureActor(mount), elapsed),
+                "P07-auto-cold-debt-matches-its-own-archive");
+            Write("auto-cold-loaded", new JObject {
+                ["case"] = request.PersistenceCase,
+                ["autoSaveMode"] = request.PersistenceAreaTarget.AutoSaveMode,
+                ["expectedArea"] = ExpectedAutoColdArea,
+                ["loadedArea"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
+                ["archiveArea"] = persistence.LoadedData.AreaId,
+                ["archiveCampaign"] = persistence.LoadedData.CampaignId,
+                ["sourceSha256"] = request.PersistenceLoad.Sha256,
+                ["sourceFileName"] = request.PersistenceLoad.FileName,
+                ["suspensions"] = persistence.AreaSuspensionCount,
+                ["resumes"] = persistence.AreaResumeCount,
+                ["pending"] = persistence.AreaTransitionPending,
+                ["riderActor"] = ColdActorDetail(persistence.LoadedData.Rider, true),
+                ["mountActor"] = ColdActorDetail(persistence.LoadedData.Mount, false)
+            });
+        }
+
+        // A cold load reconstructs the world, so Unity instance identity is not
+        // comparable across processes. Only validity and unique binding are
+        // claimed here; no retained/replaced disposition is asserted.
+        private JObject ColdActorDetail(SavedNativeActor saved, bool isRider)
+        {
+            var id = saved == null ? null : saved.Id;
+            var matches = id == null ? new UnitEntityData[0] :
+                Game.Instance.State.Units.Where(u => u.UniqueId == id).ToArray();
+            var actor = matches.Length == 1 ? matches[0] : null;
+            var view = actor == null ? null : actor.View;
+            var alive = view != null;
+            return new JObject {
+                ["id"] = id,
+                ["nativeActorCount"] = matches.Length,
+                ["viewId"] = alive ? new JValue(view.GetInstanceID()) : JValue.CreateNull(),
+                ["viewAlive"] = alive,
+                ["viewBound"] = IsBoundNativeView(actor),
+                ["viewExactForPair"] = actor != null && relationship.IsExactCapturedView(actor),
+                ["boundToRelationship"] = actor != null &&
+                    ReferenceEquals(actor, isRider ? relationship.Rider : relationship.Mount),
+                ["viewDisposition"] = "cold-world"
+            };
+        }
         private bool AfterEntryAutosave => request.PersistenceAreaTarget?.AutoSaveMode == "AfterEntry";
         private string ExpectedAreaViewDisposition => RetainedNativeView;
         private string ExpectedAreaDestination => CrossAreaCase ?

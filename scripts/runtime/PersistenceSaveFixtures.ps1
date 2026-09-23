@@ -8,6 +8,9 @@ function Get-KmcPersistenceSource {
         [Parameter(Mandatory=$true)]$Fixture,
         [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
+        # A cross-area source run produces two distinct artifacts: the separate
+        # destination manual archive and the engine's own transition autosave.
+        [ValidateSet('destination-manual','transition-auto')][string]$ArtifactRole='destination-manual',
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -31,9 +34,10 @@ function Get-KmcPersistenceSource {
         if($owner.scenario-cne'persistence-p03-save'-or$owner.persistenceCase-cne$NativeCase){throw 'P03 condition source case differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P03/P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
-    $type=if($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
+    $type=if($ArtifactRole-ceq'transition-auto'){'Auto'}elseif($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
+    if($ArtifactRole-ceq'transition-auto'-and$NativeCase-cnotin @('area-cross-entry','area-cross-exit')){throw 'Only a cross-area source run produces a transition autosave.'}
     $manualName=if($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
-    $leaf=if($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    $leaf=if($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
     $path=Join-Path $root ('Saved Games/'+$leaf)
     Assert-KmcNotReparsePoint $path 'owned persistence source archive'
     Assert-KmcNotHardLink $path 'owned persistence source archive'
@@ -525,6 +529,9 @@ function Assert-KmcPersistenceScenarioEvidence {
         if($Request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit')){Assert-KmcAreaPersistenceEvidence $Request $rows}
         else{Assert-KmcRecoveryPersistenceEvidence $Request $rows}
     }
+    if($Request.scenario-ceq'persistence-p07-load'-and$Request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){
+        Assert-KmcTransitionAutoColdEvidence $Request $rows
+    }
     if($isSuspended){Assert-KmcSuspendedEvidence $rows $isWrite}
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     if($isWrite){
@@ -827,6 +834,51 @@ function Assert-KmcAreaViewEvidence {
     }
     if((([int]$Actor.viewId-eq[int]$Actor.baselineViewId))-ne($Expected-ceq'retained')){
         throw "P07 area $Label view disposition label contradicts its measured native instance IDs."
+    }
+}
+
+# A cold load reconstructs the world, so it claims validity and unique binding
+# only: instance identity is never compared across processes.
+function Assert-KmcColdViewEvidence {
+    param($Actor,[string]$Label)
+    if($null-eq$Actor){throw "P07 cold evidence has no $Label native view observation."}
+    if($Actor.nativeActorCount-ne1-or$Actor.viewAlive-ne$true-or$Actor.viewBound-ne$true-or
+        $Actor.viewExactForPair-ne$true-or$Actor.boundToRelationship-ne$true-or
+        [string]::IsNullOrEmpty([string]$Actor.id)-or$null-eq$Actor.viewId-or
+        $Actor.viewDisposition-cne'cold-world'){
+        throw "P07 cold $Label view is missing, duplicated, unbound or not the owned pair view."
+    }
+}
+
+# The transition autosave each cross-area source actually produced, cold-loaded
+# in its own process. AfterEntry committed in the destination after restoration;
+# BeforeExit committed in the departure area before suspension.
+function Assert-KmcTransitionAutoColdEvidence {
+    param($Request,$Rows)
+    $loaded=@($Rows|Where-Object kind -CEQ 'auto-cold-loaded')
+    $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
+    if($loaded.Count-ne1-or$written.Count-ne1){
+        throw 'P07 transition autosave cold load lacks its exact load and subsequent write observations.'
+    }
+    $d=$loaded[0].detail
+    $mode=if($Request.persistenceCase-ceq'area-cross-entry-auto'){'AfterEntry'}else{'BeforeExit'}
+    $expected=if($mode-ceq'AfterEntry'){[string]$Request.persistenceAreaTarget.area}else{[string]$Request.fixture.working.area}
+    if($d.case-cne$Request.persistenceCase-or$d.autoSaveMode-cne$mode-or$d.expectedArea-cne$expected-or
+        $d.loadedArea-cne$expected-or$d.archiveArea-cne$expected-or
+        $d.archiveCampaign-cne$Request.fixture.working.gameId-or
+        $d.sourceFileName-cne'Auto_1.zks'-or$d.sourceSha256-cne$Request.persistenceLoad.sha256){
+        throw 'P07 transition autosave cold load did not open the exact world its own archive captured.'
+    }
+    if($d.suspensions-ne0-or$d.resumes-ne0-or$d.pending-ne$false){
+        throw 'P07 transition autosave cold load inherited transfer state from its source process.'
+    }
+    Assert-KmcColdViewEvidence $d.riderActor 'rider'
+    Assert-KmcColdViewEvidence $d.mountActor 'mount'
+    $w=$written[0].detail
+    if($w.ordinal-ne1-or$w.sha256-ceq$Request.persistenceLoad.sha256-or$w.nativeType-cne'Manual'-or
+        $w.snapshot.Mounted-ne$true-or$w.snapshot.AreaId-cne$expected-or
+        $w.snapshot.CampaignId-cne$Request.fixture.working.gameId){
+        throw 'P07 transition autosave cold load lacks a distinct subsequent write in its own area.'
     }
 }
 
