@@ -237,14 +237,32 @@ namespace KingmakerMountedCombat.Integration
             var suffix = save.Type == SaveInfo.SaveType.Manual ? "_" +
                 System.Text.RegularExpressions.Regex.Replace(save.Name, "[^a-zA-Z0-9]", "_") : string.Empty;
             var leaf = save.Type + "_" + manager.FindUnusedSaveNumber(save.Type) + suffix + ".zks";
+            // A new game's first autosave is admitted before any area is loaded
+            // (Game.LoadNewGame 06000CDC, IL_0525); a null area is projected as
+            // observed and only a leaf declared for that boundary admits it.
             return authority.ProjectNewRequest(new RuntimeSaveTarget
             {
                 InternalName = save.Name, FileName = leaf, FullPath = Path.Combine(authority.Root, leaf),
                 SaveType = save.Type.ToString(), GameId = Kingmaker.Game.Instance.Player.GameId,
                 GameName = Kingmaker.Game.Instance.Player.MainCharacter.Value.CharacterName,
-                Area = Kingmaker.Game.Instance.CurrentlyLoadedArea.AssetGuidThreadSafe
+                Area = Kingmaker.Game.Instance.CurrentlyLoadedArea?.AssetGuidThreadSafe
             }, authority.Root);
         }
+
+        // ---- Bootstrap campaign (one disposable native new game per run) ----
+        // The scenario opens the window immediately before Game.LoadNewGame; the
+        // engine mints the identity and the authority freezes it on the first
+        // admitted write. Nothing here assigns, predicts or fabricates a GameId.
+        internal static void OpenBootstrapWindow()
+        {
+            if (authority == null) throw new InvalidOperationException("A bootstrap campaign requires active isolated authority.");
+            authority.OpenBootstrapWindow();
+        }
+        internal static bool DeclaresBootstrapCampaign => authority != null && authority.DeclaresBootstrapCampaign;
+        internal static bool BootstrapWindowOpen => authority != null && authority.BootstrapWindowOpen;
+        internal static string BootstrapGameId => authority?.BootstrapGameId;
+        internal static string BootstrapGameName => authority?.BootstrapGameName;
+        internal static int BootstrapFreezeCount => authority == null ? 0 : authority.BootstrapFreezeCount;
 
         internal static void ObservePreparedWrite(SaveInfo save)
         {

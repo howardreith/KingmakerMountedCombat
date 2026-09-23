@@ -24,6 +24,16 @@ namespace KingmakerMountedCombat.Diagnostics
         public string AdmissionArea { get; set; }
         public string InitialSha256 { get; set; }
         public bool Writable { get; set; }
+        // null/"A": the validated fixture campaign. "B": a leaf of the single
+        // disposable native new game this run may start; its identity is minted
+        // by the engine at run time and frozen on the first admitted write.
+        public string Campaign { get; set; }
+        // Verified installed behaviour: Game.LoadNewGame 06000CDC constructs the
+        // new game's autosave SaveRoutine (IL_0525) right after queueing the
+        // area load, while no area is loaded at all, so its admission boundary
+        // observes no current area. Only a bootstrap leaf may admit that, and it
+        // still commits in the exact declared area.
+        public bool AdmitsBeforeArea { get; set; }
     }
 
     // Test-only authority. The caller supplies the already authorized run directory,
@@ -41,8 +51,13 @@ namespace KingmakerMountedCombat.Diagnostics
             internal bool Writing;
             internal string Hash;
             internal bool Writable;
+            // A leaf of the bootstrap campaign: the one native new game this run
+            // may start, whose identity the engine mints.
+            internal bool Bootstrap;
+            internal bool AdmitsBeforeArea;
             internal bool Admits(string area) =>
-                area == Area || (AdmissionArea != null && area == AdmissionArea);
+                area == Area || (AdmissionArea != null && area == AdmissionArea) ||
+                (area == null && AdmitsBeforeArea);
         }
 
         private readonly object sync = new object();
@@ -52,6 +67,57 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly string gameName;
         private readonly string baselineHash;
         internal string Root { get; }
+
+        // ---- Bootstrap campaign ----
+        //
+        // Campaign A is the validated fixture identity every ordinary leaf is
+        // bound to. A run that declares bootstrap leaves may start exactly ONE
+        // native new game: the scenario opens the window immediately before
+        // Game.LoadNewGame, the engine mints the identity, and the first native
+        // write that reaches a bootstrap leaf inside that window freezes the
+        // exact GameId/GameName it carries -- nothing is assigned by KMC. Before
+        // the freeze, bootstrap leaves admit nothing; after it, only that exact
+        // identity, and the window is closed. Ordinary leaves never admit it.
+        private bool declaresBootstrap;
+        private bool bootstrapWindowOpen;
+        private string bootstrapGameId;
+        private string bootstrapGameName;
+        internal bool DeclaresBootstrapCampaign => declaresBootstrap;
+        internal bool BootstrapWindowOpen { get { lock (sync) return bootstrapWindowOpen; } }
+        internal string BootstrapGameId { get { lock (sync) return bootstrapGameId; } }
+        internal string BootstrapGameName { get { lock (sync) return bootstrapGameName; } }
+        internal int BootstrapFreezeCount { get; private set; }
+
+        internal void OpenBootstrapWindow()
+        {
+            lock (sync)
+            {
+                if (!declaresBootstrap) throw new InvalidOperationException("This run declares no bootstrap campaign leaf.");
+                if (bootstrapGameId != null) throw new InvalidOperationException("The bootstrap campaign identity is already frozen.");
+                if (bootstrapWindowOpen) throw new InvalidOperationException("The bootstrap window is already open.");
+                bootstrapWindowOpen = true;
+            }
+        }
+
+        // The engine's own first write for the new game mints the identity.
+        private string TryFreezeBootstrapLocked(string observedGameId, string observedGameName)
+        {
+            if (bootstrapGameId != null) return null;
+            if (!bootstrapWindowOpen) return "Bootstrap campaign identity is not minted: no native new game was opened.";
+            Guid parsed;
+            if (string.IsNullOrEmpty(observedGameId) || !Guid.TryParse(observedGameId, out parsed) ||
+                string.Equals(observedGameId, gameId, StringComparison.Ordinal))
+                return "Bootstrap campaign identity is not a fresh native GameId.";
+            if (string.IsNullOrEmpty(observedGameName)) return "Bootstrap campaign has no native GameName.";
+            bootstrapGameId = observedGameId;
+            bootstrapGameName = observedGameName;
+            bootstrapWindowOpen = false;
+            BootstrapFreezeCount++;
+            return null;
+        }
+
+        private string ExpectedGameId(Entry entry) => entry.Bootstrap ? bootstrapGameId : gameId;
+        private string ExpectedGameName(Entry entry) => entry.Bootstrap ? bootstrapGameName : gameName;
 
         internal PersistenceSaveAuthorization(string authorizedRunRoot, string campaignId,
             string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist)
@@ -102,10 +168,23 @@ namespace KingmakerMountedCombat.Diagnostics
                           admission == declaredTransitionTarget && area == declaredTransitionSource))
                         throw new ArgumentException("A two-area save leaf must be a writable declared transition endpoint.");
                 }
+                if (item.Campaign != null && item.Campaign != "A" && item.Campaign != "B")
+                    throw new ArgumentException("A save leaf belongs to campaign A or the bootstrap campaign B.");
+                var bootstrap = item.Campaign == "B";
+                // The bootstrap campaign does not exist before the run starts it:
+                // its leaves are single-area, writable and initially empty.
+                if (bootstrap && (!item.Writable || hash != null || admission != null))
+                    throw new ArgumentException("A bootstrap campaign leaf must be an empty single-area writable leaf.");
+                if (item.AdmitsBeforeArea && (!bootstrap || item.SaveType != "Auto"))
+                    throw new ArgumentException("Only a bootstrap autosave leaf is admitted before any area is loaded.");
+                declaresBootstrap |= bootstrap;
                 entries.Add(file, new Entry { Name = name, Type = item.SaveType, Area = area,
-                    AdmissionArea = admission, Hash = hash, Writable = item.Writable });
+                    AdmissionArea = admission, Hash = hash, Writable = item.Writable, Bootstrap = bootstrap,
+                    AdmitsBeforeArea = item.AdmitsBeforeArea });
             }
             if (entries.Count == 0) throw new ArgumentException("An exact save allowlist is required.");
+            if (declaresBootstrap && entries.Values.All(entry => entry.Bootstrap))
+                throw new ArgumentException("A bootstrap campaign needs the validated fixture campaign beside it.");
             foreach (var path in Directory.EnumerateFileSystemEntries(Root))
             {
                 if (!entries.ContainsKey(Path.GetFileName(path)) || Directory.Exists(path))
@@ -137,10 +216,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     predicted.FileName != Path.GetFileName(predicted.FullPath))
                     throw new InvalidOperationException("New request projection escaped its exact isolated root.");
                 RequireDirectory(Root);
-                if (predicted.GameId != gameId || predicted.GameName != gameName)
+                // A request carrying the engine-minted identity of the one open
+                // (or already frozen) bootstrap game is projected onto bootstrap
+                // leaves only; the fixture campaign never reaches them.
+                var fixtureCampaign = predicted.GameId == gameId && predicted.GameName == gameName;
+                var bootstrapCampaign = !fixtureCampaign && declaresBootstrap && (bootstrapGameId == null
+                    ? bootstrapWindowOpen && !string.Equals(predicted.GameId, gameId, StringComparison.Ordinal)
+                    : predicted.GameId == bootstrapGameId && predicted.GameName == bootstrapGameName);
+                if (!fixtureCampaign && !bootstrapCampaign)
                     throw new InvalidOperationException("New request campaign differs from its run.");
                 var candidates = entries.Where(p => p.Value.Name == predicted.InternalName &&
                     p.Value.Type == predicted.SaveType && p.Value.Admits(predicted.Area) &&
+                    p.Value.Bootstrap == bootstrapCampaign &&
                     p.Value.Writable && !p.Value.Writing && p.Value.Hash == null).ToArray();
                 // Existing rotation contracts may deliberately declare two leaves.
                 // Keep their native prediction and let normal validation decide.
@@ -173,18 +260,31 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Canonical(target.FullPath) != Path.Combine(Root, target.FileName) ||
                     target.FileName != Path.GetFileName(target.FullPath))
                     return "Save is not the exact canonical direct child.";
+                if (operation != RuntimeSaveOperation.Load && operation != RuntimeSaveOperation.Write &&
+                    operation != RuntimeSaveOperation.Delete) return "Unknown save operation.";
+                if (entry.Bootstrap && bootstrapGameId == null)
+                {
+                    // The first write the engine admits to a bootstrap leaf inside
+                    // the open window freezes the identity it minted. Nothing can
+                    // be loaded or rotated from that campaign before that.
+                    if (operation != RuntimeSaveOperation.Write ||
+                        target.InternalName != entry.Name || target.SaveType != entry.Type || !entry.Admits(target.Area))
+                        return "Bootstrap campaign identity is not minted: no native new game write reached its leaf.";
+                    var minting = TryFreezeBootstrapLocked(target.GameId, target.GameName);
+                    if (minting != null) return minting;
+                }
                 if (target.InternalName != entry.Name || target.SaveType != entry.Type ||
-                    target.GameId != gameId || target.GameName != gameName || !entry.Admits(target.Area))
+                    target.GameId != ExpectedGameId(entry) || target.GameName != ExpectedGameName(entry) ||
+                    !entry.Admits(target.Area))
                     // Naming the observed and declared identity keeps a rejected
                     // boundary self-diagnosing instead of costing another run.
                     return "Native save name, type, campaign or area differs from the run contract" +
                         " (observed name=" + target.InternalName + " type=" + target.SaveType +
-                        " area=" + target.Area + "; declared name=" + entry.Name + " type=" + entry.Type +
+                        " area=" + target.Area + " campaign=" + (entry.Bootstrap ? "B" : "A") +
+                        "; declared name=" + entry.Name + " type=" + entry.Type +
                         " area=" + entry.Area + (entry.AdmissionArea == null ? string.Empty :
                         " admission=" + entry.AdmissionArea) + ").";
                 if (entry.Writing) return "This save already belongs to an unfinished write.";
-                if (operation != RuntimeSaveOperation.Load && operation != RuntimeSaveOperation.Write &&
-                    operation != RuntimeSaveOperation.Delete) return "Unknown save operation.";
                 if (operation != RuntimeSaveOperation.Load && !entry.Writable)
                     return "This run-owned entry is read-only.";
                 VerifyFile(target.FileName, entry);

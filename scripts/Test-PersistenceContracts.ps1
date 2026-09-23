@@ -610,6 +610,128 @@ public static class KmcPersistenceContractProbe
         type.GetMethod("Save").Invoke(saver,null);
         yield break;
     }
+    private static object Entry(Type entryType, string file, string name, string type, string area, bool writable, string campaign, bool beforeArea)
+    {
+        var entry=Activator.CreateInstance(entryType,true);
+        entryType.GetProperty("FileName").SetValue(entry,file,null);
+        entryType.GetProperty("InternalName").SetValue(entry,name,null);
+        entryType.GetProperty("SaveType").SetValue(entry,type,null);
+        entryType.GetProperty("Area").SetValue(entry,area,null);
+        entryType.GetProperty("Writable").SetValue(entry,writable,null);
+        entryType.GetProperty("Campaign").SetValue(entry,campaign,null);
+        entryType.GetProperty("AdmitsBeforeArea").SetValue(entry,beforeArea,null);
+        return entry;
+    }
+    private static object Target(Type targetType, string root, string name, string file, string type, string gameId, string gameName, string area)
+    {
+        var target=Activator.CreateInstance(targetType,true);
+        targetType.GetProperty("InternalName").SetValue(target,name,null);
+        targetType.GetProperty("FileName").SetValue(target,file,null);
+        targetType.GetProperty("FullPath").SetValue(target,Path.Combine(root,file),null);
+        targetType.GetProperty("SaveType").SetValue(target,type,null);
+        targetType.GetProperty("GameId").SetValue(target,gameId,null);
+        targetType.GetProperty("GameName").SetValue(target,gameName,null);
+        targetType.GetProperty("Area").SetValue(target,area,null);
+        return target;
+    }
+    private static bool Rejects(Func<object> act)
+    {
+        try { act(); return false; }
+        catch(TargetInvocationException e) { return e.InnerException is ArgumentException || e.InnerException is InvalidOperationException; }
+    }
+
+    // The bootstrap campaign contract, against the real authority with no game:
+    // declared before the run, opened once immediately before the native new
+    // game, minted only by the engine's own first admitted write, frozen once,
+    // and sealed from the fixture campaign in both directions.
+    private static void VerifyBootstrapCampaign(Assembly candidate, string owned)
+    {
+        var run=Path.Combine(owned,"bootstrap");
+        var isolated=Path.Combine(run,"Saved Games");
+        Directory.CreateDirectory(isolated);
+        try
+        {
+            var entryType=candidate.GetType("KingmakerMountedCombat.Diagnostics.PersistenceSaveEntry",true);
+            var authorityType=candidate.GetType("KingmakerMountedCombat.Diagnostics.PersistenceSaveAuthorization",true);
+            var targetType=candidate.GetType("KingmakerMountedCombat.Diagnostics.RuntimeSaveTarget",true);
+            var operationType=candidate.GetType("KingmakerMountedCombat.Diagnostics.RuntimeSaveOperation",true);
+            ConstructorInfo ctor=null;
+            foreach(var c in authorityType.GetConstructors(BindingFlags.NonPublic|BindingFlags.Instance)) if(c.GetParameters().Length==5) ctor=c;
+            var aArea=new string('a',32); var bArea=new string('b',32);
+            Func<object[],object> build=items=>{
+                var array=Array.CreateInstance(entryType,items.Length);
+                for(int i=0;i<items.Length;i++) array.SetValue(items[i],i);
+                return ctor.Invoke(new object[]{run,"campaign-a","Hero",new string('c',64),array});
+            };
+            var aLeaf=Entry(entryType,"Manual_300_KMC_P01.zks","KMC_P01","Manual",aArea,true,null,false);
+            var bAuto=Entry(entryType,"Auto_1.zks","Autosave1","Auto",bArea,true,"B",true);
+            var bManual=Entry(entryType,"Manual_302_KMC_B.zks","KMC_B","Manual",bArea,true,"B",false);
+            Check(Rejects(()=>build(new[]{aLeaf,Entry(entryType,"Auto_2.zks","Autosave2","Auto",bArea,false,"B",false)})),"a read-only bootstrap leaf is refused");
+            Check(Rejects(()=>build(new[]{aLeaf,Entry(entryType,"Manual_303_X.zks","X","Manual",bArea,true,"B",true)})),"before-area admission is refused on a bootstrap manual leaf");
+            Check(Rejects(()=>build(new[]{aLeaf,Entry(entryType,"Auto_2.zks","Autosave2","Auto",aArea,true,null,true)})),"before-area admission is refused on a fixture-campaign leaf");
+            Check(Rejects(()=>build(new[]{bAuto,bManual})),"a bootstrap campaign without the fixture campaign is refused");
+            Check(Rejects(()=>build(new[]{aLeaf,Entry(entryType,"Manual_304_Y.zks","Y","Manual",bArea,true,"C",false)})),"an unknown campaign tag is refused");
+            var authority=build(new[]{aLeaf,bAuto,bManual});
+            var flags=BindingFlags.NonPublic|BindingFlags.Instance;
+            Func<string,object> prop=n=>authorityType.GetProperty(n,flags).GetValue(authority,null);
+            Check((bool)prop("DeclaresBootstrapCampaign") && !(bool)prop("BootstrapWindowOpen") && prop("BootstrapGameId")==null && (int)prop("BootstrapFreezeCount")==0,
+                "bootstrap campaign is declared, closed and unminted at construction");
+            var validate=authorityType.GetMethod("Validate",flags);
+            var project=authorityType.GetMethod("ProjectNewRequest",flags);
+            var open=authorityType.GetMethod("OpenBootstrapWindow",flags);
+            var write=Enum.Parse(operationType,"Write"); var load=Enum.Parse(operationType,"Load");
+            var minted="11111111-2222-3333-4444-555555555555";
+            var other="66666666-7777-8888-9999-000000000000";
+            Func<object,object,string> check=(op,t)=>(string)validate.Invoke(authority,new object[]{op,t,isolated});
+            var bAutoTarget=Target(targetType,isolated,"Autosave1","Auto_1.zks","Auto",minted,"Newcomer",null);
+            var refusal=check(write,bAutoTarget);
+            Check(refusal!=null && refusal.IndexOf("not minted",StringComparison.Ordinal)>=0 && prop("BootstrapGameId")==null,
+                "a bootstrap write before the window is refused as unminted");
+            Check(Rejects(()=>project.Invoke(authority,new object[]{bAutoTarget,isolated})),
+                "a fresh-identity projection before the window is refused as a foreign campaign");
+            var aOnB=Target(targetType,isolated,"Autosave1","Auto_1.zks","Auto","campaign-a","Hero",null);
+            var projected=project.Invoke(authority,new object[]{aOnB,isolated});
+            Check(ReferenceEquals(projected,aOnB) && check(write,aOnB)!=null,"the fixture campaign never reaches a bootstrap leaf");
+            open.Invoke(authority,null);
+            Check((bool)prop("BootstrapWindowOpen"),"the bootstrap window opens once, immediately before the native new game");
+            Check(Rejects(()=>open.Invoke(authority,null)),"the bootstrap window cannot be opened twice");
+            var stale=Target(targetType,isolated,"Autosave1","Auto_1.zks","Auto","campaign-a","Hero",null);
+            Check(check(write,stale)!=null && prop("BootstrapGameId")==null,"the fixture identity cannot mint the bootstrap campaign");
+            var notGuid=Target(targetType,isolated,"Autosave1","Auto_1.zks","Auto","not-a-guid","Newcomer",null);
+            Check(check(write,notGuid)!=null && prop("BootstrapGameId")==null,"a non-GUID identity cannot mint the bootstrap campaign");
+            Check(check(load,bAutoTarget)!=null && prop("BootstrapGameId")==null,"a load cannot mint the bootstrap campaign");
+            projected=project.Invoke(authority,new object[]{bAutoTarget,isolated});
+            Check((string)targetType.GetProperty("FileName").GetValue(projected,null)=="Auto_1.zks" && prop("BootstrapGameId")==null,
+                "the open window projects the minted request onto the bootstrap autosave leaf without freezing");
+            Check(check(write,bAutoTarget)==null && (string)prop("BootstrapGameId")==minted && (string)prop("BootstrapGameName")=="Newcomer" &&
+                !(bool)prop("BootstrapWindowOpen") && (int)prop("BootstrapFreezeCount")==1,
+                "the first admitted write, before any area, freezes the minted identity and closes the window");
+            var committedAuto=Target(targetType,isolated,"Autosave1","Auto_1.zks","Auto",minted,"Newcomer",bArea);
+            Check(check(write,committedAuto)==null,"the frozen identity is admitted in its declared commit area");
+            var foreign=Target(targetType,isolated,"KMC_B","Manual_302_KMC_B.zks","Manual",other,"Newcomer",bArea);
+            Check(check(write,foreign)!=null && (int)prop("BootstrapFreezeCount")==1,"a second fresh identity is refused after the freeze");
+            Check(Rejects(()=>project.Invoke(authority,new object[]{foreign,isolated})),"a second fresh identity is not projected after the freeze");
+            Check(Rejects(()=>open.Invoke(authority,null)),"the window cannot reopen after the freeze");
+            var bManualTarget=Target(targetType,isolated,"KMC_B","Manual_302_KMC_B.zks","Manual",minted,"Newcomer",bArea);
+            projected=project.Invoke(authority,new object[]{bManualTarget,isolated});
+            Check((string)targetType.GetProperty("FileName").GetValue(projected,null)=="Manual_302_KMC_B.zks" && check(write,bManualTarget)==null,
+                "the frozen identity projects onto and is admitted at the bootstrap manual leaf");
+            var wrongArea=Target(targetType,isolated,"KMC_B","Manual_302_KMC_B.zks","Manual",minted,"Newcomer",aArea);
+            Check(check(write,wrongArea)!=null,"the bootstrap manual leaf is not admitted outside its declared area");
+            var beforeAreaManual=Target(targetType,isolated,"KMC_B","Manual_302_KMC_B.zks","Manual",minted,"Newcomer",null);
+            Check(check(write,beforeAreaManual)!=null,"only the bootstrap autosave admits before any area is loaded");
+            var aTarget=Target(targetType,isolated,"KMC_P01","Manual_300_KMC_P01.zks","Manual","campaign-a","Hero",aArea);
+            Check(check(write,aTarget)==null,"the fixture campaign still admits its own leaf after the freeze");
+            var mintedOnA=Target(targetType,isolated,"KMC_P01","Manual_300_KMC_P01.zks","Manual",minted,"Newcomer",aArea);
+            Check(check(write,mintedOnA)!=null,"the minted identity never reaches a fixture-campaign leaf");
+        }
+        finally
+        {
+            if(Directory.Exists(isolated)) Directory.Delete(isolated);
+            if(Directory.Exists(run)) Directory.Delete(run);
+        }
+    }
+
     public static void Run(string managed, string candidatePath, string owned)
     {
         ResolveEventHandler resolver=(sender,args)=>{
@@ -1065,6 +1187,7 @@ public static class KmcPersistenceContractProbe
         }
         VerifyNativeColdDescriptor(native,candidate,owned);
         VerifyNativeEffectBoundary(native,candidate);
+        VerifyBootstrapCampaign(candidate,owned);
         var saveInfoType=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
         var originalInfo=Activator.CreateInstance(saveInfoType);
         var stagedInfo=Activator.CreateInstance(saveInfoType);

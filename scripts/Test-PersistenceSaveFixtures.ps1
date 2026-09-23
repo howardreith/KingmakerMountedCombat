@@ -874,5 +874,143 @@ foreach($bad in @('no-flight','worker-finished','no-hold','held-other-leaf','alr
     Must-Reject {Assert-KmcRecoveryPersistenceEvidence $drainRequest $n} ('P07 drain accepted '+$bad)
 }
 
+# --- Campaign B: a genuine second native game beside the fixture campaign ------
+$campaignId='campaign-source'
+$campaignRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$campaignId+'/Saved Games')
+[void][IO.Directory]::CreateDirectory($campaignRoot)
+$bGameId='5d0d6b8e-1b7a-4d0f-9d0b-3f4c2a1e9c77';$bArea=('c'*32);$bName='Newcomer'
+function New-KmcSyntheticArchive { param([string]$Path,[hashtable]$Header,$Kmc)
+    $s=[IO.File]::Open($Path,[IO.FileMode]::CreateNew)
+    $z=[IO.Compression.ZipArchive]::new($s,[IO.Compression.ZipArchiveMode]::Create,$false)
+    try{
+        $w=[IO.StreamWriter]::new($z.CreateEntry('header.json').Open());try{$w.Write(($Header|ConvertTo-Json -Compress))}finally{$w.Dispose()}
+        if($null-ne$Kmc){$w=[IO.StreamWriter]::new($z.CreateEntry('kmc-mounted-state').Open());try{$w.Write(($Kmc|ConvertTo-Json -Compress))}finally{$w.Dispose()}}
+    }finally{$z.Dispose();$s.Dispose()}
+    return (Get-KmcSha256 $Path)
+}
+$aSecondPath=Join-Path $campaignRoot 'Manual_301_KMC_P01.zks'
+$aSecondSha=New-KmcSyntheticArchive $aSecondPath ([ordered]@{Name='KMC_P01';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true})
+$bKmc=[ordered]@{SchemaVersion=2;CampaignId=$bGameId;AreaId=$bArea;Mounted=$false;Slots=@()}
+$bAutoPath=Join-Path $campaignRoot 'Auto_1.zks'
+$bAutoSha=New-KmcSyntheticArchive $bAutoPath ([ordered]@{Name='Autosave1';Type='Auto';CompatibilityVersion=1;GameId=$bGameId;GameName=$bName;Area=$bArea}) $bKmc
+$bManualPath=Join-Path $campaignRoot 'Manual_302_KMC_B.zks'
+$bManualSha=New-KmcSyntheticArchive $bManualPath ([ordered]@{Name='KMC_B';Type='Manual';CompatibilityVersion=1;GameId=$bGameId;GameName=$bName;Area=$bArea}) $null
+$aFirstSha=('a'*64)
+function New-KmcCampaignRow { param([string]$Kind,[int]$Stage,[string]$Relationship,[hashtable]$Detail)
+    $mounted=$Relationship-ceq'Mounted'
+    $base=[ordered]@{case='campaign-b';stage=$Stage-900;riderId='rider-a';mountId='mount-a';snapshots=2;failedSaves=0
+        semantics=2;presentation=1;disposals=1;rejections=0;saveSuspended=$false;activeScope=$false;draining=$false;resetDeferrals=0
+        bootstrapDeclared=$true;bootstrapWindowOpen=$false;bootstrapGameId=$null;bootstrapGameName=$null;bootstrapFreezes=0
+        aFirstHash=$script:aFirstSha;aSecondHash=$script:aSecondSha;loadedArea=$null}
+    foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
+    [pscustomobject]@{kind=$Kind;checkpoint='campaign-b';stage=$Stage;relationship=$Relationship
+        rider=$(if($mounted){[pscustomobject]@{Id='rider-a'}}else{$null});mount=$(if($mounted){[pscustomobject]@{Id='mount-a'}}else{$null})
+        detail=[pscustomobject]$base}
+}
+function New-KmcCampaignArchiveDetail { param([string]$Path,[string]$Leaf,[string]$Type,[string]$Name,[string]$Sha,[string]$Member,$Snapshot)
+    [pscustomobject]@{path=$Path;leaf=$Leaf;sha256=$Sha;length=(Get-Item -LiteralPath $Path).Length;nativeType=$Type;internalName=$Name
+        gameId=$script:bGameId;gameName=$script:bName;area=$script:bArea;operation='None';kmcMember=$Member;snapshot=$Snapshot}
+}
+$campaignRequest=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='campaign-b';runId=$campaignId;fixture=$fixture}
+$campaignRows=@(
+    [pscustomobject]@{kind='initial';checkpoint='campaign-b';stage=0;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'};detail=$null},
+    [pscustomobject]@{kind='native-write-complete';checkpoint='campaign-b';stage=900;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'}
+        detail=[pscustomobject]@{ordinal=1;path=(Join-Path $campaignRoot 'Manual_300_KMC_P01.zks');sha256=$aFirstSha;length=10;nativeType='Manual'
+            snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}},
+    (New-KmcCampaignRow 'campaign-b-expenditure' 902 'Mounted' @{moved=2.5;bindings=2;loadedArea=$fixture.working.area
+        secondArchive=[pscustomobject]@{path=$aSecondPath;leaf='Manual_301_KMC_P01.zks';sha256=$aSecondSha;length=10;nativeType='Manual';gameId=$fixture.working.gameId
+            snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}}),
+    (New-KmcCampaignRow 'campaign-b-departed' 903 'Unmounted' @{}),
+    (New-KmcCampaignRow 'campaign-b-started' 903 'Unmounted' @{presetSource='dlc-endless';dlcEnabled=$true;presetArea=$bArea;enterPointArea=$bArea
+        makeAutosave=$true;charGen=$false;autosaveEnabled=$true;windowOpened=$true;frozenBefore=$false;bootstrapWindowOpen=$true}),
+    (New-KmcCampaignRow 'campaign-b-frozen' 906 'Unmounted' @{gameId=$bGameId;gameName=$bName;area=$bArea;loadedArea=$bArea;presetArea=$bArea
+        freezeCount=1;windowOpen=$false;bootstrapGameId=$bGameId;bootstrapGameName=$bName;bootstrapFreezes=1;modeAtB='Default';partyAtB=1
+        manualAllowed=$true;manualSaved=$true;bindings=0;aFirstSha256=$aFirstSha;aSecondSha256=$aSecondSha;snapshots=4
+        autosave=(New-KmcCampaignArchiveDetail $bAutoPath 'Auto_1.zks' 'Auto' 'Autosave1' $bAutoSha 'Current' ([pscustomobject]@{SchemaVersion=2;CampaignId=$bGameId;AreaId=$bArea;Mounted=$false;Slots=@()}))
+        manual=(New-KmcCampaignArchiveDetail $bManualPath 'Manual_302_KMC_B.zks' 'Manual' 'KMC_B' $bManualSha 'Missing' $null)}),
+    (New-KmcCampaignRow 'campaign-b-returned' 907 'Mounted' @{gameId=$fixture.working.gameId;loadedArea=$fixture.working.area;worldIsA=$false
+        semantics=4;presentation=2;disposals=2;riderDelta=0.2;mountDelta=0.1;elapsedSeconds=3.5;bindingsRestored=2;bindingsSaved=2
+        aFirstSha256=$aFirstSha;aSecondSha256=$aSecondSha;bAutoSha256=$bAutoSha;bManualSha256=$bManualSha
+        bootstrapGameId=$bGameId;bootstrapGameName=$bName;bootstrapFreezes=1;snapshots=4}))
+Assert-KmcRecoveryPersistenceEvidence $campaignRequest $campaignRows;$passes++
+# No manual save in B is equally valid when the authored start disallowed one.
+$noManual=($campaignRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+$noManual[5].detail.manualAllowed=$false;$noManual[5].detail.manualSaved=$false;$noManual[5].detail.manual=$null
+$noManual[6].detail.bManualSha256=$null
+Rename-Item -LiteralPath $bManualPath -NewName 'Manual_302_KMC_B.zks.held'
+try{ Assert-KmcRecoveryPersistenceEvidence $campaignRequest $noManual;$passes++ }
+finally{ Rename-Item -LiteralPath ($bManualPath+'.held') -NewName 'Manual_302_KMC_B.zks' }
+foreach($bad in @('no-expenditure','out-of-order','not-moved','second-aliases-first','second-wrong-leaf','no-bindings-before',
+    'departed-still-mounted','departed-lease-held','departed-actors-linger','premature-identity','window-not-opened','frozen-before-start',
+    'unlicensed-dlc','unknown-preset','autosave-setting-off','identity-is-fixture','identity-not-guid','empty-game-name','frozen-twice','window-left-open',
+    'bindings-in-b','restored-into-b','b-wrong-area','autosave-wrong-leaf','autosave-foreign-campaign','autosave-records-pair','autosave-bytes-changed',
+    'autosave-member-unreadable','manual-inconsistent','manual-aliases-autosave','unrecorded-manual-on-disk',
+    'returned-wrong-campaign','returned-same-world','returned-not-restored-once','returned-position-lost','returned-bindings-lost',
+    'returned-a-archive-changed','returned-b-archive-changed','returned-extra-disposal','returned-rejected-load','returned-pair-changed','returned-failed-save')){
+    $n=($campaignRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    $held=$false
+    switch($bad){
+        'no-expenditure' {$n=@($n[0],$n[1],$n[3],$n[4],$n[5],$n[6])}
+        'out-of-order' {$n[6].stage=901}
+        'not-moved' {$n[2].detail.moved=0.5}
+        'second-aliases-first' {$n[2].detail.secondArchive.sha256=$aFirstSha}
+        'second-wrong-leaf' {$n[2].detail.secondArchive.leaf='Manual_300_KMC_P01.zks';$n[2].detail.secondArchive.path=(Join-Path $campaignRoot 'Manual_300_KMC_P01.zks')}
+        'no-bindings-before' {$n[2].detail.bindings=0}
+        'departed-still-mounted' {$n[3].relationship='Mounted';$n[3].rider=[pscustomobject]@{Id='rider-a'};$n[3].mount=[pscustomobject]@{Id='mount-a'}}
+        'departed-lease-held' {$n[3].detail.saveSuspended=$true}
+        'departed-actors-linger' {$n[3].rider=[pscustomobject]@{Id='rider-a'}}
+        'premature-identity' {$n[3].detail.bootstrapGameId=$bGameId;$n[3].detail.bootstrapFreezes=1}
+        'window-not-opened' {$n[4].detail.windowOpened=$false}
+        'frozen-before-start' {$n[4].detail.frozenBefore=$true}
+        'unlicensed-dlc' {$n[4].detail.dlcEnabled=$false}
+        'unknown-preset' {$n[4].detail.presetSource='kmc-made'}
+        'autosave-setting-off' {$n[4].detail.autosaveEnabled=$false}
+        'identity-is-fixture' {$n[5].detail.gameId=$fixture.working.gameId;$n[5].detail.bootstrapGameId=$fixture.working.gameId}
+        'identity-not-guid' {$n[5].detail.gameId='minted';$n[5].detail.bootstrapGameId='minted'}
+        'empty-game-name' {$n[5].detail.gameName='';$n[5].detail.bootstrapGameName=''}
+        'frozen-twice' {$n[5].detail.freezeCount=2;$n[5].detail.bootstrapFreezes=2}
+        'window-left-open' {$n[5].detail.windowOpen=$true;$n[5].detail.bootstrapWindowOpen=$true}
+        'bindings-in-b' {$n[5].detail.bindings=1}
+        'restored-into-b' {$n[5].detail.semantics=4;$n[5].detail.presentation=2}
+        'b-wrong-area' {$n[5].detail.loadedArea=('d'*32)}
+        'autosave-wrong-leaf' {$n[5].detail.autosave.leaf='Auto_2.zks';$n[5].detail.autosave.path=(Join-Path $campaignRoot 'Auto_2.zks')}
+        'autosave-foreign-campaign' {$n[5].detail.autosave.snapshot.CampaignId=$fixture.working.gameId}
+        'autosave-records-pair' {$n[5].detail.autosave.snapshot.Mounted=$true}
+        'autosave-bytes-changed' {$n[5].detail.autosave.sha256=('e'*64)}
+        'autosave-member-unreadable' {$n[5].detail.autosave.kmcMember='Invalid'}
+        'manual-inconsistent' {$n[5].detail.manualSaved=$false}
+        'manual-aliases-autosave' {$n[5].detail.manual.sha256=$bAutoSha}
+        'unrecorded-manual-on-disk' {$n[5].detail.manualAllowed=$false;$n[5].detail.manualSaved=$false;$n[5].detail.manual=$null;$n[6].detail.bManualSha256=$null}
+        'returned-wrong-campaign' {$n[6].detail.gameId=$bGameId}
+        'returned-same-world' {$n[6].detail.worldIsA=$true}
+        'returned-not-restored-once' {$n[6].detail.semantics=6}
+        'returned-position-lost' {$n[6].detail.mountDelta=2.0}
+        'returned-bindings-lost' {$n[6].detail.bindingsRestored=1}
+        'returned-a-archive-changed' {$n[6].detail.aSecondSha256=('f'*64)}
+        'returned-b-archive-changed' {$n[6].detail.bAutoSha256=('f'*64)}
+        'returned-extra-disposal' {$n[6].detail.disposals=3}
+        'returned-rejected-load' {$n[6].detail.rejections=1}
+        'returned-pair-changed' {$n[6].detail.riderId='rider-b';$n[6].rider=[pscustomobject]@{Id='rider-b'}}
+        'returned-failed-save' {$n[6].detail.failedSaves=1}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $campaignRequest $n} ('P07 campaign B accepted '+$bad)
+}
+# The archive on disk must be what the run recorded: an autosave whose member
+# leaks A's campaign is refused from its bytes, not from its row.
+$leakRoot=Join-Path $script:ownedTestLab 'runtime-staging/persistence-campaign-leak/Saved Games'
+[void][IO.Directory]::CreateDirectory($leakRoot)
+[void](New-KmcSyntheticArchive (Join-Path $leakRoot 'Manual_301_KMC_P01.zks') ([ordered]@{Name='KMC_P01';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true}))
+$leakSha=New-KmcSyntheticArchive (Join-Path $leakRoot 'Auto_1.zks') ([ordered]@{Name='Autosave1';Type='Auto';CompatibilityVersion=1;GameId=$bGameId;GameName=$bName;Area=$bArea}) ([ordered]@{SchemaVersion=2;CampaignId=$fixture.working.gameId;AreaId=$bArea;Mounted=$false;Slots=@()})
+$leak=($campaignRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+$leakRequest=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='campaign-b';runId='campaign-leak';fixture=$fixture}
+foreach($row in $leak){ if($null-ne$row.detail){ foreach($p in @('path')){ if($null-ne$row.detail.PSObject.Properties[$p]){$row.detail.$p=$row.detail.$p.Replace('persistence-campaign-source','persistence-campaign-leak')} } } }
+$leak[2].detail.secondArchive.path=$leak[2].detail.secondArchive.path.Replace('persistence-campaign-source','persistence-campaign-leak')
+$leak[2].detail.secondArchive.sha256=(Get-KmcSha256 (Join-Path $leakRoot 'Manual_301_KMC_P01.zks'))
+$leak[5].detail.autosave.path=Join-Path $leakRoot 'Auto_1.zks';$leak[5].detail.autosave.sha256=$leakSha;$leak[5].detail.autosave.length=(Get-Item -LiteralPath (Join-Path $leakRoot 'Auto_1.zks')).Length
+$leak[5].detail.manualAllowed=$false;$leak[5].detail.manualSaved=$false;$leak[5].detail.manual=$null;$leak[6].detail.bManualSha256=$null
+$leak[3].detail.aSecondHash=$leak[2].detail.secondArchive.sha256;$leak[5].detail.aSecondSha256=$leak[2].detail.secondArchive.sha256;$leak[6].detail.aSecondSha256=$leak[2].detail.secondArchive.sha256
+$leak[6].detail.bAutoSha256=$leakSha
+Must-Reject {Assert-KmcRecoveryPersistenceEvidence $leakRequest $leak} 'P07 campaign B accepted an on-disk autosave member carrying the fixture campaign'
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.
