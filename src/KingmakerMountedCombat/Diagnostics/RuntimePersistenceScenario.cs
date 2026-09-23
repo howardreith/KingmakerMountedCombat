@@ -69,7 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -494,6 +494,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (disposed) return;
             recoveryFault?.Dispose(); recoveryFault = null;
             recoveryArchiveLock?.Dispose(); recoveryArchiveLock = null;
+            // A held worker must never outlive its scenario, including a failure.
+            drainHold?.Dispose(); drainHold = null;
+            NativeSaveWorkerBoundary.ReleaseWorkerHold();
             persistence.SaveSnapshotStaged -= ObserveApproachSnapshot;
             persistence.SaveSnapshotStaged -= ObserveAreaTransitionSnapshot;
             persistence.SaveSnapshotStarting -= BeforeConditionPreparationSnapshot;

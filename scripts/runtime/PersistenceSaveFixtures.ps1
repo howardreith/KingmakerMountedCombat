@@ -787,8 +787,85 @@ function Assert-KmcQueuedSaveEvidence {
     }
 }
 
+# Cancellation requested while the owned archive worker is provably still able to
+# commit. Nothing in the engine can abort that worker, so the only correct
+# outcomes are to defer and then drain. This proves the deferral held every
+# protection, that the interruption was reported truthfully only after the worker
+# settled, and that the settlement matches the archive bytes either way.
+function Assert-KmcWorkerDrainEvidence {
+    param($Request,$Rows)
+    $opened=@($Rows|Where-Object kind -CEQ 'drain-initial-write')
+    $flight=@($Rows|Where-Object kind -CEQ 'worker-in-flight-observed')
+    $deferred=@($Rows|Where-Object kind -CEQ 'drain-cancellation-deferred')
+    $settled=@($Rows|Where-Object kind -CEQ 'drain-settled')
+    $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
+    if($opened.Count-ne1-or$flight.Count-ne1-or$deferred.Count-ne1-or$settled.Count-ne1-or$written.Count-ne1){
+        throw 'P07 drain lacks its opening write, in-flight observation, deferral, settlement and subsequent write.'
+    }
+    $kinds=@($Rows|ForEach-Object{$_.kind})
+    $previous=-1
+    foreach($kind in @('drain-initial-write','worker-in-flight-observed','drain-cancellation-deferred','drain-settled','native-write-complete')){
+        $at=[Array]::IndexOf($kinds,$kind)
+        if($at-le$previous){throw "P07 drain evidence is out of order at $kind."}
+        $previous=$at
+    }
+    $f=$flight[0].detail
+    # The boundary must be THIS operation's own worker, observed unfinished.
+    if([string]::IsNullOrEmpty([string]$f.preparedLeaf)-or$f.workerTaskId-lt0-or
+        $f.workerRunning-ne$true-or$f.workerHeld-ne$true-or$f.workerHolds-ne1-or
+        $f.heldLeaf-cne$f.preparedLeaf){
+        throw 'P07 drain did not identify one exact in-flight owned save worker.'
+    }
+    if($f.workerEntries-lt1-or$f.draining-eq$true-or$f.deferredCancellations-ne0-or$f.drains-ne0){
+        throw 'P07 drain observed its boundary after the save had already been interrupted.'
+    }
+    if($f.saveSuspended-ne$true-or$f.serializationSuspended-ne$true-or$f.activeScope-ne$true){
+        throw 'P07 in-flight save did not hold its serialization leases.'
+    }
+    $d=$deferred[0].detail
+    if($d.workerTaskId-ne$f.workerTaskId){throw 'P07 deferral describes a different save worker.'}
+    if($d.draining-ne$true-or$d.activeScope-ne$true-or$d.deferredCancellations-ne1-or$d.drains-ne0){
+        throw 'P07 cancellation released the scope instead of deferring it.'
+    }
+    if($d.saveSuspended-ne$true-or$d.serializationSuspended-ne$true-or$d.saveCallback-ne$false){
+        throw 'P07 deferral dropped a lease or reported a cancellation while the worker could still commit.'
+    }
+    foreach($probe in @('overlapRefused','loadRefused','repeatedStopSafe','disableRefused')){
+        if($d.$probe-ne$true){throw "P07 deferral failed its $probe boundary."}
+    }
+    if($d.nativeWorldDisposals-ne$f.nativeWorldDisposals){
+        throw 'P07 refused load still disposed a world.'
+    }
+    if($d.currentSha256-ne$null-and$d.currentSha256-cne$d.lastGoodSha256){
+        throw 'P07 last-good archive changed while the worker was held.'
+    }
+    $s=$settled[0].detail
+    if($s.drains-ne1-or$s.deferredCancellations-ne1-or$s.draining-ne$false-or$s.activeScope-ne$false){
+        throw 'P07 settlement did not release exactly once.'
+    }
+    if($s.saveSuspended-ne$false-or$s.serializationSuspended-ne$false){
+        throw 'P07 settlement left a serialization lease held.'
+    }
+    # Truthful either way, checked against the bytes rather than asserted.
+    if($s.drainCommitted-eq$true){
+        if($s.currentSha256-ceq$s.lastGoodSha256){
+            throw 'P07 reported a committed interrupted save whose archive never changed.'
+        }
+        if($s.failedSaves-ne0){throw 'P07 reported a committed save as failed.'}
+    }else{
+        if($s.currentSha256-cne$s.lastGoodSha256){
+            throw 'P07 reported an uncommitted interrupted save but the archive changed.'
+        }
+        if($s.failedSaves-ne1){throw 'P07 did not report the uncommitted interrupted save as failed.'}
+    }
+    if($written[0].detail.ordinal-ne2-or[string]::IsNullOrEmpty([string]$written[0].detail.sha256)){
+        throw 'P07 drain lacks its real subsequent write.'
+    }
+}
+
 function Assert-KmcRecoveryPersistenceEvidence {
     param($Request,$Rows)
+    if($Request.persistenceCase-ceq'serialization-cancel'){ Assert-KmcWorkerDrainEvidence $Request $Rows; return }
     $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
     $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
     $commit=$Request.persistenceCase-ceq'locked-replace'
