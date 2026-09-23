@@ -29,6 +29,9 @@ namespace KingmakerMountedCombat
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
         private bool disposed;
+        // An update failure whose destructive cleanup was deferred because an
+        // owned save was in flight; consumed by Update once that save settles.
+        private bool failureCleanupPending;
 
         public CompositionRoot(IModLogger logger, string loadedModId)
         {
@@ -210,17 +213,23 @@ namespace KingmakerMountedCombat
                 return;
             }
 
-            try
+            // Update-failure cleanup is a full mounted cleanup over the exact live
+            // graphs an owned archive worker may be serializing. While an owned
+            // save is in flight it is latched, not skipped: persistence.Update
+            // runs first in every frame and keeps draining, and the cleanup runs
+            // on the first frame after the save settles.
+            if (persistence.SaveSuspended)
             {
-                combat.Cancel("update failure");
-                settings.EnableUnsafeMovementExperiment = false;
-                var cleanup = relationship.Dismount(CleanupTrigger.Exception);
-                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                failureCleanupPending = true;
+                logger.Warning("Update failure latched: an owned save is still in flight; mounted cleanup runs once it settles.");
+                if (first != null)
                 {
-                    throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+                    throw new InvalidOperationException("Runtime update failure could not be handled without residue.", first);
                 }
-                IsEnabled = false;
+                return;
             }
+
+            try { PerformFailureCleanup(); }
             catch (Exception cleanupException)
             {
                 first = first ?? cleanupException;
@@ -232,11 +241,30 @@ namespace KingmakerMountedCombat
             }
         }
 
+        private void PerformFailureCleanup()
+        {
+            combat.Cancel("update failure");
+            settings.EnableUnsafeMovementExperiment = false;
+            var cleanup = relationship.Dismount(CleanupTrigger.Exception);
+            if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+            {
+                throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+            }
+            IsEnabled = false;
+        }
+
         public void Update(float deltaTime)
         {
             ThrowIfDisposed();
             horseCompanion.Update();
             persistence.Update();
+            // A latched update-failure cleanup runs on the first frame after the
+            // owned save that deferred it has settled.
+            if (failureCleanupPending && !persistence.SaveSuspended)
+            {
+                failureCleanupPending = false;
+                PerformFailureCleanup();
+            }
             nativeControls.Update();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
@@ -323,11 +351,24 @@ namespace KingmakerMountedCombat
                 return;
             }
 
-            // Unload cannot refuse and cannot retry on a later frame, so this is
-            // the one place a bounded wait for an owned archive worker is right:
-            // patches.Dispose below removes the commit transpiler the worker is
-            // still running through.
-            persistence.DrainForTeardown(TeardownDrainMilliseconds);
+            // Unload is the one place a bounded wait for an owned archive worker
+            // is right: patches.Dispose below removes the commit transpiler the
+            // worker is still running through. The verdict is CONSUMED, never
+            // assumed. A wait that expires, or ownership that could not be
+            // established, refuses the unload: nothing has been released, the
+            // root, its hooks and its per-frame drain stay intact, and the throw
+            // reaches Main.OnUnload, which reports false to UMM. The installed
+            // UMM honours that: ModEntry.Reload aborts on a false OnUnload before
+            // any cache, assembly or hook teardown (IL_007D brfalse IL_0335).
+            var verdict = persistence.DrainForTeardown(TeardownDrainMilliseconds);
+            if (verdict == OwnedWorkerTeardownVerdict.Refused)
+            {
+                logger.Error("Unload refused: an owned archive worker can still commit, or its ownership could not " +
+                    "be established, within the bounded teardown wait. Nothing was unpatched or cleaned up; retry " +
+                    "once the save settles.");
+                throw new InvalidOperationException(
+                    "Composition root refuses to dispose while an owned archive worker can still commit.");
+            }
 
             if (!lifecycle.HandleModDisable())
             {

@@ -49,6 +49,10 @@
     <Compile Include="PersistenceSaveAuthorizationTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\PersistenceSaveAuthorization.cs" />
     <Compile Include="ScopedEnumeratorTests.cs" />
+    <Compile Include="OwnedWorkerTeardownPolicyTests.cs" />
+    <Compile Include="NativeSaveCommitOutcomeTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\OwnedWorkerTeardownPolicy.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Integration\NativeSaveCommitOutcome.cs" />
     <Compile Include="DeferredSaveEnumeratorTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DeferredSaveEnumerator.cs" />
     <Compile Include="NativeLoadWorldTests.cs" />

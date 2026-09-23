@@ -41,6 +41,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private int disableProbeWorkerId = -1;
         private int disableEntriesBefore = -1;
         private int disableEntriesAtProbe = -1;
+        private bool disableUnloadRefused;
+        private bool disablePatchesIntactAfterUnload;
+        private bool disableTeardownSettledAtProbe = true;
+        private int disableTeardownDrainsBefore = -1;
+        private int disableTeardownDrainsAtProbe = -1;
         private SavedNativeActor disableRiderDebt;
         private SavedNativeActor disableMountDebt;
         private string disableSavePath;
@@ -260,6 +265,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(disableEnabledAfterProbe && persistence.SaveSuspended &&
                     persistence.ActiveSaveWorkerRunning && persistence.FailedSaveCount == 0,
                     "P07-refused-disable-left-the-services-and-the-write-in-flight-untouched");
+                // The registered UMM unload delegate at the same boundary. Its
+                // bounded teardown wait (15 s) is shorter than this hold, so it
+                // must come back refused -- and refusing must leave the root, its
+                // patches and its per-frame drain intact, with nothing released.
+                disableTeardownDrainsBefore = persistence.TeardownDrainCount;
+                disableUnloadRefused = !Main.InvokeRegisteredUnloadForAutomation();
+                disablePatchesIntactAfterUnload = MountedPatchController.BridgeInstalled;
+                disableTeardownDrainsAtProbe = persistence.TeardownDrainCount;
+                disableTeardownSettledAtProbe = persistence.LastTeardownDrainSettled;
+                Check(disableUnloadRefused,
+                    "P07-registered-unload-is-refused-while-an-owned-save-is-being-written");
+                Check(disablePatchesIntactAfterUnload && disableTeardownDrainsAtProbe == disableTeardownDrainsBefore + 1 &&
+                    !disableTeardownSettledAtProbe && persistence.Enabled && persistence.SaveSuspended &&
+                    persistence.HasActiveSaveScope && persistence.ActiveSaveWorkerRunning &&
+                    controls.CaptureSnapshot().SerializationSuspended && persistence.FailedSaveCount == 0,
+                    "P07-refused-unload-unpatched-nothing-and-released-nothing");
                 Write("disable-refused-during-save", DisableDetail());
                 NativeSaveWorkerBoundary.ReleaseWorkerHold();
                 disableFrames = 0; disableStage = 5;
@@ -325,6 +346,12 @@ namespace KingmakerMountedCombat.Diagnostics
             ["workerEntriesBefore"] = disableEntriesBefore,
             ["workerEntriesAtProbe"] = disableEntriesAtProbe,
             ["teardownDrains"] = persistence.TeardownDrainCount,
+            ["unloadRefused"] = disableUnloadRefused,
+            ["patchesIntactAfterUnload"] = disablePatchesIntactAfterUnload,
+            ["teardownSettledAtProbe"] = disableTeardownSettledAtProbe,
+            ["teardownDrainsBefore"] = disableTeardownDrainsBefore,
+            ["teardownDrainsAtProbe"] = disableTeardownDrainsAtProbe,
+            ["committedThenFailed"] = persistence.CommittedThenFailedCount,
             ["snapshots"] = persistence.SnapshotCount, ["failedSaves"] = persistence.FailedSaveCount,
             ["saveSuspended"] = persistence.SaveSuspended,
             ["savePath"] = disableSavePath, ["feedback"] = persistence.Feedback

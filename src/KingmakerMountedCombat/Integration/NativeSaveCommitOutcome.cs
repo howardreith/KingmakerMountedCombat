@@ -51,4 +51,46 @@ namespace KingmakerMountedCombat.Integration
             !string.IsNullOrEmpty(left) && !string.IsNullOrEmpty(right) &&
             string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
     }
+
+    // The one report shared by every path a save can end on: ordinary
+    // completion that failed, an abandoned operation that drained, and a
+    // commit whose later cleanup or notification failed. Pure, so the wording
+    // for each factual situation is tested once and used everywhere.
+    internal struct NativeSaveOutcomeReport
+    {
+        internal NativeSaveCommitKind Kind;
+        // Whether the player's slot lost anything. A commit is never a failure
+        // of the save, even when something after it failed.
+        internal bool CountsAsFailed;
+        internal string Message;
+
+        // previousExisted: an archive was in the slot before this operation.
+        // previousStillPresent: that archive is still there now.
+        internal static NativeSaveOutcomeReport Describe(NativeSaveCommitKind kind, bool previousExisted,
+            bool previousStillPresent, string detail)
+        {
+            var suffix = string.IsNullOrEmpty(detail) ? string.Empty : " " + detail;
+            switch (kind)
+            {
+                case NativeSaveCommitKind.Committed:
+                    return new NativeSaveOutcomeReport { Kind = kind, CountsAsFailed = false,
+                        Message = "The save was written and that archive is complete; a later cleanup step " +
+                            "did not finish." + suffix };
+                case NativeSaveCommitKind.Unconfirmed:
+                    // Never promise unchanged bytes here.
+                    return new NativeSaveOutcomeReport { Kind = kind, CountsAsFailed = true,
+                        Message = "The save could not be confirmed. Check this save slot before relying on it." + suffix };
+                default:
+                    if (previousExisted && previousStillPresent)
+                        return new NativeSaveOutcomeReport { Kind = kind, CountsAsFailed = true,
+                            Message = "Save did not complete; the previous complete save is unchanged." + suffix };
+                    if (previousExisted)
+                        return new NativeSaveOutcomeReport { Kind = kind, CountsAsFailed = true,
+                            Message = "Save did not complete, and the earlier save is no longer in place. " +
+                                "Check this save slot before relying on it." + suffix };
+                    return new NativeSaveOutcomeReport { Kind = kind, CountsAsFailed = true,
+                        Message = "Save did not complete, and there was no earlier save in this slot to keep." + suffix };
+            }
+        }
+    }
 }

@@ -409,7 +409,106 @@ public static class KmcPersistenceContractProbe
         Check(decide.Invoke(null,new object[]{4,4,target,null,null,onDisk(true)}).Equals(kind("NotWritten")),
             "a first-ever save with no previous archive still reports nothing written");
 
-        // Teardown cannot refuse and has no later frame, so it waits — bounded,
+        // Teardown: the verdict a caller must CONSUME. Refused means nothing was
+        // released -- an expired bounded wait is not evidence of safety, and an
+        // unestablished answer never authorizes cleanup. Exercised on a bare
+        // service with real scopes and real tasks; the service keeps this path
+        // logger-free precisely so it can be.
+        var bare=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(service);
+        var relationshipType=candidate.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+        var controlsType=candidate.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
+        service.GetField("relationship",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(bare,
+            System.Runtime.Serialization.FormatterServices.GetUninitializedObject(relationshipType));
+        service.GetField("controls",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(bare,
+            System.Runtime.Serialization.FormatterServices.GetUninitializedObject(controlsType));
+        var activeField=service.GetField("activeSave",BindingFlags.Instance|BindingFlags.NonPublic);
+        var teardown=service.GetMethod("DrainForTeardown",BindingFlags.Instance|BindingFlags.NonPublic);
+        var verdictType=candidate.GetType("KingmakerMountedCombat.Domain.OwnedWorkerTeardownVerdict",true);
+        Func<string,object> verdict=n=>Enum.Parse(verdictType,n);
+        var releasedField=saveScope.GetField("Released",BindingFlags.Instance|BindingFlags.NonPublic);
+        var workerField=saveScope.GetField("Worker",BindingFlags.Instance|BindingFlags.NonPublic);
+        Check(teardown.Invoke(bare,new object[]{50}).Equals(verdict("Clear")),
+            "teardown with nothing owned is clear");
+        var settledScope=Activator.CreateInstance(saveScope,true);
+        var settledTask=new System.Threading.Tasks.TaskCompletionSource<bool>(); settledTask.SetResult(true);
+        workerField.SetValue(settledScope,settledTask.Task);
+        activeField.SetValue(bare,settledScope);
+        Check(teardown.Invoke(bare,new object[]{50}).Equals(verdict("Settled")) &&
+            (bool)releasedField.GetValue(settledScope) && activeField.GetValue(bare)==null,
+            "teardown finalizes an active, settled, never-abandoned scope exactly once");
+        Check(teardown.Invoke(bare,new object[]{50}).Equals(verdict("Clear")),
+            "a second teardown after finalization finds nothing owned");
+        var liveScope=Activator.CreateInstance(saveScope,true);
+        var liveTask=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        workerField.SetValue(liveScope,liveTask.Task);
+        activeField.SetValue(bare,liveScope);
+        var teardownClock=System.Diagnostics.Stopwatch.StartNew();
+        var liveVerdict=teardown.Invoke(bare,new object[]{80});
+        Check(liveVerdict.Equals(verdict("Refused")) && !(bool)releasedField.GetValue(liveScope) &&
+            object.ReferenceEquals(activeField.GetValue(bare),liveScope) && teardownClock.ElapsedMilliseconds<5000,
+            "teardown refuses a live worker after its bounded wait and releases nothing");
+        Check(teardown.Invoke(bare,new object[]{80}).Equals(verdict("Refused")) && !(bool)releasedField.GetValue(liveScope),
+            "a repeated teardown request while still live refuses again without releasing");
+        liveTask.SetResult(true);
+        Check(teardown.Invoke(bare,new object[]{80}).Equals(verdict("Settled")) &&
+            (bool)releasedField.GetValue(liveScope) && activeField.GetValue(bare)==null,
+            "the same scope is finalized exactly once when its worker settles");
+        var idleScope=Activator.CreateInstance(saveScope,true);
+        activeField.SetValue(bare,idleScope);
+        Check(teardown.Invoke(bare,new object[]{50}).Equals(verdict("Settled")) && (bool)releasedField.GetValue(idleScope),
+            "teardown finalizes a scope whose enumeration never started a worker without waiting");
+
+        // The ordinary failure report is keyed to the RETIRED operation and
+        // decided at the commit boundary. Two saves queued to different slots: a
+        // commit that lands on B's slot is B's and is not credited to A; an
+        // operation that never began cannot have committed; an operation this
+        // service never wrapped is unconfirmed.
+        var describe=service.GetMethod("DescribeFailedOperation",BindingFlags.Instance|BindingFlags.NonPublic);
+        var table=service.GetProperty("ScopesByOperation",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(bare);
+        var addOperation=table.GetType().GetMethod("Add");
+        var commitType=candidate.GetType("KingmakerMountedCombat.Integration.NativeMountedArchiveCommit",true);
+        var recordCommit=commitType.GetMethod("RecordCommit",BindingFlags.NonPublic|BindingFlags.Static);
+        var commitCount=commitType.GetProperty("CommitCount",BindingFlags.NonPublic|BindingFlags.Static);
+        var reportType=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveOutcomeReport",true);
+        Func<object,string> kindOf=rep=>reportType.GetField("Kind",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(rep).ToString();
+        Func<object,string> messageOf=rep=>(string)reportType.GetField("Message",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(rep);
+        Func<object,bool> failedOf=rep=>(bool)reportType.GetField("CountsAsFailed",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(rep);
+        var slots=Path.Combine(Path.GetTempPath(),"kmc-outcome-"+Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(slots);
+        try
+        {
+            var slotA=Path.Combine(slots,"Manual_300_KMC_P01.zks"); var slotB=Path.Combine(slots,"Manual_301_KMC_P01.zks");
+            File.WriteAllBytes(slotA,new byte[]{1});
+            var opA=new object(); var opB=new object(); var opC=new object();
+            var scopeA=Activator.CreateInstance(saveScope,true); var scopeB=Activator.CreateInstance(saveScope,true); var scopeC=Activator.CreateInstance(saveScope,true);
+            Action<object,bool,string,bool> arrange=(sc,began,path,prev)=>{
+                saveScope.GetField("Began",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(sc,began);
+                saveScope.GetField("CommitsAtStart",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(sc,(int)commitCount.GetValue(null));
+                saveScope.GetField("RequestedPath",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(sc,path);
+                saveScope.GetField("PreviousExisted",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(sc,prev);
+            };
+            arrange(scopeA,true,slotA,true); arrange(scopeB,true,slotB,false); arrange(scopeC,false,slotB,false);
+            addOperation.Invoke(table,new[]{opA,scopeA}); addOperation.Invoke(table,new[]{opB,scopeB}); addOperation.Invoke(table,new[]{opC,scopeC});
+            var aBefore=describe.Invoke(bare,new object[]{opA,new InvalidOperationException("timed out")});
+            Check(kindOf(aBefore)=="NotWritten" && failedOf(aBefore) && messageOf(aBefore).Contains("previous complete save is unchanged"),
+                "an operation that never committed, whose previous archive is still present, reports it unchanged");
+            recordCommit.Invoke(null,new object[]{slotB}); File.WriteAllBytes(slotB,new byte[]{2});
+            var bAfter=describe.Invoke(bare,new object[]{opB,new InvalidOperationException("cleanup threw")});
+            Check(kindOf(bAfter)=="Committed" && !failedOf(bAfter) && messageOf(bAfter).StartsWith("The save was written"),
+                "a queued save whose archive committed and whose cleanup then failed is reported as written, not failed");
+            var aAfter=describe.Invoke(bare,new object[]{opA,new InvalidOperationException("later")});
+            Check(kindOf(aAfter)=="Unconfirmed" && failedOf(aAfter) && !messageOf(aAfter).Contains("unchanged"),
+                "a commit that landed on another queued save's slot leaves this operation unconfirmed and promises no unchanged bytes");
+            var cReport=describe.Invoke(bare,new object[]{opC,new InvalidOperationException("world changed")});
+            Check(kindOf(cReport)=="NotWritten" && messageOf(cReport).Contains("previous complete save is unchanged"),
+                "an operation that never began cannot have committed; its slot's current archive is its previous one");
+            var unknownReport=describe.Invoke(bare,new object[]{new object(),new InvalidOperationException("x")});
+            Check(kindOf(unknownReport)=="Unconfirmed" && !messageOf(unknownReport).Contains("unchanged"),
+                "an operation this service never wrapped is unconfirmed");
+        }
+        finally { Directory.Delete(slots,true); }
+
+        // Teardown waits — bounded — because unload has no later frame,
         // and reporting whether the worker really settled rather than assuming
         // it did. A faulted or canceled worker makes Task.Wait throw and is
         // nonetheless finished; treating that as unsettled would make every
