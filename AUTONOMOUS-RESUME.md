@@ -1,3 +1,17 @@
+# Chunk 5: post-disposal load failure qualified, recovery is restart-only — 2026-09-23 UTC
+
+IN PROGRESS. Frozen source 07a6ba4 / 0.1.0-chunk5-preview.70. DLL d923e4555158c514e14061a08f9a9307f42fb9bb722dfd85d044d93710bac098, MVID beeb7cda-592f-47e4-9cc3-219e01c38014. Package KingmakerMountedCombat-0.1.0-chunk5-preview.70-p06-failed-area-load-diagnostic.zip SHA7e3df277d504e24da770c3e30be9ae7a523e62fb2c0ef95dbf1dca7c25a17e11, suite77 SHA72319dece9b50473. Source22/components439/contracts110/data56/owned-fixtures295/**validation-copies104**/harness261/profile38/package11 PASS.
+
+**Native load failure after the old world is destroyed.** 20260923-chunk5-P06-failed-area-load-F (PID20084) PASS26/0. A derivative corrupting exactly one native area member passes normal admission and fails only after Game.DisposeState. The measured boundary corrected a wrong prediction: the area member is read by AreaDataStash.UnstashAreaState inside **SceneLoader.LoadAreaCoroutine**, a later process than SaveManager.LoadRoutine, and LoadingProcess.Update rethrows it as LoadGameException. LoadRoutine itself completes, so **the engine reports a successful load while leaving no world** (GameModeType.None, no loaded area). KMC presents nothing into it: presentation unchanged, Unmounted, zero units, no combat fence, no held scope. Early debt restoration legitimately ran because Player.PostLoad completed, so the retained selection is inert rather than absent.
+
+**Recovery is restart-only, and is reported as such.** Retrying the known-good archive in the same process also fails with ArgumentException: Destination scene is not valid; the Unity scene state is left invalid and every later load in that process fails. 20260923-chunk5-P01-restart-recovery-A (PID2256) PASS20/0 proves a **fresh process** loads that exact archive and plays: loaded area, Default mode, real movement, delivered attack, usable continuation.
+
+**Still blocked:** the P06 native foreign-header campaign needs a disposable campaign B. Section 7 of the overnight mission authorizes creating one through the engine's own new-game flow; it is lower priority than the recovery queue and is timeboxed.
+
+Both runs restored actual intake with profileBytesRestoredExactly true and zero cache churn; final restoration 2026-09-23T08:05:52.4153493+00:00. Human chunk4-preview54 DLL2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9, 275 saves, seven mod directories, both fixtures byte-identical, BASELINE immutable, no game process or lock.
+
+---
+
 # Chunk 5 P07 cross-area: all three roles qualified — 2026-09-23 UTC
 
 IN PROGRESS. The P07 **area** family is qualified source and cold in all three of its distinct roles and no blocker remains in it; P07 as a gate is **not** finished. Frozen source 749d6236d7936ebf56b7ed7d4742a9e9bdd48f45 / 0.1.0-chunk5-preview.69. Source22/components439/contracts110/data56/**owned-fixtures295**/validation-copies61/full-harness261/**profile38**/package11 PASS. The owned-fixture and profile rises are test-only strengthening after that payload was frozen; no `src/` file changed, so preview.69 remains the exact tested payload for every result below and is not rebuilt.
