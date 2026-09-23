@@ -63,6 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // main-menu reset, and an unrelated party member's command attempt.
         private bool drainPausedBeforeStop;
         private bool drainHeldPaused;
+        private bool drainPauseRequestedAtStop;
         private bool drainPauseRestored;
         private bool drainResetDeferred;
         private string drainSimUnrelatedId;
@@ -171,8 +172,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 // it is recorded so its restoration at settlement can be checked.
                 drainPausedBeforeStop = game.IsPaused;
                 LoadingProcess.Instance.StopAll();
-                // KMC holds the world the moment the abandonment defers.
-                drainHeldPaused = game.IsPaused;
+                // KMC requests the hold the moment the abandonment defers, but the
+                // engine applies it asynchronously: Game.set_IsPaused only sets
+                // m_WillBePaused and calls StartMode(Pause), and get_IsPaused is
+                // IsModeActive(Pause), which flips on a later tick. This same-frame
+                // read is recorded as the request; the held state is observed at
+                // the simulation probe, once the mode has actually started.
+                drainPauseRequestedAtStop = game.IsPaused;
 
                 Check(persistence.SaveDraining && persistence.HasActiveSaveScope &&
                     persistence.DeferredSaveCancellationCount == 1 && persistence.DrainedSaveCount == 0 &&
@@ -300,6 +306,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 drainSimCommandStarted = drainSimProbe != null && drainSimProbe.IsStarted;
                 drainSimAreaTurnedOnAfter = AreaSimulationOn();
                 drainSimWorkerStillHeld = NativeSaveWorkerBoundary.WorkerHeld;
+                // The held state, observed once the engine has applied the mode.
+                drainHeldPaused = game.IsPaused;
                 Write("drain-simulation-probe", DrainDetail(null));
                 // The worker must still have been held for this to mean anything.
                 Check(drainSimWorkerStillHeld && persistence.SaveDraining && persistence.DrainedSaveCount == 0,
@@ -521,6 +529,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // The held world.
             ["pausedBeforeStop"] = drainPausedBeforeStop,
             ["heldPaused"] = drainHeldPaused,
+            ["pauseRequestedAtStop"] = drainPauseRequestedAtStop,
             ["pauseRestored"] = drainPauseRestored,
             ["resetDeferred"] = drainResetDeferred,
             ["resetDeferrals"] = persistence.ResetToMainMenuDeferredCount,
