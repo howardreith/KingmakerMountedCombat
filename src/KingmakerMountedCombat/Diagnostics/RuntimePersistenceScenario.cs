@@ -88,6 +88,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (clock.Elapsed.TotalSeconds > 150) throw new InvalidOperationException("P01 native stage timed out: " + stage);
             var game = Game.Instance;
+            // A native save runs inside the loading process, so this observation
+            // has to precede the loading early return or it never records.
+            if (stage == 7) ObserveAutoColdWriteWait();
             if (LoadingProcess.Instance.IsLoadingInProcess) return;
             if (stage >= 4 && stage <= 5)
             {
@@ -282,8 +285,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 7)
             {
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
-                var saved = game.SaveManager.Single(s => s.Name == "KMC_P01");
-                if (saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
+                var saved = game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01");
+                if (saved == null || saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
                 var written = NativeMountedSaveStorage.Read(saved.Saver);
                 Check(written.Kind == MountedSaveReadKind.Current && written.Data.Mounted &&
                     written.Data.Rider.Id == rider.UniqueId && written.Data.Mount.Id == mount.UniqueId &&
