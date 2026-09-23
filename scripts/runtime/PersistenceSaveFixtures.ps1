@@ -457,11 +457,27 @@ function Assert-KmcPersistenceScenarioEvidence {
     $isWrite=$Request.scenario-cin @('persistence-p07-save','persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save','persistence-p05-save')
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
+    $isDisable=$checkpoint-ceq'disable-reenable'
     foreach($row in $rows){
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
-            $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or$row.relationship-cne'Mounted'-or
-            $row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id-or
+            $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or
             $row.controls.DuplicateFactCount-ne0){throw 'P01 native state identity/relationship/control invariant differs.'}
+        # The disable case is the only one whose relationship legitimately leaves
+        # Mounted, because that transition is the behaviour under test. Its rows
+        # must still name the same two actors whenever a pair exists at all.
+        if($isDisable){
+            if($row.relationship-cnotin @('Mounted','Unmounted')){
+                throw 'P07 disable row reports a relationship state outside mounted and unmounted.'
+            }
+            if($row.relationship-ceq'Mounted'-and
+                ($row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id)){
+                throw 'P07 disable row changed the owned pair actors.'
+            }
+        }
+        elseif($row.relationship-cne'Mounted'-or$row.rider.Id-cne$initial[0].rider.Id-or
+            $row.mount.Id-cne$initial[0].mount.Id){
+            throw 'P01 native state identity/relationship/control invariant differs.'
+        }
         if(($isCombat-or$isSlot)-and$row.checkpoint-cne$checkpoint){throw 'P02 observation checkpoint differs from its bounded request.'}
     }
     $required=@('usable-continuation-complete')
@@ -561,8 +577,18 @@ function Assert-KmcPersistenceScenarioEvidence {
             if(@(Get-ChildItem -LiteralPath $root -File -Filter '*.zks').Count-ne2){throw 'P05 retained an unexpected archive or temporary leaf.'}
         }
         if($d.path-cne$archive-or$d.nativeType-cne$type-or$d.nativeCallback-ne$true-or$d.operation-cne'None'-or
-            (Get-KmcSha256 $archive)-cne$d.sha256-or(Get-Item $archive).Length-ne$d.length-or
-            $d.snapshot.Mounted-ne$true-or$d.snapshot.Rider.Id-cne$initial[0].rider.Id-or
+            (Get-KmcSha256 $archive)-cne$d.sha256-or(Get-Item $archive).Length-ne$d.length){
+            throw 'P01 real archive/metadata/completion differs.'
+        }
+        # The disable case writes its archive after cleanup on purpose, so the
+        # recorded snapshot must carry no pair at all rather than the mounted one
+        # every other write case records.
+        if($isDisable){
+            if($d.snapshot.Mounted-ne$false-or$null-ne$d.snapshot.Rider-or$null-ne$d.snapshot.Mount){
+                throw 'P07 cleanup-state archive recorded a mounted pair.'
+            }
+        }
+        elseif($d.snapshot.Mounted-ne$true-or$d.snapshot.Rider.Id-cne$initial[0].rider.Id-or
             $d.snapshot.Mount.Id-cne$initial[0].mount.Id){throw 'P01 real archive/metadata/completion differs.'}
     }else{
         # Only a transition autosave cold case makes an ordinary subsequent
@@ -902,9 +928,11 @@ function Assert-KmcDisableLifecycleEvidence {
     $reenabled=$stages['disable-re-enabled']; $cleared=$stages['disable-cleared']
     $refused=$stages['disable-refused-during-save']
     $saved=$stages['disable-saved-unmounted']
+    # The refusal is observed while MOUNTED: that is the save whose live pair
+    # graphs a disable would mutate, and the only one holding an owned scope.
     if($initial.detail.relationship-cne'Mounted'-or$cleaned.detail.relationship-cne'Unmounted'-or
-        $reenabled.detail.relationship-cne'Mounted'-or$cleared.detail.relationship-cne'Unmounted'-or
-        $refused.detail.relationship-cne'Unmounted'-or
+        $reenabled.detail.relationship-cne'Mounted'-or$refused.detail.relationship-cne'Mounted'-or
+        $cleared.detail.relationship-cne'Unmounted'-or
         $saved.detail.relationship-cne'Unmounted'){
         throw 'P07 disable lifecycle did not traverse mounted, cleaned, re-enabled and cleaned again.'
     }
