@@ -5245,11 +5245,16 @@ try {
                 internalName='KMC_P01';fileName='Manual_812_KMC_P06.zks';sha256=('d'*64)
                 length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area
             }
-            foreach($case in @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){
+            foreach($case in @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){
                 $v2Request['persistenceCase']=$case
+                # The failed-load derivative edits a native member, so it carries
+                # its own leaf rather than the shared metadata-only one.
+                $v2Request['persistenceAlternate'].fileName=if($case-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
             }
+            $v2Request['persistenceCase']='legacy'
+            $v2Request['persistenceAlternate'].fileName='Manual_812_KMC_P06.zks'
             foreach($change in @(@('fileName','../Manual_812_KMC_P06.zks'),@('fileName','Manual_300_KMC_P01.zks'),
                 @('internalName','KMC_AUTOMATION_BASELINE'),@('gameId','c63b5e10-4db1-47d5-ae61-5c0788137a5d'))){
                 $d=$v2Request.persistenceAlternate;$old=$d[$change[0]];$d[$change[0]]=$change[1]

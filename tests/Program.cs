@@ -224,8 +224,13 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("P06 owns exactly two read-only archive identities and a bounded validation case", () =>
             {
                 foreach (var name in new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign",
-                    "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai" })
+                    "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai",
+                    "failed-area-load" })
                 {
+                    // The failed-load derivative edits a native member, so it owns
+                    // its own leaf and can never be byte-identical to its source.
+                    var failedLoad = RuntimeRequest.IsFailedLoad(name);
+                    var leaf = failedLoad ? "Manual_813_KMC_P06_AREA.zks" : "Manual_812_KMC_P06.zks";
                     var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
                     request.Scenario = "persistence-p06-load"; request.PersistenceCase = name;
                     request.PersistenceLoad = new RuntimeSaveDescriptor {
@@ -233,15 +238,24 @@ namespace KingmakerMountedCombat.Tests
                         GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
                     TestRunner.True(request.Validate().Count > 0, "P06 accepted a missing validation copy.");
                     request.PersistenceAlternate = new RuntimeSaveDescriptor {
-                        InternalName = "KMC_P01", FileName = "Manual_812_KMC_P06.zks", Sha256 = new string('d', 64),
+                        InternalName = "KMC_P01", FileName = leaf, Sha256 = new string('d', 64),
                         GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
                     TestRunner.Equal(0, request.Validate().Count, "P06 exact archive pair rejected.");
+                    request.PersistenceAlternate.FileName = failedLoad ? "Manual_812_KMC_P06.zks" : "Manual_813_KMC_P06_AREA.zks";
+                    TestRunner.True(request.Validate().Count > 0, "P06 accepted the other variant's leaf.");
+                    request.PersistenceAlternate.FileName = leaf;
+                    if (failedLoad)
+                    {
+                        request.PersistenceAlternate.Sha256 = request.PersistenceLoad.Sha256;
+                        TestRunner.True(request.Validate().Count > 0, "P06 failed-load accepted an unchanged derivative.");
+                        request.PersistenceAlternate.Sha256 = new string('d', 64);
+                    }
                     request.PersistenceAlternate.GameId = "00000000-0000-0000-0000-000000000001";
                     TestRunner.True(request.Validate().Count > 0, "P06 allowed a foreign native campaign.");
                     request.PersistenceAlternate.GameId = f.GameId;
-                    request.PersistenceAlternate.FileName = "../Manual_812_KMC_P06.zks";
+                    request.PersistenceAlternate.FileName = "../" + leaf;
                     TestRunner.True(request.Validate().Count > 0, "P06 variant escaped its direct-child leaf.");
-                    request.PersistenceAlternate.FileName = "Manual_812_KMC_P06.zks";
+                    request.PersistenceAlternate.FileName = leaf;
                     request.Scenario = "persistence-p01-load";
                     TestRunner.True(request.Validate().Count > 0, "P06 variant leaked into an old scenario.");
                 }

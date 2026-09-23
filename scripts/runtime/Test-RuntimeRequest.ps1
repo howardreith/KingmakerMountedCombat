@@ -94,7 +94,7 @@ elseif ($schemaVersion -eq 2) {
     if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
     }elseif($validation){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){throw 'P06 requires its exact validation variant.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'P06 requires its exact validation variant.'}
     }elseif($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
         $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
@@ -128,7 +128,9 @@ elseif ($schemaVersion -eq 2) {
         $second=($alternating-or$validation)-and[object]::ReferenceEquals($d,$request.persistenceAlternate)
         Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cold archive descriptor'
         $nativeSlot=($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-cin @('quick','auto'))-or$transitionAuto
-        $leaf=if($second-and$validation){'Manual_812_KMC_P06.zks'}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        # The failed-load derivative is the only P06 variant that edits a native
+        # member, so it owns its own leaf instead of the metadata-only one.
+        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
         $nameOk=if($second-and$validation){$d.internalName-ceq'KMC_P01'}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}else{$d.internalName-ceq'KMC_P01'}
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
@@ -138,6 +140,12 @@ elseif ($schemaVersion -eq 2) {
         # header carries the declared destination rather than the fixture area.
         $expectedArea=if($transitionAuto){if($request.persistenceCase-ceq'area-cross-entry-auto'){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}}elseif($crossArea){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}
         if($d.area-cne$expectedArea){throw 'Cold archive campaign differs.'}
+        }
+        # A corrupted native member must actually change the bytes; the
+        # metadata-only 'policy' variant is deliberately byte-identical instead.
+        if($validation-and$request.persistenceCase-ceq'failed-area-load'-and
+            $request.persistenceAlternate.sha256-ceq$request.persistenceLoad.sha256){
+            throw 'Failed-load derivative is byte-identical to its source.'
         }
     }
 }
