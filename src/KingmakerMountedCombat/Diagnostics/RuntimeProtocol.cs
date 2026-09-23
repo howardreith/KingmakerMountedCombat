@@ -147,7 +147,10 @@ namespace KingmakerMountedCombat.Diagnostics
         internal string ExpectedTransitionAutoArea =>
             PersistenceCase == "area-cross-entry-auto" ? PersistenceAreaTarget?.Area : Fixture?.Working?.Area;
 
-        internal string ExpectedNativeLoadType => Scenario == "persistence-p05-load" && PersistenceLoad != null ?
+        // A transition autosave is a native Auto save, so the loader must expect
+        // that exact type rather than the destination manual leaf.
+        internal string ExpectedNativeLoadType => IsTransitionAutoCase(PersistenceCase) ? "Auto" :
+            Scenario == "persistence-p05-load" && PersistenceLoad != null ?
             (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
         public string PersistenceCase { get; set; }
 
