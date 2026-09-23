@@ -65,27 +65,32 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (disableStage == 1)
             {
-                // Disabling outside a live operation must clean up fully, leaving
-                // the native actors themselves usable.
-                var result = relationship.Dismount(CleanupTrigger.ModDisabled);
-                Check(result.Succeeded && relationship.State == RelationshipState.Unmounted,
-                    "P07-disable-cleans-up-at-a-safe-boundary");
+                // The exact registered UMM toggle, not an internal dismount: the
+                // relationship cleanup and the owned control removal are separate
+                // steps and only the real disable path runs both.
+                Check(Main.InvokeRegisteredToggleForAutomation(false),
+                    "P07-registered-disable-succeeds-at-a-safe-boundary");
+                Check(relationship.State == RelationshipState.Unmounted,
+                    "P07-disable-ends-the-mounted-relationship");
                 var after = controls.CaptureSnapshot();
                 disableFactsUnmounted = after.ExactFactCount;
-                Check(after.DuplicateFactCount == 0 && !after.SerializationSuspended &&
-                    after.ExactFactCount < disableFactsMounted,
-                    "P07-disable-releases-owned-controls-without-residue");
+                Check(after.ExactFactCount < disableFactsMounted,
+                    "P07-disable-releases-owned-control-facts");
+                Check(after.DuplicateFactCount == 0, "P07-disable-leaves-no-duplicated-control");
+                Check(!after.SerializationSuspended, "P07-disable-leaves-no-serialization-lease");
                 // The native actors survive cleanup and keep their expenditure.
                 Check(game.State.Units.Count(u => u.UniqueId == disableRiderId) == 1 &&
-                    game.State.Units.Count(u => u.UniqueId == disableMountId) == 1 &&
-                    LegitimateContinuation(disableRiderDebt, MountedPersistenceService.CaptureActor(
+                    game.State.Units.Count(u => u.UniqueId == disableMountId) == 1,
+                    "P07-disable-keeps-both-native-actors-alive-exactly-once");
+                Check(LegitimateContinuation(disableRiderDebt, MountedPersistenceService.CaptureActor(
                         game.State.Units.Single(u => u.UniqueId == disableRiderId)), 0),
-                    "P07-disable-keeps-native-actors-usable-and-conserves-debt");
-                // Idempotent: a second cleanup must not double-release.
-                var again = relationship.Dismount(CleanupTrigger.ModDisabled);
+                    "P07-disable-conserves-the-riders-native-expenditure");
+                // Idempotent: a second disable must not double-release.
+                Check(Main.InvokeRegisteredToggleForAutomation(false),
+                    "P07-repeated-registered-disable-still-succeeds");
+                var twice = controls.CaptureSnapshot();
                 Check(relationship.State == RelationshipState.Unmounted &&
-                    controls.CaptureSnapshot().ExactFactCount == disableFactsUnmounted &&
-                    controls.CaptureSnapshot().DuplicateFactCount == 0,
+                    twice.ExactFactCount == disableFactsUnmounted && twice.DuplicateFactCount == 0,
                     "P07-repeated-disable-cleanup-is-idempotent");
                 Write("disable-cleaned", DisableDetail());
                 disableFrames = 0; disableStage = 2;
@@ -96,6 +101,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (++disableFrames < 6) return;
                 // Re-enabling must rebuild exactly one pair and exactly one set of
                 // owned controls, with no fresh Mount cast or duplicate grant.
+                Check(Main.InvokeRegisteredToggleForAutomation(true),
+                    "P07-registered-re-enable-succeeds");
+                Check(relationship.State == RelationshipState.Unmounted,
+                    "P07-re-enable-alone-invents-no-pair");
                 var remount = relationship.MountAutomationPair();
                 Check(remount.Succeeded && relationship.State == RelationshipState.Mounted,
                     "P07-re-enable-restores-the-supported-pair");
@@ -103,8 +112,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(rider.UniqueId == disableRiderId && mount.UniqueId == disableMountId,
                     "P07-re-enable-uses-the-same-native-actors");
                 var after = controls.CaptureSnapshot();
-                Check(after.ExactFactCount == disableFactsMounted && after.DuplicateFactCount == 0 &&
-                    after.ManagedHotbarSlotCount == disableSlotsMounted,
+                Check(after.ExactFactCount == disableFactsMounted,
+                    "P07-re-enable-restores-exactly-the-baseline-control-facts");
+                Check(after.DuplicateFactCount == 0 && after.ManagedHotbarSlotCount == disableSlotsMounted,
                     "P07-re-enable-creates-no-duplicate-controls-or-slots");
                 Check(controls.NativeCastRequestCount == disableCastsBefore,
                     "P07-re-enable-grants-nothing-through-a-fresh-Mount-cast");
@@ -119,11 +129,16 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (disableStage == 3)
             {
-                // Clean up again, then save while unmounted: a later restore must
-                // not resurrect the relationship or a stale actor.
-                Check(relationship.Dismount(CleanupTrigger.ModDisabled).Succeeded &&
+                // Clean up again through the real toggle, restore the services,
+                // then save while unmounted: a later restore must not resurrect
+                // the relationship or a stale actor.
+                Check(Main.InvokeRegisteredToggleForAutomation(false) &&
                     relationship.State == RelationshipState.Unmounted,
-                    "P07-second-disable-cleans-up-again");
+                    "P07-second-registered-disable-cleans-up-again");
+                Check(Main.InvokeRegisteredToggleForAutomation(true) &&
+                    relationship.State == RelationshipState.Unmounted &&
+                    controls.CaptureSnapshot().ExactFactCount == disableFactsUnmounted,
+                    "P07-services-return-without-resurrecting-a-pair-or-its-controls");
                 callback = false;
                 var target = game.SaveManager.FirstOrDefault(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
                     ?? game.SaveManager.First(s => s.Name == "KMC_P01");
