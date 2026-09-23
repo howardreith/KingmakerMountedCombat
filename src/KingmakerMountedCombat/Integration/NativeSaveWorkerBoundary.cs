@@ -43,6 +43,12 @@ namespace KingmakerMountedCombat.Integration
         {
             if (milliseconds < 100 || milliseconds > 30000)
                 throw new ArgumentOutOfRangeException(nameof(milliseconds), "An owned worker hold must be bounded.");
+            // Authorization belongs here, on the game thread: the worker receives
+            // the PREPARED descriptor, whose folder differs from the requested
+            // one during commit, so validating it on the worker thread refuses
+            // every legitimate hold.
+            if (!NativePersistenceIsolation.IsIsolated)
+                throw new InvalidOperationException("An owned worker hold requires the isolated save authority.");
             lock (holdLock)
             {
                 if (holdArmed || holdGate != null)
@@ -69,11 +75,9 @@ namespace KingmakerMountedCombat.Integration
             System.Threading.ManualResetEventSlim gate;
             lock (holdLock)
             {
+                // Arming was already authorized on the game thread; this consumes
+                // it once, for the next owned worker, and nothing else.
                 if (!holdArmed) return;
-                // Only an archive this run already authorized may be held, so the
-                // hold cannot arm against ordinary play or a foreign save.
-                try { NativePersistenceIsolation.RequireOwnedWrite(saveInfo); }
-                catch { return; }
                 holdArmed = false;
                 gate = holdGate = new System.Threading.ManualResetEventSlim(false);
                 HeldWorkerLeaf = saveInfo == null ? null : saveInfo.FileName;
