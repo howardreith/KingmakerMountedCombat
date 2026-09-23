@@ -813,7 +813,7 @@ $dd.overlapRefused=$true;$dd.loadRefused=$true;$dd.repeatedStopSafe=$true;$dd.di
 $dd.currentSha256=('a'*64)
 # The held world: the main-menu reset deferred (and its replay discarded by the
 # diagnostic), the world paused the moment the abandonment deferred.
-$dd.resetDeferred=$true;$dd.heldPaused=$true;$dd.resetPending=$false
+$dd.resetDeferred=$true;$dd.resetPending=$false
 $ds=$drainRows[3].detail
 $ds.draining=$false;$ds.activeScope=$false;$ds.deferredCancellations=1;$ds.drains=1
 $ds.saveSuspended=$false;$ds.serializationSuspended=$false
@@ -821,7 +821,7 @@ $ds.drainCommitted=$true;$ds.currentSha256=('b'*64);$ds.failedSaves=0
 $ds.pauseRestored=$true
 $drainRows[4].detail.ordinal=2;$drainRows[4].detail.sha256=('b'*64)
 $dp=$drainRows[5].detail
-$dp.draining=$true;$dp.deferredCancellations=1;$dp.simWorkerStillHeld=$true;$dp.unrelatedActorId='unit-b'
+$dp.draining=$true;$dp.deferredCancellations=1;$dp.simWorkerStillHeld=$true;$dp.unrelatedActorId='unit-b';$dp.heldPaused=$true
 Assert-KmcRecoveryPersistenceEvidence $drainRequest $drainRows;$passes++
 # The uncommitted settlement is equally valid and equally checked.
 $uncommitted=($drainRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
@@ -862,7 +862,7 @@ foreach($bad in @('no-flight','worker-finished','no-hold','held-other-leaf','alr
         'out-of-order' {$n=@($n[0],$n[2],$n[1],$n[3],$n[4],$n[5])}
         # The held world: each rule rejects on its own, with every other row valid.
         'reset-not-deferred' {$n[2].detail.resetDeferred=$false}
-        'world-not-held' {$n[2].detail.heldPaused=$false}
+        'world-not-held' {$n[5].detail.heldPaused=$false}
         'reset-left-pending' {$n[2].detail.resetPending=$true}
         'pause-not-restored' {$n[3].detail.pauseRestored=$false}
         'no-simulation-probe' {$n=@($n[0],$n[1],$n[2],$n[3],$n[4])}

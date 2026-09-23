@@ -864,13 +864,16 @@ function Assert-KmcWorkerDrainEvidence {
     # the world is paused the moment the abandonment defers, no unit's command
     # is queued (owned pair or an unrelated party member), the clock does not
     # advance, and the user's prior pause state is restored at settlement.
-    if($d.resetDeferred-ne$true-or$d.heldPaused-ne$true-or$d.resetPending-ne$false){
-        throw 'P07 drain did not defer the main-menu reset and hold the world paused.'
+    # The engine applies the pause request asynchronously (set_IsPaused starts the
+    # Pause mode; get_IsPaused reads IsModeActive), so the held state is judged at
+    # the simulation probe below, not on the frame the abandonment deferred.
+    if($d.resetDeferred-ne$true-or$d.resetPending-ne$false){
+        throw 'P07 drain did not defer the main-menu reset with its replay discarded.'
     }
     $sim=@($Rows|Where-Object kind -CEQ 'drain-simulation-probe')
     if($sim.Count-ne1){throw 'P07 drain lacks its exact simulation probe.'}
     $p=$sim[0].detail
-    if($p.simWorkerStillHeld-ne$true-or$p.simCommandQueued-ne$false-or$p.unrelatedCommandQueued-ne$false-or
+    if($p.simWorkerStillHeld-ne$true-or$p.heldPaused-ne$true-or$p.simCommandQueued-ne$false-or$p.unrelatedCommandQueued-ne$false-or
         [string]::IsNullOrEmpty([string]$p.unrelatedActorId)-or$p.simTicksAdvanced-ne0-or$p.simCommandStarted-ne$false){
         throw 'P07 held world still admitted a unit command or advanced the clock under the live serializer.'
     }
