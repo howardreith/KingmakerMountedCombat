@@ -1028,7 +1028,9 @@ function Assert-KmcDisableLifecycleEvidence {
 
 function Assert-KmcRecoveryPersistenceEvidence {
     param($Request,$Rows)
-    if($Request.persistenceCase-ceq'serialization-cancel'){ Assert-KmcWorkerDrainEvidence $Request $Rows; return }
+    if($Request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output')){
+        Assert-KmcWorkerDrainEvidence $Request $Rows; return
+    }
     if($Request.persistenceCase-ceq'disable-reenable'){ Assert-KmcDisableLifecycleEvidence $Request $Rows; return }
     $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
     $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
