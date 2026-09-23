@@ -877,7 +877,7 @@ function Assert-KmcWorkerDrainEvidence {
 # was measurably still running, and the cleanup-state save must record no pair.
 function Assert-KmcDisableLifecycleEvidence {
     param($Request,$Rows)
-    $order=@('disable-initial','disable-cleaned','disable-re-enabled','disable-refused-during-save','disable-saved-unmounted')
+    $order=@('disable-initial','disable-cleaned','disable-re-enabled','disable-cleared','disable-refused-during-save','disable-saved-unmounted')
     $stages=@{}
     foreach($kind in $order){
         $matched=@($Rows|Where-Object kind -CEQ $kind)
@@ -894,12 +894,23 @@ function Assert-KmcDisableLifecycleEvidence {
         $index++
     }
     $initial=$stages['disable-initial']; $cleaned=$stages['disable-cleaned']
-    $reenabled=$stages['disable-re-enabled']; $refused=$stages['disable-refused-during-save']
+    $reenabled=$stages['disable-re-enabled']; $cleared=$stages['disable-cleared']
+    $refused=$stages['disable-refused-during-save']
     $saved=$stages['disable-saved-unmounted']
     if($initial.detail.relationship-cne'Mounted'-or$cleaned.detail.relationship-cne'Unmounted'-or
-        $reenabled.detail.relationship-cne'Mounted'-or$refused.detail.relationship-cne'Unmounted'-or
+        $reenabled.detail.relationship-cne'Mounted'-or$cleared.detail.relationship-cne'Unmounted'-or
+        $refused.detail.relationship-cne'Unmounted'-or
         $saved.detail.relationship-cne'Unmounted'){
         throw 'P07 disable lifecycle did not traverse mounted, cleaned, re-enabled and cleaned again.'
+    }
+    # The second disable/re-enable cycle must land back on the cleaned state
+    # exactly, with the services present and nothing resurrected.
+    if($cleared.detail.secondDisable-ne$true-or$cleared.detail.secondReEnable-ne$true-or
+        $cleared.detail.stateAfterSecondDisable-cne'Unmounted'-or
+        $cleared.detail.stateAfterSecondReEnable-cne'Unmounted'-or
+        $cleared.detail.factsAfterSecondDisable-ne$cleaned.detail.factsUnmounted-or
+        $cleared.detail.factsAfterSecondReEnable-ne$cleaned.detail.factsUnmounted){
+        throw 'P07 second disable/re-enable cycle did not return to the cleaned state.'
     }
     if([string]::IsNullOrEmpty([string]$initial.detail.riderId)-or
         [string]::IsNullOrEmpty([string]$initial.detail.mountId)-or
@@ -910,7 +921,7 @@ function Assert-KmcDisableLifecycleEvidence {
     if($initial.detail.factsMounted-le0-or$cleaned.detail.factsUnmounted-ge$initial.detail.factsMounted){
         throw 'P07 disable did not actually release owned controls.'
     }
-    foreach($row in @($initial,$cleaned,$reenabled,$refused,$saved)){
+    foreach($row in @($initial,$cleaned,$reenabled,$cleared,$refused,$saved)){
         if($row.detail.duplicateFactCount-ne0){throw "P07 disable lifecycle duplicated an owned control at $($row.kind)."}
     }
     # Bounded, not equal: re-enabling must grant nothing extra and nothing twice,

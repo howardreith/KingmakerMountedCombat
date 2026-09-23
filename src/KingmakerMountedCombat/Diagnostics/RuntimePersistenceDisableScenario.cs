@@ -22,6 +22,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private int disableFactsReEnabled = -1;
         private int disableSlotsReEnabled = -1;
         private string disableInvariants;
+        private bool disableSecondDisable;
+        private bool disableSecondReEnable;
+        private string disableStateAfterSecondDisable;
+        private string disableStateAfterSecondReEnable;
+        private int disableFactsAfterSecondDisable = -1;
+        private int disableFactsAfterSecondReEnable = -1;
         private long disableCastsBefore;
         private bool disableSecondMountRejected;
         private bool disableRefusedDuringSave;
@@ -146,14 +152,26 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 // Clean up again through the real toggle, restore the services,
                 // then save while unmounted: a later restore must not resurrect
-                // the relationship or a stale actor.
-                Check(Main.InvokeRegisteredToggleForAutomation(false) &&
-                    relationship.State == RelationshipState.Unmounted,
-                    "P07-second-registered-disable-cleans-up-again");
-                Check(Main.InvokeRegisteredToggleForAutomation(true) &&
-                    relationship.State == RelationshipState.Unmounted &&
-                    controls.CaptureSnapshot().ExactFactCount == disableFactsUnmounted,
-                    "P07-services-return-without-resurrecting-a-pair-or-its-controls");
+                // the relationship or a stale actor. Measure, record, then assert.
+                disableSecondDisable = Main.InvokeRegisteredToggleForAutomation(false);
+                disableStateAfterSecondDisable = relationship.State.ToString();
+                disableFactsAfterSecondDisable = controls.CaptureSnapshot().ExactFactCount;
+                disableSecondReEnable = Main.InvokeRegisteredToggleForAutomation(true);
+                disableStateAfterSecondReEnable = relationship.State.ToString();
+                var restored = controls.CaptureSnapshot();
+                disableFactsAfterSecondReEnable = restored.ExactFactCount;
+                Write("disable-cleared", DisableDetail());
+                Check(disableSecondDisable, "P07-second-registered-disable-succeeds");
+                Check(disableStateAfterSecondDisable == "Unmounted",
+                    "P07-second-disable-ends-the-relationship-again");
+                Check(disableFactsAfterSecondDisable == disableFactsUnmounted,
+                    "P07-second-disable-releases-the-owned-controls-again");
+                Check(disableSecondReEnable, "P07-services-return-after-the-second-disable");
+                Check(disableStateAfterSecondReEnable == "Unmounted",
+                    "P07-returning-services-resurrect-no-pair");
+                Check(disableFactsAfterSecondReEnable == disableFactsUnmounted &&
+                    restored.DuplicateFactCount == 0,
+                    "P07-returning-services-resurrect-no-owned-control");
                 callback = false;
                 var target = game.SaveManager.FirstOrDefault(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
                     ?? game.SaveManager.First(s => s.Name == "KMC_P01");
@@ -241,6 +259,11 @@ namespace KingmakerMountedCombat.Diagnostics
             ["slotsMounted"] = disableSlotsMounted,
             ["factsReEnabled"] = disableFactsReEnabled, ["slotsReEnabled"] = disableSlotsReEnabled,
             ["invariants"] = disableInvariants,
+            ["secondDisable"] = disableSecondDisable, ["secondReEnable"] = disableSecondReEnable,
+            ["stateAfterSecondDisable"] = disableStateAfterSecondDisable,
+            ["stateAfterSecondReEnable"] = disableStateAfterSecondReEnable,
+            ["factsAfterSecondDisable"] = disableFactsAfterSecondDisable,
+            ["factsAfterSecondReEnable"] = disableFactsAfterSecondReEnable,
             ["exactFactCount"] = SafeFacts(), ["duplicateFactCount"] = SafeDuplicates(),
             ["nativeCastRequests"] = controls.NativeCastRequestCount,
             ["castsBefore"] = disableCastsBefore,
