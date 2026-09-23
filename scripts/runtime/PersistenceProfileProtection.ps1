@@ -112,17 +112,19 @@ function Get-KmcPersistenceProfileAnalyticsDelta {
     $prior=@{};foreach($entry in $Before.entries){$prior[[string]$entry.path]=$entry}
     $current=@{};foreach($entry in $After.entries){$current[[string]$entry.path]=$entry}
     $changes=@()
+    # Same before/after shape as the achievement-cache delta, so the run's
+    # profile-change receipt records every admitted entry with exact hashes.
     foreach($entry in $After.entries){
         if(-not(Test-KmcNativeAnalyticsArchivedEventName $entry)){continue}
         if($prior.ContainsKey([string]$entry.path)){continue}
         $changes+=[pscustomobject]@{path=[string]$entry.path;change='created';kind=[string]$entry.kind
-            length=[long]$entry.length;afterSha256=[string]$entry.sha256}
+            length=[long]$entry.length;beforeSha256=$null;afterSha256=[string]$entry.sha256}
     }
     foreach($entry in $Before.entries){
         if(-not(Test-KmcNativeAnalyticsArchivedEventName $entry)){continue}
         if($current.ContainsKey([string]$entry.path)){continue}
         $changes+=[pscustomobject]@{path=[string]$entry.path;change='dispatched';kind=[string]$entry.kind
-            length=[long]$entry.length;afterSha256=[string]$entry.sha256}
+            length=[long]$entry.length;beforeSha256=[string]$entry.sha256;afterSha256=$null}
     }
     return $changes
 }
