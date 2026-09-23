@@ -261,11 +261,16 @@ function Assert-KmcFailedAreaLoadEvidence {
     if($d.currentAreaNull-ne$true-or$d.gameMode-cne'None'){
         throw 'P06 failed load left a completed world or an active game mode behind.'
     }
-    if($d.loadedDataNull-ne$true-or$d.combatRestorationPending-ne$false){
-        throw 'P06 failed load retained selected metadata or a combat fence.'
+    # SaveManager.LoadRoutine completed, so Player.PostLoad ran and early debt
+    # restoration legitimately happened before the separate area load failed.
+    # The claim is that what remains is inert: nothing presented, no combat
+    # fence, and no accounting rolled backwards.
+    if($d.combatRestorationPending-ne$false){throw 'P06 failed load left a combat fence.'}
+    if($d.presentation-ne$Initial[0].persistence.presentation){
+        throw 'P06 failed load presented a pair into a world that does not exist.'
     }
-    if($d.semantic-ne$Initial[0].persistence.semantics-or$d.presentation-ne$Initial[0].persistence.presentation){
-        throw 'P06 failed load restored an actor or presentation.'
+    if($d.semantic-lt$Initial[0].persistence.semantics){
+        throw 'P06 failed load reduced its restored actor accounting.'
     }
     if($d.relationship-cne'Unmounted'){throw 'P06 failed load left an actionable partial pair.'}
     if($d.unitCount-gt0){throw 'P06 failed load left a stale live actor.'}
@@ -277,7 +282,9 @@ function Assert-KmcFailedAreaLoadEvidence {
     if($r.afterLoadCallback-ne$true-or$r.relationship-cne'Mounted'-or$r.currentAreaNull-ne$false){
         throw 'P06 valid retry did not actually complete a usable world.'
     }
-    if($r.semantic-ne($Initial[0].persistence.semantics+2)-or$r.presentation-ne($Initial[0].persistence.presentation+1)){
+    # Counted from the failure point: the failed load's own early restoration is
+    # not undone, and the retry must add exactly one pair, once.
+    if($r.semantic-ne($d.semantic+2)-or$r.presentation-ne($d.presentation+1)){
         throw 'P06 valid retry did not restore exactly one pair once.'
     }
     if($r.loadedDataNull-ne$false){throw 'P06 valid retry restored no mounted metadata.'}

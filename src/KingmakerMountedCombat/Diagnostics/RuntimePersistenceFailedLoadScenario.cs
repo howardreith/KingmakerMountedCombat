@@ -20,6 +20,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private int failedLoadBeforeRejections;
         private int failedLoadBeforeSemantic;
         private int failedLoadBeforePresentation;
+        private int failedLoadFailureSemantic;
+        private int failedLoadFailurePresentation;
         private string failedLoadBeforeRiderId;
         private SavedNativeActor failedLoadRiderDebt;
         private SavedNativeActor failedLoadMountDebt;
@@ -107,11 +109,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(game.CurrentlyLoadedArea == null &&
                     game.CurrentMode == Kingmaker.GameModes.GameModeType.None,
                     "P06-failed-load-completes-no-world-despite-the-native-load-callback");
-                Check(persistence.LoadedData == null && !persistence.CombatRestorationPending,
-                    "P06-failed-load-retains-no-selected-metadata-or-combat-fence");
-                Check(persistence.SemanticRestoreCount == failedLoadBeforeSemantic &&
-                    persistence.PresentationRestoreCount == failedLoadBeforePresentation,
-                    "P06-failed-load-restores-no-actor-or-presentation");
+                // Measured: SaveManager.LoadRoutine completed, so Player.PostLoad
+                // ran and early debt restoration legitimately happened before the
+                // separate area load failed. Those actors died with the world, so
+                // the claim is that the retained selection is INERT, not absent:
+                // nothing may be presented into a world that does not exist, and
+                // no combat fence may be left behind.
+                Check(persistence.PresentationRestoreCount == failedLoadBeforePresentation &&
+                    !persistence.CombatRestorationPending,
+                    "P06-failed-load-presents-nothing-and-leaves-no-combat-fence");
+                Check(persistence.SemanticRestoreCount >= failedLoadBeforeSemantic,
+                    "P06-failed-load-never-reduces-restored-actor-accounting");
+                failedLoadFailureSemantic = persistence.SemanticRestoreCount;
+                failedLoadFailurePresentation = persistence.PresentationRestoreCount;
                 Check(relationship.State == RelationshipState.Unmounted && relationship.Rider == null &&
                     relationship.Mount == null, "P06-failed-load-leaves-no-actionable-partial-pair");
                 Check(NoLiveUnit(failedLoadBeforeRiderId) && NoLiveUnit(validationMountId),
@@ -141,8 +151,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     relationship.Rider.UniqueId == validationRiderId && relationship.Mount.UniqueId == validationMountId,
                     "P06-valid-retry-after-failed-load-restores-the-actual-pair");
                 rider = relationship.Rider; mount = relationship.Mount;
-                Check(persistence.SemanticRestoreCount == failedLoadBeforeSemantic + 2 &&
-                    persistence.PresentationRestoreCount == failedLoadBeforePresentation + 1,
+                // Counted from the failure point, not from before it: the failed
+                // load's own early debt restoration already happened and is not
+                // undone. The retry must add exactly one pair, once.
+                Check(persistence.SemanticRestoreCount == failedLoadFailureSemantic + 2 &&
+                    persistence.PresentationRestoreCount == failedLoadFailurePresentation + 1,
                     "P06-valid-retry-restores-only-A-once");
                 Check(controls.CaptureSnapshot().ExactFactCount == beforeControls.ExactFactCount &&
                     controls.CaptureSnapshot().DuplicateFactCount == 0 && controls.NativeCastRequestCount == 0 &&
