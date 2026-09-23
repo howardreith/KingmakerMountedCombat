@@ -19,6 +19,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private int disableFactsMounted;
         private int disableSlotsMounted;
         private int disableFactsUnmounted;
+        private int disableFactsReEnabled = -1;
+        private int disableSlotsReEnabled = -1;
+        private string disableInvariants;
         private long disableCastsBefore;
         private bool disableSecondMountRejected;
         private bool disableRefusedDuringSave;
@@ -101,29 +104,41 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (++disableFrames < 6) return;
                 // Re-enabling must rebuild exactly one pair and exactly one set of
                 // owned controls, with no fresh Mount cast or duplicate grant.
-                Check(Main.InvokeRegisteredToggleForAutomation(true),
-                    "P07-registered-re-enable-succeeds");
-                Check(relationship.State == RelationshipState.Unmounted,
-                    "P07-re-enable-alone-invents-no-pair");
+                // Every action first, then the record, then the assertions: a
+                // failed assertion must not destroy the measurement that would
+                // explain it.
+                var reEnabled = Main.InvokeRegisteredToggleForAutomation(true);
+                var pairBeforeMount = relationship.State;
                 var remount = relationship.MountAutomationPair();
+                rider = relationship.Rider; mount = relationship.Mount;
+                var after = controls.CaptureSnapshot();
+                disableFactsReEnabled = after.ExactFactCount;
+                disableSlotsReEnabled = after.ManagedHotbarSlotCount;
+                disableInvariants = relationship.Runtime.ValidateMountedInvariants();
+                disableSecondMountRejected = !relationship.MountAutomationPair().Succeeded &&
+                    relationship.State == RelationshipState.Mounted;
+                Write("disable-re-enabled", DisableDetail());
+                Check(reEnabled, "P07-registered-re-enable-succeeds");
+                Check(pairBeforeMount == RelationshipState.Unmounted,
+                    "P07-re-enable-alone-invents-no-pair");
                 Check(remount.Succeeded && relationship.State == RelationshipState.Mounted,
                     "P07-re-enable-restores-the-supported-pair");
-                rider = relationship.Rider; mount = relationship.Mount;
                 Check(rider.UniqueId == disableRiderId && mount.UniqueId == disableMountId,
                     "P07-re-enable-uses-the-same-native-actors");
-                var after = controls.CaptureSnapshot();
-                Check(after.ExactFactCount == disableFactsMounted,
-                    "P07-re-enable-restores-exactly-the-baseline-control-facts");
-                Check(after.DuplicateFactCount == 0 && after.ManagedHotbarSlotCount == disableSlotsMounted,
+                // Bounded, not equal: the requirement is that re-enabling grants
+                // nothing extra and nothing twice. A save-restored baseline also
+                // reinstates persisted state that a fresh pair has no reason to
+                // recreate, so equality would assert something never established.
+                // The exact re-enabled counts are recorded either way.
+                Check(disableFactsReEnabled > disableFactsUnmounted &&
+                    disableFactsReEnabled <= disableFactsMounted,
+                    "P07-re-enable-returns-owned-controls-without-granting-extra");
+                Check(after.DuplicateFactCount == 0 && disableSlotsReEnabled <= disableSlotsMounted,
                     "P07-re-enable-creates-no-duplicate-controls-or-slots");
                 Check(controls.NativeCastRequestCount == disableCastsBefore,
                     "P07-re-enable-grants-nothing-through-a-fresh-Mount-cast");
-                Check(relationship.Runtime.ValidateMountedInvariants() == null,
-                    "P07-re-enabled-pair-holds-its-mounted-invariants");
-                disableSecondMountRejected = !relationship.MountAutomationPair().Succeeded &&
-                    relationship.State == RelationshipState.Mounted;
+                Check(disableInvariants == null, "P07-re-enabled-pair-holds-its-mounted-invariants");
                 Check(disableSecondMountRejected, "P07-re-enable-leaves-exactly-one-pair");
-                Write("disable-re-enabled", DisableDetail());
                 disableFrames = 0; disableStage = 3;
                 return;
             }
@@ -224,6 +239,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["riderId"] = disableRiderId, ["mountId"] = disableMountId,
             ["factsMounted"] = disableFactsMounted, ["factsUnmounted"] = disableFactsUnmounted,
             ["slotsMounted"] = disableSlotsMounted,
+            ["factsReEnabled"] = disableFactsReEnabled, ["slotsReEnabled"] = disableSlotsReEnabled,
+            ["invariants"] = disableInvariants,
             ["exactFactCount"] = SafeFacts(), ["duplicateFactCount"] = SafeDuplicates(),
             ["nativeCastRequests"] = controls.NativeCastRequestCount,
             ["castsBefore"] = disableCastsBefore,

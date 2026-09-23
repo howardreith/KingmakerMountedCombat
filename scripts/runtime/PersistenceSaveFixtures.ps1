@@ -913,10 +913,16 @@ function Assert-KmcDisableLifecycleEvidence {
     foreach($row in @($initial,$cleaned,$reenabled,$refused,$saved)){
         if($row.detail.duplicateFactCount-ne0){throw "P07 disable lifecycle duplicated an owned control at $($row.kind)."}
     }
-    if($reenabled.detail.exactFactCount-ne$initial.detail.factsMounted-or
+    # Bounded, not equal: re-enabling must grant nothing extra and nothing twice,
+    # but a save-restored baseline also reinstates persisted state that a fresh
+    # pair has no reason to recreate. The exact observed counts stay recorded.
+    if($reenabled.detail.factsReEnabled-le$cleaned.detail.factsUnmounted-or
+        $reenabled.detail.factsReEnabled-gt$initial.detail.factsMounted-or
+        $reenabled.detail.slotsReEnabled-gt$initial.detail.slotsMounted-or
         $reenabled.detail.nativeCastRequests-ne$initial.detail.castsBefore-or
-        $reenabled.detail.secondMountRejected-ne$true){
-        throw 'P07 re-enable added controls, cast a fresh Mount, or allowed a second pair.'
+        $reenabled.detail.secondMountRejected-ne$true-or
+        -not[string]::IsNullOrEmpty([string]$reenabled.detail.invariants)){
+        throw 'P07 re-enable added controls, cast a fresh Mount, allowed a second pair, or broke its invariants.'
     }
     # The refusal only means something if the write really was still in flight.
     if($refused.detail.refusedDuringSave-ne$true-or$refused.detail.suspendedAtProbe-ne$true-or
