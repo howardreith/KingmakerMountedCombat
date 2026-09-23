@@ -607,24 +607,28 @@ foreach($bad in @('no-commit-failure','no-snapshot','clock-rewind')){
 # An ordinary native transfer keeps CrossSceneRoot, so the party pair retains
 # its exact views; the qualification is that they stay live, bound and singly
 # owned, and that the recorded label agrees with the measured instance IDs.
-$areaRequest=[pscustomobject]@{persistenceCase='area-reload';fixture=[pscustomobject]@{working=[pscustomobject]@{area=('a'*32)}}}
+$areaRequest=[pscustomobject]@{persistenceCase='area-reload';fixture=[pscustomobject]@{working=[pscustomobject]@{
+    area=('a'*32);gameId='89c49a86-a171-4ea9-871a-f6b3b53d19b9'}}}
 function New-KmcAreaActorRow { param([string]$Id,[int]$View)
     [pscustomobject]@{id=$Id;nativeActorCount=1;baselineViewId=$View;viewId=$View;viewAlive=$true;
         viewBound=$true;viewDisposition='retained';viewExactForPair=$true;boundToRelationship=$true}
 }
+function New-KmcAreaRow { param([string]$Kind,[string]$Area,[string]$Expected)
+    [pscustomobject]@{kind=$Kind;gameTicks=100;native=[pscustomobject]@{paused=$false};
+        persistence=[pscustomobject]@{semantics=0;presentation=0};
+        controls=[pscustomobject]@{ExactFactCount=5;ManagedHotbarSlotCount=2;SerializationSuspended=$false};
+        rider=[pscustomobject]@{Id='owned-rider';Standard=2;Move=1;Swift=3;Initiative=0;Reaction=1;ReactionsRemaining=0};
+        mount=[pscustomobject]@{Id='owned-mount';Standard=0;Move=2;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1};
+        detail=[pscustomobject]@{area=$Area;expectedArea=$Expected;sourceArea=('a'*32);suspensions=0;resumes=0;pending=$false;
+            suspensionObserved=$true;loadingFrames=10;sameWorld=$true;riderView=1;mountView=2;
+            nativeCastRequests=0;ordinal=2;sha256=('a'*64);expectedViewDisposition='retained';
+            loadingInProcess=$false;queuedLoads=0;deferredSaveWaiting=$false;mountedInvariant=$null;
+            presentation='relationship=Mounted;riderViewExact=True';
+            riderActor=(New-KmcAreaActorRow 'owned-rider' 1);mountActor=(New-KmcAreaActorRow 'owned-mount' 2)}}
+}
 $areaRows=@(
     foreach($kind in @('area-initial-write','area-reload-requested','area-reload-observed','area-reload-complete','native-write-complete')){
-        [pscustomobject]@{kind=$kind;gameTicks=100;native=[pscustomobject]@{paused=$false};
-            persistence=[pscustomobject]@{semantics=0;presentation=0};
-            controls=[pscustomobject]@{ExactFactCount=5;ManagedHotbarSlotCount=2;SerializationSuspended=$false};
-            rider=[pscustomobject]@{Standard=2;Move=1;Swift=3;Initiative=0;Reaction=1;ReactionsRemaining=0};
-            mount=[pscustomobject]@{Standard=0;Move=2;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1};
-            detail=[pscustomobject]@{area=('a'*32);suspensions=0;resumes=0;pending=$false;
-                suspensionObserved=$true;loadingFrames=10;sameWorld=$true;riderView=1;mountView=2;
-                nativeCastRequests=0;ordinal=2;sha256=('a'*64);expectedViewDisposition='retained';
-                loadingInProcess=$false;queuedLoads=0;deferredSaveWaiting=$false;mountedInvariant=$null;
-                presentation='relationship=Mounted;riderViewExact=True';
-                riderActor=(New-KmcAreaActorRow 'owned-rider' 1);mountActor=(New-KmcAreaActorRow 'owned-mount' 2)}}
+        New-KmcAreaRow $kind ('a'*32) ('a'*32)
     }
 )
 foreach($i in 2,3){$areaRows[$i].detail.suspensions=1;$areaRows[$i].detail.resumes=1}
@@ -658,6 +662,65 @@ foreach($bad in @('replaced-views','mislabeled-disposition','missing-view','unbo
         'missing-slots' {$copy[3].controls.ManagedHotbarSlotCount=0}
     }
     Must-Reject {Assert-KmcAreaPersistenceEvidence $areaRequest $copy} ('P07 area accepted '+$bad)
+}
+
+# A real cross-area transfer replaces the scenario's opening manual write with
+# the engine's own authored autosave, and its barrier counters are the ordering
+# proof: AfterEntry must already see the restored pair in the destination,
+# BeforeExit must still see it mounted in the departure area.
+foreach($mode in @('AfterEntry','BeforeExit')){
+    $case=if($mode-ceq'AfterEntry'){'area-cross-entry'}else{'area-cross-exit'}
+    $source=('a'*32);$target=('e'*32)
+    $autosaveArea=if($mode-ceq'AfterEntry'){$target}else{$source}
+    $resumes=if($mode-ceq'AfterEntry'){1}else{0}
+    $crossRequest=[pscustomobject]@{persistenceCase=$case
+        fixture=[pscustomobject]@{working=[pscustomobject]@{area=$source;gameId='89c49a86-a171-4ea9-871a-f6b3b53d19b9'}}
+        persistenceAreaTarget=[pscustomobject]@{enterPoint=('d'*32);area=$target;autoSaveMode=$mode}}
+    $crossRows=@(
+        (New-KmcAreaRow 'area-reload-requested' $source $target),
+        (New-KmcAreaRow 'area-reload-observed' $target $target),
+        (New-KmcAreaRow 'area-native-autosave' $target $target),
+        (New-KmcAreaRow 'area-reload-complete' $target $target),
+        (New-KmcAreaRow 'native-write-complete' $target $target)
+    )
+    foreach($i in 1,2,3){$crossRows[$i].detail.suspensions=1;$crossRows[$i].detail.resumes=1}
+    $crossRows[4].detail.sha256=('b'*64)
+    $crossRows[2].detail | Add-Member -NotePropertyName mode -NotePropertyValue $mode
+    $crossRows[2].detail | Add-Member -NotePropertyName nativeType -NotePropertyValue 'Auto'
+    $crossRows[2].detail | Add-Member -NotePropertyName length -NotePropertyValue 4096
+    $crossRows[2].detail.expectedArea=$autosaveArea
+    $crossRows[2].detail | Add-Member -NotePropertyName snapshot -NotePropertyValue ([pscustomobject]@{
+        Mounted=$true;AreaId=$autosaveArea;CampaignId='89c49a86-a171-4ea9-871a-f6b3b53d19b9'
+        Rider=[pscustomobject]@{Id='owned-rider'};Mount=[pscustomobject]@{Id='owned-mount'}})
+    $crossRows[2].detail | Add-Member -NotePropertyName barrier -NotePropertyValue ([pscustomobject]@{
+        relationship='Mounted';area=$autosaveArea;snapshots=1;resumes=$resumes;suspensions=$resumes
+        riderId='owned-rider';mountId='owned-mount'})
+    Assert-KmcAreaPersistenceEvidence $crossRequest $crossRows;$passes++
+    foreach($bad in @('no-autosave','stayed-in-source','autosave-unmounted','autosave-wrong-area','autosave-foreign-campaign',
+        'autosave-wrong-actor','barrier-unmounted','barrier-wrong-order','barrier-wrong-area','autosave-not-auto',
+        'autosave-aliases-manual','late-autosave','target-equals-source','wrong-expected-area')){
+        $copy=($crossRows|ConvertTo-Json -Depth 12)|ConvertFrom-Json
+        $req=$crossRequest
+        switch($bad){
+            'no-autosave' {$copy=@($copy[0],$copy[1],$copy[3],$copy[4])}
+            'stayed-in-source' {$copy[3].detail.area=$source;$copy[1].detail.area=$source}
+            'autosave-unmounted' {$copy[2].detail.snapshot.Mounted=$false}
+            'autosave-wrong-area' {$copy[2].detail.snapshot.AreaId=('f'*32)}
+            'autosave-foreign-campaign' {$copy[2].detail.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
+            'autosave-wrong-actor' {$copy[2].detail.snapshot.Rider.Id='other-rider'}
+            'barrier-unmounted' {$copy[2].detail.barrier.relationship='Unmounted'}
+            'barrier-wrong-order' {$copy[2].detail.barrier.resumes=(1-$resumes)}
+            'barrier-wrong-area' {$copy[2].detail.barrier.area=('f'*32)}
+            'autosave-not-auto' {$copy[2].detail.nativeType='Manual'}
+            'autosave-aliases-manual' {$copy[4].detail.sha256=$copy[2].detail.sha256}
+            'late-autosave' {$copy=@($copy[0],$copy[1],$copy[3],$copy[4],$copy[2])}
+            'target-equals-source' {$req=[pscustomobject]@{persistenceCase=$case
+                fixture=[pscustomobject]@{working=[pscustomobject]@{area=$target;gameId='89c49a86-a171-4ea9-871a-f6b3b53d19b9'}}
+                persistenceAreaTarget=[pscustomobject]@{enterPoint=('d'*32);area=$target;autoSaveMode=$mode}}}
+            'wrong-expected-area' {$copy[3].detail.expectedArea=$source}
+        }
+        Must-Reject {Assert-KmcAreaPersistenceEvidence $req $copy} ('P07 cross-area accepted '+$bad+' ('+$mode+')')
+    }
 }
 
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
