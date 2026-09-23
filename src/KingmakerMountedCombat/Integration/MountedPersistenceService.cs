@@ -27,6 +27,10 @@ namespace KingmakerMountedCombat.Integration
         internal int DeferredSaveCancellationCount { get; private set; }
         internal int DrainedSaveCount { get; private set; }
         internal bool LastDrainedSaveCommitted { get; private set; }
+        // False when a commit landed that was not this operation's: the outcome
+        // is then reported as unconfirmed rather than as either success or an
+        // unchanged previous archive.
+        internal bool LastDrainedSaveOutcomeEstablished { get; private set; } = true;
         // Where the interrupted save actually landed. The commit replaces the
         // target archive in place and rebinds the path, so this is not the
         // prepared leaf name joined to the save root.
@@ -41,12 +45,17 @@ namespace KingmakerMountedCombat.Integration
         internal string ActiveSaveLeaf => (activeSave ?? drainingSave)?.Prepared?.FileName;
         internal int ActiveSaveWorkerId
         {
-            get { var task = ResolveWorker(activeSave ?? drainingSave); return task == null ? -1 : task.Id; }
+            get { System.Threading.Tasks.Task task; ResolveWorker(activeSave ?? drainingSave, out task); return task == null ? -1 : task.Id; }
         }
         internal bool ActiveSaveWorkerRunning
         {
-            get { var task = ResolveWorker(activeSave ?? drainingSave); return task != null && !task.IsCompleted; }
+            get { System.Threading.Tasks.Task task; ResolveWorker(activeSave ?? drainingSave, out task); return task != null && !task.IsCompleted; }
         }
+        // The RAW latch, with no resolution. A test uses this to prove an
+        // interruption was requested while the worker was live but had not yet
+        // been observed by the wrapper, which is the window a cached-null read
+        // would have released.
+        internal bool ActiveSaveWorkerCached => (activeSave ?? drainingSave)?.Worker != null;
         internal int TeardownDrainCount { get; private set; }
         internal bool LastTeardownDrainSettled { get; private set; } = true;
         // True only while an owned world replacement is actually in flight: this
@@ -98,7 +107,12 @@ namespace KingmakerMountedCombat.Integration
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> routine, SaveInfo requestedSave)
         {
-            var scope = new SaveScope();
+            var scope = new SaveScope {
+                CommitsAtStart = NativeMountedArchiveCommit.CommitCount,
+                RequestedPath = requestedSave?.FolderName
+            };
+            scope.PreviousExisted = !string.IsNullOrEmpty(scope.RequestedPath) &&
+                System.IO.File.Exists(scope.RequestedPath);
             var scoped = new ScopedEnumerator<object>(TrackNativeSave(routine, scope), () =>
             {
                 if (activeSave != null) throw new InvalidOperationException("Overlapping native save enumerations.");
@@ -112,7 +126,9 @@ namespace KingmakerMountedCombat.Integration
                 // and would clear the overlap guard. Nothing can cancel a started
                 // worker, so defer the release and let Update drain it; the
                 // outcome is only reported once the worker settles.
-                if (ReferenceEquals(activeSave, scope) && !NativeSaveWorkerBoundary.CanReleaseScope(ResolveWorker(scope)))
+                System.Threading.Tasks.Task pending;
+                var settled = ResolveWorker(scope, out pending);
+                if (ReferenceEquals(activeSave, scope) && !NativeSaveWorkerBoundary.CanReleaseScope(settled, pending))
                 {
                     if (drainingSave == null)
                     {
@@ -143,8 +159,12 @@ namespace KingmakerMountedCombat.Integration
                     // still null, and an early disposal in that window would
                     // treat "no cached task" as "no worker" and release.
                     CaptureWorker(routine, scope);
-                    var moved = routine.MoveNext();
-                    CaptureWorker(routine, scope);
+                    bool moved;
+                    // The publishing store happens inside this step, so the latch
+                    // is taken in a finally: a step that creates the worker and
+                    // then throws must not leave ownership unobserved.
+                    try { moved = routine.MoveNext(); }
+                    finally { CaptureWorker(routine, scope); }
                     if (!moved) break;
                     yield return routine.Current;
                 }
@@ -165,20 +185,32 @@ namespace KingmakerMountedCombat.Integration
                 throw new CompletedSaveFailureException("The native archive worker did not commit the requested save.");
         }
 
+        // Latching: once a worker has been seen it is never forgotten, so a later
+        // unreadable routine cannot turn established ownership back into "none".
         private static void CaptureWorker(IEnumerator<object> routine, SaveScope scope)
         {
-            if (scope.Worker == null) scope.Worker = NativeSaveWorkerBoundary.TaskIfNative(routine);
+            if (scope.Worker != null) return;
+            System.Threading.Tasks.Task worker;
+            if (NativeSaveWorkerBoundary.TryReadWorker(routine, out worker) && worker != null)
+                scope.Worker = worker;
         }
 
         // Resolved at the decision point, not trusted from the cache: the step
         // that publishes the worker may have run since the cache was last
         // refreshed, so a null cached task is never proof that no worker exists.
-        private static System.Threading.Tasks.Task ResolveWorker(SaveScope scope)
+        // Reports whether the answer was actually established; an unreadable
+        // routine yields false so the caller defers rather than releasing.
+        private static bool ResolveWorker(SaveScope scope, out System.Threading.Tasks.Task worker)
         {
-            if (scope == null) return null;
-            if (scope.Worker == null && scope.Routine != null)
-                scope.Worker = NativeSaveWorkerBoundary.TaskIfNative(scope.Routine);
-            return scope.Worker;
+            worker = scope?.Worker;
+            if (worker != null) return true;
+            // No scope, or one whose enumeration never began, cannot own a
+            // worker: that is established, not unknown. Only a read that fails
+            // leaves the question open.
+            if (scope?.Routine == null) return true;
+            if (!NativeSaveWorkerBoundary.TryReadWorker(scope.Routine, out worker)) return false;
+            if (worker != null) scope.Worker = worker;
+            return true;
         }
 
         private void ReleaseSaveScope(SaveScope scope)
@@ -207,7 +239,10 @@ namespace KingmakerMountedCombat.Integration
         // reporting whether it actually settled rather than assuming it did.
         internal bool DrainForTeardown(int milliseconds)
         {
-            var worker = ResolveWorker(activeSave ?? drainingSave);
+            System.Threading.Tasks.Task worker;
+            // Only a settled, genuinely absent worker means "nothing to wait for".
+            // If ownership could not be established, wait rather than assume.
+            if (ResolveWorker(activeSave ?? drainingSave, out worker) && worker == null) return true;
             if (worker == null) return true;
             TeardownDrainCount++;
             var settled = NativeSaveWorkerBoundary.WaitForWorkerSettlement(worker, milliseconds);
@@ -223,12 +258,24 @@ namespace KingmakerMountedCombat.Integration
         private void DrainAbandonedSave()
         {
             var scope = drainingSave;
-            var worker = ResolveWorker(scope);
+            System.Threading.Tasks.Task worker;
+            var established = ResolveWorker(scope, out worker);
+            // A deferral taken while ownership was unknown resolves here: once it
+            // is established that no worker was ever created, waiting can never
+            // settle anything, so release instead of holding the scope forever.
+            if (established && worker == null) { ReleaseSaveScope(scope); return; }
             if (worker == null || !worker.IsCompleted) return;
-            var committed = !worker.IsFaulted && !worker.IsCanceled && scope.Json != null &&
-                scope.Prepared != null && !string.IsNullOrEmpty(scope.Prepared.FolderName) &&
-                scope.Prepared.OperationState == SaveInfo.StateType.None &&
-                System.IO.File.Exists(scope.Prepared.FolderName);
+            // Whether the archive was written is decided at the actual commit
+            // boundary, not inferred from the task. A worker that committed and
+            // then faulted in cleanup, descriptor rebinding or notification has
+            // still written the save, and a faulted task alone never establishes
+            // that the previous archive is untouched.
+            var landed = NativeMountedArchiveCommit.LastCommittedDestination;
+            var outcome = NativeSaveCommitOutcome.Decide(scope.CommitsAtStart,
+                NativeMountedArchiveCommit.CommitCount, landed, scope.RequestedPath,
+                scope.Prepared?.FolderName, System.IO.File.Exists);
+            var committed = outcome == NativeSaveCommitKind.Committed;
+            var outcomeEstablished = outcome != NativeSaveCommitKind.Unconfirmed;
             try
             {
                 // The worker temporarily clears this reference; the completion
@@ -239,12 +286,38 @@ namespace KingmakerMountedCombat.Integration
             catch (Exception exception) { logger.Exception("Abandoned save could not restore its native world reference", exception); }
             DrainedSaveCount++;
             LastDrainedSaveCommitted = committed;
-            LastDrainedSavePath = scope.Prepared == null ? null : scope.Prepared.FolderName;
+            LastDrainedSaveOutcomeEstablished = outcomeEstablished;
+            // Where the save actually landed, which the commit boundary knows and
+            // the prepared leaf does not: the commit replaces its target in place
+            // and rebinds the path.
+            LastDrainedSavePath = committed ? landed : null;
             if (!committed) FailedSaveCount++;
             ReleaseSaveScope(scope);
-            NotifySaveStatus(committed
-                ? "The interrupted save had already started writing and finished; that archive is complete."
-                : "The interrupted save did not complete; the previous complete save is unchanged.");
+            if (committed)
+            {
+                NotifySaveStatus("The interrupted save had already finished writing; that archive is complete.");
+            }
+            else if (!outcomeEstablished)
+            {
+                // Never promise unchanged bytes here: this is exactly the case
+                // where the outcome was not established.
+                NotifySaveStatus("The interrupted save could not be confirmed. Check this save slot before " +
+                    "relying on it.");
+            }
+            else if (scope.PreviousExisted && System.IO.File.Exists(scope.RequestedPath))
+            {
+                NotifySaveStatus("The interrupted save did not write; the previous complete save is unchanged.");
+            }
+            else if (scope.PreviousExisted)
+            {
+                NotifySaveStatus("The interrupted save did not write, and the earlier save is no longer in place. " +
+                    "Check this save slot before relying on it.");
+            }
+            else
+            {
+                NotifySaveStatus("The interrupted save did not write, and there was no earlier save in this slot " +
+                    "to keep.");
+            }
         }
 
         internal void ObservePreparedSave(SaveInfo save)
@@ -511,6 +584,12 @@ namespace KingmakerMountedCombat.Integration
             // Captured once the native iterator starts its archive worker, so an
             // early disposal can tell whether that worker can still commit.
             internal System.Threading.Tasks.Task Worker;
+            // Captured when the scope opens, so the drain can tell a commit of ITS
+            // own from any other, and can say whether a previous archive existed
+            // at all rather than promising one that never did.
+            internal int CommitsAtStart;
+            internal string RequestedPath;
+            internal bool PreviousExisted;
             internal IEnumerator<object> Routine;
         }
     }

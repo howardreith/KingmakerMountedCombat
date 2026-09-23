@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','disable-reenable','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
@@ -25,7 +25,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','disable-reenable','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -895,6 +895,31 @@ function Assert-KmcWorkerDrainEvidence {
     }
     if($written[0].detail.ordinal-ne2-or[string]::IsNullOrEmpty([string]$written[0].detail.sha256)){
         throw 'P07 drain lacks its real subsequent write.'
+    }
+    # The -output variant stops at settlement so the interrupted archive itself
+    # survives the run. Its recorded write must BE that archive, not a later one,
+    # and it must still be a complete mounted archive on disk at that hash.
+    if($Request.persistenceCase-ceq'serialization-cancel-output'){
+        $out=@($Rows|Where-Object kind -CEQ 'drain-interrupted-output')
+        if($out.Count-ne1){throw 'P07 interrupted-output case lacks its exact preserved-output observation.'}
+        $o=$out[0].detail
+        if($o.committed-ne$true-or$o.drains-ne1-or$o.deferrals-ne1){
+            throw 'P07 interrupted-output case did not preserve a committed, once-drained operation.'
+        }
+        if($o.path-cne$s.interruptedPath-or$o.sha256-cne$s.currentSha256-or$o.length-le0){
+            throw 'P07 preserved output is not the interrupted operation own committed archive.'
+        }
+        if($written[0].detail.path-cne$o.path-or$written[0].detail.sha256-cne$o.sha256){
+            throw 'P07 interrupted-output case recorded a later archive instead of the interrupted one.'
+        }
+        if(-not(Test-Path -LiteralPath $o.path -PathType Leaf)){
+            throw 'P07 interrupted output did not survive its own run.'
+        }
+        if((Get-KmcSha256 $o.path)-cne$o.sha256){
+            throw 'P07 interrupted output bytes changed after the run recorded them.'
+        }
+    }elseif(@($Rows|Where-Object kind -CEQ 'drain-interrupted-output').Count-ne0){
+        throw 'P07 plain drain case must not claim a preserved interrupted output.'
     }
 }
 

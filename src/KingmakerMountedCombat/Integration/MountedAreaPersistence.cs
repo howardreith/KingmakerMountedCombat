@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool AreaTransitionPending => areaTransfer != null;
         internal int AreaSuspensionCount { get; private set; }
         internal int AreaResumeCount { get; private set; }
+        internal int RefusedAreaTransferCount { get; private set; }
 
         internal void BeginAreaTransition(BlueprintArea area, SaveInfo saveInfo)
         {
@@ -36,6 +37,17 @@ namespace KingmakerMountedCombat.Integration
             if (!Enabled || world == null || area == null || relationship.State != RelationshipState.Mounted ||
                 world.IsInCombat || relationship.Rider.IsInCombat || relationship.Mount.IsInCombat)
                 return;
+            // The archive worker serializes the LIVE Player, cross-scene state and
+            // LoadedAreaState, so a world replacement overlapping it would change
+            // the very graphs being written. KMC refuses to carry a pair across
+            // that boundary; the transfer is simply not armed, and the ordinary
+            // unarmed area path still runs.
+            if (SaveDraining || SaveSuspended)
+            {
+                RefusedAreaTransferCount++;
+                Report("A mounted save is still being written; the pair is not carried across this area change.");
+                return;
+            }
             areaTransfer = new AreaTransfer {
                 World = new WeakReference(world), CampaignId = world.GameId, AreaId = area.AssetGuidThreadSafe,
                 RiderId = relationship.Rider.UniqueId, MountId = relationship.Mount.UniqueId,

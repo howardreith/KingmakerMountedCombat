@@ -296,7 +296,7 @@ namespace KingmakerMountedCombat.Tests
                     request.Scenario = "persistence-p07-save";
                     TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a writing scenario.");
                 }
-                foreach (var name in new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "disable-reenable", "area-reload",
+                foreach (var name in new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "area-reload",
                     "area-cross-entry", "area-cross-exit" })
                 {
                     var cross = name == "area-cross-entry" || name == "area-cross-exit";

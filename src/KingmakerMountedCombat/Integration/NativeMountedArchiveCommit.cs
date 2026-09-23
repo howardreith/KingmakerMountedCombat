@@ -21,6 +21,24 @@ namespace KingmakerMountedCombat.Integration
         private static int replacementFailures;
         internal static int ReplacementFailureCount => System.Threading.Volatile.Read(ref replacementFailures);
 
+        // The archive is committed the instant the native replacement returns.
+        // Everything after that -- descriptor rebinding, ownership completion,
+        // the worker's own cleanup, notification -- can still throw, and none of
+        // those failures un-writes the bytes. Recording the commit here is what
+        // lets an interrupted operation distinguish "never written" from
+        // "written, then something later failed", instead of inferring the save
+        // was lost from a faulted task.
+        private static int commits;
+        private static string lastCommitted;
+        internal static int CommitCount => System.Threading.Volatile.Read(ref commits);
+        internal static string LastCommittedDestination => System.Threading.Volatile.Read(ref lastCommitted);
+
+        private static void RecordCommit(string destination)
+        {
+            System.Threading.Volatile.Write(ref lastCommitted, destination);
+            System.Threading.Interlocked.Increment(ref commits);
+        }
+
         private static MethodInfo ResolveRename()
         {
             var method = Zip.GetMethod("RenameFile", new[] { typeof(string) });
@@ -44,7 +62,10 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!IsZip(staged) || !IsZip(original?.Saver))
             {
+                // A first-ever save has no original to replace; the rename is its
+                // commit and counts exactly the same.
                 Rename.Invoke(staged, new object[] { destination });
+                RecordCommit(destination);
                 return;
             }
             if (PathOf(original.Saver) != destination)
@@ -57,6 +78,9 @@ namespace KingmakerMountedCombat.Integration
                 // archive atomically. No original deletion and no content rewrite.
                 try { File.Replace(source, destination, null); }
                 catch (IOException) { System.Threading.Interlocked.Increment(ref replacementFailures); throw; }
+                // Committed. Record it before the two steps below, either of
+                // which can throw without un-writing these bytes.
+                RecordCommit(destination);
                 PathField.SetValue(staged, destination);
                 ownership?.Complete();
             }
