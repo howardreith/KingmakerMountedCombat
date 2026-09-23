@@ -877,7 +877,10 @@ function Assert-KmcWorkerDrainEvidence {
 # was measurably still running, and the cleanup-state save must record no pair.
 function Assert-KmcDisableLifecycleEvidence {
     param($Request,$Rows)
-    $order=@('disable-initial','disable-cleaned','disable-re-enabled','disable-cleared','disable-refused-during-save','disable-saved-unmounted')
+    # The refusal is probed on the mounted save, before the second cleanup cycle
+    # and the unmounted save, because only a mounted save opens the owned scope
+    # whose serialization lease the refusal reads.
+    $order=@('disable-initial','disable-cleaned','disable-re-enabled','disable-refused-during-save','disable-cleared','disable-saved-unmounted')
     $stages=@{}
     foreach($kind in $order){
         $matched=@($Rows|Where-Object kind -CEQ $kind)
@@ -886,12 +889,14 @@ function Assert-KmcDisableLifecycleEvidence {
     }
     $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
     if($written.Count-ne1){throw 'P07 disable lifecycle lacks its exact cleanup-state write.'}
-    $index=0
+    # Ordering, not exact stage numbers: the stages carry their own identity and
+    # renumbering the walk must not silently pass or silently fail this contract.
+    $previous=-1
     foreach($kind in $order){
         $row=$stages[$kind]
         if($row.checkpoint-cne'disable-reenable'){throw "P07 disable row $kind is not the declared case."}
-        if($row.detail.stage-ne$index){throw "P07 disable row $kind is out of its measured order."}
-        $index++
+        if($row.detail.stage-le$previous){throw "P07 disable row $kind is out of its measured order."}
+        $previous=$row.detail.stage
     }
     $initial=$stages['disable-initial']; $cleaned=$stages['disable-cleaned']
     $reenabled=$stages['disable-re-enabled']; $cleared=$stages['disable-cleared']

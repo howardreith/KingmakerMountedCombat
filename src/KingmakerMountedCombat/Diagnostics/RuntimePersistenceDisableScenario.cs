@@ -162,6 +162,25 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (disableStage == 3)
             {
+                // The refusal probe runs against a MOUNTED save: that is the case
+                // whose live graphs a disable would mutate, and the owned save
+                // scope that holds the serialization lease only exists for a pair.
+                callback = false;
+                var held = game.SaveManager.FirstOrDefault(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
+                    ?? game.SaveManager.First(s => s.Name == "KMC_P01");
+                disableEntriesBefore = NativeSaveWorkerBoundary.WorkerEntryCount;
+                // Hold this one owned worker at its entry so the probe runs while
+                // the save is provably still able to commit, instead of racing a
+                // write that may already have finished.
+                NativeSaveWorkerBoundary.ArmWorkerHold(8000);
+                game.SaveGame(held, () => callback = true);
+                disableFrames = 0; disableStage = 4;
+                return;
+            }
+            if (disableStage == 5)
+            {
+                if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
+                if (++disableFrames < 10) return;
                 // Clean up again through the real toggle, restore the services,
                 // then save while unmounted: a later restore must not resurrect
                 // the relationship or a stale actor. Measure, record, then assert.
@@ -188,17 +207,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     restored.DuplicateFactCount == 0 &&
                     restored.ManagedHotbarSlotCount == disableSlotsEnabledUnmounted,
                     "P07-repeated-cycles-leave-the-enabled-unmounted-controls-unchanged");
+                // Re-resolved from the manager's live enumeration: the previous
+                // commit replaces its target in place and rebinds the path, so a
+                // descriptor captured earlier is stale.
                 callback = false;
-                var target = game.SaveManager.FirstOrDefault(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
-                    ?? game.SaveManager.First(s => s.Name == "KMC_P01");
+                var target = game.SaveManager.Where(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
+                    .OrderByDescending(s => new FileInfo(s.FolderName).LastWriteTimeUtc).First();
                 disableSavePath = target.FolderName;
-                disableEntriesBefore = NativeSaveWorkerBoundary.WorkerEntryCount;
-                // Hold this one owned worker at its entry so the disable probe
-                // below runs while the save is provably still able to commit,
-                // instead of racing a write that may already have finished.
-                NativeSaveWorkerBoundary.ArmWorkerHold(8000);
                 game.SaveGame(target, () => callback = true);
-                disableFrames = 0; disableStage = 4;
+                disableFrames = 0; disableStage = 6;
                 return;
             }
             if (disableStage == 4)
@@ -235,7 +252,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 disableFrames = 0; disableStage = 5;
                 return;
             }
-            if (disableStage == 5)
+            if (disableStage == 6)
             {
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
                 if (++disableFrames < 10) return;
