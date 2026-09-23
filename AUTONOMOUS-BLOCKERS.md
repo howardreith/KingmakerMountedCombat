@@ -1,3 +1,12 @@
+# KNOWN ISSUE: a failed area load leaves the process unable to load anything — 2026-09-23 UTC
+
+Measured natively on preview.70 (root 20260923-chunk5-P06-failed-area-load-F, PASS26/0). When a native area member cannot be deserialized, the failure lands **after** Game.DisposeState has already destroyed the loaded world, inside SceneLoader.LoadAreaCoroutine. SaveManager.LoadRoutine itself completes, so the engine fires its after-load callback and reports success while leaving GameModeType.None and no loaded area.
+
+Worse, the Unity scene state is left invalid: retrying a **known-good** archive in the same process fails with `ArgumentException: Destination scene is not valid` from SceneManager.MoveGameObjectToScene. Every later load in that process fails. In one measurement the retry was requested at 6.3s and there was still no world 143.7s later.
+
+This is native behaviour, not a KMC defect, and no rollback is invented for it. KMC's own conduct is qualified: it presents nothing into the absent world, creates no pair, keeps no live actor, leaves no combat fence and holds no save or serialization scope. Recovery is **restart-only** and is reported as such; 20260923-chunk5-P01-restart-recovery-A (PID2256) PASS20/0 proves a fresh process loads that exact archive and plays normally.
+
+---
 # BLOCKED: P06 native foreign-header campaign needs an owner-prepared second campaign — 2026-09-23 UTC
 
 **This is the one open blocker.** Every other authorized Chunk 5 item remains unblocked and work continues on them; only the P06 native foreign-header campaign case is held.
@@ -31,7 +40,7 @@ IN PROGRESS. The P07 **area** family is qualified source and cold in all three o
 
 Both preview69 processes restored actual intake; final restoration 2026-09-23T05:58:01.4574559+00:00. Human chunk4-preview54 DLL2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 installed, seven mod directories intact, 275 saves, both automation fixtures byte-identical, BASELINE immutable, no game process or transaction lock. Receipts: lab analysis-cache/chunk5-persistence/ACTIVE.json, return-entry-research63.md, area-transition-contract58.md, campaign-identity-contract70.md.
 
-Next, already authorized and needing no further permission stop, with the P06 foreign-header case held above: native failed-load after loading has begun, mid-serialization cancellation, disable/re-enable/removal and harmful lifecycle paths, remaining P04 TB/overlapping-effect cases, P08, and one frozen exact-final P01-P08 suite. Required paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY pending. Full Charge remains Chunk6.
+Next, already authorized, with the P06 foreign-header case held above and native failed-load now qualified on preview.70: mid-serialization cancellation, disable/re-enable/removal and harmful lifecycle paths, remaining P04 TB/overlapping-effect cases, P08, and one frozen exact-final P01-P08 suite. Required paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY pending. Full Charge remains Chunk6.
 
 ---
 # Owner-approved alpha delivery - 2026-09-20 UTC
