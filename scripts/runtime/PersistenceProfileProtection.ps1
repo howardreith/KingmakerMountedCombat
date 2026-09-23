@@ -85,18 +85,21 @@ function Test-KmcNativeAchievementCacheName {
     return $Entry.kind-ceq'file'-and$Entry.path-cmatch'^achievements\.dat[^/\\.]{0,11}$'
 }
 
-# Unity's own analytics spool. The engine appends a new timestamped batch
-# directory of small event files when the game exits, so a clean run that
-# touched nothing of ours still leaves the profile with entries it did not have.
-# Restoring the earlier bytes over it is explicitly not allowed: the batch is
-# the user's newer data, not ours.
+# Unity's own analytics spool. The engine writes a new timestamped batch
+# directory of small event files when the game exits, and deletes a batch once
+# it has been dispatched, so a clean run that touched nothing of ours can leave
+# the profile with entries it did not have, or without entries it did. Restoring
+# the earlier bytes over either is explicitly not allowed: the spool is the
+# engine's own and its newer state is not ours to revert.
 #
 # Like the achievement cache above, the name rule never admits anything by
-# itself. It is only ever applied to entries that are ADDITIONS relative to the
-# snapshot; any preexisting analytics entry that changes or disappears is a real
-# profile change and still fails. Admitted additions are returned so the caller
-# records their exact paths, lengths and hashes as an expected external change
-# rather than claiming the profile was untouched.
+# itself. It is only ever applied to entries present on exactly ONE side of a
+# comparison, which is what creation and dispatch look like. An analytics entry
+# present on BOTH sides stays in the identity digest, so rewriting one in place
+# is still a real profile change and still fails, as is anything outside the
+# exact batch path shape. Admitted differences are returned so the caller records
+# their exact paths, lengths and hashes as expected external changes rather than
+# claiming the profile was untouched.
 function Test-KmcNativeAnalyticsArchivedEventName {
     param($Entry)
     $batch='^Unity/[0-9a-f-]{36}/Analytics/ArchivedEvents/[0-9]{1,20}\.[0-9a-f]{1,16}$'
@@ -106,24 +109,31 @@ function Test-KmcNativeAnalyticsArchivedEventName {
 
 function Get-KmcPersistenceProfileAnalyticsDelta {
     param($Before,$After)
-    $prior=@{};foreach($entry in $Before.entries){$prior[$entry.path]=$entry}
-    $created=@()
+    $prior=@{};foreach($entry in $Before.entries){$prior[[string]$entry.path]=$entry}
+    $current=@{};foreach($entry in $After.entries){$current[[string]$entry.path]=$entry}
+    $changes=@()
     foreach($entry in $After.entries){
         if(-not(Test-KmcNativeAnalyticsArchivedEventName $entry)){continue}
-        if($prior.ContainsKey($entry.path)){continue}
-        $created+=[pscustomobject]@{path=[string]$entry.path;change='created';kind=[string]$entry.kind
+        if($prior.ContainsKey([string]$entry.path)){continue}
+        $changes+=[pscustomobject]@{path=[string]$entry.path;change='created';kind=[string]$entry.kind
             length=[long]$entry.length;afterSha256=[string]$entry.sha256}
     }
-    return $created
+    foreach($entry in $Before.entries){
+        if(-not(Test-KmcNativeAnalyticsArchivedEventName $entry)){continue}
+        if($current.ContainsKey([string]$entry.path)){continue}
+        $changes+=[pscustomobject]@{path=[string]$entry.path;change='dispatched';kind=[string]$entry.kind
+            length=[long]$entry.length;afterSha256=[string]$entry.sha256}
+    }
+    return $changes
 }
 
 function Get-KmcPersistenceProfileIdentityDigest {
     param($Inventory,$Baseline)
-    # With a baseline, analytics entries that are ADDITIONS relative to it are
-    # left out, because the engine appends a batch on exit. Everything else,
-    # including any analytics entry that already existed, still counts: passing
-    # an inventory as its own baseline excludes nothing, which is how the
-    # snapshot side of a comparison is taken.
+    # With a baseline, analytics entries absent from it are left out, because
+    # the engine both writes and dispatches spool batches on its own. Compare
+    # two inventories by passing each as the other's baseline: then a batch that
+    # exists on only one side drops out of both digests, while an analytics
+    # entry present on both sides still counts and a rewrite of one still shows.
     $added=@{}
     if($null-ne$Baseline){
         $prior=@{};foreach($entry in $Baseline.entries){$prior[[string]$entry.path]=$true}
@@ -177,7 +187,7 @@ function Assert-KmcPersistenceProfileUnchanged {
     $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
     $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
     if((Get-KmcPersistenceProfileIdentityDigest $after $Snapshot.inventory)-cne
-        (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $Snapshot.inventory)){
+        (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $after)){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
@@ -339,7 +349,7 @@ function Get-KmcPersistenceProfileRecoveryDelta {
     [void](Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $Current)
     [void](Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $Current)
     if((Get-KmcPersistenceProfileIdentityDigest $Current $Snapshot.inventory)-ceq
-        (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $Snapshot.inventory)){return @()}
+        (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $Current)){return @()}
     $run=$Snapshot.runId
     if($run-cne'20260921-chunk5-P06-future-A'-or$Snapshot.token-cne'e8a5fd891fd0d5f75c750242c1f4e19ed985708e94fdfe09fc33057ab9513337'){
         throw 'Profile/cache bytes changed outside the exact owned recovery seam.'
