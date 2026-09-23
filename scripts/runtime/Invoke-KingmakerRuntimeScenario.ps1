@@ -38,7 +38,7 @@ param(
     [ValidatePattern('^[A-Za-z0-9._-]{1,120}$')][string]$PersistenceSourceRunId,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceSourceSha256,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPersistenceAlternateSha256,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
@@ -99,8 +99,8 @@ if($PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry
     throw 'Only an exact cross-area transfer may declare a native destination.'
 }
 if($Scenario-ceq'persistence-p06-load'){
-    if($PersistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){throw 'P06 requires its exact validation variant.'}
-}elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){throw 'Validation variants require the exact P06 scenario.'}
+    if($PersistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'P06 requires its exact validation variant.'}
+}elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'Validation variants require the exact P06 scenario.'}
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
 $repoRoot=Get-KmcRepositoryRoot
@@ -372,7 +372,13 @@ try{
                 if($Scenario-ceq'persistence-p06-load'){$copyDescriptor.fileName='Manual_300_KMC_P01.zks'}
                 $request['persistenceLoad']=$copyDescriptor
                 if($Scenario-ceq'persistence-p06-load'){
-                    $variant=New-KmcPersistenceValidationCopy $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload -Case $PersistenceCase
+                    # Only the post-disposal failure case derives from the native
+                    # area member; every other variant stays metadata-only.
+                    $variant=if($PersistenceCase-ceq'failed-area-load'){
+                        New-KmcPersistenceFailedAreaLoadCopy $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload
+                    }else{
+                        New-KmcPersistenceValidationCopy $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $fixturePayload -Case $PersistenceCase
+                    }
                     $secondPath=Join-Path $isolatedSaves $variant.descriptor.fileName
                     Copy-Item -LiteralPath $variant.path -Destination $secondPath
                     [IO.File]::SetLastWriteTimeUtc($secondPath,[IO.File]::GetLastWriteTimeUtc($variant.path))

@@ -69,7 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -437,23 +437,32 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var observedTarget = CombatCase || RealtimeCase ? combatTarget : targetService?.Target;
             var targetLife = DiagnosticTargetLifeSnapshot.Capture(observedTarget);
+            // A native load that fails after Game.DisposeState leaves no world to
+            // describe. These observations must still be recorded, so every world
+            // lookup below tolerates its absence; assertions remain separate.
+            var world = Game.Instance;
+            var player = world?.Player;
+            var turns = world?.TurnBasedCombatController;
+            JObject controlState = null;
+            try { controlState = JObject.FromObject(controls.CaptureSnapshot(), MountedSaveCodec.CreateSerializer()); }
+            catch (Exception exception) { logger.Exception("Owned control snapshot unavailable for observation", exception); }
             var row = new JObject
             {
                 ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
                 ["kind"] = kind, ["checkpoint"] = CombatCase || RealtimeCase ? Checkpoint : SlotCase || ValidationCase || RecoveryCase || AreaCase || request.Scenario == "persistence-p07-load" ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
-                ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["source"] = request.Commit,
+                ["gameTicks"] = world?.TimeController?.GameTime.Ticks, ["source"] = request.Commit,
                 ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
                 ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),
                 ["mount"] = mount == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(mount), MountedSaveCodec.CreateSerializer()),
-                ["controls"] = JObject.FromObject(controls.CaptureSnapshot(), MountedSaveCodec.CreateSerializer()),
-                ["native"] = new JObject { ["paused"] = Game.Instance.IsPaused,
-                    ["mode"] = Game.Instance.CurrentMode.ToString(), ["partyCombat"] = Game.Instance.Player.IsInCombat,
+                ["controls"] = controlState,
+                ["native"] = new JObject { ["paused"] = world?.IsPaused,
+                    ["mode"] = world?.CurrentMode.ToString(), ["partyCombat"] = player?.IsInCombat,
                     ["tbSetting"] = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue,
-                    ["tbInitialized"] = Game.Instance.TurnBasedCombatController.Initialized,
-                    ["tbCurrent"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit.UniqueId,
-                    ["tbStatus"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Status.ToString(),
-                    ["tbWaitingUi"] = (bool)Game.Instance.TurnBasedCombatController.WaitingForUI,
-                    ["tbRoster"] = new JArray(Game.Instance.TurnBasedCombatController.SortedUnits.Select(u => u.UniqueId)),
+                    ["tbInitialized"] = turns?.Initialized,
+                    ["tbCurrent"] = turns?.CurrentTurn?.Unit.UniqueId,
+                    ["tbStatus"] = turns?.CurrentTurn?.Status.ToString(),
+                    ["tbWaitingUi"] = turns == null ? null : (bool?)turns.WaitingForUI,
+                    ["tbRoster"] = turns == null ? null : new JArray(turns.SortedUnits.Select(u => u.UniqueId)),
                     ["riderCombat"] = rider?.IsInCombat, ["mountCombat"] = mount?.IsInCombat,
                     ["riderCanAct"] = rider?.CombatState.CanActInCombat,
                     ["targetCombat"] = observedTarget?.IsInCombat, ["targetId"] = observedTarget?.UniqueId,

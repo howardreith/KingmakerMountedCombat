@@ -144,6 +144,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsCrossAreaFamilyCase(string persistenceCase) =>
             IsCrossAreaCase(persistenceCase) || IsTransitionAutoCase(persistenceCase);
 
+        // The one P06 derivative that corrupts a native area member, so that the
+        // load fails after Game.DisposeState rather than at admission.
+        internal static bool IsFailedLoad(string persistenceCase) =>
+            persistenceCase == "failed-area-load";
+
         internal string ExpectedTransitionAutoArea =>
             PersistenceCase == "area-cross-entry-auto" ? PersistenceAreaTarget?.Area : Fixture?.Working?.Area;
 
@@ -303,7 +308,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
             if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
-                p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai" }, PersistenceCase) < 0 :
+                p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
                 p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
@@ -359,9 +364,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (PersistenceAlternate == null) errors.Add("Alternating native loads require the second exact archive.");
                 else
                 {
+                    // The failed-load variant is the one P06 derivative that edits
+                    // a native member, so it gets its own leaf and must differ in
+                    // bytes; the metadata-only 'policy' case is deliberately equal.
+                    var failedLoad = IsFailedLoad(PersistenceCase);
                     errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", p06 ? "KMC_P01" : "KMC_P05_UNMOUNTED",
+                        failedLoad ? "^Manual_813_KMC_P06_AREA\\.zks$" :
                         p06 ? "^Manual_812_KMC_P06\\.zks$" : "^Manual_301_KMC_P05_UNMOUNTED\\.zks$"));
-                    if (PersistenceLoad == null || (!p06 && PersistenceAlternate.Sha256 == PersistenceLoad.Sha256) ||
+                    if (PersistenceLoad == null || ((!p06 || failedLoad) && PersistenceAlternate.Sha256 == PersistenceLoad.Sha256) ||
                         PersistenceAlternate.GameId != PersistenceLoad.GameId ||
                         PersistenceAlternate.GameName != PersistenceLoad.GameName ||
                         PersistenceAlternate.Area != PersistenceLoad.Area)
