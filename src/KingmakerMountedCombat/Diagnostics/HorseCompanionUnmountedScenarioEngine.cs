@@ -907,11 +907,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 "native-control-disable-reenable",
                 "Disable removed only KMC runtime facts and re-enable rebuilt exactly one Mount Companion fact without a hotbar binding or duplicate.");
 
-            var saveScopeStarted = nativeControls.BeginSaveSerializationScope();
-            var suspended = nativeControls.CaptureSnapshot();
-            var wrapped = nativeControls.WrapSaveRoutine(EmptyNativeSaveRoutine());
+            // The wrapper owns the scope. Starting one by hand first and then
+            // driving the wrapper over it is an overlapping serialization scope,
+            // which the wrapper refuses by design, so the mid-flight snapshot is
+            // taken from inside the wrapped routine instead.
+            NativeMountedControlSnapshot suspended = null;
+            var wrapped = nativeControls.WrapSaveRoutine(
+                ObserveDuringNativeSaveRoutine(() => suspended = nativeControls.CaptureSnapshot()));
             while (wrapped.MoveNext()) { }
             var restored = nativeControls.CaptureSnapshot();
+            var saveScopeStarted = suspended != null;
+            if (suspended == null) suspended = restored;
             observations["nativeControlsDuringSaveScope"] = JObject.FromObject(suspended, JsonSerializer.Create(JsonSettings));
             observations["nativeControlsAfterSaveScope"] = JObject.FromObject(restored, JsonSerializer.Create(JsonSettings));
             Check(saveScopeStarted && suspended.SerializationSuspended && suspended.ExactFactCount == 0 &&
@@ -922,8 +928,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The save scope removed every transient KMC control fact before serialization and rebuilt the exact drawer-only Mount Companion fact afterward without serialized residue.");
         }
 
-        private static IEnumerator<object> EmptyNativeSaveRoutine()
+        // Runs inside the wrapper's scope: the ScopedEnumerator begin action has
+        // already suspended the owned controls by the time this observes them.
+        private static IEnumerator<object> ObserveDuringNativeSaveRoutine(Action observe)
         {
+            observe();
             yield break;
         }
 
