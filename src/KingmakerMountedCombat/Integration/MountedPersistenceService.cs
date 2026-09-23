@@ -35,6 +35,12 @@ namespace KingmakerMountedCombat.Integration
         internal event Action SaveSnapshotStaged;
         internal int SemanticRestoreCount { get; private set; }
         internal int PresentationRestoreCount { get; private set; }
+        // A native load that throws after Game.DisposeState has already destroyed
+        // the previous world leaves no completed world behind. Record that it
+        // happened so a failed load can never be accounted as a finished one; the
+        // native error itself is preserved and rethrown untouched.
+        internal int NativeLoadFailureCount { get; private set; }
+        internal string NativeLoadFailure { get; private set; }
         internal MountedSaveData LoadedData => loaded?.Data;
 
         internal MountedPersistenceService(GameMountedRelationshipService relationship,
@@ -227,11 +233,28 @@ namespace KingmakerMountedCombat.Integration
         {
             using (routine)
             {
-                while (routine.MoveNext()) yield return routine.Current;
+                while (true)
+                {
+                    bool moved;
+                    // Only the native step is guarded, and the original exception
+                    // is rethrown unchanged: observing a failure must not alter
+                    // it, swallow it, or let the scope complete.
+                    try { moved = routine.MoveNext(); }
+                    catch (Exception exception) { ObserveNativeLoadFailure(exception); throw; }
+                    if (!moved) break;
+                    yield return routine.Current;
+                }
             }
             // A failing native Dispose cannot turn an abandoned load into a
             // completed presentation scope.
             if (scope.Sequence == loadSequence) scope.World.Complete(Game.Instance?.Player);
+        }
+
+        private void ObserveNativeLoadFailure(Exception exception)
+        {
+            NativeLoadFailureCount++;
+            NativeLoadFailure = exception.GetType().Name + ": " + exception.Message;
+            logger.Exception("Native load failed after the previous world was disposed", exception);
         }
 
         private void SelectLoad(SaveInfo save)
