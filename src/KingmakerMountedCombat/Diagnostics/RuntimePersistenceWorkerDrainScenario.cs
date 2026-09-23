@@ -48,6 +48,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool drainSimCommandQueued;
         private bool drainSimCommandStarted;
         private bool drainSimWorkerStillHeld;
+        private bool drainSimAdmissionRefused;
         private Kingmaker.UnitLogic.Commands.Base.UnitCommand drainSimProbe;
 
         // Best effort and never fatal: the substantive measurements are whether
@@ -208,6 +209,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 drainSimTicksAtProbe = game.TimeController.GameTime.Ticks;
                 drainSimPositionAtProbe = rider.Position;
                 drainSimAreaTurnedOn = AreaSimulationOn();
+                // KMC's OWN admission must refuse a new mounted command while the
+                // worker can still commit. The raw queue probe below records what
+                // the engine does without that admission, which is native
+                // behaviour outside this mod's ownership, not a KMC claim.
+                drainSimAdmissionRefused = !combat.TryAdmitGroundCommand(rider);
                 try
                 {
                     var destination = rider.Position + UnityEngine.Vector3.forward * 2f;
@@ -234,6 +240,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 // The worker must still have been held for this to mean anything.
                 Check(drainSimWorkerStillHeld && persistence.SaveDraining && persistence.DrainedSaveCount == 0,
                     "P07-simulation-probe-observed-while-the-worker-was-still-held");
+                Check(drainSimAdmissionRefused,
+                    "P07-owned-command-admission-refuses-while-the-worker-can-still-commit");
+                // Native entity execution stays suspended for the worker's whole
+                // lifetime: an accepted command must not actually start or move.
+                Check(!drainSimCommandStarted && drainSimMoved < 0.01f,
+                    "P07-native-entity-execution-stays-suspended-under-the-live-serializer");
                 try { drainSimProbe?.Interrupt(); } catch (Exception exception)
                 { logger.Exception("Drain simulation probe could not be interrupted", exception); }
                 drainHold.Dispose(); drainHold = null;
@@ -403,6 +415,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["simAreaTurnedOnAtProbe"] = drainSimAreaTurnedOn,
             ["simAreaTurnedOnAfter"] = drainSimAreaTurnedOnAfter,
             ["simWorkerStillHeld"] = drainSimWorkerStillHeld,
+            ["simOwnedAdmissionRefused"] = drainSimAdmissionRefused,
             ["nativePausedNow"] = Game.Instance?.IsPaused,
             ["nativeLoadingNow"] = LoadingProcess.Instance.IsLoadingInProcess,
             ["nativeModeNow"] = Game.Instance?.CurrentMode.ToString(),
