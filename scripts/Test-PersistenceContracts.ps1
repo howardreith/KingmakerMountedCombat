@@ -353,6 +353,27 @@ public static class KmcPersistenceContractProbe
         var emptyScope=Activator.CreateInstance(saveScope,true);
         Check(resolve.Invoke(null,new[]{emptyScope})==null,
             "a scope with no routine resolves no worker instead of failing");
+        // Teardown cannot refuse and has no later frame, so it waits — bounded,
+        // and reporting whether the worker really settled rather than assuming
+        // it did. A faulted or canceled worker makes Task.Wait throw and is
+        // nonetheless finished; treating that as unsettled would make every
+        // failed save appear to hang the unload.
+        var settleWait=worker.GetMethod("WaitForWorkerSettlement",BindingFlags.NonPublic|BindingFlags.Static);
+        var slow=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        Check((bool)settleWait.Invoke(null,new object[]{null,50}),
+            "teardown settles immediately when no archive worker ever started");
+        var spun=System.Diagnostics.Stopwatch.StartNew();
+        Check(!(bool)settleWait.Invoke(null,new object[]{slow.Task,150}) && spun.ElapsedMilliseconds<5000,
+            "teardown stops waiting for a still-running archive worker at its bound");
+        Check((bool)settleWait.Invoke(null,new object[]{finished.Task,50}),
+            "teardown settles on an archive worker that already finished");
+        Check((bool)settleWait.Invoke(null,new object[]{broken.Task,50}),
+            "teardown settles on a faulted archive worker instead of propagating its fault");
+        Check((bool)settleWait.Invoke(null,new object[]{stopped.Task,50}),
+            "teardown settles on a canceled archive worker instead of propagating its cancellation");
+        slow.SetResult(true);
+        Check((bool)settleWait.Invoke(null,new object[]{slow.Task,50}),
+            "that same worker settles teardown once it actually finishes");
         running.SetResult(true);
         Check((bool)release.Invoke(null,new object[]{running.Task}),
             "the same worker releases its scope once it actually finishes");

@@ -47,6 +47,8 @@ namespace KingmakerMountedCombat.Integration
         {
             get { var task = ResolveWorker(activeSave ?? drainingSave); return task != null && !task.IsCompleted; }
         }
+        internal int TeardownDrainCount { get; private set; }
+        internal bool LastTeardownDrainSettled { get; private set; } = true;
         private long loadSequence;
         private LoadScope restoreLoad;
         private MountedSaveReadResult loaded;
@@ -183,6 +185,25 @@ namespace KingmakerMountedCombat.Integration
                 }
                 if (ReferenceEquals(drainingSave, scope)) drainingSave = null;
             }
+        }
+
+        // Teardown only. Disposal unpatches the archive-commit transpiler and
+        // runs a full cleanup over the exact live graphs an owned worker is
+        // serializing, and unlike the per-frame drain there is no later frame in
+        // which to finish. Nothing can cancel a started worker, so wait for it —
+        // bounded, so a stuck worker can never hang the game's own unload, and
+        // reporting whether it actually settled rather than assuming it did.
+        internal bool DrainForTeardown(int milliseconds)
+        {
+            var worker = ResolveWorker(activeSave ?? drainingSave);
+            if (worker == null) return true;
+            TeardownDrainCount++;
+            var settled = NativeSaveWorkerBoundary.WaitForWorkerSettlement(worker, milliseconds);
+            LastTeardownDrainSettled = settled;
+            if (settled) DrainAbandonedSave();
+            else logger.Error("An owned archive worker had not finished within the bounded teardown wait; " +
+                "mounted teardown proceeded without it.");
+            return settled;
         }
 
         // Non-blocking: called once per frame so required completion work keeps
