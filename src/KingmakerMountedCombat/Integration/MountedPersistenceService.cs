@@ -49,6 +49,18 @@ namespace KingmakerMountedCombat.Integration
         }
         internal int TeardownDrainCount { get; private set; }
         internal bool LastTeardownDrainSettled { get; private set; } = true;
+        // True only while an owned world replacement is actually in flight: this
+        // service holds a load scope AND the engine reports the load running.
+        // Cleanup here would tear down the pair across a world that is being
+        // replaced underneath it. Once the engine finishes loading this goes
+        // false even if presentation is still pending, because a disable then is
+        // safe: Update refuses to present into a disabled mod.
+        // The Instance null check is not redundant: this is read from the disable
+        // and session-stop paths, which can run when the engine is already gone,
+        // and an exception there would be caught as "cleanup retained residue"
+        // and block the very teardown it is meant to protect.
+        internal bool LoadInFlight =>
+            restoreLoad != null && LoadingProcess.Instance != null && LoadingProcess.Instance.IsLoadingInProcess;
         private long loadSequence;
         private LoadScope restoreLoad;
         private MountedSaveReadResult loaded;

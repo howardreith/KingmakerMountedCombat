@@ -166,6 +166,16 @@ namespace KingmakerMountedCombat
                 return false;
             }
 
+            // The same argument for the other live operation: cleanup during an
+            // owned world replacement would tear the pair down across a world
+            // being replaced underneath it. Bounded by the load finishing.
+            if (persistence.LoadInFlight)
+            {
+                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being loaded; " +
+                    "retry once the area has finished loading.");
+                return false;
+            }
+
             // Always execute idempotent cleanup on a disable request. A prior
             // update failure may already have cleared IsEnabled while a partial
             // runtime operation still needs best-effort cleanup.
