@@ -171,8 +171,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 disableEntriesBefore = NativeSaveWorkerBoundary.WorkerEntryCount;
                 // Hold this one owned worker at its entry so the probe runs while
                 // the save is provably still able to commit, instead of racing a
-                // write that may already have finished.
-                NativeSaveWorkerBoundary.ArmWorkerHold(8000);
+                // write that may already have finished. The budget matches the
+                // drain case: under load the worker needs well over a thousand
+                // frames to reach its boundary, and a hold shorter than that wait
+                // self-releases before the probe ever looks at it.
+                NativeSaveWorkerBoundary.ArmWorkerHold(20000);
                 game.SaveGame(held, () => callback = true);
                 disableFrames = 0; disableStage = 4;
                 return;
@@ -220,11 +223,16 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (disableStage == 4)
             {
-                if (!NativeSaveWorkerBoundary.WorkerHeld || !persistence.ActiveSaveWorkerRunning)
+                if (!NativeSaveWorkerBoundary.WorkerHeld || !persistence.ActiveSaveWorkerRunning ||
+                    persistence.ActiveSaveWorkerId < 0 || string.IsNullOrEmpty(persistence.ActiveSaveLeaf))
                 {
-                    if (++disableFrames > 600)
+                    if (++disableFrames > 1200)
                         throw new InvalidOperationException(
-                            "P07 disable probe never observed its own held owned save worker.");
+                            "P07 disable probe never observed its own held owned save worker: held=" +
+                            NativeSaveWorkerBoundary.WorkerHeld + " running=" + persistence.ActiveSaveWorkerRunning +
+                            " leaf=" + persistence.ActiveSaveLeaf + " worker=" + persistence.ActiveSaveWorkerId +
+                            " entries=" + NativeSaveWorkerBoundary.WorkerEntryCount +
+                            " holds=" + NativeSaveWorkerBoundary.WorkerHoldCount);
                     return;
                 }
                 disableEntriesAtProbe = NativeSaveWorkerBoundary.WorkerEntryCount;
