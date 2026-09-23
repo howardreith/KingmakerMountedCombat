@@ -80,6 +80,39 @@ namespace KingmakerMountedCombat.Diagnostics
             });
         }
 
+        private int autoColdWaitFrames, autoColdWaitRows;
+
+        // The first attempt requested an authorized write that never completed
+        // and only reported a stage timeout. Record the actual native writer
+        // state a bounded number of times so the boundary names itself.
+        private void ObserveAutoColdWriteWait()
+        {
+            autoColdWaitFrames++;
+            if (autoColdWaitFrames % 120 != 1 || autoColdWaitRows >= 4) return;
+            autoColdWaitRows++;
+            var game = Game.Instance;
+            var loading = LoadingProcess.Instance;
+            var candidate = game.SaveManager.FirstOrDefault(s => s.Name == "KMC_P01");
+            Write("auto-cold-write-waiting", new JObject {
+                ["frames"] = autoColdWaitFrames,
+                ["callback"] = callback,
+                ["pendingWrites"] = NativePersistenceIsolation.HasPendingWrites,
+                ["snapshots"] = persistence.SnapshotCount,
+                ["failedSaves"] = persistence.FailedSaveCount,
+                ["loadingInProcess"] = loading.IsLoadingInProcess,
+                ["queuedLoads"] = loading.QueuedNames.Count(),
+                ["deferredSaveWaiting"] = NativeDeferredSave.Waiting(loading),
+                ["paused"] = game.IsPaused,
+                ["mode"] = game.CurrentMode.ToString(),
+                ["saveAllowed"] = game.SaveManager.IsSaveAllowed(),
+                ["saveCount"] = game.SaveManager.Count(),
+                ["candidateName"] = candidate == null ? null : candidate.Name,
+                ["candidateFile"] = candidate == null ? null : candidate.FileName,
+                ["candidateState"] = candidate == null ? null : candidate.OperationState.ToString(),
+                ["candidateOnDisk"] = candidate != null && candidate.HasFileOnDisk
+            });
+        }
+
         // A cold load reconstructs the world, so Unity instance identity is not
         // comparable across processes. Only validity and unique binding are
         // claimed here; no retained/replaced disposition is asserted.
