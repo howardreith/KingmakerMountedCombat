@@ -74,6 +74,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
                     Writable = true
                 });
+                // The drain case makes three real saves: the opening write, the
+                // interrupted one, and the subsequent one. A committed
+                // interruption consumes its own leaf, so the third is declared
+                // rather than left to be refused mid-gate.
+                if (request.Scenario == "persistence-p07-save" && request.PersistenceCase == "serialization-cancel")
+                    entries.Add(new PersistenceSaveEntry {
+                        FileName = "Manual_302_KMC_P01.zks", InternalName = "KMC_P01",
+                        SaveType = "Manual", Area = fixture.Area, Writable = true });
                 if (request.Scenario == "persistence-p07-save")
                 {
                     // A cross-area case makes no pre-transfer manual write: the

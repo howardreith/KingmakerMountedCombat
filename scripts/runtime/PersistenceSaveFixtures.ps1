@@ -846,16 +846,15 @@ function Assert-KmcWorkerDrainEvidence {
     if($s.saveSuspended-ne$false-or$s.serializationSuspended-ne$false){
         throw 'P07 settlement left a serialization lease held.'
     }
-    # Truthful either way, checked against the bytes rather than asserted.
+    # The interrupted save mints its OWN leaf, so the last-good archive must be
+    # intact whichever way the interruption settled. The in-game gate separately
+    # checks the reported outcome against whether that new leaf really exists.
+    if($s.currentSha256-cne$s.lastGoodSha256){
+        throw 'P07 last-good archive changed through the interruption.'
+    }
     if($s.drainCommitted-eq$true){
-        if($s.currentSha256-ceq$s.lastGoodSha256){
-            throw 'P07 reported a committed interrupted save whose archive never changed.'
-        }
-        if($s.failedSaves-ne0){throw 'P07 reported a committed save as failed.'}
+        if($s.failedSaves-ne0){throw 'P07 reported a committed interrupted save as failed.'}
     }else{
-        if($s.currentSha256-cne$s.lastGoodSha256){
-            throw 'P07 reported an uncommitted interrupted save but the archive changed.'
-        }
         if($s.failedSaves-ne1){throw 'P07 did not report the uncommitted interrupted save as failed.'}
     }
     if($written[0].detail.ordinal-ne2-or[string]::IsNullOrEmpty([string]$written[0].detail.sha256)){
