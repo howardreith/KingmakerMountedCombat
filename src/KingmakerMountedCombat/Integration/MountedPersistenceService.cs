@@ -27,6 +27,10 @@ namespace KingmakerMountedCombat.Integration
         internal int DeferredSaveCancellationCount { get; private set; }
         internal int DrainedSaveCount { get; private set; }
         internal bool LastDrainedSaveCommitted { get; private set; }
+        // Where the interrupted save actually landed. The commit replaces the
+        // target archive in place and rebinds the path, so this is not the
+        // prepared leaf name joined to the save root.
+        internal string LastDrainedSavePath { get; private set; }
         internal bool SaveDraining => drainingSave != null;
         // The overlap guard reads this. A draining save must still own it, so a
         // second serialization cannot begin over a worker that can still commit.
@@ -182,6 +186,7 @@ namespace KingmakerMountedCombat.Integration
             catch (Exception exception) { logger.Exception("Abandoned save could not restore its native world reference", exception); }
             DrainedSaveCount++;
             LastDrainedSaveCommitted = committed;
+            LastDrainedSavePath = scope.Prepared == null ? null : scope.Prepared.FolderName;
             if (!committed) FailedSaveCount++;
             ReleaseSaveScope(scope);
             NotifySaveStatus(committed

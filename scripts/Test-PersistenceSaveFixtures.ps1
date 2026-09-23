@@ -796,7 +796,7 @@ function New-KmcDrainRow { param([string]$Kind)
             saveSuspended=$true;serializationSuspended=$true;saveCallback=$false;snapshots=1;failedSaves=0
             rejections=0;nativeWorldDisposals=0;overlapRefused=$false;loadRefused=$false
             repeatedStopSafe=$false;disableRefused=$false;ordinal=1;sha256=('a'*64)
-            lastGoodSha256=('a'*64);currentSha256=$null}}
+            lastGoodSha256=('a'*64);currentSha256=$null;interruptedPath='C:\owned\Manual_300_KMC_P01.zks';replacedInPlace=$true}}
 }
 $drainRequest=[pscustomobject]@{persistenceCase='serialization-cancel'}
 $drainRows=@(
@@ -810,17 +810,17 @@ $dd.currentSha256=('a'*64)
 $ds=$drainRows[3].detail
 $ds.draining=$false;$ds.activeScope=$false;$ds.deferredCancellations=1;$ds.drains=1
 $ds.saveSuspended=$false;$ds.serializationSuspended=$false
-$ds.drainCommitted=$true;$ds.currentSha256=('a'*64);$ds.failedSaves=0
+$ds.drainCommitted=$true;$ds.currentSha256=('b'*64);$ds.failedSaves=0
 $drainRows[4].detail.ordinal=2;$drainRows[4].detail.sha256=('b'*64)
 Assert-KmcRecoveryPersistenceEvidence $drainRequest $drainRows;$passes++
 # The uncommitted settlement is equally valid and equally checked.
 $uncommitted=($drainRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
-$uncommitted[3].detail.drainCommitted=$false;$uncommitted[3].detail.failedSaves=1
+$uncommitted[3].detail.drainCommitted=$false;$uncommitted[3].detail.failedSaves=1;$uncommitted[3].detail.currentSha256=('a'*64)
 Assert-KmcRecoveryPersistenceEvidence $drainRequest $uncommitted;$passes++
 foreach($bad in @('no-flight','worker-finished','no-hold','held-other-leaf','already-draining','lease-dropped',
     'no-active-scope','released-instead-of-deferred','reported-cancellation','overlap-allowed','load-disposed-world',
     'repeat-released','disable-released','last-good-changed','settled-twice','lease-left-held','different-worker',
-    'settled-last-good-changed','committed-reported-failed','uncommitted-not-reported',
+    'committed-without-change','committed-without-path','committed-reported-failed','uncommitted-not-reported','uncommitted-changed-archive',
     'no-subsequent-write','out-of-order')){
     $n=($drainRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
@@ -841,9 +841,11 @@ foreach($bad in @('no-flight','worker-finished','no-hold','held-other-leaf','alr
         'settled-twice' {$n[3].detail.drains=2}
         'lease-left-held' {$n[3].detail.serializationSuspended=$true}
         'different-worker' {$n[2].detail.workerTaskId=99}
-        'settled-last-good-changed' {$n[3].detail.currentSha256=('c'*64)}
+        'committed-without-change' {$n[3].detail.currentSha256=('a'*64)}
+        'committed-without-path' {$n[3].detail.interruptedPath=''}
         'committed-reported-failed' {$n[3].detail.failedSaves=1}
-        'uncommitted-not-reported' {$n[3].detail.drainCommitted=$false;$n[3].detail.failedSaves=0}
+        'uncommitted-not-reported' {$n[3].detail.drainCommitted=$false;$n[3].detail.failedSaves=0;$n[3].detail.currentSha256=('a'*64)}
+        'uncommitted-changed-archive' {$n[3].detail.drainCommitted=$false;$n[3].detail.failedSaves=1}
         'no-subsequent-write' {$n=@($n[0],$n[1],$n[2],$n[3])}
         'out-of-order' {$n=@($n[0],$n[2],$n[1],$n[3],$n[4])}
     }
