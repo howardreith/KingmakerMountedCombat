@@ -1229,6 +1229,19 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            // The archive worker serializes live object graphs, including this
+            // actor's command queue, and entity execution stays suspended for its
+            // whole lifetime. Accepting a new owned command would still mutate
+            // that queue under the serializer, so the owned pair refuses until
+            // the save settles. This flag is held across both the ordinary
+            // completion path and an interrupted save that is still draining.
+            if (relationship.SaveSerializationSuspended)
+            {
+                LastFeedback = "A save is still being written; mounted actions resume when it finishes.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
+                return false;
+            }
+
             Cancel("ground command");
 
             var game = Game.Instance;
