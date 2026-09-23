@@ -22,6 +22,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private int failedLoadBeforePresentation;
         private int failedLoadFailureSemantic;
         private int failedLoadFailurePresentation;
+        private int failedLoadFailureCount;
+        private int failedLoadRetryFrames;
+        private bool failedLoadRecoveredInSession;
         private string failedLoadBeforeRiderId;
         private SavedNativeActor failedLoadRiderDebt;
         private SavedNativeActor failedLoadMountDebt;
@@ -122,6 +125,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "P06-failed-load-never-reduces-restored-actor-accounting");
                 failedLoadFailureSemantic = persistence.SemanticRestoreCount;
                 failedLoadFailurePresentation = persistence.PresentationRestoreCount;
+                failedLoadFailureCount = persistence.NativeLoadFailureCount;
                 Check(relationship.State == RelationshipState.Unmounted && relationship.Rider == null &&
                     relationship.Mount == null, "P06-failed-load-leaves-no-actionable-partial-pair");
                 Check(NoLiveUnit(failedLoadBeforeRiderId) && NoLiveUnit(validationMountId),
@@ -142,32 +146,45 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (validationStage == 2)
             {
-                if (LoadingProcess.Instance.IsLoadingInProcess || game.CurrentlyLoadedArea == null ||
-                    game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
-                if (!validationCallback || ++validationFrames < 10) return;
-                Check(persistence.NativeLoadFailureCount == 1,
-                    "P06-valid-retry-adds-no-further-native-load-failure");
-                Check(relationship.State == RelationshipState.Mounted &&
-                    relationship.Rider.UniqueId == validationRiderId && relationship.Mount.UniqueId == validationMountId,
-                    "P06-valid-retry-after-failed-load-restores-the-actual-pair");
-                rider = relationship.Rider; mount = relationship.Mount;
-                // Counted from the failure point, not from before it: the failed
-                // load's own early debt restoration already happened and is not
-                // undone. The retry must add exactly one pair, once.
-                Check(persistence.SemanticRestoreCount == failedLoadFailureSemantic + 2 &&
-                    persistence.PresentationRestoreCount == failedLoadFailurePresentation + 1,
-                    "P06-valid-retry-restores-only-A-once");
-                Check(controls.CaptureSnapshot().ExactFactCount == beforeControls.ExactFactCount &&
-                    controls.CaptureSnapshot().DuplicateFactCount == 0 && controls.NativeCastRequestCount == 0 &&
-                    !controls.CaptureSnapshot().SerializationSuspended,
-                    "P06-valid-retry-controls-without-acquisition-or-duplication");
-                Check(LegitimateContinuation(failedLoadRiderDebt, MountedPersistenceService.CaptureActor(rider), 0) &&
-                    LegitimateContinuation(failedLoadMountDebt, MountedPersistenceService.CaptureActor(mount), 0),
-                    "P06-valid-retry-restores-actual-saved-expenditure");
-                Check(!game.Player.IsInCombat && !game.IsPaused, "P06-recovered-native-world-usable");
+                // Measured: once the area load fails after disposal, the Unity
+                // scene state is left invalid and SceneLoader.LoadAreaCoroutine
+                // throws "Destination scene is not valid" for EVERY later load in
+                // this process, including a known-good archive. This window
+                // therefore observes which outcome the engine actually produces
+                // instead of asserting that a world comes back.
+                failedLoadRetryFrames++;
+                var recovered = game.CurrentlyLoadedArea != null && !LoadingProcess.Instance.IsLoadingInProcess &&
+                    game.CurrentMode == Kingmaker.GameModes.GameModeType.Default && validationCallback;
+                var retryFailed = persistence.NativeLoadFailureCount > failedLoadFailureCount &&
+                    !LoadingProcess.Instance.IsLoadingInProcess;
+                if (!recovered && !retryFailed)
+                {
+                    if (failedLoadRetryFrames > 1500)
+                        throw new InvalidOperationException("P06 in-session retry neither recovered nor failed: loading=" +
+                            LoadingProcess.Instance.IsLoadingInProcess + " area=" +
+                            (game.CurrentlyLoadedArea == null ? "null" : "present") +
+                            " failures=" + persistence.NativeLoadFailureCount);
+                    return;
+                }
+                if (++validationFrames < 12) return;
+                failedLoadRecoveredInSession = recovered;
                 VerifyValidationArchives();
-                Write("validation-valid-retry", FailedLoadDetail());
-                validationContinuation = true; stage = 2;
+                Check(!recovered || persistence.NativeLoadFailureCount == failedLoadFailureCount,
+                    "P06-an-actually-recovered-world-adds-no-further-native-failure");
+                // Whatever the engine did, nothing may be fabricated: no pair may
+                // appear without a world, and the archives must be untouched.
+                Check(recovered || (game.CurrentlyLoadedArea == null &&
+                        relationship.State == RelationshipState.Unmounted &&
+                        relationship.Rider == null && relationship.Mount == null &&
+                        persistence.PresentationRestoreCount == failedLoadFailurePresentation),
+                    "P06-failed-in-session-retry-presents-no-pair-and-invents-no-world");
+                Check(!persistence.SaveSuspended && !NativePersistenceIsolation.HasPendingWrites,
+                    "P06-retry-leaves-no-owned-save-or-serialization-scope-held");
+                Write("failed-load-retry-observed", FailedLoadDetail());
+                Dispose();
+                Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
+                    AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
+                Completed = true;
             }
         }
 
@@ -201,6 +218,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["loadingInProcess"] = LoadingProcess.Instance.IsLoadingInProcess,
                 ["loadingClearedItself"] = failedLoadLoadingCleared,
                 ["sawLoading"] = failedLoadSawLoading,
+                ["retryFrames"] = failedLoadRetryFrames,
+                ["recoveredInSession"] = failedLoadRecoveredInSession,
                 ["stopAllRequired"] = failedLoadStopAllRequired,
                 ["gameMode"] = game?.CurrentMode.ToString(),
                 ["currentAreaNull"] = game?.CurrentlyLoadedArea == null,

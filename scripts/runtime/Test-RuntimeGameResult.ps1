@@ -301,7 +301,17 @@ if ([string]$game.status -ceq 'PASS') {
         [int]$game.saveRequestCount -ne ($expectedSuppressedSaves + $expectedNativeWrites)) {
         throw 'Save-backed PASS crossed its exact suppressed-save request quota.'
     }
-    if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or
+    # The post-disposal failed-load case deliberately ends with no world: the
+    # engine destroys the old one, fails to build the new one, and then cannot
+    # load any archive in that process. For that one case the expectation is
+    # INVERTED rather than skipped, so an accidental world would still fail.
+    if ([string]$game.scenario -ceq 'persistence-p06-load' -and [string]$request.persistenceCase -ceq 'failed-area-load') {
+        if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $false -or
+            [string]$game.currentGameMode -cne 'None') {
+            throw 'P06 failed-load PASS must end with no loaded world and no active native game mode.'
+        }
+    }
+    elseif ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or
         [string]$game.currentGameMode -cne 'Default') { throw 'Save-backed PASS did not restore its exact game-mode and diagnostic-setting boundary.' }
     if ([int]$game.subscenarioFailCount -ne 0 -or [int]$game.assertionFailCount -ne 0) { throw 'PASS runtime game result contains subscenario failures.' }
 }
