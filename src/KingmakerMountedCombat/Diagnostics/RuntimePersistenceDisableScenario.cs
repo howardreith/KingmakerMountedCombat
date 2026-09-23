@@ -53,8 +53,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             if (game == null) return;
             stage = 900 + disableStage;
-            if (LoadingProcess.Instance.IsLoadingInProcess || game.CurrentlyLoadedArea == null ||
-                game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
+            // Every stage but the refusal probe needs a settled world. The probe
+            // is the exception by definition: a save in flight runs through the
+            // native loading process, so gating it on IsLoadingInProcess returns
+            // early for the entire lifetime of the worker it exists to observe.
+            if (disableStage != 4 &&
+                (LoadingProcess.Instance.IsLoadingInProcess || game.CurrentlyLoadedArea == null ||
+                 game.CurrentMode != Kingmaker.GameModes.GameModeType.Default)) return;
             if (disableStage == 0)
             {
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
