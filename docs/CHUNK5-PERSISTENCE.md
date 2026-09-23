@@ -26,8 +26,61 @@ These are causal engineering checkpoints, **not the consolidated final-candidate
 | P04 | Idle RT29, active attack30, projectile32, unmounted approach33, mounted approach/attack34 all save/cold PASS. Casting38: unmounted390/0+370/0, mounted690/0+720/0 | TB active/preparation boundaries, relevant overlapping effects, final comparisons |
 | P05 | Manual/quick/auto native writes and overwrite/rotation22/23:44/0 source and20/0 cold each; renamed archive23:20/0. A/B/A25:17/0+45/0, distinct mounted/unmounted saves and another actual save after load. Queued48:34/0+20/0, three requests/actual commits and cold302 | Exact-final suite |
 | P06 | Preview52 ten native/outer cases335/0: legacy/current retry, schema1 migration, missing actors/mismatched profile, malformed/unsupported profile, metadata campaign/policy/future refusals  Preview56 damaged-combat missing/AI:49/0 each; canceled retry stays fenced, four duplicate callbacks do not replay debt/preparation, valid reload advances two activations. Preview70 post-disposal load failure26/0 plus restart recovery20/0: corrupt area member passes admission and fails after the world is destroyed, nothing is presented, and recovery is restart-only | Native foreign-header campaign (BLOCKED, needs a disposable campaign B) and exact-final repeat |
-| P07 | Preview53 canceled wait/queued load60/0+cold20/0; real timeout58/0+cold20/0. Same world/debt/controls, unchanged last-good native reload, subsequent actual write and usable play. Preview54 locked replacement59/0+cold20/0: one actual replacement failure, no success callback, previous bytes intact, real retry write. Preview58 same-area reload33/0+cold20/0: measured retained cross-scene views, real post-area write and ordinary continuation. Preview63 cross-area entry34/0+cold20/0 and preview64 cross-area exit34/0+cold20/0 at the campaign's own hub: real transfers, retained views, both authored autosave modes proven distinct at their native barriers, destination writes and cold round trips. Preview69 transition-autosave cold load24/0 each: both authored Auto archives themselves open, in a fresh process, the exact world each captured | Native failed-load and serialization cancellation, disable/re-enable and removal, harmful lifecycle paths |
+| P07 | Preview53 canceled wait/queued load60/0+cold20/0; real timeout58/0+cold20/0. Same world/debt/controls, unchanged last-good native reload, subsequent actual write and usable play. Preview54 locked replacement59/0+cold20/0: one actual replacement failure, no success callback, previous bytes intact, real retry write. Preview58 same-area reload33/0+cold20/0: measured retained cross-scene views, real post-area write and ordinary continuation. Preview63 cross-area entry34/0+cold20/0 and preview64 cross-area exit34/0+cold20/0 at the campaign's own hub: real transfers, retained views, both authored autosave modes proven distinct at their native barriers, destination writes and cold round trips. Preview69 transition-autosave cold load24/0 each: both authored Auto archives themselves open, in a fresh process, the exact world each captured | Native failed-load, serialization cancellation and disable/re-enable are now qualified (see the exact-final set below); removal and the remaining harmful lifecycle paths stay open |
 | P08 | Accepted Chunk 4 evidence remains historical | Exact-final gameplay regression and post-load variants |
+
+## Exact-final acceptance set on one frozen candidate
+
+Frozen candidate `0.1.0-chunk5-preview.83`, qualifier `chunk5-final`, source
+`0f80d03f8ce0914adea1b6a6641835d7292a93f4`. Private ZIP
+`KingmakerMountedCombat-0.1.0-chunk5-preview.83-chunk5-final-diagnostic.zip`
+SHA256 `ecd89591af9bc4eb64f754d2ebdf49c9ad867640ee99021acbe7a8171ef0256a`,
+manifest `888879edc947c3ae79643cb6bc47837a131f78c20b11f119ae8d8f947305e007`,
+DLL `45da40cbbf769e63c0881cbad44752ce4abc8a7896b2a791607b000c423e9ab0`,
+MVID `f1401cfb-dba1-4afe-a10e-7c55c810e54e`. Qualification suite
+`20260923-chunk5-suite98` SHA256
+`8aeef3b2ff1be65df8d7df882d542f1ede3ca7e2ca9ac1d3b2ce0cdb6435e9a1`. Offline
+gates on that exact source: source 24, components (patch construction 30) PASS,
+contracts 127, data 56, owned fixtures 321, P06 fixture guards 104, harness 261,
+profile protection 48, package 11 — all FAIL=0. This remains an unqualified
+private engineering candidate; it is not installed, merged or released.
+
+Every row below ran against that single payload and suite, and every one
+restored the actual intake (`modsRestored`/`workingRestored` true, no runtime
+lock retained).
+
+| Gate | Source run | Cold or second run |
+|---|---|---|
+| P01 | `final83-p01-save` PASS 23/0 | `final83-p01-load` PASS 20/0 |
+| P02 | `final83-p02-save-partial-movement` PASS 31/0 | `final83-p02-load-partial-movement` PASS 26/0 |
+| P03 | `final83-p03-save-step` PASS 33/0 | `final83-p03-load-step` PASS 28/0 |
+| P04 | `final83-p04-save-mounted-attack` PASS 27/0 | `final83-p04-load-mounted-attack` PASS 18/0 |
+| P05 | `final83-p05-save-manual` PASS 44/0 | `final83-p05-load-manual` PASS 20/0 |
+| P06 | `final83-p06-legacy` PASS 34/0 | `final83-p06-failedarea` PASS 26/0 |
+| P07 | `final83-p07-disable` PASS 51/0 | `final83-p07-cancel` PASS 46/0 |
+| P08 | `final83-p08-rt` PASS 54/0 | `final83-p08-tb` **FAIL 51/2**, see below |
+
+**P08 turn-based remains a bounded known issue.** `phase3h-combat-loop-tb`
+failed 51/2 on `phase3d-tranche-0: 3h-rider-longbow-ordinary` with "Native
+sequence ended with fewer attacks than the legal full-round fixture expected."
+The last previous attempt at that scenario, `20260906-phase3h-preview6-tb-final`
+on `0.1.0-phase3h-preview.6`, failed with the same count and the same assertion,
+before any Chunk 5 work existed. The real-time variant of the same scenario
+passes 54/0 here, matching its own green baseline `20260920-chunk4-HH` on
+`0.1.0-chunk4-preview.54` exactly. The turn-based longbow full-round attack
+count is therefore recorded as an unresolved issue with its exact inputs; it is
+not attributed to Chunk 5 and not claimed as fixed.
+
+**One real regression was found and fixed by this set.** `phase3h-combat-loop-rt`
+first failed 30/1 with "Mounted control save scope is unavailable." Commit
+`5650d16` had added `serializationSuspended` to the begin action of
+`NativeMountedControlService.WrapSaveRoutine`, which correctly refuses a second
+owned control scope over a save that already holds one, but the horse companion
+engine's save-scope probe still started a scope by hand and then drove that same
+wrapper over it. From that commit onward the probe overlapped itself, and no
+`phase3h` run happened in between, so it stayed latent. The production guard is
+unchanged; the probe now lets the wrapper own the scope and samples the
+suspended state from inside the wrapped routine.
 
 Cold evidence loads the actual owned archive with a fresh PID. The orchestrator copies/hash-checks authorized bytes and compares telemetry after native results; it supplies no missing gameplay state. P05 A/B/A demonstrates state follows the selected archive. Save-root/campaign/type/name/path/hash/ownership guards are run-scoped; old scenarios retain strict Working-only authorization. Native quick/auto test settings use temporary getters without changing saved preferences.
 
