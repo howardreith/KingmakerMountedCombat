@@ -79,5 +79,42 @@ try{
     if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Cache traversal admitted.'};$passes++
     $analytics.path='Saved Games/human.zks'
     if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Human save admitted as owned cache.'};$passes++
+    # The game's own achievement cache churns on many launches and is excluded
+    # from profile identity. Only that exact shape, and never a disappearance.
+    $ach=Join-Path $profile 'achievements.dat$'
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 12288))
+    [void](Assert-KmcPersistenceProfileUnchanged $snapshot);$passes++
+    $bytes=New-Object byte[] 12288;$bytes[0]=7
+    [IO.File]::WriteAllBytes($ach,$bytes)
+    [void](Assert-KmcPersistenceProfileUnchanged $snapshot);$passes++
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 4096))
+    $rejected=$false
+    try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'Achievement leaf of an unnative size accepted.'};$passes++
+    [IO.File]::Delete($ach)
+    $nested=Join-Path $profile 'Areas/achievements.dat$'
+    [IO.File]::WriteAllBytes($nested,(New-Object byte[] 12288))
+    $rejected=$false
+    try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'Nested achievement-named leaf accepted.'};$passes++
+    [IO.File]::Delete($nested)
+    # The family is pinned by root placement, the achievements.dat prefix and the
+    # native size, so any same-shaped sibling suffix is tolerated by design.
+    $sibling=Join-Path $profile 'achievements.database'
+    [IO.File]::WriteAllBytes($sibling,(New-Object byte[] 12288))
+    [void](Assert-KmcPersistenceProfileUnchanged $snapshot);$passes++
+    [IO.File]::Delete($sibling)
+    $unrelated=Join-Path $profile 'settings.dat'
+    [IO.File]::WriteAllBytes($unrelated,(New-Object byte[] 12288))
+    $rejected=$false
+    try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
+    if(!$rejected){throw 'Unrelated native-sized profile leaf accepted.'};$passes++
+    [IO.File]::Delete($unrelated)
+    $before=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path='achievements.dat7';length=12288;sha256=('a'*64)})}
+    $rejected=$false
+    try{[void](Assert-KmcNativeAchievementCacheRetained $before ([pscustomobject]@{entries=@()}))}catch{$rejected=$true}
+    if(!$rejected){throw 'Disappearing achievement cache accepted.'};$passes++
+    [void](Assert-KmcNativeAchievementCacheRetained $before $before);$passes++
+    [void](Assert-KmcPersistenceProfileUnchanged $snapshot)
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}
