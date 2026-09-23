@@ -85,10 +85,57 @@ function Test-KmcNativeAchievementCacheName {
     return $Entry.kind-ceq'file'-and$Entry.path-cmatch'^achievements\.dat[^/\\.]{0,11}$'
 }
 
+# Unity's own analytics spool. The engine appends a new timestamped batch
+# directory of small event files when the game exits, so a clean run that
+# touched nothing of ours still leaves the profile with entries it did not have.
+# Restoring the earlier bytes over it is explicitly not allowed: the batch is
+# the user's newer data, not ours.
+#
+# Like the achievement cache above, the name rule never admits anything by
+# itself. It is only ever applied to entries that are ADDITIONS relative to the
+# snapshot; any preexisting analytics entry that changes or disappears is a real
+# profile change and still fails. Admitted additions are returned so the caller
+# records their exact paths, lengths and hashes as an expected external change
+# rather than claiming the profile was untouched.
+function Test-KmcNativeAnalyticsArchivedEventName {
+    param($Entry)
+    $batch='^Unity/[0-9a-f-]{36}/Analytics/ArchivedEvents/[0-9]{1,20}\.[0-9a-f]{1,16}$'
+    if($Entry.kind-ceq'directory'){return $Entry.path-cmatch$batch-and[long]$Entry.length-eq0}
+    return $Entry.kind-ceq'file'-and$Entry.path-cmatch($batch.TrimEnd('$')+'/[a-z]$')
+}
+
+function Get-KmcPersistenceProfileAnalyticsDelta {
+    param($Before,$After)
+    $prior=@{};foreach($entry in $Before.entries){$prior[$entry.path]=$entry}
+    $created=@()
+    foreach($entry in $After.entries){
+        if(-not(Test-KmcNativeAnalyticsArchivedEventName $entry)){continue}
+        if($prior.ContainsKey($entry.path)){continue}
+        $created+=[pscustomobject]@{path=[string]$entry.path;change='created';kind=[string]$entry.kind
+            length=[long]$entry.length;afterSha256=[string]$entry.sha256}
+    }
+    return $created
+}
+
 function Get-KmcPersistenceProfileIdentityDigest {
-    param($Inventory)
+    param($Inventory,$Baseline)
+    # With a baseline, analytics entries that are ADDITIONS relative to it are
+    # left out, because the engine appends a batch on exit. Everything else,
+    # including any analytics entry that already existed, still counts: passing
+    # an inventory as its own baseline excludes nothing, which is how the
+    # snapshot side of a comparison is taken.
+    $added=@{}
+    if($null-ne$Baseline){
+        $prior=@{};foreach($entry in $Baseline.entries){$prior[[string]$entry.path]=$true}
+        foreach($entry in $Inventory.entries){
+            if((Test-KmcNativeAnalyticsArchivedEventName $entry)-and-not$prior.ContainsKey([string]$entry.path)){
+                $added[[string]$entry.path]=$true
+            }
+        }
+    }
     return Get-KmcPersistenceProfileDigest ([pscustomobject]@{
-        entries=@($Inventory.entries|Where-Object{-not(Test-KmcNativeAchievementCacheName $_)})})
+        entries=@($Inventory.entries|Where-Object{
+            -not(Test-KmcNativeAchievementCacheName $_)-and-not$added.ContainsKey([string]$_.path)})})
 }
 
 function Get-KmcPersistenceProfileCacheDelta {
@@ -128,14 +175,17 @@ function Assert-KmcPersistenceProfileUnchanged {
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
     $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
-    if((Get-KmcPersistenceProfileIdentityDigest $after)-cne(Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory)){
+    $analyticsChanges=Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $after
+    if((Get-KmcPersistenceProfileIdentityDigest $after $Snapshot.inventory)-cne
+        (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $Snapshot.inventory)){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
     if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
-    # Admitted native cache churn, for the caller to record as an expected
-    # external change. An empty result means the profile really is byte-equal.
-    return $cacheChanges
+    # Admitted native cache churn and appended analytics batches, for the caller
+    # to record as expected external changes with their exact hashes. An empty
+    # result means the profile really is byte-equal.
+    return @($cacheChanges)+@($analyticsChanges)
 }
 
 # One observed owned LoadGameException reset changed this exact boolean.
@@ -182,6 +232,13 @@ function Get-KmcPersistencePreferenceChanges {
 function Assert-KmcNativeUmmStartupDelta {
     param([string]$Before,[string]$After)
     [xml]$original=$Before;[xml]$current=$After
+    # Unchanged parameters are the ordinary case now and the safest possible
+    # outcome, so they pass on their own. This assertion was written when UMM
+    # was still appending the SkipIntro entry on startup; that entry has since
+    # become part of the settled installation, present on both sides, and
+    # requiring the append made a byte-identical file fail.
+    if($current.OuterXml-ceq$original.OuterXml){return}
+    # The one historical startup transition is still accepted, and nothing else.
     $old=@($original.SelectNodes("//Mod[@Id='SkipIntro']"))
     $added=@($current.SelectNodes("//Mod[@Id='SkipIntro']"))
     if($old.Count-ne0-or$added.Count-ne1-or$added[0].OuterXml-cne
@@ -280,7 +337,9 @@ function Test-KmcObservedValidationAnalyticsEntry {
 function Get-KmcPersistenceProfileRecoveryDelta {
     param($Snapshot,$Current)
     [void](Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $Current)
-    if((Get-KmcPersistenceProfileIdentityDigest $Current)-ceq(Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory)){return @()}
+    [void](Get-KmcPersistenceProfileAnalyticsDelta $Snapshot.inventory $Current)
+    if((Get-KmcPersistenceProfileIdentityDigest $Current $Snapshot.inventory)-ceq
+        (Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory $Snapshot.inventory)){return @()}
     $run=$Snapshot.runId
     if($run-cne'20260921-chunk5-P06-future-A'-or$Snapshot.token-cne'e8a5fd891fd0d5f75c750242c1f4e19ed985708e94fdfe09fc33057ab9513337'){
         throw 'Profile/cache bytes changed outside the exact owned recovery seam.'

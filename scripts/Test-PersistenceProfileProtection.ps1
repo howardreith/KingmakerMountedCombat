@@ -134,5 +134,38 @@ try{
         }
     }
     if(@(Assert-KmcPersistenceProfileUnchanged $snapshot).Count-ne0){throw 'Restored profile reported unexpected churn.'};$passes++
+
+    # Unity appends an analytics batch on exit. Only ADDITIONS under that exact
+    # path shape are admitted, and they must still be reported with their exact
+    # hashes; nothing else about that tree may move.
+    $guid='2b02a6f4-4611-4ce0-b230-f9998567c3af'
+    $batch=('Unity/'+$guid+'/Analytics/ArchivedEvents/179018439100004.538885c6')
+    $base=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path='settings.json';length=4;sha256=('a'*64)})}
+    $withBatch=[pscustomobject]@{entries=@($base.entries+@(
+        [pscustomobject]@{kind='directory';path=$batch;length=0;sha256=$null},
+        [pscustomobject]@{kind='file';path=($batch+'/e');length=1367;sha256=('c'*64)}))}
+    $created=@(Get-KmcPersistenceProfileAnalyticsDelta $base $withBatch)
+    if($created.Count-ne2-or@($created|Where-Object{$_.change-cne'created'}).Count-ne0-or
+        @($created|Where-Object{$_.kind-ceq'file'-and$_.afterSha256-cne('c'*64)}).Count-ne0){
+        throw 'An appended analytics batch was not reported as created with its exact hashes.'};$passes++
+    if((Get-KmcPersistenceProfileIdentityDigest $withBatch $base)-cne(Get-KmcPersistenceProfileIdentityDigest $base $base)){
+        throw 'An appended analytics batch changed the profile identity digest.'};$passes++
+    # A batch that already existed is not an addition, so changing it must still
+    # move the identity digest, and so must anything outside the exact shape.
+    $changedBatch=[pscustomobject]@{entries=@($base.entries+@(
+        [pscustomobject]@{kind='directory';path=$batch;length=0;sha256=$null},
+        [pscustomobject]@{kind='file';path=($batch+'/e');length=99;sha256=('d'*64)}))}
+    if((Get-KmcPersistenceProfileIdentityDigest $changedBatch $withBatch)-ceq(Get-KmcPersistenceProfileIdentityDigest $withBatch $withBatch)){
+        throw 'A rewritten preexisting analytics entry was admitted as an addition.'};$passes++
+    if(@(Get-KmcPersistenceProfileAnalyticsDelta $withBatch $changedBatch).Count-ne0){
+        throw 'A rewritten preexisting analytics entry was reported as created.'};$passes++
+    foreach($outside in @(('Unity/'+$guid+'/Analytics/ArchivedEvents/notabatch/e'),
+        ('Unity/'+$guid+'/Analytics/Values/179018439100004.538885c6/e'),
+        ('Unity/'+$guid+'/Analytics/ArchivedEvents/179018439100004.538885c6/toolong'),
+        ('Unity/'+$guid+'/Analytics/ArchivedEvents/179018439100004.538885c6/sub/e'))){
+        $foreign=[pscustomobject]@{entries=@($base.entries+@([pscustomobject]@{kind='file';path=$outside;length=1;sha256=('e'*64)}))}
+        if((Get-KmcPersistenceProfileIdentityDigest $foreign $base)-ceq(Get-KmcPersistenceProfileIdentityDigest $base $base)){
+            throw ('A path outside the analytics batch shape was admitted: '+$outside+'.')};$passes++
+    }
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}
