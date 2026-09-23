@@ -64,11 +64,43 @@ function New-KmcPersistenceProfileSnapshot {
     return $record
 }
 
+# The installed game keeps its own achievement cache directly in the profile
+# root: dozens of fixed-size achievements.dat<suffix> leaves dating from 2024,
+# long before this project, one of which it adds or rewrites on many launches.
+# That churn is the game's, never a KMC write, and reverting it would edit the
+# owner's own achievement data for no benefit. It is therefore excluded from
+# profile identity, and only it: the leaf must be a direct child of the profile
+# root with the native size, nothing may disappear, and every other path in the
+# tree still has to match exactly.
+function Test-KmcNativeAchievementCacheEntry {
+    param($Entry)
+    return $Entry.kind-ceq'file'-and$Entry.path-cmatch'^achievements\.dat[^/\\]{0,32}$'-and
+        ($Entry.length-eq12288-or$Entry.length-eq0)
+}
+
+function Get-KmcPersistenceProfileIdentityDigest {
+    param($Inventory)
+    return Get-KmcPersistenceProfileDigest ([pscustomobject]@{
+        entries=@($Inventory.entries|Where-Object{-not(Test-KmcNativeAchievementCacheEntry $_)})})
+}
+
+function Assert-KmcNativeAchievementCacheRetained {
+    param($Before,$After)
+    $kept=@($After.entries|Where-Object{Test-KmcNativeAchievementCacheEntry $_}|ForEach-Object{$_.path})
+    foreach($entry in @($Before.entries|Where-Object{Test-KmcNativeAchievementCacheEntry $_})){
+        if($kept-cnotcontains$entry.path){
+            throw 'A native achievement cache leaf disappeared during the owned persistence process.'
+        }
+    }
+    return $true
+}
+
 function Assert-KmcPersistenceProfileUnchanged {
     param($Snapshot)
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    if((Get-KmcPersistenceProfileDigest $after)-cne$Snapshot.profileDigest){
+    [void](Assert-KmcNativeAchievementCacheRetained $Snapshot.inventory $after)
+    if((Get-KmcPersistenceProfileIdentityDigest $after)-cne(Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory)){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
@@ -217,7 +249,8 @@ function Test-KmcObservedValidationAnalyticsEntry {
 
 function Get-KmcPersistenceProfileRecoveryDelta {
     param($Snapshot,$Current)
-    if((Get-KmcPersistenceProfileDigest $Current)-ceq$Snapshot.profileDigest){return @()}
+    [void](Assert-KmcNativeAchievementCacheRetained $Snapshot.inventory $Current)
+    if((Get-KmcPersistenceProfileIdentityDigest $Current)-ceq(Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory)){return @()}
     $run=$Snapshot.runId
     if($run-cne'20260921-chunk5-P06-future-A'-or$Snapshot.token-cne'e8a5fd891fd0d5f75c750242c1f4e19ed985708e94fdfe09fc33057ab9513337'){
         throw 'Profile/cache bytes changed outside the exact owned recovery seam.'
