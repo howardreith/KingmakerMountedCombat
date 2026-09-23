@@ -242,15 +242,28 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites) return;
                 if (++drainFrames < 10) return;
-                // A real subsequent save must still work after the drain.
+                // A real subsequent save must still work after the drain. It uses
+                // a fresh descriptor rather than the one the interrupted save
+                // already replaced and rebound, matching the ordinary save path.
                 callback = false;
-                game.SaveGame(drainGoodSave, () => callback = true);
+                game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);
                 drainFrames = 0; drainStage = 4;
                 return;
             }
             if (drainStage == 4)
             {
-                if (!callback || LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites) return;
+                if (!callback || LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites)
+                {
+                    if (++drainFrames > 2400)
+                        throw new InvalidOperationException("P07 subsequent save never completed: callback=" + callback +
+                            " loading=" + LoadingProcess.Instance.IsLoadingInProcess +
+                            " pending=" + NativePersistenceIsolation.HasPendingWrites +
+                            " activeLeaf=" + persistence.ActiveSaveLeaf +
+                            " failedSaves=" + persistence.FailedSaveCount +
+                            " replacementFailures=" + NativeMountedArchiveCommit.ReplacementFailureCount +
+                            " feedback=" + persistence.Feedback);
+                    return;
+                }
                 // The commit replaces in place, so the subsequent save is the most
                 // recently written owned archive and must carry new bytes.
                 var archive = game.SaveManager.Where(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
