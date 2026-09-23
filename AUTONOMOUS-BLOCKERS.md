@@ -15,13 +15,6 @@ Human chunk4-preview54 DLL2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210b
 Next, already authorized and needing no further permission stop: native foreign-header campaign, native failed-load and mid-serialization cancellation, disable/re-enable/removal and harmful lifecycle paths, remaining P04 TB/overlapping-effect cases, P08, and one frozen exact-final P01-P08 suite. Required paired=true; legacy authorities/overlay=false. Chunk4 engineering accepted; visual/HUD/physical-input/HUMAN PLAY pending. Full Charge remains Chunk6.
 
 ---
-# Active Chunk 5 Ã¢â‚¬â€ owner-requested stop, 2026-09-21 UTC
-
-IN PROGRESS; no critical hard stop is proven. The owner requested a quota stopping point after preview57. Last native area-reload source FAIL9/1 on a requirement that both cross-scene party views be replaced; the pair/controls had restored, but post-area writing and cold continuation were not reached. Native cross-scene destruction is conditional; retain this failed evidence and obtain post-reload view IDs/call-site semantics before repair. No additional run is authorized by this stop.
-
-Actual human54 and current data/settings/caches/foreign Mods restored12:33:37.2983296UTC; no game/lock. [Single report](docs/CHUNK5-PERSISTENCE.md) and [resume pointer](AUTONOMOUS-RESUME.md) retain the exact next action and mandatory remaining gates. The approved DLL-only5 MiB limit remains the sole capacity exception.
-
----
 # Owner-approved alpha delivery - 2026-09-20 UTC
 
 **PASS - exact preview.54 installed for the owner's alpha test.** The owner accepted Chunk 4 and authorized committing, merging into default branch `main`, publishing an alpha prerelease and installing it locally. These instructions supersede historical delivery restrictions. The tested source remains `429377d707a9976be65639e0c27954d8b4ff3717`; the qualified ZIP/DLL is unchanged. [Setup and manual checklist](docs/ALPHA-PLAYTEST.md), [qualification](docs/CHUNK4-PLAYABILITY.md).
@@ -42,7 +35,7 @@ All 142 native transactions plus the separately recorded EX prelaunch attempt re
 No native gate or restoration failure remains in the supported scope. Horse motion from a clearer side view, HUD/countdown and physical controls still require human review. Earlier FAILs remain historical evidence; current passes do not relabel them.
 
 ---
-## Combined milestone disposition Ã¢â‚¬â€ 2026-09-08
+## Combined milestone disposition — 2026-09-08
 
 **PASS for the supported pre-combat pair** on preview.37/source `ec5d44e6eddc9839d273176b345f7c9701520450`, qualification documentation `aeb56f9e787bd633639de849a34ef108070501cf`. Complete paired grant/preparation, command admission, completion and participation ownership resolve the historical Chunk 2 dependency below. Both first gates, supported A01-A09, final 36-sample A05, 32-case/287-assertion A10 and Mammoth TB are qualified. [Evidence and bounded unqualified states](docs/PAIRED-ACTIVATION-MILESTONE.md).
 
@@ -52,17 +45,17 @@ No critical blocker remains for that supported scope. Full mounted save restorat
 
 ## Historical Chunk 2 disposition - 2026-09-07 09:08 UTC
 
-**BLOCKED Ã¢â‚¬â€ CRITICAL** for allocation milestone completion. Early preparation callback floors, native movement pacing and explicit actor-record lifetime are implemented. A10 final preview10/sourcec804ba0 passes32/0 cases (287/0 assertions); representative A05 on frozen7 passes36 preparations across both mounted/unmounted orders. A04 still reproduces rider-first pre-Prepare stale Standard and partial movement/stall. No legal future reservation or complete grant/preparation/continuation contract has been proved; A01-A09 are incomplete. [One report, causal evidence and gate ledger](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
+**BLOCKED — CRITICAL** for allocation milestone completion. Early preparation callback floors, native movement pacing and explicit actor-record lifetime are implemented. A10 final preview10/sourcec804ba0 passes32/0 cases (287/0 assertions); representative A05 on frozen7 passes36 preparations across both mounted/unmounted orders. A04 still reproduces rider-first pre-Prepare stale Standard and partial movement/stall. No legal future reservation or complete grant/preparation/continuation contract has been proved; A01-A09 are incomplete. [One report, causal evidence and gate ledger](docs/CHUNK2-ACTOR-ALLOCATIONS.md).
 
 The preparation/continuation seam remains the exact activation dependency. No second bank, stale-cooldown clear, callback replay, forced full attacks or full scheduler is included. A06/A07/A08/A09 and same-campaign load debt remain unqualified; cleanup is not mode-conservation or persistence proof. Unsupported combat remount is not unlocked. All25 transactions restored actual owner preview13/current human state. Final fixture failures are preserved and regressed; no unsafe external restoration residue remains. Only documentation/guarded publication remains for this checkpoint, not gameplay gate completion. Older pending-human-play text below predates the accepted owner report.
 
 ---
 
-## Current Chunk 1 disposition Ã¢â‚¬â€ 2026-09-06T19:20:29.992664+00:00
+## Current Chunk 1 disposition — 2026-09-06T19:20:29.992664+00:00
 
-**PASS Ã¢â‚¬â€ engineering qualification** on `0.1.0-chunk1-preview.13`, source `a8745640e18ce068e412b4e360c7b0a3d46c738a`. [Exact package and 32 native cases](docs/CHUNK1-ORDINARY-ATTACKS.md). No critical blocker or restoration residue remains for this chunk. The historical TB Single gate was reproduced as a fixture pointer/prediction mismatch; current native controls pass. The separate mixed-weapon range defect is fixed and regressed.
+**PASS — engineering qualification** on `0.1.0-chunk1-preview.13`, source `a8745640e18ce068e412b4e360c7b0a3d46c738a`. [Exact package and 32 native cases](docs/CHUNK1-ORDINARY-ATTACKS.md). No critical blocker or restoration residue remains for this chunk. The historical TB Single gate was reproduced as a fixture pointer/prediction mismatch; current native controls pass. The separate mixed-weapon range defect is fixed and regressed.
 
-TODO: HUMAN PLAY, safe mod-absent certification, and prior visual Horse Bite concern. These were not performed or relabeled. Actor allocation/exhaustion at native preparation/refresh is the next Chunk 2 dependency; pair-aware activations follow in Chunk 3. Broad old auto-repeat validation remains DEFER Ã¢â‚¬â€ EVIDENCED for Chunk 4 because its one-rule-per-dispatch contract is obsolete; the failed artifact and assertions remain intact. All 19 new campaign transactions restored actual intake state, independently audited. Source/package identities are frozen. The campaign ACTIVE-RUN.json records the final documentation/publication HEAD and guarded push result.
+TODO: HUMAN PLAY, safe mod-absent certification, and prior visual Horse Bite concern. These were not performed or relabeled. Actor allocation/exhaustion at native preparation/refresh is the next Chunk 2 dependency; pair-aware activations follow in Chunk 3. Broad old auto-repeat validation remains DEFER — EVIDENCED for Chunk 4 because its one-rule-per-dispatch contract is obsolete; the failed artifact and assertions remain intact. All 19 new campaign transactions restored actual intake state, independently audited. Source/package identities are frozen. The campaign ACTIVE-RUN.json records the final documentation/publication HEAD and guarded push result.
 
 ---
 
@@ -128,7 +121,7 @@ Current at 21:19Z: preview.4's complete offline gate passes. Live budget 1/8; pr
 
 Resumed preview.3 update, `2026-09-05T20:49Z`: Steam is running and passes the existing Offline/cloud guard. The historical absent-Steam blocker below is resolved. The resumed read-only preflight was stopped before live admission and independently audited exact. A full-byte hasher repair preserves every integrity check and completes historical staging in 144.39929 seconds; ten filesystem regressions pass. Current work also preserves default native opportunities and batches bounded motion capture. Runtime remains 0/8 pending final gate/new exact package and suite; pointer bridge, native motion/UI/lifecycle acceptance and the explicit TB resource contract remain unresolved. No permanent candidate installation.
 
-## Phase 3F current blockers Ã¢â‚¬â€ 2026-09-05
+## Phase 3F current blockers — 2026-09-05
 
 Resumed `2026-09-05T20:03:03Z`: the user started Steam; the existing guard now passes current-session Offline Mode/cloud checks. The previous absent-client blocker is resolved. Starting external state independently matches the earlier audit; no live transaction has yet run (0/8). The approved pointer bridge remains unavailable. Runtime continuation is active under the same bounded mission; historical closure details below remain build-specific.
 
@@ -141,9 +134,9 @@ Disposition: partial candidate `0.1.0-phase3f-preview.2`, source `a4f54bf959d32c
 
 No external integrity failure is known. Independent complete save/Mods audit proves the installed fallback/cache, fixtures and foreign content remain exact; no game, runtime lock or sentinel remains. No permanent candidate deployment is authorized. A short human checklist and dependency-ordered roadmap are delivered; TB action-economy, native controls, motion and affected lifecycle gates prevent a Phase 3F completion or Wrath-parity claim.
 
-## Phase 3E fallback package is complete Ã¢â‚¬â€ 2026-09-05T07:00:29-04:00
+## Phase 3E fallback package is complete — 2026-09-05T07:00:29-04:00
 
-Status: `PAIRED SCHEDULER PIVOT Ã¢â‚¬â€ SEPARATE-TURN FALLBACK READY`.
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
 
 There is no build, package, publication, external-restoration, process, lock, transaction, or protected-save blocker. Clean guarded-published package commit `16ccc71cabde70398130386f0e9e9380e1110495` produced the validated `0.1.0-phase3e-fallback.1` ZIP with SHA-256 `9451787c08d39ec2164d75f1c36fb4d54245e4228ff12855950fc26798be6698`; suite12, guarded WhatIf purity, and the independent post-WhatIf audit pass.
 
@@ -151,9 +144,9 @@ The remaining blocker is architectural and deliberately bounded. K9 proves the p
 
 The installable safe disposition defaults unified mode and the paired scheduler off. It preserves accepted separate turns and the qualified Phase 3D RT/native-control/presentation paths. Operator commands and the focused checklist are in `docs/PHASE3E-PLAYTEST.md`. Further architecture work requires a new user decision; Paladin implementation remains unauthorized.
 
-## Phase 3E final architecture blocker and bounded fallback Ã¢â‚¬â€ 2026-09-05T05:39:53-04:00
+## Phase 3E final architecture blocker and bounded fallback — 2026-09-05T05:39:53-04:00
 
-Status: `PAIRED SCHEDULER PIVOT Ã¢â‚¬â€ SEPARATE-TURN FALLBACK READY`.
+Status: `PAIRED SCHEDULER PIVOT — SEPARATE-TURN FALLBACK READY`.
 
 The primary pair-local Option A scheduler is not itself the blocker: immutable dev.4 Mammoth A/B pass `140/0`, and dev.12 Horse rerun passes one exact Horse-owned Standard action with rider current retained, one lifecycle chain, separate resources, and exact cleanup. The critical blocker is K9 in native turn completion. After that lease was disposed, `CombatController.ChooseNextUnit` retained the redundant Horse at a later round boundary. The coordinator failed closed instead of assigning native current/pending state; the relationship cleaned up and unrelated external state restored.
 
@@ -291,7 +284,7 @@ One observation-only checkpoint is authorized and required before the primary im
 
 ## Shared rider turn cannot advance a mount-owned TB command (2026-09-04T03:05:00-04:00)
 
-Status: `BLOCKED Ã¢â‚¬â€ CRITICAL`.
+Status: `BLOCKED — CRITICAL`.
 
 Fresh dev.21 evidence crossed real input admission and isolated the product architecture boundary. The rider was the unified native turn principal, the Mammoth retained its separate Standard ledger and exact natural-attack ownership, shared admission passed, the target was legally in range, and the guarded player-input path created the Mammoth-owned Standard-slot `UnitAttack`. Kingmaker never started that command because turn-based `UnitActionController` advances a non-AoO command only for `CurrentTurn.Unit`, which is necessarily the rider under the user-authoritative principal model. The command remained unstarted for 30 seconds with every ordinary actor readiness predicate true; no attack, rule, damage, or resource cost occurred.
 
@@ -652,7 +645,7 @@ This entry supersedes the dev.8 active blocker only as current next-action autho
 
 ## Phase 3C bounded stop: TB Horse-primary terminal command remains unqualified - 2026-08-29T16:02:32Z
 
-Status: `BLOCKED Ã¢â‚¬â€ DIAGNOSTIC QUALIFICATION BOUNDARY`.
+Status: `BLOCKED — DIAGNOSTIC QUALIFICATION BOUNDARY`.
 
 The final authorized dev.8 aggregate `20260829T153000Z-phase3c-dev8-native-controls-passC` restored exactly but is immutable `FAIL 57/1`. Its sole failure is `human-input-tb-horse-primary-horse-turn`. The physical/native selected-ability path itself succeeded: exact Horse-primary ability and hostile target, `clicked=true`, one target-selection start/end, one native cast request, and no native refusal. The scenario then failed its compound admission check because `BeginExpectedAttackDispatch` is a one-shot target-service marker already consumed by the preceding Rider-primary test. It stopped before observing the Horse KMC command or its terminal rule chain.
 
@@ -702,7 +695,7 @@ This entry explicitly supersedes the credential blocker and all older lifecycle/
 
 ## Guarded publication blocked by invalid GitHub authentication - 2026-08-28T07:15:22Z
 
-Status: `BLOCKED Ã¢â‚¬â€ CRITICAL` at the account/publication boundary. Dev.27 implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828` is locally complete and offline-green, but the project-owned guarded publisher stopped before push with Schannel `SEC_E_NO_CREDENTIALS`. `gh auth status` confirms the active `howardreith` token is invalid. Direct push, bypass, clean packaging before guarded publication, runtime qualification, and final installation are forbidden.
+Status: `BLOCKED — CRITICAL` at the account/publication boundary. Dev.27 implementation commit `87d0edcffe13be693b242a1ff11fa9b75d0b7828` is locally complete and offline-green, but the project-owned guarded publisher stopped before push with Schannel `SEC_E_NO_CREDENTIALS`. `gh auth status` confirms the active `howardreith` token is invalid. Direct push, bypass, clean packaging before guarded publication, runtime qualification, and final installation are forbidden.
 
 No game, suite, transaction, deployment, package, or external state was changed. After the user reauthenticates GitHub, retry the exact guarded helper once and continue from the clean implementation checkpoint. This is an account credential boundary, not a code, lifecycle, restoration, or architecture failure.
 
@@ -754,7 +747,7 @@ This supersedes the dev.23 critical-stop disposition below. It does not relabel 
 
 ## Dev.23 installed by explicit user direction; lifecycle qualification remains blocked - 2026-08-28T00:55:52Z
 
-Status: `BLOCKED Ã¢â‚¬â€ CRITICAL` for automated lifecycle qualification / `INSTALLED Ã¢â‚¬â€ FOCUSED HUMAN TEST AUTHORIZED`. The user explicitly requested installation after reviewing the blocker. Guarded installation and package-bound verification passed for `0.1.0-phase3b-dev.23`; installed DLL SHA-256/MVID are `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1` / `511f3511-2392-4f7e-a7ca-643701ced087`. Deployment record SHA-256 is `763a4da391a6184d0b1248bc2c843a0f594acb0fcb3904ff23895d161923d9e9`, and foreign Mods remained exact.
+Status: `BLOCKED — CRITICAL` for automated lifecycle qualification / `INSTALLED — FOCUSED HUMAN TEST AUTHORIZED`. The user explicitly requested installation after reviewing the blocker. Guarded installation and package-bound verification passed for `0.1.0-phase3b-dev.23`; installed DLL SHA-256/MVID are `eb946528bd7e0518dee61217de584f5c6ab8413de6242facc79143f9d5c6f9b1` / `511f3511-2392-4f7e-a7ca-643701ced087`. Deployment record SHA-256 is `763a4da391a6184d0b1248bc2c843a0f594acb0fcb3904ff23895d161923d9e9`, and foreign Mods remained exact.
 
 Installation does not waive the dev.23 `AwaitDeath` failure or credit unexecuted recovery/respec gates. Human testing should focus on real Ranger creation/persistence and ordinary lifecycle behavior, then report the exact result. Mounted Horse testing, Paladin Divine Steed, `main` integration, and public release remain frozen.
 
@@ -762,7 +755,7 @@ This supersedes the prior statement that dev.23 was not installed; the lifecycle
 
 ## Horse lifecycle qualification is blocked after the final dev.23 event-backed process - 2026-08-27T23:34:08Z
 
-Status: `BLOCKED Ã¢â‚¬â€ CRITICAL`. Exact clean package/suite `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2` / `20260827T214800Z-horse-levelup-dev23-suite1` passed targeted WhatIf purity. Corrected live run `20260827T230400Z-horse-levelup-dev23-passA` is immutable restored `FAIL 34/1`: registration passed `13/0`; Horse behavior passed `21/1`.
+Status: `BLOCKED — CRITICAL`. Exact clean package/suite `e2a903503f415fb96c69104731e1ebedc517ff4db45b1014a6aa4e460add67a2` / `20260827T214800Z-horse-levelup-dev23-suite1` passed targeted WhatIf purity. Corrected live run `20260827T230400Z-horse-levelup-dev23-passA` is immutable restored `FAIL 34/1`: registration passed `13/0`; Horse behavior passed `21/1`.
 
 The requested first player-facing boundary is technically proven: four native Ranger commits select Horse at Ranger 4/rank 1, the exact Horse persists with reciprocal AddPet/SetMaster ownership and an active Large native view, and it remains directly controllable through stock movement and exact RT/TB Bite chains. The sole failure is the bounded lifecycle gate. Starting from exact `Conscious`/awake state, direct lethal damage changed the exact Horse's damage `0 -> 27` against `11` HP, but its reference-filtered `IUnitLifeStateChanged` probe received no `Conscious -> Unconscious|Dead` transition in 30 seconds. The run therefore could not credit recovery or respec removal. This is a qualification blocker; it is not sufficient evidence to claim that ordinary combat can never kill the Horse.
 
@@ -816,7 +809,7 @@ This supersedes the dev.19 qualification-pending status below; dev.19 is not a c
 
 Status: IN PROGRESS. Dev.18's one authorized observation is complete and exactly restored. It proves the native Ranger preview/select/commit path does activate the KMC Horse feature and create a real pet at Ranger level 4. Its `FAIL 17/2` is retained honestly, but both failures are attributable to diagnostic assumptions that confused character level with Ranger progression selection level and assumed companion rank 4 instead of Ranger's effective rank 1. No AddPet spawn defect, restoration failure, repository ambiguity, account boundary, or tooling blocker is established.
 
-Dev.19 is the single attributable registration stabilization cycle. It registers the KMC trio in both canonical library surfaces, leases both Ranger selection arrays together, removes inherited DLC entitlement, uses the explicit `Animal Companion Ã¢â‚¬â€ Horse` label, records activation identity, and validates native Ranger-4 rank-1/pet-level-2 behavior without a premature rank-4 upgrade. Complete source/build/component/visual/harness/assembly gates pass `21/Release/254/17/232/357`. One clean unmounted-only package/suite/process and audit-before-read remain before a manual artifact can be installed.
+Dev.19 is the single attributable registration stabilization cycle. It registers the KMC trio in both canonical library surfaces, leases both Ranger selection arrays together, removes inherited DLC entitlement, uses the explicit `Animal Companion — Horse` label, records activation identity, and validates native Ranger-4 rank-1/pet-level-2 behavior without a premature rank-4 upgrade. Complete source/build/component/visual/harness/assembly gates pass `21/Release/254/17/232/357`. One clean unmounted-only package/suite/process and audit-before-read remain before a manual artifact can be installed.
 
 Mounted horse testing, Paladin Divine Steed, and `main` integration remain frozen. A genuine creation, ownership, control, persistence-precondition, or restoration failure in the one fresh dev.19 cycle is the exact stop condition.
 
@@ -828,7 +821,7 @@ Status: IN PROGRESS. Human testing invalidated dev.17 at the first required comp
 
 The established qualification defect is that prior automation inserted the rank and Horse facts directly. It proved downstream `AddPet` behavior but not the player-facing Ranger selection/commit path. Dev.18 now drives the exact native `LevelUpController` preview/select/commit chain and requires durable Hunter's Bond and Ranger selection records before any downstream horse test. One targeted observation will distinguish selection filtering/registration from activation/spawn. The likely narrow production surfaces are the copied Mammoth DLC entitlement and KMC's incomplete library/selection registration contract; neither is being guessed into acceptance before runtime evidence.
 
-This supersedes the prior Ã¢â‚¬Å“horse alpha awaits reviewÃ¢â‚¬Â status. Dev.17 is a historical human-gate failure, not a merge candidate.
+This supersedes the prior “horse alpha awaits review” status. Dev.17 is a historical human-gate failure, not a merge candidate.
 
 ## No critical blocker; horse alpha awaits human visual/gameplay review - 2026-08-27T03:40:27Z
 
@@ -932,23 +925,23 @@ Status: IN PROGRESS. Dev.3 aggregate `20260826T024500Z-horse-companion-unmounted
 
 This supersedes the dev.3 `DefaultBuildData` theory below. The dev.2 and dev.3 failures are not relabeled.
 
-## No critical blocker; one exact unmounted progression retry pending Ã¢â‚¬â€ 2026-08-25T23:15:42Z
+## No critical blocker; one exact unmounted progression retry pending — 2026-08-25T23:15:42Z
 
-Status: IN PROGRESS. Dev.2 aggregate `20260825T222800Z-horse-companion-unmounted-passA` is preserved historical `FAIL 22/1` with exact audit-before-read restoration. Its only failure was live level `1` at owner rank `4`; creation, reciprocal ownership, direct control, rank-4 upgrade, native view/statistics, selection, and cleanup passed. Installed contracts support a narrow one-shot native retry after the activation stack and outside `DefaultBuildData`; dev.3 enforces exact horse/ownership/deficit/attempt guards and records both paths. Offline component and harness gates are green. One fresh immutable package/suite/WhatIf and one audited aggregate retry remain before mounted-profile work. This is an attributable, bounded production repairÃ¢â‚¬â€not an external-state, architecture, or safety blocker.
+Status: IN PROGRESS. Dev.2 aggregate `20260825T222800Z-horse-companion-unmounted-passA` is preserved historical `FAIL 22/1` with exact audit-before-read restoration. Its only failure was live level `1` at owner rank `4`; creation, reciprocal ownership, direct control, rank-4 upgrade, native view/statistics, selection, and cleanup passed. Installed contracts support a narrow one-shot native retry after the activation stack and outside `DefaultBuildData`; dev.3 enforces exact horse/ownership/deficit/attempt guards and records both paths. Offline component and harness gates are green. One fresh immutable package/suite/WhatIf and one audited aggregate retry remain before mounted-profile work. This is an attributable, bounded production repair—not an external-state, architecture, or safety blocker.
 
 This supersedes the aggregate-gate state below. The dev.2 failure is not relabeled.
 
-## No critical blocker; aggregate unmounted runtime gate active Ã¢â‚¬â€ 2026-08-25T21:29:32Z
+## No critical blocker; aggregate unmounted runtime gate active — 2026-08-25T21:29:32Z
 
 Status: IN PROGRESS. The first registration process is preserved as `FAIL 12/1`, but exact runtime/decompiled stock Mammoth and Dog evidence establishes an observer defect rather than a horse construction failure: all three blueprint class components begin at zero and native `AddPet` owns rank-driven leveling. The corrected observer, Bite/Hoof stock-enumeration repair, exact respec cleanup, aggregate unmounted scenario, strict validator, and new assembly pins pass all current offline gates. One clean package/suite/WhatIf and one audited unmounted process remain before mounted-profile work. Actual disk save/reload is a declared final human gate under the repository's crash-safe save restriction, not a concealed automated PASS.
 
 This supersedes the registration-audit blocker state below.
 
-## No critical blocker; horse registration runtime gate active Ã¢â‚¬â€ 2026-08-25T19:44:49Z
+## No critical blocker; horse registration runtime gate active — 2026-08-25T19:44:49Z
 
 Status: IN PROGRESS. Production blueprint construction and exact Ranger append/restore logic pass every applicable offline gate at version `0.1.0-phase3b-dev.1`. The next gate is one clean, guarded, observation-only registration audit against the initialized Kingmaker library. That audit must pass exact external restoration before its evidence is read. Horse spawning, progression, unmounted play, and mounted-profile work remain unclaimed rather than blocked.
 
-## Horse native-asset gate resolved Ã¢â‚¬â€ 2026-08-25T19:12:00Z
+## Horse native-asset gate resolved — 2026-08-25T19:12:00Z
 
 Status: PASS. The sole repaired retry `20260825T180000Z-horse-native-asset-audit-repair-passB` passed `21/0`, and its immediate independent suite/save/Mods/process/lock/sentinel/deployment audit passed before evidence read. The pony is conclusively a distinct Medium prefab/rig without riding-seat geometry; the Large native `CR1_HorseRiding` view is selected. All reserved KMC GUIDs are unclaimed and the exact Ranger selection is bound. No asset, restoration, transaction, or production-construction blocker remains. Unmounted horse qualification is the next gate, not a blocker.
 
@@ -1133,15 +1126,15 @@ Status: `IN PROGRESS`; no core architecture or restoration failure is known. PID
 
 ## No active core, safety, presentation, or tooling blocker - 2026-08-21T23:00:00Z
 
-Status: `PASS`. Bounded reach plus same-package controls are qualified at `658/0` under one clean package/suite with audit-before-read restoration after every process. The meeting-interrupted preflight `20260821T205500Z-mounted-reach-controls-passA` emitted no runtime artifact and receives no credit; preflight-only artifact-pin attempt `20260821T211200Z-mounted-reach-controls-passA` failed before mutation and also receives no credit. Neither indicates a gameplay or safety defect. Core private-alpha behavior has no active blocker. Optional explicit mounted AoO and basic charge remain `DEFER Ã¢â‚¬â€ EVIDENCED`, not blockers.
+Status: `PASS`. Bounded reach plus same-package controls are qualified at `658/0` under one clean package/suite with audit-before-read restoration after every process. The meeting-interrupted preflight `20260821T205500Z-mounted-reach-controls-passA` emitted no runtime artifact and receives no credit; preflight-only artifact-pin attempt `20260821T211200Z-mounted-reach-controls-passA` failed before mutation and also receives no credit. Neither indicates a gameplay or safety defect. Core private-alpha behavior has no active blocker. Optional explicit mounted AoO and basic charge remain `DEFER — EVIDENCED`, not blockers.
 
 ## Basic mounted charge safely deferred - 2026-08-21T17:55:00Z
 
-Status: `DEFER Ã¢â‚¬â€ EVIDENCED`, not a core blocker. Stock charge binds the same caster to forced movement, speed/charge state, attack, command queue, and action ledger. Rider-caster violates Mammoth-only pathfinding; Mammoth-caster owns the wrong attack/resource. Custom recreation exceeds the narrow stretch seam, so production remains absent/default-off and non-mounted charge remains stock. Focused harness `214/0` and Kingmaker assembly `258/0` prove the disposition. Guarded publication remains the only active tooling dependency before live reach qualification.
+Status: `DEFER — EVIDENCED`, not a core blocker. Stock charge binds the same caster to forced movement, speed/charge state, attack, command queue, and action ledger. Rider-caster violates Mammoth-only pathfinding; Mammoth-caster owns the wrong attack/resource. Custom recreation exceeds the narrow stretch seam, so production remains absent/default-off and non-mounted charge remains stock. Focused harness `214/0` and Kingmaker assembly `258/0` prove the disposition. Guarded publication remains the only active tooling dependency before live reach qualification.
 
 ## Explicit mounted AoO safely deferred; guarded publication lacks credentials - 2026-08-21T17:45:00Z
 
-Status: explicit mounted AoO is `DEFER Ã¢â‚¬â€ EVIDENCED`, not a core blocker. Exact per-unit engagement, counter, command, threat-hand, motion, and rule ownership has no narrow pair-wide arbitration seam; production remains absent/default-off and ordinary stock behavior remains intact. Focused harness `213/0` and Kingmaker assembly `250/0` prove the disposition. Separately, local reach checkpoint `4a703b9` is committed but the guarded helper stopped before push at its remote inspection with `SEC_E_NO_CREDENTIALS`; no direct or duplicate push is permitted. Safe offline work continues with basic-charge disposition; live reach qualification awaits guarded publication.
+Status: explicit mounted AoO is `DEFER — EVIDENCED`, not a core blocker. Exact per-unit engagement, counter, command, threat-hand, motion, and rule ownership has no narrow pair-wide arbitration seam; production remains absent/default-off and ordinary stock behavior remains intact. Focused harness `213/0` and Kingmaker assembly `250/0` prove the disposition. Separately, local reach checkpoint `4a703b9` is committed but the guarded helper stopped before push at its remote inspection with `SEC_E_NO_CREDENTIALS`; no direct or duplicate push is permitted. Safe offline work continues with basic-charge disposition; live reach qualification awaits guarded publication.
 
 ## Bounded mounted reach has no active blocker - 2026-08-21T17:30:00Z
 
@@ -1310,7 +1303,7 @@ Implementation now performs stable double scans, creates append-only package-bou
 
 ## Protected-save inventory mismatch - 2026-08-20T20:29:03Z
 
-Status: `BLOCKED Ã¢â‚¬â€ CRITICAL SAFETY`.
+Status: `BLOCKED — CRITICAL SAFETY`.
 
 The newly policy-authorized metadata/raw-hash-only audit ran without archive access or save mutation. Existing authority SHA-256 `111c794baf8bd1062ef7ecf8c307f4e3badb7a519cf3e66ae1f8f2442b770701`, epoch `20260816T0115379973604Z-user-attested-quicksave-continuity`, and recorded pin-set identifier `6f137d57e3a519b3a315a4c654b5feee51c8495f7104c26bfd4da097930c9ff4` were exact, but the live inventory differed from its authority: `03a91757453a8e875e376f31f1664decb0a6e60dcf6433f2348795a90be634c9` (`271` files / `3178743633` bytes) became `feb5da86ea9cac8ac9bde6d944b83e20dc623fd2d7d67ce4ba8ebd398fa47306` (`272` files / `3179191554` bytes).
 
@@ -1320,7 +1313,7 @@ Do not create the live-Mods authority, package, preflight, or runtime transactio
 
 ## Tooling/action-capacity stop after explicit authorization - 2026-08-20T19:19:24Z
 
-Status: `BLOCKED Ã¢â‚¬â€ TOOLING / ACTION CAPACITY`.
+Status: `BLOCKED — TOOLING / ACTION CAPACITY`.
 
 The user explicitly attested exact current live Mods digest `f91fe3ab6131837b0af285e18e6295fc7ded1486f2892277f7a11acdd5fa2597` and its exact ten-path transition, authorized a project-owned append-only continuity authority, and explicitly authorized the guarded read-only protected-save audit after the prior risk disclosure. Re-intake passed at clean local/upstream `1b05e9c12660f366d5a402b5783f2c6046875b44` with no relevant process, Git operation/lock, runtime lock, sentinel, live KMC deployment, or non-restored transaction.
 
@@ -1330,7 +1323,7 @@ Resume only when the execution layer permits the exact read-only `Assert-KmcQual
 
 ## Critical external-state stop - 2026-08-20T17:51:46Z
 
-Status: `BLOCKED Ã¢â‚¬â€ CRITICAL` before runtime.
+Status: `BLOCKED — CRITICAL` before runtime.
 
 Capacity resumed under Codex/GPT-5 and the exact clean `2a37957972b3a316595db5139a5fdeb52d82a768` offline gate passed source `21/0`, Release build, component `212/0`, visual/source-order `17/0`, harness/protocol `181/0`, assembly `254/0`, and package `10/0`. Fresh current-HEAD package/manifest/DLL SHA-256 are `4d79559a828a887f9d7278f57926eb067ef78a323d3e513eacde4029c7af8596` / `030d667defef0d15b4534c2e1b83f9c737498212eb5fa8abfa03ad84bb948808` / `ab47e4bef75a05331085dfd84363e09a7da4fa3acab77b010010bf75e7adaba2`; MVID `422dac22-30d2-4e5a-995f-f3c404585522`.
 

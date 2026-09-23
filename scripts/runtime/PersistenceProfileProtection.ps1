@@ -65,47 +65,77 @@ function New-KmcPersistenceProfileSnapshot {
 }
 
 # The installed game keeps its own achievement cache directly in the profile
-# root: dozens of fixed-size achievements.dat<suffix> leaves dating from 2024,
-# long before this project, one of which it adds or rewrites on many launches.
-# That churn is the game's, never a KMC write, and reverting it would edit the
-# owner's own achievement data for no benefit. It is therefore excluded from
-# profile identity, and only it: the leaf must be a direct child of the profile
-# root with the native size, nothing may disappear, and every other path in the
-# tree still has to match exactly.
-function Test-KmcNativeAchievementCacheEntry {
+# root. Bounded read-only characterisation, retained in lab analysis-cache/
+# chunk5-persistence/achievement-cache-contract64.txt: 58 leaves, 57 at exactly
+# 12288 bytes and one pre-existing empty leaf written 2026-09-08, suffixes of
+# 0 to 11 characters containing no dot and no separator, and only two unrelated
+# files in that root. The settled native size is therefore 12288.
+#
+# A name alone cannot exclude a deliberately crafted lookalike, so the name rule
+# never admits anything by itself. Admission is a BEFORE/AFTER transition: an
+# existing leaf may have its bytes rewritten but must keep its exact prior
+# length, a new leaf must arrive at the settled native size, and nothing may
+# shrink, grow or disappear. A pre-existing empty leaf is not permission to
+# truncate a populated one. Accepted churn is returned so the caller records it
+# as an expected external change rather than claiming the profile is untouched.
+$script:KmcNativeAchievementCacheSettledSize = 12288
+
+function Test-KmcNativeAchievementCacheName {
     param($Entry)
-    return $Entry.kind-ceq'file'-and$Entry.path-cmatch'^achievements\.dat[^/\\]{0,32}$'-and
-        ($Entry.length-eq12288-or$Entry.length-eq0)
+    return $Entry.kind-ceq'file'-and$Entry.path-cmatch'^achievements\.dat[^/\\.]{0,11}$'
 }
 
 function Get-KmcPersistenceProfileIdentityDigest {
     param($Inventory)
     return Get-KmcPersistenceProfileDigest ([pscustomobject]@{
-        entries=@($Inventory.entries|Where-Object{-not(Test-KmcNativeAchievementCacheEntry $_)})})
+        entries=@($Inventory.entries|Where-Object{-not(Test-KmcNativeAchievementCacheName $_)})})
 }
 
-function Assert-KmcNativeAchievementCacheRetained {
+function Get-KmcPersistenceProfileCacheDelta {
     param($Before,$After)
-    $kept=@($After.entries|Where-Object{Test-KmcNativeAchievementCacheEntry $_}|ForEach-Object{$_.path})
-    foreach($entry in @($Before.entries|Where-Object{Test-KmcNativeAchievementCacheEntry $_})){
-        if($kept-cnotcontains$entry.path){
-            throw 'A native achievement cache leaf disappeared during the owned persistence process.'
+    $priorByPath=@{};foreach($entry in $Before.entries){if(Test-KmcNativeAchievementCacheName $entry){$priorByPath[$entry.path]=$entry}}
+    $currentByPath=@{};foreach($entry in $After.entries){if(Test-KmcNativeAchievementCacheName $entry){$currentByPath[$entry.path]=$entry}}
+    $changes=@()
+    foreach($path in @($priorByPath.Keys)){
+        if(-not$currentByPath.ContainsKey($path)){
+            throw ('A native achievement cache leaf disappeared during the owned persistence process: '+$path)
+        }
+        $prior=$priorByPath[$path];$current=$currentByPath[$path]
+        if([long]$current.length-ne[long]$prior.length){
+            throw ('A native achievement cache leaf changed length during the owned persistence process: '+
+                $path+' '+$prior.length+' to '+$current.length)
+        }
+        if($current.sha256-cne$prior.sha256){
+            $changes+=[pscustomobject]@{path=$path;change='rewritten';length=[long]$current.length
+                beforeSha256=[string]$prior.sha256;afterSha256=[string]$current.sha256}
         }
     }
-    return $true
+    foreach($path in @($currentByPath.Keys)){
+        if($priorByPath.ContainsKey($path)){continue}
+        $current=$currentByPath[$path]
+        if([long]$current.length-ne[long]$script:KmcNativeAchievementCacheSettledSize){
+            throw ('A new profile leaf used the achievement cache name without its settled native size: '+
+                $path+' '+$current.length)
+        }
+        $changes+=[pscustomobject]@{path=$path;change='created';length=[long]$current.length
+            beforeSha256=$null;afterSha256=[string]$current.sha256}
+    }
+    return $changes
 }
 
 function Assert-KmcPersistenceProfileUnchanged {
     param($Snapshot)
     Assert-KmcNoGameProcesses
     $after=Get-KmcQualificationTreeInventory -Root $Snapshot.profile -Scope save-root -ExcludeRelativeRoots @('Saved Games','output_log.txt')
-    [void](Assert-KmcNativeAchievementCacheRetained $Snapshot.inventory $after)
+    $cacheChanges=Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $after
     if((Get-KmcPersistenceProfileIdentityDigest $after)-cne(Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory)){
         throw 'Native profile/cache bytes changed during the owned persistence process; exact intake backup retained, no automatic stale overwrite performed.'
     }
     if((Get-KmcSha256 $Snapshot.paramsPath)-cne$Snapshot.paramsSha256){throw 'UMM parameters changed during the owned persistence process.'}
     if((Get-KmcPersistencePlayerPrefs)-cne$Snapshot.playerPrefsJson){throw 'Native PlayerPrefs changed during the owned persistence process.'}
-    return $true
+    # Admitted native cache churn, for the caller to record as an expected
+    # external change. An empty result means the profile really is byte-equal.
+    return $cacheChanges
 }
 
 # One observed owned LoadGameException reset changed this exact boolean.
@@ -249,7 +279,7 @@ function Test-KmcObservedValidationAnalyticsEntry {
 
 function Get-KmcPersistenceProfileRecoveryDelta {
     param($Snapshot,$Current)
-    [void](Assert-KmcNativeAchievementCacheRetained $Snapshot.inventory $Current)
+    [void](Get-KmcPersistenceProfileCacheDelta $Snapshot.inventory $Current)
     if((Get-KmcPersistenceProfileIdentityDigest $Current)-ceq(Get-KmcPersistenceProfileIdentityDigest $Snapshot.inventory)){return @()}
     $run=$Snapshot.runId
     if($run-cne'20260921-chunk5-P06-future-A'-or$Snapshot.token-cne'e8a5fd891fd0d5f75c750242c1f4e19ed985708e94fdfe09fc33057ab9513337'){

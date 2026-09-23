@@ -79,42 +79,60 @@ try{
     if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Cache traversal admitted.'};$passes++
     $analytics.path='Saved Games/human.zks'
     if(Test-KmcObservedValidationAnalyticsEntry $ownedRun $analytics){throw 'Human save admitted as owned cache.'};$passes++
-    # The game's own achievement cache churns on many launches and is excluded
-    # from profile identity. Only that exact shape, and never a disappearance.
+    # The installed game's achievement cache churns on many launches. Admission
+    # is a before/after transition, never a name alone: a new leaf must arrive
+    # at the settled native size, an existing leaf may be rewritten but must
+    # keep its exact length, and nothing may shrink, grow or disappear.
+    $native=12288
     $ach=Join-Path $profile 'achievements.dat$'
-    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 12288))
-    [void](Assert-KmcPersistenceProfileUnchanged $snapshot);$passes++
-    $bytes=New-Object byte[] 12288;$bytes[0]=7
+    [IO.File]::WriteAllBytes($ach,(New-Object byte[] $native))
+    $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot)
+    if($accepted.Count-ne1-or$accepted[0].change-cne'created'-or$accepted[0].path-cne'achievements.dat$'){
+        throw 'Created native cache leaf was not reported as expected churn.'};$passes++
+    $bytes=New-Object byte[] $native;$bytes[0]=7
     [IO.File]::WriteAllBytes($ach,$bytes)
-    [void](Assert-KmcPersistenceProfileUnchanged $snapshot);$passes++
-    [IO.File]::WriteAllBytes($ach,(New-Object byte[] 4096))
-    $rejected=$false
-    try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
-    if(!$rejected){throw 'Achievement leaf of an unnative size accepted.'};$passes++
+    $accepted=@(Assert-KmcPersistenceProfileUnchanged $snapshot)
+    if($accepted.Count-ne1-or$accepted[0].change-cne'created'-or$accepted[0].afterSha256-ceq$accepted[0].beforeSha256){
+        throw 'Rewritten native cache leaf was not reported with its bytes.'};$passes++
+    foreach($bad in @(0,4096,24576)){
+        [IO.File]::WriteAllBytes($ach,(New-Object byte[] $bad))
+        $rejected=$false
+        try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
+        if(!$rejected){throw ('New cache leaf accepted at unnative size '+$bad+'.')};$passes++
+    }
     [IO.File]::Delete($ach)
-    $nested=Join-Path $profile 'Areas/achievements.dat$'
-    [IO.File]::WriteAllBytes($nested,(New-Object byte[] 12288))
-    $rejected=$false
-    try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
-    if(!$rejected){throw 'Nested achievement-named leaf accepted.'};$passes++
-    [IO.File]::Delete($nested)
-    # The family is pinned by root placement, the achievements.dat prefix and the
-    # native size, so any same-shaped sibling suffix is tolerated by design.
-    $sibling=Join-Path $profile 'achievements.database'
-    [IO.File]::WriteAllBytes($sibling,(New-Object byte[] 12288))
-    [void](Assert-KmcPersistenceProfileUnchanged $snapshot);$passes++
-    [IO.File]::Delete($sibling)
-    $unrelated=Join-Path $profile 'settings.dat'
-    [IO.File]::WriteAllBytes($unrelated,(New-Object byte[] 12288))
-    $rejected=$false
-    try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
-    if(!$rejected){throw 'Unrelated native-sized profile leaf accepted.'};$passes++
-    [IO.File]::Delete($unrelated)
-    $before=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path='achievements.dat7';length=12288;sha256=('a'*64)})}
-    $rejected=$false
-    try{[void](Assert-KmcNativeAchievementCacheRetained $before ([pscustomobject]@{entries=@()}))}catch{$rejected=$true}
-    if(!$rejected){throw 'Disappearing achievement cache accepted.'};$passes++
-    [void](Assert-KmcNativeAchievementCacheRetained $before $before);$passes++
-    [void](Assert-KmcPersistenceProfileUnchanged $snapshot)
+    # A populated pre-existing leaf may never be truncated, grown or removed,
+    # and a pre-existing empty leaf grants no truncation permission.
+    $populated=[pscustomobject]@{kind='file';path='achievements.dat7';length=$native;sha256=('a'*64)}
+    $emptyLeaf=[pscustomobject]@{kind='file';path='achievements.datZ';length=0;sha256=('c'*64)}
+    $before=[pscustomobject]@{entries=@($populated,$emptyLeaf)}
+    foreach($case in @(
+        @{name='truncated to empty';after=@([pscustomobject]@{kind='file';path='achievements.dat7';length=0;sha256=('b'*64)},$emptyLeaf)},
+        @{name='grown';after=@([pscustomobject]@{kind='file';path='achievements.dat7';length=24576;sha256=('b'*64)},$emptyLeaf)},
+        @{name='deleted';after=@($emptyLeaf)},
+        @{name='empty leaf populated';after=@($populated,[pscustomobject]@{kind='file';path='achievements.datZ';length=$native;sha256=('d'*64)})})){
+        $rejected=$false
+        try{[void](Get-KmcPersistenceProfileCacheDelta $before ([pscustomobject]@{entries=@($case.after)}))}catch{$rejected=$true}
+        if(!$rejected){throw ('Cache transition accepted: '+$case.name+'.')};$passes++
+    }
+    $rewritten=[pscustomobject]@{entries=@([pscustomobject]@{kind='file';path='achievements.dat7';length=$native;sha256=('b'*64)},$emptyLeaf)}
+    $delta=@(Get-KmcPersistenceProfileCacheDelta $before $rewritten)
+    if($delta.Count-ne1-or$delta[0].change-cne'rewritten'-or$delta[0].beforeSha256-cne('a'*64)-or$delta[0].afterSha256-cne('b'*64)){
+        throw 'Legitimate rewrite churn was not reported with before and after hashes.'};$passes++
+    if(@(Get-KmcPersistenceProfileCacheDelta $before $before).Count-ne0){throw 'Unchanged cache reported churn.'};$passes++
+    # A nested or unrelated leaf is outside the exception at either size, and a
+    # dotted lookalike is not the demonstrated native naming rule.
+    foreach($leaf in @('Areas/achievements.dat$','settings.dat','achievements.dat.bak')){
+        foreach($size in @($native,0)){
+            $path=Join-Path $profile $leaf
+            [void][IO.Directory]::CreateDirectory((Split-Path $path))
+            [IO.File]::WriteAllBytes($path,(New-Object byte[] $size))
+            $rejected=$false
+            try{[void](Assert-KmcPersistenceProfileUnchanged $snapshot)}catch{$rejected=$true}
+            [IO.File]::Delete($path)
+            if(!$rejected){throw ('Leaf outside the native cache exception accepted: '+$leaf+' at '+$size+'.')};$passes++
+        }
+    }
+    if(@(Assert-KmcPersistenceProfileUnchanged $snapshot).Count-ne0){throw 'Restored profile reported unexpected churn.'};$passes++
     Write-Host "PROFILE PROTECTION PASS=$passes FAIL=0; actual human profile and registry were read only."
 }finally{Close-KmcRuntimeLock $lock}
