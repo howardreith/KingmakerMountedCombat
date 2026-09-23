@@ -82,6 +82,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     entries.Add(new PersistenceSaveEntry {
                         FileName = "Manual_302_KMC_P01.zks", InternalName = "KMC_P01",
                         SaveType = "Manual", Area = fixture.Area, Writable = true });
+                // Campaign B: the engine's own new game, declared before it starts.
+                // Its identity is not known here and is never assigned here; the
+                // authority freezes what the engine mints on B's first write. The
+                // area is the authored preset's, resolved the same way the
+                // scenario resolves the preset it starts.
+                if (request.Scenario == "persistence-p07-save" && request.PersistenceCase == "campaign-b")
+                {
+                    var bootstrap = NativeCampaignBootstrap.Resolve();
+                    entries.Add(new PersistenceSaveEntry {
+                        FileName = NativeCampaignBootstrap.AutosaveLeaf,
+                        InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto),
+                        SaveType = "Auto", Area = bootstrap.Area, Writable = true, Campaign = "B",
+                        AdmitsBeforeArea = true });
+                    entries.Add(new PersistenceSaveEntry {
+                        FileName = NativeCampaignBootstrap.ManualLeaf, InternalName = NativeCampaignBootstrap.ManualName,
+                        SaveType = "Manual", Area = bootstrap.Area, Writable = true, Campaign = "B" });
+                }
                 if (request.Scenario == "persistence-p07-save")
                 {
                     // A cross-area case makes no pre-transfer manual write: the

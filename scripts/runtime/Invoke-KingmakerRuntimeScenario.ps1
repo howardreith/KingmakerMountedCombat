@@ -88,8 +88,8 @@ if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
     if([string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)-or$ExpectedPersistenceAlternateSha256-ceq$ExpectedPersistenceSourceSha256){throw 'Alternating cold loads require two distinct exact archive hashes.'}
 }elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads may select a second archive.'}
 if($Scenario -cin @('persistence-p07-save','persistence-p07-load')){
-    if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
-}elseif($PersistenceCase-cin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'Recovery faults require the exact P07 scenario.'}
+    if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
+}elseif($PersistenceCase-cin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'Recovery faults require the exact P07 scenario.'}
 if($PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
     if($PersistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')-and$Scenario-cne'persistence-p07-load'){throw 'A transition autosave case is cold-load only.'}
     if([string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){

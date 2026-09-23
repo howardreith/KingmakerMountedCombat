@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
@@ -25,7 +25,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -458,6 +458,7 @@ function Assert-KmcPersistenceScenarioEvidence {
     $initial=@($rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P01 has no unique initial state.'}
     $isDisable=$checkpoint-ceq'disable-reenable'
+    $isCampaignB=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-ceq'campaign-b'
     foreach($row in $rows){
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
             $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or
@@ -465,13 +466,18 @@ function Assert-KmcPersistenceScenarioEvidence {
         # The disable case is the only one whose relationship legitimately leaves
         # Mounted, because that transition is the behaviour under test. Its rows
         # must still name the same two actors whenever a pair exists at all.
-        if($isDisable){
+        # Campaign B leaves A entirely for a while: its rows outside A carry no
+        # pair at all, and every mounted row still names A's exact two actors.
+        if($isDisable-or$isCampaignB){
             if($row.relationship-cnotin @('Mounted','Unmounted')){
                 throw 'P07 disable row reports a relationship state outside mounted and unmounted.'
             }
             if($row.relationship-ceq'Mounted'-and
                 ($row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id)){
                 throw 'P07 disable row changed the owned pair actors.'
+            }
+            if($isCampaignB-and$row.relationship-cne'Mounted'-and($null-ne$row.rider-or$null-ne$row.mount)){
+                throw 'P07 campaign B row outside A still describes A actors.'
             }
         }
         elseif($row.relationship-cne'Mounted'-or$row.rider.Id-cne$initial[0].rider.Id-or
@@ -1053,12 +1059,200 @@ function Assert-KmcDisableLifecycleEvidence {
     }
 }
 
+# One native archive's own members, read from its bytes: the engine's header and
+# whatever KMC wrote beside it. Nothing is inferred from evidence rows here.
+function Read-KmcCampaignArchiveMembers {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    Add-Type -AssemblyName System.IO.Compression
+    $stream=$null;$archive=$null
+    try{
+        $stream=[IO.FileStream]::new($Path,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read)
+        $archive=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
+        $headers=@($archive.Entries|Where-Object FullName -CEQ 'header.json')
+        $members=@($archive.Entries|Where-Object FullName -CEQ 'kmc-mounted-state')
+        if($headers.Count-ne1-or$headers[0].Length-le0-or$headers[0].Length-gt1MB-or$members.Count-gt1){throw 'Campaign B archive members are missing, ambiguous or oversized.'}
+        $reader=[IO.StreamReader]::new($headers[0].Open(),[Text.UTF8Encoding]::new($false,$true))
+        try{$headerJson=$reader.ReadToEnd()}finally{$reader.Dispose()}
+        Assert-KmcJsonObjectMembersUnique -Json $headerJson -Description 'campaign B archive header'
+        $kmc=$null
+        if($members.Count-eq1){
+            if($members[0].Length-le0-or$members[0].Length-gt128KB){throw 'Campaign B archive KMC member is empty or oversized.'}
+            $reader=[IO.StreamReader]::new($members[0].Open(),[Text.UTF8Encoding]::new($false,$true))
+            try{$kmcJson=$reader.ReadToEnd()}finally{$reader.Dispose()}
+            Assert-KmcJsonObjectMembersUnique -Json $kmcJson -Description 'campaign B archive KMC member'
+            $kmc=$kmcJson|ConvertFrom-Json
+        }
+        return [pscustomobject]@{header=($headerJson|ConvertFrom-Json);kmc=$kmc}
+    }finally{if($archive){$archive.Dispose()};if($stream){$stream.Dispose()}}
+}
+
+# A campaign-B archive as recorded and as it lies on disk: a real native save of
+# the engine-minted campaign alone. Its header is B's; anything KMC wrote beside
+# it records no pair, no bindings and B's own identity, never A's.
+function Assert-KmcCampaignBArchive {
+    param($Recorded,[string]$Root,[string]$Leaf,[string]$Type,[string]$GameId,[string]$GameName,[string]$Area,[string]$FixtureGameId)
+    if($null-eq$Recorded){throw "P07 campaign B lacks its $Leaf archive observation."}
+    if($Recorded.leaf-cne$Leaf-or$Recorded.nativeType-cne$Type-or$Recorded.operation-cne'None'-or
+        $Recorded.gameId-cne$GameId-or$Recorded.gameName-cne$GameName-or$Recorded.area-cne$Area-or
+        $Recorded.sha256-cnotmatch'^[0-9a-f]{64}$'-or$Recorded.length-le0-or
+        $Recorded.path-cne(Join-Path $Root $Leaf)){
+        throw "P07 campaign B $Leaf is not the exact declared archive of the minted campaign."
+    }
+    if($Recorded.kmcMember-cnotin @('Missing','Current')){throw "P07 campaign B $Leaf carries unreadable KMC metadata."}
+    # The serializer may omit default or null members, so absent and explicitly
+    # empty both count as "no pair"; anything present and populated does not.
+    if($Recorded.kmcMember-ceq'Current'){
+        $s=$Recorded.snapshot
+        if($null-eq$s-or(Get-KmcOptionalMember $s 'Mounted')-ne$false-or$null-ne(Get-KmcOptionalMember $s 'Rider')-or
+            $null-ne(Get-KmcOptionalMember $s 'Mount')-or@(@(Get-KmcOptionalMember $s 'Slots')|Where-Object{$null-ne$_}).Count-ne0-or
+            (Get-KmcOptionalMember $s 'CampaignId')-cne$GameId-or(Get-KmcOptionalMember $s 'AreaId')-cne$Area){
+            throw "P07 campaign B $Leaf recorded a pair, bindings or a foreign campaign."
+        }
+    }elseif($null-ne$Recorded.snapshot){throw "P07 campaign B $Leaf claims no KMC member yet records a snapshot."}
+    $path=Join-Path $Root $Leaf
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw "P07 campaign B $Leaf did not survive its own run."}
+    if((Get-KmcSha256 $path)-cne$Recorded.sha256-or(Get-Item -LiteralPath $path).Length-ne$Recorded.length){
+        throw "P07 campaign B $Leaf bytes changed after the run recorded them."
+    }
+    $members=Read-KmcCampaignArchiveMembers -Path $path
+    $h=$members.header
+    if($h.GameId-cne$GameId-or$h.GameName-cne$GameName-or$h.Area-cne$Area-or$h.Type-cne$Type-or
+        $h.GameId-ceq$FixtureGameId){
+        throw "P07 campaign B $Leaf native header is not the minted campaign's own."
+    }
+    if(($null-ne$members.kmc)-ne($Recorded.kmcMember-ceq'Current')){throw "P07 campaign B $Leaf KMC member presence differs from the recorded read."}
+    if($null-ne$members.kmc){
+        $k=$members.kmc
+        if((Get-KmcOptionalMember $k 'Mounted')-ne$false-or$null-ne(Get-KmcOptionalMember $k 'Rider')-or$null-ne(Get-KmcOptionalMember $k 'Mount')-or
+            @(@(Get-KmcOptionalMember $k 'Slots')|Where-Object{$null-ne$_}).Count-ne0-or
+            (Get-KmcOptionalMember $k 'CampaignId')-cne$GameId-or(Get-KmcOptionalMember $k 'CampaignId')-ceq$FixtureGameId-or
+            (Get-KmcOptionalMember $k 'AreaId')-cne$Area){
+            throw "P07 campaign B $Leaf on-disk KMC member leaks a pair, bindings or A's campaign."
+        }
+    }
+}
+
+function Get-KmcOptionalMember { param($Object,[string]$Name)
+    if($null-eq$Object){return $null}
+    $property=$Object.PSObject.Properties[$Name]
+    if($null-eq$property){return $null}
+    return $property.Value
+}
+
+# Campaign B: A mounted with real expenditure and two archives; the engine's own
+# new game with an identity it minted and KMC froze on B's first write; clean B
+# archives; then A restored exactly, every archive byte-identical throughout.
+function Assert-KmcCampaignBEvidence {
+    param($Request,$Rows)
+    $order=@('native-write-complete','campaign-b-expenditure','campaign-b-departed','campaign-b-started','campaign-b-frozen','campaign-b-returned')
+    $stages=@{}
+    foreach($kind in $order){
+        $matched=@($Rows|Where-Object kind -CEQ $kind)
+        if($matched.Count-ne1){throw "P07 campaign B lacks its exact $kind observation."}
+        $stages[$kind]=$matched[0]
+    }
+    $previous=-1
+    foreach($kind in $order){
+        $row=$stages[$kind]
+        if($row.checkpoint-cne'campaign-b'){throw "P07 campaign B row $kind is not the declared case."}
+        if($row.stage-lt$previous){throw "P07 campaign B row $kind is out of its measured order."}
+        if($row.relationship-cne'Mounted'-and($null-ne$row.rider-or$null-ne$row.mount)){
+            throw "P07 campaign B row $kind outside A still describes A actors."
+        }
+        $previous=$row.stage
+    }
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    if($initial.Count-ne1){throw 'P07 campaign B lacks its initial A state.'}
+    $riderId=[string]$initial[0].rider.Id;$mountId=[string]$initial[0].mount.Id
+    $fixtureGameId=[string]$Request.fixture.working.gameId
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
+    $w=$stages['native-write-complete'].detail
+    $e=$stages['campaign-b-expenditure'].detail
+    $d=$stages['campaign-b-departed'].detail
+    $s=$stages['campaign-b-started'].detail
+    $f=$stages['campaign-b-frozen'].detail
+    $r=$stages['campaign-b-returned'].detail
+    # A's two archives: the opening write and the post-expenditure write.
+    if($w.ordinal-ne1-or$w.path-cne(Join-Path $root 'Manual_300_KMC_P01.zks')-or$w.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+        $w.snapshot.Mounted-ne$true-or$w.snapshot.Rider.Id-cne$riderId-or$w.snapshot.Mount.Id-cne$mountId-or
+        $w.snapshot.CampaignId-cne$fixtureGameId){
+        throw 'P07 campaign B first A archive is not the exact mounted opening write.'
+    }
+    $second=$e.secondArchive
+    if($stages['campaign-b-expenditure'].relationship-cne'Mounted'-or$e.moved-le1-or$e.bindings-le0-or$e.snapshots-ne2-or
+        $null-eq$second-or$second.path-cne(Join-Path $root 'Manual_301_KMC_P01.zks')-or$second.leaf-cne'Manual_301_KMC_P01.zks'-or
+        $second.sha256-cnotmatch'^[0-9a-f]{64}$'-or$second.sha256-ceq$w.sha256-or$second.nativeType-cne'Manual'-or
+        $second.gameId-cne$fixtureGameId-or$second.snapshot.Mounted-ne$true-or
+        $second.snapshot.Rider.Id-cne$riderId-or$second.snapshot.Mount.Id-cne$mountId-or
+        $second.snapshot.CampaignId-cne$fixtureGameId-or$e.aFirstHash-cne$w.sha256){
+        throw 'P07 campaign B expenditure did not move the pair and record it in a second distinct A archive.'
+    }
+    if(-not(Test-Path -LiteralPath $second.path -PathType Leaf)-or(Get-KmcSha256 $second.path)-cne$second.sha256){
+        throw 'P07 campaign B second A archive did not survive the run byte-identical.'
+    }
+    # Leaving A: no pair, no lease, nothing minted yet.
+    if($stages['campaign-b-departed'].relationship-ceq'Mounted'-or$null-ne$d.loadedArea-or$d.saveSuspended-ne$false-or
+        $d.activeScope-ne$false-or$d.draining-ne$false-or$d.resetDeferrals-ne0-or
+        $d.aFirstHash-cne$w.sha256-or$d.aSecondHash-cne$second.sha256-or
+        $d.bootstrapDeclared-ne$true-or$d.bootstrapWindowOpen-ne$false-or$d.bootstrapFreezes-ne0-or$null-ne$d.bootstrapGameId){
+        throw 'P07 campaign B departure left A state, a lease, or a premature bootstrap identity behind.'
+    }
+    # Starting B: the engine's own authored preset, window opened immediately
+    # before the native new game, nothing frozen before it.
+    if($s.presetSource-cnotin @('dlc-endless','main-campaign')-or$s.presetArea-cnotmatch'^[0-9a-f]{32}$'-or
+        $s.enterPointArea-cne$s.presetArea-or$s.windowOpened-ne$true-or$s.frozenBefore-ne$false-or
+        $s.autosaveEnabled-ne$true-or$s.bootstrapFreezes-ne0-or$stages['campaign-b-started'].relationship-ceq'Mounted'){
+        throw 'P07 campaign B did not start from the engine preset with the bootstrap window opened first.'
+    }
+    if($s.presetSource-ceq'dlc-endless'-and$s.dlcEnabled-ne$true){throw 'P07 campaign B used DLC content without the installed license.'}
+    # Frozen: the engine minted a fresh identity; the authority froze exactly
+    # that, once, on B's first write; KMC restored nothing into B.
+    $parsed=[Guid]::Empty
+    if(-not[Guid]::TryParse([string]$f.gameId,[ref]$parsed)-or$parsed-eq[Guid]::Empty-or$f.gameId-ceq$fixtureGameId-or
+        -not($f.gameName-is[string])-or$f.gameName.Length-eq0-or$f.gameName-cmatch'[\x00-\x1f\x7f]'-or
+        $f.freezeCount-ne1-or$f.windowOpen-ne$false-or$f.bootstrapGameId-cne$f.gameId-or$f.bootstrapGameName-cne$f.gameName-or
+        $f.area-cne$s.presetArea-or$f.loadedArea-cne$f.area-or$f.bindings-ne0-or
+        $stages['campaign-b-frozen'].relationship-ceq'Mounted'-or
+        $f.semantics-ne$d.semantics-or$f.presentation-ne$d.presentation-or
+        $f.aFirstSha256-cne$w.sha256-or$f.aSecondSha256-cne$second.sha256){
+        throw 'P07 campaign B identity was not minted by the engine and frozen exactly once, or KMC carried A state into B.'
+    }
+    if($f.gameName-ceq$Request.fixture.working.gameName-and$f.gameId-ceq$fixtureGameId){throw 'P07 campaign B reused the fixture campaign.'}
+    Assert-KmcCampaignBArchive -Recorded $f.autosave -Root $root -Leaf 'Auto_1.zks' -Type 'Auto' -GameId $f.gameId -GameName $f.gameName -Area $f.area -FixtureGameId $fixtureGameId
+    if($f.manualSaved-eq$true){
+        if($f.manualAllowed-ne$true){throw 'P07 campaign B wrote a manual save it reported as disallowed.'}
+        Assert-KmcCampaignBArchive -Recorded $f.manual -Root $root -Leaf 'Manual_302_KMC_B.zks' -Type 'Manual' -GameId $f.gameId -GameName $f.gameName -Area $f.area -FixtureGameId $fixtureGameId
+        if($f.manual.internalName-cne'KMC_B'-or$f.manual.sha256-ceq$f.autosave.sha256){throw 'P07 campaign B manual save is not its own distinct archive.'}
+    }elseif($null-ne$f.manual-or$f.manualAllowed-ne$false){
+        throw 'P07 campaign B manual save state is inconsistent.'
+    }elseif(Test-Path -LiteralPath (Join-Path $root 'Manual_302_KMC_B.zks')){
+        throw 'P07 campaign B has an unrecorded manual archive on disk.'
+    }
+    # Returned: A restored once from its own expended archive, exact pair,
+    # bindings, position and debt; every archive byte-identical; B's world
+    # disposed exactly once on the way back.
+    if($stages['campaign-b-returned'].relationship-cne'Mounted'-or$r.gameId-cne$fixtureGameId-or$r.worldIsA-ne$false-or
+        $r.semantics-ne($d.semantics+2)-or$r.presentation-ne($d.presentation+1)-or
+        $r.mountDelta-ge0.5-or$r.riderDelta-ge1.5-or$r.bindingsSaved-le0-or$r.bindingsRestored-ne$r.bindingsSaved-or
+        $r.aFirstSha256-cne$w.sha256-or$r.aSecondSha256-cne$second.sha256-or$r.bAutoSha256-cne$f.autosave.sha256-or
+        ($f.manualSaved-eq$true-and$r.bManualSha256-cne$f.manual.sha256)-or
+        $r.disposals-ne($d.disposals+1)-or$r.bootstrapGameId-cne$f.gameId-or$r.failedSaves-ne0-or$r.rejections-ne0-or
+        $r.saveSuspended-ne$false-or$r.activeScope-ne$false){
+        throw 'P07 campaign B return did not restore A exactly once with every archive intact.'
+    }
+    if($r.riderId-cne$riderId-or$r.mountId-cne$mountId-or$stages['campaign-b-returned'].rider.Id-cne$riderId-or
+        $stages['campaign-b-returned'].mount.Id-cne$mountId){
+        throw 'P07 campaign B return changed the owned pair actors.'
+    }
+}
+
 function Assert-KmcRecoveryPersistenceEvidence {
     param($Request,$Rows)
     if($Request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output')){
         Assert-KmcWorkerDrainEvidence $Request $Rows; return
     }
     if($Request.persistenceCase-ceq'disable-reenable'){ Assert-KmcDisableLifecycleEvidence $Request $Rows; return }
+    if($Request.persistenceCase-ceq'campaign-b'){ Assert-KmcCampaignBEvidence $Request $Rows; return }
     $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
     $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
     $commit=$Request.persistenceCase-ceq'locked-replace'
