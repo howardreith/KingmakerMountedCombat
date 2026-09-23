@@ -205,7 +205,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 game.DefaultPointerController.ClearPointerMode();
                 Check(game.DefaultPointerController.Mode == Kingmaker.Controllers.Clicks.PointerMode.Default &&
                     game.SelectedAbilityHandler.Ability == null, "native-pointer-cancel-before-ground-input");
-                origin = mount.Position; destination = FindDestination(3f);
+                origin = mount.Position; destination = FindContinuationDestination();
                 using (var input = new NativeOrdinaryAttackInput(destination))
                     Check(input.Click(), "ordinary-ground-input");
                 move = mount.Commands.Move as UnitMoveTo;
@@ -324,6 +324,47 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private int arrivalStableFrames;
+
+        // Unqualified destination terrain ended a native route as Interrupt 1.2m
+        // short of an endpoint a point trace had accepted: a Large mount could
+        // not occupy it. A declared transfer therefore selects a route whose
+        // endpoint is clear for the mount's own footprint, and records which one
+        // it took. This chooses where to walk; the movement outcome, progress
+        // and cadence checks are unchanged.
+        private Vector3 FindContinuationDestination()
+        {
+            if (!CrossAreaFixture) return FindDestination(3f);
+            foreach (var distance in new[] { 3f, 2.5f, 2f })
+            {
+                Vector3 candidate;
+                if (!TryFindOccupiableDestination(distance, out candidate)) continue;
+                Write("area-continuation-route", new JObject {
+                    ["requestedDistance"] = distance,
+                    ["destination"] = new JArray(candidate.x, candidate.y, candidate.z),
+                    ["origin"] = new JArray(mount.Position.x, mount.Position.y, mount.Position.z),
+                    ["footprint"] = NativeGroundMovementObservation.CaptureFootprint(mount, candidate) });
+                return candidate;
+            }
+            Write("area-continuation-route", new JObject { ["requestedDistance"] = null,
+                ["origin"] = new JArray(mount.Position.x, mount.Position.y, mount.Position.z),
+                ["footprint"] = NativeGroundMovementObservation.CaptureFootprint(mount, mount.Position) });
+            throw new InvalidOperationException("No occupiable native destination exists for the declared transfer fixture.");
+        }
+
+        private bool TryFindOccupiableDestination(float distance, out Vector3 destinationPoint)
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                var wanted = mount.Position + Quaternion.Euler(0, i * 22.5f, 0) * Vector3.forward * distance;
+                var actual = Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(mount.Position, wanted);
+                if (GeometryUtils.MechanicsDistance(actual, wanted) > 0.25f ||
+                    GeometryUtils.MechanicsDistance(actual, mount.Position) <= distance - 0.5f) continue;
+                var probes = (JArray)NativeGroundMovementObservation.CaptureFootprint(mount, actual)["probes"];
+                if (probes.All(p => (float)p["residual"] <= 0.25f)) { destinationPoint = actual; return true; }
+            }
+            destinationPoint = Vector3.zero;
+            return false;
+        }
 
         private bool ArrivalSettled()
         {
