@@ -244,7 +244,7 @@ function New-KmcFailRow { param([string]$Kind,[bool]$Worldless)
         persistence=[pscustomobject]@{semantics=2;presentation=1}
         detail=[pscustomobject]@{label='B';sha256=$failCopy.descriptor.sha256;corruptedMember=$areaMember
             nativeLoadFailures=0;nativeLoadFailure=$null;rejections=0;nativeWorldDisposals=0
-            afterLoadCallback=$false;currentAreaNull=$false;loadedDataNull=$false;combatRestorationPending=$false
+            afterLoadCallback=$false;currentAreaNull=$false;loadedDataNull=$false;combatRestorationPending=$false;gameMode='Default'
             semantic=2;presentation=1;relationship='Mounted';unitCount=2;saveSuspended=$false;pendingWrites=$false
             stopAllRequired=$true;rules=1;rolls=1}}
     if(-not$Worldless){
@@ -269,16 +269,16 @@ foreach($index in 2,3){
     $failRows[$index].relationship='Unmounted'
     $d=$failRows[$index].detail
     $d.nativeLoadFailures=1;$d.nativeLoadFailure='JsonReaderException: unexpected end of input'
-    $d.nativeWorldDisposals=1;$d.currentAreaNull=$true;$d.loadedDataNull=$true
+    $d.nativeWorldDisposals=1;$d.currentAreaNull=$true;$d.loadedDataNull=$true;$d.afterLoadCallback=$true;$d.gameMode='None'
     $d.relationship='Unmounted';$d.unitCount=0
 }
 $failRows[4].detail.label='A';$failRows[4].detail.sha256=$failHash
 $failRows[5].detail.label='A';$failRows[5].detail.sha256=$failHash
-$failRows[5].detail.nativeLoadFailures=1;$failRows[5].detail.afterLoadCallback=$true
+$failRows[5].detail.nativeLoadFailures=1;$failRows[5].detail.afterLoadCallback=$true;$failRows[5].detail.gameMode='Default'
 $failRows[5].detail.semantic=4;$failRows[5].detail.presentation=2
 $failRows[5].detail.nativeWorldDisposals=2
 Assert-KmcValidationPersistenceEvidence $failRequest $failRows $failGame;$script:passes++
-foreach($bad in @('no-failure','admission-refusal','no-disposal','false-callback','world-survived','metadata-retained',
+foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mode','world-survived','metadata-retained',
     'combat-fence','restored-actor','stale-pair','stale-unit','save-suspended','pending-writes','wrong-member',
     'empty-failure-text','retry-no-callback','retry-still-unmounted','retry-extra-failure','retry-wrong-semantics',
     'retry-no-metadata','stale-actor-in-worldless-row','missing-observation','missing-recovery','out-of-order','wrong-selection')){
@@ -287,7 +287,7 @@ foreach($bad in @('no-failure','admission-refusal','no-disposal','false-callback
         'no-failure' {$negative[2].detail.nativeLoadFailures=0}
         'admission-refusal' {$negative[2].detail.rejections=1}
         'no-disposal' {$negative[2].detail.nativeWorldDisposals=0}
-        'false-callback' {$negative[2].detail.afterLoadCallback=$true}
+        'active-game-mode' {$negative[2].detail.gameMode='Default'}
         'world-survived' {$negative[2].detail.currentAreaNull=$false}
         'metadata-retained' {$negative[2].detail.loadedDataNull=$false}
         'combat-fence' {$negative[2].detail.combatRestorationPending=$true}

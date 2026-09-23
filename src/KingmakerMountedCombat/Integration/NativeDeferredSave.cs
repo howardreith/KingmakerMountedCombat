@@ -58,7 +58,16 @@ namespace KingmakerMountedCombat.Integration
             {
                 var record = Current.GetValue(owner);
                 if (!ReferenceEquals(Enumerator(record), iterator) ||
-                    !RetireFailedSave(record, iterator as DeferredSaveEnumerator<object>, exception)) throw;
+                    !RetireFailedSave(record, iterator as DeferredSaveEnumerator<object>, exception))
+                {
+                    // Not an owned save being retired, so this is a native
+                    // loading process failing on its own - for example
+                    // SceneLoader.LoadAreaCoroutine when an area member cannot
+                    // be deserialized. Record it and rethrow unchanged; native
+                    // LoadingProcess.Update still owns the outcome.
+                    MountedPatchController.ReportFailedNativeLoading(exception);
+                    throw;
+                }
                 // Native TickLoading still owns progress, screen release and the
                 // next queued operation. A failed write has no success callback.
                 return false;

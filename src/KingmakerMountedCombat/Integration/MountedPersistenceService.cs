@@ -250,7 +250,7 @@ namespace KingmakerMountedCombat.Integration
             if (scope.Sequence == loadSequence) scope.World.Complete(Game.Instance?.Player);
         }
 
-        private void ObserveNativeLoadFailure(Exception exception)
+        internal void ObserveNativeLoadFailure(Exception exception)
         {
             NativeLoadFailureCount++;
             NativeLoadFailure = exception.GetType().Name + ": " + exception.Message;
