@@ -122,6 +122,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         s => bindings.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
                         "cold-owned-hotbar-bindings");
                     Check(controls.NativeCastRequestCount == 0, "cold-restoration-did-not-cast-mount");
+                    if (AreaAutoColdCase) QualifyTransitionAutoColdLoad();
                 }
                 else
                 {
@@ -265,6 +266,35 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!targetService.DestroyAndVerify()) return;
                 Check(relationship.State == RelationshipState.Mounted, "mounted-continuation-after-save-or-cold-load");
                 Write("usable-continuation-complete");
+                // A transition autosave must also still support an ordinary
+                // subsequent write from the world it actually restored.
+                if (AreaAutoColdCase)
+                {
+                    callback = false;
+                    game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);
+                    stage = 7; return;
+                }
+                Dispose();
+                Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
+                    AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
+                Completed = true;
+            }
+            if (stage == 7)
+            {
+                if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
+                var saved = game.SaveManager.Single(s => s.Name == "KMC_P01");
+                if (saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
+                var written = NativeMountedSaveStorage.Read(saved.Saver);
+                Check(written.Kind == MountedSaveReadKind.Current && written.Data.Mounted &&
+                    written.Data.Rider.Id == rider.UniqueId && written.Data.Mount.Id == mount.UniqueId &&
+                    written.Data.AreaId == ExpectedAutoColdArea && persistence.SnapshotCount == 1 &&
+                    Hash(saved.FolderName) != request.PersistenceLoad.Sha256,
+                    "P07-auto-cold-supports-a-subsequent-actual-write");
+                Write("native-write-complete", new JObject {
+                    ["ordinal"] = 1, ["path"] = saved.FolderName, ["sha256"] = Hash(saved.FolderName),
+                    ["length"] = new FileInfo(saved.FolderName).Length, ["nativeType"] = saved.Type.ToString(),
+                    ["nativeCallback"] = callback, ["operation"] = saved.OperationState.ToString(),
+                    ["snapshot"] = JObject.FromObject(written.Data, MountedSaveCodec.CreateSerializer()) });
                 Dispose();
                 Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
                     AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };

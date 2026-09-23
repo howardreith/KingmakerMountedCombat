@@ -53,9 +53,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 var entries = new System.Collections.Generic.List<PersistenceSaveEntry>
                 {
                     new PersistenceSaveEntry { FileName = fixture.FileName, InternalName = fixture.InternalName,
-                        SaveType = request.Scenario == "persistence-p05-load" ? RuntimePersistenceScenario.SlotType(request.PersistenceCase).ToString() : "Manual",
+                        SaveType = request.Scenario == "persistence-p05-load" ? RuntimePersistenceScenario.SlotType(request.PersistenceCase).ToString() :
+                            RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase) ? "Auto" : "Manual",
                         Area = fixture.Area, InitialSha256 = fixture.Sha256, Writable = false }
                 };
+                // A transition autosave is loaded read-only; the subsequent
+                // ordinary write it must support lands in that same loaded area.
+                if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase))
+                    entries.Add(new PersistenceSaveEntry {
+                        FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01",
+                        SaveType = "Manual", Area = fixture.Area, Writable = true });
                 if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p04-save") entries.Add(new PersistenceSaveEntry
                 {
                     FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01", SaveType = "Manual", Area = fixture.Area,
