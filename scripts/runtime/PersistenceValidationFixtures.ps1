@@ -250,13 +250,17 @@ function Assert-KmcFailedAreaLoadEvidence {
     if($d.corruptedMember-cne([string]$Request.persistenceAlternate.area+'.json')){
         throw 'P06 failed load did not target the archive''s own loaded area member.'
     }
-    if($d.nativeLoadFailures-ne1-or[string]::IsNullOrEmpty([string]$d.nativeLoadFailure)){
-        throw 'P06 failed load did not record exactly one real native failure.'
+    if($d.nativeLoadFailures-lt1-or[string]::IsNullOrEmpty([string]$d.nativeLoadFailure)){
+        throw 'P06 failed load did not record a real native loading failure.'
     }
     if($d.rejections-ne0){throw 'P06 corrupt archive was refused at admission instead of failing later.'}
     if($d.nativeWorldDisposals-ne1){throw 'P06 failed load did not actually dispose the previous world first.'}
-    if($d.afterLoadCallback-ne$false){throw 'P06 failed load reported a successful load callback.'}
-    if($d.currentAreaNull-ne$true){throw 'P06 failed load left a completed world behind.'}
+    # The engine's own after-load callback fires because SaveManager.LoadRoutine
+    # completed; the area load fails afterwards in SceneLoader. The callback is
+    # therefore recorded, not asserted - the absence of a world is the claim.
+    if($d.currentAreaNull-ne$true-or$d.gameMode-cne'None'){
+        throw 'P06 failed load left a completed world or an active game mode behind.'
+    }
     if($d.loadedDataNull-ne$true-or$d.combatRestorationPending-ne$false){
         throw 'P06 failed load retained selected metadata or a combat fence.'
     }

@@ -275,6 +275,11 @@ namespace KingmakerMountedCombat.Integration
 
         internal static void ReportFailedSave(Exception exception) => PatchBridge.Persistence?.ReportFailedSave(exception);
 
+        // A native loading process that failed and is not an owned save being
+        // retired. Observation only: the exception is rethrown unchanged.
+        internal static void ReportFailedNativeLoading(Exception exception) =>
+            PatchBridge.Persistence?.ObserveNativeLoadFailure(exception);
+
         private static class PatchBridge
         {
             internal static MountedChargeSafetyService ChargeSafety;

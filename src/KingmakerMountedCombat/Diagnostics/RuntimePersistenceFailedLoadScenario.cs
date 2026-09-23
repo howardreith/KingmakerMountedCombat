@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int failedLoadSettleFrames;
         private bool failedLoadStopAllRequired;
         private bool failedLoadLoadingCleared;
+        private bool failedLoadSawLoading;
         private int failedLoadBeforeDisposals;
         private int failedLoadBeforeRejections;
         private int failedLoadBeforeSemantic;
@@ -63,35 +64,49 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (validationStage == 1)
             {
-                // The corrupt area member fails inside ThreadedGameLoader, after
-                // Game.DisposeState already destroyed the previous world, so there
-                // is no loaded area and the native pump has no handler of its own.
-                // Record every frame before asserting anything.
+                // Measured: the corrupt member is unstashed by
+                // AreaDataStash.UnstashAreaState inside SceneLoader.LoadAreaCoroutine,
+                // a LATER loading process than SaveManager.LoadRoutine. LoadRoutine
+                // therefore completes and its own after-load callback legitimately
+                // fires; the area load then fails and LoadingProcess.Update rethrows
+                // it as LoadGameException. So the callback is not the signal - the
+                // absence of a loaded world is. Record every frame before asserting.
                 failedLoadFrames++;
-                if (!LoadingProcess.Instance.IsLoadingInProcess) failedLoadLoadingCleared = true;
-                if (persistence.NativeLoadFailureCount == 0)
+                if (LoadingProcess.Instance.IsLoadingInProcess) failedLoadSawLoading = true;
+                else failedLoadLoadingCleared = true;
+                var settled = failedLoadSawLoading && !LoadingProcess.Instance.IsLoadingInProcess &&
+                    (persistence.NativeLoadFailureCount > 0 || game.CurrentlyLoadedArea == null);
+                if (!settled)
                 {
                     if (failedLoadFrames > 1200)
                         throw new InvalidOperationException("P06 native load neither failed nor completed: loading=" +
-                            LoadingProcess.Instance.IsLoadingInProcess + " area=" +
-                            (game.CurrentlyLoadedArea == null ? "null" : "present") + " callback=" + validationCallback);
+                            LoadingProcess.Instance.IsLoadingInProcess + " sawLoading=" + failedLoadSawLoading +
+                            " area=" + (game.CurrentlyLoadedArea == null ? "null" : "present") +
+                            " failures=" + persistence.NativeLoadFailureCount + " callback=" + validationCallback);
                     return;
                 }
                 // Let the native pump take its following ticks so the observation
-                // covers what the engine does after the throw, not only the throw.
+                // covers what the engine does after the failure, not only the failure.
                 if (++failedLoadSettleFrames < 12) return;
                 // These two references belong to the world the engine destroyed;
                 // keeping them would describe actors that no longer exist.
                 rider = null; mount = null;
                 Write("failed-load-observed", FailedLoadDetail());
-                Check(persistence.NativeLoadFailureCount == 1 && !string.IsNullOrEmpty(persistence.NativeLoadFailure),
-                    "P06-exactly-one-real-native-load-failure-after-disposal");
+                // Multiplicity is not a safety property here and was not measured
+                // in advance, so the claim is that a real native failure occurred;
+                // the exact count is recorded in the observation instead.
+                Check(persistence.NativeLoadFailureCount >= 1 && !string.IsNullOrEmpty(persistence.NativeLoadFailure),
+                    "P06-real-native-loading-failure-observed-after-disposal");
                 Check(persistence.RejectedLoadCount == failedLoadBeforeRejections,
                     "P06-corrupt-area-member-passed-normal-admission-and-failed-later");
                 Check(persistence.NativeWorldDisposalCount == failedLoadBeforeDisposals + 1,
                     "P06-previous-world-was-actually-disposed-before-the-failure");
-                Check(!validationCallback, "P06-failed-load-reports-no-successful-load-callback");
-                Check(game.CurrentlyLoadedArea == null, "P06-failed-load-leaves-no-completed-world");
+                // The engine's own after-load callback fires because LoadRoutine
+                // itself completed; that is a native signal KMC must not treat as
+                // a restored world, so the world state is what is asserted.
+                Check(game.CurrentlyLoadedArea == null &&
+                    game.CurrentMode == Kingmaker.GameModes.GameModeType.None,
+                    "P06-failed-load-completes-no-world-despite-the-native-load-callback");
                 Check(persistence.LoadedData == null && !persistence.CombatRestorationPending,
                     "P06-failed-load-retains-no-selected-metadata-or-combat-fence");
                 Check(persistence.SemanticRestoreCount == failedLoadBeforeSemantic &&
@@ -172,7 +187,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["afterLoadCallback"] = validationCallback,
                 ["loadingInProcess"] = LoadingProcess.Instance.IsLoadingInProcess,
                 ["loadingClearedItself"] = failedLoadLoadingCleared,
+                ["sawLoading"] = failedLoadSawLoading,
                 ["stopAllRequired"] = failedLoadStopAllRequired,
+                ["gameMode"] = game?.CurrentMode.ToString(),
                 ["currentAreaNull"] = game?.CurrentlyLoadedArea == null,
                 ["playerNull"] = game?.Player == null,
                 ["unitCount"] = game?.State?.Units == null ? -1 : game.State.Units.Count(),
