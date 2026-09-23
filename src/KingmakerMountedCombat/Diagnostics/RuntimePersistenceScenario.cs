@@ -194,6 +194,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 2)
             {
                 if (rider.Commands.Move != null || mount.Commands.Move != null) return;
+                // Arriving in a new area places the whole party at one enter
+                // point, so ordinary movement waits for their native placement to
+                // settle rather than pathing a Large mount through them. This is
+                // fixture readiness only; no movement threshold changes.
+                if (CrossAreaFixture && !ArrivalSettled()) return;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 // SetAbility(null) still enters Ability mode in this native build.
                 // Use the native Escape/cancel path before an ordinary point click.
@@ -210,11 +215,19 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 3)
             {
                 if (!move.IsFinished) return;
+                // Observation precedes qualification: a blocked or short native
+                // route must still record its measured path and outcome.
+                var movement = NativeGroundMovementObservation.Capture(mount, move) ?? new JObject();
+                movement["result"] = move.Result.ToString();
+                movement["originDistance"] = GeometryUtils.MechanicsDistance(origin, mount.Position);
+                movement["origin"] = new JArray(origin.x, origin.y, origin.z);
+                movement["requestedDestination"] = new JArray(destination.x, destination.y, destination.z);
+                movement["partyMoving"] = game.Player.ControllableCharacters.Count(u => u.Commands.Move != null);
+                Write("movement-completed", movement);
                 Check(move.Result == UnitCommand.ResultType.Success &&
                     GeometryUtils.MechanicsDistance(origin, mount.Position) > 1f, "normal-native-movement");
                 Check(relationship.State == RelationshipState.Mounted &&
                     rider.CombatState.Cooldown.MoveAction <= 0.001f, "transport-retains-pair-without-rider-move-tax");
-                Write("movement-completed", NativeGroundMovementObservation.Capture(mount, move));
                 realtime = new NativeModeTransitionProbe(false);
                 realtime.DispatchTemporaryValueIfRequired();
                 targetService = new DiagnosticCombatTargetService(logger);
@@ -308,6 +321,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(index >= 0 && index < 128 && fact != null, "available-owned-control-slot");
                 rider.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = rider, Ability = fact.Data }, index);
             }
+        }
+
+        private int arrivalStableFrames;
+
+        private bool ArrivalSettled()
+        {
+            var game = Game.Instance;
+            var moving = game.Player.ControllableCharacters.Any(u => u.Commands.Move != null) ||
+                game.Player.ControllableCharacters.Any(u => u.View != null && u.View.AgentASP != null &&
+                    u.View.AgentASP.IsReallyMoving);
+            arrivalStableFrames = moving ? 0 : arrivalStableFrames + 1;
+            if (arrivalStableFrames != 10) return arrivalStableFrames > 10;
+            Write("area-arrival-settled", new JObject {
+                ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
+                ["party"] = game.Player.ControllableCharacters.Count,
+                ["mountPosition"] = new JArray(mount.Position.x, mount.Position.y, mount.Position.z),
+                ["corpulence"] = mount.View == null ? 0f : mount.View.Corpulence });
+            return true;
         }
 
         private Vector3 FindDestination(float distance)
