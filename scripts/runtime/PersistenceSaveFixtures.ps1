@@ -846,16 +846,26 @@ function Assert-KmcWorkerDrainEvidence {
     if($s.saveSuspended-ne$false-or$s.serializationSuspended-ne$false){
         throw 'P07 settlement left a serialization lease held.'
     }
-    # The interrupted save mints its OWN leaf, so the last-good archive must be
-    # intact whichever way the interruption settled. The in-game gate separately
-    # checks the reported outcome against whether that new leaf really exists.
-    if($s.currentSha256-cne$s.lastGoodSha256){
-        throw 'P07 last-good archive changed through the interruption.'
-    }
+    # Measured: the commit replaces the target archive in place and rebinds the
+    # path. So unchanged old bytes are only correct when the commit did NOT
+    # happen; claiming them after a real commit would be false.
     if($s.drainCommitted-eq$true){
         if($s.failedSaves-ne0){throw 'P07 reported a committed interrupted save as failed.'}
+        if([string]::IsNullOrEmpty([string]$s.interruptedPath)){
+            throw 'P07 reported a committed interrupted save with no archive path.'
+        }
+        if($s.replacedInPlace-eq$true){
+            if($s.currentSha256-ceq$s.lastGoodSha256){
+                throw 'P07 claimed a committed in-place replacement whose bytes never changed.'
+            }
+        }elseif($s.currentSha256-cne$s.lastGoodSha256){
+            throw 'P07 committed elsewhere yet the last-good archive changed.'
+        }
     }else{
         if($s.failedSaves-ne1){throw 'P07 did not report the uncommitted interrupted save as failed.'}
+        if($s.currentSha256-cne$s.lastGoodSha256){
+            throw 'P07 reported a failed interruption but the last-good archive changed.'
+        }
     }
     if($written[0].detail.ordinal-ne2-or[string]::IsNullOrEmpty([string]$written[0].detail.sha256)){
         throw 'P07 drain lacks its real subsequent write.'

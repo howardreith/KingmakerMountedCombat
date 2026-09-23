@@ -25,6 +25,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string drainGoodPath;
         private SaveInfo drainGoodSave;
         private string drainInterruptedPath;
+        private string drainSettledHash;
         private SavedNativeActor drainRiderDebt;
         private SavedNativeActor drainMountDebt;
         private bool drainOverlapRefused;
@@ -181,9 +182,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 if (++drainFrames < 12) return;
-                // The interrupted save targets its OWN new leaf, so the last-good
-                // archive is a different file and is checked separately.
-                drainInterruptedPath = Path.Combine(game.SaveManager.SavePath, drainLeaf);
+                // Measured: the commit replaces the target archive in place and
+                // rebinds the path, so the interrupted save lands wherever the
+                // scope's prepared descriptor now points, not at its leaf name.
+                drainInterruptedPath = persistence.LastDrainedSavePath;
                 var committed = persistence.LastDrainedSaveCommitted;
                 var currentHash = Hash(drainGoodPath);
                 Write("drain-settled", DrainDetail(currentHash));
@@ -200,15 +202,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Truthful settlement, either way, checked against the bytes: the
                 // reported outcome must match whether the interrupted leaf really
                 // exists, and the last-good archive must be intact regardless.
-                Check(committed == File.Exists(drainInterruptedPath),
+                Check(!string.IsNullOrEmpty(drainInterruptedPath) &&
+                    committed == File.Exists(drainInterruptedPath),
                     "P07-reported-settlement-matches-whether-the-interrupted-archive-exists");
-                Check(currentHash == drainGoodHash && new FileInfo(drainGoodPath).Length == drainGoodLength,
-                    "P07-last-good-archive-stays-byte-identical-through-the-interruption");
                 if (committed)
-                    Check(NativeMountedSaveStorage.Read(
-                            Game.Instance.SaveManager.Single(s => s.FileName == drainLeaf).Saver).Kind ==
-                        MountedSaveReadKind.Current,
-                        "P07-a-committed-interrupted-save-is-a-real-readable-archive");
+                {
+                    // A committed interruption is a real replacement, so claiming
+                    // the old bytes survived would be false. The replaced archive
+                    // must have changed and must be readable as a real save.
+                    var replacedInPlace = string.Equals(drainInterruptedPath, drainGoodPath, StringComparison.OrdinalIgnoreCase);
+                    Check(!replacedInPlace || currentHash != drainGoodHash,
+                        "P07-a-committed-interrupted-save-really-replaced-the-target-archive");
+                    Check(replacedInPlace || (currentHash == drainGoodHash &&
+                        new FileInfo(drainGoodPath).Length == drainGoodLength),
+                        "P07-a-committed-interruption-elsewhere-leaves-the-last-good-archive-intact");
+                    var landed = game.SaveManager.Single(s => s.FolderName == drainInterruptedPath);
+                    Check(NativeMountedSaveStorage.Read(landed.Saver).Kind == MountedSaveReadKind.Current &&
+                        landed.OperationState == SaveInfo.StateType.None,
+                        "P07-a-committed-interrupted-save-is-a-complete-readable-archive");
+                }
+                else
+                    Check(currentHash == drainGoodHash && new FileInfo(drainGoodPath).Length == drainGoodLength,
+                        "P07-a-failed-interruption-leaves-the-last-good-archive-byte-identical");
                 Check(persistence.FailedSaveCount == (committed ? 0 : 1),
                     "P07-drain-reports-failure-only-when-the-worker-did-not-commit");
                 // Further drains and disposals are no-ops for a settled operation.
@@ -219,6 +234,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(LegitimateContinuation(drainRiderDebt, MountedPersistenceService.CaptureActor(rider), 0) &&
                     LegitimateContinuation(drainMountDebt, MountedPersistenceService.CaptureActor(mount), 0),
                     "P07-drain-conserves-native-action-debt");
+                drainSettledHash = Hash(drainGoodPath);
                 drainFrames = 0; drainStage = 3;
                 return;
             }
@@ -235,12 +251,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (drainStage == 4)
             {
                 if (!callback || LoadingProcess.Instance.IsLoadingInProcess || NativePersistenceIsolation.HasPendingWrites) return;
-                // Each save mints its own leaf, so the subsequent write is the
-                // newest owned archive rather than the descriptor it was asked for.
+                // The commit replaces in place, so the subsequent save is the most
+                // recently written owned archive and must carry new bytes.
                 var archive = game.SaveManager.Where(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
-                    .OrderByDescending(s => s.FileName, StringComparer.Ordinal).First();
-                Check(archive.FolderName != drainGoodPath && archive.OperationState == SaveInfo.StateType.None,
-                    "P07-subsequent-save-is-its-own-complete-archive");
+                    .OrderByDescending(s => new FileInfo(s.FolderName).LastWriteTimeUtc).First();
+                Check(archive.OperationState == SaveInfo.StateType.None &&
+                    Hash(archive.FolderName) != drainSettledHash,
+                    "P07-subsequent-save-is-a-complete-archive-with-new-bytes");
                 var read = NativeMountedSaveStorage.Read(archive.Saver);
                 Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
                     read.Data.Rider.Id == rider.UniqueId && read.Data.Mount.Id == mount.UniqueId &&
@@ -290,6 +307,9 @@ namespace KingmakerMountedCombat.Diagnostics
             ["nativeLoadingNow"] = LoadingProcess.Instance.IsLoadingInProcess,
             ["nativeModeNow"] = Game.Instance?.CurrentMode.ToString(),
             ["lastGoodSha256"] = drainGoodHash, ["lastGoodLength"] = drainGoodLength,
+            ["lastGoodPath"] = drainGoodPath, ["interruptedPath"] = drainInterruptedPath,
+            ["replacedInPlace"] = drainInterruptedPath != null && drainGoodPath != null &&
+                string.Equals(drainInterruptedPath, drainGoodPath, StringComparison.OrdinalIgnoreCase),
             ["currentSha256"] = currentHash, ["feedback"] = persistence.Feedback
         };
 
