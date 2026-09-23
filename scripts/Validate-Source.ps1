@@ -122,6 +122,15 @@ $completeAt = if ($replaceAt -ge 0) { $commitText.IndexOf('ownership?.Complete()
 Assert-Kmc ($replaceAt -ge 0 -and $recordAt -gt $replaceAt -and $rebindAt -gt $recordAt -and
     $completeAt -gt $recordAt) 'the archive commit is recorded before descriptor rebinding and ownership completion'
 
+# The per-frame drain runs on every ordinary frame with nothing draining.
+# Resolving a null scope legitimately answers "owns no worker", so the early
+# return must come first or the release runs against no scope at all.
+$serviceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPersistenceService.cs')
+$drainBody = [Regex]::Match($serviceText, '(?s)private void DrainAbandonedSave\(\).*?\r?\n        \}')
+Assert-Kmc ($drainBody.Success -and
+    $drainBody.Value -match '(?s)var scope = drainingSave;\s*(//[^\r\n]*\r?\n\s*)*if \(scope == null\) return;') `
+    'the per-frame drain returns before resolving when nothing is draining'
+
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'
