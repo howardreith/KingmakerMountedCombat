@@ -41,11 +41,11 @@ namespace KingmakerMountedCombat.Integration
         internal string ActiveSaveLeaf => (activeSave ?? drainingSave)?.Prepared?.FileName;
         internal int ActiveSaveWorkerId
         {
-            get { var task = (activeSave ?? drainingSave)?.Worker; return task == null ? -1 : task.Id; }
+            get { var task = ResolveWorker(activeSave ?? drainingSave); return task == null ? -1 : task.Id; }
         }
         internal bool ActiveSaveWorkerRunning
         {
-            get { var task = (activeSave ?? drainingSave)?.Worker; return task != null && !task.IsCompleted; }
+            get { var task = ResolveWorker(activeSave ?? drainingSave); return task != null && !task.IsCompleted; }
         }
         private long loadSequence;
         private LoadScope restoreLoad;
@@ -98,7 +98,7 @@ namespace KingmakerMountedCombat.Integration
                 // and would clear the overlap guard. Nothing can cancel a started
                 // worker, so defer the release and let Update drain it; the
                 // outcome is only reported once the worker settles.
-                if (ReferenceEquals(activeSave, scope) && !NativeSaveWorkerBoundary.CanReleaseScope(scope.Worker))
+                if (ReferenceEquals(activeSave, scope) && !NativeSaveWorkerBoundary.CanReleaseScope(ResolveWorker(scope)))
                 {
                     if (drainingSave == null)
                     {
@@ -123,12 +123,15 @@ namespace KingmakerMountedCombat.Integration
                 while (true)
                 {
                     NativeSaveWorkerBoundary.RestoreCompletedPlayerReference(routine, scope.World, scope.PartyState);
-                    // Capture the archive worker as soon as the native iterator
-                    // starts it. An interrupted save must be able to tell whether
-                    // its own worker can still commit, which a cumulative counter
-                    // cannot answer for one exact operation.
-                    if (scope.Worker == null) scope.Worker = NativeSaveWorkerBoundary.TaskIfNative(routine);
-                    if (!routine.MoveNext()) break;
+                    // The step itself publishes the worker, so the cache is
+                    // refreshed on BOTH sides of it. Reading only before MoveNext
+                    // leaves a window where the worker exists but the cache is
+                    // still null, and an early disposal in that window would
+                    // treat "no cached task" as "no worker" and release.
+                    CaptureWorker(routine, scope);
+                    var moved = routine.MoveNext();
+                    CaptureWorker(routine, scope);
+                    if (!moved) break;
                     yield return routine.Current;
                 }
             }
@@ -146,6 +149,22 @@ namespace KingmakerMountedCombat.Integration
             if (task.IsFaulted || task.IsCanceled || scope.Prepared.OperationState != SaveInfo.StateType.None ||
                 string.IsNullOrEmpty(scope.Prepared.FolderName) || !System.IO.File.Exists(scope.Prepared.FolderName))
                 throw new CompletedSaveFailureException("The native archive worker did not commit the requested save.");
+        }
+
+        private static void CaptureWorker(IEnumerator<object> routine, SaveScope scope)
+        {
+            if (scope.Worker == null) scope.Worker = NativeSaveWorkerBoundary.TaskIfNative(routine);
+        }
+
+        // Resolved at the decision point, not trusted from the cache: the step
+        // that publishes the worker may have run since the cache was last
+        // refreshed, so a null cached task is never proof that no worker exists.
+        private static System.Threading.Tasks.Task ResolveWorker(SaveScope scope)
+        {
+            if (scope == null) return null;
+            if (scope.Worker == null && scope.Routine != null)
+                scope.Worker = NativeSaveWorkerBoundary.TaskIfNative(scope.Routine);
+            return scope.Worker;
         }
 
         private void ReleaseSaveScope(SaveScope scope)
@@ -171,8 +190,9 @@ namespace KingmakerMountedCombat.Integration
         private void DrainAbandonedSave()
         {
             var scope = drainingSave;
-            if (scope?.Worker == null || !scope.Worker.IsCompleted) return;
-            var committed = !scope.Worker.IsFaulted && !scope.Worker.IsCanceled && scope.Json != null &&
+            var worker = ResolveWorker(scope);
+            if (worker == null || !worker.IsCompleted) return;
+            var committed = !worker.IsFaulted && !worker.IsCanceled && scope.Json != null &&
                 scope.Prepared != null && !string.IsNullOrEmpty(scope.Prepared.FolderName) &&
                 scope.Prepared.OperationState == SaveInfo.StateType.None &&
                 System.IO.File.Exists(scope.Prepared.FolderName);
