@@ -12,13 +12,23 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal sealed partial class RuntimePersistenceScenario
     {
-        private bool WorkerDrainCase => RecoveryCase && request.PersistenceCase == "serialization-cancel";
+        // Both variants walk the same interruption; they differ only in what they
+        // leave behind. The plain case proves a later save still works, which
+        // overwrites the interrupted archive in place. The -output variant stops
+        // at settlement so that archive survives for its own cold load, because a
+        // later successful write is an additional recovery test, not a substitute
+        // for loading the interrupted operation's own committed bytes.
+        private bool WorkerDrainCase => RecoveryCase &&
+            (request.PersistenceCase == "serialization-cancel" ||
+             request.PersistenceCase == "serialization-cancel-output");
+        private bool DrainOutputCase => RecoveryCase && request.PersistenceCase == "serialization-cancel-output";
         private int drainStage;
         private int drainFrames;
         private IDisposable drainHold;
         private bool drainSaveCallback;
         private string drainLeaf;
         private int drainWorkerId = -1;
+        private bool drainWorkerCachedAtHold;
         private int drainWorkerEntriesAtHold;
         private string drainGoodHash;
         private long drainGoodLength;
@@ -115,17 +125,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 drainFrames++;
                 // The in-flight boundary must be THIS operation's worker: its own
                 // Task identity, observed at the hold, not a cumulative count.
-                if (!NativeSaveWorkerBoundary.WorkerHeld || !persistence.ActiveSaveWorkerRunning ||
-                    persistence.ActiveSaveWorkerId < 0 || string.IsNullOrEmpty(persistence.ActiveSaveLeaf))
+                // Gate on the worker's OWN entry, never on an accessor that would
+                // resolve and latch it. Waiting for ActiveSaveWorkerId to become
+                // valid steps past the very window this case exists to cover: the
+                // task is live but the wrapper has not yet observed it.
+                if (!NativeSaveWorkerBoundary.WorkerHeld)
                 {
                     if (drainFrames > 1200)
                         throw new InvalidOperationException("P07 owned save worker never reached its held boundary: held=" +
-                            NativeSaveWorkerBoundary.WorkerHeld + " running=" + persistence.ActiveSaveWorkerRunning +
-                            " entries=" + NativeSaveWorkerBoundary.WorkerEntryCount);
+                            NativeSaveWorkerBoundary.WorkerHeld + " entries=" + NativeSaveWorkerBoundary.WorkerEntryCount);
                     return;
                 }
+                // Raw latch state BEFORE anything below resolves it.
+                drainWorkerCachedAtHold = persistence.ActiveSaveWorkerCached;
                 drainLeaf = persistence.ActiveSaveLeaf;
                 drainWorkerId = persistence.ActiveSaveWorkerId;
+                Check(persistence.ActiveSaveWorkerRunning && drainWorkerId >= 0 &&
+                    !string.IsNullOrEmpty(drainLeaf),
+                    "P07-interruption-boundary-resolves-this-operations-own-running-worker");
                 drainWorkerEntriesAtHold = NativeSaveWorkerBoundary.WorkerEntryCount;
                 drainNativePaused = game.IsPaused;
                 drainNativeLoading = LoadingProcess.Instance.IsLoadingInProcess;
@@ -316,6 +333,32 @@ namespace KingmakerMountedCombat.Diagnostics
                     LegitimateContinuation(drainMountDebt, MountedPersistenceService.CaptureActor(mount), 0),
                     "P07-drain-conserves-native-action-debt");
                 drainSettledHash = Hash(drainGoodPath);
+                if (DrainOutputCase)
+                {
+                    // Stop here: this archive IS the interrupted operation's own
+                    // committed output, and its exact bytes must survive the run
+                    // so a fresh process can load them.
+                    var interrupted = game.SaveManager.Single(s => s.FolderName == drainGoodPath);
+                    var settled = NativeMountedSaveStorage.Read(interrupted.Saver);
+                    Check(interrupted.OperationState == SaveInfo.StateType.None &&
+                        settled.Kind == MountedSaveReadKind.Current && settled.Data.Mounted &&
+                        settled.Data.Rider.Id == rider.UniqueId && settled.Data.Mount.Id == mount.UniqueId,
+                        "P07-interrupted-output-is-a-complete-mounted-archive");
+                    Write("drain-interrupted-output", new JObject {
+                        ["path"] = drainGoodPath, ["sha256"] = drainSettledHash,
+                        ["length"] = new FileInfo(drainGoodPath).Length,
+                        ["committed"] = persistence.LastDrainedSaveCommitted,
+                        ["drains"] = persistence.DrainedSaveCount,
+                        ["deferrals"] = persistence.DeferredSaveCancellationCount });
+                    Write("native-write-complete", new JObject {
+                        ["ordinal"] = 2, ["path"] = drainGoodPath, ["sha256"] = drainSettledHash,
+                        ["length"] = new FileInfo(drainGoodPath).Length,
+                        ["nativeType"] = interrupted.Type.ToString(), ["nativeCallback"] = true,
+                        ["operation"] = interrupted.OperationState.ToString(),
+                        ["snapshot"] = JObject.FromObject(settled.Data, MountedSaveCodec.CreateSerializer()) });
+                    recoveryContinuation = true; stage = 2;
+                    return;
+                }
                 drainFrames = 0; drainStage = 4;
                 return;
             }
@@ -386,6 +429,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["preparedLeaf"] = drainLeaf, ["workerTaskId"] = drainWorkerId,
             ["workerRunning"] = persistence.ActiveSaveWorkerRunning,
             ["workerHeld"] = NativeSaveWorkerBoundary.WorkerHeld,
+                ["workerCachedAtHold"] = drainWorkerCachedAtHold,
             ["heldLeaf"] = NativeSaveWorkerBoundary.HeldWorkerLeaf,
             ["workerHolds"] = NativeSaveWorkerBoundary.WorkerHoldCount,
             ["workerEntries"] = NativeSaveWorkerBoundary.WorkerEntryCount,

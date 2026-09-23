@@ -107,11 +107,36 @@ namespace KingmakerMountedCombat.Integration
         internal static Task TaskIfNative(IEnumerator<object> routine) =>
             routine != null && routine.GetType() == Iterator ? (Task)SaveTask.GetValue(routine) : null;
 
-        // May an owned save scope release its protections now? Only when no
-        // worker ever started, or the one that did can no longer commit. A
-        // faulted or canceled task is finished and therefore releasable; a
-        // running one is not, and nothing in the engine can cancel it.
-        internal static bool CanReleaseScope(Task worker) => worker == null || worker.IsCompleted;
+        // Authoritative read of an operation's archive worker.
+        //
+        // Static inspection of the installed assembly settles what this can rely
+        // on: the native iterator stores <saveTask>5__2 (0x04008CEA) exactly once,
+        // at IL_0621 of MoveNext, and nothing -- no Dispose, no finally -- ever
+        // writes it again. The field therefore outlives disposal, so reading it at
+        // the release boundary is trustworthy even after the routine is disposed.
+        //
+        // Returns true only when the answer is established: the routine is the
+        // native iterator and its field was read (the task may legitimately be
+        // null, meaning no worker was ever created), or the routine is not the
+        // native iterator at all and so owns no worker of ours. A read that fails
+        // returns false, and "could not establish" must never be treated as
+        // "verified no worker ever started".
+        internal static bool TryReadWorker(IEnumerator<object> routine, out Task worker)
+        {
+            worker = null;
+            if (routine == null) return false;
+            if (routine.GetType() != Iterator) return true;
+            try { worker = (Task)SaveTask.GetValue(routine); return true; }
+            catch (Exception) { worker = null; return false; }
+        }
+
+        // May an owned save scope release its protections now? Only when the
+        // worker question is settled AND either no worker was ever created or the
+        // one that was can no longer commit. A faulted or canceled task is
+        // finished and therefore releasable; a running one is not, and nothing in
+        // the engine can cancel it. An unestablished answer defers.
+        internal static bool CanReleaseScope(bool established, Task worker) =>
+            established && (worker == null || worker.IsCompleted);
 
         // Bounded wait for a worker that cannot be canceled, used only where
         // there is no later frame to drain it. A faulted or canceled worker

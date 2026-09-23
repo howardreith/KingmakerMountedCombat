@@ -320,15 +320,15 @@ public static class KmcPersistenceContractProbe
         broken.SetException(new InvalidOperationException("owned serializer fault"));
         var stopped=new System.Threading.Tasks.TaskCompletionSource<bool>();
         stopped.SetCanceled();
-        Check((bool)release.Invoke(null,new object[]{null}),
+        Check((bool)release.Invoke(null,new object[]{true,null}),
             "a save that never started a worker may release its scope immediately");
-        Check(!(bool)release.Invoke(null,new object[]{running.Task}),
+        Check(!(bool)release.Invoke(null,new object[]{true,running.Task}),
             "a running archive worker defers the owned save scope release");
-        Check((bool)release.Invoke(null,new object[]{finished.Task}),
+        Check((bool)release.Invoke(null,new object[]{true,finished.Task}),
             "a completed archive worker releases the owned save scope");
-        Check((bool)release.Invoke(null,new object[]{broken.Task}),
+        Check((bool)release.Invoke(null,new object[]{true,broken.Task}),
             "a faulted archive worker is finished and releases the owned save scope");
-        Check((bool)release.Invoke(null,new object[]{stopped.Task}),
+        Check((bool)release.Invoke(null,new object[]{true,stopped.Task}),
             "a canceled archive worker is finished and releases the owned save scope");
         // The step that publishes the worker can run after the cache was last
         // refreshed, so a scope whose cached task is null but whose routine
@@ -342,17 +342,73 @@ public static class KmcPersistenceContractProbe
         saveScope.GetField("Routine",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(lateScope,lateIterator);
         Check(saveScope.GetField("Worker",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(lateScope)==null,
             "a scope that has not cached its worker starts with none");
-        var resolved=resolve.Invoke(null,new[]{lateScope});
-        Check(object.ReferenceEquals(resolved,latePublish.Task),
+        var lateArgs=new object[]{lateScope,null};
+        var lateOk=(bool)resolve.Invoke(null,lateArgs);
+        var resolved=lateArgs[1];
+        Check(lateOk && object.ReferenceEquals(resolved,latePublish.Task),
             "the release decision resolves a late-published worker from its own routine");
-        Check(!(bool)release.Invoke(null,new object[]{resolved}),
+        Check(!(bool)release.Invoke(null,new object[]{true,resolved}),
             "a late-published running worker still defers the owned save scope release");
         latePublish.SetResult(true);
-        Check((bool)release.Invoke(null,new object[]{resolve.Invoke(null,new[]{lateScope})}),
+        var settledArgs=new object[]{lateScope,null};
+        Check((bool)release.Invoke(null,new object[]{(bool)resolve.Invoke(null,settledArgs),settledArgs[1]}),
             "that same late-published worker releases once it finishes");
+        // Ownership must be ESTABLISHED, not merely unobserved. A scope that
+        // never began enumeration, or none at all, genuinely owns no worker; a
+        // routine whose field cannot be read answers nothing and must defer.
         var emptyScope=Activator.CreateInstance(saveScope,true);
-        Check(resolve.Invoke(null,new[]{emptyScope})==null,
-            "a scope with no routine resolves no worker instead of failing");
+        var emptyArgs=new object[]{emptyScope,null};
+        Check((bool)resolve.Invoke(null,emptyArgs) && emptyArgs[1]==null,
+            "a scope whose enumeration never began establishes that it owns no worker");
+        var nullArgs=new object[]{null,null};
+        Check((bool)resolve.Invoke(null,nullArgs) && nullArgs[1]==null,
+            "no scope at all establishes that there is no owned worker");
+        Check(!(bool)release.Invoke(null,new object[]{false,null}),
+            "an unestablished worker answer defers instead of releasing");
+        Check(!(bool)release.Invoke(null,new object[]{false,finished.Task}),
+            "an unestablished answer defers even when the observed task has finished");
+        // A routine that is not the native save iterator owns no worker of ours,
+        // which is a real answer rather than an unreadable one.
+        var readWorker=worker.GetMethod("TryReadWorker",BindingFlags.NonPublic|BindingFlags.Static);
+        var foreignArgs=new object[]{System.Linq.Enumerable.Empty<object>().GetEnumerator(),null};
+        Check((bool)readWorker.Invoke(null,foreignArgs) && foreignArgs[1]==null,
+            "a foreign routine establishes that no owned archive worker exists");
+        var nativeBlankArgs=new object[]{System.Runtime.Serialization.FormatterServices.GetUninitializedObject(nativeIterator),null};
+        Check((bool)readWorker.Invoke(null,nativeBlankArgs) && nativeBlankArgs[1]==null,
+            "the native iterator with no published task establishes that none started");
+        var nullRoutineArgs=new object[]{null,null};
+        Check(!(bool)readWorker.Invoke(null,nullRoutineArgs),
+            "a missing routine establishes nothing about owned worker ownership");
+        // What happened to an interrupted save's archive is decided at the commit
+        // boundary, never inferred from task state. The native commit is
+        // File.Replace returning; descriptor rebinding, ownership completion,
+        // worker cleanup and notification all run after it and can throw without
+        // un-writing the bytes. A faulted worker therefore does not establish
+        // that nothing was written, and never establishes unchanged old bytes.
+        var outcomeType=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveCommitOutcome",true);
+        var decide=outcomeType.GetMethod("Decide",BindingFlags.NonPublic|BindingFlags.Static);
+        var kindType=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveCommitKind",true);
+        Func<string,object> kind=n=>Enum.Parse(kindType,n);
+        Func<bool,Func<string,bool>> onDisk=present=>(Func<string,bool>)(p=>present);
+        var target=@"C:\saves\Manual_300_KMC_P01.zks";
+        var prepared=@"C:\saves\Manual_301_KMC_P01.zks";
+        Check(decide.Invoke(null,new object[]{4,4,null,target,prepared,onDisk(true)}).Equals(kind("NotWritten")),
+            "no commit during the operation reports that nothing was written");
+        Check(decide.Invoke(null,new object[]{4,5,target,target,prepared,onDisk(true)}).Equals(kind("Committed")),
+            "a commit on the requested archive reports the save as written");
+        // The post-commit fault case: the worker committed and then failed. The
+        // decision sees only the commit boundary, so it still reports written.
+        Check(decide.Invoke(null,new object[]{4,5,prepared,target,prepared,onDisk(true)}).Equals(kind("Committed")),
+            "a commit on this operation's own prepared leaf still reports the save as written");
+        Check(decide.Invoke(null,new object[]{4,5,@"C:\saves\Manual_900_OTHER.zks",target,prepared,onDisk(true)}).Equals(kind("Unconfirmed")),
+            "a commit that belongs to another operation leaves this outcome unconfirmed");
+        Check(decide.Invoke(null,new object[]{4,5,target,target,prepared,onDisk(false)}).Equals(kind("Unconfirmed")),
+            "a recorded commit whose archive is absent is unconfirmed rather than written");
+        Check(decide.Invoke(null,new object[]{4,5,null,target,prepared,onDisk(true)}).Equals(kind("Unconfirmed")),
+            "a commit with no recorded destination leaves this outcome unconfirmed");
+        Check(decide.Invoke(null,new object[]{4,4,target,null,null,onDisk(true)}).Equals(kind("NotWritten")),
+            "a first-ever save with no previous archive still reports nothing written");
+
         // Teardown cannot refuse and has no later frame, so it waits — bounded,
         // and reporting whether the worker really settled rather than assuming
         // it did. A faulted or canceled worker makes Task.Wait throw and is
@@ -375,7 +431,7 @@ public static class KmcPersistenceContractProbe
         Check((bool)settleWait.Invoke(null,new object[]{slow.Task,50}),
             "that same worker settles teardown once it actually finishes");
         running.SetResult(true);
-        Check((bool)release.Invoke(null,new object[]{running.Task}),
+        Check((bool)release.Invoke(null,new object[]{true,running.Task}),
             "the same worker releases its scope once it actually finishes");
         System.GC.KeepAlive(broken.Task.Exception);
         var sources=new System.Threading.Tasks.TaskCompletionSource<bool>[4];
