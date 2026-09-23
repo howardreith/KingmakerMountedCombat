@@ -14,6 +14,14 @@ namespace KingmakerMountedCombat.Diagnostics
         public string InternalName { get; set; }
         public string SaveType { get; set; }
         public string Area { get; set; }
+        // Verified installed behaviour: SaveRoutine 06008029 is an iterator, so
+        // its admission boundary runs when LoadArea 06000CD5 synchronously
+        // constructs the enumerator while the departure area is still loaded.
+        // Execution, PrepareSave 06008025 and the committed header then follow
+        // in the destination, so an authored after-entry autosave legitimately
+        // spans two areas. Leave this null unless the run declares a transition;
+        // the authority then refuses any pair that is not its exact endpoints.
+        public string AdmissionArea { get; set; }
         public string InitialSha256 { get; set; }
         public bool Writable { get; set; }
     }
@@ -29,9 +37,12 @@ namespace KingmakerMountedCombat.Diagnostics
             internal string Name;
             internal string Type;
             internal string Area;
+            internal string AdmissionArea;
             internal bool Writing;
             internal string Hash;
             internal bool Writable;
+            internal bool Admits(string area) =>
+                area == Area || (AdmissionArea != null && area == AdmissionArea);
         }
 
         private readonly object sync = new object();
@@ -44,7 +55,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal PersistenceSaveAuthorization(string authorizedRunRoot, string campaignId,
             string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist)
+            : this(authorizedRunRoot, campaignId, campaignName, protectedBaselineHash, allowlist, null, null)
         {
+        }
+
+        internal PersistenceSaveAuthorization(string authorizedRunRoot, string campaignId,
+            string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist,
+            string declaredTransitionSource, string declaredTransitionTarget)
+        {
+            var transitionDeclared = declaredTransitionSource != null || declaredTransitionTarget != null;
+            if (transitionDeclared && (declaredTransitionSource == null || declaredTransitionTarget == null ||
+                declaredTransitionSource == declaredTransitionTarget))
+                throw new ArgumentException("A declared area transition needs two distinct exact endpoints.");
             var runRoot = Canonical(authorizedRunRoot);
             RequireDirectory(runRoot);
             Root = Path.Combine(runRoot, "Saved Games");
@@ -68,7 +90,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (entries.ContainsKey(file)) throw new ArgumentException("Ambiguous duplicate save leaf.");
                 var hash = string.IsNullOrEmpty(item.InitialSha256) ? null : HashText(item.InitialSha256);
                 if (hash == baselineHash) throw new ArgumentException("A protected baseline copy is not an authorized fixture.");
-                entries.Add(file, new Entry { Name = name, Type = item.SaveType, Area = Required(item.Area, 32), Hash = hash, Writable = item.Writable });
+                var area = Required(item.Area, 32);
+                string admission = null;
+                if (!string.IsNullOrEmpty(item.AdmissionArea) && item.AdmissionArea != area)
+                {
+                    admission = Required(item.AdmissionArea, 32);
+                    // Only the two declared endpoints of a declared transfer may
+                    // span two areas, and only a writable leaf may do so.
+                    if (!transitionDeclared || !item.Writable ||
+                        !(admission == declaredTransitionSource && area == declaredTransitionTarget ||
+                          admission == declaredTransitionTarget && area == declaredTransitionSource))
+                        throw new ArgumentException("A two-area save leaf must be a writable declared transition endpoint.");
+                }
+                entries.Add(file, new Entry { Name = name, Type = item.SaveType, Area = area,
+                    AdmissionArea = admission, Hash = hash, Writable = item.Writable });
             }
             if (entries.Count == 0) throw new ArgumentException("An exact save allowlist is required.");
             foreach (var path in Directory.EnumerateFileSystemEntries(Root))
@@ -105,7 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (predicted.GameId != gameId || predicted.GameName != gameName)
                     throw new InvalidOperationException("New request campaign differs from its run.");
                 var candidates = entries.Where(p => p.Value.Name == predicted.InternalName &&
-                    p.Value.Type == predicted.SaveType && p.Value.Area == predicted.Area &&
+                    p.Value.Type == predicted.SaveType && p.Value.Admits(predicted.Area) &&
                     p.Value.Writable && !p.Value.Writing && p.Value.Hash == null).ToArray();
                 // Existing rotation contracts may deliberately declare two leaves.
                 // Keep their native prediction and let normal validation decide.
@@ -139,8 +174,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     target.FileName != Path.GetFileName(target.FullPath))
                     return "Save is not the exact canonical direct child.";
                 if (target.InternalName != entry.Name || target.SaveType != entry.Type ||
-                    target.GameId != gameId || target.GameName != gameName || target.Area != entry.Area)
-                    return "Native save name, type, campaign or area differs from the run contract.";
+                    target.GameId != gameId || target.GameName != gameName || !entry.Admits(target.Area))
+                    // Naming the observed and declared identity keeps a rejected
+                    // boundary self-diagnosing instead of costing another run.
+                    return "Native save name, type, campaign or area differs from the run contract" +
+                        " (observed name=" + target.InternalName + " type=" + target.SaveType +
+                        " area=" + target.Area + "; declared name=" + entry.Name + " type=" + entry.Type +
+                        " area=" + entry.Area + (entry.AdmissionArea == null ? string.Empty :
+                        " admission=" + entry.AdmissionArea) + ").";
                 if (entry.Writing) return "This save already belongs to an unfinished write.";
                 if (operation != RuntimeSaveOperation.Load && operation != RuntimeSaveOperation.Write &&
                     operation != RuntimeSaveOperation.Delete) return "Unknown save operation.";

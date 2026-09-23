@@ -30,6 +30,48 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated saves retain read-only fixture and detect outside mutation", ReadOnly);
             runner.Run("isolated saves reject multiply linked files", HardLinks);
             runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
+            runner.Run("declared area transfer admits only its two exact endpoints", TransitionEndpoints);
+        }
+
+        // SaveRoutine sets Player.SavedInArea before PrepareSave copies it into
+        // SaveInfo.Area, so the one save admitted across an authored transfer
+        // still carries the departure area while it commits in the destination.
+        // Both endpoints must be declared, and nothing else may widen.
+        private static void TransitionEndpoints()
+        {
+            using (var files = new Files())
+            {
+                const string destination = "fedcba9876543210fedcba9876543210";
+                const string foreign = "99999999999999999999999999999999";
+                var spanning = Entry("Manual");
+                spanning.Area = destination; spanning.AdmissionArea = Area;
+                var guard = files.Guard2(spanning, Area, destination);
+                var admitted = files.Target("Manual"); admitted.Area = Area;
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Write, admitted, files.Root) == null,
+                    "Declared departure endpoint rejected at the admission boundary.");
+                var committed = files.Target("Manual"); committed.Area = destination;
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Write, committed, files.Root) == null,
+                    "Declared destination endpoint rejected at the commit boundary.");
+                var other = files.Target("Manual"); other.Area = foreign;
+                Reject(guard, other, files.Root);
+
+                // A single-area leaf keeps the unchanged exact contract.
+                var pinned = Entry("Manual"); pinned.Area = destination;
+                var pinnedGuard = files.Guard2(pinned, Area, destination);
+                Reject(pinnedGuard, admitted, files.Root);
+
+                // No transfer declared, a third area, a read-only leaf, or an
+                // aliased pair may not produce a two-area entry.
+                var undeclared = Entry("Manual"); undeclared.Area = destination; undeclared.AdmissionArea = Area;
+                MustThrow(() => files.Guard(undeclared));
+                var outside = Entry("Manual"); outside.Area = destination; outside.AdmissionArea = foreign;
+                MustThrow(() => files.Guard2(outside, Area, destination));
+                var readOnly = Entry("Manual"); readOnly.Area = destination; readOnly.AdmissionArea = Area;
+                readOnly.Writable = false;
+                MustThrow(() => files.Guard2(readOnly, Area, destination));
+                var aliased = Entry("Manual"); aliased.Area = destination; aliased.AdmissionArea = Area;
+                MustThrow(() => files.Guard2(aliased, destination, destination));
+            }
         }
 
         private static void QueuedRequests()
@@ -398,6 +440,9 @@ namespace KingmakerMountedCombat.Tests
             }
             internal PersistenceSaveAuthorization Guard(params PersistenceSaveEntry[] entries) =>
                 new PersistenceSaveAuthorization(RunRoot, "campaign", "fixture campaign", BaselineHash, entries);
+            internal PersistenceSaveAuthorization Guard2(PersistenceSaveEntry entry, string source, string target) =>
+                new PersistenceSaveAuthorization(RunRoot, "campaign", "fixture campaign", BaselineHash,
+                    new[] { entry }, source, target);
             internal RuntimeSaveTarget Target(string type) => new RuntimeSaveTarget
             {
                 FileName = Entry(type).FileName, FullPath = Path.Combine(Root, Entry(type).FileName),
