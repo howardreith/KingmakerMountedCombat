@@ -259,7 +259,8 @@ $failRows=@(
     (New-KmcFailRow 'validation-native-load-requested' $false),
     (New-KmcFailRow 'failed-load-observed' $true),
     (New-KmcFailRow 'failed-load-recovery-requested' $true),
-    (New-KmcFailRow 'validation-native-load-requested' $false),
+    # The recovery load is requested in a process that already has no world.
+    (New-KmcFailRow 'validation-native-load-requested' $true),
     (New-KmcFailRow 'failed-load-retry-observed' $true)
 )
 foreach($index in 2,3){

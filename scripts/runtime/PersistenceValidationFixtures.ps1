@@ -320,23 +320,34 @@ function Assert-KmcValidationPersistenceEvidence {
     # already destroyed, so those two rows must carry NO actor at all. That is a
     # stricter claim than the identity check, not an exemption from it; every
     # other row still has to match the original pair exactly.
-    $worldless=@('failed-load-observed','failed-load-recovery-requested','failed-load-retry-observed')
-    foreach($row in $Rows){
+    # Rows are split POSITIONALLY at the failure, not by kind: everything before
+    # it describes a live world and must carry the exact pair, and everything
+    # from the failure onwards describes a world the engine destroyed and must
+    # carry no actor at all. That is stricter than the old identity-only rule,
+    # because a dropped actor before the failure is now also a failure.
+    $allKinds=@($Rows|ForEach-Object{$_.kind})
+    $failedLoadCase=$Request.persistenceCase-ceq'failed-area-load'
+    $failureAt=if($failedLoadCase){[Array]::IndexOf($allKinds,'failed-load-observed')}else{-1}
+    if($failedLoadCase-and$failureAt-lt1){throw 'P06 failed load has no failure observation to anchor its rows.'}
+    if(-not$failedLoadCase-and([Array]::IndexOf($allKinds,'failed-load-observed')-ge0)){
+        throw 'P06 recorded a worldless observation outside the failed-load case.'
+    }
+    for($i=0;$i-lt$Rows.Count;$i++){
+        $row=$Rows[$i]
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
             $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or
             $row.checkpoint-cne$Request.persistenceCase){
             throw 'P06 native source or run identity differs.'
         }
-        if($row.kind-cin$worldless){
-            if($Request.persistenceCase-cne'failed-area-load'){throw 'P06 recorded a worldless observation outside the failed-load case.'}
-            # Only a genuinely recovered retry may carry actors; every other
-            # worldless row describes a world the engine destroyed.
+        if($failureAt-ge0-and$i-ge$failureAt){
+            # Only a genuinely recovered retry may carry actors again.
             $mayHaveActors=$row.kind-ceq'failed-load-retry-observed'-and$row.detail.recoveredInSession-eq$true
             if(-not$mayHaveActors-and($null-ne$row.rider-or$null-ne$row.mount)){
-                throw 'P06 failed load kept a stale actor in its own observation.'
+                throw 'P06 failed load kept a stale actor after the world was destroyed.'
             }
             continue
         }
+        if($null-eq$row.rider-or$null-eq$row.mount){throw 'P06 lost its native actors before any failure.'}
         if($row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id-or
             $row.controls.DuplicateFactCount-ne0){
             throw 'P06 native actor or owned-control identity differs.'
