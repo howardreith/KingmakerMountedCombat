@@ -255,6 +255,7 @@ $lock=$null
 $request=$null
 $combinedStatePath=$null
 $profileSnapshot=$null
+$profileCacheChanges=@()
 $process=$null
 $launchIssued=$false
 $processExited=$false
@@ -608,9 +609,24 @@ finally{
     if($processExited-and$null-ne$profileSnapshot){
         try{
             Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $profileSnapshot -BackupRoot $runtimeBackups -ExpectedCurrentParamsSha256 (Get-KmcSha256 $profileSnapshot.paramsPath) -ExpectedCurrentPrefsSha256 (Get-KmcTextSha256 (Get-KmcPersistencePlayerPrefs)) -Confirm:$false
-            [void](Assert-KmcPersistenceProfileUnchanged $profileSnapshot)
+            # Admitted native achievement-cache churn is an expected external
+            # change, not restored bytes, so it is recorded rather than implied
+            # away by a bare "profile unchanged" result.
+            $profileCacheChanges=@(Assert-KmcPersistenceProfileUnchanged $profileSnapshot)
         }
         catch{$errors.Add($_.Exception.Message);$saveProtection=$false}
+        try{
+            Write-KmcJsonAtomic (Join-Path $evidenceRoot 'profile-cache-changes.json') ([ordered]@{
+                schemaVersion=1;runId=$actualRunId
+                profileRoot=[string]$profileSnapshot.profile
+                snapshotProfileDigest=[string]$profileSnapshot.profileDigest
+                policy='native-achievement-cache-settled-size'
+                acceptedNativeCacheChanges=@($profileCacheChanges|ForEach-Object{[ordered]@{
+                    path=[string]$_.path;change=[string]$_.change;length=[long]$_.length
+                    beforeSha256=[string]$_.beforeSha256;afterSha256=[string]$_.afterSha256}})
+                profileBytesRestoredExactly=($profileCacheChanges.Count-eq0)
+            })
+        }catch{$errors.Add('Profile cache change receipt failed: '+$_.Exception.Message)}
     }
     try{if($processExited){[void](Assert-KmcSteamSafety $SteamPath)}}catch{$errors.Add('Steam postflight safety failed: '+$_.Exception.Message)}
     if($null-ne$lock){
