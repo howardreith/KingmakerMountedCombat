@@ -909,8 +909,14 @@ function Assert-KmcDisableLifecycleEvidence {
         $cleared.detail.stateAfterSecondDisable-cne'Unmounted'-or
         $cleared.detail.stateAfterSecondReEnable-cne'Unmounted'-or
         $cleared.detail.factsAfterSecondDisable-ne$cleaned.detail.factsUnmounted-or
-        $cleared.detail.factsAfterSecondReEnable-ne$cleaned.detail.factsUnmounted){
+        $cleared.detail.factsAfterSecondReEnable-ne$reenabled.detail.factsEnabledUnmounted){
         throw 'P07 second disable/re-enable cycle did not return to the cleaned state.'
+    }
+    # An enabled mod legitimately offers its unmounted-state control, so the
+    # anti-duplication property is that this count is stable across cycles and
+    # strictly above the disabled count, never that it is zero.
+    if($reenabled.detail.factsEnabledUnmounted-le$cleaned.detail.factsUnmounted){
+        throw 'P07 re-enable did not restore the unmounted-state owned control.'
     }
     if([string]::IsNullOrEmpty([string]$initial.detail.riderId)-or
         [string]::IsNullOrEmpty([string]$initial.detail.mountId)-or
@@ -927,7 +933,7 @@ function Assert-KmcDisableLifecycleEvidence {
     # Bounded, not equal: re-enabling must grant nothing extra and nothing twice,
     # but a save-restored baseline also reinstates persisted state that a fresh
     # pair has no reason to recreate. The exact observed counts stay recorded.
-    if($reenabled.detail.factsReEnabled-le$cleaned.detail.factsUnmounted-or
+    if($reenabled.detail.factsReEnabled-lt$reenabled.detail.factsEnabledUnmounted-or
         $reenabled.detail.factsReEnabled-gt$initial.detail.factsMounted-or
         $reenabled.detail.slotsReEnabled-gt$initial.detail.slotsMounted-or
         $reenabled.detail.nativeCastRequests-ne$initial.detail.castsBefore-or
