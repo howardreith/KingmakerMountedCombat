@@ -119,6 +119,10 @@ namespace KingmakerMountedCombat
             }
         }
 
+        // A native archive worker writes a few megabytes; this is generous for
+        // that and still short enough that a stuck one cannot hang an unload.
+        private const int TeardownDrainMilliseconds = 15000;
+
         public bool IsEnabled { get; private set; }
 
         internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
@@ -147,6 +151,19 @@ namespace KingmakerMountedCombat
                 logger.Info("Private-alpha services and native mounted abilities enabled; diagnostic overlay=" +
                     overlayEnabled + ".");
                 return true;
+            }
+
+            // Disabling runs a full mounted cleanup over the exact live Player
+            // and cross-scene graphs an owned archive worker serializes on its
+            // own thread. Nothing can cancel a started worker, so refuse the
+            // disable instead of mutating the write in flight; the save always
+            // settles, and its drain keeps running because persistence.Update
+            // is deliberately not gated on IsEnabled.
+            if (persistence.SaveSuspended)
+            {
+                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
+                    "retry once it finishes.");
+                return false;
             }
 
             // Always execute idempotent cleanup on a disable request. A prior
@@ -295,6 +312,12 @@ namespace KingmakerMountedCombat
             {
                 return;
             }
+
+            // Unload cannot refuse and cannot retry on a later frame, so this is
+            // the one place a bounded wait for an owned archive worker is right:
+            // patches.Dispose below removes the commit transpiler the worker is
+            // still running through.
+            persistence.DrainForTeardown(TeardownDrainMilliseconds);
 
             if (!lifecycle.HandleModDisable())
             {

@@ -113,6 +113,17 @@ namespace KingmakerMountedCombat.Integration
         // running one is not, and nothing in the engine can cancel it.
         internal static bool CanReleaseScope(Task worker) => worker == null || worker.IsCompleted;
 
+        // Bounded wait for a worker that cannot be canceled, used only where
+        // there is no later frame to drain it. A faulted or canceled worker
+        // makes Wait throw and is nonetheless finished, which is the only thing
+        // this boundary decides, so that case settles rather than propagating.
+        internal static bool WaitForWorkerSettlement(Task worker, int milliseconds)
+        {
+            if (worker == null) return true;
+            try { return worker.Wait(milliseconds); }
+            catch (Exception) { return worker.IsCompleted; }
+        }
+
         internal static void RestoreCompletedPlayerReference(IEnumerator<object> routine, Player world, SceneEntitiesState party)
         {
             if (world == null || party == null) return;

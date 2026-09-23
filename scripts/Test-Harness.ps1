@@ -5279,7 +5279,7 @@ try {
 
     Invoke-HarnessTest 'P07 owns bounded wait recovery and exact cold archive without widening old scenarios' {
         try {
-            foreach($case in @('timeout','cancel-wait','locked-replace','serialization-cancel','area-reload','area-cross-entry','area-cross-exit')){
+            foreach($case in @('timeout','cancel-wait','locked-replace','serialization-cancel','disable-reenable','area-reload','area-cross-entry','area-cross-exit')){
                 $cross=$case-cin @('area-cross-entry','area-cross-exit')
                 $target=('e'*32)
                 $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case

@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','disable-reenable','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
@@ -25,7 +25,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','disable-reenable','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -872,9 +872,83 @@ function Assert-KmcWorkerDrainEvidence {
     }
 }
 
+# Disable/re-enable lifecycle. The re-enable must rebuild exactly one pair with
+# no duplicated control, the refusal must have been taken against a worker that
+# was measurably still running, and the cleanup-state save must record no pair.
+function Assert-KmcDisableLifecycleEvidence {
+    param($Request,$Rows)
+    $order=@('disable-initial','disable-cleaned','disable-re-enabled','disable-refused-during-save','disable-saved-unmounted')
+    $stages=@{}
+    foreach($kind in $order){
+        $matched=@($Rows|Where-Object kind -CEQ $kind)
+        if($matched.Count-ne1){throw "P07 disable lifecycle lacks its exact $kind observation."}
+        $stages[$kind]=$matched[0]
+    }
+    $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
+    if($written.Count-ne1){throw 'P07 disable lifecycle lacks its exact cleanup-state write.'}
+    $index=0
+    foreach($kind in $order){
+        $row=$stages[$kind]
+        if($row.checkpoint-cne'disable-reenable'){throw "P07 disable row $kind is not the declared case."}
+        if($row.detail.stage-ne$index){throw "P07 disable row $kind is out of its measured order."}
+        $index++
+    }
+    $initial=$stages['disable-initial']; $cleaned=$stages['disable-cleaned']
+    $reenabled=$stages['disable-re-enabled']; $refused=$stages['disable-refused-during-save']
+    $saved=$stages['disable-saved-unmounted']
+    if($initial.detail.relationship-cne'Mounted'-or$cleaned.detail.relationship-cne'Unmounted'-or
+        $reenabled.detail.relationship-cne'Mounted'-or$refused.detail.relationship-cne'Unmounted'-or
+        $saved.detail.relationship-cne'Unmounted'){
+        throw 'P07 disable lifecycle did not traverse mounted, cleaned, re-enabled and cleaned again.'
+    }
+    if([string]::IsNullOrEmpty([string]$initial.detail.riderId)-or
+        [string]::IsNullOrEmpty([string]$initial.detail.mountId)-or
+        $reenabled.detail.riderId-cne$initial.detail.riderId-or
+        $reenabled.detail.mountId-cne$initial.detail.mountId){
+        throw 'P07 re-enable did not reuse the same exact native actors.'
+    }
+    if($initial.detail.factsMounted-le0-or$cleaned.detail.factsUnmounted-ge$initial.detail.factsMounted){
+        throw 'P07 disable did not actually release owned controls.'
+    }
+    foreach($row in @($initial,$cleaned,$reenabled,$refused,$saved)){
+        if($row.detail.duplicateFactCount-ne0){throw "P07 disable lifecycle duplicated an owned control at $($row.kind)."}
+    }
+    if($reenabled.detail.exactFactCount-ne$initial.detail.factsMounted-or
+        $reenabled.detail.nativeCastRequests-ne$initial.detail.castsBefore-or
+        $reenabled.detail.secondMountRejected-ne$true){
+        throw 'P07 re-enable added controls, cast a fresh Mount, or allowed a second pair.'
+    }
+    # The refusal only means something if the write really was still in flight.
+    if($refused.detail.refusedDuringSave-ne$true-or$refused.detail.suspendedAtProbe-ne$true-or
+        $refused.detail.workerRunningAtProbe-ne$true-or$refused.detail.enabledAfterProbe-ne$true){
+        throw 'P07 disable refusal was not taken against a running owned save worker.'
+    }
+    if($refused.detail.workerEntriesAtProbe-ne($refused.detail.workerEntriesBefore+1)-or
+        [string]::IsNullOrEmpty([string]$refused.detail.heldLeaf)-or
+        $refused.detail.heldLeaf-cne$refused.detail.probeLeaf-or
+        $refused.detail.probeWorkerId-lt0){
+        throw 'P07 disable refusal did not identify this exact save operation and its own worker.'
+    }
+    if($refused.detail.failedSaves-ne0-or$saved.detail.failedSaves-ne0){
+        throw 'P07 refused disable damaged the save it declined to interrupt.'
+    }
+    # The serializer may omit default or null members, so absent and explicitly
+    # empty both count as "no pair"; anything present and populated does not.
+    $snapshot=$written[0].detail.snapshot
+    $mounted=$null-ne$snapshot.PSObject.Properties['Mounted']-and$snapshot.Mounted-ne$false
+    $rider=$null-ne$snapshot.PSObject.Properties['Rider']-and$null-ne$snapshot.Rider
+    $mount=$null-ne$snapshot.PSObject.Properties['Mount']-and$null-ne$snapshot.Mount
+    if($written[0].detail.ordinal-ne2-or$written[0].detail.nativeCallback-ne$true-or
+        [string]::IsNullOrEmpty([string]$written[0].detail.sha256)-or$written[0].detail.length-le0-or
+        $mounted-or$rider-or$mount){
+        throw 'P07 cleanup-state save did not record a real archive with no mounted pair.'
+    }
+}
+
 function Assert-KmcRecoveryPersistenceEvidence {
     param($Request,$Rows)
     if($Request.persistenceCase-ceq'serialization-cancel'){ Assert-KmcWorkerDrainEvidence $Request $Rows; return }
+    if($Request.persistenceCase-ceq'disable-reenable'){ Assert-KmcDisableLifecycleEvidence $Request $Rows; return }
     $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
     $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
     $commit=$Request.persistenceCase-ceq'locked-replace'
