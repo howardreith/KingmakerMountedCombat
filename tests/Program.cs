@@ -248,21 +248,53 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("P07 recovery requests retain exact source and cold archive authority", () =>
             {
-                foreach (var name in new[] { "timeout", "cancel-wait", "locked-replace", "area-reload" })
+                foreach (var name in new[] { "timeout", "cancel-wait", "locked-replace", "area-reload",
+                    "area-cross-entry", "area-cross-exit" })
                 {
+                    var cross = name == "area-cross-entry" || name == "area-cross-exit";
+                    var target = new string('e', 32);
                     var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
                     request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;
+                    if (cross)
+                    {
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area case accepted no declared destination.");
+                        request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                            EnterPoint = new string('d', 32), Area = target,
+                            AutoSaveMode = name == "area-cross-entry" ? "AfterEntry" : "BeforeExit" };
+                    }
                     TestRunner.Equal(0, request.Validate().Count, "Exact recovery save rejected.");
+                    if (cross)
+                    {
+                        var declared = request.PersistenceAreaTarget;
+                        request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                            EnterPoint = declared.EnterPoint, Area = f.Area, AutoSaveMode = declared.AutoSaveMode };
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area accepted its own loaded area as the destination.");
+                        request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                            EnterPoint = declared.EnterPoint, Area = target, AutoSaveMode = "None" };
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area accepted an unauthored transition mode.");
+                        request.PersistenceAreaTarget = declared;
+                    }
                     request.Scenario = "persistence-p07-load";
                     TestRunner.True(request.Validate().Count > 0, "Recovery cold load accepted no archive.");
                     request.PersistenceLoad = new RuntimeSaveDescriptor {
                         InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
-                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                        GameId = f.GameId, GameName = f.GameName, Area = cross ? target : f.Area,
+                        Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
                     TestRunner.Equal(0, request.Validate().Count, "Exact recovery cold archive rejected.");
+                    if (cross)
+                    {
+                        request.PersistenceLoad.Area = f.Area;
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area cold archive accepted the departure area.");
+                        request.PersistenceLoad.Area = target;
+                    }
                     request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
                     TestRunner.True(request.Validate().Count > 0, "Recovery cold request allowed a foreign campaign.");
                     request.PersistenceLoad = null; request.Scenario = "persistence-p01-save";
                     TestRunner.True(request.Validate().Count > 0, "Recovery fault leaked into an old scenario.");
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "area-reload";
+                    request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                        EnterPoint = new string('d', 32), Area = target, AutoSaveMode = "AfterEntry" };
+                    TestRunner.True(request.Validate().Count > 0, "A same-area case accepted a cross-area destination.");
                 }
             });
             RuntimeSaveAuthorizationTests.Register(runner);

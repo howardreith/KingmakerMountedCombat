@@ -5274,22 +5274,51 @@ try {
 
     Invoke-HarnessTest 'P07 owns bounded wait recovery and exact cold archive without widening old scenarios' {
         try {
-            foreach($case in @('timeout','cancel-wait','locked-replace','area-reload')){
+            foreach($case in @('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit')){
+                $cross=$case-cin @('area-cross-entry','area-cross-exit')
+                $target=('e'*32)
                 $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case
+                if($cross){$v2Request['persistenceAreaTarget']=[ordered]@{enterPoint=('d'*32);area=$target
+                    autoSaveMode=$(if($case-ceq'area-cross-entry'){'AfterEntry'}else{'BeforeExit'})}}
+                else{$v2Request.Remove('persistenceAreaTarget')}
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $f=$v2Request.fixture.working
+                if($cross){
+                    foreach($bad in @('same-area','wrong-mode','missing-target')){
+                        $saved=$v2Request['persistenceAreaTarget']
+                        switch($bad){
+                            'same-area' {$v2Request['persistenceAreaTarget']=[ordered]@{enterPoint=('d'*32);area=$f.area;autoSaveMode=$saved.autoSaveMode}}
+                            'wrong-mode' {$v2Request['persistenceAreaTarget']=[ordered]@{enterPoint=('d'*32);area=$target;autoSaveMode='None'}}
+                            'missing-target' {$v2Request.Remove('persistenceAreaTarget')}
+                        }
+                        Write-KmcJsonAtomic $v2RequestPath $v2Request
+                        $rejected=$false
+                        try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                        Assert-Test $rejected ('P07 cross-area accepted '+$bad)
+                        $v2Request['persistenceAreaTarget']=$saved
+                    }
+                    Write-KmcJsonAtomic $v2RequestPath $v2Request
+                }
                 $v2Request.scenario='persistence-p07-load'
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 $rejected=$false
                 try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
                 Assert-Test $rejected 'P07 cold load accepted no archive'
-                $f=$v2Request.fixture.working
+                $coldArea=if($cross){$target}else{$f.area}
                 $v2Request['persistenceLoad']=[ordered]@{
                     internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64)
-                    length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area
+                    length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$coldArea
                 }
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                if($cross){
+                    $v2Request.persistenceLoad.area=$f.area
+                    Write-KmcJsonAtomic $v2RequestPath $v2Request
+                    $rejected=$false
+                    try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                    Assert-Test $rejected 'P07 cross-area cold archive accepted the departure area'
+                }
                 $v2Request.Remove('persistenceLoad')
                 $v2Request.scenario='persistence-p01-save'
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
@@ -5298,7 +5327,7 @@ try {
                 Assert-Test $rejected 'P07 fault leaked into an old scenario'
             }
         } finally {
-            $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad')
+            $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad');$v2Request.Remove('persistenceAreaTarget')
             $v2Request.scenario='mounted-pair-create-and-clear'
             Write-KmcJsonAtomic $v2RequestPath $v2Request
         }

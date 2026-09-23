@@ -92,7 +92,7 @@ elseif ($schemaVersion -eq 2) {
     $validation=$request.scenario-ceq'persistence-p06-load'
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','area-reload')){throw 'P07 requires its exact owned recovery case.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit')){throw 'P07 requires its exact owned recovery case.'}
     }elseif($validation){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')){throw 'P06 requires its exact validation variant.'}
     }elseif($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
@@ -105,8 +105,18 @@ elseif ($schemaVersion -eq 2) {
     }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
         $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
     $alternating=$request.scenario-ceq'persistence-p05-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'alternating'
-    $extra=@(if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'})
+    $crossArea=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry','area-cross-exit')
+    $extra=@(if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea){'persistenceAreaTarget'})
     Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
+    if($crossArea){
+        $t=$request.persistenceAreaTarget
+        Assert-KmcExactProperties $t @('enterPoint','area','autoSaveMode') 'cross-area transition target'
+        $expectedMode=if($request.persistenceCase-ceq'area-cross-entry'){'AfterEntry'}else{'BeforeExit'}
+        if($t.enterPoint-cnotmatch'^[0-9a-f]{32}$'-or$t.area-cnotmatch'^[0-9a-f]{32}$'-or
+            $t.area-ceq$request.fixture.working.area-or$t.enterPoint-ceq$t.area-or$t.autoSaveMode-cne$expectedMode){
+            throw 'Cross-area transition target is not an exact distinct native destination for its authored mode.'
+        }
+    }
     if($request.scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){
         $descriptors=@($request.persistenceLoad)
         if($alternating-or$validation){
@@ -122,7 +132,11 @@ elseif ($schemaVersion -eq 2) {
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
             -not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or$d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Cold archive identity is invalid.'}
-        foreach($name in @('gameId','gameName','area')){if($d.$name-cne$request.fixture.working.$name){throw 'Cold archive campaign differs.'}}
+        foreach($name in @('gameId','gameName')){if($d.$name-cne$request.fixture.working.$name){throw 'Cold archive campaign differs.'}}
+        # A cross-area source is committed after the transfer, so its native
+        # header carries the declared destination rather than the fixture area.
+        $expectedArea=if($crossArea){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}
+        if($d.area-cne$expectedArea){throw 'Cold archive campaign differs.'}
         }
     }
 }

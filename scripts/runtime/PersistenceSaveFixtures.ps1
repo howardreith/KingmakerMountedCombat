@@ -6,7 +6,8 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','area-reload','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -21,7 +22,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','area-reload')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -55,7 +56,7 @@ function Get-KmcPersistenceSource {
         $nameOk=if($type-ceq'Manual'){$header.Name-ceq$manualName}else{$header.Name-is[string]-and$header.Name.Length-gt0-and$header.Name.Length-le256-and$header.Name-cnotmatch'[\x00-\x1f\x7f]'}
         if(-not$nameOk-or$header.Type-cne$type-or$header.CompatibilityVersion-ne1-or
             $header.GameId-cne$Fixture.working.gameId-or$header.GameName-cne$Fixture.working.gameName-or
-            $header.Area-cne$Fixture.working.area){throw 'Owned archive native campaign/type/name differs.'}
+            $header.Area-cne$(if([string]::IsNullOrEmpty($ExpectedArea)){$Fixture.working.area}else{$ExpectedArea})){throw 'Owned archive native campaign/type/name differs.'}
     }finally{if($reader){$reader.Dispose()};if($archive){$archive.Dispose()};if($stream){$stream.Dispose()}}
     if((Get-KmcSha256 $path)-cne$ExpectedSha256){throw 'Owned archive changed during inspection.'}
     return [pscustomobject]@{path=$path;descriptor=[ordered]@{
@@ -521,7 +522,7 @@ function Assert-KmcPersistenceScenarioEvidence {
         if(@($final.detail.turnVisits).Count-lt4){throw 'P02 lacks observed native unrelated participation.'}
     }
     if($Request.scenario-ceq'persistence-p07-save'){
-        if($Request.persistenceCase-ceq'area-reload'){Assert-KmcAreaPersistenceEvidence $Request $rows}
+        if($Request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit')){Assert-KmcAreaPersistenceEvidence $Request $rows}
         else{Assert-KmcRecoveryPersistenceEvidence $Request $rows}
     }
     if($isSuspended){Assert-KmcSuspendedEvidence $rows $isWrite}
@@ -835,9 +836,14 @@ function Assert-KmcAreaPersistenceEvidence {
     $observed=@($Rows|Where-Object kind -CEQ 'area-reload-observed')
     $after=@($Rows|Where-Object kind -CEQ 'area-reload-complete')
     $initial=@($Rows|Where-Object kind -CEQ 'area-initial-write')
+    $autosave=@($Rows|Where-Object kind -CEQ 'area-native-autosave')
     $written=@($Rows|Where-Object kind -CEQ 'native-write-complete')
-    if($Request.persistenceCase-cne'area-reload'-or$before.Count-ne1-or$observed.Count-ne1-or$after.Count-ne1-or
-        $initial.Count-ne1-or$written.Count-ne1){
+    $crossArea=$Request.persistenceCase-cin @('area-cross-entry','area-cross-exit')
+    # A same-area reload opens with its own manual write; a cross-area transfer
+    # instead uses the engine's authored autosave as its first native archive.
+    if($Request.persistenceCase-cnotin @('area-reload','area-cross-entry','area-cross-exit')-or
+        $before.Count-ne1-or$observed.Count-ne1-or$after.Count-ne1-or$written.Count-ne1-or
+        $initial.Count-ne$(if($crossArea){0}else{1})-or$autosave.Count-ne$(if($crossArea){1}else{0})){
         throw 'P07 area case lacks its exact native request, pre-qualification view observation and two write completions.'
     }
     $kinds=@($Rows|ForEach-Object{$_.kind})
@@ -867,16 +873,50 @@ function Assert-KmcAreaPersistenceEvidence {
         $d.loadingInProcess-ne$false-or$d.queuedLoads-ne0-or$d.deferredSaveWaiting-ne$false){
         throw 'P07 area was qualified before the native world, suspension or loading queue actually settled.'
     }
+    # The destination is whatever the case declared: the loaded fixture area for
+    # a same-area reload, the declared native target for a real transfer.
+    $expectedArea=if($crossArea){[string]$Request.persistenceAreaTarget.area}else{[string]$Request.fixture.working.area}
+    $firstArchiveSha=if($crossArea){[string]$autosave[0].detail.sha256}else{[string]$initial[0].detail.sha256}
     if($a.detail.suspensions-ne0-or$a.detail.resumes-ne0-or$d.suspensions-ne1-or$d.resumes-ne1-or
         $d.pending-ne$false-or$d.suspensionObserved-ne$true-or$d.loadingFrames-lt1-or$d.sameWorld-ne$true-or
-        $d.area-cne$Request.fixture.working.area-or$a.detail.area-cne$d.area-or
+        $d.area-cne$expectedArea-or$d.expectedArea-cne$expectedArea-or$a.detail.expectedArea-cne$expectedArea-or
         $d.riderView-ne$a.detail.riderView-or$d.mountView-ne$a.detail.mountView-or$d.nativeCastRequests-ne0-or
         $b.persistence.semantics-ne0-or$b.persistence.presentation-ne0-or$b.native.paused-ne$false-or
         $b.controls.ExactFactCount-ne$a.controls.ExactFactCount-or
         $b.controls.ManagedHotbarSlotCount-ne$a.controls.ManagedHotbarSlotCount-or
         $b.controls.SerializationSuspended-ne$false-or$written[0].detail.ordinal-ne2-or
-        $initial[0].detail.sha256-ceq$written[0].detail.sha256){
+        $firstArchiveSha-ceq$written[0].detail.sha256){
         throw 'P07 area transfer lost native identity, exactly-once controls or actual post-area save.'
+    }
+    if(-not$crossArea-and$a.detail.area-cne$d.area){throw 'P07 same-area reload changed its native area.'}
+    if($crossArea){
+        if($a.detail.area-cne$Request.fixture.working.area-or$a.detail.sourceArea-cne$Request.fixture.working.area-or
+            $d.sourceArea-cne$Request.fixture.working.area-or$expectedArea-ceq$Request.fixture.working.area){
+            throw 'P07 cross-area transfer did not actually leave the loaded fixture area.'
+        }
+        $mode=[string]$Request.persistenceAreaTarget.autoSaveMode
+        $x=$autosave[0].detail
+        # BeforeExit autosaves the departure area before suspension; AfterEntry
+        # autosaves the destination only once restoration has already happened.
+        $autosaveArea=if($mode-ceq'AfterEntry'){$expectedArea}else{[string]$Request.fixture.working.area}
+        $expectedResumes=if($mode-ceq'AfterEntry'){1}else{0}
+        if($x.mode-cne$mode-or$x.expectedArea-cne$autosaveArea-or$x.nativeType-cne'Auto'-or
+            $x.sha256-cnotmatch'^[0-9a-f]{64}$'-or$x.length-le0-or
+            $x.snapshot.Mounted-ne$true-or$x.snapshot.AreaId-cne$autosaveArea-or
+            $x.snapshot.CampaignId-cne$Request.fixture.working.gameId-or
+            $x.snapshot.Rider.Id-cne$a.rider.Id-or$x.snapshot.Mount.Id-cne$a.mount.Id){
+            throw 'P07 cross-area autosave is not the exact native mounted archive for its authored mode.'
+        }
+        $barrier=$x.barrier
+        if($null-eq$barrier-or$barrier.relationship-cne'Mounted'-or$barrier.area-cne$autosaveArea-or
+            $barrier.snapshots-ne1-or$barrier.resumes-ne$expectedResumes-or$barrier.suspensions-ne$expectedResumes-or
+            $barrier.riderId-cne$a.rider.Id-or$barrier.mountId-cne$a.mount.Id){
+            throw 'P07 cross-area autosave barrier did not follow the native restoration order.'
+        }
+        if([Array]::IndexOf($kinds,'area-native-autosave')-le[Array]::IndexOf($kinds,'area-reload-observed')-or
+            [Array]::IndexOf($kinds,'area-native-autosave')-ge[Array]::IndexOf($kinds,'native-write-complete')){
+            throw 'P07 cross-area autosave evidence is outside its native transfer window.'
+        }
     }
     $elapsed=[Math]::Max(0,([double]$b.gameTicks-[double]$a.gameTicks)/10000000)
     foreach($actor in @('rider','mount')){

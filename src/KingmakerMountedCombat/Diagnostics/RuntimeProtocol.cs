@@ -127,6 +127,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public RuntimeSaveDescriptor PersistenceLoad { get; set; }
         public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
+        public RuntimeAreaTransitionTarget PersistenceAreaTarget { get; set; }
+
+        // Cross-area cases declare their destination up front so the isolated
+        // save authority can pin post-transition writes to that exact area.
+        internal static bool IsCrossAreaCase(string persistenceCase) =>
+            persistenceCase == "area-cross-entry" || persistenceCase == "area-cross-exit";
 
         internal string ExpectedNativeLoadType => Scenario == "persistence-p05-load" && PersistenceLoad != null ?
             (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
@@ -280,7 +286,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "area-reload" }, PersistenceCase) < 0 :
+            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "area-reload", "area-cross-entry", "area-cross-exit" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
@@ -302,12 +308,24 @@ namespace KingmakerMountedCombat.Diagnostics
                         errors.Add("Cold native slot name is missing or oversized.");
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
                         nativeSlot ? PersistenceLoad.InternalName : "KMC_P01", slotPattern));
+                    // A cross-area source archive is committed after the transition,
+                    // so its native header carries the declared destination area.
+                    var expectedArea = IsCrossAreaCase(PersistenceCase) && PersistenceAreaTarget != null
+                        ? PersistenceAreaTarget.Area : Fixture?.Working?.Area;
                     if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
-                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != Fixture.Working.Area)
+                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea)
                         errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
                 }
             }
             else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
+            if (IsCrossAreaCase(PersistenceCase))
+            {
+                if (!p07) errors.Add("A cross-area transfer requires the exact P07 scenario.");
+                if (PersistenceAreaTarget == null) errors.Add("A cross-area transfer requires its declared native destination.");
+                else errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", Fixture?.Working?.Area));
+            }
+            else if (PersistenceAreaTarget != null)
+                errors.Add("Only an exact cross-area transfer may declare a native destination.");
             if (p06 || Scenario == "persistence-p05-load" && PersistenceCase == "alternating")
             {
                 if (PersistenceAlternate == null) errors.Add("Alternating native loads require the second exact archive.");
@@ -484,6 +502,32 @@ namespace KingmakerMountedCombat.Diagnostics
                 errors.Add(prefix + ".area must be an exact lowercase 32-character blueprint GUID.");
             }
 
+            return errors;
+        }
+    }
+
+    // The exact native destination of an ordinary cross-area transfer. Both the
+    // enter point and its area are declared so the scenario can verify the
+    // resolved blueprint rather than trusting whatever the engine loads.
+    public sealed class RuntimeAreaTransitionTarget
+    {
+        public string EnterPoint { get; set; }
+
+        public string Area { get; set; }
+
+        public string AutoSaveMode { get; set; }
+
+        internal IReadOnlyList<string> Validate(string prefix, string workingArea)
+        {
+            var errors = new List<string>();
+            if (!RuntimeRequest.IsLowerHex(EnterPoint, 32))
+                errors.Add(prefix + ".enterPoint must be an exact lowercase 32-character blueprint GUID.");
+            if (!RuntimeRequest.IsLowerHex(Area, 32))
+                errors.Add(prefix + ".area must be an exact lowercase 32-character blueprint GUID.");
+            if (Area != null && Area == workingArea)
+                errors.Add(prefix + ".area must differ from the loaded fixture area for a real transfer.");
+            if (AutoSaveMode != "BeforeExit" && AutoSaveMode != "AfterEntry")
+                errors.Add(prefix + ".autoSaveMode must be an ordinary authored BeforeExit or AfterEntry transition.");
             return errors;
         }
     }

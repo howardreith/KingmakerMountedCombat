@@ -2,8 +2,11 @@ using System;
 using System.IO;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Blueprints;
+using Kingmaker.Blueprints.Area;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
+using Kingmaker.GameModes;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
@@ -14,27 +17,56 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class RuntimePersistenceScenario
     {
         // Installed contract, verified read-only against Assembly-CSharp MVID
-        // 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7: ReloadArea 06000CD6 calls
-        // LoadArea 06000CD5 with a null saveInfo, and LoadArea passes
-        // (saveInfo != null) as UnloadEntitiesCoroutine 06008096's
-        // unloadCrossScene 04008DA5. That iterator always destroys DynamicRoot
-        // but destroys CrossSceneRoot only when the flag is true, and
-        // UnloadAreaCoroutine 06008095 destroys only cross-scene units whose
-        // master left the party. An ordinary transfer therefore retains the
-        // party rider and its pet mount together with their exact native views;
-        // replacement is the save-load contract, not this one.
+        // 07fa1e4d-8618-41b3-9b8d-faa17d3b26f7: ReloadArea 06000CD6 and the public
+        // LoadArea 06000CC9 both reach LoadArea 06000CD5 with a null saveInfo, and
+        // LoadArea passes (saveInfo != null) as SceneLoader.UnloadEntitiesCoroutine
+        // 06008096's unloadCrossScene 04008DA5. That iterator always destroys
+        // DynamicRoot but destroys CrossSceneRoot only when the flag is true, and
+        // UnloadAreaCoroutine 06008095 destroys only cross-scene units whose master
+        // left the party. Every ordinary transfer therefore retains the party rider
+        // and its pet mount together with their exact native views; replacement is
+        // the save-load contract.
         private const string RetainedNativeView = "retained";
         private const string ReplacedNativeView = "replaced";
         private const string MissingNativeView = "missing";
 
-        private bool AreaCase => request.Scenario == "persistence-p07-save" && request.PersistenceCase == "area-reload";
+        private bool AreaReloadCase => request.Scenario == "persistence-p07-save" && request.PersistenceCase == "area-reload";
+        private bool CrossAreaCase => request.Scenario == "persistence-p07-save" &&
+            RuntimeRequest.IsCrossAreaCase(request.PersistenceCase);
+        private bool AreaCase => AreaReloadCase || CrossAreaCase;
+        private bool AfterEntryAutosave => request.PersistenceAreaTarget?.AutoSaveMode == "AfterEntry";
         private string ExpectedAreaViewDisposition => RetainedNativeView;
+        private string ExpectedAreaDestination => CrossAreaCase ?
+            request.PersistenceAreaTarget.Area : request.Fixture.Working.Area;
         private bool areaContinuation, areaSuspensionObserved;
         private int areaStage, areaFrames, areaRiderView, areaMountView;
         private Player areaWorld;
-        private string areaGoodHash;
+        private string areaGoodHash, areaSourceArea, areaAutosaveHash;
         private SavedNativeActor areaRiderDebt, areaMountDebt;
         private long areaGameTicks;
+        private JObject areaAutosaveBarrier;
+
+        // Fires on the game thread at the native header barrier, inside the
+        // engine's own autosave. These counters are the ordering evidence: an
+        // after-entry autosave must already see the restored pair, and a
+        // before-exit autosave must still see it mounted in the departure area.
+        private void ObserveAreaTransitionSnapshot()
+        {
+            if (areaAutosaveBarrier != null) return;
+            var game = Game.Instance;
+            areaAutosaveBarrier = new JObject {
+                ["snapshots"] = persistence.SnapshotCount,
+                ["suspensions"] = persistence.AreaSuspensionCount,
+                ["resumes"] = persistence.AreaResumeCount,
+                ["pending"] = persistence.AreaTransitionPending,
+                ["relationship"] = relationship.State.ToString(),
+                ["area"] = game?.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                ["riderId"] = relationship.Rider?.UniqueId,
+                ["mountId"] = relationship.Mount?.UniqueId,
+                ["riderView"] = AreaViewId(relationship.Rider),
+                ["mountView"] = AreaViewId(relationship.Mount)
+            };
+        }
 
         private void AdvanceArea()
         {
@@ -49,6 +81,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (areaStage == 0)
             {
+                if (CrossAreaCase) { BeginCrossAreaTransfer(); return; }
                 if (!callback) return;
                 var archive = RecoveryArchive();
                 var read = NativeMountedSaveStorage.Read(archive.Saver);
@@ -57,12 +90,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     persistence.AreaResumeCount == 0, "P07-area-initial-real-mounted-save");
                 areaGoodHash = Hash(archive.FolderName);
                 Write("area-initial-write", new JObject { ["sha256"] = areaGoodHash, ["path"] = archive.FolderName });
-                areaWorld = game.Player;
-                Check(IsBoundNativeView(rider) && IsBoundNativeView(mount), "P07-area-baseline-native-views-bound");
-                areaRiderView = rider.View.GetInstanceID(); areaMountView = mount.View.GetInstanceID();
-                areaRiderDebt = MountedPersistenceService.CaptureActor(rider);
-                areaMountDebt = MountedPersistenceService.CaptureActor(mount);
-                areaGameTicks = game.TimeController.GameTime.Ticks;
+                CaptureAreaBaseline();
                 Write("area-reload-requested", AreaDetail());
                 game.ReloadArea(); // Exact native 06000CD6; real unload/replacement.
                 areaStage = 1;
@@ -71,12 +99,14 @@ namespace KingmakerMountedCombat.Diagnostics
             if (areaStage == 1)
             {
                 if (persistence.AreaResumeCount == 0) return; // Queue dispatch is asynchronous.
+                if (CrossAreaCase && (NativePersistenceIsolation.HasPendingWrites || NativeAutosaveArchive() == null)) return;
                 rider = relationship.Rider; mount = relationship.Mount;
                 // Observation precedes qualification: a failing row must still keep
-                // the measured post-reload view identities that decide the case.
+                // the measured post-transfer view identities that decide the case.
                 Write("area-reload-observed", AreaDetail());
                 Check(areaFrames > 0 && areaSuspensionObserved && ReferenceEquals(areaWorld, game.Player) &&
-                    game.CurrentlyLoadedArea.AssetGuidThreadSafe == request.Fixture.Working.Area,
+                    game.CurrentlyLoadedArea.AssetGuidThreadSafe == ExpectedAreaDestination &&
+                    game.CurrentMode == GameModeType.Default,
                     "P07-real-area-unload-and-same-native-world");
                 Check(relationship.State == RelationshipState.Mounted && rider != null && mount != null &&
                     rider.UniqueId == areaRiderDebt.Id && mount.UniqueId == areaMountDebt.Id,
@@ -104,23 +134,30 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(after.ExactFactCount == beforeControls.ExactFactCount && after.DuplicateFactCount == 0 &&
                     after.ManagedHotbarSlotCount == beforeControls.ManagedHotbarSlotCount &&
                     !after.SerializationSuspended, "P07-area-controls-and-owned-slots-once");
+                if (CrossAreaCase) QualifyNativeAreaAutosave();
+                var guardHash = CrossAreaCase ? areaAutosaveHash : areaGoodHash;
+                var guardPath = CrossAreaCase ? NativeAutosaveArchive().FolderName : RecoveryArchive().FolderName;
                 persistence.RestoreAreaPair(); persistence.RestoreAreaPair();
-                Check(persistence.AreaResumeCount == 1 && Hash(RecoveryArchive().FolderName) == areaGoodHash,
+                Check(persistence.AreaResumeCount == 1 && Hash(guardPath) == guardHash,
                     "P07-area-duplicate-ready-callback-no-op-source-unchanged");
                 Write("area-reload-complete", AreaDetail());
                 callback = false;
-                game.SaveGame(RecoveryArchive(), () => callback = true);
+                // The destination-area manual leaf is a new owned request; the
+                // same-area case still overwrites its exact existing archive.
+                game.SaveGame(CrossAreaCase ? game.SaveManager.CreateNewSave("KMC_P01") : RecoveryArchive(),
+                    () => callback = true);
                 areaStage = 2;
                 return;
             }
             if (areaStage == 2)
             {
-                if (!callback) return;
+                if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
                 var archive = RecoveryArchive();
                 var read = NativeMountedSaveStorage.Read(archive.Saver);
                 Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
                     read.Data.Rider.Id == rider.UniqueId && read.Data.Mount.Id == mount.UniqueId &&
-                    persistence.SnapshotCount == 2 && Hash(archive.FolderName) != areaGoodHash &&
+                    read.Data.AreaId == ExpectedAreaDestination &&
+                    persistence.SnapshotCount == 2 && Hash(archive.FolderName) != (CrossAreaCase ? areaAutosaveHash : areaGoodHash) &&
                     !game.IsPaused && !persistence.AreaTransitionPending, "P07-real-post-area-write-resumes-native-play");
                 Write("native-write-complete", new JObject {
                     ["ordinal"] = 2, ["path"] = archive.FolderName, ["sha256"] = Hash(archive.FolderName),
@@ -131,13 +168,90 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // An ordinary authored transition, not a synthetic call: the module's only
+        // non-literal AutoSaveMode sources are blueprint fields such as
+        // AreaTransition.AutoSaveMode 0400123A, so both BeforeExit and AfterEntry
+        // are real in-world transition modes reaching the public 06000CC9 entry.
+        private void BeginCrossAreaTransfer()
+        {
+            var game = Game.Instance;
+            var target = request.PersistenceAreaTarget;
+            areaSourceArea = game.CurrentlyLoadedArea.AssetGuidThreadSafe;
+            Check(persistence.SnapshotCount == 0 && persistence.AreaSuspensionCount == 0 &&
+                persistence.AreaResumeCount == 0 && !persistence.AreaTransitionPending &&
+                areaSourceArea == request.Fixture.Working.Area, "P07-cross-area-idle-before-native-transfer");
+            var enter = ResourcesLibrary.TryGetBlueprint<BlueprintAreaEnterPoint>(target.EnterPoint);
+            Check(enter != null && enter.AssetGuidThreadSafe == target.EnterPoint && enter.Area != null &&
+                enter.Area.AssetGuidThreadSafe == target.Area && target.Area != areaSourceArea &&
+                enter.Area != game.CurrentlyLoadedArea, "P07-cross-area-exact-native-enter-point");
+            NativePersistenceIsolation.EnableNativeSlotRotation();
+            Check(Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutosaveEnabled.CurrentValue &&
+                game.SaveManager.IsSaveAllowed() &&
+                !game.SaveManager.Any(s => s.Type == SaveInfo.SaveType.Auto && s.IsActuallySaved),
+                "P07-cross-area-native-autosave-admitted-without-existing-slot");
+            CaptureAreaBaseline();
+            Write("area-reload-requested", AreaDetail());
+            game.LoadArea(enter, AfterEntryAutosave ? AutoSaveMode.AfterEntry : AutoSaveMode.BeforeExit);
+            areaStage = 1;
+        }
+
+        private void CaptureAreaBaseline()
+        {
+            var game = Game.Instance;
+            areaWorld = game.Player;
+            Check(IsBoundNativeView(rider) && IsBoundNativeView(mount), "P07-area-baseline-native-views-bound");
+            areaRiderView = rider.View.GetInstanceID(); areaMountView = mount.View.GetInstanceID();
+            areaRiderDebt = MountedPersistenceService.CaptureActor(rider);
+            areaMountDebt = MountedPersistenceService.CaptureActor(mount);
+            areaGameTicks = game.TimeController.GameTime.Ticks;
+        }
+
+        private SaveInfo NativeAutosaveArchive()
+        {
+            var name = SlotName(SaveInfo.SaveType.Auto);
+            var save = Game.Instance.SaveManager.SingleOrDefault(s => s.Type == SaveInfo.SaveType.Auto && s.Name == name);
+            return save != null && save.HasFileOnDisk && save.OperationState == SaveInfo.StateType.None ? save : null;
+        }
+
+        private void QualifyNativeAreaAutosave()
+        {
+            var archive = NativeAutosaveArchive();
+            Check(archive != null && archive.FileName == "Auto_1.zks" && persistence.SnapshotCount == 1 &&
+                persistence.FailedSaveCount == 0, "P07-cross-area-exact-single-native-autosave");
+            areaAutosaveHash = Hash(archive.FolderName);
+            var read = NativeMountedSaveStorage.Read(archive.Saver);
+            // The before-exit autosave must capture the still-mounted departure
+            // area; the after-entry one must already contain the restored pair.
+            var expectedArea = AfterEntryAutosave ? ExpectedAreaDestination : areaSourceArea;
+            Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
+                read.Data.Rider.Id == areaRiderDebt.Id && read.Data.Mount.Id == areaMountDebt.Id &&
+                read.Data.AreaId == expectedArea && read.Data.CampaignId == areaWorld.GameId,
+                "P07-cross-area-autosave-carries-exact-mounted-pair");
+            var barrier = areaAutosaveBarrier;
+            Check(barrier != null && (string)barrier["relationship"] == "Mounted" &&
+                (string)barrier["area"] == expectedArea && (int)barrier["snapshots"] == 1 &&
+                (int)barrier["suspensions"] == (AfterEntryAutosave ? 1 : 0) &&
+                (int)barrier["resumes"] == (AfterEntryAutosave ? 1 : 0) &&
+                (string)barrier["riderId"] == areaRiderDebt.Id && (string)barrier["mountId"] == areaMountDebt.Id,
+                "P07-cross-area-autosave-barrier-follows-native-restoration-order");
+            Write("area-native-autosave", new JObject {
+                ["mode"] = request.PersistenceAreaTarget.AutoSaveMode, ["path"] = archive.FolderName,
+                ["sha256"] = areaAutosaveHash, ["length"] = new FileInfo(archive.FolderName).Length,
+                ["nativeType"] = archive.Type.ToString(), ["expectedArea"] = expectedArea,
+                ["barrier"] = barrier, ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) });
+        }
+
         private JObject AreaDetail()
         {
             var game = Game.Instance;
             var loading = LoadingProcess.Instance;
             var mounted = relationship.State == RelationshipState.Mounted;
             return new JObject {
+                ["case"] = request.PersistenceCase,
                 ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
+                ["expectedArea"] = ExpectedAreaDestination,
+                ["sourceArea"] = areaSourceArea,
+                ["autoSaveMode"] = request.PersistenceAreaTarget?.AutoSaveMode,
                 ["loadingFrames"] = areaFrames, ["suspensionObserved"] = areaSuspensionObserved,
                 ["suspensions"] = persistence.AreaSuspensionCount, ["resumes"] = persistence.AreaResumeCount,
                 ["pending"] = persistence.AreaTransitionPending, ["sameWorld"] = ReferenceEquals(areaWorld, game.Player),
@@ -147,6 +261,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["loadingInProcess"] = loading.IsLoadingInProcess,
                 ["queuedLoads"] = loading.QueuedNames.Count(),
                 ["deferredSaveWaiting"] = NativeDeferredSave.Waiting(loading),
+                ["snapshots"] = persistence.SnapshotCount,
                 ["mountedInvariant"] = mounted ? relationship.Runtime.ValidateMountedInvariants() : null,
                 ["presentation"] = relationship.CapturePresentationObservation(false),
                 ["riderActor"] = AreaActorDetail(areaRiderDebt, areaRiderView, true),

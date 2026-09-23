@@ -63,6 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.persistence = persistence; this.combat = combat; this.settings = settings; this.logger = logger;
             evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
             if (RealtimeCase && (RealtimeApproach || RealtimeCasting) && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
+            if (CrossAreaCase) persistence.SaveSnapshotStaged += ObserveAreaTransitionSnapshot;
         }
 
         internal void Update()
@@ -140,6 +141,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Cold) { stage = 2; return; }
                 if (QueuedCase) { QueueNativeManualSaves(); stage = 1; return; }
                 if (SlotCase) { RequestNativeSlotWrite(); stage = 1; return; }
+                // A cross-area case makes no pre-transfer manual write: the engine's
+                // own authored autosave is its departure or arrival evidence.
+                if (CrossAreaCase) { stage = 1; return; }
                 var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
                 Check(descriptor.Name == "KMC_P01" && descriptor.Type == SaveInfo.SaveType.Manual &&
                     game.SaveManager.IsSaveAllowed(), "actual-native-manual-admission");
@@ -377,9 +381,10 @@ namespace KingmakerMountedCombat.Diagnostics
             recoveryFault?.Dispose(); recoveryFault = null;
             recoveryArchiveLock?.Dispose(); recoveryArchiveLock = null;
             persistence.SaveSnapshotStaged -= ObserveApproachSnapshot;
+            persistence.SaveSnapshotStaged -= ObserveAreaTransitionSnapshot;
             persistence.SaveSnapshotStarting -= BeforeConditionPreparationSnapshot;
             if (conditionLease != null) conditionLease.NativeChoiceObserved -= RequestConditionPreparationSave;
-            if (SlotCase) NativePersistenceIsolation.DisableNativeSlotRotation();
+            if (SlotCase || CrossAreaCase) NativePersistenceIsolation.DisableNativeSlotRotation();
             targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
             castingEffects?.Dispose();
             conditionLease?.Dispose(); conditionFact?.Dispose(); conditionTrace?.Dispose();

@@ -63,9 +63,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 });
                 if (request.Scenario == "persistence-p07-save")
                 {
+                    // A cross-area case makes no pre-transfer manual write: the
+                    // native autosave is its departure evidence, and every manual
+                    // leaf belongs to the declared destination area.
+                    var cross = RuntimeRequest.IsCrossAreaCase(request.PersistenceCase);
                     for (var n = 0; n < 2; n++) entries.Add(new PersistenceSaveEntry {
                         FileName = "Manual_" + (300 + n) + "_KMC_P01.zks", InternalName = "KMC_P01",
-                        SaveType = "Manual", Area = fixture.Area, Writable = true });
+                        SaveType = "Manual",
+                        Area = cross ? request.PersistenceAreaTarget.Area : fixture.Area,
+                        Writable = true });
+                    if (cross) entries.Add(new PersistenceSaveEntry {
+                        FileName = "Auto_1.zks", InternalName = RuntimePersistenceScenario.SlotName(SaveInfo.SaveType.Auto),
+                        SaveType = "Auto",
+                        // BeforeExit autosaves the departure area; AfterEntry the destination.
+                        Area = request.PersistenceAreaTarget.AutoSaveMode == "AfterEntry"
+                            ? request.PersistenceAreaTarget.Area : fixture.Area,
+                        Writable = true });
                 }
                 if (request.Scenario == "persistence-p05-save" && request.PersistenceCase != "alternating" && request.PersistenceCase != "queued")
                 {
