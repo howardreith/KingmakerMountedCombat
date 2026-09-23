@@ -859,6 +859,21 @@ function Assert-KmcWorkerDrainEvidence {
     foreach($probe in @('overlapRefused','loadRefused','repeatedStopSafe','disableRefused')){
         if($d.$probe-ne$true){throw "P07 deferral failed its $probe boundary."}
     }
+    # The held world while the worker can still commit: the main-menu reset --
+    # the only gameplay caller of StopAll -- is deferred with the world intact,
+    # the world is paused the moment the abandonment defers, no unit's command
+    # is queued (owned pair or an unrelated party member), the clock does not
+    # advance, and the user's prior pause state is restored at settlement.
+    if($d.resetDeferred-ne$true-or$d.heldPaused-ne$true-or$d.resetPending-ne$false){
+        throw 'P07 drain did not defer the main-menu reset and hold the world paused.'
+    }
+    $sim=@($Rows|Where-Object kind -CEQ 'drain-simulation-probe')
+    if($sim.Count-ne1){throw 'P07 drain lacks its exact simulation probe.'}
+    $p=$sim[0].detail
+    if($p.simWorkerStillHeld-ne$true-or$p.simCommandQueued-ne$false-or$p.unrelatedCommandQueued-ne$false-or
+        [string]::IsNullOrEmpty([string]$p.unrelatedActorId)-or$p.simTicksAdvanced-ne0-or$p.simCommandStarted-ne$false){
+        throw 'P07 held world still admitted a unit command or advanced the clock under the live serializer.'
+    }
     if($d.nativeWorldDisposals-ne$f.nativeWorldDisposals){
         throw 'P07 refused load still disposed a world.'
     }
@@ -866,6 +881,7 @@ function Assert-KmcWorkerDrainEvidence {
         throw 'P07 last-good archive changed while the worker was held.'
     }
     $s=$settled[0].detail
+    if($s.pauseRestored-ne$true){throw 'P07 settlement did not restore the user prior pause state.'}
     if($s.drains-ne1-or$s.deferredCancellations-ne1-or$s.draining-ne$false-or$s.activeScope-ne$false){
         throw 'P07 settlement did not release exactly once.'
     }

@@ -796,22 +796,32 @@ function New-KmcDrainRow { param([string]$Kind)
             saveSuspended=$true;serializationSuspended=$true;saveCallback=$false;snapshots=1;failedSaves=0
             rejections=0;nativeWorldDisposals=0;overlapRefused=$false;loadRefused=$false
             repeatedStopSafe=$false;disableRefused=$false;ordinal=1;sha256=('a'*64)
-            lastGoodSha256=('a'*64);currentSha256=$null;interruptedPath='C:\owned\Manual_300_KMC_P01.zks';replacedInPlace=$true}}
+            lastGoodSha256=('a'*64);currentSha256=$null;interruptedPath='C:\owned\Manual_300_KMC_P01.zks';replacedInPlace=$true
+            # The held world while the worker can still commit.
+            pausedBeforeStop=$false;heldPaused=$false;pauseRestored=$false;resetDeferred=$false;resetPending=$false
+            unrelatedActorId='';unrelatedCommandQueued=$false;simCommandQueued=$false;simCommandStarted=$false
+            simTicksAdvanced=0;simWorkerStillHeld=$false}}
 }
 $drainRequest=[pscustomobject]@{persistenceCase='serialization-cancel'}
 $drainRows=@(
     (New-KmcDrainRow 'drain-initial-write'),(New-KmcDrainRow 'worker-in-flight-observed'),
     (New-KmcDrainRow 'drain-cancellation-deferred'),(New-KmcDrainRow 'drain-settled'),
-    (New-KmcDrainRow 'native-write-complete'))
+    (New-KmcDrainRow 'native-write-complete'),(New-KmcDrainRow 'drain-simulation-probe'))
 $dd=$drainRows[2].detail
 $dd.draining=$true;$dd.deferredCancellations=1
 $dd.overlapRefused=$true;$dd.loadRefused=$true;$dd.repeatedStopSafe=$true;$dd.disableRefused=$true
 $dd.currentSha256=('a'*64)
+# The held world: the main-menu reset deferred (and its replay discarded by the
+# diagnostic), the world paused the moment the abandonment deferred.
+$dd.resetDeferred=$true;$dd.heldPaused=$true;$dd.resetPending=$false
 $ds=$drainRows[3].detail
 $ds.draining=$false;$ds.activeScope=$false;$ds.deferredCancellations=1;$ds.drains=1
 $ds.saveSuspended=$false;$ds.serializationSuspended=$false
 $ds.drainCommitted=$true;$ds.currentSha256=('b'*64);$ds.failedSaves=0
+$ds.pauseRestored=$true
 $drainRows[4].detail.ordinal=2;$drainRows[4].detail.sha256=('b'*64)
+$dp=$drainRows[5].detail
+$dp.draining=$true;$dp.deferredCancellations=1;$dp.simWorkerStillHeld=$true;$dp.unrelatedActorId='unit-b'
 Assert-KmcRecoveryPersistenceEvidence $drainRequest $drainRows;$passes++
 # The uncommitted settlement is equally valid and equally checked.
 $uncommitted=($drainRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
@@ -821,10 +831,12 @@ foreach($bad in @('no-flight','worker-finished','no-hold','held-other-leaf','alr
     'no-active-scope','released-instead-of-deferred','reported-cancellation','overlap-allowed','load-disposed-world',
     'repeat-released','disable-released','last-good-changed','settled-twice','lease-left-held','different-worker',
     'committed-without-change','committed-without-path','committed-reported-failed','uncommitted-not-reported','uncommitted-changed-archive',
-    'no-subsequent-write','out-of-order')){
+    'no-subsequent-write','out-of-order',
+    'reset-not-deferred','world-not-held','reset-left-pending','pause-not-restored',
+    'no-simulation-probe','owned-command-queued','unrelated-command-queued','clock-advanced','probe-after-release')){
     $n=($drainRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
-        'no-flight' {$n=@($n[0],$n[2],$n[3],$n[4])}
+        'no-flight' {$n=@($n[0],$n[2],$n[3],$n[4],$n[5])}
         'worker-finished' {$n[1].detail.workerRunning=$false}
         'no-hold' {$n[1].detail.workerHeld=$false}
         'held-other-leaf' {$n[1].detail.heldLeaf='Manual_301_OTHER.zks'}
@@ -846,8 +858,18 @@ foreach($bad in @('no-flight','worker-finished','no-hold','held-other-leaf','alr
         'committed-reported-failed' {$n[3].detail.failedSaves=1}
         'uncommitted-not-reported' {$n[3].detail.drainCommitted=$false;$n[3].detail.failedSaves=0;$n[3].detail.currentSha256=('a'*64)}
         'uncommitted-changed-archive' {$n[3].detail.drainCommitted=$false;$n[3].detail.failedSaves=1}
-        'no-subsequent-write' {$n=@($n[0],$n[1],$n[2],$n[3])}
-        'out-of-order' {$n=@($n[0],$n[2],$n[1],$n[3],$n[4])}
+        'no-subsequent-write' {$n=@($n[0],$n[1],$n[2],$n[3],$n[5])}
+        'out-of-order' {$n=@($n[0],$n[2],$n[1],$n[3],$n[4],$n[5])}
+        # The held world: each rule rejects on its own, with every other row valid.
+        'reset-not-deferred' {$n[2].detail.resetDeferred=$false}
+        'world-not-held' {$n[2].detail.heldPaused=$false}
+        'reset-left-pending' {$n[2].detail.resetPending=$true}
+        'pause-not-restored' {$n[3].detail.pauseRestored=$false}
+        'no-simulation-probe' {$n=@($n[0],$n[1],$n[2],$n[3],$n[4])}
+        'owned-command-queued' {$n[5].detail.simCommandQueued=$true}
+        'unrelated-command-queued' {$n[5].detail.unrelatedCommandQueued=$true}
+        'clock-advanced' {$n[5].detail.simTicksAdvanced=1}
+        'probe-after-release' {$n[5].detail.simWorkerStillHeld=$false}
     }
     Must-Reject {Assert-KmcRecoveryPersistenceEvidence $drainRequest $n} ('P07 drain accepted '+$bad)
 }
