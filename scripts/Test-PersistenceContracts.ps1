@@ -283,13 +283,17 @@ public static class KmcPersistenceContractProbe
         var tracked=(System.Collections.Generic.IEnumerator<object>)track.Invoke(null,new object[]{
             ((System.Collections.Generic.IEnumerable<object>)empty).GetEnumerator(),scope});
         var noSnapshotRejected=false;
-        try{tracked.MoveNext();}catch(InvalidOperationException){noSnapshotRejected=true;}finally{tracked.Dispose();}
+        // Pin the exact reason: a bare InvalidOperationException here would also
+        // be satisfied by an unrelated iterator-identity failure.
+        try{tracked.MoveNext();}catch(InvalidOperationException error){noSnapshotRejected=error.Message.Contains("before its snapshot");}finally{tracked.Dispose();}
         Check(noSnapshotRejected,"empty native save enumeration cannot report a successful write");
         saveScope.GetField("Json",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(scope,"bounded snapshot");
         tracked=(System.Collections.Generic.IEnumerator<object>)track.Invoke(null,new object[]{
             ((System.Collections.Generic.IEnumerable<object>)empty).GetEnumerator(),scope});
         var foreignCompletionRejected=false;
-        try{tracked.MoveNext();}catch(InvalidOperationException){foreignCompletionRejected=true;}finally{tracked.Dispose();}
+        // A foreign iterator is rejected by the identity check that guards the
+        // worker task, before the null-task check can be reached.
+        try{tracked.MoveNext();}catch(InvalidOperationException error){foreignCompletionRejected=error.Message.Contains("save iterator identity changed");}finally{tracked.Dispose();}
         Check(foreignCompletionRejected,"snapshot data alone cannot turn a foreign empty iterator into a completed native write");
 
         var worker=candidate.GetType("KingmakerMountedCombat.Integration.NativeSaveWorkerBoundary",true);
@@ -302,6 +306,34 @@ public static class KmcPersistenceContractProbe
             object.ReferenceEquals(worker.GetMethod("TaskOf",BindingFlags.NonPublic|BindingFlags.Static)
                 .Invoke(null,new[]{iteratorBlank}),taskSource.Task),
             "exact native iterator exposes its real background save task independently of enumerator completion");
+
+        // A save scope may release its AI, control and serialization protections
+        // only when no archive worker can still commit. Native StopAll disposes
+        // the owned wrapper without the worker having finished, and nothing in
+        // the engine can cancel a started worker, so a running task must defer
+        // the release rather than allow it.
+        var release=worker.GetMethod("CanReleaseScope",BindingFlags.NonPublic|BindingFlags.Static);
+        var running=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        var finished=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        finished.SetResult(true);
+        var broken=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        broken.SetException(new InvalidOperationException("owned serializer fault"));
+        var stopped=new System.Threading.Tasks.TaskCompletionSource<bool>();
+        stopped.SetCanceled();
+        Check((bool)release.Invoke(null,new object[]{null}),
+            "a save that never started a worker may release its scope immediately");
+        Check(!(bool)release.Invoke(null,new object[]{running.Task}),
+            "a running archive worker defers the owned save scope release");
+        Check((bool)release.Invoke(null,new object[]{finished.Task}),
+            "a completed archive worker releases the owned save scope");
+        Check((bool)release.Invoke(null,new object[]{broken.Task}),
+            "a faulted archive worker is finished and releases the owned save scope");
+        Check((bool)release.Invoke(null,new object[]{stopped.Task}),
+            "a canceled archive worker is finished and releases the owned save scope");
+        running.SetResult(true);
+        Check((bool)release.Invoke(null,new object[]{running.Task}),
+            "the same worker releases its scope once it actually finishes");
+        System.GC.KeepAlive(broken.Task.Exception);
         var sources=new System.Threading.Tasks.TaskCompletionSource<bool>[4];
         for(int n=0;n<4;n++)sources[n]=new System.Threading.Tasks.TaskCompletionSource<bool>();
         sources[0].SetException(new IOException("bounded serializer fault"));sources[2].SetResult(true);

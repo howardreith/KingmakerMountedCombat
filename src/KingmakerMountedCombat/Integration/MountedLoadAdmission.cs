@@ -37,7 +37,12 @@ namespace KingmakerMountedCombat.Integration
             string rejection;
             try
             {
-                if (save == null || !save.HasFileOnDisk || save.Saver == null)
+                // A world replacement while an owned archive worker can still
+                // commit would race that write. Refuse before disposal rather
+                // than destroy the world the worker is still describing.
+                if (SaveDraining)
+                    rejection = "a save is still being written; try again once it finishes.";
+                else if (save == null || !save.HasFileOnDisk || save.Saver == null)
                     rejection = "The selected native archive is not available.";
                 else
                 {
