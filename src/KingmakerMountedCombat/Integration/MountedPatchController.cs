@@ -58,6 +58,12 @@ namespace KingmakerMountedCombat.Integration
                 }
 
                 PatchExact(typeof(ClickGroundHandler), "RunCommand", 0x060093DC, new[] { typeof(UnitEntityData), typeof(UnityEngine.Vector3), typeof(float?), typeof(float), typeof(float), typeof(bool) }, nameof(PatchMethods.GroundCommandPrefix), nameof(PatchMethods.GroundCommandPostfix));
+                // The only gameplay caller of LoadingProcess.StopAll. Deferred while an
+                // owned archive worker can still commit, so the save is never
+                // abandoned mid-write on the way to the main menu.
+                PatchExact(typeof(Kingmaker.Game), "ResetToMainMenu", 0x06000CDD,
+                    new[] { typeof(string), typeof(Kingmaker.Blueprints.Area.BlueprintAreaPreset) },
+                    nameof(PatchMethods.ResetToMainMenuPrefix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B2, new[] { typeof(UnitCommand) }, nameof(PatchMethods.UnitCommandRunPrefix));
                 PatchExact(typeof(UnitCommands), "Run", 0x060026B3,
                     new[] { typeof(UnitCommand), typeof(bool), typeof(bool) }, nameof(PatchMethods.ChargeAdmissionPrefix));
@@ -338,7 +344,14 @@ namespace KingmakerMountedCombat.Integration
 
             internal static bool ChargeAdmissionPrefix(UnitCommand cmd) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
+                PatchBridge.Persistence?.ActiveSaveWorkerRunning != true &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
+
+            // Game.ResetToMainMenu, the only gameplay caller of StopAll. Deferred
+            // while an owned archive worker can still commit; the service replays
+            // it with the same arguments once the save has finished.
+            internal static bool ResetToMainMenuPrefix(string message, Kingmaker.Blueprints.Area.BlueprintAreaPreset preset) =>
+                PatchBridge.Persistence == null || !PatchBridge.Persistence.DeferResetToMainMenu(message, preset);
 
             internal static bool SaveCommandStartPrefix(UnitCommand __instance) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
@@ -386,6 +399,11 @@ namespace KingmakerMountedCombat.Integration
             internal static bool UnitCommandRunPrefix(UnitCommands __instance, ref UnitCommand cmd)
             {
                 if (PatchBridge.Persistence?.CombatRestorationPending == true) return false;
+                // While an owned archive worker can still commit, no unit -- owned pair
+                // or not -- may run or queue a command: the worker is serializing the
+                // live graphs those queues live in. Refused, not deferred: the world is
+                // held until the worker settles.
+                if (PatchBridge.Persistence?.ActiveSaveWorkerRunning == true) return false;
                 // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
                 // must stay entirely native; routing one can cancel a real pair order or move its mount.
                 if (PointerController.SimulatingClick) { return true; }

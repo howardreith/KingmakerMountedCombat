@@ -59,6 +59,15 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool drainSimCommandStarted;
         private bool drainSimWorkerStillHeld;
         private bool drainSimAdmissionRefused;
+        // The held world: pause state around the abandonment, the deferred
+        // main-menu reset, and an unrelated party member's command attempt.
+        private bool drainPausedBeforeStop;
+        private bool drainHeldPaused;
+        private bool drainPauseRestored;
+        private bool drainResetDeferred;
+        private string drainSimUnrelatedId;
+        private bool drainSimUnrelatedQueued;
+        private Kingmaker.UnitLogic.Commands.Base.UnitCommand drainSimUnrelatedProbe;
         private Kingmaker.UnitLogic.Commands.Base.UnitCommand drainSimProbe;
 
         // Best effort and never fatal: the substantive measurements are whether
@@ -158,8 +167,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 drainRejectionsAtStop = persistence.RejectedLoadCount;
                 drainDisposalsAtStop = persistence.NativeWorldDisposalCount;
 
-                // The real native cancellation path.
+                // The real native cancellation path. The user's pause state before
+                // it is recorded so its restoration at settlement can be checked.
+                drainPausedBeforeStop = game.IsPaused;
                 LoadingProcess.Instance.StopAll();
+                // KMC holds the world the moment the abandonment defers.
+                drainHeldPaused = game.IsPaused;
 
                 Check(persistence.SaveDraining && persistence.HasActiveSaveScope &&
                     persistence.DeferredSaveCancellationCount == 1 && persistence.DrainedSaveCount == 0 &&
@@ -215,6 +228,40 @@ namespace KingmakerMountedCombat.Diagnostics
                 finally { persistence.Enabled = wasEnabled; }
                 Check(drainDisableRefused, "P07-disable-cannot-remove-the-drain-owner-or-its-leases");
 
+                // The only gameplay caller of StopAll is Game.ResetToMainMenu.
+                // Invoked here exactly as the Esc menu does, while the worker is
+                // held, it must be DEFERRED: no StopAll, no main-menu coroutine,
+                // world intact. The deferred replay -- the engine's own
+                // ResetToMainMenu, invoked once by Update after settlement -- is
+                // then discarded so this process keeps its world.
+                var resetsBefore = persistence.ResetToMainMenuDeferredCount;
+                game.ResetToMainMenu(null, null);
+                drainResetDeferred = persistence.ResetToMainMenuDeferredCount == resetsBefore + 1 &&
+                    persistence.ResetToMainMenuPending && game.CurrentlyLoadedArea != null &&
+                    game.CurrentMode == Kingmaker.GameModes.GameModeType.Default &&
+                    !LoadingProcess.Instance.IsLoadingInProcess && persistence.SaveDraining;
+                Check(drainResetDeferred, "P07-return-to-main-menu-is-deferred-while-the-worker-can-still-commit");
+                persistence.DiscardDeferredResetForAutomation();
+                Check(!persistence.ResetToMainMenuPending, "P07-diagnostic-discards-the-deferred-reset-exactly-once");
+
+                // An UNRELATED party member's ordinary command, through the same
+                // native UnitCommands entry the player uses. Pair-only rejection is
+                // not a world guarantee; every unit's queue is a serialized graph.
+                var unrelated = game.Player.Party.FirstOrDefault(u => u != rider && u != mount);
+                drainSimUnrelatedId = unrelated?.UniqueId;
+                if (unrelated != null)
+                {
+                    try
+                    {
+                        var probe = new Kingmaker.UnitLogic.Commands.UnitMoveTo(unrelated.Position + UnityEngine.Vector3.forward * 2f) { CreatedByPlayer = true };
+                        unrelated.Commands.Run(probe);
+                        drainSimUnrelatedQueued = unrelated.Commands.Raw.Concat(unrelated.Commands.Queue).Contains(probe);
+                        drainSimUnrelatedProbe = probe;
+                    }
+                    catch (Exception exception)
+                    { logger.Exception("Drain unrelated-actor probe could not be dispatched", exception); }
+                }
+
                 Check(Hash(drainGoodPath) == drainGoodHash,
                     "P07-last-good-archive-is-untouched-while-the-worker-is-held");
                 Write("drain-cancellation-deferred", DrainDetail(null));
@@ -263,6 +310,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 // lifetime: an accepted command must not actually start or move.
                 Check(!drainSimCommandStarted && drainSimMoved < 0.01f,
                     "P07-native-entity-execution-stays-suspended-under-the-live-serializer");
+                // The held world: no unit's command is even queued -- owned pair or
+                // unrelated party member -- and the game clock does not advance.
+                Check(!drainSimCommandQueued && !drainSimUnrelatedQueued && !string.IsNullOrEmpty(drainSimUnrelatedId),
+                    "P07-no-unit-command-is-queued-while-the-worker-can-still-commit");
+                Check(drainHeldPaused && drainSimTicksAdvanced == 0,
+                    "P07-game-clock-is-held-while-the-worker-can-still-commit");
+                try { drainSimUnrelatedProbe?.Interrupt(); } catch (Exception exception)
+                { logger.Exception("Drain unrelated-actor probe could not be interrupted", exception); }
                 try { drainSimProbe?.Interrupt(); } catch (Exception exception)
                 { logger.Exception("Drain simulation probe could not be interrupted", exception); }
                 drainHold.Dispose(); drainHold = null;
@@ -286,7 +341,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 drainInterruptedPath = persistence.LastDrainedSavePath;
                 var committed = persistence.LastDrainedSaveCommitted;
                 var currentHash = Hash(drainGoodPath);
+                // The user's prior pause state comes back with settlement.
+                drainPauseRestored = game.IsPaused == drainPausedBeforeStop;
                 Write("drain-settled", DrainDetail(currentHash));
+                Check(drainPauseRestored, "P07-user-pause-state-is-restored-at-settlement");
                 Check(persistence.DrainedSaveCount == 1 && !persistence.SaveDraining &&
                     !persistence.HasActiveSaveScope, "P07-drain-releases-exactly-once");
                 Check(!persistence.SaveSuspended && !controls.CaptureSnapshot().SerializationSuspended &&
@@ -460,6 +518,15 @@ namespace KingmakerMountedCombat.Diagnostics
             ["simAreaTurnedOnAfter"] = drainSimAreaTurnedOnAfter,
             ["simWorkerStillHeld"] = drainSimWorkerStillHeld,
             ["simOwnedAdmissionRefused"] = drainSimAdmissionRefused,
+            // The held world.
+            ["pausedBeforeStop"] = drainPausedBeforeStop,
+            ["heldPaused"] = drainHeldPaused,
+            ["pauseRestored"] = drainPauseRestored,
+            ["resetDeferred"] = drainResetDeferred,
+            ["resetDeferrals"] = persistence.ResetToMainMenuDeferredCount,
+            ["resetPending"] = persistence.ResetToMainMenuPending,
+            ["unrelatedActorId"] = drainSimUnrelatedId,
+            ["unrelatedCommandQueued"] = drainSimUnrelatedQueued,
             ["nativePausedNow"] = Game.Instance?.IsPaused,
             ["nativeLoadingNow"] = LoadingProcess.Instance.IsLoadingInProcess,
             ["nativeModeNow"] = Game.Instance?.CurrentMode.ToString(),

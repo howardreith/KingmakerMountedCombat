@@ -136,6 +136,7 @@ namespace KingmakerMountedCombat.Integration
                     {
                         drainingSave = scope;
                         DeferredSaveCancellationCount++;
+                        HoldWorldForDrain();
                         NotifySaveStatus("This save is already writing and cannot be canceled; " +
                             "finishing it before mounted controls resume.");
                     }
@@ -162,6 +163,91 @@ namespace KingmakerMountedCombat.Integration
         // rebinding or notification then failed. They are reported as written,
         // not as failed, and are counted here rather than in FailedSaveCount.
         internal int CommittedThenFailedCount { get; private set; }
+
+        // ---- Holding the world while an abandoned worker can still commit ----
+        //
+        // The worker serializes the LIVE Player, cross-scene state and loaded
+        // area on its own thread. Static inspection settles who can abandon it:
+        // LoadingProcess.StopAll has exactly two native callers,
+        // Game.ResetToMainMenu (0x06000CDD) and Runner.ReportException
+        // (0x06000E05). The first is deferred below so that in gameplay the save
+        // is never abandoned at all. For an actual abandonment the engine's own
+        // suspension ends with StopAll: entity execution stays off (the abandoned
+        // iterator never reaches TurnOn) but the clock runs and input can still
+        // queue commands into the graphs being written. So the world is held --
+        // paused, with every unit command refused at UnitCommands -- until the
+        // worker settles, and the user's prior pause state is then restored.
+        private bool drainPauseCaptured;
+        private bool drainPausedBefore;
+        private Player drainPauseWorld;
+        internal int ResetToMainMenuDeferredCount { get; private set; }
+        internal bool ResetToMainMenuPending => resetPending;
+        private bool resetPending;
+        private string resetMessage;
+        private Kingmaker.Blueprints.Area.BlueprintAreaPreset resetPreset;
+
+        private void HoldWorldForDrain()
+        {
+            var game = Game.Instance;
+            if (game == null || drainPauseCaptured) return;
+            drainPauseCaptured = true;
+            drainPauseWorld = game.Player;
+            drainPausedBefore = game.IsPaused;
+            try { game.IsPaused = true; }
+            catch (Exception exception) { logger.Exception("Drain could not pause the world", exception); }
+        }
+
+        private void ReleaseWorldAfterDrain()
+        {
+            if (!drainPauseCaptured) return;
+            drainPauseCaptured = false;
+            var game = Game.Instance;
+            // Restore the user's prior state only into the same world; a replaced
+            // world has its own pause semantics.
+            if (game != null && ReferenceEquals(game.Player, drainPauseWorld))
+            {
+                try { game.IsPaused = drainPausedBefore; }
+                catch (Exception exception) { logger.Exception("Drain could not restore the prior pause state", exception); }
+            }
+            drainPauseWorld = null;
+        }
+
+        // Prefix decision for Game.ResetToMainMenu: while an owned worker can
+        // still commit, the reset is deferred -- not refused forever -- and
+        // replayed by Update once the whole save has finished, so the save is
+        // never abandoned mid-write in this flow. The arguments are the exact
+        // ones the caller passed.
+        internal bool DeferResetToMainMenu(string message, Kingmaker.Blueprints.Area.BlueprintAreaPreset preset)
+        {
+            if (!ActiveSaveWorkerRunning) return false;
+            resetPending = true;
+            resetMessage = message;
+            resetPreset = preset;
+            ResetToMainMenuDeferredCount++;
+            NotifySaveStatus("Finishing the save before leaving; the main menu opens once it is written.");
+            return true;
+        }
+
+        private void ReplayDeferredResetIfSettled()
+        {
+            if (!resetPending || ActiveSaveWorkerRunning || activeSave != null || drainingSave != null) return;
+            resetPending = false;
+            var message = resetMessage; var preset = resetPreset;
+            resetMessage = null; resetPreset = null;
+            var game = Game.Instance;
+            if (game == null) return;
+            try { game.ResetToMainMenu(message, preset); }
+            catch (Exception exception) { logger.Exception("Deferred return to the main menu failed", exception); }
+        }
+
+        // Diagnostic only: an isolated run proves the deferral natively and then
+        // keeps its world instead of letting the replay open the main menu.
+        internal void DiscardDeferredResetForAutomation()
+        {
+            if (!NativePersistenceIsolation.IsIsolated)
+                throw new InvalidOperationException("Discarding a deferred reset requires the isolated save authority.");
+            resetPending = false; resetMessage = null; resetPreset = null;
+        }
 
         // The single factual description shared by ordinary completion, an
         // abandoned operation that drained, and a commit whose cleanup failed.
@@ -360,6 +446,7 @@ namespace KingmakerMountedCombat.Integration
             LastDrainedSavePath = committed ? landed : null;
             if (report.CountsAsFailed) FailedSaveCount++;
             ReleaseSaveScope(scope);
+            ReleaseWorldAfterDrain();
             // Same factual report as the ordinary completion path; only the
             // prefix says this one was interrupted.
             NotifySaveStatus("Interrupted save: " + report.Message);
@@ -566,6 +653,7 @@ namespace KingmakerMountedCombat.Integration
         internal void Update()
         {
             DrainAbandonedSave();
+            ReplayDeferredResetIfSettled();
             CompleteAreaTransitionIfReady();
             TryRestoreCombat();
             if (CombatRestorationPending) return;
