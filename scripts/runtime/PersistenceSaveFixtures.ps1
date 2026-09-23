@@ -565,9 +565,18 @@ function Assert-KmcPersistenceScenarioEvidence {
             $d.snapshot.Mounted-ne$true-or$d.snapshot.Rider.Id-cne$initial[0].rider.Id-or
             $d.snapshot.Mount.Id-cne$initial[0].mount.Id){throw 'P01 real archive/metadata/completion differs.'}
     }else{
-        if(@($rows|Where-Object kind -CEQ 'native-write-complete').Count-ne0){throw 'P01 cold process unexpectedly wrote a save.'}
+        # Only a transition autosave cold case makes an ordinary subsequent
+        # write, to prove the restored world still supports one. Every other
+        # cold process still writes nothing, and neither may disturb the
+        # archive it loaded.
+        $autoCold=$Request.scenario-ceq'persistence-p07-load'-and$Request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')
+        $coldWrites=@($rows|Where-Object kind -CEQ 'native-write-complete')
+        if($coldWrites.Count-ne$(if($autoCold){1}else{0})){throw 'P01 cold process unexpectedly wrote a save.'}
         $archive=Join-Path $root $Request.persistenceLoad.fileName
         if((Get-KmcSha256 $archive)-cne$Request.persistenceLoad.sha256){throw 'P01 cold process did not retain its selected archive.'}
+        if($autoCold-and($coldWrites[0].detail.path-ceq$archive-or$coldWrites[0].detail.sha256-ceq$Request.persistenceLoad.sha256)){
+            throw 'P07 transition autosave cold write replaced the archive it loaded.'
+        }
     }
 }
 
