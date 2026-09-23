@@ -6,7 +6,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
@@ -25,7 +25,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){

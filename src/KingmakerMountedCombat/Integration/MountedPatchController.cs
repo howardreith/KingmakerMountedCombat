@@ -104,7 +104,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(UnitEntityData), "PostLoad", 0x0600835E, Type.EmptyTypes, null, nameof(PatchMethods.ActorPostLoadPostfix));
                 PatchExact(typeof(SaveManager), "IsSaveAllowed", 0x06008028, Type.EmptyTypes, null, null, nameof(PatchMethods.CombatSaveAdmissionTranspiler));
                 PatchExact(typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,
-                    new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) }, null, nameof(PatchMethods.SaveWorkerPostfix), nameof(PatchMethods.NativeArchiveCommitTranspiler));
+                    new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) },
+                    nameof(PatchMethods.SaveWorkerPrefix), nameof(PatchMethods.SaveWorkerPostfix), nameof(PatchMethods.NativeArchiveCommitTranspiler));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
                 PatchExact(typeof(Kingmaker.Game), "LoadArea", 0x06000CD5,
                     new[] { typeof(Kingmaker.Blueprints.Area.BlueprintArea), typeof(Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint),
@@ -916,6 +917,8 @@ namespace KingmakerMountedCombat.Integration
                 __state = true;
                 return true;
             }
+
+            internal static void SaveWorkerPrefix() => NativeSaveWorkerBoundary.ObserveWorkerEntry();
 
             internal static void SaveWorkerPostfix(SaveInfo saveInfo) =>
                 NativePersistenceIsolation.ObserveWorkerComplete(saveInfo);

@@ -17,6 +17,15 @@ namespace KingmakerMountedCombat.Integration
         private static readonly FieldInfo SaveTask = NativeCombatActorPersistence.Field(
             Iterator, "<saveTask>5__2", 0x04008CEA, typeof(Task));
 
+        // Observation only. The native worker body runs on a background thread,
+        // so this counts entries atomically and changes nothing else. It exists
+        // because a cancellation request can only be qualified if it is timed to
+        // land after serialization has actually started, not merely after the
+        // iterator was queued.
+        private static int workerEntries;
+        internal static int WorkerEntryCount => System.Threading.Volatile.Read(ref workerEntries);
+        internal static void ObserveWorkerEntry() => System.Threading.Interlocked.Increment(ref workerEntries);
+
         internal static Task TaskOf(IEnumerator<object> routine)
         {
             if (routine == null || routine.GetType() != Iterator)
