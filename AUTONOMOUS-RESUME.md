@@ -1,3 +1,20 @@
+# Chunk 5: save-worker lifetime after interruption qualified — 2026-09-23 UTC
+
+IN PROGRESS. Frozen source 0eb6b98 / 0.1.0-chunk5-preview.70. DLL 552cc09c1f25e96b64f5a17642d34292f139c4b842492170eb754d16b47559bd, MVID a0ba85f3-0a99-453e-8e20-f324a53eff30. Package KingmakerMountedCombat-0.1.0-chunk5-preview.70-p07-worker-drain-diagnostic.zip SHAdcdf26824a89981b88046031476f1c9c9e35cdaee8eae844c85db243270637c9, suite83 SHA1b843459a1c513b9. Source22/components439/contracts**116**/data56/owned-fixtures**321**/validation-copies104/harness261/profile38/package11 PASS. Required paired=true; legacy authorities/overlay=false.
+
+**The reported path was real.** StopAll to AbandonOwned to wrapper Dispose to ScopedEnumerator cleanup was releasing AI/control/serialization leases and the active-save scope while the archive worker could still commit, clearing the overlap guard and skipping the world-reference restoration, with no failure reported. TrackNativeSave's wait is only on the enumerated completion path; WaitForAll protects the worker's subtasks, not the outer scope's lifetime.
+
+**Policy: refuse and drain.** Nothing in the engine can cancel a started worker — no CancellationToken exists on any persistence type and StopAll only drops enumerators — so early disposal now retains the scope, releases nothing, reports no cancellation, and marks the save draining. A per-frame drain in Update (non-blocking) releases exactly once when the task settles, restores the native world reference and reports the truthful outcome. While draining, load admission refuses before world disposal.
+
+**20260923-chunk5-P07-worker-drain-F PASS43/0.** In-flight boundary is the operation's own: prepared leaf Manual_301_KMC_P01.zks, the scope's own Task identity, IsCompleted false, one hold at that leaf. Leases retained through StopAll; one deferral, zero drains, no cancellation callback; second serialization refused by the real overlap guard; conflicting load refused with zero world disposals; repeated cancellation safe; disable could not remove the drain owner. Settled committed, replaced **in place** 6ce1eafd to 31954ce1, failedSaves0, released exactly once, controls and world reference restored, further Update/StopAll no-ops, debt conserved, subsequent write 4df7b606, then movement, a delivered attack and usable continuation. **-cold-A PASS20/0** (PID20352) loads that subsequent save in a fresh process and plays.
+
+**Measured limitation.** Across StopAll the engine's own suspension ends while the worker still writes (IsLoadingInProcess True to False; IsPaused false; mode Default). KMC's leases are not a substitute, and no containment of serializer-visible mutation is claimed. Observed in this modded configuration only.
+
+Both runs restored actual intake with profileBytesRestoredExactly true and zero cache churn; final restoration 2026-09-23T14:45:35.5658948+00:00. Human chunk4-preview54 DLL2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 installed, 275 saves, seven mod directories, both automation fixtures byte-identical (BASELINE c29d965c, WORKING 5eb4e0b4), BASELINE immutable, no game process or lock.
+
+**Next, already authorized:** remaining lifecycle and disable/re-enable/removal, P04 TB/overlap, disposable campaign B (mission section 7), and the exact-final P01-P08 consolidation. The P06 damaged-area result stands as measured containment plus restart-only recovery; no in-session recovery is claimed. Arbitrary DLL deletion remains outside the claim.
+
+---
 # Chunk 5: post-disposal load failure qualified, recovery is restart-only — 2026-09-23 UTC
 
 IN PROGRESS. Frozen source 07a6ba4 / 0.1.0-chunk5-preview.70. DLL d923e4555158c514e14061a08f9a9307f42fb9bb722dfd85d044d93710bac098, MVID beeb7cda-592f-47e4-9cc3-219e01c38014. Package KingmakerMountedCombat-0.1.0-chunk5-preview.70-p06-failed-area-load-diagnostic.zip SHA7e3df277d504e24da770c3e30be9ae7a523e62fb2c0ef95dbf1dca7c25a17e11, suite77 SHA72319dece9b50473. Source22/components439/contracts110/data56/owned-fixtures295/**validation-copies104**/harness261/profile38/package11 PASS.
