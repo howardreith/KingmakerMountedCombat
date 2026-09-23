@@ -28,6 +28,9 @@ namespace KingmakerMountedCombat.Integration
         internal int DrainedSaveCount { get; private set; }
         internal bool LastDrainedSaveCommitted { get; private set; }
         internal bool SaveDraining => drainingSave != null;
+        // The overlap guard reads this. A draining save must still own it, so a
+        // second serialization cannot begin over a worker that can still commit.
+        internal bool HasActiveSaveScope => activeSave != null;
         // Per-operation identity, so a test can prove THIS save's worker was
         // still running when interruption was requested rather than relying on a
         // cumulative count.

@@ -24,7 +24,71 @@ namespace KingmakerMountedCombat.Integration
         // iterator was queued.
         private static int workerEntries;
         internal static int WorkerEntryCount => System.Threading.Volatile.Read(ref workerEntries);
-        internal static void ObserveWorkerEntry() => System.Threading.Interlocked.Increment(ref workerEntries);
+
+        // Diagnostic hold. Inert unless an isolated run arms it, and then it
+        // holds exactly ONE already-authorized owned save worker at its entry,
+        // on that worker's own background thread. The main thread keeps running,
+        // so the per-frame drain and required completion work continue. It is
+        // bounded and self-releasing: a failed test cannot leave a save
+        // suspended, and the serializer and commit path run unchanged afterwards.
+        private static readonly object holdLock = new object();
+        private static bool holdArmed;
+        private static System.Threading.ManualResetEventSlim holdGate;
+        private static int holdMilliseconds;
+        internal static string HeldWorkerLeaf { get; private set; }
+        internal static int WorkerHoldCount { get; private set; }
+        internal static bool WorkerHeld { get { lock (holdLock) { return holdGate != null && !holdGate.IsSet; } } }
+
+        internal static IDisposable ArmWorkerHold(int milliseconds)
+        {
+            if (milliseconds < 100 || milliseconds > 30000)
+                throw new ArgumentOutOfRangeException(nameof(milliseconds), "An owned worker hold must be bounded.");
+            lock (holdLock)
+            {
+                if (holdArmed || holdGate != null)
+                    throw new InvalidOperationException("An owned save worker hold is already armed.");
+                holdArmed = true;
+                holdMilliseconds = milliseconds;
+            }
+            return new WorkerHoldRelease();
+        }
+
+        internal static void ReleaseWorkerHold()
+        {
+            lock (holdLock) { holdArmed = false; if (holdGate != null && !holdGate.IsSet) holdGate.Set(); }
+        }
+
+        private sealed class WorkerHoldRelease : IDisposable
+        {
+            public void Dispose() => ReleaseWorkerHold();
+        }
+
+        internal static void ObserveWorkerEntry(SaveInfo saveInfo)
+        {
+            System.Threading.Interlocked.Increment(ref workerEntries);
+            System.Threading.ManualResetEventSlim gate;
+            lock (holdLock)
+            {
+                if (!holdArmed) return;
+                // Only an archive this run already authorized may be held, so the
+                // hold cannot arm against ordinary play or a foreign save.
+                try { NativePersistenceIsolation.RequireOwnedWrite(saveInfo); }
+                catch { return; }
+                holdArmed = false;
+                gate = holdGate = new System.Threading.ManualResetEventSlim(false);
+                HeldWorkerLeaf = saveInfo == null ? null : saveInfo.FileName;
+                WorkerHoldCount++;
+            }
+            try { gate.Wait(holdMilliseconds); }
+            finally
+            {
+                lock (holdLock)
+                {
+                    if (ReferenceEquals(holdGate, gate)) holdGate = null;
+                    gate.Dispose();
+                }
+            }
+        }
 
         internal static Task TaskOf(IEnumerator<object> routine)
         {

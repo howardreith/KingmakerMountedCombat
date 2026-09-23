@@ -787,5 +787,70 @@ foreach($mode in @('AfterEntry','BeforeExit')){
     }
 }
 
+# --- Save-worker drain: cancellation while the worker can still commit --------
+function New-KmcDrainRow { param([string]$Kind)
+    [pscustomobject]@{kind=$Kind;checkpoint='serialization-cancel'
+        detail=[pscustomobject]@{case='serialization-cancel';preparedLeaf='Manual_300_KMC_P01.zks';workerTaskId=41
+            workerRunning=$true;workerHeld=$true;heldLeaf='Manual_300_KMC_P01.zks';workerHolds=1;workerEntries=1
+            draining=$false;activeScope=$true;deferredCancellations=0;drains=0;drainCommitted=$false
+            saveSuspended=$true;serializationSuspended=$true;saveCallback=$false;snapshots=1;failedSaves=0
+            rejections=0;nativeWorldDisposals=0;overlapRefused=$false;loadRefused=$false
+            repeatedStopSafe=$false;disableRefused=$false;ordinal=1;sha256=('a'*64)
+            lastGoodSha256=('a'*64);currentSha256=$null}}
+}
+$drainRequest=[pscustomobject]@{persistenceCase='serialization-cancel'}
+$drainRows=@(
+    (New-KmcDrainRow 'drain-initial-write'),(New-KmcDrainRow 'worker-in-flight-observed'),
+    (New-KmcDrainRow 'drain-cancellation-deferred'),(New-KmcDrainRow 'drain-settled'),
+    (New-KmcDrainRow 'native-write-complete'))
+$dd=$drainRows[2].detail
+$dd.draining=$true;$dd.deferredCancellations=1
+$dd.overlapRefused=$true;$dd.loadRefused=$true;$dd.repeatedStopSafe=$true;$dd.disableRefused=$true
+$dd.currentSha256=('a'*64)
+$ds=$drainRows[3].detail
+$ds.draining=$false;$ds.activeScope=$false;$ds.deferredCancellations=1;$ds.drains=1
+$ds.saveSuspended=$false;$ds.serializationSuspended=$false
+$ds.drainCommitted=$true;$ds.currentSha256=('b'*64);$ds.failedSaves=0
+$drainRows[4].detail.ordinal=2;$drainRows[4].detail.sha256=('b'*64)
+Assert-KmcRecoveryPersistenceEvidence $drainRequest $drainRows;$passes++
+# The uncommitted settlement is equally valid and equally checked.
+$uncommitted=($drainRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+$uncommitted[3].detail.drainCommitted=$false;$uncommitted[3].detail.currentSha256=('a'*64)
+$uncommitted[3].detail.failedSaves=1
+Assert-KmcRecoveryPersistenceEvidence $drainRequest $uncommitted;$passes++
+foreach($bad in @('no-flight','worker-finished','no-hold','held-other-leaf','already-draining','lease-dropped',
+    'no-active-scope','released-instead-of-deferred','reported-cancellation','overlap-allowed','load-disposed-world',
+    'repeat-released','disable-released','last-good-changed','settled-twice','lease-left-held','different-worker',
+    'committed-without-change','committed-reported-failed','uncommitted-changed-archive','uncommitted-not-reported',
+    'no-subsequent-write','out-of-order')){
+    $n=($drainRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'no-flight' {$n=@($n[0],$n[2],$n[3],$n[4])}
+        'worker-finished' {$n[1].detail.workerRunning=$false}
+        'no-hold' {$n[1].detail.workerHeld=$false}
+        'held-other-leaf' {$n[1].detail.heldLeaf='Manual_301_OTHER.zks'}
+        'already-draining' {$n[1].detail.deferredCancellations=1}
+        'lease-dropped' {$n[1].detail.serializationSuspended=$false}
+        'no-active-scope' {$n[1].detail.activeScope=$false}
+        'released-instead-of-deferred' {$n[2].detail.draining=$false}
+        'reported-cancellation' {$n[2].detail.saveCallback=$true}
+        'overlap-allowed' {$n[2].detail.overlapRefused=$false}
+        'load-disposed-world' {$n[2].detail.nativeWorldDisposals=1}
+        'repeat-released' {$n[2].detail.repeatedStopSafe=$false}
+        'disable-released' {$n[2].detail.disableRefused=$false}
+        'last-good-changed' {$n[2].detail.currentSha256=('c'*64)}
+        'settled-twice' {$n[3].detail.drains=2}
+        'lease-left-held' {$n[3].detail.serializationSuspended=$true}
+        'different-worker' {$n[2].detail.workerTaskId=99}
+        'committed-without-change' {$n[3].detail.currentSha256=('a'*64)}
+        'committed-reported-failed' {$n[3].detail.failedSaves=1}
+        'uncommitted-changed-archive' {$n[3].detail.drainCommitted=$false;$n[3].detail.failedSaves=1}
+        'uncommitted-not-reported' {$n[3].detail.drainCommitted=$false;$n[3].detail.currentSha256=('a'*64);$n[3].detail.failedSaves=0}
+        'no-subsequent-write' {$n=@($n[0],$n[1],$n[2],$n[3])}
+        'out-of-order' {$n=@($n[0],$n[2],$n[1],$n[3],$n[4])}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $drainRequest $n} ('P07 drain accepted '+$bad)
+}
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

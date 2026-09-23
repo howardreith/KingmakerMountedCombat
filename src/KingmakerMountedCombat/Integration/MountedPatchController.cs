@@ -918,7 +918,7 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
 
-            internal static void SaveWorkerPrefix() => NativeSaveWorkerBoundary.ObserveWorkerEntry();
+            internal static void SaveWorkerPrefix(SaveInfo saveInfo) => NativeSaveWorkerBoundary.ObserveWorkerEntry(saveInfo);
 
             internal static void SaveWorkerPostfix(SaveInfo saveInfo) =>
                 NativePersistenceIsolation.ObserveWorkerComplete(saveInfo);
