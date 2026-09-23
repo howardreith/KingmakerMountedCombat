@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private int disableFactsUnmounted;
         private int disableFactsReEnabled = -1;
         private int disableSlotsReEnabled = -1;
+        private int disableFactsEnabledUnmounted = -1;
+        private int disableSlotsEnabledUnmounted = -1;
         private string disableInvariants;
         private bool disableSecondDisable;
         private bool disableSecondReEnable;
@@ -115,6 +117,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 // explain it.
                 var reEnabled = Main.InvokeRegisteredToggleForAutomation(true);
                 var pairBeforeMount = relationship.State;
+                // Enabling the services grants the unmounted-state control on its
+                // own, with no pair. That count is the reference for every later
+                // enabled-but-unmounted observation; comparing such a state to the
+                // DISABLED count would demand the services grant nothing at all.
+                var enabledIdle = controls.CaptureSnapshot();
+                disableFactsEnabledUnmounted = enabledIdle.ExactFactCount;
+                disableSlotsEnabledUnmounted = enabledIdle.ManagedHotbarSlotCount;
                 var remount = relationship.MountAutomationPair();
                 rider = relationship.Rider; mount = relationship.Mount;
                 var after = controls.CaptureSnapshot();
@@ -136,7 +145,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 // reinstates persisted state that a fresh pair has no reason to
                 // recreate, so equality would assert something never established.
                 // The exact re-enabled counts are recorded either way.
-                Check(disableFactsReEnabled > disableFactsUnmounted &&
+                Check(disableFactsEnabledUnmounted > disableFactsUnmounted &&
+                    enabledIdle.DuplicateFactCount == 0,
+                    "P07-re-enable-returns-the-unmounted-state-control-exactly-once");
+                Check(disableFactsReEnabled >= disableFactsEnabledUnmounted &&
                     disableFactsReEnabled <= disableFactsMounted,
                     "P07-re-enable-returns-owned-controls-without-granting-extra");
                 Check(after.DuplicateFactCount == 0 && disableSlotsReEnabled <= disableSlotsMounted,
@@ -169,9 +181,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 Check(disableSecondReEnable, "P07-services-return-after-the-second-disable");
                 Check(disableStateAfterSecondReEnable == "Unmounted",
                     "P07-returning-services-resurrect-no-pair");
-                Check(disableFactsAfterSecondReEnable == disableFactsUnmounted &&
-                    restored.DuplicateFactCount == 0,
-                    "P07-returning-services-resurrect-no-owned-control");
+                // Cycle-stable, not zero: an enabled mod legitimately offers its
+                // unmounted-state control. What must never happen is that count
+                // growing, or duplicating, with each disable/re-enable cycle.
+                Check(disableFactsAfterSecondReEnable == disableFactsEnabledUnmounted &&
+                    restored.DuplicateFactCount == 0 &&
+                    restored.ManagedHotbarSlotCount == disableSlotsEnabledUnmounted,
+                    "P07-repeated-cycles-leave-the-enabled-unmounted-controls-unchanged");
                 callback = false;
                 var target = game.SaveManager.FirstOrDefault(s => s.Name == "KMC_P01" && s.HasFileOnDisk)
                     ?? game.SaveManager.First(s => s.Name == "KMC_P01");
@@ -258,6 +274,8 @@ namespace KingmakerMountedCombat.Diagnostics
             ["factsMounted"] = disableFactsMounted, ["factsUnmounted"] = disableFactsUnmounted,
             ["slotsMounted"] = disableSlotsMounted,
             ["factsReEnabled"] = disableFactsReEnabled, ["slotsReEnabled"] = disableSlotsReEnabled,
+            ["factsEnabledUnmounted"] = disableFactsEnabledUnmounted,
+            ["slotsEnabledUnmounted"] = disableSlotsEnabledUnmounted,
             ["invariants"] = disableInvariants,
             ["secondDisable"] = disableSecondDisable, ["secondReEnable"] = disableSecondReEnable,
             ["stateAfterSecondDisable"] = disableStateAfterSecondDisable,
