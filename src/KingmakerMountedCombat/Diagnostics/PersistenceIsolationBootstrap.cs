@@ -59,9 +59,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 };
                 // A transition autosave is loaded read-only; the subsequent
                 // ordinary write it must support lands in that same loaded area.
+                // SaveManager.FindUnusedSaveNumber 06008024 takes the maximum
+                // only over saves of the matching type, and this isolated root
+                // holds just the Auto source, so native Manual numbering starts
+                // at 1 here rather than at the 300 a staged Working fixture
+                // produces. The declared leaf has to be the one the engine will
+                // actually choose, or PrepareSave rejects its own descriptor.
                 if (RuntimeRequest.IsTransitionAutoCase(request.PersistenceCase))
                     entries.Add(new PersistenceSaveEntry {
-                        FileName = "Manual_300_KMC_P01.zks", InternalName = "KMC_P01",
+                        FileName = "Manual_1_KMC_P01.zks", InternalName = "KMC_P01",
                         SaveType = "Manual", Area = fixture.Area, Writable = true });
                 if (request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p04-save") entries.Add(new PersistenceSaveEntry
                 {
