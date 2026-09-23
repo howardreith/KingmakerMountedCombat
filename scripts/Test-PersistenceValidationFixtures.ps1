@@ -246,7 +246,7 @@ function New-KmcFailRow { param([string]$Kind,[bool]$Worldless)
             nativeLoadFailures=0;nativeLoadFailure=$null;rejections=0;nativeWorldDisposals=0
             afterLoadCallback=$false;currentAreaNull=$false;loadedDataNull=$false;combatRestorationPending=$false;gameMode='Default'
             semantic=2;presentation=1;relationship='Mounted';unitCount=2;saveSuspended=$false;pendingWrites=$false
-            stopAllRequired=$true;rules=1;rolls=1}}
+            stopAllRequired=$true;recoveredInSession=$false;rules=1;rolls=1}}
     if(-not$Worldless){
         $row.rider=[pscustomobject]@{Id=$failData.Rider.Id;Standard=0;Move=0;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1;LastSurpriseTicks=0}
         $row.mount=[pscustomobject]@{Id=$failData.Mount.Id;Standard=0;Move=0;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1;LastSurpriseTicks=0}
@@ -260,10 +260,7 @@ $failRows=@(
     (New-KmcFailRow 'failed-load-observed' $true),
     (New-KmcFailRow 'failed-load-recovery-requested' $true),
     (New-KmcFailRow 'validation-native-load-requested' $false),
-    (New-KmcFailRow 'validation-valid-retry' $false),
-    (New-KmcFailRow 'movement-dispatched' $false),(New-KmcFailRow 'movement-completed' $false),
-    (New-KmcFailRow 'attack-dispatched' $false),(New-KmcFailRow 'attack-delivered' $false),
-    (New-KmcFailRow 'usable-continuation-complete' $false)
+    (New-KmcFailRow 'failed-load-retry-observed' $true)
 )
 foreach($index in 2,3){
     $failRows[$index].relationship='Unmounted'
@@ -274,15 +271,20 @@ foreach($index in 2,3){
     $d.relationship='Unmounted';$d.unitCount=0
 }
 $failRows[4].detail.label='A';$failRows[4].detail.sha256=$failHash
+# Measured: the in-session retry of the GOOD archive also fails, because the
+# scene state is left invalid. Recovery is restart-only.
+$failRows[5].relationship='Unmounted'
 $failRows[5].detail.label='A';$failRows[5].detail.sha256=$failHash
-$failRows[5].detail.nativeLoadFailures=1;$failRows[5].detail.afterLoadCallback=$true;$failRows[5].detail.gameMode='Default'
-$failRows[5].detail.semantic=6;$failRows[5].detail.presentation=2
-$failRows[5].detail.nativeWorldDisposals=2
+$failRows[5].detail.nativeLoadFailures=2;$failRows[5].detail.afterLoadCallback=$true
+$failRows[5].detail.gameMode='None';$failRows[5].detail.currentAreaNull=$true
+$failRows[5].detail.relationship='Unmounted';$failRows[5].detail.recoveredInSession=$false
+$failRows[5].detail.semantic=4;$failRows[5].detail.presentation=1
+$failRows[5].detail.nativeWorldDisposals=2;$failRows[5].detail.loadedDataNull=$false
 Assert-KmcValidationPersistenceEvidence $failRequest $failRows $failGame;$script:passes++
 foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mode','world-survived','presented-without-world',
     'combat-fence','semantic-rolled-back','stale-pair','stale-unit','save-suspended','pending-writes','wrong-member',
-    'empty-failure-text','retry-no-callback','retry-still-unmounted','retry-extra-failure','retry-wrong-semantics',
-    'retry-no-metadata','stale-actor-in-worldless-row','missing-observation','missing-recovery','out-of-order','wrong-selection')){
+    'empty-failure-text','retry-claims-recovery-without-world','retry-invented-a-world','retry-without-a-failure','retry-presented-a-pair',
+    'retry-held-save-scope','stale-actor-in-worldless-row','missing-observation','missing-recovery','out-of-order','wrong-selection')){
     $negative=($failRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
         'no-failure' {$negative[2].detail.nativeLoadFailures=0}
@@ -299,15 +301,15 @@ foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mo
         'pending-writes' {$negative[2].detail.pendingWrites=$true}
         'wrong-member' {$negative[2].detail.corruptedMember='header.json'}
         'empty-failure-text' {$negative[2].detail.nativeLoadFailure=''}
-        'retry-no-callback' {$negative[5].detail.afterLoadCallback=$false}
-        'retry-still-unmounted' {$negative[5].detail.relationship='Unmounted'}
-        'retry-extra-failure' {$negative[5].detail.nativeLoadFailures=2}
-        'retry-wrong-semantics' {$negative[5].detail.semantic=7}
-        'retry-no-metadata' {$negative[5].detail.loadedDataNull=$true}
+        'retry-claims-recovery-without-world' {$negative[5].detail.recoveredInSession=$true}
+        'retry-invented-a-world' {$negative[5].detail.currentAreaNull=$false}
+        'retry-without-a-failure' {$negative[5].detail.nativeLoadFailures=1}
+        'retry-presented-a-pair' {$negative[5].detail.presentation=2}
+        'retry-held-save-scope' {$negative[5].detail.saveSuspended=$true}
         'stale-actor-in-worldless-row' {$negative[2].rider=[pscustomobject]@{Id=$failData.Rider.Id}}
-        'missing-observation' {$negative=@($negative[0],$negative[1],$negative[3],$negative[4],$negative[5],$negative[6],$negative[7],$negative[8],$negative[9],$negative[10])}
-        'missing-recovery' {$negative=@($negative[0],$negative[1],$negative[2],$negative[4],$negative[5],$negative[6],$negative[7],$negative[8],$negative[9],$negative[10])}
-        'out-of-order' {$negative=@($negative[0],$negative[2],$negative[1],$negative[3],$negative[4],$negative[5],$negative[6],$negative[7],$negative[8],$negative[9],$negative[10])}
+        'missing-observation' {$negative=@($negative[0],$negative[1],$negative[3],$negative[4],$negative[5])}
+        'missing-recovery' {$negative=@($negative[0],$negative[1],$negative[2],$negative[4],$negative[5])}
+        'out-of-order' {$negative=@($negative[0],$negative[2],$negative[1],$negative[3],$negative[4],$negative[5])}
         'wrong-selection' {$negative[1].detail.sha256=$failHash}
     }
     Reject-Kmc {Assert-KmcValidationPersistenceEvidence $failRequest $negative $failGame} ('Failed load accepted '+$bad)

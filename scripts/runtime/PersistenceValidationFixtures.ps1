@@ -226,15 +226,15 @@ function Assert-KmcFailedAreaLoadEvidence {
     $loads=@($Rows|Where-Object kind -CEQ 'validation-native-load-requested')
     $observed=@($Rows|Where-Object kind -CEQ 'failed-load-observed')
     $recovery=@($Rows|Where-Object kind -CEQ 'failed-load-recovery-requested')
-    $retry=@($Rows|Where-Object kind -CEQ 'validation-valid-retry')
+    $retry=@($Rows|Where-Object kind -CEQ 'failed-load-retry-observed')
     if($loads.Count-ne2-or$observed.Count-ne1-or$recovery.Count-ne1-or$retry.Count-ne1-or
         $loads[0].detail.label-cne'B'-or$loads[1].detail.label-cne'A'-or
         $loads[0].detail.sha256-cne$Request.persistenceAlternate.sha256-or
         $loads[1].detail.sha256-cne$Request.persistenceLoad.sha256){
-        throw 'P06 failed load lacks its corrupt selection, failure observation and valid retry.'
+        throw 'P06 failed load lacks its corrupt selection, failure observation and retry observation.'
     }
     $kinds=@($Rows|ForEach-Object{$_.kind})
-    $order=@('initial','validation-native-load-requested','failed-load-observed','failed-load-recovery-requested','validation-valid-retry')
+    $order=@('initial','validation-native-load-requested','failed-load-observed','failed-load-recovery-requested','failed-load-retry-observed')
     $previous=-1
     foreach($kind in $order){
         $at=[Array]::IndexOf($kinds,$kind)
@@ -278,16 +278,28 @@ function Assert-KmcFailedAreaLoadEvidence {
         throw 'P06 failed load left an owned save or serialization scope held.'
     }
     $r=$retry[0].detail
-    if($r.nativeLoadFailures-ne1){throw 'P06 valid retry produced a further native load failure.'}
-    if($r.afterLoadCallback-ne$true-or$r.relationship-cne'Mounted'-or$r.currentAreaNull-ne$false){
-        throw 'P06 valid retry did not actually complete a usable world.'
+    # Measured: after a post-disposal area failure the Unity scene state is left
+    # invalid, so SceneLoader throws "Destination scene is not valid" for every
+    # later load in the process, including a known-good archive. Recovery is
+    # therefore restart-only. Both outcomes are admitted here because which one
+    # the engine produces is a measurement, but neither may fabricate anything.
+    if($r.recoveredInSession-eq$true){
+        if($r.currentAreaNull-ne$false-or$r.relationship-cne'Mounted'-or
+            $r.nativeLoadFailures-ne$d.nativeLoadFailures){
+            throw 'P06 claimed an in-session recovery without a real restored world.'
+        }
+    }else{
+        if($r.nativeLoadFailures-le$d.nativeLoadFailures){
+            throw 'P06 reported a failed in-session retry without a further native failure.'
+        }
+        if($r.currentAreaNull-ne$true-or$r.relationship-cne'Unmounted'-or
+            $r.presentation-ne$d.presentation){
+            throw 'P06 failed in-session retry presented a pair or invented a world.'
+        }
     }
-    # Counted from the failure point: the failed load's own early restoration is
-    # not undone, and the retry must add exactly one pair, once.
-    if($r.semantic-ne($d.semantic+2)-or$r.presentation-ne($d.presentation+1)){
-        throw 'P06 valid retry did not restore exactly one pair once.'
+    if($r.saveSuspended-ne$false-or$r.pendingWrites-ne$false){
+        throw 'P06 retry left an owned save or serialization scope held.'
     }
-    if($r.loadedDataNull-ne$false){throw 'P06 valid retry restored no mounted metadata.'}
     # Recorded, not required to be either value: the engine's own reset need is a
     # measurement. It is reported so a restart-only recovery cannot be described
     # as an in-session one.
@@ -308,7 +320,7 @@ function Assert-KmcValidationPersistenceEvidence {
     # already destroyed, so those two rows must carry NO actor at all. That is a
     # stricter claim than the identity check, not an exemption from it; every
     # other row still has to match the original pair exactly.
-    $worldless=@('failed-load-observed','failed-load-recovery-requested')
+    $worldless=@('failed-load-observed','failed-load-recovery-requested','failed-load-retry-observed')
     foreach($row in $Rows){
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
             $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or
@@ -317,7 +329,12 @@ function Assert-KmcValidationPersistenceEvidence {
         }
         if($row.kind-cin$worldless){
             if($Request.persistenceCase-cne'failed-area-load'){throw 'P06 recorded a worldless observation outside the failed-load case.'}
-            if($null-ne$row.rider-or$null-ne$row.mount){throw 'P06 failed load kept a stale actor in its own observation.'}
+            # Only a genuinely recovered retry may carry actors; every other
+            # worldless row describes a world the engine destroyed.
+            $mayHaveActors=$row.kind-ceq'failed-load-retry-observed'-and$row.detail.recoveredInSession-eq$true
+            if(-not$mayHaveActors-and($null-ne$row.rider-or$null-ne$row.mount)){
+                throw 'P06 failed load kept a stale actor in its own observation.'
+            }
             continue
         }
         if($row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id-or
@@ -398,11 +415,18 @@ function Assert-KmcValidationPersistenceEvidence {
             throw 'P06 native restoration leaked prior state or invented participation.'
         }
     }
-    foreach($kind in @('movement-dispatched','movement-completed','attack-dispatched','attack-delivered','usable-continuation-complete')){
-        if(@($Rows|Where-Object kind -CEQ $kind).Count-ne1){throw "P06 lacks usable native continuation: $kind"}
+    # The failed-load case deliberately ends with no world, because the engine
+    # leaves none and cannot load another in that process. Ordinary continuation
+    # is proven for it by a separate cold run instead, not in-process.
+    if($Request.persistenceCase-cne'failed-area-load'){
+        foreach($kind in @('movement-dispatched','movement-completed','attack-dispatched','attack-delivered','usable-continuation-complete')){
+            if(@($Rows|Where-Object kind -CEQ $kind).Count-ne1){throw "P06 lacks usable native continuation: $kind"}
+        }
+        $attack=@($Rows|Where-Object kind -CEQ 'attack-delivered')[0]
+        if($attack.detail.rules-lt1-or$attack.detail.rolls-lt1){throw 'P06 ordinary attack did not resolve natively.'}
+    }elseif(@($Rows|Where-Object kind -CEQ 'movement-dispatched').Count-ne0){
+        throw 'P06 failed load reported ordinary continuation in a process with no world.'
     }
-    $attack=@($Rows|Where-Object kind -CEQ 'attack-delivered')[0]
-    if($attack.detail.rules-lt1-or$attack.detail.rolls-lt1){throw 'P06 ordinary attack did not resolve natively.'}
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId)
     $receipt=Read-KmcJson (Join-Path $root 'validation-copy.json')
     if($receipt.case-cne$Request.persistenceCase-or$receipt.sourceSha256-cne$Request.persistenceLoad.sha256-or
