@@ -258,6 +258,10 @@ namespace KingmakerMountedCombat.Integration
         private void DrainAbandonedSave()
         {
             var scope = drainingSave;
+            // Nothing is draining on an ordinary frame, and that is not the same
+            // question as whether a scope owns a worker: resolving a null scope
+            // legitimately answers "no worker", so this must return before that.
+            if (scope == null) return;
             System.Threading.Tasks.Task worker;
             var established = ResolveWorker(scope, out worker);
             // A deferral taken while ownership was unknown resolves here: once it
