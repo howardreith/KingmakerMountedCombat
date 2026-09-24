@@ -1084,6 +1084,30 @@ public static class KmcPersistenceContractProbe
             patch.Invoke(null,new object[]{harmony,nativeSaver,"Clear",0x06008067,Type.EmptyTypes,"ClearPrefix",null});
             patch.Invoke(null,new object[]{harmony,nativeSaver,"RenameFile",0x0600806D,new[]{typeof(string)},"RenamePrefix",null});
             Check(true,"narrow native header, commit, clear and rename guards construct without iterator rewriting");
+            // The write leases are observed and released by the isolation itself, on
+            // the exact native PrepareSave and worker tokens, so the integration-absent
+            // process (persistence controller unpatched) still commits its own write.
+            // Those engine methods carry Unity internal calls and cannot be compiled by
+            // Harmony here, so the probe resolves the seams by token and binds the
+            // postfix descriptor parameters by name, exactly as Harmony will.
+            var resolveSeam=isolation.GetMethod("ResolveWriteSeam",BindingFlags.Static|BindingFlags.NonPublic);
+            var seamManager=native.GetType("Kingmaker.EntitySystem.Persistence.SaveManager",true);
+            var seamSave=native.GetType("Kingmaker.EntitySystem.Persistence.SaveInfo",true);
+            var seamDto=native.GetType("Kingmaker.EntitySystem.Persistence.SavesStorage.SaveCreateDTO",true);
+            var preparedSeam=(MethodBase)resolveSeam.Invoke(null,new object[]{seamManager,"PrepareSave",0x06008025,new[]{seamSave}});
+            var workerSeam=(MethodBase)resolveSeam.Invoke(null,new object[]{seamManager,"SerializeAndSaveThread",0x0600802A,new[]{seamSave,seamDto,seamSave}});
+            var preparedPostfix=isolation.GetMethod("PreparedWritePostfix",BindingFlags.Static|BindingFlags.NonPublic);
+            var workerPostfix=isolation.GetMethod("WorkerCompletePostfix",BindingFlags.Static|BindingFlags.NonPublic);
+            Check(preparedSeam.MetadataToken==0x06008025 && workerSeam.MetadataToken==0x0600802A &&
+                preparedPostfix!=null && preparedPostfix.GetParameters().Length==1 && preparedPostfix.GetParameters()[0].ParameterType==seamSave &&
+                preparedPostfix.GetParameters()[0].Name==preparedSeam.GetParameters()[0].Name &&
+                workerPostfix!=null && workerPostfix.GetParameters().Length==1 && workerPostfix.GetParameters()[0].ParameterType==seamSave &&
+                workerPostfix.GetParameters()[0].Name==workerSeam.GetParameters()[0].Name,
+                "isolation-owned write lease seams resolve the exact native PrepareSave and worker tokens and bind their descriptor parameters by name");
+            bool wrongSeamRefused=false;
+            try { resolveSeam.Invoke(null,new object[]{seamManager,"PrepareSave",0x06008026,new[]{seamSave}}); }
+            catch(TargetInvocationException e) { wrongSeamRefused=e.InnerException is InvalidOperationException; }
+            Check(wrongSeamRefused,"a write seam whose native token differs is refused before any patch is constructed");
             Check((bool)isolation.GetMethod("CloudPrefix",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,null),
                 "unbound isolation leaves ordinary cloud behavior unchanged");
             Console.WriteLine("TODO native Unity construction of PrepareSave/load/stash/cloud isolation; no native write authorized");

@@ -111,6 +111,15 @@ namespace KingmakerMountedCombat.Integration
             Patch(harmony, typeof(SaveManager), "get_SavePath", 0x0600800C, Type.EmptyTypes, "SavePathPrefix", null);
             Patch(harmony, typeof(SaveManager), "UpdateSaveListAsync", 0x0600800E, Type.EmptyTypes, null, "SaveRootTranspiler");
             Patch(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, null, "SaveRootTranspiler");
+            // The write leases are the isolation's own: observed at PrepareSave
+            // and released at the worker's end through these seams, never
+            // through the persistence controller, so an integration-absent
+            // process (that controller unpatched before the load) still leases
+            // and commits its engine-only write. final103-p07-absent measured
+            // the commit guard refusing that write when the seams lived there.
+            PatchWriteSeam(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, "PreparedWritePostfix");
+            PatchWriteSeam(harmony, typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,
+                new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) }, "WorkerCompletePostfix");
             Patch(harmony, NativeZipSaver, "SaveJson", 0x06008063, new[] { typeof(string), typeof(string) }, "LoadHeaderJsonPrefix", null);
             Patch(harmony, NativeZipSaver, "Clear", 0x06008067, Type.EmptyTypes, "ClearPrefix", null);
             Patch(harmony, NativeZipSaver, "RenameFile", 0x0600806D, new[] { typeof(string) }, "RenamePrefix", null);
@@ -148,6 +157,30 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Persistence patch construction failed: " + type.FullName + "." + name, exception);
             }
         }
+
+        // The exact native write seam, resolved by token. Install patches it;
+        // the contract probe resolves it again and binds the postfix parameter
+        // names, because these engine methods carry Unity internal calls and
+        // cannot be compiled by Harmony outside the game process.
+        internal static MethodBase ResolveWriteSeam(Type type, string name, int token, Type[] parameters)
+        {
+            var method = type.GetMethod(name, BindingFlags.Public | BindingFlags.NonPublic |
+                BindingFlags.Static | BindingFlags.Instance, null, parameters, null);
+            if (method == null || method.MetadataToken != token)
+                throw new InvalidOperationException("Persistence isolation contract changed: " + type.FullName + "." + name);
+            return method;
+        }
+
+        // A postfix-only seam of the isolation's own, bound to the exact native token.
+        private static void PatchWriteSeam(HarmonyInstance harmony, Type type, string name, int token, Type[] parameters, string postfix)
+        {
+            harmony.Patch(ResolveWriteSeam(type, name, token, parameters), null, new HarmonyMethod(
+                typeof(NativePersistenceIsolation).GetMethod(postfix, BindingFlags.Static | BindingFlags.NonPublic)), null);
+        }
+
+        private static void PreparedWritePostfix(SaveInfo save) => ObservePreparedWrite(save);
+
+        private static void WorkerCompletePostfix(SaveInfo saveInfo) => ObserveWorkerComplete(saveInfo);
 
         private static bool NativeSlotCountPrefix(Kingmaker.UI.SettingsUI.SettingsEntitySlider __instance, ref float __result)
         {
