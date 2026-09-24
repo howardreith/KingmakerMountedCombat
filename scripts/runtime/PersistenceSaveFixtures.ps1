@@ -1404,7 +1404,7 @@ function Assert-KmcRemovalEvidence {
         throw 'P07 removal in real combat was not refused by the contract own rule without side effects.'
     }
     # Admitted once the reference and the combat are gone: cleanup first, then the save.
-    if($stages['removal-requested'].relationship-ceq'Mounted'-or$q.began-ne$true-or$q.state-cne'Saving'-or$q.refusals-ne2-or$q.cleanupSaves-ne0){
+    if($stages['removal-requested'].relationship-ceq'Mounted'-or$q.began-ne$true-or$q.state-cne'Saving'-or$q.refusals-ne2-or$q.cleanupSaves-ne0-or$q.completedSaves-ne1-or$q.commits-ne0){
         throw 'P07 prepare-to-disable did not dismount through cleanup before requesting its save.'
     }
     if($stages['removal-prepared'].relationship-ceq'Mounted'-or$p.state-cne'Ready'-or$p.cleanupSaves-ne1-or$p.refusals-ne2-or$p.unconfirmed-ne0-or
@@ -1412,10 +1412,12 @@ function Assert-KmcRemovalEvidence {
         $p.cleanupLeaf-cne'Manual_301_KMC_CLEANUP.zks'-or$p.cleanupSha256-cne$p.cleanup.sha256-or$p.firstSha256-cne$w.sha256){
         throw 'P07 prepared state did not come from exactly one new cleanup save with the first archive untouched.'
     }
-    # Readiness is bound to this operation's own commit and to a scan of every
-    # archive member for KMC-registered blueprint identities.
-    if($p.binding-cne'bound'-or$p.cleanupCampaign-cne$gameId-or$p.scannedMembers-lt1-or$p.scannedBytes-le0-or@($p.referenceHits).Count-ne0){
-        throw 'P07 prepared state was not bound to its own commit with every archive member scanned clean.'
+    # Readiness is bound to the persistence service's completed-write record for
+    # this request (both archives of this walk are first-ever saves, so KMC's
+    # replacement-commit record stays at zero) and to a scan of every archive
+    # member for KMC-registered blueprint identities.
+    if($p.binding-cne'bound'-or$p.cleanupCampaign-cne$gameId-or$p.completedSaves-ne2-or$p.commits-ne0-or$p.scannedMembers-lt1-or$p.scannedBytes-le0-or@($p.referenceHits).Count-ne0){
+        throw 'P07 prepared state was not bound to its own completed write with every archive member scanned clean.'
     }
     Assert-KmcCleanupArchive -Recorded $p.cleanup -Root $root -GameId $gameId -Area $area
     if((Get-KmcSha256 (Join-Path $root 'Manual_300_KMC_P01.zks'))-cne$w.sha256){throw 'P07 cleanup save changed the first archive on disk.'}

@@ -82,6 +82,20 @@ namespace KingmakerMountedCombat.Integration
         internal bool SaveSuspended => relationship.SaveSerializationSuspended;
         internal string Feedback { get; private set; } = "No mounted save has been loaded.";
         internal int SnapshotCount { get; private set; }
+        // The ordinary completion record, per operation. Set only on the path
+        // that saw this service's own wrapper end its native routine, its
+        // archive worker settle without fault and its prepared descriptor read
+        // complete (OperationState None, archive present), and recorded before
+        // the scope is released. This is the ONLY completion fact for a
+        // first-ever save: the installed worker (SerializeAndSaveThread
+        // 0x0600802A) reaches the Clear/RenameFile replacement site KMC
+        // transpiles only when an original archive is passed (IL_031C brfalse),
+        // so a first-ever save writes its zip in place at the leaf PrepareSave
+        // minted and records no replacement commit. A caller that must know
+        // which archive its own request produced binds to this record by the
+        // requested descriptor's identity, never by name.
+        internal int CompletedSaveCount { get; private set; }
+        internal NativeSaveCompletion LastCompletedSave { get; private set; }
         internal event Action SaveSnapshotStarting;
         internal event Action SaveSnapshotStaged;
         internal int SemanticRestoreCount { get; private set; }
@@ -107,7 +121,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> routine, SaveInfo requestedSave)
         {
-            var scope = new SaveScope { RequestedPath = requestedSave?.FolderName };
+            var scope = new SaveScope { Requested = requestedSave, RequestedPath = requestedSave?.FolderName };
             var scoped = new ScopedEnumerator<object>(TrackNativeSave(routine, scope), () =>
             {
                 if (activeSave != null) throw new InvalidOperationException("Overlapping native save enumerations.");
@@ -363,6 +377,10 @@ namespace KingmakerMountedCombat.Integration
             if (task.IsFaulted || task.IsCanceled || scope.Prepared.OperationState != SaveInfo.StateType.None ||
                 string.IsNullOrEmpty(scope.Prepared.FolderName) || !System.IO.File.Exists(scope.Prepared.FolderName))
                 throw new CompletedSaveFailureException("The native archive worker did not commit the requested save.");
+            // Established, and only here: the routine ended, the worker settled
+            // without fault and the prepared descriptor reads complete with its
+            // archive on disk. The scope's release records it for this operation.
+            scope.Completed = true;
         }
 
         // Latching: once a worker has been seen it is never forgotten, so a later
@@ -393,12 +411,21 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        // Recorded once per completed operation, before the scope is released,
+        // so a poll that sees no active scope also sees this record.
+        private void RecordCompletedSave(SaveScope scope)
+        {
+            CompletedSaveCount++;
+            LastCompletedSave = new NativeSaveCompletion(CompletedSaveCount, scope.Requested, scope.Prepared, scope.Prepared?.FolderName);
+        }
+
         private void ReleaseSaveScope(SaveScope scope)
         {
             // Exactly once, whichever path gets here first: the end action of
             // an ordinary enumeration, the per-frame drain, or teardown.
             if (scope == null || scope.Released) return;
             scope.Released = true;
+            if (scope.Completed) RecordCompletedSave(scope);
             try
             {
                 try { scope.RestoreAi?.Invoke(); }
@@ -758,6 +785,12 @@ namespace KingmakerMountedCombat.Integration
         private sealed class SaveScope
         {
             internal SaveInfo Prepared;
+            // The descriptor the native routine was asked to write. The engine
+            // works on a copy (Prepared) and, for a first-ever save, this one
+            // never learns the archive path.
+            internal SaveInfo Requested;
+            // Set by the ordinary completion path only, after its checks.
+            internal bool Completed;
             internal Player World;
             internal Kingmaker.EntitySystem.SceneEntitiesState PartyState;
             internal string Json;
@@ -781,6 +814,23 @@ namespace KingmakerMountedCombat.Integration
             // scope: ordinary completion, StopAll, disable, unload, update
             // failure and session stop.
             internal bool Released;
+        }
+    }
+
+    // One completed native save operation, as the persistence service
+    // established it: which descriptor was requested and which registered
+    // descriptor the engine actually wrote, at which path. SaveInfo identity,
+    // so a caller binds its own request by reference and never by name.
+    internal sealed class NativeSaveCompletion
+    {
+        internal readonly int Sequence;
+        internal readonly SaveInfo Requested;
+        internal readonly SaveInfo Written;
+        internal readonly string Path;
+
+        internal NativeSaveCompletion(int sequence, SaveInfo requested, SaveInfo written, string path)
+        {
+            Sequence = sequence; Requested = requested; Written = written; Path = path;
         }
     }
 }

@@ -62,8 +62,11 @@ namespace KingmakerMountedCombat.Integration
         {
             if (!IsZip(staged) || !IsZip(original?.Saver))
             {
-                // A first-ever save has no original to replace; the rename is its
-                // commit and counts exactly the same.
+                // The native caller reaches this site only with an original
+                // descriptor (SerializeAndSaveThread IL_031C); a non-zip original
+                // or staged saver keeps the engine's own rename, which is then the
+                // commit. A first-ever save never arrives here: the engine writes
+                // it in place and records nothing.
                 Rename.Invoke(staged, new object[] { destination });
                 RecordCommit(destination);
                 return;

@@ -19,7 +19,8 @@ namespace KingmakerMountedCombat.Diagnostics
         // native enemy even though the engine itself would admit a save under
         // the qualified paired policy; otherwise the pair is dismounted through
         // the registered disable's own cleanup and a NEW native save is written,
-        // bound to KMC's own commit record and verified from its bytes: no pair,
+        // bound to the persistence service's own completed-write record for
+        // that request and verified from its bytes: no pair,
         // no combat supplement, no control binding, and no KMC-registered
         // blueprint identity in any member. Then the real registered disable and
         // re-enable, and the shared continuation.
@@ -195,6 +196,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         Write("removal-saving-probe", new JObject { ["frames"] = removalFrames, ["status"] = removal.Status,
                             ["pending"] = removal.PendingDiagnostics, ["callback"] = callback, ["pendingWrites"] = NativePersistenceIsolation.HasPendingWrites,
                             ["saveSuspended"] = persistence.SaveSuspended, ["activeScope"] = persistence.HasActiveSaveScope,
+                            ["completed"] = persistence.CompletedSaveCount, ["lastCompletedPath"] = persistence.LastCompletedSave?.Path,
                             ["commits"] = NativeMountedArchiveCommit.CommitCount, ["lastCommitted"] = NativeMountedArchiveCommit.LastCommittedDestination,
                             ["seconds"] = clock.Elapsed.TotalSeconds });
                     if (removalFrames > 7200) throw new InvalidOperationException("P07 cleanup save never settled: " + removal.Status + " [" + removal.PendingDiagnostics + "]");
@@ -205,14 +207,22 @@ namespace KingmakerMountedCombat.Diagnostics
                     removal.CleanupSaveLeaf == "Manual_301_KMC_CLEANUP.zks" && !string.IsNullOrEmpty(removal.CleanupSavePath) &&
                     File.Exists(removal.CleanupSavePath) && Hash(removal.CleanupSavePath) == removal.CleanupSaveSha256,
                     "P07-cleanup-save-is-a-new-exact-declared-archive");
+                // Both archives this walk writes are first-ever saves: the engine
+                // writes them in place and KMC's replacement-commit record stays
+                // at zero (SerializeAndSaveThread reaches the replacement site
+                // only for an original archive). Readiness is bound to the
+                // persistence service's completed-write record for this request.
+                var completion = persistence.LastCompletedSave;
                 Check(removal.CleanupBinding == "bound" && removal.CleanupCampaignId == request.Fixture.Working.GameId &&
-                    NativeMountedArchiveCommit.LastCommittedDestination == removal.CleanupSavePath,
-                    "P07-cleanup-save-is-bound-to-this-operation-own-commit");
+                    persistence.CompletedSaveCount == 2 && completion != null && completion.Path == removal.CleanupSavePath &&
+                    completion.Written != null && completion.Written.FileName == removal.CleanupSaveLeaf &&
+                    NativeMountedArchiveCommit.CommitCount == 0 && NativeMountedArchiveCommit.LastCommittedDestination == null,
+                    "P07-cleanup-save-is-bound-to-this-operation-own-completed-write");
                 Check(removal.CleanupScannedMembers > 0 && removal.CleanupReferenceHits.Count == 0,
                     "P07-cleanup-archive-members-carry-no-KMC-blueprint-identity");
                 var cleanup = game.SaveManager.Single(s => s.FolderName == removal.CleanupSavePath);
                 var read = NativeMountedSaveStorage.Read(cleanup.Saver);
-                Check(cleanup.Name == MountedRemovalPreparation.CleanupSaveName && cleanup.OperationState == SaveInfo.StateType.None &&
+                Check(ReferenceEquals(cleanup, completion.Written) && cleanup.Name == MountedRemovalPreparation.CleanupSaveName && cleanup.OperationState == SaveInfo.StateType.None &&
                     cleanup.GameId == request.Fixture.Working.GameId &&
                     read.Kind == MountedSaveReadKind.Current && !read.Data.Mounted && read.Data.Rider == null && read.Data.Mount == null &&
                     read.Data.Combat == null && read.Data.Slots != null && read.Data.Slots.Length == 0 &&
@@ -273,6 +283,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["factsReEnabled"] = removalFactsReEnabled,
                 ["disabled"] = removalDisabled, ["reEnabled"] = removalReEnabled, ["remounted"] = removalRemounted,
                 ["snapshots"] = persistence.SnapshotCount, ["failedSaves"] = persistence.FailedSaveCount,
+                ["completedSaves"] = persistence.CompletedSaveCount, ["commits"] = NativeMountedArchiveCommit.CommitCount,
                 ["saveSuspended"] = persistence.SaveSuspended, ["activeScope"] = persistence.HasActiveSaveScope,
                 ["enabled"] = persistence.Enabled, ["nativeCastRequests"] = controls.NativeCastRequestCount,
                 ["firstPath"] = removalFirstPath, ["firstHash"] = removalFirstHash,

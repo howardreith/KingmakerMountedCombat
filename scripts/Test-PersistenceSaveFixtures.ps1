@@ -1025,7 +1025,7 @@ function New-KmcRemovalRow { param([string]$Kind,[int]$Stage,[string]$Relationsh
         cleanupSaves=0;cleanupLeaf=$null;cleanupSha256=$null;cleanupPath=$null;cleanupCampaign=$null;binding=$null;scannedMembers=0;scannedBytes=0;referenceHits=@()
         beganRefused=$false;combatRefused=$false;began=$false;partyCombat=$false
         factsMounted=3;factsDisabled=1;factsReEnabled=3;disabled=$false;reEnabled=$false;remounted=$false
-        snapshots=1;failedSaves=0;saveSuspended=$false;activeScope=$false;enabled=$true;nativeCastRequests=0
+        snapshots=1;failedSaves=0;completedSaves=1;commits=0;saveSuspended=$false;activeScope=$false;enabled=$true;nativeCastRequests=0
         firstPath=(Join-Path $script:removalRoot 'Manual_300_KMC_P01.zks');firstHash=$script:firstSha}
     foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
     [pscustomobject]@{kind=$Kind;checkpoint='prepare-removal';stage=$Stage;relationship=$Relationship
@@ -1048,16 +1048,17 @@ $removalRows=@(
     (New-KmcRemovalRow 'removal-requested' 1003 'Unmounted' @{state='Saving';assessments=3;refusals=2;beganRefused=$true;combatRefused=$true;began=$true}),
     (New-KmcRemovalRow 'removal-prepared' 1004 'Unmounted' @{state='Ready';assessments=3;refusals=2;beganRefused=$true;combatRefused=$true;began=$true;cleanupSaves=1
         cleanupLeaf='Manual_301_KMC_CLEANUP.zks';cleanupSha256=$cleanupSha;cleanupPath=$cleanupPath;cleanupCampaign=$fixture.working.gameId;binding='bound'
-        scannedMembers=6;scannedBytes=123456;referenceHits=@();snapshots=2;cleanup=$cleanupDetail;firstSha256=$firstSha}),
+        scannedMembers=6;scannedBytes=123456;referenceHits=@();snapshots=2;completedSaves=2;cleanup=$cleanupDetail;firstSha256=$firstSha}),
     (New-KmcRemovalRow 'removal-disabled-reenabled' 1004 'Mounted' @{state='Ready';assessments=3;refusals=2;beganRefused=$true;combatRefused=$true;began=$true;cleanupSaves=1
         cleanupLeaf='Manual_301_KMC_CLEANUP.zks';cleanupSha256=$cleanupSha;cleanupPath=$cleanupPath;cleanupCampaign=$fixture.working.gameId;binding='bound'
-        scannedMembers=6;scannedBytes=123456;snapshots=2;disabled=$true;reEnabled=$true;remounted=$true}))
+        scannedMembers=6;scannedBytes=123456;snapshots=2;completedSaves=2;disabled=$true;reEnabled=$true;remounted=$true}))
 Assert-KmcRecoveryPersistenceEvidence $removalRequest $removalRows;$passes++
 foreach($bad in @('no-refusal','refused-after-dismount','refused-saved','reference-not-named','wrong-blueprint','refused-without-reasons',
     'no-combat-refusal','combat-refusal-not-in-combat','combat-refusal-saved','combat-reason-missing','combat-refusal-dismounted',
     'requested-still-mounted','requested-not-saving','prepared-not-ready','prepared-two-saves','prepared-wrong-leaf','prepared-sha-mismatch',
     'prepared-first-changed','prepared-records-pair','prepared-foreign-campaign','prepared-bytes-changed',
     'prepared-reference-hit','prepared-not-scanned','prepared-unbound','prepared-unconfirmed','prepared-foreign-binding','prepared-records-combat','prepared-records-slots',
+    'prepared-no-completed-write','prepared-replacement-commit','requested-after-two-writes',
     'disable-failed','reenable-failed','remount-failed','facts-not-released','facts-grew','mount-cast','pair-changed','out-of-order','actor-lingers')){
     $n=($removalRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
@@ -1087,6 +1088,9 @@ foreach($bad in @('no-refusal','refused-after-dismount','refused-saved','referen
         'prepared-unbound' {$n[5].detail.binding='unbound'}
         'prepared-unconfirmed' {$n[5].detail.unconfirmed=1}
         'prepared-foreign-binding' {$n[5].detail.cleanupCampaign='00000000-0000-0000-0000-000000000001'}
+        'prepared-no-completed-write' {$n[5].detail.completedSaves=1}
+        'prepared-replacement-commit' {$n[5].detail.commits=1}
+        'requested-after-two-writes' {$n[4].detail.completedSaves=2}
         'prepared-records-combat' {$n[5].detail.cleanup.snapshot.Combat=[pscustomobject]@{TurnBased=$true}}
         'prepared-records-slots' {$n[5].detail.cleanup.snapshot.Slots=@([pscustomobject]@{ActorId='rider-a';Index=0;Kind=1})}
         'disable-failed' {$n[6].detail.disabled=$false}

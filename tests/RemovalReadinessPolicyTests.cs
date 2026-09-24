@@ -22,10 +22,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("removal: any pending save, load, hold or reset is refused", PendingRefused);
             runner.Run("removal: a failed inspection refuses instead of reading as clean", InspectionFailsClosed);
             runner.Run("removal: no loaded world is the only reason reported", NoWorld);
-            runner.Run("removal: the requested archive binds when it is the one KMC committed once", Bound);
-            runner.Run("removal: a same-named archive that KMC did not commit for this request is unconfirmed", SameNameUnrelated);
-            runner.Run("removal: a superseded request whose commit landed elsewhere is unconfirmed", Superseded);
-            runner.Run("removal: an unregistered, incomplete or foreign-campaign archive is unconfirmed", BindingRefusals);
+            runner.Run("removal: the requested archive binds when it is the one completed for this request", Bound);
+            runner.Run("removal: a same-named archive completed for another request is unconfirmed", SameNameUnrelated);
+            runner.Run("removal: none or more than one completed operation since the request is unconfirmed", Superseded);
+            runner.Run("removal: an unregistered, unretired, incomplete or foreign-campaign archive is unconfirmed", BindingRefusals);
             runner.Run("removal: a missing KMC member is clean", MemberMissing);
             runner.Run("removal: a current member with no pair, combat or binding is clean", MemberClean);
             runner.Run("removal: a member with combat participation is not clean", MemberCombat);
@@ -91,8 +91,8 @@ namespace KingmakerMountedCombat.Tests
 
         private static RemovalWrittenArchiveFacts Written() => new RemovalWrittenArchiveFacts
         {
-            DescriptorRegistered = true, HasFileOnDisk = true, OperationState = "None", Path = Cleanup,
-            CommittedDestination = Cleanup, CommitsSinceRequest = 1, Name = "KMC_CLEANUP", Type = "Manual", GameId = Campaign
+            CompletedSinceRequest = 1, CompletedForThisRequest = true, WrittenDescriptorRegistered = true, RequestedDescriptorRetired = true,
+            HasFileOnDisk = true, OperationState = "None", Path = Cleanup, Name = "KMC_CLEANUP", Type = "Manual", GameId = Campaign
         };
 
         private static void Bound()
@@ -102,26 +102,29 @@ namespace KingmakerMountedCombat.Tests
 
         private static void SameNameUnrelated()
         {
-            // A same-named archive already on disk, with no commit for this request.
-            var facts = Written(); facts.CommitsSinceRequest = 0; facts.CommittedDestination = @"C:\saves\Manual_290_KMC_CLEANUP.zks";
+            // A same-named archive completed by an operation that was not this
+            // request's: the name proves nothing.
+            var facts = Written(); facts.CompletedForThisRequest = false; facts.WrittenDescriptorRegistered = false;
             var reason = RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign);
-            TestRunner.True(reason != null && reason.Contains("0 archive commits"), "An uncommitted same-named archive bound.");
-            facts = Written(); facts.CommittedDestination = @"C:\saves\Manual_290_KMC_CLEANUP.zks";
-            reason = RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign);
-            TestRunner.True(reason != null && reason.Contains("not the requested archive"), "A commit elsewhere bound.");
+            TestRunner.True(reason != null && reason.Contains("not the one this preparation requested"), "Another request's same-named archive bound.");
         }
 
         private static void Superseded()
         {
-            var facts = Written(); facts.CommitsSinceRequest = 2;
+            var facts = Written(); facts.CompletedSinceRequest = 2;
             var reason = RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign);
-            TestRunner.True(reason != null && reason.Contains("2 archive commits"), "A superseded request bound.");
+            TestRunner.True(reason != null && reason.Contains("2 KMC-wrapped save operations"), "A superseded request bound.");
+            facts = Written(); facts.CompletedSinceRequest = 0; facts.CompletedForThisRequest = false;
+            reason = RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign);
+            TestRunner.True(reason != null && reason.Contains("0 KMC-wrapped save operations"), "A request with no completed operation bound.");
         }
 
         private static void BindingRefusals()
         {
-            var facts = Written(); facts.DescriptorRegistered = false;
-            TestRunner.True(RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign) != null, "Unregistered descriptor bound.");
+            var facts = Written(); facts.WrittenDescriptorRegistered = false;
+            TestRunner.True(RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign) != null, "Unregistered written descriptor bound.");
+            facts = Written(); facts.RequestedDescriptorRetired = false;
+            TestRunner.True(RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign) != null, "Unretired requested descriptor bound.");
             facts = Written(); facts.HasFileOnDisk = false;
             TestRunner.True(RemovalReadinessPolicy.BindingReason(facts, "KMC_CLEANUP", Campaign) != null, "Incomplete archive bound.");
             facts = Written(); facts.OperationState = "Saving";

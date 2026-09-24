@@ -5,12 +5,18 @@ namespace KingmakerMountedCombat.Integration
     // What actually happened to an interrupted save's archive.
     //
     // A faulted archive worker does not establish that nothing was written. The
-    // native commit is File.Replace (or, for a first-ever save, the rename)
-    // returning; the descriptor rebinding, ownership completion, worker cleanup
-    // and notification that follow can all throw without un-writing those bytes.
-    // So the outcome is decided from the recorded commit boundary, never from
-    // task state, and "the previous save is unchanged" is only ever said when a
-    // previous save existed and is still there.
+    // native commit of a save over an existing archive is File.Replace returning
+    // at the transpiled replacement site; the descriptor rebinding, ownership
+    // completion, worker cleanup and notification that follow can all throw
+    // without un-writing those bytes. So the outcome is decided from the
+    // recorded commit boundary, never from task state, and "the previous save
+    // is unchanged" is only ever said when a previous save existed and is still
+    // there. A first-ever save never reaches that site (SerializeAndSaveThread
+    // 0x0600802A runs its Clear/RenameFile block only when an original archive
+    // is passed, IL_031C): its zip is written in place, no commit is recorded
+    // for it, and the engine deletes that output itself when its worker fails,
+    // so "not written" is the answer here; its ordinary completion is
+    // established by MountedPersistenceService's own completion record.
     internal enum NativeSaveCommitKind
     {
         // The bytes were written. Say so even if a later step failed.
