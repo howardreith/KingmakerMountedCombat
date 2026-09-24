@@ -154,8 +154,10 @@ if ([string]$result.status -ceq 'PASS') {
     $checks++
 }
 $evidenceManifestSha256 = Get-KmcValidatedOrchestrationArtifactManifestHash -Request $request -AllowIncompleteScenarioEvidence
+# Schema 2 is what the run result binds (Test-RuntimeResult): the same shape
+# every KMC-hosted save-backed game result carries, with the observer's fields.
 $game = [ordered]@{
-    schemaVersion = 1; evidenceKind = 'kmc-removal-observer'; runId = [string]$request.runId; scenario = [string]$request.scenario
+    schemaVersion = 2; evidenceKind = 'kmc-removal-observer'; runId = [string]$request.runId; scenario = [string]$request.scenario
     persistenceCase = [string]$request.persistenceCase; status = [string]$result.status
     branch = [string]$request.branch; commit = [string]$request.commit; productVersion = [string]$request.productVersion
     dllSha256 = [string]$request.dllSha256; dllMvid = [string]$request.dllMvid; kmcDllInstalled = $false

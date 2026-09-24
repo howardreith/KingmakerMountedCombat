@@ -49,6 +49,16 @@ try{
     $rejected=$false
     try{Assert-KmcNativeUmmStartupDelta $original ($after.Replace('Enabled="true"','Enabled="false"'))}catch{$rejected=$true}
     if(!$rejected){throw 'Unrelated UMM value accepted.'};$passes++
+    # The removal-observer run: UMM's startup rewrite replaces the KMC entry with
+    # the observer's in its exact place, and only under that declared run.
+    $kmcBefore='<Params><ModParamsList><Mod Id="Other" Enabled="true"/><Mod Id="KingmakerMountedCombat" Enabled="true"><Hotkey><keyCode>None</keyCode><modifiers>0</modifiers></Hotkey></Mod></ModParamsList></Params>'
+    $observerAfter=$kmcBefore.Replace('Id="KingmakerMountedCombat"','Id="KmcRemovalObserver"')
+    Assert-KmcNativeUmmStartupDelta $kmcBefore $observerAfter -RemovalObserver;$passes++
+    foreach($bad in @($observerAfter,$observerAfter.Replace('Enabled="true"><Hotkey','Enabled="false"><Hotkey'),$observerAfter.Replace('Id="Other" Enabled="true"','Id="Other" Enabled="false"'),$kmcBefore.Replace('</ModParamsList>','<Mod Id="KmcRemovalObserver" Enabled="true"/></ModParamsList>'))){
+        $rejected=$false
+        try{Assert-KmcNativeUmmStartupDelta $kmcBefore $bad -RemovalObserver:($bad-cne$observerAfter)}catch{$rejected=$true}
+        if(!$rejected){throw 'A UMM delta outside the removal-observer replacement was accepted.'};$passes++
+    }
     $known='20260921-chunk5-P03-condition-preparing-save-A'
     $old=[pscustomobject]@{name='EternalKingdom_h3591390253';kind='Binary';value='RmFsc2UA'}
     $new=[pscustomobject]@{name=$old.name;kind='Binary';value='VHJ1ZQA='}

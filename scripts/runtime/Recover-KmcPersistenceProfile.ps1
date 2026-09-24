@@ -33,7 +33,10 @@ $currentProfile=Get-KmcQualificationTreeInventory -Root $snapshot.profile -Scope
 Assert-KmcObservedPreparationTimeoutRecord $RunId
 [void]@(Get-KmcPersistencePreferenceChanges -BeforeJson $snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $RunId)
 $original=Join-Path $backups ('profile-'+$RunId+'/Params.xml')
-Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath))
+# A removal-observer run (the genuine no-DLL load) is named by its own request.
+$requestPath=Join-Path $lab ('runtime-evidence/'+$RunId+'/runtime-request.json')
+$removalObserver=(Test-Path -LiteralPath $requestPath -PathType Leaf)-and[string](Read-KmcJson $requestPath).scenario-ceq'persistence-p07-load'-and[string](Read-KmcJson $requestPath).persistenceCase-ceq'removal-no-dll'
+Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($original)) -After ([IO.File]::ReadAllText($snapshot.paramsPath)) -RemovalObserver:$removalObserver
 if(-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings drift and release otherwise-restored runtime lock')){
     Write-Host 'PROFILE RECOVERY WHATIF PASS; no file, registry or lock mutation.'
     return
@@ -41,7 +44,7 @@ if(-not$PSCmdlet.ShouldProcess($RunId,'restore exact observed startup settings d
 $lock=$null
 try{
     $lock=Adopt-KmcStaleRuntimeLock $stateRoot
-    Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $snapshot -BackupRoot $backups -ExpectedCurrentParamsSha256 $CurrentParamsSha256 -ExpectedCurrentPrefsSha256 $CurrentPrefsSha256 -Confirm:$false
+    Restore-KmcPersistenceStartupSettings -Lock $lock -Snapshot $snapshot -BackupRoot $backups -ExpectedCurrentParamsSha256 $CurrentParamsSha256 -ExpectedCurrentPrefsSha256 $CurrentPrefsSha256 -RemovalObserver:$removalObserver -Confirm:$false
     Close-KmcRuntimeLock $lock;$lock=$null
     Write-KmcJsonCreateNewDurable -Path (Join-Path $lab ('runtime-evidence/'+$RunId+'/profile-recovery.json')) -Value ([ordered]@{
         runId=$RunId;status='PASS';recoveredAtUtc=[DateTimeOffset]::UtcNow.ToString('o')

@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("isolated saves reject multiply linked files", HardLinks);
             runner.Run("isolated native archive scope revalidates exact source bytes", ReadArchiveScope);
             runner.Run("declared area transfer admits only its two exact endpoints", TransitionEndpoints);
+            runner.Run("a declared foreign-campaign leaf admits only its own read-only identity", ForeignIdentity);
         }
 
         // SaveRoutine sets Player.SavedInArea before PrepareSave copies it into
@@ -74,6 +75,50 @@ namespace KingmakerMountedCombat.Tests
             }
         }
 
+        // The foreign-header derivative: campaign B's own archive is declared as
+        // a completed read-only leaf carrying B's exact identity. It admits a
+        // load of exactly that identity, never the fixture's, never a write,
+        // and no other shape may carry a foreign identity.
+        private static void ForeignIdentity()
+        {
+            using (var files = new Files())
+            {
+                const string foreignId = "5d0d6b8e-1b7a-4d0f-9d0b-3f4c2a1e9c77";
+                var foreign = Entry("Manual");
+                foreign.FileName = "Manual_812_KMC_P06.zks"; foreign.InternalName = "KMC_B"; foreign.Writable = false;
+                var path = Path.Combine(files.Root, foreign.FileName);
+                File.WriteAllText(path, "campaign B archive bytes");
+                foreign.InitialSha256 = Hash(path);
+                foreign.ForeignGameId = foreignId; foreign.ForeignGameName = "Newcomer";
+                var guard = files.Guard(Entry("Manual"), foreign);
+                var target = new RuntimeSaveTarget { FileName = foreign.FileName, FullPath = path, InternalName = "KMC_B",
+                    SaveType = "Manual", GameId = foreignId, GameName = "Newcomer", Area = Area };
+                TestRunner.Equal<string>(null, guard.Validate(RuntimeSaveOperation.Load, target, files.Root), "Declared foreign identity load refused.");
+                Reject(guard, target, files.Root);
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Delete, target, files.Root) != null, "Foreign leaf rotation allowed.");
+                var asFixture = new RuntimeSaveTarget { FileName = foreign.FileName, FullPath = path, InternalName = "KMC_B",
+                    SaveType = "Manual", GameId = "campaign", GameName = "fixture campaign", Area = Area };
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Load, asFixture, files.Root) != null, "Foreign leaf admitted the fixture identity.");
+                var otherName = new RuntimeSaveTarget { FileName = foreign.FileName, FullPath = path, InternalName = "KMC_B",
+                    SaveType = "Manual", GameId = foreignId, GameName = "Other", Area = Area };
+                TestRunner.True(guard.Validate(RuntimeSaveOperation.Load, otherName, files.Root) != null, "Foreign leaf admitted another campaign name.");
+                var fixtureTarget = files.Target("Manual");
+                fixtureTarget.GameId = foreignId; fixtureTarget.GameName = "Newcomer";
+                Reject(guard, fixtureTarget, files.Root);
+                // A writable, empty, bootstrap or fixture-identity foreign leaf is refused outright.
+                var writable = Entry("Manual"); writable.ForeignGameId = foreignId; writable.ForeignGameName = "Newcomer";
+                MustThrow(() => files.Guard(writable));
+                var sameAsFixture = Entry("Manual"); sameAsFixture.Writable = false; sameAsFixture.InitialSha256 = Hash(path);
+                sameAsFixture.FileName = foreign.FileName; sameAsFixture.ForeignGameId = "campaign"; sameAsFixture.ForeignGameName = "fixture campaign";
+                MustThrow(() => files.Guard(sameAsFixture));
+                var nameless = Entry("Manual"); nameless.Writable = false; nameless.InitialSha256 = Hash(path);
+                nameless.FileName = foreign.FileName; nameless.ForeignGameId = foreignId;
+                MustThrow(() => files.Guard(nameless));
+                var notGuid = Entry("Manual"); notGuid.Writable = false; notGuid.InitialSha256 = Hash(path);
+                notGuid.FileName = foreign.FileName; notGuid.ForeignGameId = "minted"; notGuid.ForeignGameName = "Newcomer";
+                MustThrow(() => files.Guard(notGuid));
+            }
+        }
         private static void QueuedRequests()
         {
             using (var files = new Files())
