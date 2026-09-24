@@ -59,10 +59,45 @@ namespace KingmakerMountedCombat.Integration
             authority = authorizedScope;
         }
 
+        private static HarmonyInstance installedHarmony;
+        internal static bool DetachedReadOnlyLoadInstalled { get; private set; }
+
+        // The integration-absent load: with the persistence controller's own
+        // LoadRoutine wrapper unpatched, nothing would mark the loaded archive
+        // as the selected read-only archive, and the engine's own header update
+        // during the load would hit the fail-closed commit guard. This seam is
+        // isolation code only (no restoration, no admission, no snapshot): it
+        // keeps every isolated load read-only exactly as before.
+        internal static void InstallDetachedReadOnlyLoad()
+        {
+            if (installedHarmony == null || authority == null)
+                throw new InvalidOperationException("The detached read-only load seam requires installed, bound isolation.");
+            InstallDetachedReadOnlyLoad(installedHarmony);
+        }
+
+        internal static void InstallDetachedReadOnlyLoad(HarmonyInstance harmony)
+        {
+            if (DetachedReadOnlyLoadInstalled) return;
+            var method = typeof(SaveManager).GetMethod("LoadRoutine", BindingFlags.Public | BindingFlags.NonPublic |
+                BindingFlags.Instance, null, new[] { typeof(SaveInfo), typeof(bool) }, null);
+            if (method == null || method.MetadataToken != 0x0600802C)
+                throw new InvalidOperationException("Persistence isolation contract changed: SaveManager.LoadRoutine");
+            harmony.Patch(method, null, new HarmonyMethod(typeof(NativePersistenceIsolation).GetMethod(
+                "DetachedLoadPostfix", BindingFlags.Static | BindingFlags.NonPublic)), null);
+            DetachedReadOnlyLoadInstalled = true;
+        }
+
+        private static void DetachedLoadPostfix(SaveInfo saveInfo, ref IEnumerator<object> __result)
+        {
+            if (authority == null || saveInfo == null || __result == null) return;
+            __result = WrapReadOnlyLoad(__result, saveInfo.FolderName);
+        }
+
         internal static void Install(HarmonyInstance harmony)
         {
             if (typeof(SaveManager).Assembly.ManifestModule.ModuleVersionId != ExpectedMvid)
                 throw new InvalidOperationException("Persistence isolation requires the exact installed Kingmaker assembly.");
+            installedHarmony = harmony;
             var settingsRefresh = typeof(Kingmaker.UI.SettingsUI.SettingsRoot).GetMethod("HandleSettingsUpdated",
                 BindingFlags.Public | BindingFlags.Static);
             if (settingsRefresh == null || settingsRefresh.MetadataToken != 0x0600346B)

@@ -1252,6 +1252,14 @@ public static class KmcPersistenceContractProbe
             var patch=isolation.GetMethod("Patch",binding);
             patch.Invoke(null,new object[]{harmony,saverType,"SaveJson",0x06008063,new[]{typeof(string),typeof(string)},"LoadHeaderJsonPrefix",null});
             patch.Invoke(null,new object[]{harmony,saverType,"Save",0x06008068,Type.EmptyTypes,"LoadHeaderCommitPrefix",null});
+            // The integration-absent load keeps every isolated load read-only
+            // through the isolation's own LoadRoutine seam, bound to the exact
+            // native token, and installs it at most once.
+            var detachedSeam=isolation.GetMethod("InstallDetachedReadOnlyLoad",binding,null,new[]{harmonyType},null);
+            detachedSeam.Invoke(null,new object[]{harmony});
+            detachedSeam.Invoke(null,new object[]{harmony});
+            Check((bool)isolation.GetProperty("DetachedReadOnlyLoadInstalled",binding).GetValue(null,null),
+                "detached read-only load seam constructs once on the exact native LoadRoutine token");
             var routine=(System.Collections.Generic.IEnumerator<object>)isolation.GetMethod("WrapReadOnlyLoad",binding).Invoke(
                 null,new object[]{WriteHeader(saverType,readSaver),readPath});
             using(routine){while(routine.MoveNext()){}}

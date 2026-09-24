@@ -13,13 +13,16 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class RuntimePersistenceScenario
     {
         // The registered disable during a REAL native load of a mounted save,
-        // probed through the exact UMM toggle at every frame the load owns:
-        // before early restoration, and at the semantic-restored /
+        // probed through the exact UMM toggle at every third frame the load
+        // owns: before early restoration, and at the semantic-restored /
         // presentation-pending boundary. Then the equivalent-state cycle at
         // rest, and a second load whose disable is requested in the same frame
         // as the load, before the routine has started -- recorded as what the
         // production path actually does, and checked for a safe outcome either
-        // way.
+        // way. Re-enable and remount are separated from the disable by the same
+        // native frames the disable-reenable case uses: run
+        // final94-p07-disable-load measured a same-frame remount whose scoped
+        // attachment the next frame's invariant check then invalidated.
         private bool DisableLoadCase => request.Scenario == "persistence-p07-save" && request.PersistenceCase == "disable-during-load";
         private int disableLoadStage;
         private int disableLoadFrames;
@@ -37,6 +40,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool disableLoadRestDisabled;
         private bool disableLoadRestReEnabled;
         private bool disableLoadRestRemounted;
+        private string disableLoadRestInvariants;
+        private string disableLoadStateDisabled;
+        private string disableLoadStateReEnabled;
         private int disableLoadFactsDisabled;
         private int disableLoadFactsReEnabled;
         private bool disableLoadPreRoutineAccepted;
@@ -45,11 +51,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private int disableLoadSemanticsAtSecond;
         private int disableLoadPresentationAtSecond;
         private string disableLoadStateAfterSecond;
+        private int disableLoadSemanticsDelta;
+        private int disableLoadPresentationDelta;
+        private bool disableLoadSecondDisabled;
         private bool disableLoadSecondReEnabled;
         private bool disableLoadSecondRemounted;
+        private string disableLoadSecondInvariants;
 
         private const string PhasePending = "semantic-restored-presentation-pending";
         private const string PhaseBefore = "loading-before-semantic-restore";
+        // The native frames the disable-reenable case leaves between a disable
+        // and the re-enable, and between a remount and its first invariant check.
+        private const int DisableSettleFrames = 6;
+        private const int RemountSettleFrames = 4;
 
         private void AdvanceDisableLoad()
         {
@@ -59,7 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             if (game == null) return;
             stage = 1100 + disableLoadStage;
-            if (disableLoadStage == 1 || disableLoadStage == 3)
+            if (disableLoadStage == 1 || disableLoadStage == 5)
             {
                 disableLoadFrames++;
                 var loadDone = callback && !LoadingProcess.Instance.IsLoadingInProcess && game.CurrentlyLoadedArea != null &&
@@ -106,21 +120,34 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (disableLoadStage == 2)
             {
-                // The equivalent-state cycle at rest: disable, re-enable, remount.
+                // The equivalent-state cycle at rest: the exact registered disable.
                 disableLoadRestDisabled = Main.InvokeRegisteredToggleForAutomation(false);
+                disableLoadStateDisabled = relationship.State.ToString();
                 disableLoadFactsDisabled = controls.CaptureSnapshot().ExactFactCount;
-                var stateDisabled = relationship.State;
+                disableLoadFrames = 0; disableLoadStage = 3;
+                return;
+            }
+            if (disableLoadStage == 3)
+            {
+                if (++disableLoadFrames < DisableSettleFrames) return;
                 disableLoadRestReEnabled = Main.InvokeRegisteredToggleForAutomation(true);
-                var stateReEnabled = relationship.State;
+                disableLoadStateReEnabled = relationship.State.ToString();
                 disableLoadRestRemounted = relationship.MountAutomationPair().Succeeded && relationship.State == RelationshipState.Mounted;
+                disableLoadFrames = 0; disableLoadStage = 4;
+                return;
+            }
+            if (disableLoadStage == 4)
+            {
+                if (++disableLoadFrames < RemountSettleFrames) return;
                 rider = relationship.Rider; mount = relationship.Mount;
+                disableLoadRestInvariants = relationship.State == RelationshipState.Mounted ? relationship.Runtime.ValidateMountedInvariants() : "not mounted";
                 var after = controls.CaptureSnapshot();
                 disableLoadFactsReEnabled = after.ExactFactCount;
-                Write("disable-load-rest-cycle", DisableLoadDetail(new JObject {
-                    ["stateDisabled"] = stateDisabled.ToString(), ["stateReEnabled"] = stateReEnabled.ToString() }));
-                Check(disableLoadRestDisabled && stateDisabled == RelationshipState.Unmounted && disableLoadFactsDisabled < disableLoadFactsMounted,
+                Write("disable-load-rest-cycle", DisableLoadDetail(null));
+                Check(disableLoadRestDisabled && disableLoadStateDisabled == "Unmounted" && disableLoadFactsDisabled < disableLoadFactsMounted,
                     "P07-registered-disable-succeeds-at-rest-after-the-load");
-                Check(disableLoadRestReEnabled && stateReEnabled == RelationshipState.Unmounted && disableLoadRestRemounted &&
+                Check(disableLoadRestReEnabled && disableLoadStateReEnabled == "Unmounted" && disableLoadRestRemounted &&
+                    relationship.State == RelationshipState.Mounted && disableLoadRestInvariants == null &&
                     rider.UniqueId == disableLoadRiderId && mount.UniqueId == disableLoadMountId &&
                     after.DuplicateFactCount == 0 && disableLoadFactsReEnabled <= disableLoadFactsMounted &&
                     disableLoadFactsReEnabled > disableLoadFactsDisabled && controls.NativeCastRequestCount == 0,
@@ -137,7 +164,34 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("disable-load-preroutine-probe", DisableLoadDetail(null));
                 Check(!disableLoadPreRoutineAccepted || !disableLoadPreRoutineInFlight,
                     "P07-a-disable-is-never-accepted-while-the-load-owns-the-world");
-                disableLoadFrames = 0; disableLoadStage = 3;
+                disableLoadFrames = 0; disableLoadStage = 5;
+                return;
+            }
+            if (disableLoadStage == 6)
+            {
+                if (++disableLoadFrames < DisableSettleFrames) return;
+                disableLoadSecondReEnabled = Main.InvokeRegisteredToggleForAutomation(true);
+                Check(disableLoadSecondReEnabled && relationship.State == RelationshipState.Unmounted,
+                    disableLoadPreRoutineAccepted ? "P07-re-enabling-after-that-load-invents-no-pair-retroactively" :
+                    "P07-services-return-after-the-second-disable");
+                disableLoadSecondRemounted = relationship.MountAutomationPair().Succeeded && relationship.State == RelationshipState.Mounted;
+                disableLoadFrames = 0; disableLoadStage = 7;
+                return;
+            }
+            if (disableLoadStage == 7)
+            {
+                if (++disableLoadFrames < RemountSettleFrames) return;
+                rider = relationship.Rider; mount = relationship.Mount;
+                disableLoadSecondInvariants = relationship.State == RelationshipState.Mounted ? relationship.Runtime.ValidateMountedInvariants() : "not mounted";
+                Check(disableLoadSecondRemounted && relationship.State == RelationshipState.Mounted && disableLoadSecondInvariants == null &&
+                    rider.UniqueId == disableLoadRiderId && mount.UniqueId == disableLoadMountId &&
+                    controls.CaptureSnapshot().DuplicateFactCount == 0 && controls.NativeCastRequestCount == 0,
+                    "P07-remount-after-the-second-load-uses-the-same-actors-once");
+                Check(Hash(disableLoadArchive.FolderName) == disableLoadArchiveHash, "P07-second-load-left-the-archive-byte-identical");
+                beforeControls = controls.CaptureSnapshot();
+                Write("disable-load-second-load", DisableLoadDetail(new JObject {
+                    ["semanticsDelta"] = disableLoadSemanticsDelta, ["presentationDelta"] = disableLoadPresentationDelta }));
+                recoveryContinuation = true; stage = 2;
             }
         }
 
@@ -157,7 +211,6 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void CompleteFirstDisableLoad()
         {
-            var game = Game.Instance;
             int pending; disableLoadProbes.TryGetValue(PhasePending, out pending);
             int pendingRefused; disableLoadRefusals.TryGetValue(PhasePending, out pendingRefused);
             int before; disableLoadProbes.TryGetValue(PhaseBefore, out before);
@@ -180,40 +233,28 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void CompleteSecondDisableLoad()
         {
-            var game = Game.Instance;
             disableLoadStateAfterSecond = relationship.State.ToString();
-            var semanticsDelta = persistence.SemanticRestoreCount - disableLoadSemanticsAtSecond;
-            var presentationDelta = persistence.PresentationRestoreCount - disableLoadPresentationAtSecond;
+            disableLoadSemanticsDelta = persistence.SemanticRestoreCount - disableLoadSemanticsAtSecond;
+            disableLoadPresentationDelta = persistence.PresentationRestoreCount - disableLoadPresentationAtSecond;
             if (disableLoadPreRoutineAccepted)
             {
                 // Disabled before the routine started: the engine opened the save
                 // with no KMC restoration at all, and nothing was cast or invented.
-                Check(relationship.State == RelationshipState.Unmounted && !persistence.Enabled && semanticsDelta == 0 &&
-                    presentationDelta == 0 && controls.NativeCastRequestCount == 0,
+                Check(relationship.State == RelationshipState.Unmounted && !persistence.Enabled && disableLoadSemanticsDelta == 0 &&
+                    disableLoadPresentationDelta == 0 && controls.NativeCastRequestCount == 0,
                     "P07-a-load-under-a-disabled-KMC-restores-nothing-and-opens-cleanly");
-                disableLoadSecondReEnabled = Main.InvokeRegisteredToggleForAutomation(true);
-                Check(disableLoadSecondReEnabled && relationship.State == RelationshipState.Unmounted,
-                    "P07-re-enabling-after-that-load-invents-no-pair-retroactively");
+                disableLoadSecondDisabled = false;
+                disableLoadFrames = 0; disableLoadStage = 6;
+                return;
             }
-            else
-            {
-                Check(relationship.State == RelationshipState.Mounted && persistence.Enabled && semanticsDelta == 2 &&
-                    presentationDelta == 1 && controls.NativeCastRequestCount == 0,
-                    "P07-a-refused-pre-routine-disable-left-the-load-to-restore-the-pair-once");
-                disableLoadSecondReEnabled = true;
-                disableLoadSecondReEnabled = Main.InvokeRegisteredToggleForAutomation(false) && Main.InvokeRegisteredToggleForAutomation(true);
-                Check(disableLoadSecondReEnabled && relationship.State == RelationshipState.Unmounted,
-                    "P07-the-rest-cycle-repeats-after-the-second-load");
-            }
-            disableLoadSecondRemounted = relationship.MountAutomationPair().Succeeded && relationship.State == RelationshipState.Mounted;
-            rider = relationship.Rider; mount = relationship.Mount;
-            Check(disableLoadSecondRemounted && rider.UniqueId == disableLoadRiderId && mount.UniqueId == disableLoadMountId &&
-                controls.CaptureSnapshot().DuplicateFactCount == 0 && controls.NativeCastRequestCount == 0,
-                "P07-remount-after-the-second-load-uses-the-same-actors-once");
-            Check(Hash(disableLoadArchive.FolderName) == disableLoadArchiveHash, "P07-second-load-left-the-archive-byte-identical");
-            beforeControls = controls.CaptureSnapshot();
-            Write("disable-load-second-load", DisableLoadDetail(new JObject { ["semanticsDelta"] = semanticsDelta, ["presentationDelta"] = presentationDelta }));
-            recoveryContinuation = true; stage = 2;
+            Check(relationship.State == RelationshipState.Mounted && persistence.Enabled && disableLoadSemanticsDelta == 2 &&
+                disableLoadPresentationDelta == 1 && controls.NativeCastRequestCount == 0,
+                "P07-a-refused-pre-routine-disable-left-the-load-to-restore-the-pair-once");
+            // The rest cycle again, from the restored pair.
+            disableLoadSecondDisabled = Main.InvokeRegisteredToggleForAutomation(false);
+            Check(disableLoadSecondDisabled && relationship.State == RelationshipState.Unmounted,
+                "P07-the-registered-disable-succeeds-again-after-the-second-load");
+            disableLoadFrames = 0; disableLoadStage = 6;
         }
 
         private JObject DisableLoadDetail(JObject extra)
@@ -232,12 +273,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["factsMounted"] = disableLoadFactsMounted, ["factsDisabled"] = disableLoadFactsDisabled,
                 ["factsReEnabled"] = disableLoadFactsReEnabled,
                 ["restDisabled"] = disableLoadRestDisabled, ["restReEnabled"] = disableLoadRestReEnabled,
-                ["restRemounted"] = disableLoadRestRemounted,
+                ["restRemounted"] = disableLoadRestRemounted, ["restInvariants"] = disableLoadRestInvariants,
+                ["stateDisabled"] = disableLoadStateDisabled, ["stateReEnabled"] = disableLoadStateReEnabled,
                 ["preRoutineAccepted"] = disableLoadPreRoutineAccepted, ["preRoutineInFlight"] = disableLoadPreRoutineInFlight,
                 ["preRoutineLoading"] = disableLoadPreRoutineLoading,
                 ["semanticsAtSecond"] = disableLoadSemanticsAtSecond, ["presentationAtSecond"] = disableLoadPresentationAtSecond,
-                ["stateAfterSecond"] = disableLoadStateAfterSecond, ["secondReEnabled"] = disableLoadSecondReEnabled,
-                ["secondRemounted"] = disableLoadSecondRemounted,
+                ["stateAfterSecond"] = disableLoadStateAfterSecond, ["secondDisabled"] = disableLoadSecondDisabled,
+                ["secondReEnabled"] = disableLoadSecondReEnabled, ["secondRemounted"] = disableLoadSecondRemounted,
+                ["secondInvariants"] = disableLoadSecondInvariants,
                 ["nativeCastRequests"] = controls.NativeCastRequestCount, ["snapshots"] = persistence.SnapshotCount,
                 ["failedSaves"] = persistence.FailedSaveCount, ["rejections"] = persistence.RejectedLoadCount,
                 ["disposals"] = persistence.NativeWorldDisposalCount, ["feedback"] = persistence.Feedback };

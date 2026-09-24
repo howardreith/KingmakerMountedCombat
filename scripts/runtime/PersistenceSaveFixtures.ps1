@@ -1420,7 +1420,7 @@ function Assert-KmcDisableLoadEvidence {
         throw 'P07 refused disables did not leave the load to restore the pair exactly once.'
     }
     if($stages['disable-load-rest-cycle'].relationship-cne'Mounted'-or$r.restDisabled-ne$true-or$r.stateDisabled-cne'Unmounted'-or
-        $r.restReEnabled-ne$true-or$r.stateReEnabled-cne'Unmounted'-or$r.restRemounted-ne$true-or
+        $r.restReEnabled-ne$true-or$r.stateReEnabled-cne'Unmounted'-or$r.restRemounted-ne$true-or$null-ne$r.restInvariants-or
         $r.factsMounted-le0-or$r.factsDisabled-ge$r.factsMounted-or$r.factsReEnabled-le$r.factsDisabled-or$r.factsReEnabled-gt$r.factsMounted-or
         $r.nativeCastRequests-ne0-or$stages['disable-load-rest-cycle'].rider.Id-cne$riderId-or$stages['disable-load-rest-cycle'].mount.Id-cne$mountId){
         throw 'P07 equivalent-state disable/re-enable cycle at rest did not return the same pair once.'
@@ -1434,11 +1434,14 @@ function Assert-KmcDisableLoadEvidence {
             throw 'P07 a load under a disabled KMC did not open cleanly with no restoration.'
         }
     }else{
-        if($s.stateAfterSecond-cne'Mounted'-or$s.semanticsDelta-ne2-or$s.presentationDelta-ne1-or$s.secondReEnabled-ne$true){
+        if($s.stateAfterSecond-cne'Mounted'-or$s.semanticsDelta-ne2-or$s.presentationDelta-ne1-or$s.secondDisabled-ne$true-or$s.secondReEnabled-ne$true){
             throw 'P07 a refused pre-routine disable did not leave the load to restore the pair once.'
         }
     }
-    if($stages['disable-load-second-load'].relationship-cne'Mounted'-or$s.secondRemounted-ne$true-or$s.nativeCastRequests-ne0-or
+    # The remount is judged after native frames have run the production
+    # invariant check: a same-frame remount that the next frame invalidates
+    # would leave the relationship Unmounted or its invariants broken here.
+    if($stages['disable-load-second-load'].relationship-cne'Mounted'-or$s.secondRemounted-ne$true-or$null-ne$s.secondInvariants-or$s.nativeCastRequests-ne0-or
         $stages['disable-load-second-load'].rider.Id-cne$riderId-or$stages['disable-load-second-load'].mount.Id-cne$mountId){
         throw 'P07 remount after the second load did not reuse the same pair once.'
     }

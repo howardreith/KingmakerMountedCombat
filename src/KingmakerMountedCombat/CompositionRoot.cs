@@ -144,8 +144,14 @@ namespace KingmakerMountedCombat
             if (!NativePersistenceIsolation.IsIsolated) return false;
             if (IsEnabled && !SetEnabled(false)) return false;
             patches.Dispose();
+            // The persistence controller's LoadRoutine wrapper is gone with the
+            // patches; the isolation keeps its own read-only load scope so the
+            // engine's header update during the load stays swallowed, exactly
+            // as in every isolated load. Run final94-p07-absent measured the
+            // fail-closed commit guard refusing that update without this seam.
+            NativePersistenceIsolation.InstallDetachedReadOnlyLoad();
             logger.Info("KMC gameplay and persistence integration detached for an isolated automation load; save isolation retained.");
-            return !MountedPatchController.BridgeInstalled;
+            return !MountedPatchController.BridgeInstalled && NativePersistenceIsolation.DetachedReadOnlyLoadInstalled;
         }
 
         internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
