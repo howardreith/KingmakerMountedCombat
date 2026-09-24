@@ -479,13 +479,24 @@ namespace KingmakerMountedCombat.Diagnostics
             File.AppendAllText(evidence, row.ToString(Formatting.None) + Environment.NewLine);
         }
 
+        // Native debt may only fall, and only by what the restored game clock
+        // ticked. The installed clock advances by TimeSpan.FromSeconds(DeltaTime),
+        // which rounds each frame's delta to a whole millisecond
+        // (TimeController.Tick IL_0151..0161), while the cooldown controller
+        // subtracts the unrounded float delta (UnitCombatCooldownsController
+        // .TickOnUnit IL_0039..0080), so the clock can trail the cooldowns by up
+        // to 0.5 ms per frame. The slack is derived from that: 1 ms plus one tenth
+        // of the elapsed game time (0.5 ms per frame at no more than 200 frames
+        // per second). final104-p04-load-mounted-casting measured 1.4 ms of
+        // drift over 0.156 s against a fixed 1 ms slack.
         private static bool LegitimateContinuation(SavedNativeActor before, SavedNativeActor after, double elapsed)
         {
             var a = new[] { before.Standard, before.Move, before.Swift, before.Initiative, before.Reaction };
             var b = new[] { after.Standard, after.Move, after.Swift, after.Initiative, after.Reaction };
+            var slack = 0.001 + Math.Max(0, elapsed) * 0.1;
             return before.Id == after.Id && before.ReactionsRemaining == after.ReactionsRemaining &&
                 before.LastSurpriseTicks == after.LastSurpriseTicks &&
-                Enumerable.Range(0, a.Length).All(i => b[i] <= a[i] + 0.001f && b[i] + elapsed + 0.001 >= a[i]);
+                Enumerable.Range(0, a.Length).All(i => b[i] <= a[i] + 0.001f && b[i] + elapsed + slack >= a[i]);
         }
 
         private static string Hash(string path)
