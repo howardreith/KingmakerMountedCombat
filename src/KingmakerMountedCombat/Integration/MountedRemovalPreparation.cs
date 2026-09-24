@@ -69,6 +69,8 @@ namespace KingmakerMountedCombat.Integration
         internal int CleanupSaveCount { get; private set; }
         internal int UnconfirmedCount { get; private set; }
         internal RemovalAssessment LastAssessment { get; private set; }
+        // What the poll is waiting on while Saving, for the scenario probe rows.
+        internal string PendingDiagnostics { get; private set; }
 
         internal MountedRemovalPreparation(GameMountedRelationshipService relationship, MountedPersistenceService persistence,
             MountedCombatController combat, HorseCompanionBlueprintService horseCompanion, Func<bool> cleanup, IModLogger logger)
@@ -237,6 +239,7 @@ namespace KingmakerMountedCombat.Integration
             saveCallback = false;
             failedSavesAtRequest = persistence.FailedSaveCount;
             saveRequestedAtUtc = DateTime.UtcNow;
+            PendingDiagnostics = null;
             CleanupSavePath = null; CleanupSaveLeaf = null; CleanupSaveSha256 = null; CleanupCampaignId = null;
             CleanupScannedMembers = 0; CleanupScannedBytes = 0; CleanupReferenceHits = new string[0]; CleanupBinding = null;
             State = RemovalPreparationState.Saving;
@@ -264,16 +267,40 @@ namespace KingmakerMountedCombat.Integration
             if (persistence.SaveSuspended || persistence.HasActiveSaveScope) return;
             var game = Game.Instance;
             RemovalWrittenArchiveFacts written;
+            SaveInfo registeredCopy;
             try
             {
-                var registered = game?.SaveManager != null && game.SaveManager.Any(s => ReferenceEquals(s, pendingSave));
+                // Verified installed behaviour (SaveRoutine 0600BEF3 MoveNext): the
+                // engine keeps the requested descriptor only as originalSave
+                // (IL_01A0), works on a copy assigned at IL_01DC, removes the
+                // original from its list (IL_0215) and registers the copy
+                // (IL_022C). The archive this operation wrote is therefore the
+                // registered descriptor whose path IS the destination KMC's own
+                // commit record names for exactly this operation; the requested
+                // instance itself never learns the path. Nothing here selects by
+                // name.
+                var commitsSince = NativeMountedArchiveCommit.CommitCount - commitsAtRequest;
+                var destination = NativeMountedArchiveCommit.LastCommittedDestination;
+                var candidates = game?.SaveManager == null || commitsSince != 1 || string.IsNullOrEmpty(destination) ? new SaveInfo[0] :
+                    game.SaveManager.Where(s => s != null && !ReferenceEquals(s, pendingSave) && !string.IsNullOrEmpty(s.FolderName) &&
+                        string.Equals(System.IO.Path.GetFullPath(s.FolderName), System.IO.Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase)).ToArray();
+                var originalGone = game?.SaveManager != null && !game.SaveManager.Any(s => ReferenceEquals(s, pendingSave));
+                registeredCopy = candidates.Length == 1 ? candidates[0] : null;
+                PendingDiagnostics = "commitsSince=" + commitsSince + " destination=" + (destination ?? "<none>") + " candidates=" + candidates.Length +
+                    " originalGone=" + originalGone + " operation=" + (registeredCopy == null ? "<none>" : registeredCopy.OperationState.ToString()) +
+                    " suspended=" + persistence.SaveSuspended + " scope=" + persistence.HasActiveSaveScope;
+                if (commitsSince == 0 || registeredCopy == null)
+                {
+                    if ((DateTime.UtcNow - saveRequestedAtUtc).TotalSeconds > SaveTimeoutSeconds)
+                        Unconfirmed("the cleanup save reported completion but no archive was committed and registered for this operation (" + PendingDiagnostics + ")");
+                    return;
+                }
                 written = new RemovalWrittenArchiveFacts
                 {
-                    DescriptorRegistered = registered, HasFileOnDisk = pendingSave.HasFileOnDisk,
-                    OperationState = pendingSave.OperationState.ToString(), Path = pendingSave.FolderName,
-                    CommittedDestination = NativeMountedArchiveCommit.LastCommittedDestination,
-                    CommitsSinceRequest = NativeMountedArchiveCommit.CommitCount - commitsAtRequest,
-                    Name = pendingSave.Name, Type = pendingSave.Type.ToString(), GameId = pendingSave.GameId
+                    DescriptorRegistered = originalGone, HasFileOnDisk = registeredCopy.HasFileOnDisk && System.IO.File.Exists(registeredCopy.FolderName),
+                    OperationState = registeredCopy.OperationState.ToString(), Path = registeredCopy.FolderName,
+                    CommittedDestination = destination, CommitsSinceRequest = commitsSince,
+                    Name = registeredCopy.Name, Type = registeredCopy.Type.ToString(), GameId = registeredCopy.GameId
                 };
             }
             catch (Exception exception)
@@ -285,13 +312,13 @@ namespace KingmakerMountedCombat.Integration
             if (!written.HasFileOnDisk || written.OperationState != "None")
             {
                 if ((DateTime.UtcNow - saveRequestedAtUtc).TotalSeconds > SaveTimeoutSeconds)
-                    Unconfirmed("the cleanup save reported completion but its archive never became complete");
+                    Unconfirmed("the cleanup save reported completion but its archive never became complete (" + PendingDiagnostics + ")");
                 return;
             }
             var binding = RemovalReadinessPolicy.BindingReason(written, CleanupSaveName, pendingGameId);
             if (binding != null) { Unconfirmed(binding); return; }
             MountedSaveReadResult read;
-            try { read = NativeMountedSaveStorage.Read(pendingSave.Saver); }
+            try { read = NativeMountedSaveStorage.Read(registeredCopy.Saver); }
             catch (Exception exception)
             {
                 logger.Exception("Prepare-to-disable could not read the cleanup archive", exception);
@@ -309,7 +336,7 @@ namespace KingmakerMountedCombat.Integration
             if (memberReasons.Count != 0) { Fail(string.Join("; ", memberReasons) + "."); return; }
             List<string> hits;
             int scanned; long bytes;
-            try { hits = NativeMountedSaveStorage.FindReferences(pendingSave.Saver, RegisteredBlueprintGuids, out scanned, out bytes); }
+            try { hits = NativeMountedSaveStorage.FindReferences(registeredCopy.Saver, RegisteredBlueprintGuids, out scanned, out bytes); }
             catch (Exception exception)
             {
                 logger.Exception("Prepare-to-disable could not scan the cleanup archive", exception);
@@ -333,7 +360,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             CleanupSavePath = written.Path;
-            CleanupSaveLeaf = pendingSave.FileName;
+            CleanupSaveLeaf = registeredCopy.FileName;
             CleanupSaveSha256 = hash;
             CleanupCampaignId = written.GameId;
             CleanupBinding = "bound";
