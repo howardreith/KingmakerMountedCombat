@@ -315,6 +315,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");
+            // Removal preparation and disable-during-load write and probe a live
+            // world; the integration-absent case only ever opens a cleanup archive.
+            if (Scenario == "persistence-p07-load" && (PersistenceCase == "prepare-removal" || PersistenceCase == "disable-during-load"))
+                errors.Add("A removal or disable-during-load case is save-only.");
+            if (Scenario == "persistence-p07-save" && PersistenceCase == "absent-kmc")
+                errors.Add("The integration-absent case is cold-load only.");
             if (Scenario == "persistence-p07-load" || Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load" || p06)
             {
                 if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");

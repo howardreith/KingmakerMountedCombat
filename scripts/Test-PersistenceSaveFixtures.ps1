@@ -1012,5 +1012,175 @@ $leak[3].detail.aSecondHash=$leak[2].detail.secondArchive.sha256;$leak[5].detail
 $leak[6].detail.bAutoSha256=$leakSha
 Must-Reject {Assert-KmcRecoveryPersistenceEvidence $leakRequest $leak} 'P07 campaign B accepted an on-disk autosave member carrying the fixture campaign'
 
+# --- Prepare-to-Disable / removal, disable-during-load, integration-absent ------
+$removalId='removal-source'
+$removalRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$removalId+'/Saved Games')
+[void][IO.Directory]::CreateDirectory($removalRoot)
+$firstSha=New-KmcSyntheticArchive (Join-Path $removalRoot 'Manual_300_KMC_P01.zks') ([ordered]@{Name='KMC_P01';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true})
+$cleanupPath=Join-Path $removalRoot 'Manual_301_KMC_CLEANUP.zks'
+$cleanupSha=New-KmcSyntheticArchive $cleanupPath ([ordered]@{Name='KMC_CLEANUP';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{SchemaVersion=2;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;Mounted=$false;Slots=@()})
+function New-KmcRemovalRow { param([string]$Kind,[int]$Stage,[string]$Relationship,[hashtable]$Detail)
+    $mounted=$Relationship-ceq'Mounted'
+    $base=[ordered]@{case='prepare-removal';stage=$Stage-1000;riderId='rider-a';mountId='mount-a';state='Idle';status='';assessments=0;refusals=0
+        cleanupSaves=0;cleanupLeaf=$null;cleanupSha256=$null;cleanupPath=$null;beganRefused=$false;began=$false
+        factsMounted=3;factsDisabled=1;factsReEnabled=3;disabled=$false;reEnabled=$false;remounted=$false
+        snapshots=1;failedSaves=0;saveSuspended=$false;activeScope=$false;enabled=$true;nativeCastRequests=0
+        firstPath=(Join-Path $script:removalRoot 'Manual_300_KMC_P01.zks');firstHash=$script:firstSha}
+    foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
+    [pscustomobject]@{kind=$Kind;checkpoint='prepare-removal';stage=$Stage;relationship=$Relationship
+        rider=$(if($mounted){[pscustomobject]@{Id='rider-a'}}else{$null});mount=$(if($mounted){[pscustomobject]@{Id='mount-a'}}else{$null})
+        detail=[pscustomobject]$base}
+}
+$removalRequest=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='prepare-removal';runId=$removalId;fixture=$fixture}
+$cleanupDetail=[pscustomobject]@{path=$cleanupPath;leaf='Manual_301_KMC_CLEANUP.zks';sha256=$cleanupSha;length=(Get-Item -LiteralPath $cleanupPath).Length
+    nativeType='Manual';internalName='KMC_CLEANUP';gameId=$fixture.working.gameId;area=$fixture.working.area;operation='None';kmcMember='Current'
+    snapshot=[pscustomobject]@{SchemaVersion=2;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;Mounted=$false;Slots=@()}}
+$removalRows=@(
+    [pscustomobject]@{kind='initial';checkpoint='prepare-removal';stage=0;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'};detail=$null},
+    [pscustomobject]@{kind='native-write-complete';checkpoint='prepare-removal';stage=1000;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'}
+        detail=[pscustomobject]@{ordinal=1;path=(Join-Path $removalRoot 'Manual_300_KMC_P01.zks');sha256=$firstSha;length=10;nativeType='Manual'
+            snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}},
+    (New-KmcRemovalRow 'removal-refused' 1000 'Mounted' @{state='Refused';assessments=1;refusals=1;beganRefused=$true;spawnedId='horse-x';spawnedBlueprint='4016c7db400ab721ff125aef9e65e202'
+        references=@('unit Horse [horse-x] is the KMC Horse');reasons=@('This campaign still references KMC Horse companion (unit Horse [horse-x] is the KMC Horse).')}),
+    (New-KmcRemovalRow 'removal-requested' 1001 'Unmounted' @{state='Saving';assessments=2;refusals=1;beganRefused=$true;began=$true}),
+    (New-KmcRemovalRow 'removal-prepared' 1002 'Unmounted' @{state='Ready';assessments=2;refusals=1;beganRefused=$true;began=$true;cleanupSaves=1
+        cleanupLeaf='Manual_301_KMC_CLEANUP.zks';cleanupSha256=$cleanupSha;cleanupPath=$cleanupPath;snapshots=2;cleanup=$cleanupDetail;firstSha256=$firstSha}),
+    (New-KmcRemovalRow 'removal-disabled-reenabled' 1002 'Mounted' @{state='Ready';assessments=2;refusals=1;beganRefused=$true;began=$true;cleanupSaves=1
+        cleanupLeaf='Manual_301_KMC_CLEANUP.zks';cleanupSha256=$cleanupSha;cleanupPath=$cleanupPath;snapshots=2;disabled=$true;reEnabled=$true;remounted=$true}))
+Assert-KmcRecoveryPersistenceEvidence $removalRequest $removalRows;$passes++
+foreach($bad in @('no-refusal','refused-after-dismount','refused-saved','reference-not-named','wrong-blueprint','refused-without-reasons',
+    'requested-still-mounted','requested-not-saving','prepared-not-ready','prepared-two-saves','prepared-wrong-leaf','prepared-sha-mismatch',
+    'prepared-first-changed','prepared-records-pair','prepared-foreign-campaign','prepared-bytes-changed','disable-failed','reenable-failed',
+    'remount-failed','facts-not-released','facts-grew','mount-cast','pair-changed','out-of-order','actor-lingers')){
+    $n=($removalRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'no-refusal' {$n=@($n[0],$n[1],$n[3],$n[4],$n[5])}
+        'refused-after-dismount' {$n[2].relationship='Unmounted';$n[2].rider=$null;$n[2].mount=$null}
+        'refused-saved' {$n[2].detail.cleanupSaves=1}
+        'reference-not-named' {$n[2].detail.references=@('unit Other [other-y] is the KMC Horse')}
+        'wrong-blueprint' {$n[2].detail.spawnedBlueprint=('f'*32)}
+        'refused-without-reasons' {$n[2].detail.reasons=@()}
+        'requested-still-mounted' {$n[3].relationship='Mounted';$n[3].rider=[pscustomobject]@{Id='rider-a'};$n[3].mount=[pscustomobject]@{Id='mount-a'}}
+        'requested-not-saving' {$n[3].detail.state='Refused'}
+        'prepared-not-ready' {$n[4].detail.state='Failed'}
+        'prepared-two-saves' {$n[4].detail.cleanupSaves=2}
+        'prepared-wrong-leaf' {$n[4].detail.cleanupLeaf='Manual_302_KMC_CLEANUP.zks';$n[4].detail.cleanup.leaf='Manual_302_KMC_CLEANUP.zks';$n[4].detail.cleanup.path=(Join-Path $removalRoot 'Manual_302_KMC_CLEANUP.zks')}
+        'prepared-sha-mismatch' {$n[4].detail.cleanupSha256=('e'*64)}
+        'prepared-first-changed' {$n[4].detail.firstSha256=('e'*64)}
+        'prepared-records-pair' {$n[4].detail.cleanup.snapshot.Mounted=$true}
+        'prepared-foreign-campaign' {$n[4].detail.cleanup.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
+        'prepared-bytes-changed' {$n[4].detail.cleanupSha256=('e'*64);$n[4].detail.cleanup.sha256=('e'*64)}
+        'disable-failed' {$n[5].detail.disabled=$false}
+        'reenable-failed' {$n[5].detail.reEnabled=$false}
+        'remount-failed' {$n[5].detail.remounted=$false}
+        'facts-not-released' {$n[5].detail.factsDisabled=3}
+        'facts-grew' {$n[5].detail.factsReEnabled=4}
+        'mount-cast' {$n[5].detail.nativeCastRequests=1}
+        'pair-changed' {$n[5].detail.riderId='rider-b';$n[5].rider=[pscustomobject]@{Id='rider-b'}}
+        'out-of-order' {$n[5].stage=999}
+        'actor-lingers' {$n[4].rider=[pscustomobject]@{Id='rider-a'}}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $removalRequest $n} ('P07 removal accepted '+$bad)
+}
+
+$disableLoadRoot=Join-Path $script:ownedTestLab 'runtime-staging/persistence-disable-load-source/Saved Games'
+[void][IO.Directory]::CreateDirectory($disableLoadRoot)
+$dlSha=New-KmcSyntheticArchive (Join-Path $disableLoadRoot 'Manual_300_KMC_P01.zks') ([ordered]@{Name='KMC_P01';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true})
+function New-KmcDisableLoadRow { param([string]$Kind,[int]$Stage,[string]$Relationship,[hashtable]$Detail)
+    $mounted=$Relationship-ceq'Mounted'
+    $base=[ordered]@{case='disable-during-load';stage=$Stage-1100;riderId='rider-a';mountId='mount-a';archivePath=(Join-Path $script:disableLoadRoot 'Manual_300_KMC_P01.zks');archiveSha256=$script:dlSha
+        probes=[pscustomobject]@{};refusals=[pscustomobject]@{};outsideFrames=0;enabledThroughout=$true;enabled=$true;loadInFlight=$false;loading=$false
+        semanticsBefore=2;presentationBefore=1;semantics=2;presentation=1;factsMounted=3;factsDisabled=1;factsReEnabled=3
+        restDisabled=$false;restReEnabled=$false;restRemounted=$false;preRoutineAccepted=$false;preRoutineInFlight=$false;preRoutineLoading=$true
+        semanticsAtSecond=4;presentationAtSecond=2;stateAfterSecond=$null;secondReEnabled=$false;secondRemounted=$false
+        nativeCastRequests=0;snapshots=1;failedSaves=0;rejections=0;disposals=0}
+    foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
+    [pscustomobject]@{kind=$Kind;checkpoint='disable-during-load';stage=$Stage;relationship=$Relationship
+        rider=$(if($mounted){[pscustomobject]@{Id='rider-a'}}else{$null});mount=$(if($mounted){[pscustomobject]@{Id='mount-a'}}else{$null})
+        detail=[pscustomobject]$base}
+}
+$disableLoadRequest=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='disable-during-load';runId='disable-load-source';fixture=$fixture}
+$disableLoadRows=@(
+    [pscustomobject]@{kind='initial';checkpoint='disable-during-load';stage=0;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'};detail=$null},
+    [pscustomobject]@{kind='native-write-complete';checkpoint='disable-during-load';stage=1100;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'}
+        detail=[pscustomobject]@{ordinal=1;path=(Join-Path $disableLoadRoot 'Manual_300_KMC_P01.zks');sha256=$dlSha;length=10;nativeType='Manual'
+            snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}},
+    (New-KmcDisableLoadRow 'disable-load-requested' 1100 'Mounted' @{}),
+    (New-KmcDisableLoadRow 'disable-load-probed' 1101 'Mounted' @{probes=[pscustomobject]@{'loading-before-semantic-restore'=4;'semantic-restored-presentation-pending'=6}
+        refusals=[pscustomobject]@{'loading-before-semantic-restore'=4;'semantic-restored-presentation-pending'=6};semantics=4;presentation=2}),
+    (New-KmcDisableLoadRow 'disable-load-rest-cycle' 1102 'Mounted' @{semantics=4;presentation=2;restDisabled=$true;stateDisabled='Unmounted';restReEnabled=$true;stateReEnabled='Unmounted';restRemounted=$true}),
+    (New-KmcDisableLoadRow 'disable-load-preroutine-probe' 1102 'Mounted' @{semantics=4;presentation=2;restDisabled=$true;restReEnabled=$true;restRemounted=$true;preRoutineAccepted=$true;preRoutineInFlight=$false;enabled=$false}),
+    (New-KmcDisableLoadRow 'disable-load-second-load' 1103 'Mounted' @{semantics=4;presentation=2;restDisabled=$true;restReEnabled=$true;restRemounted=$true;preRoutineAccepted=$true
+        stateAfterSecond='Unmounted';semanticsDelta=0;presentationDelta=0;secondReEnabled=$true;secondRemounted=$true;disposals=2}))
+Assert-KmcRecoveryPersistenceEvidence $disableLoadRequest $disableLoadRows;$passes++
+# A refused pre-routine disable is equally valid: the load then restores once.
+$refusedPre=($disableLoadRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+$refusedPre[5].detail.preRoutineAccepted=$false;$refusedPre[5].detail.preRoutineInFlight=$true;$refusedPre[5].detail.enabled=$true
+$refusedPre[6].detail.preRoutineAccepted=$false;$refusedPre[6].detail.stateAfterSecond='Mounted';$refusedPre[6].detail.semanticsDelta=2;$refusedPre[6].detail.presentationDelta=1
+Assert-KmcRecoveryPersistenceEvidence $disableLoadRequest $refusedPre;$passes++
+foreach($bad in @('no-pending-probe','accepted-during-load','accepted-before-semantic','disabled-mid-load','restored-twice','not-restored','mount-cast',
+    'rest-disable-failed','rest-state-mounted','rest-remount-failed','rest-facts-grew','accepted-while-in-flight','accepted-then-restored','refused-then-not-restored',
+    'second-remount-failed','second-pair-changed','out-of-order','archive-mismatch')){
+    $n=($disableLoadRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'no-pending-probe' {$n[3].detail.probes=[pscustomobject]@{'loading-before-semantic-restore'=4};$n[3].detail.refusals=[pscustomobject]@{'loading-before-semantic-restore'=4}}
+        'accepted-during-load' {$n[3].detail.refusals.'semantic-restored-presentation-pending'=5}
+        'accepted-before-semantic' {$n[3].detail.refusals.'loading-before-semantic-restore'=3}
+        'disabled-mid-load' {$n[3].detail.enabledThroughout=$false}
+        'restored-twice' {$n[3].detail.semantics=6}
+        'not-restored' {$n[3].detail.presentation=1}
+        'mount-cast' {$n[3].detail.nativeCastRequests=1}
+        'rest-disable-failed' {$n[4].detail.restDisabled=$false}
+        'rest-state-mounted' {$n[4].detail.stateDisabled='Mounted'}
+        'rest-remount-failed' {$n[4].detail.restRemounted=$false}
+        'rest-facts-grew' {$n[4].detail.factsReEnabled=4}
+        'accepted-while-in-flight' {$n[5].detail.preRoutineInFlight=$true}
+        'accepted-then-restored' {$n[6].detail.stateAfterSecond='Mounted';$n[6].detail.semanticsDelta=2;$n[6].detail.presentationDelta=1}
+        'refused-then-not-restored' {$n[5].detail.preRoutineAccepted=$false;$n[5].detail.preRoutineInFlight=$true;$n[6].detail.preRoutineAccepted=$false}
+        'second-remount-failed' {$n[6].detail.secondRemounted=$false}
+        'second-pair-changed' {$n[6].rider=[pscustomobject]@{Id='rider-b'}}
+        'out-of-order' {$n[6].stage=1099}
+        'archive-mismatch' {$n[3].detail.archiveSha256=('e'*64)}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $disableLoadRequest $n} ('P07 disable-during-load accepted '+$bad)
+}
+
+# Integration-absent cold load of the cleanup archive.
+$absentId='absent-source'
+$absentRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$absentId+'/Saved Games')
+[void][IO.Directory]::CreateDirectory($absentRoot)
+$absentPath=Join-Path $absentRoot 'Manual_301_KMC_CLEANUP.zks'
+$absentSha=New-KmcSyntheticArchive $absentPath ([ordered]@{Name='KMC_CLEANUP';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{SchemaVersion=2;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;Mounted=$false;Slots=@()})
+$absentRequest=[pscustomobject]@{scenario='persistence-p07-load';persistenceCase='absent-kmc';runId=$absentId;fixture=$fixture
+    persistenceLoad=[pscustomobject]@{internalName='KMC_CLEANUP';fileName='Manual_301_KMC_CLEANUP.zks';sha256=$absentSha;gameId=$fixture.working.gameId;gameName=$fixture.working.gameName;area=$fixture.working.area}}
+$absentRows=@(
+    [pscustomobject]@{kind='initial';checkpoint='absent-kmc';stage=0;relationship='Unmounted';rider=$null;mount=$null;detail=$null},
+    [pscustomobject]@{kind='absent-load-complete';checkpoint='absent-kmc';stage=0;relationship='Unmounted';rider=$null;mount=$null
+        detail=[pscustomobject]@{integrationDetached=$true;bridgeInstalled=$false;enabled=$false;loadedData=$false;semantics=0;presentation=0;nativeCastRequests=0;activeScope=$false
+            gameId=$fixture.working.gameId;area=$fixture.working.area;expectedGameId=$fixture.working.gameId;expectedArea=$fixture.working.area;party=3;units=40
+            mammothUnits=1;kmcHorseUnits=0;archivePath=$absentPath;archiveSha256=$absentSha;expectedSha256=$absentSha;sourceFileName='Manual_301_KMC_CLEANUP.zks';mode='Default'}})
+Assert-KmcAbsentLoadEvidence $absentRequest $absentRows;$passes++
+foreach($bad in @('not-detached','bridge-installed','services-enabled','loaded-data','restored','mount-cast','wrong-campaign','wrong-area','no-party','kmc-horse-unit','wrong-leaf','archive-changed','not-default','row-mounted','no-completion')){
+    $n=($absentRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'not-detached' {$n[1].detail.integrationDetached=$false}
+        'bridge-installed' {$n[1].detail.bridgeInstalled=$true}
+        'services-enabled' {$n[1].detail.enabled=$true}
+        'loaded-data' {$n[1].detail.loadedData=$true}
+        'restored' {$n[1].detail.semantics=2}
+        'mount-cast' {$n[1].detail.nativeCastRequests=1}
+        'wrong-campaign' {$n[1].detail.gameId='00000000-0000-0000-0000-000000000001'}
+        'wrong-area' {$n[1].detail.area=('f'*32)}
+        'no-party' {$n[1].detail.party=0}
+        'kmc-horse-unit' {$n[1].detail.kmcHorseUnits=1}
+        'wrong-leaf' {$n[1].detail.sourceFileName='Manual_300_KMC_P01.zks'}
+        'archive-changed' {$n[1].detail.archiveSha256=('e'*64)}
+        'not-default' {$n[1].detail.mode='Cutscene'}
+        'row-mounted' {$n[1].relationship='Mounted';$n[1].rider=[pscustomobject]@{Id='rider-a'}}
+        'no-completion' {$n=@($n[0])}
+    }
+    Must-Reject {Assert-KmcAbsentLoadEvidence $absentRequest $n} ('P07 integration-absent accepted '+$bad)
+}
+
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
 # Preserve only owned synthetic evidence in ignored obj; no external fixture touched.

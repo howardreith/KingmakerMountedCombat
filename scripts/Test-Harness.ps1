@@ -5331,6 +5331,37 @@ try {
                 try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
                 Assert-Test $rejected 'P07 fault leaked into an old scenario'
             }
+            # Save-only removal cases, and the cold-only integration-absent case
+            # that opens a prepare-removal run's cleanup archive under its own name.
+            $f=$v2Request.fixture.working
+            foreach($case in @('prepare-removal','disable-during-load')){
+                $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case;$v2Request.Remove('persistenceAreaTarget')
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.scenario='persistence-p07-load'
+                $v2Request['persistenceLoad']=[ordered]@{internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64)
+                    length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area}
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected ('P07 save-only case '+$case+' accepted a cold load')
+                $v2Request.Remove('persistenceLoad')
+            }
+            $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']='absent-kmc'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P07 integration-absent case accepted a writing scenario'
+            $v2Request.scenario='persistence-p07-load'
+            $v2Request['persistenceLoad']=[ordered]@{internalName='KMC_CLEANUP';fileName='Manual_301_KMC_CLEANUP.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area}
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            $v2Request.persistenceLoad.fileName='Manual_300_KMC_P01.zks';$v2Request.persistenceLoad.internalName='KMC_P01'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P07 integration-absent case accepted a mounted archive leaf'
         } finally {
             $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad');$v2Request.Remove('persistenceAreaTarget')
             $v2Request.scenario='mounted-pair-create-and-clear'

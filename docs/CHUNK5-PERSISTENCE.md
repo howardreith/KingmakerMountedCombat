@@ -29,6 +29,55 @@ These are causal engineering checkpoints, **not the consolidated final-candidate
 | P07 | Preview53 canceled wait/queued load60/0+cold20/0; real timeout58/0+cold20/0. Same world/debt/controls, unchanged last-good native reload, subsequent actual write and usable play. Preview54 locked replacement59/0+cold20/0: one actual replacement failure, no success callback, previous bytes intact, real retry write. Preview58 same-area reload33/0+cold20/0: measured retained cross-scene views, real post-area write and ordinary continuation. Preview63 cross-area entry34/0+cold20/0 and preview64 cross-area exit34/0+cold20/0 at the campaign's own hub: real transfers, retained views, both authored autosave modes proven distinct at their native barriers, destination writes and cold round trips. Preview69 transition-autosave cold load24/0 each: both authored Auto archives themselves open, in a fresh process, the exact world each captured | Native failed-load, serialization cancellation and disable/re-enable are now qualified (see the exact-final set below); removal and the remaining harmful lifecycle paths stay open |
 | P08 | Accepted Chunk 4 evidence remains historical | Exact-final gameplay regression and post-load variants |
 
+## Campaign B: a genuine second native game under isolated routing
+
+Run `final92-p07-campaign-b` (`persistence-p07-save`, case `campaign-b`) on
+`0.1.0-chunk5-preview.92` (source `47bc7dca9c0a6b9ec2a00ef6940acc33764a33ab`, DLL
+`ab15a1564d85a00a9ebd12e207d8db01c67f44ff5c1d772e3ea1af1f05ae3fb8`, MVID
+`c2d48575-4b33-477e-b500-422d3dfd3cb6`, suite `20260923-chunk5-suite109`)
+**PASS 63/0**, PID 18028, loads 2 / writes 4, mods and Working restored, no lock.
+
+The isolated save authority may declare bootstrap leaves for exactly one native new
+game per run. Before the run the authority is bound to campaign A alone; the
+scenario opens the bootstrap window immediately before the native new game; the
+engine mints `Player.GameId` (`Guid.NewGuid` at `LoadNewGame` IL_011A-012E) and
+the authority freezes exactly that identity on B's first admitted write -- the
+engine's own autosave, whose `SaveRoutine` is constructed at IL_0525 before any
+area is loaded, so a bootstrap autosave leaf admits a null observed area and still
+commits in its declared area. KMC assigns, predicts or fabricates no identity.
+Fixture-campaign requests never project onto bootstrap leaves and the minted
+identity never reaches fixture leaves (25 authority contract checks, 177/0).
+
+The engine's new game is entered the way the engine itself does it after
+`ResetToMainMenu` (`CheatsTransfer.NewGameCoroutine 0600C47A`): wait for the
+loading process, then `MainMenu.EnterGame 06000D84`, which shows the loading
+screen, disposes the menu UI, loads base mechanics and only then runs
+`Game.LoadNewGame(preset, null)`. A direct `LoadNewGame` from the live menu
+(run `final91-p07-campaign-b`) failed inside `SceneLoader.LoadAreaCoroutine`
+with `ArgumentException: Destination scene is not valid`; that failure is
+retained. The preset is the engine's own authored start: the Endless start
+preset when the installed license enables it (it did: area = enter-point area
+`c49315fe499f0e5468af6f19242499a2`, `MakeAutosave`, no character-generation
+product, `Game.NewGameUnit` null), otherwise the main-campaign preset.
+
+Measured: A mounted (rider `b6628a77…`, Mammoth `d79a4f6c…`), opening archive
+`Manual_300_KMC_P01.zks` `880dd427…`; a real ground click moved the pair 2.95 m;
+the post-expenditure archive is a NEW save `Manual_301_KMC_P01B.zks` `18a12694…`
+(its own name, because `CreateNewSave 06008015` passes a repeated name through
+`MakeNameUnique`, which appends a space and a number -- run `final90` was refused
+on exactly that and is retained). Esc-menu reset released the pair and every
+lease. The engine minted **`bf673e4e-5e19-4ec3-b5a5-54d59ea73357` / "Baron"**,
+frozen once; B's autosave `Auto_1.zks` `52f39750…` and manual `Manual_302_KMC_B.zks`
+`86c83859…` are clean by rows and by bytes (KMC member Mounted=false, no
+pair, no slots, B's own campaign and area); in B: Unmounted, 0 bindings, no
+restoration, no Mount cast, no actor shared with A. `LoadGameFromMainMenu` back
+to `Manual_301_KMC_P01B` from inside B: A under its own identity in a new world,
+the exact pair restored once (semantics 2 / presentation 1), 2/2 bindings, mount
+position delta 0.0 m, debt conserved, B's world disposed exactly once, all four
+archives byte-identical, then movement, a delivered attack and usable play.
+Receipt: lab `campaign-b92.md`. B's own cold load in a fresh process is a
+separate control, not yet run; the B archives are retained for it.
+
 ## Code-review remediation (R1-R7)
 
 Candidate `0.1.0-chunk5-preview.86`, qualifier `chunk5-remediation`, source
