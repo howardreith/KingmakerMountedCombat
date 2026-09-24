@@ -511,6 +511,15 @@ namespace KingmakerMountedCombat.Diagnostics
             castingEffects?.Dispose();
             conditionLease?.Dispose(); conditionFact?.Dispose(); conditionTrace?.Dispose();
             delayTrace?.Dispose(); RestoreDelayInitiative();
+            // The death case's scoped policy must never outlive its process,
+            // including a failure; an inexact restoration is logged, not hidden
+            // behind the failure that led here.
+            if (deathPolicy != null)
+            {
+                try { deathPolicy.Dispose(); }
+                catch (Exception error) { logger.Warning("Native death fixture policy restoration failed during teardown: " + error.Message); }
+                finally { deathPolicy = null; }
+            }
             relationship.Dismount(CleanupTrigger.ProcessTeardown);
             try { realtimeWeapon?.Dispose(); } finally { realtimeWeapon = null; }
             try { restoreRealtimeAi?.Invoke(); } finally { restoreRealtimeAi = null; }

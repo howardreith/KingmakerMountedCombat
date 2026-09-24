@@ -1211,6 +1211,10 @@ function New-KmcDeathRow { param([string]$Kind,[int]$Stage,[string]$Relationship
         requestedDamage=40;nativeDamage=40;deathThreshold=30;damageToParty=1.0;subjectDamageBefore=0;survivorDamageBefore=0
         subjectDamage=40;subjectDead=$true;subjectFinallyDead=$false;survivorDamage=0;survivorConscious=$true;partyCombat=$true
         relationship='Unmounted';snapshots=1;failedSaves=0;saveSuspended=$false;activeScope=$false;semantics=2;presentation=1;nativeCastRequests=0
+        deathPolicy=[pscustomobject]@{permanentDeathFixture=$true
+            before=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$null;value=$true;persisted='True'};deathDoor=[pscustomobject]@{raw=$null;value=$false;persisted='False'};trueDeath=$false;deathDoorCondition=$false;damageToParty=1.0}
+            effective=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$false;value=$false;persisted='True'};deathDoor=[pscustomobject]@{raw=$false;value=$false;persisted='False'};trueDeath=$true;deathDoorCondition=$false;damageToParty=1.0}
+            restoration=$null}
         firstPath=(Join-Path $script:deathRoot 'Manual_300_KMC_P01.zks');firstHash=$script:deathFirstSha;archivePath=$null;archiveHash=$null}
     foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
     [pscustomobject]@{kind=$Kind;checkpoint='rider-death';stage=$Stage;relationship=$Relationship
@@ -1234,15 +1238,26 @@ $deathRows=@(
             subjectDestroyed=$false;subjectHpLeft=-10;subjectDamage=40;survivorLifeState='Conscious';controllable=3;controllableConscious=2}}),
     (New-KmcDeathRow 'death-saved' 1204 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha;archive=$deathArchive}),
     (New-KmcDeathRow 'death-reloaded' 1205 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha
-        subjectPresent=$true;survivorPresent=$true;loadedDataMounted=$false;semanticsDelta=0;presentationDelta=0}))
+        subjectPresent=$true;survivorPresent=$true;loadedDataMounted=$false;semanticsDelta=0;presentationDelta=0}),
+    (New-KmcDeathRow 'death-policy-restored' 1205 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha
+        deathPolicy=[pscustomobject]@{permanentDeathFixture=$true
+            before=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$null;value=$true;persisted='True'};deathDoor=[pscustomobject]@{raw=$null;value=$false;persisted='False'};trueDeath=$false;deathDoorCondition=$false;damageToParty=1.0}
+            effective=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$false;value=$false;persisted='True'};deathDoor=[pscustomobject]@{raw=$false;value=$false;persisted='False'};trueDeath=$true;deathDoorCondition=$false;damageToParty=1.0}
+            restoration=[pscustomobject]@{restored=$true;state=[pscustomobject]@{trueDeath=$false;deathDoorCondition=$false;damageToParty=1.0}}}}))
 Assert-KmcRecoveryPersistenceEvidence $deathRequest $deathRows;$passes++
 foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-combat-at-stimulus','subject-not-dead','partner-harmed','partner-unconscious',
     'lease-held','no-admission','admission-refused','admission-game-over','admission-subject-alive','admission-in-combat',
+    'policy-not-permanent','policy-multiplier-changed','policy-persisted-changed','policy-not-restored','no-policy-restoration',
     'saved-in-combat','two-saves','first-changed','archive-records-pair','archive-foreign-campaign','archive-sha-mismatch',
     'reload-invented-pair','reload-restored','reload-subject-missing','reload-subject-alive','reload-cast','reload-archive-changed','wrong-subject','foreign-actor','out-of-order')){
     $n=($deathRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
-        'no-cleanup' {$n=@($n[0],$n[1],$n[2],$n[4],$n[5],$n[6])}
+        'no-cleanup' {$n=@($n[0],$n[1],$n[2],$n[4],$n[5],$n[6],$n[7])}
+        'policy-not-permanent' {$n[2].detail.deathPolicy.effective.trueDeath=$false}
+        'policy-multiplier-changed' {$n[2].detail.deathPolicy.effective.damageToParty=0.5}
+        'policy-persisted-changed' {$n[2].detail.deathPolicy.effective.riseAfterCombat.persisted='False'}
+        'policy-not-restored' {$n[7].detail.deathPolicy.restoration.restored=$false}
+        'no-policy-restoration' {$n=@($n[0],$n[1],$n[2],$n[3],$n[4],$n[5],$n[6])}
         'dispatched-unmounted' {$n[2].relationship='Unmounted';$n[2].rider=$null;$n[2].mount=$null}
         'source-is-rider' {$n[2].detail.sourceId='rider-a'}
         'no-combat-at-stimulus' {$n[2].detail.partyCombat=$false}
@@ -1250,7 +1265,7 @@ foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-comb
         'partner-harmed' {$n[3].detail.survivorDamage=5}
         'partner-unconscious' {$n[3].detail.survivorConscious=$false}
         'lease-held' {$n[3].detail.saveSuspended=$true}
-        'no-admission' {$n=@($n[0],$n[1],$n[2],$n[3],$n[5],$n[6])}
+        'no-admission' {$n=@($n[0],$n[1],$n[2],$n[3],$n[5],$n[6],$n[7])}
         'admission-refused' {$n[4].detail.admission.saveAllowed=$false}
         'admission-game-over' {$n[4].detail.admission.gameOverReason='PartyIsDefeated'}
         'admission-subject-alive' {$n[4].detail.admission.subjectLifeState='Conscious'}

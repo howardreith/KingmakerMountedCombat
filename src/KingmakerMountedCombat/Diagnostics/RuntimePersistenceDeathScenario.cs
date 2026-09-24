@@ -44,6 +44,15 @@ namespace KingmakerMountedCombat.Diagnostics
         private string deathSourceId;
         private int deathSettleFrames;
         private JObject deathEncounterEnded;
+        // The engine's optional rule "dead companions rise after combat" is ON in
+        // the owner's settings: runs final95/final96 rider-death and mount-death
+        // measured the dead subject Conscious at 6-7 HP at the first frame after
+        // the encounter (damage 58 to 38, 76 to 51), so no dead actor could reach
+        // a save. The harmful boundary needs a death that persists, so the Chunk 4
+        // scoped death policy makes death permanent for this process only: the
+        // cached setting values, never the persisted settings, verified restored
+        // at the end and recorded in every row.
+        private NativeDeathPolicyLease deathPolicy;
         // Native frames the encounter's end may take before the engine admits a
         // manual save again; the admission is recorded at the first frame and
         // at the judged frame either way.
@@ -95,9 +104,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["length"] = new FileInfo(deathFirstPath).Length, ["nativeType"] = first.Type.ToString(),
                     ["nativeCallback"] = callback, ["operation"] = first.OperationState.ToString(),
                     ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) });
+                deathPolicy = new NativeDeathPolicyLease(true);
+                var subject = DeathSubject;
+                Check(game.Player.Difficulty.TrueDeath && !game.Player.Difficulty.DeathDoorCondition &&
+                    !subject.Descriptor.IsEssentialForGame && subject != game.Player.MainCharacter.Value &&
+                    !subject.Descriptor.State.Immortality && subject.Descriptor.State.IsConscious,
+                    "P07-death-fixture-policy-is-permanent-for-a-non-essential-subject");
                 // A real native enemy, through the same target fixture every
                 // combat case uses; the damage is the enemy's, under the
-                // installed difficulty, never a direct state edit.
+                // installed difficulty multiplier, never a direct state edit.
                 targetService = new DiagnosticCombatTargetService(logger);
                 var target = targetService.Spawn(rider, mount, FindDestination(8f), request.RunId, true, true);
                 Check(targetService.PrepareForPlayerClick(target), "P07-death-enemy-prepared");
@@ -218,6 +233,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 "P07-native-death-state-persists-across-the-reload");
             Check(Hash(deathArchivePath) == deathArchiveHash && Hash(deathFirstPath) == deathFirstHash,
                 "P07-death-archives-are-byte-identical-after-the-reload");
+            // The scoped death policy ends here, verified exact, before the
+            // scenario's own teardown; the restoration is recorded in its row.
+            deathPolicy.Dispose();
+            var policy = deathPolicy.Capture();
+            Write("death-policy-restored", DeathDetail(null));
+            Check((bool)policy["restoration"]["restored"], "P07-death-fixture-policy-restored-exactly");
             Dispose();
             Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
                 AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
@@ -295,6 +316,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sourceId"] = deathSourceId, ["requestedDamage"] = deathRequestedDamage, ["nativeDamage"] = deathNativeDamage,
                 ["deathThreshold"] = deathThreshold, ["damageToParty"] = deathDifficulty,
                 ["subjectDamageBefore"] = deathSubjectDamageBefore, ["survivorDamageBefore"] = deathSurvivorDamageBefore,
+                ["deathPolicy"] = deathPolicy?.Capture(),
                 ["subjectDamage"] = subject?.Damage, ["subjectDead"] = subject?.Descriptor.State.IsDead,
                 ["subjectFinallyDead"] = subject?.Descriptor.State.IsFinallyDead,
                 ["survivorDamage"] = survivor?.Damage, ["survivorConscious"] = survivor?.Descriptor.State.IsConscious,
