@@ -1228,16 +1228,21 @@ $deathRows=@(
             snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}},
     (New-KmcDeathRow 'death-dispatched' 1201 'Mounted' @{subjectDead=$false;subjectDamage=0;relationship='Mounted'}),
     (New-KmcDeathRow 'death-cleanup' 1202 'Unmounted' @{}),
+    (New-KmcDeathRow 'death-save-admission' 1203 'Unmounted' @{partyCombat=$false;settleFrames=0
+        admission=[pscustomobject]@{saveAllowed=$true;areaLoaded=$true;partyCombat=$false;gameOverReason=$null;mode='Default';dialog=$false;cutscene=$false
+            globalMapEncounter=$false;paused=$false;loading=$false;subjectLifeState='Dead';subjectDead=$true;subjectFinallyDead=$false;subjectInGame=$true
+            subjectDestroyed=$false;subjectHpLeft=-10;subjectDamage=40;survivorLifeState='Conscious';controllable=3;controllableConscious=2}}),
     (New-KmcDeathRow 'death-saved' 1204 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha;archive=$deathArchive}),
     (New-KmcDeathRow 'death-reloaded' 1205 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha
         subjectPresent=$true;survivorPresent=$true;loadedDataMounted=$false;semanticsDelta=0;presentationDelta=0}))
 Assert-KmcRecoveryPersistenceEvidence $deathRequest $deathRows;$passes++
 foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-combat-at-stimulus','subject-not-dead','partner-harmed','partner-unconscious',
-    'lease-held','saved-in-combat','two-saves','first-changed','archive-records-pair','archive-foreign-campaign','archive-sha-mismatch',
+    'lease-held','no-admission','admission-refused','admission-game-over','admission-subject-alive','admission-in-combat',
+    'saved-in-combat','two-saves','first-changed','archive-records-pair','archive-foreign-campaign','archive-sha-mismatch',
     'reload-invented-pair','reload-restored','reload-subject-missing','reload-subject-alive','reload-cast','reload-archive-changed','wrong-subject','foreign-actor','out-of-order')){
     $n=($deathRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
-        'no-cleanup' {$n=@($n[0],$n[1],$n[2],$n[4],$n[5])}
+        'no-cleanup' {$n=@($n[0],$n[1],$n[2],$n[4],$n[5],$n[6])}
         'dispatched-unmounted' {$n[2].relationship='Unmounted';$n[2].rider=$null;$n[2].mount=$null}
         'source-is-rider' {$n[2].detail.sourceId='rider-a'}
         'no-combat-at-stimulus' {$n[2].detail.partyCombat=$false}
@@ -1245,21 +1250,26 @@ foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-comb
         'partner-harmed' {$n[3].detail.survivorDamage=5}
         'partner-unconscious' {$n[3].detail.survivorConscious=$false}
         'lease-held' {$n[3].detail.saveSuspended=$true}
-        'saved-in-combat' {$n[4].detail.partyCombat=$true}
-        'two-saves' {$n[4].detail.snapshots=3}
-        'first-changed' {$n[4].detail.firstHash=('e'*64)}
-        'archive-records-pair' {$n[4].detail.archive.snapshot.Mounted=$true}
-        'archive-foreign-campaign' {$n[4].detail.archive.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
-        'archive-sha-mismatch' {$n[4].detail.archiveHash=('e'*64)}
-        'reload-invented-pair' {$n[5].relationship='Mounted';$n[5].rider=[pscustomobject]@{Id='rider-a'};$n[5].mount=[pscustomobject]@{Id='mount-a'}}
-        'reload-restored' {$n[5].detail.semanticsDelta=2}
-        'reload-subject-missing' {$n[5].detail.subjectPresent=$false}
-        'reload-subject-alive' {$n[5].detail.subjectDead=$false}
-        'reload-cast' {$n[5].detail.nativeCastRequests=1}
-        'reload-archive-changed' {$n[5].detail.archiveHash=('e'*64)}
+        'no-admission' {$n=@($n[0],$n[1],$n[2],$n[3],$n[5],$n[6])}
+        'admission-refused' {$n[4].detail.admission.saveAllowed=$false}
+        'admission-game-over' {$n[4].detail.admission.gameOverReason='PartyIsDefeated'}
+        'admission-subject-alive' {$n[4].detail.admission.subjectLifeState='Conscious'}
+        'admission-in-combat' {$n[4].detail.admission.partyCombat=$true}
+        'saved-in-combat' {$n[5].detail.partyCombat=$true}
+        'two-saves' {$n[5].detail.snapshots=3}
+        'first-changed' {$n[5].detail.firstHash=('e'*64)}
+        'archive-records-pair' {$n[5].detail.archive.snapshot.Mounted=$true}
+        'archive-foreign-campaign' {$n[5].detail.archive.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
+        'archive-sha-mismatch' {$n[5].detail.archiveHash=('e'*64)}
+        'reload-invented-pair' {$n[6].relationship='Mounted';$n[6].rider=[pscustomobject]@{Id='rider-a'};$n[6].mount=[pscustomobject]@{Id='mount-a'}}
+        'reload-restored' {$n[6].detail.semanticsDelta=2}
+        'reload-subject-missing' {$n[6].detail.subjectPresent=$false}
+        'reload-subject-alive' {$n[6].detail.subjectDead=$false}
+        'reload-cast' {$n[6].detail.nativeCastRequests=1}
+        'reload-archive-changed' {$n[6].detail.archiveHash=('e'*64)}
         'wrong-subject' {$n[3].detail.subjectIsMount=$true}
         'foreign-actor' {$n[3].rider=[pscustomobject]@{Id='rider-z'}}
-        'out-of-order' {$n[5].stage=1199}
+        'out-of-order' {$n[6].stage=1199}
     }
     Must-Reject {Assert-KmcRecoveryPersistenceEvidence $deathRequest $n} ('P07 death accepted '+$bad)
 }

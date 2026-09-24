@@ -42,6 +42,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private int deathSubjectDamageBefore;
         private int deathSurvivorDamageBefore;
         private string deathSourceId;
+        private int deathSettleFrames;
+        private JObject deathEncounterEnded;
+        // Native frames the encounter's end may take before the engine admits a
+        // manual save again; the admission is recorded at the first frame and
+        // at the judged frame either way.
+        private const int DeathAdmissionSettleFrames = 600;
 
         private UnitEntityData DeathSubject => DeathSubjectIsMount ? mount : rider;
         private UnitEntityData DeathSurvivor => DeathSubjectIsMount ? rider : mount;
@@ -144,7 +150,24 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!targetService.DestroyAndVerify()) { if (++deathFrames > 3600) throw new InvalidOperationException("P07 death enemy never left the world."); return; }
                 if (game.Player.IsInCombat || rider.IsInCombat || mount.IsInCombat) return;
                 if (game.IsPaused) { Write("fixture-native-unpause"); game.IsPaused = false; return; }
-                Check(game.SaveManager.IsSaveAllowed() && DeathSubject.Descriptor.State.IsDead, "P07-death-save-is-admitted-after-the-encounter");
+                // The engine's own save admission after the encounter, recorded
+                // component by component BEFORE it is judged: runs
+                // final95-p07-rider-death and -mount-death failed the combined
+                // check with no engine log naming the refusing condition. The
+                // admission is given the native frames the encounter's end may
+                // need to settle, then judged exactly as measured.
+                var admission = DeathAdmission(game);
+                if (deathEncounterEnded == null)
+                {
+                    deathEncounterEnded = admission;
+                    Write("death-encounter-ended", DeathDetail(new JObject { ["admission"] = admission }));
+                }
+                var allowed = (bool)admission["saveAllowed"];
+                if (!allowed && ++deathSettleFrames < DeathAdmissionSettleFrames) return;
+                Write("death-save-admission", DeathDetail(new JObject { ["admission"] = admission,
+                    ["settleFrames"] = deathSettleFrames, ["encounterEnded"] = deathEncounterEnded }));
+                Check(allowed, "P07-death-save-is-admitted-after-the-encounter");
+                Check(DeathSubject.Descriptor.State.IsDead, "P07-native-death-persists-after-the-encounter");
                 deathSemanticsBefore = persistence.SemanticRestoreCount; deathPresentationBefore = persistence.PresentationRestoreCount;
                 callback = false;
                 game.SaveGame(game.SaveManager.CreateNewSave(DeathSaveName), () => callback = true);
@@ -236,6 +259,31 @@ namespace KingmakerMountedCombat.Diagnostics
             Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
                 AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
             Completed = true;
+        }
+
+        // Every condition SaveManager.IsSaveAllowed (0x06008028) tests, plus the
+        // subject's native life state, so a refusal names its own cause.
+        private JObject DeathAdmission(Game game)
+        {
+            var subject = DeathSubject; var survivor = DeathSurvivor;
+            var controllable = game.Player.ControllableCharacters;
+            return new JObject {
+                ["saveAllowed"] = game.SaveManager.IsSaveAllowed(),
+                ["areaLoaded"] = game.CurrentlyLoadedArea != null,
+                ["partyCombat"] = game.Player.IsInCombat,
+                ["gameOverReason"] = game.Player.GameOverReason?.ToString(),
+                ["mode"] = game.CurrentMode.ToString(),
+                ["dialog"] = game.IsModeActive(Kingmaker.GameModes.GameModeType.Dialog),
+                ["cutscene"] = game.IsModeActive(Kingmaker.GameModes.GameModeType.Cutscene),
+                ["globalMapEncounter"] = game.Player.GlobalMap?.CurrentEncounterData != null,
+                ["paused"] = game.IsPaused, ["loading"] = LoadingProcess.Instance.IsLoadingInProcess,
+                ["subjectLifeState"] = subject.Descriptor.State.LifeState.ToString(),
+                ["subjectDead"] = subject.Descriptor.State.IsDead, ["subjectFinallyDead"] = subject.Descriptor.State.IsFinallyDead,
+                ["subjectInGame"] = subject.IsInGame, ["subjectDestroyed"] = subject.Destroyed,
+                ["subjectHpLeft"] = subject.HPLeft, ["subjectDamage"] = subject.Damage,
+                ["survivorLifeState"] = survivor.Descriptor.State.LifeState.ToString(),
+                ["controllable"] = controllable.Count,
+                ["controllableConscious"] = controllable.Count(u => u.Descriptor.State.IsConscious) };
         }
 
         private JObject DeathDetail(JObject extra)
