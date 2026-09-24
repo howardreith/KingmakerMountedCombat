@@ -1514,7 +1514,7 @@ function Assert-KmcDeathArchive {
 function Assert-KmcDeathEvidence {
     param($Request,$Rows)
     $subjectIsMount=$Request.persistenceCase-ceq'mount-death'
-    $order=@('native-write-complete','death-dispatched','death-cleanup','death-saved','death-reloaded')
+    $order=@('native-write-complete','death-dispatched','death-cleanup','death-save-admission','death-saved','death-reloaded')
     $stages=@{}
     foreach($kind in $order){
         $matched=@($Rows|Where-Object kind -CEQ $kind)
@@ -1556,6 +1556,14 @@ function Assert-KmcDeathEvidence {
     if($stages['death-cleanup'].relationship-ceq'Mounted'-or$c.subjectDead-ne$true-or$c.survivorConscious-ne$true-or
         $c.survivorDamage-ne$c.survivorDamageBefore-or$c.saveSuspended-ne$false-or$c.activeScope-ne$false-or$c.relationship-cne'Unmounted'){
         throw 'P07 native death did not end the pair with the partner unharmed.'
+    }
+    # The admission: the engine's own allowance after the encounter, recorded
+    # component by component, with the native death intact and no game over.
+    $a=$stages['death-save-admission'].detail
+    $adm=Get-KmcOptionalMember $a 'admission'
+    if($null-eq$adm-or$adm.saveAllowed-ne$true-or$adm.partyCombat-ne$false-or$null-ne$adm.gameOverReason-or$adm.mode-cne'Default'-or
+        $adm.areaLoaded-ne$true-or$adm.subjectLifeState-cne'Dead'-or$adm.subjectDead-ne$true-or$adm.survivorLifeState-cne'Conscious'){
+        throw 'P07 death save admission was not the engine own allowance with the native death intact.'
     }
     # The save: a NEW no-pair archive, first archive untouched, native death intact.
     if($stages['death-saved'].relationship-ceq'Mounted'-or$s.subjectDead-ne$true-or$s.survivorConscious-ne$true-or$s.snapshots-ne2-or
