@@ -144,6 +144,12 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsCrossAreaFamilyCase(string persistenceCase) =>
             IsCrossAreaCase(persistenceCase) || IsTransitionAutoCase(persistenceCase);
 
+        // The harmful-lifecycle boundary cases: the rider or the mount dies to
+        // real native damage while mounted, and the no-pair archive that follows
+        // is reloaded in-process and cold.
+        internal static bool IsDeathCase(string persistenceCase) =>
+            persistenceCase == "rider-death" || persistenceCase == "mount-death";
+
         // The one P06 derivative that corrupts a native area member, so that the
         // load fails after Game.DisposeState rather than at admission.
         internal static bool IsFailedLoad(string persistenceCase) =>
@@ -307,7 +313,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "absent-kmc", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
+            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "absent-kmc", "rider-death", "mount-death", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
@@ -331,15 +337,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     // The integration-absent cold load opens the cleanup archive a
                     // prepare-removal run wrote, under that archive's own name.
                     var cleanup = Scenario == "persistence-p07-load" && PersistenceCase == "absent-kmc";
+                    // A death cold load opens the no-pair archive a death run wrote.
+                    var death = Scenario == "persistence-p07-load" && IsDeathCase(PersistenceCase);
                     var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
                         cleanup ? "^Manual_301_KMC_CLEANUP\\.zks$" :
+                        death ? "^Manual_301_KMC_DEATH\\.zks$" :
                         p05 && PersistenceCase == "queued" ? "^Manual_302_KMC_P01\\.zks$" :
                         p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
                     if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
                         PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
                         errors.Add("Cold native slot name is missing or oversized.");
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
-                        nativeSlot ? PersistenceLoad.InternalName : cleanup ? "KMC_CLEANUP" : "KMC_P01", slotPattern));
+                        nativeSlot ? PersistenceLoad.InternalName : cleanup ? "KMC_CLEANUP" : death ? "KMC_DEATH" : "KMC_P01", slotPattern));
                     // A cross-area source archive is committed after the transition,
                     // so its native header carries the declared destination area.
                     // A transition autosave instead carries the area it actually
