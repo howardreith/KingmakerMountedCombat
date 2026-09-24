@@ -1514,7 +1514,7 @@ function Assert-KmcDeathArchive {
 function Assert-KmcDeathEvidence {
     param($Request,$Rows)
     $subjectIsMount=$Request.persistenceCase-ceq'mount-death'
-    $order=@('native-write-complete','death-dispatched','death-cleanup','death-save-admission','death-saved','death-reloaded')
+    $order=@('native-write-complete','death-dispatched','death-cleanup','death-save-admission','death-saved','death-reloaded','death-policy-restored')
     $stages=@{}
     foreach($kind in $order){
         $matched=@($Rows|Where-Object kind -CEQ $kind)
@@ -1552,6 +1552,16 @@ function Assert-KmcDeathEvidence {
         $d.requestedDamage-le0-or$d.damageToParty-le0-or$d.deathThreshold-le0-or$d.partyCombat-ne$true){
         throw 'P07 death stimulus was not real native enemy damage delivered while mounted.'
     }
+    # The scoped death policy: permanent death for this process only, the damage
+    # multiplier untouched, and the cached settings verified restored at the end.
+    $pol=Get-KmcOptionalMember $d 'deathPolicy'
+    if($null-eq$pol-or$pol.permanentDeathFixture-ne$true-or$pol.effective.trueDeath-ne$true-or$pol.effective.deathDoorCondition-ne$false-or
+        $pol.effective.damageToParty-ne$pol.before.damageToParty-or$pol.effective.riseAfterCombat.persisted-cne$pol.before.riseAfterCombat.persisted){
+        throw 'P07 death was not delivered under the scoped permanent-death policy with the difficulty multiplier untouched.'
+    }
+    $pr=Get-KmcOptionalMember $stages['death-policy-restored'].detail 'deathPolicy'
+    $res=if($null-ne$pr){Get-KmcOptionalMember $pr 'restoration'}else{$null}
+    if($null-eq$res-or$res.restored-ne$true){throw 'P07 death did not restore the scoped death policy exactly.'}
     # Cleanup: the subject is dead, the pair is gone, the partner is unharmed.
     if($stages['death-cleanup'].relationship-ceq'Mounted'-or$c.subjectDead-ne$true-or$c.survivorConscious-ne$true-or
         $c.survivorDamage-ne$c.survivorDamageBefore-or$c.saveSuspended-ne$false-or$c.activeScope-ne$false-or$c.relationship-cne'Unmounted'){
