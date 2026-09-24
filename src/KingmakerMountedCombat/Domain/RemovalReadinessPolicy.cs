@@ -45,12 +45,18 @@ namespace KingmakerMountedCombat.Domain
 
     public sealed class RemovalWrittenArchiveFacts
     {
-        public bool DescriptorRegistered { get; set; }
+        // KMC-wrapped native save operations completed since this request.
+        public int CompletedSinceRequest { get; set; }
+        // The completed operation's requested descriptor is this request's own.
+        public bool CompletedForThisRequest { get; set; }
+        // The descriptor that operation wrote is in the engine's save list.
+        public bool WrittenDescriptorRegistered { get; set; }
+        // The requested instance is no longer listed: the engine registers its
+        // own copy in its place and that copy is the written descriptor.
+        public bool RequestedDescriptorRetired { get; set; }
         public bool HasFileOnDisk { get; set; }
         public string OperationState { get; set; }
         public string Path { get; set; }
-        public string CommittedDestination { get; set; }
-        public int CommitsSinceRequest { get; set; }
         public string Name { get; set; }
         public string Type { get; set; }
         public string GameId { get; set; }
@@ -87,20 +93,21 @@ namespace KingmakerMountedCombat.Domain
             return reasons;
         }
 
-        // The written archive must be the one this operation requested: the same
-        // registered descriptor, committed exactly once since the request at the
-        // path KMC's own commit record names, complete, and of the requested
-        // name, type and campaign. Anything else is unconfirmed, not ready.
+        // The written archive must be the one this operation requested: exactly
+        // one wrapped save operation completed since the request, completed for
+        // this request's own descriptor, its written descriptor registered in
+        // the requested one's place, complete, and of the requested name, type
+        // and campaign. Anything else is unconfirmed, not ready.
         public static string BindingReason(RemovalWrittenArchiveFacts facts, string expectedName, string expectedGameId)
         {
             if (facts == null) throw new ArgumentNullException(nameof(facts));
-            if (!facts.DescriptorRegistered) return "the engine's save list no longer holds the requested descriptor";
-            if (!facts.HasFileOnDisk) return "the requested descriptor has no complete archive on disk";
-            if (facts.OperationState != "None") return "the requested save is still in operation state " + facts.OperationState;
-            if (string.IsNullOrEmpty(facts.Path)) return "the requested descriptor names no archive path";
-            if (facts.CommitsSinceRequest != 1) return "KMC recorded " + facts.CommitsSinceRequest + " archive commits since the request instead of exactly one";
-            if (!string.Equals(facts.CommittedDestination, facts.Path, StringComparison.Ordinal))
-                return "KMC's last recorded commit (" + facts.CommittedDestination + ") is not the requested archive";
+            if (facts.CompletedSinceRequest != 1) return facts.CompletedSinceRequest + " KMC-wrapped save operations completed since the request instead of exactly one";
+            if (!facts.CompletedForThisRequest) return "the save operation that completed was not the one this preparation requested";
+            if (!facts.WrittenDescriptorRegistered) return "the engine's save list does not hold the descriptor that operation wrote";
+            if (!facts.RequestedDescriptorRetired) return "the engine still lists the requested descriptor instead of the copy it wrote";
+            if (!facts.HasFileOnDisk) return "the written descriptor has no complete archive on disk";
+            if (facts.OperationState != "None") return "the written save is still in operation state " + facts.OperationState;
+            if (string.IsNullOrEmpty(facts.Path)) return "the written descriptor names no archive path";
             if (facts.Name != expectedName) return "the written archive is named " + facts.Name + " instead of " + expectedName;
             if (facts.Type != "Manual") return "the written archive is a " + facts.Type + " save instead of a manual one";
             if (string.IsNullOrEmpty(expectedGameId) || facts.GameId != expectedGameId)
