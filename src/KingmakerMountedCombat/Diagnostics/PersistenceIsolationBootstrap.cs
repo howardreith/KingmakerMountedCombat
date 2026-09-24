@@ -117,7 +117,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     for (var n = 0; n < 2; n++)
                     {
                         var name = n == 1 && request.PersistenceCase == "campaign-b" ? NativeCampaignBootstrap.SecondFixtureName :
-                            n == 1 && request.PersistenceCase == "prepare-removal" ? MountedRemovalPreparation.CleanupSaveName : "KMC_P01";
+                            n == 1 && request.PersistenceCase == "prepare-removal" ? MountedRemovalPreparation.CleanupSaveName :
+                            n == 1 && RuntimeRequest.IsDeathCase(request.PersistenceCase) ? "KMC_DEATH" : "KMC_P01";
                         entries.Add(new PersistenceSaveEntry {
                             FileName = "Manual_" + (300 + n) + "_" + name + ".zks", InternalName = name,
                             SaveType = "Manual",

@@ -207,6 +207,7 @@
     <Compile Include="Diagnostics\RuntimePersistenceRemovalScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceDisableLoadScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAbsentLoadScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceDeathScenario.cs" />
     <Compile Include="Integration\MountedRemovalPreparation.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAreaScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceReactionScenario.cs" />

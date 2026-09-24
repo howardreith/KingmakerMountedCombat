@@ -6,12 +6,13 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
-        # A prepare-removal run's cleanup archive is its own third role.
-        [ValidateSet('destination-manual','transition-auto','cleanup-manual')][string]$ArtifactRole='destination-manual',
+        # A prepare-removal run's cleanup archive and a death run's no-pair
+        # archive are their own roles.
+        [ValidateSet('destination-manual','transition-auto','cleanup-manual','death-manual')][string]$ArtifactRole='destination-manual',
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -26,7 +27,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -38,8 +39,9 @@ function Get-KmcPersistenceSource {
     $type=if($ArtifactRole-ceq'transition-auto'){'Auto'}elseif($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
     if($ArtifactRole-ceq'transition-auto'-and$NativeCase-cnotin @('area-cross-entry','area-cross-exit')){throw 'Only a cross-area source run produces a transition autosave.'}
     if($ArtifactRole-ceq'cleanup-manual'-and($NativeCase-cne'prepare-removal'-or$Alternate)){throw 'Only a prepare-removal source run produces a cleanup archive.'}
-    $manualName=if($ArtifactRole-ceq'cleanup-manual'){'KMC_CLEANUP'}elseif($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
-    $leaf=if($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    if($ArtifactRole-ceq'death-manual'-and($NativeCase-cnotin @('rider-death','mount-death')-or$Alternate)){throw 'Only a death source run produces a no-pair death archive.'}
+    $manualName=if($ArtifactRole-ceq'cleanup-manual'){'KMC_CLEANUP'}elseif($ArtifactRole-ceq'death-manual'){'KMC_DEATH'}elseif($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
+    $leaf=if($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'death-manual'){'Manual_301_KMC_DEATH.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
     $path=Join-Path $root ('Saved Games/'+$leaf)
     Assert-KmcNotReparsePoint $path 'owned persistence source archive'
     Assert-KmcNotHardLink $path 'owned persistence source archive'
@@ -431,7 +433,10 @@ function Assert-KmcPersistenceScenarioEvidence {
     if((Get-KmcSha256 $path)-cne$artifact[0].sha256){throw 'P01 observations changed.'}
     $rows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     $absentKmc=$Request.scenario-ceq'persistence-p07-load'-and$Request.persistenceCase-ceq'absent-kmc'
-    if($rows.Count-lt$(if($absentKmc){2}else{6})-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
+    $hasCase=@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'
+    $deathCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-cin @('rider-death','mount-death')
+    $deathSave=$Request.scenario-ceq'persistence-p07-save'-and$hasCase-and$Request.persistenceCase-cin @('rider-death','mount-death')
+    if($rows.Count-lt$(if($absentKmc-or$deathCold){2}else{6})-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
     if($Request.scenario-ceq'persistence-p06-load'){
         Assert-KmcValidationPersistenceEvidence $Request $rows $GameResult
         return
@@ -463,8 +468,8 @@ function Assert-KmcPersistenceScenarioEvidence {
     $isDisable=$checkpoint-ceq'disable-reenable'
     # Every case whose walk legitimately leaves A's pair for a while: rows
     # outside A carry no actor at all, and every mounted row names A's exact two.
-    $isCampaignB=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-cin @('campaign-b','prepare-removal','disable-during-load')
-    if($absentKmc){$isCampaignB=$true}
+    $isCampaignB=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-cin @('campaign-b','prepare-removal','disable-during-load','rider-death','mount-death')
+    if($absentKmc-or$deathCold){$isCampaignB=$true}
     foreach($row in $rows){
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
             $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or
@@ -482,8 +487,14 @@ function Assert-KmcPersistenceScenarioEvidence {
                 ($row.rider.Id-cne$initial[0].rider.Id-or$row.mount.Id-cne$initial[0].mount.Id)){
                 throw 'P07 disable row changed the owned pair actors.'
             }
-            if($isCampaignB-and$row.relationship-cne'Mounted'-and($null-ne$row.rider-or$null-ne$row.mount)){
-                throw 'P07 campaign B row outside A still describes A actors.'
+            # A dismounted row may still describe A's own two actors (they exist,
+            # only the pair is gone); it may never describe foreign ones. Rows
+            # outside A's world carrying no actor at all are the campaign-B
+            # validator's own stricter contract.
+            if($isCampaignB-and$row.relationship-cne'Mounted'-and(
+                ($null-ne$row.rider-and($null-eq$initial[0].rider-or$row.rider.Id-cne$initial[0].rider.Id))-or
+                ($null-ne$row.mount-and($null-eq$initial[0].mount-or$row.mount.Id-cne$initial[0].mount.Id)))){
+                throw 'P07 row outside the pair describes foreign actors.'
             }
         }
         elseif($row.relationship-cne'Mounted'-or$row.rider.Id-cne$initial[0].rider.Id-or
@@ -498,6 +509,10 @@ function Assert-KmcPersistenceScenarioEvidence {
     # The integration-absent process has no pair to continue with: its whole
     # claim is the clean native load itself.
     if($absentKmc){$required=@('absent-load-complete')}
+    # A death boundary ends with a dead rider or mount: there is no pair to
+    # continue with, so the claim is the no-pair save and its reloads alone.
+    if($deathSave){$required=@('death-reloaded')}
+    if($deathCold){$required=@('death-cold-complete')}
     if($isCombat-and-not$isRoundEffect-and-not$isReaction-and$checkpoint-cne'partial-movement'){$required+=@('spent-work-input-before','spent-work-rejected')}
     if($isCombat-and$isWrite-and-not$isP03){
         $required+=@('partial-movement-dispatched','partial-movement-completed')
@@ -564,6 +579,7 @@ function Assert-KmcPersistenceScenarioEvidence {
         Assert-KmcTransitionAutoColdEvidence $Request $rows
     }
     if($absentKmc){Assert-KmcAbsentLoadEvidence $Request $rows}
+    if($deathCold){Assert-KmcDeathColdEvidence $Request $rows}
     if($isSuspended){Assert-KmcSuspendedEvidence $rows $isWrite}
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     if($isWrite){
@@ -1305,12 +1321,15 @@ function Assert-KmcRemovalEvidence {
         $row=$stages[$kind]
         if($row.checkpoint-cne'prepare-removal'){throw "P07 removal row $kind is not the declared case."}
         if($row.stage-lt$previous){throw "P07 removal row $kind is out of its measured order."}
-        if($row.relationship-cne'Mounted'-and($null-ne$row.rider-or$null-ne$row.mount)){throw "P07 removal row $kind outside the pair still describes A actors."}
         $previous=$row.stage
     }
     $initial=@($Rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P07 removal lacks its initial state.'}
     $riderId=[string]$initial[0].rider.Id;$mountId=[string]$initial[0].mount.Id
+    foreach($kind in $order){
+        $row=$stages[$kind]
+        if(($null-ne$row.rider-and$row.rider.Id-cne$riderId)-or($null-ne$row.mount-and$row.mount.Id-cne$mountId)){throw "P07 removal row $kind describes foreign actors."}
+    }
     $gameId=[string]$Request.fixture.working.gameId;$area=[string]$Request.fixture.working.area
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     $w=$stages['native-write-complete'].detail
@@ -1370,12 +1389,15 @@ function Assert-KmcDisableLoadEvidence {
         $row=$stages[$kind]
         if($row.checkpoint-cne'disable-during-load'){throw "P07 disable-during-load row $kind is not the declared case."}
         if($row.stage-lt$previous){throw "P07 disable-during-load row $kind is out of its measured order."}
-        if($row.relationship-cne'Mounted'-and($null-ne$row.rider-or$null-ne$row.mount)){throw "P07 disable-during-load row $kind outside the pair still describes A actors."}
         $previous=$row.stage
     }
     $initial=@($Rows|Where-Object kind -CEQ 'initial')
     if($initial.Count-ne1){throw 'P07 disable-during-load lacks its initial state.'}
     $riderId=[string]$initial[0].rider.Id;$mountId=[string]$initial[0].mount.Id
+    foreach($kind in $order){
+        $row=$stages[$kind]
+        if(($null-ne$row.rider-and$row.rider.Id-cne$riderId)-or($null-ne$row.mount-and$row.mount.Id-cne$mountId)){throw "P07 disable-during-load row $kind describes foreign actors."}
+    }
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     $w=$stages['native-write-complete'].detail
     $p=$stages['disable-load-probed'].detail
@@ -1454,6 +1476,126 @@ function Assert-KmcAbsentLoadEvidence {
     }
 }
 
+# A death archive as recorded and as it lies on disk: the fixture campaign's own
+# native save whose KMC member records no pair at all.
+function Assert-KmcDeathArchive {
+    param($Recorded,[string]$Root,[string]$GameId,[string]$Area)
+    if($null-eq$Recorded){throw 'P07 death lacks its archive observation.'}
+    if($Recorded.leaf-cne'Manual_301_KMC_DEATH.zks'-or$Recorded.internalName-cne'KMC_DEATH'-or$Recorded.nativeType-cne'Manual'-or
+        $Recorded.operation-cne'None'-or$Recorded.gameId-cne$GameId-or$Recorded.area-cne$Area-or$Recorded.kmcMember-cne'Current'-or
+        $Recorded.sha256-cnotmatch'^[0-9a-f]{64}$'-or$Recorded.length-le0-or$Recorded.path-cne(Join-Path $Root $Recorded.leaf)){
+        throw 'P07 death archive is not the exact declared no-pair save of the fixture campaign.'
+    }
+    $s=$Recorded.snapshot
+    if($null-eq$s-or(Get-KmcOptionalMember $s 'Mounted')-ne$false-or$null-ne(Get-KmcOptionalMember $s 'Rider')-or
+        $null-ne(Get-KmcOptionalMember $s 'Mount')-or(Get-KmcOptionalMember $s 'CampaignId')-cne$GameId){
+        throw 'P07 death archive recorded a pair or a foreign campaign.'
+    }
+    $path=Join-Path $Root $Recorded.leaf
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'P07 death archive did not survive its own run.'}
+    if((Get-KmcSha256 $path)-cne$Recorded.sha256-or(Get-Item -LiteralPath $path).Length-ne$Recorded.length){
+        throw 'P07 death archive bytes changed after the run recorded them.'
+    }
+    $members=Read-KmcCampaignArchiveMembers -Path $path
+    if($members.header.Name-cne'KMC_DEATH'-or$members.header.Type-cne'Manual'-or$members.header.GameId-cne$GameId-or
+        $members.header.Area-cne$Area-or$null-eq$members.kmc-or(Get-KmcOptionalMember $members.kmc 'Mounted')-ne$false-or
+        $null-ne(Get-KmcOptionalMember $members.kmc 'Rider')-or$null-ne(Get-KmcOptionalMember $members.kmc 'Mount')){
+        throw 'P07 death archive on disk is not the recorded no-pair save.'
+    }
+}
+
+# The harmful lifecycle boundary across persistence: real native enemy damage
+# kills the subject while mounted, the lifecycle cleanup ends the pair, a NEW
+# native save records no pair, and the in-process reload invents nothing while
+# the native death state persists.
+function Assert-KmcDeathEvidence {
+    param($Request,$Rows)
+    $subjectIsMount=$Request.persistenceCase-ceq'mount-death'
+    $order=@('native-write-complete','death-dispatched','death-cleanup','death-saved','death-reloaded')
+    $stages=@{}
+    foreach($kind in $order){
+        $matched=@($Rows|Where-Object kind -CEQ $kind)
+        if($matched.Count-ne1){throw "P07 death lacks its exact $kind observation."}
+        $stages[$kind]=$matched[0]
+    }
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    if($initial.Count-ne1){throw 'P07 death lacks its initial state.'}
+    $riderId=[string]$initial[0].rider.Id;$mountId=[string]$initial[0].mount.Id
+    $previous=-1
+    foreach($kind in $order){
+        $row=$stages[$kind]
+        if($row.checkpoint-cne$Request.persistenceCase){throw "P07 death row $kind is not the declared case."}
+        if($row.stage-lt$previous){throw "P07 death row $kind is out of its measured order."}
+        if(($null-ne$row.rider-and$row.rider.Id-cne$riderId)-or($null-ne$row.mount-and$row.mount.Id-cne$mountId)){throw "P07 death row $kind describes foreign actors."}
+        $previous=$row.stage
+    }
+    $gameId=[string]$Request.fixture.working.gameId;$area=[string]$Request.fixture.working.area
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
+    $w=$stages['native-write-complete'].detail
+    $d=$stages['death-dispatched'].detail
+    $c=$stages['death-cleanup'].detail
+    $s=$stages['death-saved'].detail
+    $r=$stages['death-reloaded'].detail
+    if($w.ordinal-ne1-or$w.path-cne(Join-Path $root 'Manual_300_KMC_P01.zks')-or$w.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+        $w.snapshot.Mounted-ne$true-or$w.snapshot.Rider.Id-cne$riderId-or$w.snapshot.Mount.Id-cne$mountId){
+        throw 'P07 death first archive is not the exact mounted opening write.'
+    }
+    foreach($x in @($d,$c,$s,$r)){
+        if($x.riderId-cne$riderId-or$x.mountId-cne$mountId-or$x.subjectIsMount-ne$subjectIsMount){throw 'P07 death rows do not name the exact pair and subject.'}
+    }
+    # The stimulus: a real native enemy, lethal under the unchanged difficulty,
+    # while the pair was still mounted.
+    if($stages['death-dispatched'].relationship-cne'Mounted'-or[string]::IsNullOrEmpty([string]$d.sourceId)-or$d.sourceId-ceq$riderId-or$d.sourceId-ceq$mountId-or
+        $d.requestedDamage-le0-or$d.damageToParty-le0-or$d.deathThreshold-le0-or$d.partyCombat-ne$true){
+        throw 'P07 death stimulus was not real native enemy damage delivered while mounted.'
+    }
+    # Cleanup: the subject is dead, the pair is gone, the partner is unharmed.
+    if($stages['death-cleanup'].relationship-ceq'Mounted'-or$c.subjectDead-ne$true-or$c.survivorConscious-ne$true-or
+        $c.survivorDamage-ne$c.survivorDamageBefore-or$c.saveSuspended-ne$false-or$c.activeScope-ne$false-or$c.relationship-cne'Unmounted'){
+        throw 'P07 native death did not end the pair with the partner unharmed.'
+    }
+    # The save: a NEW no-pair archive, first archive untouched, native death intact.
+    if($stages['death-saved'].relationship-ceq'Mounted'-or$s.subjectDead-ne$true-or$s.survivorConscious-ne$true-or$s.snapshots-ne2-or
+        $s.failedSaves-ne0-or$s.partyCombat-ne$false-or$s.firstHash-cne$w.sha256-or$s.archiveHash-cne$s.archive.sha256){
+        throw 'P07 death save is not one new archive over an intact first archive with the native death intact.'
+    }
+    Assert-KmcDeathArchive -Recorded $s.archive -Root $root -GameId $gameId -Area $area
+    if((Get-KmcSha256 (Join-Path $root 'Manual_300_KMC_P01.zks'))-cne$w.sha256){throw 'P07 death save changed the first archive on disk.'}
+    # The reload: nothing invented, nothing restored, native death persisted.
+    if($stages['death-reloaded'].relationship-ceq'Mounted'-or$r.subjectPresent-ne$true-or$r.subjectDead-ne$true-or$r.survivorPresent-ne$true-or
+        $r.survivorConscious-ne$true-or$r.loadedDataMounted-ne$false-or$r.semanticsDelta-ne0-or$r.presentationDelta-ne0-or
+        $r.nativeCastRequests-ne0-or$r.archiveHash-cne$s.archive.sha256){
+        throw 'P07 reloading the death save invented a pair, restored something, or lost the native death.'
+    }
+}
+
+# The fresh-process control of the death archive.
+function Assert-KmcDeathColdEvidence {
+    param($Request,$Rows)
+    $subjectIsMount=$Request.persistenceCase-ceq'mount-death'
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    $done=@($Rows|Where-Object kind -CEQ 'death-cold-complete')
+    if($initial.Count-ne1-or$done.Count-ne1){throw 'P07 death cold load lacks its exact initial and completion observations.'}
+    foreach($row in @($initial[0],$done[0])){
+        if($row.checkpoint-cne$Request.persistenceCase-or$row.relationship-ceq'Mounted'-or$null-ne$row.rider-or$null-ne$row.mount){
+            throw 'P07 death cold rows must carry no pair and the declared case.'
+        }
+    }
+    $d=$done[0].detail;$load=$Request.persistenceLoad
+    if($d.case-cne$Request.persistenceCase-or$d.party-lt2-or$d.deadPartyMembers-ne1-or$d.supportedMounts-ne1-or$d.mountDead-ne$subjectIsMount-or
+        $d.loadedDataPresent-ne$true-or$d.loadedDataMounted-ne$false-or$d.semantics-ne0-or$d.presentation-ne0-or$d.nativeCastRequests-ne0-or
+        $d.gameId-cne$load.gameId-or$d.gameId-cne$Request.fixture.working.gameId-or$d.area-cne$load.area-or
+        $d.archiveSha256-cne$load.sha256-or$d.expectedSha256-cne$load.sha256){
+        throw 'P07 death cold load did not open the no-pair archive with exactly the recorded native death and nothing invented.'
+    }
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
+    $members=Read-KmcCampaignArchiveMembers -Path (Join-Path $root $load.fileName)
+    if($members.header.Name-cne'KMC_DEATH'-or$members.header.GameId-cne$load.gameId-or$null-eq$members.kmc-or
+        (Get-KmcOptionalMember $members.kmc 'Mounted')-ne$false){
+        throw 'P07 death cold load did not open a no-pair death archive.'
+    }
+}
+
 function Assert-KmcRecoveryPersistenceEvidence {
     param($Request,$Rows)
     if($Request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output')){
@@ -1463,6 +1605,7 @@ function Assert-KmcRecoveryPersistenceEvidence {
     if($Request.persistenceCase-ceq'campaign-b'){ Assert-KmcCampaignBEvidence $Request $Rows; return }
     if($Request.persistenceCase-ceq'prepare-removal'){ Assert-KmcRemovalEvidence $Request $Rows; return }
     if($Request.persistenceCase-ceq'disable-during-load'){ Assert-KmcDisableLoadEvidence $Request $Rows; return }
+    if($Request.persistenceCase-cin @('rider-death','mount-death')){ Assert-KmcDeathEvidence $Request $Rows; return }
     $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
     $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
     $commit=$Request.persistenceCase-ceq'locked-replace'

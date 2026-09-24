@@ -5362,6 +5362,24 @@ try {
             $rejected=$false
             try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
             Assert-Test $rejected 'P07 integration-absent case accepted a mounted archive leaf'
+            $v2Request.Remove('persistenceLoad')
+            # Death boundaries: a writing run and a cold load of its no-pair archive.
+            foreach($case in @('rider-death','mount-death')){
+                $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.scenario='persistence-p07-load'
+                $v2Request['persistenceLoad']=[ordered]@{internalName='KMC_DEATH';fileName='Manual_301_KMC_DEATH.zks';sha256=('c'*64)
+                    length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area}
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+                $v2Request.persistenceLoad.fileName='Manual_300_KMC_P01.zks';$v2Request.persistenceLoad.internalName='KMC_P01'
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected ('P07 death cold load '+$case+' accepted the mounted archive leaf')
+                $v2Request.Remove('persistenceLoad')
+            }
         } finally {
             $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad');$v2Request.Remove('persistenceAreaTarget')
             $v2Request.scenario='mounted-pair-create-and-clear'

@@ -372,6 +372,24 @@ namespace KingmakerMountedCombat.Tests
                     request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
                     TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a foreign campaign.");
                 }
+                // Death boundaries: a writing run and a cold load of the exact
+                // no-pair archive that run wrote, under its own name.
+                foreach (var name in new[] { "rider-death", "mount-death" })
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "Exact death save case rejected.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_DEATH", FileName = "Manual_301_KMC_DEATH.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact death cold request rejected.");
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
+                    TestRunner.True(request.Validate().Count > 0, "A death cold load accepted the mounted archive leaf.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_DEATH.zks"; request.PersistenceLoad.InternalName = "KMC_DEATH";
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "A death cold load accepted a foreign campaign.");
+                }
             });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);

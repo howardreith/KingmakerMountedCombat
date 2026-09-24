@@ -1078,10 +1078,14 @@ foreach($bad in @('no-refusal','refused-after-dismount','refused-saved','referen
         'mount-cast' {$n[5].detail.nativeCastRequests=1}
         'pair-changed' {$n[5].detail.riderId='rider-b';$n[5].rider=[pscustomobject]@{Id='rider-b'}}
         'out-of-order' {$n[5].stage=999}
-        'actor-lingers' {$n[4].rider=[pscustomobject]@{Id='rider-a'}}
+        'actor-lingers' {$n[4].rider=[pscustomobject]@{Id='rider-z'}}
     }
     Must-Reject {Assert-KmcRecoveryPersistenceEvidence $removalRequest $n} ('P07 removal accepted '+$bad)
 }
+# A dismounted row may still describe A's own actors: they exist, only the pair is gone.
+$lingering=($removalRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+$lingering[4].rider=[pscustomobject]@{Id='rider-a'};$lingering[4].mount=[pscustomobject]@{Id='mount-a'}
+Assert-KmcRecoveryPersistenceEvidence $removalRequest $lingering;$passes++
 
 $disableLoadRoot=Join-Path $script:ownedTestLab 'runtime-staging/persistence-disable-load-source/Saved Games'
 [void][IO.Directory]::CreateDirectory($disableLoadRoot)
@@ -1180,6 +1184,98 @@ foreach($bad in @('not-detached','bridge-installed','services-enabled','loaded-d
         'no-completion' {$n=@($n[0])}
     }
     Must-Reject {Assert-KmcAbsentLoadEvidence $absentRequest $n} ('P07 integration-absent accepted '+$bad)
+}
+
+# --- Death boundaries: no-pair save after real native death, reload and cold ----
+$deathId='death-source'
+$deathRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$deathId+'/Saved Games')
+[void][IO.Directory]::CreateDirectory($deathRoot)
+$deathFirstSha=New-KmcSyntheticArchive (Join-Path $deathRoot 'Manual_300_KMC_P01.zks') ([ordered]@{Name='KMC_P01';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{Mounted=$true})
+$deathPath=Join-Path $deathRoot 'Manual_301_KMC_DEATH.zks'
+$deathSha=New-KmcSyntheticArchive $deathPath ([ordered]@{Name='KMC_DEATH';Type='Manual';CompatibilityVersion=1;GameId=$fixture.working.gameId;GameName=$fixture.working.gameName;Area=$fixture.working.area}) ([ordered]@{SchemaVersion=2;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;Mounted=$false;Slots=@()})
+function New-KmcDeathRow { param([string]$Kind,[int]$Stage,[string]$Relationship,[hashtable]$Detail)
+    $mounted=$Relationship-ceq'Mounted'
+    $base=[ordered]@{case='rider-death';stage=$Stage-1200;riderId='rider-a';mountId='mount-a';subjectIsMount=$false;sourceId='enemy-e'
+        requestedDamage=40;nativeDamage=40;deathThreshold=30;damageToParty=1.0;subjectDamageBefore=0;survivorDamageBefore=0
+        subjectDamage=40;subjectDead=$true;subjectFinallyDead=$false;survivorDamage=0;survivorConscious=$true;partyCombat=$true
+        relationship='Unmounted';snapshots=1;failedSaves=0;saveSuspended=$false;activeScope=$false;semantics=2;presentation=1;nativeCastRequests=0
+        firstPath=(Join-Path $script:deathRoot 'Manual_300_KMC_P01.zks');firstHash=$script:deathFirstSha;archivePath=$null;archiveHash=$null}
+    foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
+    [pscustomobject]@{kind=$Kind;checkpoint='rider-death';stage=$Stage;relationship=$Relationship
+        rider=$(if($mounted){[pscustomobject]@{Id='rider-a'}}else{$null});mount=$(if($mounted){[pscustomobject]@{Id='mount-a'}}else{$null})
+        detail=[pscustomobject]$base}
+}
+$deathRequest=[pscustomobject]@{scenario='persistence-p07-save';persistenceCase='rider-death';runId=$deathId;fixture=$fixture}
+$deathArchive=[pscustomobject]@{path=$deathPath;leaf='Manual_301_KMC_DEATH.zks';sha256=$deathSha;length=(Get-Item -LiteralPath $deathPath).Length
+    nativeType='Manual';internalName='KMC_DEATH';gameId=$fixture.working.gameId;area=$fixture.working.area;operation='None';kmcMember='Current'
+    snapshot=[pscustomobject]@{SchemaVersion=2;CampaignId=$fixture.working.gameId;AreaId=$fixture.working.area;Mounted=$false;Slots=@()}}
+$deathRows=@(
+    [pscustomobject]@{kind='initial';checkpoint='rider-death';stage=0;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'};detail=$null},
+    [pscustomobject]@{kind='native-write-complete';checkpoint='rider-death';stage=1200;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'}
+        detail=[pscustomobject]@{ordinal=1;path=(Join-Path $deathRoot 'Manual_300_KMC_P01.zks');sha256=$deathFirstSha;length=10;nativeType='Manual'
+            snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}},
+    (New-KmcDeathRow 'death-dispatched' 1201 'Mounted' @{subjectDead=$false;subjectDamage=0;relationship='Mounted'}),
+    (New-KmcDeathRow 'death-cleanup' 1202 'Unmounted' @{}),
+    (New-KmcDeathRow 'death-saved' 1204 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha;archive=$deathArchive}),
+    (New-KmcDeathRow 'death-reloaded' 1205 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha
+        subjectPresent=$true;survivorPresent=$true;loadedDataMounted=$false;semanticsDelta=0;presentationDelta=0}))
+Assert-KmcRecoveryPersistenceEvidence $deathRequest $deathRows;$passes++
+foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-combat-at-stimulus','subject-not-dead','partner-harmed','partner-unconscious',
+    'lease-held','saved-in-combat','two-saves','first-changed','archive-records-pair','archive-foreign-campaign','archive-sha-mismatch',
+    'reload-invented-pair','reload-restored','reload-subject-missing','reload-subject-alive','reload-cast','reload-archive-changed','wrong-subject','foreign-actor','out-of-order')){
+    $n=($deathRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'no-cleanup' {$n=@($n[0],$n[1],$n[2],$n[4],$n[5])}
+        'dispatched-unmounted' {$n[2].relationship='Unmounted';$n[2].rider=$null;$n[2].mount=$null}
+        'source-is-rider' {$n[2].detail.sourceId='rider-a'}
+        'no-combat-at-stimulus' {$n[2].detail.partyCombat=$false}
+        'subject-not-dead' {$n[3].detail.subjectDead=$false}
+        'partner-harmed' {$n[3].detail.survivorDamage=5}
+        'partner-unconscious' {$n[3].detail.survivorConscious=$false}
+        'lease-held' {$n[3].detail.saveSuspended=$true}
+        'saved-in-combat' {$n[4].detail.partyCombat=$true}
+        'two-saves' {$n[4].detail.snapshots=3}
+        'first-changed' {$n[4].detail.firstHash=('e'*64)}
+        'archive-records-pair' {$n[4].detail.archive.snapshot.Mounted=$true}
+        'archive-foreign-campaign' {$n[4].detail.archive.snapshot.CampaignId='00000000-0000-0000-0000-000000000001'}
+        'archive-sha-mismatch' {$n[4].detail.archiveHash=('e'*64)}
+        'reload-invented-pair' {$n[5].relationship='Mounted';$n[5].rider=[pscustomobject]@{Id='rider-a'};$n[5].mount=[pscustomobject]@{Id='mount-a'}}
+        'reload-restored' {$n[5].detail.semanticsDelta=2}
+        'reload-subject-missing' {$n[5].detail.subjectPresent=$false}
+        'reload-subject-alive' {$n[5].detail.subjectDead=$false}
+        'reload-cast' {$n[5].detail.nativeCastRequests=1}
+        'reload-archive-changed' {$n[5].detail.archiveHash=('e'*64)}
+        'wrong-subject' {$n[3].detail.subjectIsMount=$true}
+        'foreign-actor' {$n[3].rider=[pscustomobject]@{Id='rider-z'}}
+        'out-of-order' {$n[5].stage=1199}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $deathRequest $n} ('P07 death accepted '+$bad)
+}
+$deathColdRequest=[pscustomobject]@{scenario='persistence-p07-load';persistenceCase='rider-death';runId=$deathId;fixture=$fixture
+    persistenceLoad=[pscustomobject]@{internalName='KMC_DEATH';fileName='Manual_301_KMC_DEATH.zks';sha256=$deathSha;gameId=$fixture.working.gameId;gameName=$fixture.working.gameName;area=$fixture.working.area}}
+$deathColdRows=@(
+    [pscustomobject]@{kind='initial';checkpoint='rider-death';stage=0;relationship='Unmounted';rider=$null;mount=$null;detail=$null},
+    [pscustomobject]@{kind='death-cold-complete';checkpoint='rider-death';stage=0;relationship='Unmounted';rider=$null;mount=$null
+        detail=[pscustomobject]@{case='rider-death';party=3;deadPartyMembers=1;deadIds=@('rider-a');supportedMounts=1;mountDead=$false
+            loadedDataPresent=$true;loadedDataMounted=$false;semantics=0;presentation=0;nativeCastRequests=0;feedback='Native unmounted save restored without inventing a pair.'
+            gameId=$fixture.working.gameId;area=$fixture.working.area;archivePath=$deathPath;archiveSha256=$deathSha;expectedSha256=$deathSha}})
+Assert-KmcDeathColdEvidence $deathColdRequest $deathColdRows;$passes++
+foreach($bad in @('no-death','two-deaths','mount-dead-instead','no-mount','restored','invented-pair','no-metadata','wrong-campaign','archive-changed','row-mounted','no-completion')){
+    $n=($deathColdRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'no-death' {$n[1].detail.deadPartyMembers=0}
+        'two-deaths' {$n[1].detail.deadPartyMembers=2}
+        'mount-dead-instead' {$n[1].detail.mountDead=$true}
+        'no-mount' {$n[1].detail.supportedMounts=0}
+        'restored' {$n[1].detail.semantics=2}
+        'invented-pair' {$n[1].detail.loadedDataMounted=$true}
+        'no-metadata' {$n[1].detail.loadedDataPresent=$false}
+        'wrong-campaign' {$n[1].detail.gameId='00000000-0000-0000-0000-000000000001'}
+        'archive-changed' {$n[1].detail.archiveSha256=('e'*64)}
+        'row-mounted' {$n[1].relationship='Mounted';$n[1].rider=[pscustomobject]@{Id='rider-a'}}
+        'no-completion' {$n=@($n[0])}
+    }
+    Must-Reject {Assert-KmcDeathColdEvidence $deathColdRequest $n} ('P07 death cold accepted '+$bad)
 }
 
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"
