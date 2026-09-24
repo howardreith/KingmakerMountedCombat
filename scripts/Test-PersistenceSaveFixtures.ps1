@@ -1095,8 +1095,8 @@ function New-KmcDisableLoadRow { param([string]$Kind,[int]$Stage,[string]$Relati
     $base=[ordered]@{case='disable-during-load';stage=$Stage-1100;riderId='rider-a';mountId='mount-a';archivePath=(Join-Path $script:disableLoadRoot 'Manual_300_KMC_P01.zks');archiveSha256=$script:dlSha
         probes=[pscustomobject]@{};refusals=[pscustomobject]@{};outsideFrames=0;enabledThroughout=$true;enabled=$true;loadInFlight=$false;loading=$false
         semanticsBefore=2;presentationBefore=1;semantics=2;presentation=1;factsMounted=3;factsDisabled=1;factsReEnabled=3
-        restDisabled=$false;restReEnabled=$false;restRemounted=$false;preRoutineAccepted=$false;preRoutineInFlight=$false;preRoutineLoading=$true
-        semanticsAtSecond=4;presentationAtSecond=2;stateAfterSecond=$null;secondReEnabled=$false;secondRemounted=$false
+        restDisabled=$false;restReEnabled=$false;restRemounted=$false;restInvariants=$null;preRoutineAccepted=$false;preRoutineInFlight=$false;preRoutineLoading=$true
+        semanticsAtSecond=4;presentationAtSecond=2;stateAfterSecond=$null;secondDisabled=$false;secondReEnabled=$false;secondRemounted=$false;secondInvariants=$null
         nativeCastRequests=0;snapshots=1;failedSaves=0;rejections=0;disposals=0}
     foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
     [pscustomobject]@{kind=$Kind;checkpoint='disable-during-load';stage=$Stage;relationship=$Relationship
@@ -1121,7 +1121,19 @@ Assert-KmcRecoveryPersistenceEvidence $disableLoadRequest $disableLoadRows;$pass
 $refusedPre=($disableLoadRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
 $refusedPre[5].detail.preRoutineAccepted=$false;$refusedPre[5].detail.preRoutineInFlight=$true;$refusedPre[5].detail.enabled=$true
 $refusedPre[6].detail.preRoutineAccepted=$false;$refusedPre[6].detail.stateAfterSecond='Mounted';$refusedPre[6].detail.semanticsDelta=2;$refusedPre[6].detail.presentationDelta=1
+$refusedPre[6].detail.secondDisabled=$true
 Assert-KmcRecoveryPersistenceEvidence $disableLoadRequest $refusedPre;$passes++
+# The refused branch must have disabled again from the restored pair, and
+# neither remount may leave broken invariants behind the Mounted label.
+foreach($bad in @('second-disable-failed','rest-invariants-broken','second-invariants-broken')){
+    $n=($refusedPre|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'second-disable-failed' {$n[6].detail.secondDisabled=$false}
+        'rest-invariants-broken' {$n[4].detail.restInvariants='The scoped mount position attachment or exact supported rider pose is unavailable or changed.'}
+        'second-invariants-broken' {$n[6].detail.secondInvariants='The scoped mount position attachment or exact supported rider pose is unavailable or changed.'}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $disableLoadRequest $n} ('P07 disable-during-load accepted '+$bad)
+}
 foreach($bad in @('no-pending-probe','accepted-during-load','accepted-before-semantic','disabled-mid-load','restored-twice','not-restored','mount-cast',
     'rest-disable-failed','rest-state-mounted','rest-remount-failed','rest-facts-grew','accepted-while-in-flight','accepted-then-restored','refused-then-not-restored',
     'second-remount-failed','second-pair-changed','out-of-order','archive-mismatch')){
