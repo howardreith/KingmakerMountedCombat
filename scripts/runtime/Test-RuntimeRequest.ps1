@@ -92,7 +92,9 @@ elseif ($schemaVersion -eq 2) {
     $validation=$request.scenario-ceq'persistence-p06-load'
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
+        if($request.persistenceCase-cin @('prepare-removal','disable-during-load')-and$request.scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
+        if($request.persistenceCase-ceq'absent-kmc'-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent case is cold-load only.'}
     }elseif($validation){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'P06 requires its exact validation variant.'}
     }elseif($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
@@ -130,8 +132,9 @@ elseif ($schemaVersion -eq 2) {
         $nativeSlot=($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-cin @('quick','auto'))-or$transitionAuto
         # The failed-load derivative is the only P06 variant that edits a native
         # member, so it owns its own leaf instead of the metadata-only one.
-        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
-        $nameOk=if($second-and$validation){$d.internalName-ceq'KMC_P01'}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}else{$d.internalName-ceq'KMC_P01'}
+        $cleanupCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'absent-kmc'
+        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){'Manual_301_KMC_CLEANUP.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        $nameOk=if($second-and$validation){$d.internalName-ceq'KMC_P01'}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}elseif($cleanupCold){$d.internalName-ceq'KMC_CLEANUP'}else{$d.internalName-ceq'KMC_P01'}
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
             -not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or$d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Cold archive identity is invalid.'}

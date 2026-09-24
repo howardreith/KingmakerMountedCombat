@@ -344,6 +344,34 @@ namespace KingmakerMountedCombat.Tests
                         EnterPoint = new string('d', 32), Area = target, AutoSaveMode = "AfterEntry" };
                     TestRunner.True(request.Validate().Count > 0, "A same-area case accepted a cross-area destination.");
                 }
+                // Save-only removal cases, and the cold-only integration-absent
+                // case that opens the cleanup archive under its own name.
+                foreach (var name in new[] { "prepare-removal", "disable-during-load" })
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "Exact removal save case rejected.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.True(request.Validate().Count > 0, "A save-only removal case accepted a cold load.");
+                }
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "absent-kmc";
+                    TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a writing scenario.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_CLEANUP", FileName = "Manual_301_KMC_CLEANUP.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact integration-absent cold request rejected.");
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
+                    TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a mounted archive leaf.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_CLEANUP.zks"; request.PersistenceLoad.InternalName = "KMC_CLEANUP";
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a foreign campaign.");
+                }
             });
             RuntimeSaveAuthorizationTests.Register(runner);
             ScopedEnumeratorTests.Register(runner);
