@@ -131,6 +131,17 @@ Assert-Kmc ($drainBody.Success -and
     $drainBody.Value -match '(?s)var scope = drainingSave;\s*(//[^\r\n]*\r?\n\s*)*if \(scope == null\) return;') `
     'the per-frame drain returns before resolving when nothing is draining'
 
+# The isolation's write leases must not depend on the persistence controller:
+# the integration-absent load unpatches that controller before the engine's own
+# save, and final103-p07-absent measured the fail-closed commit guard refusing
+# that write while the lease seams lived in the controller.
+$isolationText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativePersistenceIsolation.cs')
+$controllerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
+Assert-Kmc ($isolationText.Contains('PatchWriteSeam(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, "PreparedWritePostfix")') -and
+    $isolationText.Contains('PatchWriteSeam(harmony, typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,') -and
+    $isolationText.Contains('"WorkerCompletePostfix");') -and
+    $controllerText -notmatch 'ObservePreparedWrite|ObserveWorkerComplete') 'the isolation owns its write lease seams independently of the persistence controller'
+
 # Teardown must CONSUME the ownership verdict: a Refused verdict throws before
 # any lifecycle cleanup or unpatching, and Main.OnUnload turns that throw into
 # the false return the installed UMM honours (ModEntry.Reload aborts on it).

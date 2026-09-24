@@ -111,7 +111,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(SaveManager), "IsSaveAllowed", 0x06008028, Type.EmptyTypes, null, null, nameof(PatchMethods.CombatSaveAdmissionTranspiler));
                 PatchExact(typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,
                     new[] { typeof(SaveInfo), typeof(SaveCreateDTO), typeof(SaveInfo) },
-                    nameof(PatchMethods.SaveWorkerPrefix), nameof(PatchMethods.SaveWorkerPostfix), nameof(PatchMethods.NativeArchiveCommitTranspiler));
+                    nameof(PatchMethods.SaveWorkerPrefix), null, nameof(PatchMethods.NativeArchiveCommitTranspiler));
                 PatchExact(typeof(SaveManager), "SaveRoutine", 0x06008029, new[] { typeof(SaveInfo), typeof(bool) }, nameof(PatchMethods.SavePrefix), nameof(PatchMethods.SavePostfix));
                 PatchExact(typeof(Kingmaker.Game), "LoadArea", 0x06000CD5,
                     new[] { typeof(Kingmaker.Blueprints.Area.BlueprintArea), typeof(Kingmaker.Blueprints.Area.BlueprintAreaEnterPoint),
@@ -944,14 +944,10 @@ namespace KingmakerMountedCombat.Integration
 
             internal static void SaveWorkerPrefix(SaveInfo saveInfo) => NativeSaveWorkerBoundary.ObserveWorkerEntry(saveInfo);
 
-            internal static void SaveWorkerPostfix(SaveInfo saveInfo) =>
-                NativePersistenceIsolation.ObserveWorkerComplete(saveInfo);
-
-            internal static void SavePreparedPostfix(SaveInfo save)
-            {
-                NativePersistenceIsolation.ObservePreparedWrite(save);
-                PatchBridge.Persistence?.ObservePreparedSave(save);
-            }
+            // The isolation's write leases are observed and released through the
+            // isolation's own seams on PrepareSave and the worker, so they survive
+            // the integration-absent detach of this controller (final103-p07-absent).
+            internal static void SavePreparedPostfix(SaveInfo save) => PatchBridge.Persistence?.ObservePreparedSave(save);
 
             internal static void NativeSaveHeaderPrefix(ISaver __instance, string name) =>
                 PatchBridge.Persistence?.BeforeNativeHeader(__instance, name);

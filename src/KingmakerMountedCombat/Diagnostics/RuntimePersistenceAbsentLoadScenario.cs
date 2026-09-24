@@ -105,7 +105,23 @@ namespace KingmakerMountedCombat.Diagnostics
             if (absentStage == 2)
             {
                 if (!callback || NativePersistenceIsolation.HasPendingWrites)
-                { if (++absentFrames > 2400) throw new InvalidOperationException("P07 save without KMC never completed."); return; }
+                {
+                    // Self-diagnosing while it waits: the engine-only write's
+                    // descriptor state, so a refused commit is named from the
+                    // rows instead of timing out silently (final103-p07-absent:
+                    // no isolation write lease once the controller was detached).
+                    if (++absentFrames % 300 == 0 || absentFrames > 2400)
+                    {
+                        var listed = game.SaveManager.Where(s => s != null && s.Name == AbsentSecondSaveName).ToArray();
+                        var facts = "callback=" + callback + " pendingWrites=" + NativePersistenceIsolation.HasPendingWrites +
+                            " listed=" + listed.Length + " onDisk=" + listed.Count(s => s.HasFileOnDisk && File.Exists(s.FolderName)) +
+                            " operation=" + string.Join(",", listed.Select(s => s.OperationState.ToString()).ToArray()) +
+                            " seconds=" + clock.Elapsed.TotalSeconds;
+                        Write("absent-saving-probe", new JObject { ["frames"] = absentFrames, ["facts"] = facts });
+                        if (absentFrames > 2400) throw new InvalidOperationException("P07 save without KMC never completed: " + facts);
+                    }
+                    return;
+                }
                 var saved = game.SaveManager.Single(s => s.Name == AbsentSecondSaveName && s.HasFileOnDisk);
                 var read = NativeMountedSaveStorage.Read(saved.Saver);
                 var source = Path.Combine(game.SaveManager.SavePath, request.PersistenceLoad.FileName);
