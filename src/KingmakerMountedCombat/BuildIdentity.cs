@@ -2,6 +2,6 @@ namespace KingmakerMountedCombat
 {
     internal static class BuildIdentity
     {
-        internal const string ProductVersion = "0.1.0-chunk5-preview.98";
+        internal const string ProductVersion = "0.1.0-chunk5-preview.99";
     }
 }

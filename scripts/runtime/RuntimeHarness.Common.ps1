@@ -3448,7 +3448,8 @@ function Assert-KmcSteamSafety {
 }
 
 function Assert-KmcPackageManifest {
-    param([Parameter(Mandatory = $true)][string]$PackagePath, [Parameter(Mandatory = $true)][string]$ManifestPath)
+    param([Parameter(Mandatory = $true)][string]$PackagePath, [Parameter(Mandatory = $true)][string]$ManifestPath,
+        [ValidateSet('scripts/Package.ps1','scripts/Package-Observer.ps1')][string]$Generator = 'scripts/Package.ps1')
     $repoRoot = Get-KmcRepositoryRoot; $labRoot = Get-KmcLabRoot
     $resolvedPackage = [IO.Path]::GetFullPath($PackagePath)
     $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $labRoot 'artifacts')).TrimEnd('\')
@@ -3458,7 +3459,7 @@ function Assert-KmcPackageManifest {
     $head = (& git -C $repoRoot rev-parse HEAD).Trim(); $branch = (& git -C $repoRoot branch --show-current).Trim()
     $status = @(& git -C $repoRoot status --porcelain --untracked-files=all)
     if ($status.Count -ne 0) { throw 'Runtime qualification requires a clean Git worktree.' }
-    if ([int]$manifest.schemaVersion -ne 2 -or [string]$manifest.generator -cne 'scripts/Package.ps1' -or
+    if ([int]$manifest.schemaVersion -ne 2 -or [string]$manifest.generator -cne $Generator -or
         $manifest.worktreeClean -ne $true -or $manifest.qualificationEligible -ne $true -or
         [string]$manifest.commit -cne $head -or [string]$manifest.branch -cne $branch -or
         [string]$manifest.packagePath -cne $resolvedPackage -or [string]$manifest.packageSha256 -cne (Get-KmcSha256 $resolvedPackage)) {
@@ -3493,9 +3494,14 @@ function Enter-KmcModsTransaction {
         [Parameter(Mandatory = $true)][string]$PackagePath,
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)][string]$BackupRoot,
-        [Parameter(Mandatory = $true)][string]$StagingRoot
+        [Parameter(Mandatory = $true)][string]$StagingRoot,
+        # The genuine no-DLL observation stages the live clone WITHOUT any KMC entry
+        # and with the removal observer's own directory instead of the KMC overlay.
+        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')][string]$StagingMode = 'live-clone-plus-kmc-overlay'
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
+    $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
+    $overlayName = if ($observerMode) { 'KmcRemovalObserver' } else { 'KingmakerMountedCombat' }
     $runId = [string]$Lock.RunId; $fullLive = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
     if (-not (Test-Path -LiteralPath $fullLive -PathType Container)) { throw "Live Mods root is missing: $fullLive" }
     Assert-KmcNotReparsePoint $fullLive 'live Mods root'
@@ -3530,16 +3536,16 @@ function Enter-KmcModsTransaction {
     $overlayManifest = Get-KmcDirectoryManifest $packageOverlay
     $actualOverlayEntries = @($overlayManifest.entries | ForEach-Object { '{0}|{1}' -f $_.kind, $_.path } | Sort-Object)
     $expectedOverlayEntries = @(
-        'directory|KingmakerMountedCombat',
-        'file|KingmakerMountedCombat/Info.json',
-        'file|KingmakerMountedCombat/KingmakerMountedCombat.dll'
+        ('directory|' + $overlayName),
+        ('file|' + $overlayName + '/Info.json'),
+        ('file|' + $overlayName + '/' + $overlayName + '.dll')
     ) | Sort-Object
     if (($actualOverlayEntries -join "`n") -cne ($expectedOverlayEntries -join "`n")) {
         throw "Frozen package overlay entry set is not exact: $($actualOverlayEntries -join ', ')"
     }
-    $expectedRoot = Join-Path $packageOverlay 'KingmakerMountedCombat'
-    if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot 'KingmakerMountedCombat.dll'))) {
-        throw 'Pre-staged package does not contain the exact KMC mod root.'
+    $expectedRoot = Join-Path $packageOverlay $overlayName
+    if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot ($overlayName + '.dll')))) {
+        throw 'Pre-staged package does not contain the exact mod root.'
     }
     $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $ready
     Assert-KmcDirectoryManifestsEqual $before $cloneBase 'Pre-overlay live Mods clone'
@@ -3553,7 +3559,17 @@ function Enter-KmcModsTransaction {
         # is moved intact into its transactional backup and restored in finally.
         Remove-Item -LiteralPath $stagedKmcRoot -Recurse -Force
     }
-    Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot
+    if ($observerMode) {
+        # Genuinely absent: the staged clone carries no KMC entry at all (the
+        # verified starting installation was removed from the clone above) and
+        # the observer's own directory is the only addition.
+        $stagedObserverRoot = Join-Path $ready 'KmcRemovalObserver'
+        if (Test-Path -LiteralPath $stagedObserverRoot) { throw 'Live Mods already contains a removal-observer directory.' }
+        Move-Item -LiteralPath $expectedRoot -Destination $stagedObserverRoot
+        $kmcResidue = @(Get-ChildItem -LiteralPath $ready -Recurse -Force | Where-Object { $_.Name -match '(?i)KingmakerMountedCombat' })
+        if ($kmcResidue.Count -ne 0) { throw 'The no-DLL staging still carries a KingmakerMountedCombat entry.' }
+    }
+    else { Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot }
     $sentinel = [ordered]@{ schemaVersion=1; runId=$runId; token=[string]$Lock.Token; packageSha256=$packageHash }
     Write-KmcJsonAtomic (Join-Path $ready '.kmc-runtime-sentinel.json') $sentinel
     $staged = Get-KmcDirectoryManifest $ready
@@ -3561,7 +3577,7 @@ function Enter-KmcModsTransaction {
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source immediately before activation'
     $state = [ordered]@{
         schemaVersion=3; runId=$runId; token=[string]$Lock.Token; phase='prepared'; preparedAtUtc=[DateTime]::UtcNow.ToString('o')
-        stagingMode='live-clone-plus-kmc-overlay'
+        stagingMode=$StagingMode
         liveModsRoot=$fullLive; originalBackup=$originalBackup; stagedReady=$ready; stagedAfter=$stagedAfter
         frozenPackage=$frozenPackage; packageSha256=$packageHash
         beforeDigest=$before.digest; beforeFileCount=$before.fileCount; beforeDirectoryCount=$before.directoryCount; beforeTotalBytes=$before.totalBytes
@@ -3612,7 +3628,7 @@ function Restore-KmcModsTransaction {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
     }
     if ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
-    if ($schemaVersion -eq 3 -and ([string]$state.stagingMode -cne 'live-clone-plus-kmc-overlay' -or
+    if ($schemaVersion -eq 3 -and ([string]$state.stagingMode -cnotin @('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer') -or
         [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
         [int]$state.cloneBaseFileCount -ne [int]$state.beforeFileCount -or
         [int]$state.cloneBaseDirectoryCount -ne [int]$state.beforeDirectoryCount -or

@@ -99,6 +99,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         FileName = NativeCampaignBootstrap.ManualLeaf, InternalName = NativeCampaignBootstrap.ManualName,
                         SaveType = "Manual", Area = bootstrap.Area, Writable = true, Campaign = "B" });
                 }
+                // The integration-absent process writes one NEW archive without
+                // KMC; campaign B's cold process writes one NEW archive in B. Both
+                // roots hold exactly one source, so native Manual numbering
+                // continues from that source's own number.
+                if (request.Scenario == "persistence-p07-load" && request.PersistenceCase == "absent-kmc")
+                    entries.Add(new PersistenceSaveEntry { FileName = "Manual_302_KMC_ABSENT2.zks", InternalName = "KMC_ABSENT2",
+                        SaveType = "Manual", Area = fixture.Area, Writable = true });
+                if (request.Scenario == "persistence-p07-load" && request.PersistenceCase == "campaign-b")
+                    entries.Add(new PersistenceSaveEntry { FileName = "Manual_303_KMC_B2.zks", InternalName = "KMC_B2",
+                        SaveType = "Manual", Area = fixture.Area, Writable = true });
                 if (request.Scenario == "persistence-p07-save")
                 {
                     // A cross-area case makes no pre-transfer manual write: the
@@ -118,7 +128,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     {
                         var name = n == 1 && request.PersistenceCase == "campaign-b" ? NativeCampaignBootstrap.SecondFixtureName :
                             n == 1 && request.PersistenceCase == "prepare-removal" ? MountedRemovalPreparation.CleanupSaveName :
-                            n == 1 && RuntimeRequest.IsDeathCase(request.PersistenceCase) ? "KMC_DEATH" : "KMC_P01";
+                            n == 1 && RuntimeRequest.IsDeathCase(request.PersistenceCase) ? "KMC_DEATH" :
+                            n == 1 && RuntimeRequest.IsEligibilityCase(request.PersistenceCase) ? "KMC_SIZE" : "KMC_P01";
                         entries.Add(new PersistenceSaveEntry {
                             FileName = "Manual_" + (300 + n) + "_" + name + ".zks", InternalName = name,
                             SaveType = "Manual",

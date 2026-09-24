@@ -51,6 +51,8 @@
     <Compile Include="ScopedEnumeratorTests.cs" />
     <Compile Include="OwnedWorkerTeardownPolicyTests.cs" />
     <Compile Include="NativeSaveCommitOutcomeTests.cs" />
+    <Compile Include="RemovalReadinessPolicyTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\RemovalReadinessPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\OwnedWorkerTeardownPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Integration\NativeSaveCommitOutcome.cs" />
     <Compile Include="DeferredSaveEnumeratorTests.cs" />

@@ -15,9 +15,13 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         // The user-visible Prepare-to-Disable/removal contract: refused, with
         // the exact reason, while a permanent KMC Horse reference exists in the
-        // loaded world; otherwise the pair is dismounted through the registered
-        // disable's own cleanup and a NEW native save is written and verified
-        // from its bytes to record no pair. Then the real registered disable and
+        // loaded world; refused again while the party is in real combat with a
+        // native enemy even though the engine itself would admit a save under
+        // the qualified paired policy; otherwise the pair is dismounted through
+        // the registered disable's own cleanup and a NEW native save is written,
+        // bound to KMC's own commit record and verified from its bytes: no pair,
+        // no combat supplement, no control binding, and no KMC-registered
+        // blueprint identity in any member. Then the real registered disable and
         // re-enable, and the shared continuation.
         private bool RemovalCase => request.Scenario == "persistence-p07-save" && request.PersistenceCase == "prepare-removal";
         private int removalStage;
@@ -27,8 +31,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private string removalFirstPath;
         private string removalFirstHash;
         private RemovalAssessment removalRefusedAssessment;
+        private RemovalAssessment removalCombatAssessment;
         private RemovalAssessment removalSafeAssessment;
         private bool removalBeganRefused;
+        private bool removalCombatRefused;
+        private bool removalCombatSaveAllowed;
+        private string removalCombatTargetId;
         private bool removalBegan;
         private int removalFactsMounted;
         private int removalFactsDisabled;
@@ -41,7 +49,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AdvanceRemoval()
         {
-            if (clock.Elapsed.TotalSeconds > 240)
+            if (clock.Elapsed.TotalSeconds > 280)
                 throw new InvalidOperationException("P07 removal preparation timed out at " + removalStage +
                     " frames=" + removalFrames + ": " + removal.Status);
             var game = Game.Instance;
@@ -106,18 +114,70 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (++removalFrames > 600) throw new InvalidOperationException("P07 removal probe unit was never destroyed.");
                     return;
                 }
+                // Real combat with a native enemy through the same target fixture
+                // every combat case uses. The engine admits a manual save under
+                // the qualified paired policy; the removal contract must not.
+                targetService = new DiagnosticCombatTargetService(logger);
+                var target = targetService.Spawn(rider, mount, FindDestination(8f), request.RunId + "-removal-combat", true, true);
+                removalCombatTargetId = target.UniqueId;
+                Check(targetService.PrepareForPlayerClick(target), "P07-removal-combat-enemy-prepared");
+                Check(targetService.QueueBidirectionalCombatMemory(rider, target), "P07-removal-native-combat-requested");
+                removalFrames = 0; removalStage = 2;
+                return;
+            }
+            if (removalStage == 2)
+            {
+                if (!targetService.RefreshBidirectionalCombatMemoryLease())
+                    throw new InvalidOperationException("P07 removal native combat memory fixture lease was lost.");
+                if (game.IsPaused) { Write("fixture-native-unpause"); game.IsPaused = false; return; }
+                if (!game.Player.IsInCombat || !rider.IsInCombat || !rider.CombatState.CanActInCombat)
+                { if (++removalFrames > 3600) throw new InvalidOperationException("P07 removal fixture never entered native combat."); return; }
+                removalCombatSaveAllowed = game.SaveManager.IsSaveAllowed();
+                removalCombatAssessment = removal.Assess();
+                removalCombatRefused = !removal.Begin();
+                Check(!removalCombatAssessment.Safe && removalCombatAssessment.Mounted && removalCombatAssessment.World != null &&
+                    removalCombatAssessment.World.PartyInCombat && removalCombatAssessment.PermanentReferences.Count == 0 &&
+                    removalCombatAssessment.Reasons.Any(r => r.IndexOf("in combat", StringComparison.Ordinal) >= 0),
+                    "P07-removal-assessment-refuses-real-combat-by-its-own-rule");
+                Check(removalCombatRefused && removal.State == RemovalPreparationState.Refused && removal.RefusalCount == 2 &&
+                    removal.CleanupSaveCount == 0 && relationship.State == RelationshipState.Mounted &&
+                    persistence.SnapshotCount == 1 && !persistence.SaveSuspended && !persistence.HasActiveSaveScope,
+                    "P07-removal-in-combat-is-refused-without-dismounting-or-saving");
+                Write("removal-refused-combat", RemovalDetail(new JObject {
+                    ["targetId"] = removalCombatTargetId, ["engineSaveAllowed"] = removalCombatSaveAllowed,
+                    ["reasons"] = new JArray(removalCombatAssessment.Reasons) }));
+                removalFrames = 0; removalStage = 3;
+                return;
+            }
+            if (removalStage == 3)
+            {
+                // End the encounter through the target fixture's own teardown and
+                // wait for the world to settle by the removal contract's own rule.
+                if (targetService != null)
+                {
+                    if (!targetService.DestroyAndVerify()) { if (++removalFrames > 3600) throw new InvalidOperationException("P07 removal enemy never left the world."); return; }
+                    targetService.Dispose(); targetService = null; removalFrames = 0;
+                }
+                if (game.Player.IsInCombat || rider.IsInCombat || mount.IsInCombat) return;
+                if (game.IsPaused) { Write("fixture-native-unpause"); game.IsPaused = false; return; }
                 removalSafeAssessment = removal.Assess();
-                Check(removalSafeAssessment.Safe && removalSafeAssessment.Mounted && removalSafeAssessment.PermanentReferences.Count == 0,
-                    "P07-removal-assessment-is-safe-once-the-reference-is-gone");
+                if (!removalSafeAssessment.Safe)
+                {
+                    if (++removalFrames < 600) return;
+                    throw new InvalidOperationException("P07 removal assessment never settled after combat: " + removalSafeAssessment.Summary);
+                }
+                Check(removalSafeAssessment.Safe && removalSafeAssessment.Mounted && removalSafeAssessment.PermanentReferences.Count == 0 &&
+                    !removalSafeAssessment.World.InspectionFailed,
+                    "P07-removal-assessment-is-safe-once-the-reference-and-the-combat-are-gone");
                 removalBegan = removal.Begin();
                 Check(removalBegan && removal.State == RemovalPreparationState.Saving &&
                     relationship.State == RelationshipState.Unmounted,
                     "P07-prepare-to-disable-dismounts-through-cleanup-before-saving");
                 Write("removal-requested", RemovalDetail(null));
-                removalFrames = 0; removalStage = 2;
+                removalFrames = 0; removalStage = 4;
                 return;
             }
-            if (removalStage == 2)
+            if (removalStage == 4)
             {
                 if (removal.State == RemovalPreparationState.Saving)
                 {
@@ -125,17 +185,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 if (NativePersistenceIsolation.HasPendingWrites) return;
-                Check(removal.State == RemovalPreparationState.Ready && removal.CleanupSaveCount == 1 &&
+                Check(removal.State == RemovalPreparationState.Ready && removal.CleanupSaveCount == 1 && removal.UnconfirmedCount == 0 &&
                     removal.CleanupSaveLeaf == "Manual_301_KMC_CLEANUP.zks" && !string.IsNullOrEmpty(removal.CleanupSavePath) &&
                     File.Exists(removal.CleanupSavePath) && Hash(removal.CleanupSavePath) == removal.CleanupSaveSha256,
                     "P07-cleanup-save-is-a-new-exact-declared-archive");
+                Check(removal.CleanupBinding == "bound" && removal.CleanupCampaignId == request.Fixture.Working.GameId &&
+                    NativeMountedArchiveCommit.LastCommittedDestination == removal.CleanupSavePath,
+                    "P07-cleanup-save-is-bound-to-this-operation-own-commit");
+                Check(removal.CleanupScannedMembers > 0 && removal.CleanupReferenceHits.Count == 0,
+                    "P07-cleanup-archive-members-carry-no-KMC-blueprint-identity");
                 var cleanup = game.SaveManager.Single(s => s.FolderName == removal.CleanupSavePath);
                 var read = NativeMountedSaveStorage.Read(cleanup.Saver);
                 Check(cleanup.Name == MountedRemovalPreparation.CleanupSaveName && cleanup.OperationState == SaveInfo.StateType.None &&
                     cleanup.GameId == request.Fixture.Working.GameId &&
                     read.Kind == MountedSaveReadKind.Current && !read.Data.Mounted && read.Data.Rider == null && read.Data.Mount == null &&
+                    read.Data.Combat == null && read.Data.Slots != null && read.Data.Slots.Length == 0 &&
                     read.Data.CampaignId == request.Fixture.Working.GameId,
-                    "P07-cleanup-archive-records-no-pair-in-the-fixture-campaign");
+                    "P07-cleanup-archive-records-no-pair-combat-or-binding-in-the-fixture-campaign");
                 Check(Hash(removalFirstPath) == removalFirstHash, "P07-cleanup-save-left-the-first-archive-untouched");
                 Check(relationship.State == RelationshipState.Unmounted && !persistence.SaveSuspended &&
                     !persistence.HasActiveSaveScope && controls.CaptureSnapshot().DuplicateFactCount == 0 &&
@@ -179,9 +245,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["riderId"] = removalRiderId, ["mountId"] = removalMountId,
                 ["state"] = removal.State.ToString(), ["status"] = removal.Status,
                 ["assessments"] = removal.AssessmentCount, ["refusals"] = removal.RefusalCount,
+                ["unconfirmed"] = removal.UnconfirmedCount,
                 ["cleanupSaves"] = removal.CleanupSaveCount, ["cleanupLeaf"] = removal.CleanupSaveLeaf,
                 ["cleanupSha256"] = removal.CleanupSaveSha256, ["cleanupPath"] = removal.CleanupSavePath,
-                ["beganRefused"] = removalBeganRefused, ["began"] = removalBegan,
+                ["cleanupCampaign"] = removal.CleanupCampaignId, ["binding"] = removal.CleanupBinding,
+                ["scannedMembers"] = removal.CleanupScannedMembers, ["scannedBytes"] = removal.CleanupScannedBytes,
+                ["referenceHits"] = new JArray(removal.CleanupReferenceHits),
+                ["beganRefused"] = removalBeganRefused, ["combatRefused"] = removalCombatRefused, ["began"] = removalBegan,
+                ["partyCombat"] = Game.Instance?.Player?.IsInCombat,
                 ["factsMounted"] = removalFactsMounted, ["factsDisabled"] = removalFactsDisabled,
                 ["factsReEnabled"] = removalFactsReEnabled,
                 ["disabled"] = removalDisabled, ["reEnabled"] = removalReEnabled, ["remounted"] = removalRemounted,

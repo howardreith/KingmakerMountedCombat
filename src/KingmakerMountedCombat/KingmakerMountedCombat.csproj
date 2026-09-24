@@ -132,6 +132,7 @@
     <Compile Include="Integration\NativeMountedArchiveCommit.cs" />
     <Compile Include="Integration\NativeSaveCommitOutcome.cs" />
     <Compile Include="Domain\OwnedWorkerTeardownPolicy.cs" />
+    <Compile Include="Domain\RemovalReadinessPolicy.cs" />
     <Compile Include="Integration\MountedPersistenceService.cs" />
     <Compile Include="Integration\MountedAreaPersistence.cs" />
     <Compile Include="Integration\MountedCombatPersistenceService.cs" />
@@ -208,6 +209,8 @@
     <Compile Include="Diagnostics\RuntimePersistenceDisableLoadScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAbsentLoadScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceDeathScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceEligibilityScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceCampaignBColdScenario.cs" />
     <Compile Include="Integration\MountedRemovalPreparation.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAreaScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceReactionScenario.cs" />

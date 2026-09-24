@@ -63,6 +63,47 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // Every JSON member of the archive (areas, party, player, header) and the
+        // KMC member, read through the engine's own saver and searched for the
+        // given identities. Bounded, and any member that cannot be read exactly
+        // aborts the scan rather than being skipped.
+        private const int MaximumScanMembers = 1024;
+        private const long MaximumScanMemberBytes = 64L * 1024 * 1024;
+        private const long MaximumScanTotalBytes = 512L * 1024 * 1024;
+        internal static System.Collections.Generic.List<string> FindReferences(ISaver saver,
+            System.Collections.Generic.IEnumerable<string> tokens, out int scannedMembers, out long scannedBytes)
+        {
+            if (saver == null) throw new ArgumentNullException(nameof(saver));
+            if (saver.GetType() != ZipSaver)
+                throw new InvalidOperationException("Reference scanning requires the qualified native archive format.");
+            var zip = NativeZip.Invoke(saver, null);
+            if (zip == null) throw new InvalidDataException("The selected native archive could not be read.");
+            var entries = (IEnumerable)zip.GetType().GetProperty("Entries").GetValue(zip, null);
+            var lenient = new UTF8Encoding(false, false);
+            var members = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+            scannedMembers = 0; scannedBytes = 0;
+            foreach (var entry in entries)
+            {
+                var type = entry.GetType();
+                var name = (string)type.GetProperty("FileName").GetValue(entry, null);
+                if (string.IsNullOrEmpty(name)) throw new InvalidDataException("An archive member has no name.");
+                if (!name.EndsWith(".json", StringComparison.OrdinalIgnoreCase) && name != MountedSaveData.ArchiveMember) continue;
+                var length = (long)type.GetProperty("UncompressedSize").GetValue(entry, null);
+                if (length < 0 || length > MaximumScanMemberBytes)
+                    throw new InvalidDataException("Archive member exceeds the scan bound: " + name);
+                if (++scannedMembers > MaximumScanMembers)
+                    throw new InvalidDataException("Archive has more members than the scan bound.");
+                scannedBytes += length;
+                if (scannedBytes > MaximumScanTotalBytes)
+                    throw new InvalidDataException("Archive exceeds the total scan bound.");
+                var bytes = saver.ReadBytes(name);
+                if (bytes == null || bytes.LongLength != length)
+                    throw new InvalidDataException("Archive member changed while scanning: " + name);
+                members.Add(new System.Collections.Generic.KeyValuePair<string, string>(name, lenient.GetString(bytes)));
+            }
+            return Domain.RemovalReadinessPolicy.ReferenceHits(members, tokens);
+        }
+
         internal static void ConstrainIsolatedCommit(ISaver saver, string root)
         {
             if (saver == null || saver.GetType() != ZipSaver)
