@@ -192,6 +192,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 NativePersistenceIsolation.EnableNativeSlotRotation();
                 campaignSlotRotationForced = true;
                 Check(Game.NewGameUnit == null, "P07-no-character-generation-product-precedes-the-native-new-game");
+                // The engine's own recipe for a new game from the main menu
+                // (CheatsTransfer.NewGameCoroutine 0600C47A after ResetToMainMenu):
+                // MainMenu.EnterGame 06000D84 shows the loading screen, disposes the
+                // menu UI, loads base mechanics and only then runs the action. A
+                // direct LoadNewGame from the live menu left the menu scene active
+                // and SceneLoader.LoadAreaCoroutine failed with "Destination scene
+                // is not valid" (run final91-p07-campaign-b).
+                var menu = game.UI?.MainMenu ?? UnityEngine.Object.FindObjectOfType<Kingmaker.MainMenu>();
+                Check(menu != null, "P07-the-native-main-menu-is-present-to-enter-the-new-game");
                 NativePersistenceIsolation.OpenBootstrapWindow();
                 campaignWindowOpened = NativePersistenceIsolation.BootstrapWindowOpen;
                 Check(campaignWindowOpened && NativePersistenceIsolation.BootstrapGameId == null,
@@ -205,7 +214,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["autosaveEnabled"] = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutosaveEnabled.CurrentValue,
                     ["windowOpened"] = campaignWindowOpened,
                     ["frozenBefore"] = NativePersistenceIsolation.BootstrapGameId != null }));
-                game.LoadNewGame(campaignPreset.Preset, null);
+                var preset = campaignPreset.Preset;
+                menu.EnterGame(() => Game.Instance.LoadNewGame(preset, null));
                 campaignFrames = 0; campaignStage = 4;
                 return;
             }
