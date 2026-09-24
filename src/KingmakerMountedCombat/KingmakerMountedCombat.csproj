@@ -204,6 +204,10 @@
     <Compile Include="Diagnostics\RuntimePersistenceDisableScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCampaignBScenario.cs" />
     <Compile Include="Diagnostics\NativeCampaignBootstrap.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceRemovalScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceDisableLoadScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceAbsentLoadScenario.cs" />
+    <Compile Include="Integration\MountedRemovalPreparation.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAreaScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceReactionScenario.cs" />
     <Compile Include="Domain\CleanupTrigger.cs" />

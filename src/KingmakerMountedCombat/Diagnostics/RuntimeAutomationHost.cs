@@ -48,6 +48,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly DiagnosticSettings diagnosticSettings;
         private readonly Func<bool, bool> registeredToggle;
+        private readonly Func<bool> detachIntegration;
+        private readonly MountedRemovalPreparation removal;
+        private bool integrationDetached;
         private readonly string resultPath;
         private readonly DateTimeOffset startedAt;
         private readonly Stopwatch runtimeClock;
@@ -137,13 +140,17 @@ namespace KingmakerMountedCombat.Diagnostics
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
             MountedPersistenceService persistence,
+            MountedRemovalPreparation removal,
             MountedAnimationAdapter animation,
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
-            Func<bool, bool> registeredToggle)
+            Func<bool, bool> registeredToggle,
+            Func<bool> detachIntegration)
         {
             this.logger = logger;
             this.request = request;
+            this.removal = removal ?? throw new ArgumentNullException(nameof(removal));
+            this.detachIntegration = detachIntegration ?? throw new ArgumentNullException(nameof(detachIntegration));
             this.loadedModId = loadedModId;
             this.relationshipStateProvider = relationshipStateProvider;
             this.movementExperimentProvider = movementExperimentProvider;
@@ -191,10 +198,12 @@ namespace KingmakerMountedCombat.Diagnostics
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
             MountedPersistenceService persistence,
+            MountedRemovalPreparation removal,
             MountedAnimationAdapter animation,
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
-            Func<bool, bool> registeredToggle)
+            Func<bool, bool> registeredToggle,
+            Func<bool> detachIntegration)
         {
             if (logger == null)
             {
@@ -262,7 +271,7 @@ namespace KingmakerMountedCombat.Diagnostics
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
                 saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls, persistence,
-                animation, dollRoomIk, diagnosticSettings, registeredToggle);
+                removal, animation, dollRoomIk, diagnosticSettings, registeredToggle, detachIntegration);
         }
 
         internal static void ObserveSaveRequest()
@@ -525,6 +534,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     persistenceMode.DispatchTemporaryValueIfRequired();
                     logger.Info("Declared persistence combat mode before native load: " + persistenceMode.CurrentValue + ".");
                 }
+                // The integration-absent cold load: KMC's gameplay and persistence
+                // guards are removed and its services switched off BEFORE the
+                // native load, so the engine opens the archive with no KMC
+                // restoration at all. The run-scoped save isolation stays.
+                if (RuntimePersistenceScenario.IsIntegrationAbsentCase(request))
+                {
+                    integrationDetached = detachIntegration();
+                    if (!integrationDetached)
+                        throw new InvalidOperationException("KMC integration could not be detached before the integration-absent load.");
+                }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();
                 return;
@@ -689,7 +708,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load")
             {
                 if (persistenceEngine == null)
-                    persistenceEngine = new RuntimePersistenceScenario(request, relationship, nativeControls, persistence, combat, diagnosticSettings, logger);
+                    persistenceEngine = new RuntimePersistenceScenario(request, relationship, nativeControls, persistence, combat, diagnosticSettings, logger, removal, horseCompanion, integrationDetached);
                 persistenceEngine.Update();
                 if (!persistenceEngine.Completed) return;
                 subscenarioResults = new[] { persistenceEngine.Result };
