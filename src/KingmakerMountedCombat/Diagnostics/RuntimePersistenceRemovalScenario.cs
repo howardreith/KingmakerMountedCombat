@@ -191,7 +191,13 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (removal.State == RemovalPreparationState.Saving)
                 {
-                    if (++removalFrames > 3600) throw new InvalidOperationException("P07 cleanup save never settled: " + removal.Status);
+                    if (++removalFrames % 600 == 0)
+                        Write("removal-saving-probe", new JObject { ["frames"] = removalFrames, ["status"] = removal.Status,
+                            ["pending"] = removal.PendingDiagnostics, ["callback"] = callback, ["pendingWrites"] = NativePersistenceIsolation.HasPendingWrites,
+                            ["saveSuspended"] = persistence.SaveSuspended, ["activeScope"] = persistence.HasActiveSaveScope,
+                            ["commits"] = NativeMountedArchiveCommit.CommitCount, ["lastCommitted"] = NativeMountedArchiveCommit.LastCommittedDestination,
+                            ["seconds"] = clock.Elapsed.TotalSeconds });
+                    if (removalFrames > 7200) throw new InvalidOperationException("P07 cleanup save never settled: " + removal.Status + " [" + removal.PendingDiagnostics + "]");
                     return;
                 }
                 if (NativePersistenceIsolation.HasPendingWrites) return;
