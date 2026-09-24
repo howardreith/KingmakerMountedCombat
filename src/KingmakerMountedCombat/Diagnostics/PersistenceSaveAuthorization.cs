@@ -34,6 +34,12 @@ namespace KingmakerMountedCombat.Diagnostics
         // observes no current area. Only a bootstrap leaf may admit that, and it
         // still commits in the exact declared area.
         public bool AdmitsBeforeArea { get; set; }
+        // A read-only leaf of ANOTHER native campaign whose identity the validated
+        // request declares for it (the foreign-header derivative: campaign B's own
+        // archive, loaded only to be refused by the KMC member it carries). Never
+        // assigned here, never writable, never the bootstrap campaign.
+        public string ForeignGameId { get; set; }
+        public string ForeignGameName { get; set; }
     }
 
     // Test-only authority. The caller supplies the already authorized run directory,
@@ -55,6 +61,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // may start, whose identity the engine mints.
             internal bool Bootstrap;
             internal bool AdmitsBeforeArea;
+            // A declared read-only foreign campaign identity, or null for the fixture's.
+            internal string ForeignGameId;
+            internal string ForeignGameName;
             internal bool Admits(string area) =>
                 area == Area || (AdmissionArea != null && area == AdmissionArea) ||
                 (area == null && AdmitsBeforeArea);
@@ -116,8 +125,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return null;
         }
 
-        private string ExpectedGameId(Entry entry) => entry.Bootstrap ? bootstrapGameId : gameId;
-        private string ExpectedGameName(Entry entry) => entry.Bootstrap ? bootstrapGameName : gameName;
+        private string ExpectedGameId(Entry entry) => entry.Bootstrap ? bootstrapGameId : entry.ForeignGameId ?? gameId;
+        private string ExpectedGameName(Entry entry) => entry.Bootstrap ? bootstrapGameName : entry.ForeignGameName ?? gameName;
 
         internal PersistenceSaveAuthorization(string authorizedRunRoot, string campaignId,
             string campaignName, string protectedBaselineHash, IEnumerable<PersistenceSaveEntry> allowlist)
@@ -178,9 +187,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (item.AdmitsBeforeArea && (!bootstrap || item.SaveType != "Auto"))
                     throw new ArgumentException("Only a bootstrap autosave leaf is admitted before any area is loaded.");
                 declaresBootstrap |= bootstrap;
+                var foreignDeclared = item.ForeignGameId != null || item.ForeignGameName != null;
+                if (foreignDeclared)
+                {
+                    // Only a completed read-only fixture-campaign-shaped leaf may carry
+                    // a foreign identity, and that identity must be a distinct real one.
+                    Guid foreignGuid;
+                    if (item.Writable || hash == null || admission != null || bootstrap || item.AdmitsBeforeArea ||
+                        item.ForeignGameId == null || !Guid.TryParse(item.ForeignGameId, out foreignGuid) || foreignGuid == Guid.Empty ||
+                        string.Equals(item.ForeignGameId, gameId, StringComparison.Ordinal) || string.IsNullOrWhiteSpace(item.ForeignGameName))
+                        throw new ArgumentException("A foreign-campaign leaf must be a completed read-only leaf with a distinct real identity.");
+                }
                 entries.Add(file, new Entry { Name = name, Type = item.SaveType, Area = area,
                     AdmissionArea = admission, Hash = hash, Writable = item.Writable, Bootstrap = bootstrap,
-                    AdmitsBeforeArea = item.AdmitsBeforeArea });
+                    AdmitsBeforeArea = item.AdmitsBeforeArea,
+                    ForeignGameId = foreignDeclared ? Required(item.ForeignGameId, 128) : null,
+                    ForeignGameName = foreignDeclared ? Required(item.ForeignGameName, 256) : null });
             }
             if (entries.Count == 0) throw new ArgumentException("An exact save allowlist is required.");
             if (declaresBootstrap && entries.Values.All(entry => entry.Bootstrap))
@@ -280,7 +302,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     // boundary self-diagnosing instead of costing another run.
                     return "Native save name, type, campaign or area differs from the run contract" +
                         " (observed name=" + target.InternalName + " type=" + target.SaveType +
-                        " area=" + target.Area + " campaign=" + (entry.Bootstrap ? "B" : "A") +
+                        " area=" + target.Area + " campaign=" + (entry.Bootstrap ? "B" : entry.ForeignGameId != null ? "foreign" : "A") +
                         "; declared name=" + entry.Name + " type=" + entry.Type +
                         " area=" + entry.Area + (entry.AdmissionArea == null ? string.Empty :
                         " admission=" + entry.AdmissionArea) + ").";

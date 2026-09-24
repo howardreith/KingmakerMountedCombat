@@ -183,8 +183,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (request.Scenario == "persistence-p06-load")
                 {
                     var variant = request.PersistenceAlternate;
+                    // The foreign-header derivative is campaign B's own archive: its
+                    // native header carries B's validated identity, declared here
+                    // read-only so the engine may enumerate and attempt it.
+                    var foreignHeader = request.PersistenceCase == "foreign-header-campaign";
                     entries.Add(new PersistenceSaveEntry { FileName = variant.FileName, InternalName = variant.InternalName,
-                        SaveType = "Manual", Area = variant.Area, InitialSha256 = variant.Sha256, Writable = false });
+                        SaveType = "Manual", Area = variant.Area, InitialSha256 = variant.Sha256, Writable = false,
+                        ForeignGameId = foreignHeader ? variant.GameId : null, ForeignGameName = foreignHeader ? variant.GameName : null });
                 }
                 if (request.Scenario == "persistence-p05-load" && fixture.InternalName !=
                     RuntimePersistenceScenario.SlotName(RuntimePersistenceScenario.SlotType(request.PersistenceCase)))

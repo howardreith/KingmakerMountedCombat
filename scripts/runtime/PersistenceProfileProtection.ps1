@@ -242,7 +242,7 @@ function Get-KmcPersistencePreferenceChanges {
 }
 
 function Assert-KmcNativeUmmStartupDelta {
-    param([string]$Before,[string]$After)
+    param([string]$Before,[string]$After,[switch]$RemovalObserver)
     [xml]$original=$Before;[xml]$current=$After
     # Unchanged parameters are the ordinary case now and the safest possible
     # outcome, so they pass on their own. This assertion was written when UMM
@@ -250,6 +250,24 @@ function Assert-KmcNativeUmmStartupDelta {
     # become part of the settled installation, present on both sides, and
     # requiring the append made a byte-identical file fail.
     if($current.OuterXml-ceq$original.OuterXml){return}
+    if($RemovalObserver){
+        # A removal-observer run stages the live Mods clone WITHOUT KMC and with
+        # the observer in its place, so UMM's startup rewrite drops the KMC entry
+        # and records the observer's entry exactly where KMC's stood. Only that
+        # replacement is admitted: renaming the observer entry back must give the
+        # original document byte for byte.
+        $kmcBefore=@($original.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
+        $observerBefore=@($original.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
+        $kmcAfter=@($current.SelectNodes("//Mod[@Id='KingmakerMountedCombat']"))
+        $observerAfter=@($current.SelectNodes("//Mod[@Id='KmcRemovalObserver']"))
+        if($kmcBefore.Count-ne1-or$observerBefore.Count-ne0-or$kmcAfter.Count-ne0-or$observerAfter.Count-ne1-or
+            [string]$observerAfter[0].GetAttribute('Enabled')-cne'true'){
+            throw 'UMM parameter delta is outside the removal-observer replacement.'
+        }
+        $observerAfter[0].SetAttribute('Id','KingmakerMountedCombat')
+        if($current.OuterXml-cne$original.OuterXml){throw 'UMM parameters include a change beyond the removal-observer replacement.'}
+        return
+    }
     # The one historical startup transition is still accepted, and nothing else.
     $old=@($original.SelectNodes("//Mod[@Id='SkipIntro']"))
     $added=@($current.SelectNodes("//Mod[@Id='SkipIntro']"))
@@ -263,7 +281,7 @@ function Assert-KmcNativeUmmStartupDelta {
 
 function Restore-KmcPersistenceStartupSettings {
     [CmdletBinding(SupportsShouldProcess=$true,ConfirmImpact='High')]
-    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256)
+    param($Lock,$Snapshot,[string]$BackupRoot,[string]$ExpectedCurrentParamsSha256,[string]$ExpectedCurrentPrefsSha256,[switch]$RemovalObserver)
     [void](Assert-KmcRuntimeLockOwner $Lock);Assert-KmcNoGameProcesses
     if($Lock.RunId-cne$Snapshot.runId-or$Lock.Token-cne$Snapshot.token){throw 'Profile restoration has no matching owned transaction.'}
     $intake=Read-KmcJson (Join-Path (Get-KmcLabRoot) 'environment-intake.json')
@@ -287,7 +305,7 @@ function Restore-KmcPersistenceStartupSettings {
     $changes=@(Get-KmcPersistencePreferenceChanges -BeforeJson $Snapshot.playerPrefsJson -AfterJson $prefs -ObservedResetRunId $Snapshot.runId)
     $restoreParams=$paramsHash-cne$Snapshot.paramsSha256
     if($restoreParams){
-        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams))
+        Assert-KmcNativeUmmStartupDelta -Before ([IO.File]::ReadAllText($saved)) -After ([IO.File]::ReadAllText($expectedParams)) -RemovalObserver:$RemovalObserver
     }
     if(-not$PSCmdlet.ShouldProcess('exact Kingmaker UMM parameters and attributed native preference deltas',
         'restore verified actual intake after the attributed process exit')){return}

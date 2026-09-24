@@ -440,6 +440,21 @@ function Assert-KmcAlternatingPersistenceEvidence {
 
 function Assert-KmcPersistenceScenarioEvidence {
     param($Request,$Manifest,[string]$Status,$GameResult)
+    if($Request.scenario-ceq'persistence-p07-load'-and(Get-KmcOptionalMember $Request 'persistenceCase')-ceq'removal-no-dll'){
+        # The genuine no-DLL load: KMC wrote nothing in that process. The removal
+        # observer's own result was validated by Test-KmcObserverResult during the
+        # run and composed into this game result; the binding is re-checked here.
+        if($Status-cne'PASS'){return}
+        if($null-eq$GameResult-or[string](Get-KmcOptionalMember $GameResult 'evidenceKind')-cne'kmc-removal-observer'-or
+            (Get-KmcOptionalMember $GameResult 'kmcDllInstalled')-ne$false-or$GameResult.observations.absence.kmcAssemblyLoaded-ne$false-or
+            $GameResult.observations.absence.kmcModsDirectoryPresent-ne$false-or@($GameResult.observations.absence.kmcHarmonyOwners).Count-ne0-or
+            [string]$GameResult.observerResultSha256-cnotmatch'^[0-9a-f]{64}$'-or
+            (Get-KmcSha256 (Join-Path $Request.evidenceRoot 'observer-result.json'))-cne[string]$GameResult.observerResultSha256-or
+            [int]$GameResult.checkFailCount-ne0-or[int]$GameResult.checkPassCount-lt12){
+            throw 'The no-DLL observation is not a genuine bound removal-observer result.'
+        }
+        return
+    }
     if($Request.scenario -cnotin @('persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load') -or $Status-cne'PASS'){return}
     $artifact=@($Manifest.artifacts|Where-Object relativePath -CEQ 'persistence-observations.jsonl')
     if($artifact.Count-ne1-or$artifact[0].kind-cne'persistence-evidence'){throw 'P01 has no exact observation artifact.'}

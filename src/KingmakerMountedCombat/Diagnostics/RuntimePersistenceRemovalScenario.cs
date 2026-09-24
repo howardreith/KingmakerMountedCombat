@@ -55,8 +55,18 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             if (game == null) return;
             stage = 1000 + removalStage;
-            if (LoadingProcess.Instance.IsLoadingInProcess || game.CurrentlyLoadedArea == null ||
-                game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
+            if (LoadingProcess.Instance.IsLoadingInProcess || game.CurrentlyLoadedArea == null) return;
+            // Real combat pauses the game (Pause is a game mode): inside the combat
+            // stages the walk unpauses first, exactly as the death walk does, and
+            // gates on Default mode only outside them. Run final99-p07-removal
+            // measured the earlier all-stage Default gate spinning to the deadline.
+            if (removalStage == 2 || removalStage == 3)
+            {
+                if (targetService != null && !targetService.RefreshBidirectionalCombatMemoryLease())
+                    throw new InvalidOperationException("P07 removal native combat memory fixture lease was lost.");
+                if (game.IsPaused) { Write("fixture-native-unpause"); game.IsPaused = false; return; }
+            }
+            else if (game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
             if (removalStage == 0)
             {
                 if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
@@ -127,9 +137,6 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (removalStage == 2)
             {
-                if (!targetService.RefreshBidirectionalCombatMemoryLease())
-                    throw new InvalidOperationException("P07 removal native combat memory fixture lease was lost.");
-                if (game.IsPaused) { Write("fixture-native-unpause"); game.IsPaused = false; return; }
                 if (!game.Player.IsInCombat || !rider.IsInCombat || !rider.CombatState.CanActInCombat)
                 { if (++removalFrames > 3600) throw new InvalidOperationException("P07 removal fixture never entered native combat."); return; }
                 removalCombatSaveAllowed = game.SaveManager.IsSaveAllowed();
@@ -159,7 +166,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     targetService.Dispose(); targetService = null; removalFrames = 0;
                 }
                 if (game.Player.IsInCombat || rider.IsInCombat || mount.IsInCombat) return;
-                if (game.IsPaused) { Write("fixture-native-unpause"); game.IsPaused = false; return; }
+                if (game.CurrentMode != Kingmaker.GameModes.GameModeType.Default)
+                { if (++removalFrames > 3600) throw new InvalidOperationException("P07 removal world never returned to Default mode after combat: " + game.CurrentMode); return; }
                 removalSafeAssessment = removal.Assess();
                 if (!removalSafeAssessment.Safe)
                 {
