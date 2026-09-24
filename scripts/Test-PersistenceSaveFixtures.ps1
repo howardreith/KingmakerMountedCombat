@@ -1215,6 +1215,8 @@ function New-KmcDeathRow { param([string]$Kind,[int]$Stage,[string]$Relationship
             before=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$null;value=$true;persisted='True'};deathDoor=[pscustomobject]@{raw=$null;value=$false;persisted='False'};trueDeath=$false;deathDoorCondition=$false;damageToParty=1.0}
             effective=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$false;value=$false;persisted='True'};deathDoor=[pscustomobject]@{raw=$false;value=$false;persisted='False'};trueDeath=$true;deathDoorCondition=$false;damageToParty=1.0}
             restoration=$null}
+        policyDecision=[pscustomobject]@{permanent=$true;essential=$false;mainCharacter=$false;immortal=$false;conscious=$true;trueDeath=$true;deathDoorCondition=$false;reason='non-essential subject: scoped permanent death for this process only'}
+        subjectLifeState='Dead';lifeStateAtSave='Dead'
         firstPath=(Join-Path $script:deathRoot 'Manual_300_KMC_P01.zks');firstHash=$script:deathFirstSha;archivePath=$null;archiveHash=$null}
     foreach($k in $Detail.Keys){$base[$k]=$Detail[$k]}
     [pscustomobject]@{kind=$Kind;checkpoint='rider-death';stage=$Stage;relationship=$Relationship
@@ -1230,30 +1232,57 @@ $deathRows=@(
     [pscustomobject]@{kind='native-write-complete';checkpoint='rider-death';stage=1200;relationship='Mounted';rider=[pscustomobject]@{Id='rider-a'};mount=[pscustomobject]@{Id='mount-a'}
         detail=[pscustomobject]@{ordinal=1;path=(Join-Path $deathRoot 'Manual_300_KMC_P01.zks');sha256=$deathFirstSha;length=10;nativeType='Manual'
             snapshot=[pscustomobject]@{Mounted=$true;CampaignId=$fixture.working.gameId;Rider=[pscustomobject]@{Id='rider-a'};Mount=[pscustomobject]@{Id='mount-a'}}}},
-    (New-KmcDeathRow 'death-dispatched' 1201 'Mounted' @{subjectDead=$false;subjectDamage=0;relationship='Mounted'}),
-    (New-KmcDeathRow 'death-cleanup' 1202 'Unmounted' @{}),
+    (New-KmcDeathRow 'death-dispatched' 1201 'Mounted' @{subjectDead=$false;subjectDamage=0;relationship='Mounted';subjectLifeState='Conscious';lifeStateAtSave=$null}),
+    (New-KmcDeathRow 'death-cleanup' 1202 'Unmounted' @{lifeStateAtSave=$null}),
     (New-KmcDeathRow 'death-save-admission' 1203 'Unmounted' @{partyCombat=$false;settleFrames=0
         admission=[pscustomobject]@{saveAllowed=$true;areaLoaded=$true;partyCombat=$false;gameOverReason=$null;mode='Default';dialog=$false;cutscene=$false
             globalMapEncounter=$false;paused=$false;loading=$false;subjectLifeState='Dead';subjectDead=$true;subjectFinallyDead=$false;subjectInGame=$true
             subjectDestroyed=$false;subjectHpLeft=-10;subjectDamage=40;survivorLifeState='Conscious';controllable=3;controllableConscious=2}}),
     (New-KmcDeathRow 'death-saved' 1204 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha;archive=$deathArchive}),
     (New-KmcDeathRow 'death-reloaded' 1205 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha
-        subjectPresent=$true;survivorPresent=$true;loadedDataMounted=$false;semanticsDelta=0;presentationDelta=0}),
+        subjectPresent=$true;subjectReloadedLifeState='Dead';expectedLifeState='Dead';subjectInParty=$false;survivorPresent=$true;loadedDataMounted=$false;semanticsDelta=0;presentationDelta=0}),
     (New-KmcDeathRow 'death-policy-restored' 1205 'Unmounted' @{partyCombat=$false;snapshots=2;archivePath=$deathPath;archiveHash=$deathSha
         deathPolicy=[pscustomobject]@{permanentDeathFixture=$true
             before=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$null;value=$true;persisted='True'};deathDoor=[pscustomobject]@{raw=$null;value=$false;persisted='False'};trueDeath=$false;deathDoorCondition=$false;damageToParty=1.0}
             effective=[pscustomobject]@{riseAfterCombat=[pscustomobject]@{raw=$false;value=$false;persisted='True'};deathDoor=[pscustomobject]@{raw=$false;value=$false;persisted='False'};trueDeath=$true;deathDoorCondition=$false;damageToParty=1.0}
             restoration=[pscustomobject]@{restored=$true;state=[pscustomobject]@{trueDeath=$false;deathDoorCondition=$false;damageToParty=1.0}}}}))
 Assert-KmcRecoveryPersistenceEvidence $deathRequest $deathRows;$passes++
+# An essential subject (a final death is the engine's own game over) dies under
+# the campaign's live policy: the engine's own rule may bring it back after the
+# encounter, and that measured life state is the one that must persist.
+$liveDeath=($deathRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+foreach($i in 2..7){
+    $liveDeath[$i].detail.deathPolicy.permanentDeathFixture=$false
+    $liveDeath[$i].detail.deathPolicy.effective=($liveDeath[$i].detail.deathPolicy.before|ConvertTo-Json -Depth 8)|ConvertFrom-Json
+    $liveDeath[$i].detail.policyDecision.permanent=$false;$liveDeath[$i].detail.policyDecision.essential=$true;$liveDeath[$i].detail.policyDecision.mainCharacter=$true
+    $liveDeath[$i].detail.policyDecision.trueDeath=$false;$liveDeath[$i].detail.policyDecision.reason='essential subject: a final death is the engine own game over, so the campaign live death policy applies'
+}
+foreach($i in 4..7){$liveDeath[$i].detail.subjectLifeState='Conscious';$liveDeath[$i].detail.lifeStateAtSave='Conscious';$liveDeath[$i].detail.subjectDead=$false}
+$liveDeath[4].detail.admission.subjectLifeState='Conscious';$liveDeath[4].detail.admission.subjectDead=$false;$liveDeath[4].detail.admission.subjectHpLeft=7
+$liveDeath[6].detail.subjectReloadedLifeState='Conscious';$liveDeath[6].detail.expectedLifeState='Conscious';$liveDeath[6].detail.subjectInParty=$true
+$liveDeath[7].detail.deathPolicy.restoration.state.trueDeath=$false
+Assert-KmcRecoveryPersistenceEvidence $deathRequest $liveDeath;$passes++
+foreach($bad in @('live-policy-for-non-essential','live-policy-changed-true-death','live-revival-without-the-engine-rule','live-life-state-drift-at-save','live-life-state-drift-at-reload')){
+    $n=($liveDeath|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'live-policy-for-non-essential' {$n[2].detail.policyDecision.essential=$false;$n[2].detail.policyDecision.mainCharacter=$false}
+        'live-policy-changed-true-death' {$n[2].detail.deathPolicy.effective.trueDeath=$true}
+        'live-revival-without-the-engine-rule' {foreach($i in 2..7){$n[$i].detail.deathPolicy.before.trueDeath=$true;$n[$i].detail.deathPolicy.effective.trueDeath=$true}}
+        'live-life-state-drift-at-save' {$n[5].detail.subjectLifeState='Dead'}
+        'live-life-state-drift-at-reload' {$n[6].detail.subjectReloadedLifeState='Dead'}
+    }
+    Must-Reject {Assert-KmcRecoveryPersistenceEvidence $deathRequest $n} ('P07 death accepted '+$bad)
+}
 foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-combat-at-stimulus','subject-not-dead','partner-harmed','partner-unconscious',
     'lease-held','no-admission','admission-refused','admission-game-over','admission-subject-alive','admission-in-combat',
-    'policy-not-permanent','policy-multiplier-changed','policy-persisted-changed','policy-not-restored','no-policy-restoration',
+    'policy-not-permanent','policy-permanent-for-essential','policy-multiplier-changed','policy-persisted-changed','policy-not-restored','no-policy-restoration',
     'saved-in-combat','two-saves','first-changed','archive-records-pair','archive-foreign-campaign','archive-sha-mismatch',
     'reload-invented-pair','reload-restored','reload-subject-missing','reload-subject-alive','reload-cast','reload-archive-changed','wrong-subject','foreign-actor','out-of-order')){
     $n=($deathRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
         'no-cleanup' {$n=@($n[0],$n[1],$n[2],$n[4],$n[5],$n[6],$n[7])}
         'policy-not-permanent' {$n[2].detail.deathPolicy.effective.trueDeath=$false}
+        'policy-permanent-for-essential' {$n[2].detail.policyDecision.essential=$true}
         'policy-multiplier-changed' {$n[2].detail.deathPolicy.effective.damageToParty=0.5}
         'policy-persisted-changed' {$n[2].detail.deathPolicy.effective.riseAfterCombat.persisted='False'}
         'policy-not-restored' {$n[7].detail.deathPolicy.restoration.restored=$false}
@@ -1279,7 +1308,7 @@ foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-comb
         'reload-invented-pair' {$n[6].relationship='Mounted';$n[6].rider=[pscustomobject]@{Id='rider-a'};$n[6].mount=[pscustomobject]@{Id='mount-a'}}
         'reload-restored' {$n[6].detail.semanticsDelta=2}
         'reload-subject-missing' {$n[6].detail.subjectPresent=$false}
-        'reload-subject-alive' {$n[6].detail.subjectDead=$false}
+        'reload-subject-alive' {$n[6].detail.subjectReloadedLifeState='Conscious'}
         'reload-cast' {$n[6].detail.nativeCastRequests=1}
         'reload-archive-changed' {$n[6].detail.archiveHash=('e'*64)}
         'wrong-subject' {$n[3].detail.subjectIsMount=$true}
@@ -1290,20 +1319,36 @@ foreach($bad in @('no-cleanup','dispatched-unmounted','source-is-rider','no-comb
 }
 $deathColdRequest=[pscustomobject]@{scenario='persistence-p07-load';persistenceCase='rider-death';runId=$deathId;fixture=$fixture
     persistenceLoad=[pscustomobject]@{internalName='KMC_DEATH';fileName='Manual_301_KMC_DEATH.zks';sha256=$deathSha;gameId=$fixture.working.gameId;gameName=$fixture.working.gameName;area=$fixture.working.area}}
-$deathColdRows=@(
-    [pscustomobject]@{kind='initial';checkpoint='rider-death';stage=0;relationship='Unmounted';rider=$null;mount=$null;detail=$null},
-    [pscustomobject]@{kind='death-cold-complete';checkpoint='rider-death';stage=0;relationship='Unmounted';rider=$null;mount=$null
-        detail=[pscustomobject]@{case='rider-death';party=3;deadPartyMembers=1;deadIds=@('rider-a');supportedMounts=1;mountDead=$false
+function New-KmcDeathColdRows { param([string]$Case,[bool]$MountDead,[int]$DeadPlayerFaction,[string[]]$DeadIds,[bool]$RiderDead)
+    $states=[pscustomobject]@{
+        'rider-a'=[pscustomobject]@{lifeState=$(if($RiderDead){'Dead'}else{'Conscious'});finallyDead=$RiderDead;inParty=$true;inGame=$true;supportedMount=$false}
+        'comp-b'=[pscustomobject]@{lifeState='Conscious';finallyDead=$false;inParty=$true;inGame=$true;supportedMount=$false}
+        'mount-a'=[pscustomobject]@{lifeState=$(if($MountDead){'Dead'}else{'Conscious'});finallyDead=$MountDead;inParty=(-not$MountDead);inGame=$true;supportedMount=$true}}
+    @(
+    [pscustomobject]@{kind='initial';checkpoint=$Case;stage=0;relationship='Unmounted';rider=$null;mount=$null;detail=$null},
+    [pscustomobject]@{kind='death-cold-complete';checkpoint=$Case;stage=0;relationship='Unmounted';rider=$null;mount=$null
+        detail=[pscustomobject]@{case=$Case;party=$(if($MountDead){2}else{3});partyIds=$(if($MountDead){@('rider-a','comp-b')}else{@('rider-a','comp-b','mount-a')})
+            playerFactionUnits=3;deadPlayerFaction=$DeadPlayerFaction;deadIds=$DeadIds;supportedMounts=1;mountId='mount-a';mountDead=$MountDead
+            mountLifeState=$(if($MountDead){'Dead'}else{'Conscious'});mountInParty=(-not$MountDead);lifeStates=$states
             loadedDataPresent=$true;loadedDataMounted=$false;semantics=0;presentation=0;nativeCastRequests=0;feedback='Native unmounted save restored without inventing a pair.'
-            gameId=$fixture.working.gameId;area=$fixture.working.area;archivePath=$deathPath;archiveSha256=$deathSha;expectedSha256=$deathSha}})
+            gameId=$script:fixture.working.gameId;area=$script:fixture.working.area;archivePath=$script:deathPath;archiveSha256=$script:deathSha;expectedSha256=$script:deathSha}})
+}
+# Rider death under the live policy: the engine's rule brought the rider back
+# and nothing is dead; a permanently dead non-essential rider is equally valid.
+$deathColdRows=New-KmcDeathColdRows 'rider-death' $false 0 @() $false
 Assert-KmcDeathColdEvidence $deathColdRequest $deathColdRows;$passes++
-foreach($bad in @('no-death','two-deaths','mount-dead-instead','no-mount','restored','invented-pair','no-metadata','wrong-campaign','archive-changed','row-mounted','no-completion')){
+Assert-KmcDeathColdEvidence $deathColdRequest (New-KmcDeathColdRows 'rider-death' $false 1 @('rider-a') $true);$passes++
+$mountColdRequest=[pscustomobject]@{scenario='persistence-p07-load';persistenceCase='mount-death';runId=$deathId;fixture=$fixture;persistenceLoad=$deathColdRequest.persistenceLoad}
+$mountColdRows=New-KmcDeathColdRows 'mount-death' $true 1 @('mount-a') $false
+Assert-KmcDeathColdEvidence $mountColdRequest $mountColdRows;$passes++
+foreach($bad in @('two-deaths','mount-dead-instead','no-mount','no-life-states','mount-life-state-mismatch','restored','invented-pair','no-metadata','wrong-campaign','archive-changed','row-mounted','no-completion')){
     $n=($deathColdRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
     switch($bad){
-        'no-death' {$n[1].detail.deadPartyMembers=0}
-        'two-deaths' {$n[1].detail.deadPartyMembers=2}
-        'mount-dead-instead' {$n[1].detail.mountDead=$true}
+        'two-deaths' {$n[1].detail.deadPlayerFaction=2;$n[1].detail.deadIds=@('rider-a','comp-b')}
+        'mount-dead-instead' {$n[1].detail.mountDead=$true;$n[1].detail.mountLifeState='Dead';$n[1].detail.deadPlayerFaction=1;$n[1].detail.deadIds=@('mount-a')}
         'no-mount' {$n[1].detail.supportedMounts=0}
+        'no-life-states' {$n[1].detail.lifeStates=$null}
+        'mount-life-state-mismatch' {$n[1].detail.lifeStates.'mount-a'.lifeState='Dead'}
         'restored' {$n[1].detail.semantics=2}
         'invented-pair' {$n[1].detail.loadedDataMounted=$true}
         'no-metadata' {$n[1].detail.loadedDataPresent=$false}
@@ -1313,6 +1358,15 @@ foreach($bad in @('no-death','two-deaths','mount-dead-instead','no-mount','resto
         'no-completion' {$n=@($n[0])}
     }
     Must-Reject {Assert-KmcDeathColdEvidence $deathColdRequest $n} ('P07 death cold accepted '+$bad)
+}
+foreach($bad in @('mount-alive','dead-is-not-the-mount','mount-dead-count-zero')){
+    $n=($mountColdRows|ConvertTo-Json -Depth 16)|ConvertFrom-Json
+    switch($bad){
+        'mount-alive' {$n[1].detail.mountDead=$false;$n[1].detail.mountLifeState='Conscious';$n[1].detail.lifeStates.'mount-a'.lifeState='Conscious'}
+        'dead-is-not-the-mount' {$n[1].detail.deadIds=@('rider-a')}
+        'mount-dead-count-zero' {$n[1].detail.deadPlayerFaction=0;$n[1].detail.deadIds=@()}
+    }
+    Must-Reject {Assert-KmcDeathColdEvidence $mountColdRequest $n} ('P07 mount death cold accepted '+$bad)
 }
 
 Write-Host "PERSISTENCE OWNED FIXTURE PASS=$passes FAIL=0"

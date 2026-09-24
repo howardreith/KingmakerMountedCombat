@@ -1552,12 +1552,28 @@ function Assert-KmcDeathEvidence {
         $d.requestedDamage-le0-or$d.damageToParty-le0-or$d.deathThreshold-le0-or$d.partyCombat-ne$true){
         throw 'P07 death stimulus was not real native enemy damage delivered while mounted.'
     }
-    # The scoped death policy: permanent death for this process only, the damage
-    # multiplier untouched, and the cached settings verified restored at the end.
+    # The death policy: a non-essential subject dies permanently under the scoped
+    # policy for this process only; an essential subject (a final death is the
+    # engine's own game over) dies under the campaign's live policy, unchanged.
+    # Either way the damage multiplier and the persisted settings are untouched
+    # and the cached settings are verified restored at the end.
     $pol=Get-KmcOptionalMember $d 'deathPolicy'
-    if($null-eq$pol-or$pol.permanentDeathFixture-ne$true-or$pol.effective.trueDeath-ne$true-or$pol.effective.deathDoorCondition-ne$false-or
-        $pol.effective.damageToParty-ne$pol.before.damageToParty-or$pol.effective.riseAfterCombat.persisted-cne$pol.before.riseAfterCombat.persisted){
-        throw 'P07 death was not delivered under the scoped permanent-death policy with the difficulty multiplier untouched.'
+    $dec=Get-KmcOptionalMember $d 'policyDecision'
+    if($null-eq$pol-or$null-eq$dec-or$pol.permanentDeathFixture-ne$dec.permanent-or$dec.conscious-ne$true-or$dec.immortal-ne$false-or
+        $pol.effective.damageToParty-ne$pol.before.damageToParty-or$pol.effective.riseAfterCombat.persisted-cne$pol.before.riseAfterCombat.persisted-or
+        $pol.effective.deathDoor.persisted-cne$pol.before.deathDoor.persisted){
+        throw 'P07 death policy is not recorded as one decision with the difficulty multiplier and persisted settings untouched.'
+    }
+    $permanent=$dec.permanent-eq$true
+    if($permanent){
+        if($pol.effective.trueDeath-ne$true-or$pol.effective.deathDoorCondition-ne$false-or$dec.essential-eq$true-or$dec.mainCharacter-eq$true){
+            throw 'P07 permanent death was not delivered under the scoped policy for a non-essential subject.'
+        }
+    }else{
+        if(($dec.essential-ne$true-and$dec.mainCharacter-ne$true)-or$pol.effective.trueDeath-ne$pol.before.trueDeath-or
+            $pol.effective.deathDoorCondition-ne$pol.before.deathDoorCondition){
+            throw 'P07 live death policy is admitted only for an essential subject and must be the campaign own.'
+        }
     }
     $pr=Get-KmcOptionalMember $stages['death-policy-restored'].detail 'deathPolicy'
     $res=if($null-ne$pr){Get-KmcOptionalMember $pr 'restoration'}else{$null}
@@ -1572,21 +1588,27 @@ function Assert-KmcDeathEvidence {
     $a=$stages['death-save-admission'].detail
     $adm=Get-KmcOptionalMember $a 'admission'
     if($null-eq$adm-or$adm.saveAllowed-ne$true-or$adm.partyCombat-ne$false-or$null-ne$adm.gameOverReason-or$adm.mode-cne'Default'-or
-        $adm.areaLoaded-ne$true-or$adm.subjectLifeState-cne'Dead'-or$adm.subjectDead-ne$true-or$adm.survivorLifeState-cne'Conscious'){
-        throw 'P07 death save admission was not the engine own allowance with the native death intact.'
+        $adm.areaLoaded-ne$true-or$adm.survivorLifeState-cne'Conscious'-or$adm.subjectLifeState-cnotin @('Conscious','Unconscious','Dead')){
+        throw 'P07 death save admission was not the engine own allowance with the partner intact.'
     }
-    # The save: a NEW no-pair archive, first archive untouched, native death intact.
-    if($stages['death-saved'].relationship-ceq'Mounted'-or$s.subjectDead-ne$true-or$s.survivorConscious-ne$true-or$s.snapshots-ne2-or
+    # Permanent: the death persists to the admission. Live policy: the subject
+    # is alive again only through the engine's own rule (TrueDeath false), and
+    # whatever native life state it left is the one that must persist.
+    $life=[string]$adm.subjectLifeState
+    if($permanent-and($life-cne'Dead'-or$adm.subjectDead-ne$true)){throw 'P07 permanent death did not persist to the save admission.'}
+    if(-not$permanent-and$life-cne'Dead'-and$pol.effective.trueDeath-ne$false){throw 'P07 the subject came back to life without the engine own rule.'}
+    # The save: a NEW no-pair archive, first archive untouched, native life state intact.
+    if($stages['death-saved'].relationship-ceq'Mounted'-or$s.subjectLifeState-cne$life-or$s.lifeStateAtSave-cne$life-or$s.survivorConscious-ne$true-or$s.snapshots-ne2-or
         $s.failedSaves-ne0-or$s.partyCombat-ne$false-or$s.firstHash-cne$w.sha256-or$s.archiveHash-cne$s.archive.sha256){
-        throw 'P07 death save is not one new archive over an intact first archive with the native death intact.'
+        throw 'P07 death save is not one new archive over an intact first archive with the native life state intact.'
     }
     Assert-KmcDeathArchive -Recorded $s.archive -Root $root -GameId $gameId -Area $area
     if((Get-KmcSha256 (Join-Path $root 'Manual_300_KMC_P01.zks'))-cne$w.sha256){throw 'P07 death save changed the first archive on disk.'}
-    # The reload: nothing invented, nothing restored, native death persisted.
-    if($stages['death-reloaded'].relationship-ceq'Mounted'-or$r.subjectPresent-ne$true-or$r.subjectDead-ne$true-or$r.survivorPresent-ne$true-or
-        $r.survivorConscious-ne$true-or$r.loadedDataMounted-ne$false-or$r.semanticsDelta-ne0-or$r.presentationDelta-ne0-or
+    # The reload: nothing invented, nothing restored, the native life state persisted.
+    if($stages['death-reloaded'].relationship-ceq'Mounted'-or$r.subjectPresent-ne$true-or$r.subjectReloadedLifeState-cne$life-or$r.expectedLifeState-cne$life-or
+        $r.survivorPresent-ne$true-or$r.survivorConscious-ne$true-or$r.loadedDataMounted-ne$false-or$r.semanticsDelta-ne0-or$r.presentationDelta-ne0-or
         $r.nativeCastRequests-ne0-or$r.archiveHash-cne$s.archive.sha256){
-        throw 'P07 reloading the death save invented a pair, restored something, or lost the native death.'
+        throw 'P07 reloading the death save invented a pair, restored something, or changed the native life state.'
     }
 }
 
@@ -1603,7 +1625,18 @@ function Assert-KmcDeathColdEvidence {
         }
     }
     $d=$done[0].detail;$load=$Request.persistenceLoad
-    if($d.case-cne$Request.persistenceCase-or$d.party-lt2-or$d.deadPartyMembers-ne1-or$d.supportedMounts-ne1-or$d.mountDead-ne$subjectIsMount-or
+    # The world is read from the loaded state (the engine drops a finally dead
+    # pet from the party): exactly one supported mount, dead exactly when it was
+    # the subject; a dead rider is only ever a non-mount and never more than one
+    # player-faction unit is dead. Which life state the rider must carry is bound
+    # by the ledger to the source run's recorded admission.
+    $lifeStates=Get-KmcOptionalMember $d 'lifeStates'
+    $deadIds=@($d.deadIds)
+    if($d.case-cne$Request.persistenceCase-or$d.party-lt1-or$d.supportedMounts-ne1-or[string]::IsNullOrEmpty([string]$d.mountId)-or$d.mountDead-ne$subjectIsMount-or
+        $d.deadPlayerFaction-gt1-or$deadIds.Count-ne$d.deadPlayerFaction-or
+        ($subjectIsMount-and($d.deadPlayerFaction-ne1-or$deadIds-cnotcontains[string]$d.mountId-or$d.mountLifeState-cne'Dead'))-or
+        (-not$subjectIsMount-and($deadIds-ccontains[string]$d.mountId-or$d.mountLifeState-cne'Conscious'))-or
+        $null-eq$lifeStates-or$null-eq(Get-KmcOptionalMember $lifeStates ([string]$d.mountId))-or$lifeStates.([string]$d.mountId).lifeState-cne$d.mountLifeState-or
         $d.loadedDataPresent-ne$true-or$d.loadedDataMounted-ne$false-or$d.semantics-ne0-or$d.presentation-ne0-or$d.nativeCastRequests-ne0-or
         $d.gameId-cne$load.gameId-or$d.gameId-cne$Request.fixture.working.gameId-or$d.area-cne$load.area-or
         $d.archiveSha256-cne$load.sha256-or$d.expectedSha256-cne$load.sha256){

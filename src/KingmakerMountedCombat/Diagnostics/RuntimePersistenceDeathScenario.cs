@@ -53,6 +53,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // cached setting values, never the persisted settings, verified restored
         // at the end and recorded in every row.
         private NativeDeathPolicyLease deathPolicy;
+        private bool deathPermanent;
+        private JObject deathPolicyDecision;
+        private string deathLifeAtSave;
         // Native frames the encounter's end may take before the engine admits a
         // manual save again; the admission is recorded at the first frame and
         // at the judged frame either way.
@@ -104,12 +107,29 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["length"] = new FileInfo(deathFirstPath).Length, ["nativeType"] = first.Type.ToString(),
                     ["nativeCallback"] = callback, ["operation"] = first.OperationState.ToString(),
                     ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()) });
-                deathPolicy = new NativeDeathPolicyLease(true);
+                // The strongest death the engine lets this subject survive as a
+                // world: a non-essential subject dies permanently under the
+                // scoped policy; an essential subject (the main character) made
+                // finally dead is the engine's own game over
+                // (GameOverController EssentialUnitIsDead), which leaves no world
+                // to save, so its death is measured under the campaign's live
+                // policy and whatever life state the engine's own rule leaves
+                // after the encounter is the state that must persist. Run
+                // final97-p07-rider-death measured the fixture rider essential.
                 var subject = DeathSubject;
-                Check(game.Player.Difficulty.TrueDeath && !game.Player.Difficulty.DeathDoorCondition &&
-                    !subject.Descriptor.IsEssentialForGame && subject != game.Player.MainCharacter.Value &&
-                    !subject.Descriptor.State.Immortality && subject.Descriptor.State.IsConscious,
-                    "P07-death-fixture-policy-is-permanent-for-a-non-essential-subject");
+                var essential = subject.Descriptor.IsEssentialForGame || subject == game.Player.MainCharacter.Value;
+                deathPermanent = !essential;
+                deathPolicy = new NativeDeathPolicyLease(deathPermanent);
+                deathPolicyDecision = new JObject {
+                    ["permanent"] = deathPermanent, ["essential"] = subject.Descriptor.IsEssentialForGame,
+                    ["mainCharacter"] = subject == game.Player.MainCharacter.Value,
+                    ["immortal"] = (bool)subject.Descriptor.State.Immortality, ["conscious"] = subject.Descriptor.State.IsConscious,
+                    ["trueDeath"] = game.Player.Difficulty.TrueDeath, ["deathDoorCondition"] = game.Player.Difficulty.DeathDoorCondition,
+                    ["reason"] = deathPermanent ? "non-essential subject: scoped permanent death for this process only"
+                        : "essential subject: a final death is the engine own game over, so the campaign live death policy applies" };
+                Check(subject.Descriptor.State.IsConscious && !subject.Descriptor.State.Immortality &&
+                    (!deathPermanent || game.Player.Difficulty.TrueDeath && !game.Player.Difficulty.DeathDoorCondition),
+                    "P07-death-fixture-policy-matches-the-subject");
                 // A real native enemy, through the same target fixture every
                 // combat case uses; the damage is the enemy's, under the
                 // installed difficulty multiplier, never a direct state edit.
@@ -182,7 +202,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("death-save-admission", DeathDetail(new JObject { ["admission"] = admission,
                     ["settleFrames"] = deathSettleFrames, ["encounterEnded"] = deathEncounterEnded }));
                 Check(allowed, "P07-death-save-is-admitted-after-the-encounter");
-                Check(DeathSubject.Descriptor.State.IsDead, "P07-native-death-persists-after-the-encounter");
+                // Permanent: the death persists. Live policy: the subject may
+                // only be alive again through the engine's own rule (TrueDeath
+                // false), and whatever state it left is the one that persists.
+                deathLifeAtSave = DeathSubject.Descriptor.State.LifeState.ToString();
+                Check(deathPermanent ? DeathSubject.Descriptor.State.IsDead
+                    : DeathSubject.Descriptor.State.IsDead || !game.Player.Difficulty.TrueDeath,
+                    "P07-native-life-state-after-the-encounter-is-the-engine-own-rule");
                 deathSemanticsBefore = persistence.SemanticRestoreCount; deathPresentationBefore = persistence.PresentationRestoreCount;
                 callback = false;
                 game.SaveGame(game.SaveManager.CreateNewSave(DeathSaveName), () => callback = true);
@@ -202,8 +228,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     "P07-death-save-records-no-pair-in-the-fixture-campaign");
                 deathArchivePath = saved.FolderName; deathArchiveHash = Hash(deathArchivePath);
                 Check(Hash(deathFirstPath) == deathFirstHash, "P07-death-save-left-the-first-archive-untouched");
-                Check(DeathSubject.Descriptor.State.IsDead && DeathSurvivor.Descriptor.State.IsConscious &&
-                    relationship.State == RelationshipState.Unmounted, "P07-native-death-persists-through-the-save");
+                Check(DeathSubject.Descriptor.State.LifeState.ToString() == deathLifeAtSave && DeathSurvivor.Descriptor.State.IsConscious &&
+                    relationship.State == RelationshipState.Unmounted, "P07-native-life-state-persists-through-the-save");
                 Write("death-saved", DeathDetail(new JObject { ["archive"] = new JObject {
                     ["path"] = deathArchivePath, ["leaf"] = saved.FileName, ["sha256"] = deathArchiveHash,
                     ["length"] = new FileInfo(deathArchivePath).Length, ["nativeType"] = saved.Type.ToString(),
@@ -222,6 +248,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var survivor = game.State.Units.SingleOrDefault(u => u.UniqueId == (DeathSubjectIsMount ? deathRiderId : deathMountId));
             Write("death-reloaded", DeathDetail(new JObject {
                 ["subjectPresent"] = subject != null, ["subjectDead"] = subject?.Descriptor.State.IsDead,
+                ["subjectReloadedLifeState"] = subject?.Descriptor.State.LifeState.ToString(), ["expectedLifeState"] = deathLifeAtSave,
+                ["subjectInParty"] = subject != null && game.Player.Party.Contains(subject),
                 ["survivorPresent"] = survivor != null, ["survivorConscious"] = survivor?.Descriptor.State.IsConscious,
                 ["loadedDataMounted"] = persistence.LoadedData?.Mounted, ["semanticsDelta"] = persistence.SemanticRestoreCount - deathSemanticsBefore,
                 ["presentationDelta"] = persistence.PresentationRestoreCount - deathPresentationBefore }));
@@ -229,8 +257,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 persistence.SemanticRestoreCount == deathSemanticsBefore && persistence.PresentationRestoreCount == deathPresentationBefore &&
                 controls.NativeCastRequestCount == 0 && controls.CaptureSnapshot().DuplicateFactCount == 0,
                 "P07-reloading-the-death-save-invents-no-pair-and-restores-nothing");
-            Check(subject != null && subject.Descriptor.State.IsDead && survivor != null && survivor.Descriptor.State.IsConscious,
-                "P07-native-death-state-persists-across-the-reload");
+            Check(subject != null && subject.Descriptor.State.LifeState.ToString() == deathLifeAtSave && survivor != null &&
+                survivor.Descriptor.State.IsConscious, "P07-native-life-state-persists-across-the-reload");
             Check(Hash(deathArchivePath) == deathArchiveHash && Hash(deathFirstPath) == deathFirstHash,
                 "P07-death-archives-are-byte-identical-after-the-reload");
             // The scoped death policy ends here, verified exact, before the
@@ -254,15 +282,32 @@ namespace KingmakerMountedCombat.Diagnostics
             if (game == null || LoadingProcess.Instance.IsLoadingInProcess || game.CurrentlyLoadedArea == null ||
                 game.CurrentMode != Kingmaker.GameModes.GameModeType.Default) return;
             if (++deathFrames < 10) return;
+            // The engine drops a finally dead pet from Player.Party (run
+            // final97-p07-mount-death-cold measured party 2, no supported mount
+            // there), so the world is read from the loaded state: the supported
+            // mount and every player-faction unit, with their native life states,
+            // keyed by id so the ledger can bind them to the source run's rows.
             var party = game.Player.Party.ToArray();
-            var dead = party.Where(u => u.Descriptor.State.IsDead).ToArray();
-            var mounts = party.Where(u => SupportedMountedProfiles.IsSupported(u)).ToArray();
+            var units = game.State.Units.ToArray();
+            var mounts = units.Where(u => SupportedMountedProfiles.IsSupported(u)).ToArray();
+            var playerFaction = units.Where(u => u.IsPlayerFaction).ToArray();
+            var dead = playerFaction.Where(u => u.Descriptor.State.IsDead).ToArray();
+            var lifeStates = new JObject();
+            foreach (var unit in party.Concat(mounts).Distinct())
+                lifeStates[unit.UniqueId] = new JObject {
+                    ["lifeState"] = unit.Descriptor.State.LifeState.ToString(), ["finallyDead"] = unit.Descriptor.State.IsFinallyDead,
+                    ["inParty"] = party.Contains(unit), ["inGame"] = unit.IsInGame, ["supportedMount"] = mounts.Contains(unit) };
             var archive = Path.Combine(game.SaveManager.SavePath, request.PersistenceLoad.FileName);
             Write("initial");
             Write("death-cold-complete", new JObject {
-                ["case"] = request.PersistenceCase, ["party"] = party.Length, ["deadPartyMembers"] = dead.Length,
+                ["case"] = request.PersistenceCase, ["party"] = party.Length, ["partyIds"] = new JArray(party.Select(u => u.UniqueId)),
+                ["playerFactionUnits"] = playerFaction.Length, ["deadPlayerFaction"] = dead.Length,
                 ["deadIds"] = new JArray(dead.Select(u => u.UniqueId)), ["supportedMounts"] = mounts.Length,
+                ["mountId"] = mounts.Length == 1 ? mounts[0].UniqueId : null,
                 ["mountDead"] = mounts.Length == 1 ? (bool?)mounts[0].Descriptor.State.IsDead : null,
+                ["mountLifeState"] = mounts.Length == 1 ? mounts[0].Descriptor.State.LifeState.ToString() : null,
+                ["mountInParty"] = mounts.Length == 1 ? (bool?)party.Contains(mounts[0]) : null,
+                ["lifeStates"] = lifeStates,
                 ["loadedDataPresent"] = persistence.LoadedData != null, ["loadedDataMounted"] = persistence.LoadedData?.Mounted,
                 ["semantics"] = persistence.SemanticRestoreCount, ["presentation"] = persistence.PresentationRestoreCount,
                 ["nativeCastRequests"] = controls.NativeCastRequestCount, ["feedback"] = persistence.Feedback,
@@ -271,8 +316,12 @@ namespace KingmakerMountedCombat.Diagnostics
             Check(relationship.State == RelationshipState.Unmounted && persistence.LoadedData != null && !persistence.LoadedData.Mounted &&
                 persistence.SemanticRestoreCount == 0 && persistence.PresentationRestoreCount == 0 && controls.NativeCastRequestCount == 0,
                 "P07-cold-death-save-invents-no-pair-and-restores-nothing");
-            Check(dead.Length == 1 && mounts.Length == 1 && mounts[0].Descriptor.State.IsDead == DeathSubjectIsMount &&
-                (DeathSubjectIsMount ? dead[0] == mounts[0] : dead[0] != mounts[0]),
+            // The mount is dead exactly when it was the subject; a dead rider is
+            // only ever a non-mount, and never more than one player-faction unit
+            // is dead. Which life state the rider must carry is bound by the
+            // ledger to the source run's recorded admission, not guessed here.
+            Check(mounts.Length == 1 && mounts[0].Descriptor.State.IsDead == DeathSubjectIsMount && dead.Length <= 1 &&
+                (DeathSubjectIsMount ? dead.Length == 1 && dead[0] == mounts[0] : dead.All(u => u != mounts[0])),
                 "P07-cold-death-save-carries-exactly-the-native-death-it-recorded");
             Check(game.Player.GameId == request.PersistenceLoad.GameId && game.CurrentlyLoadedArea.AssetGuidThreadSafe == request.PersistenceLoad.Area &&
                 Hash(archive) == request.PersistenceLoad.Sha256, "P07-cold-death-save-opened-its-own-world-byte-identical");
@@ -316,7 +365,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["sourceId"] = deathSourceId, ["requestedDamage"] = deathRequestedDamage, ["nativeDamage"] = deathNativeDamage,
                 ["deathThreshold"] = deathThreshold, ["damageToParty"] = deathDifficulty,
                 ["subjectDamageBefore"] = deathSubjectDamageBefore, ["survivorDamageBefore"] = deathSurvivorDamageBefore,
-                ["deathPolicy"] = deathPolicy?.Capture(),
+                ["deathPolicy"] = deathPolicy?.Capture(), ["policyDecision"] = deathPolicyDecision,
+                ["subjectLifeState"] = subject?.Descriptor.State.LifeState.ToString(), ["lifeStateAtSave"] = deathLifeAtSave,
                 ["subjectDamage"] = subject?.Damage, ["subjectDead"] = subject?.Descriptor.State.IsDead,
                 ["subjectFinallyDead"] = subject?.Descriptor.State.IsFinallyDead,
                 ["survivorDamage"] = survivor?.Damage, ["survivorConscious"] = survivor?.Descriptor.State.IsConscious,
