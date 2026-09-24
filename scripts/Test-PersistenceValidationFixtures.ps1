@@ -316,4 +316,63 @@ foreach($bad in @('no-failure','admission-refusal','no-disposal','active-game-mo
     Reject-Kmc {Assert-KmcValidationPersistenceEvidence $failRequest $negative $failGame} ('Failed load accepted '+$bad)
 }
 
+# --- Foreign native header: campaign B's own archive whose KMC member claims A ---
+# The derivation input is B's manual archive from a completed campaign-b run;
+# its native header stays B's, only the KMC member is rewritten to claim A.
+function New-KmcOwnedCampaignBRun { param([string]$RunId,[bool]$Mounted)
+    $bRoot=Join-Path $script:ownedTestLab ('runtime-staging/persistence-'+$RunId)
+    $bSaves=Join-Path $bRoot 'Saved Games';$bEvidence=Join-Path $script:ownedTestLab ('runtime-evidence/'+$RunId)
+    [void][IO.Directory]::CreateDirectory($bSaves);[void][IO.Directory]::CreateDirectory($bEvidence)
+    Write-KmcJsonAtomic (Join-Path $bRoot 'owner.json') ([ordered]@{runId=$RunId;scenario='persistence-p07-save';persistenceCase='campaign-b';transactionToken=$script:token})
+    Write-KmcJsonAtomic (Join-Path $bEvidence 'runtime-result.json') ([ordered]@{runId=$RunId;scenario='persistence-p07-save';transactionToken=$script:token;status='PASS';modsRestored=$true;workingRestored=$true})
+    $frozen=[ordered]@{kind='campaign-b-frozen';detail=[ordered]@{gameId=$script:bGameId;gameName=$script:bName;area=$script:bArea;manualSaved=$true}}
+    [IO.File]::WriteAllText((Join-Path $bEvidence 'persistence-observations.jsonl'),(($frozen|ConvertTo-Json -Compress -Depth 6)+"`n"),[Text.UTF8Encoding]::new($false))
+    $bPath=Join-Path $bSaves 'Manual_302_KMC_B.zks'
+    $bHeader=[ordered]@{Name='KMC_B';Type='Manual';CompatibilityVersion=1;GameId=$script:bGameId;GameName=$script:bName;Area=$script:bArea}
+    $bData=[ordered]@{SchemaVersion=2;Mounted=$Mounted;Combat=$null;CampaignId=$script:bGameId;AreaId=$script:bArea;ProfileId='medium-humanoid-mammoth-v1';Slots=@()}
+    if($Mounted){$bData.Rider=@{Id='59252d29-8512-4ce1-b04d-3b7a6110e1ad'};$bData.Mount=@{Id='c0487f38-678d-4c82-b0b5-f46476e0cf17'}}
+    $stream=[IO.File]::Open($bPath,[IO.FileMode]::CreateNew)
+    $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create,$false)
+    try{
+        foreach($name in @('header.json','kmc-mounted-state','party.json','screenshot.png')){
+            $value=switch($name){'header.json'{$bHeader|ConvertTo-Json -Compress};'kmc-mounted-state'{$bData|ConvertTo-Json -Depth 12 -Compress};default{'owned test sentinel: '+$name}}
+            $writer=[IO.StreamWriter]::new($zip.CreateEntry($name).Open(),[Text.UTF8Encoding]::new($false))
+            try{$writer.Write($value)}finally{$writer.Dispose()}
+        }
+    }finally{$zip.Dispose();$stream.Dispose()}
+    return [pscustomobject]@{path=$bPath;sha256=(Get-KmcSha256 $bPath);evidence=$bEvidence}
+}
+$bGameId='5d0d6b8e-1b7a-4d0f-9d0b-3f4c2a1e9c77';$bArea=('c'*32);$bName='Newcomer'
+$bSource='owned-p06-campaign-b'
+$bRun=New-KmcOwnedCampaignBRun $bSource $false
+$copy=New-KmcPersistenceValidationCopy $source $hash $fixture -Case foreign-header-campaign -ForeignSourceRunId $bSource -ForeignSha256 $bRun.sha256
+Check-Kmc ((Get-KmcSha256 $bRun.path)-ceq$bRun.sha256-and(Get-KmcSha256 $path)-ceq$hash) 'Foreign-header derivative changed an immutable input'
+$receipt=Read-KmcJson (Join-Path (Split-Path -Parent $copy.path) 'owner.json')
+Check-Kmc ($receipt.case-ceq'foreign-header-campaign'-and$receipt.sourceSha256-ceq$hash-and$receipt.foreignSourceRun-ceq$bSource-and$receipt.foreignSha256-ceq$bRun.sha256-and$receipt.nativeMembersVerified-eq3) 'Foreign-header receipt lacks both sources'
+Check-Kmc ($copy.descriptor.internalName-ceq'KMC_B'-and$copy.descriptor.gameId-ceq$bGameId-and$copy.descriptor.gameName-ceq$bName-and$copy.descriptor.area-ceq$bArea-and$copy.descriptor.fileName-ceq'Manual_812_KMC_P06.zks'-and$copy.descriptor.sha256-cne$bRun.sha256) 'Foreign-header descriptor is not B own native identity over new bytes'
+$stream=[IO.File]::OpenRead($copy.path);$zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Read,$false)
+try{
+    $reader=[IO.StreamReader]::new($zip.GetEntry('header.json').Open());try{$h=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}
+    $reader=[IO.StreamReader]::new($zip.GetEntry('kmc-mounted-state').Open());try{$m=$reader.ReadToEnd()|ConvertFrom-Json}finally{$reader.Dispose()}
+    Check-Kmc ($h.GameId-ceq$bGameId-and$h.Name-ceq'KMC_B'-and$h.Area-ceq$bArea) 'Foreign-header derivative rewrote B native header'
+    Check-Kmc ($m.CampaignId-ceq$fixture.working.gameId-and$m.Mounted-eq$false-and$m.AreaId-ceq$bArea-and$m.SchemaVersion-eq2) 'Foreign-header derivative did not make the KMC member claim A'
+}finally{$zip.Dispose();$stream.Dispose()}
+Reject-Kmc {New-KmcPersistenceValidationCopy $source $hash $fixture -Case foreign-header-campaign} 'Foreign-header derivative admitted without B archive'
+Reject-Kmc {New-KmcPersistenceValidationCopy $source $hash $fixture -Case foreign-header-campaign -ForeignSourceRunId $bSource -ForeignSha256 $hash} 'Foreign-header derivative admitted A own bytes as B'
+Reject-Kmc {New-KmcPersistenceValidationCopy $source $hash $fixture -Case campaign -ForeignSourceRunId $bSource -ForeignSha256 $bRun.sha256} 'Metadata-only variant admitted B archive'
+Reject-Kmc {New-KmcPersistenceValidationCopy $source $hash $fixture -Case foreign-header-campaign -ForeignSourceRunId $source -ForeignSha256 $bRun.sha256} 'Foreign-header derivative admitted the P01 run as B'
+Reject-Kmc {New-KmcPersistenceValidationCopy $source ('c'*64) $fixture -Case foreign-header-campaign -ForeignSourceRunId $bSource -ForeignSha256 $bRun.sha256} 'Foreign-header derivative admitted a wrong primary hash'
+$frozenPath=Join-Path $bRun.evidence 'persistence-observations.jsonl'
+$frozen=[ordered]@{kind='campaign-b-frozen';detail=[ordered]@{gameId=$bGameId;gameName=$bName;area=$bArea;manualSaved=$false}}
+[IO.File]::WriteAllText($frozenPath,(($frozen|ConvertTo-Json -Compress -Depth 6)+"`n"),[Text.UTF8Encoding]::new($false))
+Reject-Kmc {New-KmcPersistenceValidationCopy $source $hash $fixture -Case foreign-header-campaign -ForeignSourceRunId $bSource -ForeignSha256 $bRun.sha256} 'Foreign-header derivative admitted an unrecorded B manual archive'
+$frozen.detail.manualSaved=$true;$frozen.detail.gameId=$fixture.working.gameId
+[IO.File]::WriteAllText($frozenPath,(($frozen|ConvertTo-Json -Compress -Depth 6)+"`n"),[Text.UTF8Encoding]::new($false))
+Reject-Kmc {New-KmcPersistenceValidationCopy $source $hash $fixture -Case foreign-header-campaign -ForeignSourceRunId $bSource -ForeignSha256 $bRun.sha256} 'Foreign-header derivative admitted B under the fixture identity'
+$frozen.detail.gameId=$bGameId
+[IO.File]::WriteAllText($frozenPath,(($frozen|ConvertTo-Json -Compress -Depth 6)+"`n"),[Text.UTF8Encoding]::new($false))
+$bMounted=New-KmcOwnedCampaignBRun 'owned-p06-campaign-b-mounted' $true
+Reject-Kmc {New-KmcPersistenceValidationCopy $source $hash $fixture -Case foreign-header-campaign -ForeignSourceRunId 'owned-p06-campaign-b-mounted' -ForeignSha256 $bMounted.sha256} 'Foreign-header derivative admitted a mounted B archive'
+Check-Kmc ((Get-KmcSha256 $bRun.path)-ceq$bRun.sha256-and(Get-KmcSha256 $bMounted.path)-ceq$bMounted.sha256-and(Get-KmcSha256 $path)-ceq$hash) 'Foreign-header negatives changed an input'
+
 Write-Output ("P06 FIXTURE GUARDS PASS="+$passes+" FAIL=0")

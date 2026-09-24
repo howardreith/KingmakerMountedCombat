@@ -150,6 +150,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsDeathCase(string persistenceCase) =>
             persistenceCase == "rider-death" || persistenceCase == "mount-death";
 
+        // The live eligibility change: the engine's own size effect makes the
+        // mounted rider Large, KMC's invariant ends the pair, and the no-pair
+        // archive that follows is reloaded in-process and cold.
+        internal static bool IsEligibilityCase(string persistenceCase) => persistenceCase == "rider-size-change";
+
         // The one P06 derivative that corrupts a native area member, so that the
         // load fails after Game.DisposeState rather than at admission.
         internal static bool IsFailedLoad(string persistenceCase) =>
@@ -313,8 +318,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "absent-kmc", "rider-death", "mount-death", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
-                p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
+            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "absent-kmc", "removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
+                p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
                 p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
@@ -325,8 +330,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // world; the integration-absent case only ever opens a cleanup archive.
             if (Scenario == "persistence-p07-load" && (PersistenceCase == "prepare-removal" || PersistenceCase == "disable-during-load"))
                 errors.Add("A removal or disable-during-load case is save-only.");
-            if (Scenario == "persistence-p07-save" && PersistenceCase == "absent-kmc")
-                errors.Add("The integration-absent case is cold-load only.");
+            if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll"))
+                errors.Add("The integration-absent and no-DLL cases are cold-load only.");
             if (Scenario == "persistence-p07-load" || Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load" || p06)
             {
                 if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");
@@ -336,19 +341,27 @@ namespace KingmakerMountedCombat.Diagnostics
                         IsTransitionAutoCase(PersistenceCase);
                     // The integration-absent cold load opens the cleanup archive a
                     // prepare-removal run wrote, under that archive's own name.
-                    var cleanup = Scenario == "persistence-p07-load" && PersistenceCase == "absent-kmc";
+                    var cleanup = Scenario == "persistence-p07-load" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll");
                     // A death cold load opens the no-pair archive a death run wrote.
                     var death = Scenario == "persistence-p07-load" && IsDeathCase(PersistenceCase);
+                    // An eligibility cold load opens the no-pair archive a size-change run wrote.
+                    var eligibility = Scenario == "persistence-p07-load" && IsEligibilityCase(PersistenceCase);
+                    // A campaign-B cold load opens B's own manual archive under B's
+                    // engine-minted identity, which is exactly NOT the fixture's.
+                    var campaignB = Scenario == "persistence-p07-load" && PersistenceCase == "campaign-b";
                     var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
                         cleanup ? "^Manual_301_KMC_CLEANUP\\.zks$" :
                         death ? "^Manual_301_KMC_DEATH\\.zks$" :
+                        eligibility ? "^Manual_301_KMC_SIZE\\.zks$" :
+                        campaignB ? "^Manual_302_KMC_B\\.zks$" :
                         p05 && PersistenceCase == "queued" ? "^Manual_302_KMC_P01\\.zks$" :
                         p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
                     if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
                         PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
                         errors.Add("Cold native slot name is missing or oversized.");
                     errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
-                        nativeSlot ? PersistenceLoad.InternalName : cleanup ? "KMC_CLEANUP" : death ? "KMC_DEATH" : "KMC_P01", slotPattern));
+                        nativeSlot ? PersistenceLoad.InternalName : cleanup ? "KMC_CLEANUP" : death ? "KMC_DEATH" :
+                        eligibility ? "KMC_SIZE" : campaignB ? "KMC_B" : "KMC_P01", slotPattern));
                     // A cross-area source archive is committed after the transition,
                     // so its native header carries the declared destination area.
                     // A transition autosave instead carries the area it actually
@@ -357,7 +370,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     var expectedArea = PersistenceAreaTarget == null ? Fixture?.Working?.Area :
                         IsTransitionAutoCase(PersistenceCase) ? ExpectedTransitionAutoArea :
                         IsCrossAreaCase(PersistenceCase) ? PersistenceAreaTarget.Area : Fixture?.Working?.Area;
-                    if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
+                    if (campaignB)
+                    {
+                        if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                            !Guid.TryParse(PersistenceLoad.GameId, out var minted) || minted == Guid.Empty ||
+                            string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Area == Fixture.Working.Area)
+                            errors.Add("A campaign-B cold archive must carry B's own minted identity and area, never the fixture's.");
+                    }
+                    else if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
                         PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea)
                         errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
                 }
@@ -387,10 +407,20 @@ namespace KingmakerMountedCombat.Diagnostics
                     // a native member, so it gets its own leaf and must differ in
                     // bytes; the metadata-only 'policy' case is deliberately equal.
                     var failedLoad = IsFailedLoad(PersistenceCase);
-                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", p06 ? "KMC_P01" : "KMC_P05_UNMOUNTED",
+                    // The foreign-header derivative is campaign B's own archive
+                    // whose KMC member claims A: its native header is B's.
+                    var foreignHeader = p06 && PersistenceCase == "foreign-header-campaign";
+                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", foreignHeader ? "KMC_B" : p06 ? "KMC_P01" : "KMC_P05_UNMOUNTED",
                         failedLoad ? "^Manual_813_KMC_P06_AREA\\.zks$" :
                         p06 ? "^Manual_812_KMC_P06\\.zks$" : "^Manual_301_KMC_P05_UNMOUNTED\\.zks$"));
-                    if (PersistenceLoad == null || ((!p06 || failedLoad) && PersistenceAlternate.Sha256 == PersistenceLoad.Sha256) ||
+                    if (foreignHeader)
+                    {
+                        if (PersistenceLoad == null || PersistenceAlternate.Sha256 == PersistenceLoad.Sha256 ||
+                            PersistenceAlternate.GameId == PersistenceLoad.GameId || !Guid.TryParse(PersistenceAlternate.GameId, out var minted) ||
+                            minted == Guid.Empty || PersistenceAlternate.Area == PersistenceLoad.Area)
+                            errors.Add("A foreign-header derivative must carry B's own native identity and area, distinct from A's.");
+                    }
+                    else if (PersistenceLoad == null || ((!p06 || failedLoad) && PersistenceAlternate.Sha256 == PersistenceLoad.Sha256) ||
                         PersistenceAlternate.GameId != PersistenceLoad.GameId ||
                         PersistenceAlternate.GameName != PersistenceLoad.GameName ||
                         PersistenceAlternate.Area != PersistenceLoad.Area)

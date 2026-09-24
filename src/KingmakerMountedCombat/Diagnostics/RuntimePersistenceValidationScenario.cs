@@ -24,7 +24,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private Player validationPreviousPlayer;
 
         private bool ValidationRefused => request.PersistenceCase == "future" || request.PersistenceCase == "malformed" ||
-            request.PersistenceCase == "profile" || request.PersistenceCase == "campaign" || request.PersistenceCase == "policy";
+            request.PersistenceCase == "profile" || request.PersistenceCase == "campaign" || request.PersistenceCase == "policy" ||
+            request.PersistenceCase == "foreign-header-campaign";
         private bool ValidationPair => request.PersistenceCase == "schema1";
 
         private void AdvanceValidation()

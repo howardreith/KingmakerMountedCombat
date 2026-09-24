@@ -73,7 +73,7 @@ namespace KingmakerMountedCombat
                     logger);
                 persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
-                removal = new MountedRemovalPreparation(relationship, persistence, horseCompanion, lifecycle.HandleModDisable, logger);
+                removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,

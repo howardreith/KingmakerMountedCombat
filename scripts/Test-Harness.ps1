@@ -1997,6 +1997,43 @@ try {
         }
     }
 
+    Invoke-HarnessTest 'transaction stages the removal observer without any KMC entry and restores exact tree' {
+        $observerSource = Join-Path $testRoot 'observer-package-source\KmcRemovalObserver'
+        New-Item -ItemType Directory -Path $observerSource -Force | Out-Null
+        [IO.File]::WriteAllText((Join-Path $observerSource 'Info.json'), '{}')
+        [IO.File]::WriteAllText((Join-Path $observerSource 'KmcRemovalObserver.dll'), 'observer')
+        $observerPackage = Join-Path $testRoot 'observer.zip'
+        Compress-Archive -LiteralPath $observerSource -DestinationPath $observerPackage
+        $observerLive = Join-Path $testRoot 'observer-game\Mods'
+        New-Item -ItemType Directory -Path $observerLive -Force | Out-Null
+        $fallbackPackage = Join-Path (Get-KmcLabRoot) 'artifacts\KingmakerMountedCombat-0.1.0-phase3e-fallback.1-separate-turn-fallback-manual-review-diagnostic.zip'
+        Expand-Archive -LiteralPath $fallbackPackage -DestinationPath $observerLive
+        Copy-Item -LiteralPath (Join-Path $observerLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll') -Destination (Join-Path $observerLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll.65229.cache')
+        New-Item -ItemType Directory -Path (Join-Path $observerLive 'ForeignMod') | Out-Null
+        [IO.File]::WriteAllText((Join-Path $observerLive 'ForeignMod\payload.txt'), 'foreign stays')
+        $observerOriginal = Get-KmcDirectoryManifest $observerLive
+        $refuseA = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'observer-refuse-a'
+        try { Assert-TestThrows { Enter-KmcModsTransaction -Lock $refuseA -LiveModsRoot $observerLive -PackagePath $observerPackage -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging | Out-Null } 'the KMC overlay mode accepted the observer package' }
+        finally { Close-KmcRuntimeLock $refuseA }
+        $refuseB = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'observer-refuse-b'
+        try { Assert-TestThrows { Enter-KmcModsTransaction -Lock $refuseB -LiveModsRoot $observerLive -PackagePath $package -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -StagingMode live-clone-minus-kmc-plus-observer | Out-Null } 'the observer mode accepted the KMC package' }
+        finally { Close-KmcRuntimeLock $refuseB }
+        Assert-Test ((Get-KmcDirectoryManifest $observerLive).digest -ceq $observerOriginal.digest) 'a refused staging changed the live tree'
+        $lock = Open-KmcRuntimeLock -StateRoot $stateRoot -RunId 'observer-transaction-test'
+        try {
+            $statePath = Enter-KmcModsTransaction -Lock $lock -LiveModsRoot $observerLive -PackagePath $observerPackage -StateRoot $stateRoot -BackupRoot $backup -StagingRoot $staging -StagingMode live-clone-minus-kmc-plus-observer
+            Assert-Test (-not (Test-Path -LiteralPath (Join-Path $observerLive 'KingmakerMountedCombat'))) 'the no-DLL staging still carries the KMC directory'
+            Assert-Test (@(Get-ChildItem -LiteralPath $observerLive -Recurse -Force | Where-Object { $_.Name -match '(?i)KingmakerMountedCombat' }).Count -eq 0) 'the no-DLL staging still carries a KMC-named entry'
+            Assert-Test ((Test-Path -LiteralPath (Join-Path $observerLive 'KmcRemovalObserver\Info.json')) -and (Test-Path -LiteralPath (Join-Path $observerLive 'KmcRemovalObserver\KmcRemovalObserver.dll'))) 'the observer directory is missing from the staged tree'
+            Assert-Test ((Get-Content -Raw -LiteralPath (Join-Path $observerLive 'ForeignMod\payload.txt')) -ceq 'foreign stays') 'a foreign mod changed in the observer staging'
+            $prepared = Read-KmcJson $statePath
+            Assert-Test ([string]$prepared.stagingMode -ceq 'live-clone-minus-kmc-plus-observer') 'observer transaction did not record its staging mode'
+            $restored = Restore-KmcModsTransaction -Lock $lock -StatePath $statePath -LiveModsRoot $observerLive -BackupRoot $backup -StagingRoot $staging
+            Assert-Test ($restored.digest -ceq $observerOriginal.digest) 'observer transaction restore differs from the original tree'
+            Assert-Test (Test-Path -LiteralPath (Join-Path $observerLive 'KingmakerMountedCombat\KingmakerMountedCombat.dll')) 'the starting KMC installation did not come back'
+        }
+        finally { Close-KmcRuntimeLock $lock }
+    }
     Invoke-HarnessTest 'restored transaction state is durable' {
         $state = Read-KmcJson $script:transactionState
         Assert-Test ([string]$state.phase -ceq 'restored') 'transaction did not durably record restored phase'
@@ -5253,6 +5290,29 @@ try {
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
             }
+            # The foreign-header derivative is campaign B's own archive whose KMC
+            # member claims A: the alternate carries B's identity, the primary A's.
+            $v2Request['persistenceCase']='foreign-header-campaign'
+            $v2Request['persistenceAlternate'].fileName='Manual_812_KMC_P06.zks'
+            $v2Request['persistenceAlternate'].internalName='KMC_B';$v2Request['persistenceAlternate'].gameId='bf673e4e-5e19-4ec3-b5a5-54d59ea73357'
+            $v2Request['persistenceAlternate'].gameName='Baron';$v2Request['persistenceAlternate'].area=('c'*32)
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            foreach($change in @(@('gameId',$f.gameId),@('area',$f.area),@('internalName','KMC_P01'),@('sha256',('c'*64)))){
+                $d=$v2Request.persistenceAlternate;$old=$d[$change[0]];$d[$change[0]]=$change[1]
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected ('P06 foreign-header derivative accepted A own '+$change[0])
+                $d[$change[0]]=$old
+            }
+            $v2Request['persistenceCase']='campaign'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P06 metadata-only campaign variant accepted a foreign native header'
+            $v2Request['persistenceAlternate'].internalName='KMC_P01';$v2Request['persistenceAlternate'].gameId=$f.gameId
+            $v2Request['persistenceAlternate'].gameName=$f.gameName;$v2Request['persistenceAlternate'].area=$f.area
             $v2Request['persistenceCase']='legacy'
             $v2Request['persistenceAlternate'].fileName='Manual_812_KMC_P06.zks'
             foreach($change in @(@('fileName','../Manual_812_KMC_P06.zks'),@('fileName','Manual_300_KMC_P01.zks'),
@@ -5279,7 +5339,7 @@ try {
 
     Invoke-HarnessTest 'P07 owns bounded wait recovery and exact cold archive without widening old scenarios' {
         try {
-            foreach($case in @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','area-reload','area-cross-entry','area-cross-exit')){
+            foreach($case in @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','area-reload','area-cross-entry','area-cross-exit')){
                 $cross=$case-cin @('area-cross-entry','area-cross-exit')
                 $target=('e'*32)
                 $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case
@@ -5363,6 +5423,24 @@ try {
             try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
             Assert-Test $rejected 'P07 integration-absent case accepted a mounted archive leaf'
             $v2Request.Remove('persistenceLoad')
+            # The genuine no-DLL cleanup-save observation: cold-load only, the
+            # prepared cleanup archive under its own name.
+            $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']='removal-no-dll'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P07 no-DLL case accepted a writing scenario'
+            $v2Request.scenario='persistence-p07-load'
+            $v2Request['persistenceLoad']=[ordered]@{internalName='KMC_CLEANUP';fileName='Manual_301_KMC_CLEANUP.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area}
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            $v2Request.persistenceLoad.fileName='Manual_300_KMC_P01.zks';$v2Request.persistenceLoad.internalName='KMC_P01'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P07 no-DLL case accepted a mounted archive leaf'
+            $v2Request.Remove('persistenceLoad')
             # Death boundaries: a writing run and a cold load of its no-pair archive.
             foreach($case in @('rider-death','mount-death')){
                 $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']=$case
@@ -5380,6 +5458,45 @@ try {
                 Assert-Test $rejected ('P07 death cold load '+$case+' accepted the mounted archive leaf')
                 $v2Request.Remove('persistenceLoad')
             }
+            # Eligibility boundary: a writing run and a cold load of its no-pair archive.
+            $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']='rider-size-change'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            $v2Request.scenario='persistence-p07-load'
+            $v2Request['persistenceLoad']=[ordered]@{internalName='KMC_SIZE';fileName='Manual_301_KMC_SIZE.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area}
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            $v2Request.persistenceLoad.fileName='Manual_300_KMC_P01.zks';$v2Request.persistenceLoad.internalName='KMC_P01'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P07 eligibility cold load accepted the mounted archive leaf'
+            $v2Request.Remove('persistenceLoad')
+            # Campaign B cold load: B's own minted identity, never the fixture's.
+            $v2Request.scenario='persistence-p07-save';$v2Request['persistenceCase']='campaign-b'
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            $v2Request.scenario='persistence-p07-load'
+            $v2Request['persistenceLoad']=[ordered]@{internalName='KMC_P01';fileName='Manual_300_KMC_P01.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId=$f.gameId;gameName=$f.gameName;area=$f.area}
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            $rejected=$false
+            try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+            Assert-Test $rejected 'P07 campaign B cold load accepted the fixture own mounted archive'
+            $v2Request['persistenceLoad']=[ordered]@{internalName='KMC_B';fileName='Manual_302_KMC_B.zks';sha256=('c'*64)
+                length=1024;lastWriteTimeUtcTicks=$f.lastWriteTimeUtcTicks;gameId='bf673e4e-5e19-4ec3-b5a5-54d59ea73357';gameName='Baron';area=('c'*32)}
+            Write-KmcJsonAtomic $v2RequestPath $v2Request
+            & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
+            foreach($change in @(@('gameId',$f.gameId),@('area',$f.area),@('internalName','KMC_P01'),@('fileName','Manual_300_KMC_P01.zks'))){
+                $d=$v2Request.persistenceLoad;$old=$d[$change[0]];$d[$change[0]]=$change[1]
+                Write-KmcJsonAtomic $v2RequestPath $v2Request
+                $rejected=$false
+                try{& (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath}catch{$rejected=$true}
+                Assert-Test $rejected ('P07 campaign B cold load accepted the fixture '+$change[0])
+                $d[$change[0]]=$old
+            }
+            $v2Request.Remove('persistenceLoad')
         } finally {
             $v2Request.Remove('persistenceCase');$v2Request.Remove('persistenceLoad');$v2Request.Remove('persistenceAreaTarget')
             $v2Request.scenario='mounted-pair-create-and-clear'

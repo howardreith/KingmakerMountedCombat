@@ -50,9 +50,23 @@ function Get-KmcValidationMemberHashes {
 
 function New-KmcPersistenceValidationCopy {
     param([string]$SourceRunId,[string]$ExpectedSha256,$Fixture,
-        [ValidateSet('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')][string]$Case)
+        [ValidateSet('legacy','schema1','future','malformed','profile','campaign','foreign-header-campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai')][string]$Case,
+        [string]$ForeignSourceRunId,[string]$ForeignSha256)
     Assert-KmcNoGameProcesses
-    $source=Get-KmcPersistenceValidationSource $SourceRunId $ExpectedSha256 $Fixture -Case $Case
+    $foreign=$Case-ceq'foreign-header-campaign'
+    if($foreign){
+        # The primary stays A's own mounted source; campaign B's own manual archive,
+        # from its completed campaign-b run, is the derivation input. Its native
+        # header is B's and stays B's; only the KMC member will claim A.
+        if([string]::IsNullOrEmpty($ForeignSourceRunId)-or$ForeignSha256-cnotmatch'^[0-9a-f]{64}$'-or$ForeignSha256-ceq$ExpectedSha256){throw 'A foreign-header derivative requires campaign B own archive from its completed campaign-b run.'}
+        [void](Get-KmcPersistenceValidationSource $SourceRunId $ExpectedSha256 $Fixture -Case $Case)
+        $source=Get-KmcPersistenceSource $ForeignSourceRunId $ForeignSha256 $Fixture -NativeCase campaign-b -ArtifactRole campaign-b-manual
+        $derivationSha=$ForeignSha256
+    }else{
+        if(-not[string]::IsNullOrEmpty($ForeignSourceRunId)-or-not[string]::IsNullOrEmpty($ForeignSha256)){throw 'Only the foreign-header derivative takes campaign B own archive.'}
+        $source=Get-KmcPersistenceValidationSource $SourceRunId $ExpectedSha256 $Fixture -Case $Case
+        $derivationSha=$ExpectedSha256
+    }
     $before=Get-KmcValidationMemberHashes $source.path
     $parent=Join-Path (Get-KmcLabRoot) 'analysis-cache/chunk5-validation-fixtures'
     [void][IO.Directory]::CreateDirectory($parent)
@@ -67,7 +81,7 @@ function New-KmcPersistenceValidationCopy {
         $output=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
         $input.CopyTo($output)
     }finally{if($output){$output.Dispose()};$input.Dispose()}
-    if((Get-KmcSha256 $path)-cne$ExpectedSha256){throw 'Validation source changed while copying.'}
+    if((Get-KmcSha256 $path)-cne$derivationSha){throw 'Validation source changed while copying.'}
     Assert-KmcNotReparsePoint $path 'validation copy'
     Assert-KmcNotHardLink $path 'validation copy'
     $stream=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
@@ -81,10 +95,12 @@ function New-KmcPersistenceValidationCopy {
         Assert-KmcJsonObjectMembersUnique -Json $json -Description 'validation source metadata'
         $data=$json|ConvertFrom-Json
         $combat=$Case-cin @('combat-missing','combat-ai')
-        if($data.SchemaVersion-ne2-or$data.Mounted-ne$true-or
+        if($data.SchemaVersion-ne2-or
+            ($foreign-and($data.Mounted-ne$false-or$data.CampaignId-ceq$Fixture.working.gameId-or$data.CampaignId-cne$source.descriptor.gameId-or$null-ne$data.Combat))-or
+            (-not$foreign-and($data.Mounted-ne$true-or
             ($combat-and($null-eq$data.Combat-or$data.Combat.TurnBased-ne$true))-or
             (-not$combat-and$null-ne$data.Combat)-or
-            $data.CampaignId-cne$Fixture.working.gameId-or$data.AreaId-cne$Fixture.working.area){
+            $data.CampaignId-cne$Fixture.working.gameId-or$data.AreaId-cne$Fixture.working.area))){
             throw 'The current mounted source does not match its exact validation mode.'
         }
         if($combat){Assert-KmcP02Snapshot $data 'partial-movement'}
@@ -95,6 +111,8 @@ function New-KmcPersistenceValidationCopy {
             'malformed' { $json='{"SchemaVersion":2,' }
             'profile' { $data.ProfileId='unsupported-profile';$json=$data|ConvertTo-Json -Depth 12 -Compress }
             'campaign' { $data.CampaignId='c63b5e10-4db1-47d5-ae61-5c0788137a5d';$json=$data|ConvertTo-Json -Depth 12 -Compress }
+            # B's native header stays B's; only the KMC member now claims A.
+            'foreign-header-campaign' { $data.CampaignId=[string]$Fixture.working.gameId;$json=$data|ConvertTo-Json -Depth 12 -Compress }
             'missing-rider' { $data.Rider.Id='c63b5e10-4db1-47d5-ae61-5c0788137a5d';$json=$data|ConvertTo-Json -Depth 12 -Compress }
             'missing-mount' { $data.Mount.Id='c63b5e10-4db1-47d5-ae61-5c0788137a5d';$json=$data|ConvertTo-Json -Depth 12 -Compress }
             'mismatched-profile' { $data.ProfileId=if($data.ProfileId-ceq'medium-humanoid-mammoth-v1'){'medium-humanoid-horse-v1'}else{'medium-humanoid-mammoth-v1'};$json=$data|ConvertTo-Json -Depth 12 -Compress }
@@ -129,14 +147,15 @@ function New-KmcPersistenceValidationCopy {
         if(-not$after.ContainsKey($name)-or$after[$name]-cne$before[$name]){throw 'A native member changed during fixture derivation.'}
     }
     $expectedCount=if($Case-ceq'legacy'){$before.Count-1}else{$before.Count}
-    if($after.Count-ne$expectedCount-or(Get-KmcSha256 $source.path)-cne$ExpectedSha256){throw 'Fixture derivation changed its source or member set.'}
+    if($after.Count-ne$expectedCount-or(Get-KmcSha256 $source.path)-cne$derivationSha){throw 'Fixture derivation changed its source or member set.'}
     $file=Get-Item -LiteralPath $path
     $descriptor=[ordered]@{internalName=$source.descriptor.internalName;fileName=$file.Name;sha256=(Get-KmcSha256 $path);
         length=[long]$file.Length;lastWriteTimeUtcTicks=[long]$file.LastWriteTimeUtc.Ticks;
         gameId=$source.descriptor.gameId;gameName=$source.descriptor.gameName;area=$source.descriptor.area}
     Write-KmcJsonAtomic (Join-Path $owned 'owner.json') ([ordered]@{
         schemaVersion=1;purpose='P06 offline metadata-only validation copy';case=$Case;sourceRun=$SourceRunId;
-        sourceSha256=$ExpectedSha256;descriptor=$descriptor;nativeMembersVerified=($before.Count-1);members=$after
+        sourceSha256=$ExpectedSha256;foreignSourceRun=$(if($foreign){$ForeignSourceRunId}else{$null});foreignSha256=$(if($foreign){$ForeignSha256}else{$null});
+        descriptor=$descriptor;nativeMembersVerified=($before.Count-1);members=$after
     })
     return [pscustomobject]@{path=$path;descriptor=$descriptor}
 }
@@ -353,7 +372,7 @@ function Assert-KmcValidationPersistenceEvidence {
             throw 'P06 native actor or owned-control identity differs.'
         }
     }
-    $refused=$Request.persistenceCase-cin @('future','malformed','profile','campaign','policy')
+    $refused=$Request.persistenceCase-cin @('future','malformed','profile','campaign','foreign-header-campaign','policy')
     $combat=$Request.persistenceCase-cin @('combat-missing','combat-ai')
     if($Request.persistenceCase-ceq'failed-area-load'){
         Assert-KmcFailedAreaLoadEvidence $Request $Rows $initial

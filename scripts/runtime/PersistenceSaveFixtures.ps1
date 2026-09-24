@@ -6,13 +6,13 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
         # A prepare-removal run's cleanup archive and a death run's no-pair
         # archive are their own roles.
-        [ValidateSet('destination-manual','transition-auto','cleanup-manual','death-manual')][string]$ArtifactRole='destination-manual',
+        [ValidateSet('destination-manual','transition-auto','cleanup-manual','death-manual','eligibility-manual','campaign-b-manual')][string]$ArtifactRole='destination-manual',
         [switch]$Alternate)
     if($SourceRunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$' -or $SourceRunId -in @('.','..') -or
         $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$'){throw 'Persistence source identity is invalid.'}
@@ -27,7 +27,7 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
@@ -40,8 +40,22 @@ function Get-KmcPersistenceSource {
     if($ArtifactRole-ceq'transition-auto'-and$NativeCase-cnotin @('area-cross-entry','area-cross-exit')){throw 'Only a cross-area source run produces a transition autosave.'}
     if($ArtifactRole-ceq'cleanup-manual'-and($NativeCase-cne'prepare-removal'-or$Alternate)){throw 'Only a prepare-removal source run produces a cleanup archive.'}
     if($ArtifactRole-ceq'death-manual'-and($NativeCase-cnotin @('rider-death','mount-death')-or$Alternate)){throw 'Only a death source run produces a no-pair death archive.'}
-    $manualName=if($ArtifactRole-ceq'cleanup-manual'){'KMC_CLEANUP'}elseif($ArtifactRole-ceq'death-manual'){'KMC_DEATH'}elseif($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
-    $leaf=if($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'death-manual'){'Manual_301_KMC_DEATH.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    if($ArtifactRole-ceq'eligibility-manual'-and($NativeCase-cne'rider-size-change'-or$Alternate)){throw 'Only an eligibility source run produces a no-pair size archive.'}
+    if($ArtifactRole-ceq'campaign-b-manual'-and($NativeCase-cne'campaign-b'-or$Alternate)){throw 'Only a campaign-b source run produces B own manual archive.'}
+    $manualName=if($ArtifactRole-ceq'cleanup-manual'){'KMC_CLEANUP'}elseif($ArtifactRole-ceq'death-manual'){'KMC_DEATH'}elseif($ArtifactRole-ceq'eligibility-manual'){'KMC_SIZE'}elseif($ArtifactRole-ceq'campaign-b-manual'){'KMC_B'}elseif($Alternate){'KMC_P05_UNMOUNTED'}else{'KMC_P01'}
+    $leaf=if($ArtifactRole-ceq'cleanup-manual'){'Manual_301_KMC_CLEANUP.zks'}elseif($ArtifactRole-ceq'death-manual'){'Manual_301_KMC_DEATH.zks'}elseif($ArtifactRole-ceq'eligibility-manual'){'Manual_301_KMC_SIZE.zks'}elseif($ArtifactRole-ceq'campaign-b-manual'){'Manual_302_KMC_B.zks'}elseif($ArtifactRole-ceq'transition-auto'){'Auto_1.zks'}elseif($Alternate){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($NativeCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($type-ceq'Manual'){'Manual_300_KMC_P01.zks'}else{$type+'_1.zks'}
+    # Campaign B's archive carries the identity the engine minted for B, read from
+    # the source run's own frozen observation, never the fixture's.
+    $expectedGameId=[string]$Fixture.working.gameId;$expectedGameName=[string]$Fixture.working.gameName
+    $expectedHeaderArea=if([string]::IsNullOrEmpty($ExpectedArea)){[string]$Fixture.working.area}else{$ExpectedArea}
+    if($ArtifactRole-ceq'campaign-b-manual'){
+        $bRows=@(Get-Content -LiteralPath (Join-Path $lab ('runtime-evidence/'+$SourceRunId+'/persistence-observations.jsonl')) -Encoding UTF8|ForEach-Object{$_|ConvertFrom-Json})
+        $frozen=@($bRows|Where-Object kind -CEQ 'campaign-b-frozen')
+        if($frozen.Count-ne1-or$frozen[0].detail.manualSaved-ne$true){throw 'Campaign B source run has no frozen manual archive.'}
+        $expectedGameId=[string]$frozen[0].detail.gameId;$expectedGameName=[string]$frozen[0].detail.gameName;$expectedHeaderArea=[string]$frozen[0].detail.area
+        if($expectedGameId-ceq[string]$Fixture.working.gameId-or$expectedGameId-cnotmatch'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'-or$expectedGameId-ceq'00000000-0000-0000-0000-000000000000'-or
+            [string]::IsNullOrEmpty($expectedGameName)-or$expectedHeaderArea-cnotmatch'^[0-9a-f]{32}$'-or$expectedHeaderArea-ceq[string]$Fixture.working.area){throw 'Campaign B identity is not B own.'}
+    }
     $path=Join-Path $root ('Saved Games/'+$leaf)
     Assert-KmcNotReparsePoint $path 'owned persistence source archive'
     Assert-KmcNotHardLink $path 'owned persistence source archive'
@@ -63,8 +77,8 @@ function Get-KmcPersistenceSource {
         $header=$json|ConvertFrom-Json
         $nameOk=if($type-ceq'Manual'){$header.Name-ceq$manualName}else{$header.Name-is[string]-and$header.Name.Length-gt0-and$header.Name.Length-le256-and$header.Name-cnotmatch'[\x00-\x1f\x7f]'}
         if(-not$nameOk-or$header.Type-cne$type-or$header.CompatibilityVersion-ne1-or
-            $header.GameId-cne$Fixture.working.gameId-or$header.GameName-cne$Fixture.working.gameName-or
-            $header.Area-cne$(if([string]::IsNullOrEmpty($ExpectedArea)){$Fixture.working.area}else{$ExpectedArea})){throw 'Owned archive native campaign/type/name differs.'}
+            $header.GameId-cne$expectedGameId-or$header.GameName-cne$expectedGameName-or
+            $header.Area-cne$expectedHeaderArea){throw 'Owned archive native campaign/type/name differs.'}
     }finally{if($reader){$reader.Dispose()};if($archive){$archive.Dispose()};if($stream){$stream.Dispose()}}
     if((Get-KmcSha256 $path)-cne$ExpectedSha256){throw 'Owned archive changed during inspection.'}
     return [pscustomobject]@{path=$path;descriptor=[ordered]@{
@@ -436,7 +450,10 @@ function Assert-KmcPersistenceScenarioEvidence {
     $hasCase=@($Request.PSObject.Properties.Name)-ccontains'persistenceCase'
     $deathCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-cin @('rider-death','mount-death')
     $deathSave=$Request.scenario-ceq'persistence-p07-save'-and$hasCase-and$Request.persistenceCase-cin @('rider-death','mount-death')
-    if($rows.Count-lt$(if($absentKmc-or$deathCold){2}else{6})-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
+    $eligibilitySave=$Request.scenario-ceq'persistence-p07-save'-and$hasCase-and$Request.persistenceCase-ceq'rider-size-change'
+    $eligibilityCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-ceq'rider-size-change'
+    $campaignBCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-ceq'campaign-b'
+    if($rows.Count-lt$(if($deathCold-or$eligibilityCold){2}elseif($absentKmc-or$campaignBCold){4}else{6})-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
     if($Request.scenario-ceq'persistence-p06-load'){
         Assert-KmcValidationPersistenceEvidence $Request $rows $GameResult
         return
@@ -468,8 +485,8 @@ function Assert-KmcPersistenceScenarioEvidence {
     $isDisable=$checkpoint-ceq'disable-reenable'
     # Every case whose walk legitimately leaves A's pair for a while: rows
     # outside A carry no actor at all, and every mounted row names A's exact two.
-    $isCampaignB=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-cin @('campaign-b','prepare-removal','disable-during-load','rider-death','mount-death')
-    if($absentKmc-or$deathCold){$isCampaignB=$true}
+    $isCampaignB=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-cin @('campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change')
+    if($absentKmc-or$deathCold-or$eligibilityCold-or$campaignBCold){$isCampaignB=$true}
     foreach($row in $rows){
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or
             $row.dll-cne$Request.dllSha256-or$row.processId-ne$GameResult.processId-or
@@ -508,7 +525,10 @@ function Assert-KmcPersistenceScenarioEvidence {
     if(-not$isCombat-or$checkpoint-cin @('partial-movement','rider-spent','between-partner-orders','suspended')){$required+=@('attack-dispatched','attack-delivered')}
     # The integration-absent process has no pair to continue with: its whole
     # claim is the clean native load itself.
-    if($absentKmc){$required=@('absent-load-complete')}
+    if($absentKmc){$required=@('absent-load-complete','absent-moved','absent-saved')}
+    if($eligibilitySave){$required=@('eligibility-reloaded')}
+    if($eligibilityCold){$required=@('eligibility-cold-complete')}
+    if($campaignBCold){$required=@('campaign-b-cold-loaded','campaign-b-cold-moved','campaign-b-cold-saved')}
     # A death boundary ends with a dead rider or mount: there is no pair to
     # continue with, so the claim is the no-pair save and its reloads alone.
     if($deathSave){$required=@('death-reloaded')}
@@ -580,6 +600,8 @@ function Assert-KmcPersistenceScenarioEvidence {
     }
     if($absentKmc){Assert-KmcAbsentLoadEvidence $Request $rows}
     if($deathCold){Assert-KmcDeathColdEvidence $Request $rows}
+    if($eligibilityCold){Assert-KmcEligibilityColdEvidence $Request $rows}
+    if($campaignBCold){Assert-KmcCampaignBColdEvidence $Request $rows}
     if($isSuspended){Assert-KmcSuspendedEvidence $rows $isWrite}
     $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
     if($isWrite){
@@ -1287,6 +1309,12 @@ function Assert-KmcCleanupArchive {
         $null-ne(Get-KmcOptionalMember $s 'Mount')-or(Get-KmcOptionalMember $s 'CampaignId')-cne$GameId){
         throw 'P07 cleanup archive recorded a pair or a foreign campaign.'
     }
+    # A removal-ready archive carries nothing only KMC can restore: no combat
+    # participation supplement and no owned control binding.
+    $slots=Get-KmcOptionalMember $s 'Slots'
+    if($null-ne(Get-KmcOptionalMember $s 'Combat')-or($null-ne$slots-and@($slots).Count-ne0)){
+        throw 'P07 cleanup archive recorded combat participation or a KMC control binding.'
+    }
     $path=Join-Path $Root $Recorded.leaf
     if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'P07 cleanup archive did not survive its own run.'}
     if((Get-KmcSha256 $path)-cne$Recorded.sha256-or(Get-Item -LiteralPath $path).Length-ne$Recorded.length){
@@ -1298,9 +1326,10 @@ function Assert-KmcCleanupArchive {
         throw 'P07 cleanup archive native header or KMC member on disk is not the recorded clean save.'
     }
     $k=$members.kmc
+    $diskSlots=Get-KmcOptionalMember $k 'Slots'
     if((Get-KmcOptionalMember $k 'Mounted')-ne$false-or$null-ne(Get-KmcOptionalMember $k 'Rider')-or$null-ne(Get-KmcOptionalMember $k 'Mount')-or
-        (Get-KmcOptionalMember $k 'CampaignId')-cne$GameId){
-        throw 'P07 cleanup archive on-disk KMC member still records a pair.'
+        (Get-KmcOptionalMember $k 'CampaignId')-cne$GameId-or$null-ne(Get-KmcOptionalMember $k 'Combat')-or($null-ne$diskSlots-and@($diskSlots).Count-ne0)){
+        throw 'P07 cleanup archive on-disk KMC member still records a pair, combat participation or a control binding.'
     }
 }
 
@@ -1309,7 +1338,7 @@ function Assert-KmcCleanupArchive {
 # cleanup save verified from its bytes, the registered disable, and re-enable.
 function Assert-KmcRemovalEvidence {
     param($Request,$Rows)
-    $order=@('native-write-complete','removal-refused','removal-requested','removal-prepared','removal-disabled-reenabled')
+    $order=@('native-write-complete','removal-refused','removal-refused-combat','removal-requested','removal-prepared','removal-disabled-reenabled')
     $stages=@{}
     foreach($kind in $order){
         $matched=@($Rows|Where-Object kind -CEQ $kind)
@@ -1350,14 +1379,28 @@ function Assert-KmcRemovalEvidence {
         @($x.reasons).Count-lt1-or$x.riderId-cne$riderId-or$x.mountId-cne$mountId){
         throw 'P07 unsafe removal was not refused against the exact permanent KMC Horse reference without side effects.'
     }
-    # Admitted once the reference is gone: cleanup first, then the save.
-    if($stages['removal-requested'].relationship-ceq'Mounted'-or$q.began-ne$true-or$q.state-cne'Saving'-or$q.refusals-ne1-or$q.cleanupSaves-ne0){
+    # Refused again in real native combat by the contract's own rule, whether or
+    # not the engine would have admitted a save, with nothing dismounted or saved.
+    $c=$stages['removal-refused-combat'].detail
+    if($stages['removal-refused-combat'].relationship-cne'Mounted'-or$c.combatRefused-ne$true-or$c.state-cne'Refused'-or$c.refusals-ne2-or
+        $c.cleanupSaves-ne0-or$c.snapshots-ne1-or$c.saveSuspended-ne$false-or$c.activeScope-ne$false-or$c.partyCombat-ne$true-or
+        [string]::IsNullOrEmpty([string]$c.targetId)-or@($c.reasons|Where-Object { ([string]$_) -cmatch 'in combat' }).Count-lt1-or
+        $c.riderId-cne$riderId-or$c.mountId-cne$mountId){
+        throw 'P07 removal in real combat was not refused by the contract own rule without side effects.'
+    }
+    # Admitted once the reference and the combat are gone: cleanup first, then the save.
+    if($stages['removal-requested'].relationship-ceq'Mounted'-or$q.began-ne$true-or$q.state-cne'Saving'-or$q.refusals-ne2-or$q.cleanupSaves-ne0){
         throw 'P07 prepare-to-disable did not dismount through cleanup before requesting its save.'
     }
-    if($stages['removal-prepared'].relationship-ceq'Mounted'-or$p.state-cne'Ready'-or$p.cleanupSaves-ne1-or$p.refusals-ne1-or
+    if($stages['removal-prepared'].relationship-ceq'Mounted'-or$p.state-cne'Ready'-or$p.cleanupSaves-ne1-or$p.refusals-ne2-or$p.unconfirmed-ne0-or
         $p.snapshots-ne2-or$p.failedSaves-ne0-or$p.saveSuspended-ne$false-or$p.activeScope-ne$false-or
         $p.cleanupLeaf-cne'Manual_301_KMC_CLEANUP.zks'-or$p.cleanupSha256-cne$p.cleanup.sha256-or$p.firstSha256-cne$w.sha256){
         throw 'P07 prepared state did not come from exactly one new cleanup save with the first archive untouched.'
+    }
+    # Readiness is bound to this operation's own commit and to a scan of every
+    # archive member for KMC-registered blueprint identities.
+    if($p.binding-cne'bound'-or$p.cleanupCampaign-cne$gameId-or$p.scannedMembers-lt1-or$p.scannedBytes-le0-or@($p.referenceHits).Count-ne0){
+        throw 'P07 prepared state was not bound to its own commit with every archive member scanned clean.'
     }
     Assert-KmcCleanupArchive -Recorded $p.cleanup -Root $root -GameId $gameId -Area $area
     if((Get-KmcSha256 (Join-Path $root 'Manual_300_KMC_P01.zks'))-cne$w.sha256){throw 'P07 cleanup save changed the first archive on disk.'}
@@ -1477,6 +1520,29 @@ function Assert-KmcAbsentLoadEvidence {
         (Get-KmcOptionalMember $members.kmc 'Mounted')-ne$false){
         throw 'P07 integration-absent load did not open a clean cleanup archive.'
     }
+    # Ordinary play without KMC: a real ground click for the main character and a
+    # NEW native save the engine wrote alone, carrying no KMC member at all.
+    $moved=@($Rows|Where-Object kind -CEQ 'absent-moved')
+    $saved=@($Rows|Where-Object kind -CEQ 'absent-saved')
+    if($moved.Count-ne1-or$saved.Count-ne1){throw 'P07 integration-absent load lacks its movement and save observations.'}
+    foreach($row in @($moved[0],$saved[0])){
+        if($row.checkpoint-cne'absent-kmc'-or$row.relationship-ceq'Mounted'-or$null-ne$row.rider-or$null-ne$row.mount){throw 'P07 integration-absent rows must carry no pair and the declared case.'}
+    }
+    if($done[0].stage-gt$moved[0].stage-or$moved[0].stage-gt$saved[0].stage){throw 'P07 integration-absent rows are out of their measured order.'}
+    $m=$moved[0].detail;$s=$saved[0].detail;$ar=$s.archive
+    if([string]::IsNullOrEmpty([string]$m.mover)-or$m.displacement-lt1.5-or$m.relationship-cne'Unmounted'-or$m.partyCombat-ne$false-or$m.bridgeInstalled-ne$false-or$m.enabled-ne$false){
+        throw 'P07 main character did not move through ordinary native input with KMC detached.'
+    }
+    if($null-eq$ar-or$ar.leaf-cne'Manual_302_KMC_ABSENT2.zks'-or$ar.internalName-cne'KMC_ABSENT2'-or$ar.nativeType-cne'Manual'-or$ar.operation-cne'None'-or
+        $ar.gameId-cne$load.gameId-or$ar.area-cne$load.area-or$ar.kmcMember-cne'Missing'-or$ar.sha256-cnotmatch'^[0-9a-f]{64}$'-or$ar.length-le0-or
+        $s.sourceSha256-cne$load.sha256-or$s.expectedSourceSha256-cne$load.sha256-or$s.snapshots-ne0-or$s.bridgeInstalled-ne$false){
+        throw 'P07 integration-absent save is not a new engine-only archive over an intact cleanup archive.'
+    }
+    $second=Join-Path $root $ar.leaf
+    if(-not(Test-Path -LiteralPath $second -PathType Leaf)-or(Get-KmcSha256 $second)-cne$ar.sha256-or$ar.path-cne$second){throw 'P07 integration-absent second archive did not survive its own run.'}
+    if((Get-KmcSha256 (Join-Path $root $load.fileName))-cne$load.sha256){throw 'P07 integration-absent load changed the cleanup archive on disk.'}
+    $written=Read-KmcCampaignArchiveMembers -Path $second
+    if($written.header.Name-cne'KMC_ABSENT2'-or$written.header.GameId-cne$load.gameId-or$null-ne$written.kmc){throw 'P07 integration-absent second archive on disk carries a KMC member or another identity.'}
 }
 
 # A death archive as recorded and as it lies on disk: the fixture campaign's own
@@ -1650,6 +1716,186 @@ function Assert-KmcDeathColdEvidence {
     }
 }
 
+# The eligibility archive as recorded and as it lies on disk: the fixture
+# campaign's own native save whose KMC member records no pair at all.
+function Assert-KmcEligibilityArchive {
+    param($Recorded,[string]$Root,[string]$GameId,[string]$Area)
+    if($null-eq$Recorded){throw 'P07 eligibility lacks its archive observation.'}
+    if($Recorded.leaf-cne'Manual_301_KMC_SIZE.zks'-or$Recorded.internalName-cne'KMC_SIZE'-or$Recorded.nativeType-cne'Manual'-or
+        $Recorded.operation-cne'None'-or$Recorded.gameId-cne$GameId-or$Recorded.area-cne$Area-or$Recorded.kmcMember-cne'Current'-or
+        $Recorded.sha256-cnotmatch'^[0-9a-f]{64}$'-or$Recorded.length-le0-or$Recorded.path-cne(Join-Path $Root $Recorded.leaf)){
+        throw 'P07 eligibility archive is not the exact declared no-pair save of the fixture campaign.'
+    }
+    $s=$Recorded.snapshot
+    if($null-eq$s-or(Get-KmcOptionalMember $s 'Mounted')-ne$false-or$null-ne(Get-KmcOptionalMember $s 'Rider')-or
+        $null-ne(Get-KmcOptionalMember $s 'Mount')-or(Get-KmcOptionalMember $s 'CampaignId')-cne$GameId){
+        throw 'P07 eligibility archive recorded a pair or a foreign campaign.'
+    }
+    $path=Join-Path $Root $Recorded.leaf
+    if(-not(Test-Path -LiteralPath $path -PathType Leaf)){throw 'P07 eligibility archive did not survive its own run.'}
+    if((Get-KmcSha256 $path)-cne$Recorded.sha256-or(Get-Item -LiteralPath $path).Length-ne$Recorded.length){
+        throw 'P07 eligibility archive bytes changed after the run recorded them.'
+    }
+    $members=Read-KmcCampaignArchiveMembers -Path $path
+    if($members.header.Name-cne'KMC_SIZE'-or$members.header.Type-cne'Manual'-or$members.header.GameId-cne$GameId-or
+        $members.header.Area-cne$Area-or$null-eq$members.kmc-or(Get-KmcOptionalMember $members.kmc 'Mounted')-ne$false-or
+        $null-ne(Get-KmcOptionalMember $members.kmc 'Rider')-or$null-ne(Get-KmcOptionalMember $members.kmc 'Mount')){
+        throw 'P07 eligibility archive on disk is not the recorded no-pair save.'
+    }
+}
+
+# The live eligibility change across persistence: the engine's own size effect
+# makes the mounted rider Large, KMC's invariant ends the pair, a NEW native
+# save records no pair while the effect persists natively, and the in-process
+# reload invents nothing while the enlarged rider and its effect persist.
+function Assert-KmcEligibilityEvidence {
+    param($Request,$Rows)
+    $order=@('native-write-complete','eligibility-dispatched','eligibility-cleanup','eligibility-save-admission','eligibility-saved','eligibility-reloaded')
+    $stages=@{}
+    foreach($kind in $order){
+        $matched=@($Rows|Where-Object kind -CEQ $kind)
+        if($matched.Count-ne1){throw "P07 eligibility lacks its exact $kind observation."}
+        $stages[$kind]=$matched[0]
+    }
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    if($initial.Count-ne1){throw 'P07 eligibility lacks its initial state.'}
+    $riderId=[string]$initial[0].rider.Id;$mountId=[string]$initial[0].mount.Id
+    $previous=-1
+    foreach($kind in $order){
+        $row=$stages[$kind]
+        if($row.checkpoint-cne'rider-size-change'){throw "P07 eligibility row $kind is not the declared case."}
+        if($row.stage-lt$previous){throw "P07 eligibility row $kind is out of its measured order."}
+        if(($null-ne$row.rider-and$row.rider.Id-cne$riderId)-or($null-ne$row.mount-and$row.mount.Id-cne$mountId)){throw "P07 eligibility row $kind describes foreign actors."}
+        $previous=$row.stage
+    }
+    $gameId=[string]$Request.fixture.working.gameId;$area=[string]$Request.fixture.working.area
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
+    $w=$stages['native-write-complete'].detail
+    $d=$stages['eligibility-dispatched'].detail
+    $c=$stages['eligibility-cleanup'].detail
+    $a=$stages['eligibility-save-admission'].detail
+    $s=$stages['eligibility-saved'].detail
+    $r=$stages['eligibility-reloaded'].detail
+    if($w.ordinal-ne1-or$w.path-cne(Join-Path $root 'Manual_300_KMC_P01.zks')-or$w.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+        $w.snapshot.Mounted-ne$true-or$w.snapshot.Rider.Id-cne$riderId-or$w.snapshot.Mount.Id-cne$mountId){
+        throw 'P07 eligibility first archive is not the exact mounted opening write.'
+    }
+    foreach($x in @($d,$c,$a,$s,$r)){
+        if($x.riderId-cne$riderId-or$x.mountId-cne$mountId-or$x.buffName-cne'EnlargePersonBuff'-or$x.buffGuid-cnotmatch'^[0-9a-f]{32}$'-or$x.buffGuid-cne$d.buffGuid){
+            throw 'P07 eligibility rows do not name the exact pair and the engine own size effect.'
+        }
+    }
+    # The stimulus: the engine's size effect applied to a Medium mounted rider.
+    if($stages['eligibility-dispatched'].relationship-cne'Mounted'-or$d.sizeBefore-ne4-or$d.riderCarriesEffect-ne$true-or$d.partyCombat-ne$false){
+        throw 'P07 eligibility stimulus was not the native size effect on a Medium mounted rider outside combat.'
+    }
+    # Cleanup: KMC's own invariant ended the pair; both actors alive; effect in place.
+    if($stages['eligibility-cleanup'].relationship-cne'Unmounted'-or$c.sizeAfter-le4-or$c.riderSize-ne$c.sizeAfter-or$c.riderCarriesEffect-ne$true-or
+        $c.mountConscious-ne$true-or$c.saveSuspended-ne$false-or$c.activeScope-ne$false){
+        throw 'P07 eligibility change did not end the pair by the invariant with both actors alive.'
+    }
+    # Admission: the engine's own allowance, outside combat, effect still there.
+    if($stages['eligibility-save-admission'].relationship-cne'Unmounted'-or$a.saveAllowed-ne$true-or$a.partyCombat-ne$false-or$a.mode-cne'Default'-or
+        $a.riderSize-ne$c.sizeAfter-or$a.riderCarriesEffect-ne$true){
+        throw 'P07 eligibility save admission was not the engine own allowance with the effect intact.'
+    }
+    # The save: a NEW no-pair archive, first archive untouched, effect intact.
+    if($stages['eligibility-saved'].relationship-cne'Unmounted'-or$s.riderSize-ne$c.sizeAfter-or$s.riderCarriesEffect-ne$true-or$s.snapshots-ne2-or
+        $s.failedSaves-ne0-or$s.partyCombat-ne$false-or$s.firstHash-cne$w.sha256-or$s.archiveHash-cne$s.archive.sha256){
+        throw 'P07 eligibility save is not one new archive over an intact first archive with the effect intact.'
+    }
+    Assert-KmcEligibilityArchive -Recorded $s.archive -Root $root -GameId $gameId -Area $area
+    if((Get-KmcSha256 (Join-Path $root 'Manual_300_KMC_P01.zks'))-cne$w.sha256){throw 'P07 eligibility save changed the first archive on disk.'}
+    # The reload: nothing invented, nothing restored, enlarged rider and effect persisted.
+    if($stages['eligibility-reloaded'].relationship-cne'Unmounted'-or$r.riderPresent-ne$true-or$r.riderSize-ne$c.sizeAfter-or$r.riderCarriesEffect-ne$true-or
+        $r.mountPresent-ne$true-or$r.mountConscious-ne$true-or$r.loadedDataMounted-ne$false-or$r.semanticsDelta-ne0-or$r.presentationDelta-ne0-or
+        $r.nativeCastRequests-ne0-or$r.archiveHash-cne$s.archive.sha256){
+        throw 'P07 reloading the eligibility save invented a pair, restored something, or lost the native effect.'
+    }
+}
+
+# The fresh-process control of the eligibility archive: exactly one party
+# member is Large and carries the engine's size effect, it is not the mount,
+# no pair is restored and nothing is invented.
+function Assert-KmcEligibilityColdEvidence {
+    param($Request,$Rows)
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    $done=@($Rows|Where-Object kind -CEQ 'eligibility-cold-complete')
+    if($initial.Count-ne1-or$done.Count-ne1){throw 'P07 eligibility cold load lacks its exact initial and completion observations.'}
+    foreach($row in @($initial[0],$done[0])){
+        if($row.checkpoint-cne'rider-size-change'-or$row.relationship-ceq'Mounted'-or$null-ne$row.rider-or$null-ne$row.mount){
+            throw 'P07 eligibility cold rows must carry no pair and the declared case.'
+        }
+    }
+    $d=$done[0].detail;$load=$Request.persistenceLoad
+    $states=Get-KmcOptionalMember $d 'states'
+    $affectedIds=@($d.affectedIds)
+    if($d.case-cne'rider-size-change'-or$d.buffName-cne'EnlargePersonBuff'-or$d.buffGuid-cnotmatch'^[0-9a-f]{32}$'-or
+        $d.party-lt1-or$d.affected-ne1-or$affectedIds.Count-ne1-or$d.large-ne1-or$d.supportedMounts-ne1-or[string]::IsNullOrEmpty([string]$d.mountId)-or
+        $affectedIds-ccontains[string]$d.mountId-or$null-eq$states-or$null-eq(Get-KmcOptionalMember $states $affectedIds[0])-or
+        $states.($affectedIds[0]).size-le4-or$states.($affectedIds[0]).carriesEffect-ne$true-or$states.($affectedIds[0]).conscious-ne$true-or
+        $null-eq(Get-KmcOptionalMember $states ([string]$d.mountId))-or$states.([string]$d.mountId).carriesEffect-ne$false-or$states.([string]$d.mountId).conscious-ne$true-or
+        $d.loadedDataPresent-ne$true-or$d.loadedDataMounted-ne$false-or$d.semantics-ne0-or$d.presentation-ne0-or$d.nativeCastRequests-ne0-or
+        $d.gameId-cne$load.gameId-or$d.gameId-cne$Request.fixture.working.gameId-or$d.area-cne$load.area-or
+        $d.archiveSha256-cne$load.sha256-or$d.expectedSha256-cne$load.sha256){
+        throw 'P07 eligibility cold load did not open the no-pair archive with exactly the enlarged rider it recorded and nothing invented.'
+    }
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
+    $members=Read-KmcCampaignArchiveMembers -Path (Join-Path $root $load.fileName)
+    if($members.header.Name-cne'KMC_SIZE'-or$members.header.GameId-cne$load.gameId-or$null-eq$members.kmc-or
+        (Get-KmcOptionalMember $members.kmc 'Mounted')-ne$false){
+        throw 'P07 eligibility cold load did not open a no-pair size archive.'
+    }
+}
+
+# Campaign B's own manual archive opened in a fresh process: B's identity and
+# area, no pair, nothing restored or invented, ordinary movement of B's main
+# character and a NEW native save in B, with B's source byte-identical.
+function Assert-KmcCampaignBColdEvidence {
+    param($Request,$Rows)
+    $initial=@($Rows|Where-Object kind -CEQ 'initial')
+    $loaded=@($Rows|Where-Object kind -CEQ 'campaign-b-cold-loaded')
+    $moved=@($Rows|Where-Object kind -CEQ 'campaign-b-cold-moved')
+    $saved=@($Rows|Where-Object kind -CEQ 'campaign-b-cold-saved')
+    if($initial.Count-ne1-or$loaded.Count-ne1-or$moved.Count-ne1-or$saved.Count-ne1){throw 'P07 campaign B cold load lacks its exact observations.'}
+    foreach($row in @($initial[0],$loaded[0],$moved[0],$saved[0])){
+        if($row.checkpoint-cne'campaign-b'-or$row.relationship-ceq'Mounted'-or$null-ne$row.rider-or$null-ne$row.mount){
+            throw 'P07 campaign B cold rows must carry no pair and the declared case.'
+        }
+    }
+    if($loaded[0].stage-gt$moved[0].stage-or$moved[0].stage-gt$saved[0].stage){throw 'P07 campaign B cold rows are out of their measured order.'}
+    $l=$loaded[0].detail;$m=$moved[0].detail;$s=$saved[0].detail;$load=$Request.persistenceLoad
+    $fixtureId=[string]$Request.fixture.working.gameId
+    if($l.case-cne'campaign-b'-or$l.gameId-cne$load.gameId-or$l.gameId-ceq$fixtureId-or$l.expectedGameId-cne$load.gameId-or$l.fixtureGameId-cne$fixtureId-or
+        $l.area-cne$load.area-or$l.expectedArea-cne$load.area-or$l.area-ceq$Request.fixture.working.area-or$l.party-lt1-or$l.supportedMounts-ne0-or
+        [string]::IsNullOrEmpty([string]$l.mainCharacter)-or$l.loadedDataPresent-ne$true-or$l.loadedDataMounted-ne$false-or$l.loadedDataCampaign-cne$load.gameId-or
+        $l.bindings-ne0-or$l.semantics-ne0-or$l.presentation-ne0-or$l.nativeCastRequests-ne0-or$l.archiveSha256-cne$load.sha256-or$l.expectedSha256-cne$load.sha256){
+        throw 'P07 campaign B cold load did not open B own world with nothing restored or invented.'
+    }
+    if($m.mover-cne$l.mainCharacter-or$m.displacement-lt1.5-or$m.relationship-cne'Unmounted'-or$m.partyCombat-ne$false){
+        throw 'P07 campaign B main character did not move through ordinary native input.'
+    }
+    $ar=$s.archive
+    if($null-eq$ar-or$ar.leaf-cne'Manual_303_KMC_B2.zks'-or$ar.internalName-cne'KMC_B2'-or$ar.nativeType-cne'Manual'-or$ar.operation-cne'None'-or
+        $ar.gameId-cne$load.gameId-or$ar.area-cne$load.area-or$ar.kmcMember-cne'Current'-or$ar.sha256-cnotmatch'^[0-9a-f]{64}$'-or$ar.length-le0-or
+        $null-eq$ar.snapshot-or(Get-KmcOptionalMember $ar.snapshot 'Mounted')-ne$false-or$null-ne(Get-KmcOptionalMember $ar.snapshot 'Rider')-or
+        (Get-KmcOptionalMember $ar.snapshot 'CampaignId')-cne$load.gameId-or(Get-KmcOptionalMember $ar.snapshot 'AreaId')-cne$load.area-or
+        $s.sourceSha256-cne$load.sha256-or$s.expectedSourceSha256-cne$load.sha256-or$s.snapshots-ne1-or$s.failedSaves-ne0){
+        throw 'P07 campaign B second save is not B own new clean archive over an intact source.'
+    }
+    $root=Join-Path (Get-KmcLabRoot) ('runtime-staging/persistence-'+$Request.runId+'/Saved Games')
+    $second=Join-Path $root $ar.leaf
+    if(-not(Test-Path -LiteralPath $second -PathType Leaf)-or(Get-KmcSha256 $second)-cne$ar.sha256-or$ar.path-cne$second){throw 'P07 campaign B second archive did not survive its own run.'}
+    if((Get-KmcSha256 (Join-Path $root $load.fileName))-cne$load.sha256){throw 'P07 campaign B cold load changed its source archive on disk.'}
+    $members=Read-KmcCampaignArchiveMembers -Path $second
+    if($members.header.Name-cne'KMC_B2'-or$members.header.GameId-cne$load.gameId-or$members.header.Area-cne$load.area-or$null-eq$members.kmc-or
+        (Get-KmcOptionalMember $members.kmc 'Mounted')-ne$false-or(Get-KmcOptionalMember $members.kmc 'CampaignId')-cne$load.gameId){
+        throw 'P07 campaign B second archive on disk is not B own clean save.'
+    }
+    $source=Read-KmcCampaignArchiveMembers -Path (Join-Path $root $load.fileName)
+    if($source.header.Name-cne'KMC_B'-or$source.header.GameId-cne$load.gameId-or$source.header.GameId-ceq$fixtureId){throw 'P07 campaign B cold load did not open B own manual archive.'}
+}
+
 function Assert-KmcRecoveryPersistenceEvidence {
     param($Request,$Rows)
     if($Request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output')){
@@ -1660,6 +1906,7 @@ function Assert-KmcRecoveryPersistenceEvidence {
     if($Request.persistenceCase-ceq'prepare-removal'){ Assert-KmcRemovalEvidence $Request $Rows; return }
     if($Request.persistenceCase-ceq'disable-during-load'){ Assert-KmcDisableLoadEvidence $Request $Rows; return }
     if($Request.persistenceCase-cin @('rider-death','mount-death')){ Assert-KmcDeathEvidence $Request $Rows; return }
+    if($Request.persistenceCase-ceq'rider-size-change'){ Assert-KmcEligibilityEvidence $Request $Rows; return }
     $initial=@($Rows|Where-Object kind -CEQ 'recovery-initial-write')
     $wait=@($Rows|Where-Object kind -CEQ 'recovery-wait-started')
     $commit=$Request.persistenceCase-ceq'locked-replace'

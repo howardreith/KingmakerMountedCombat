@@ -92,11 +92,11 @@ elseif ($schemaVersion -eq 2) {
     $validation=$request.scenario-ceq'persistence-p06-load'
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','rider-death','mount-death','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
         if($request.persistenceCase-cin @('prepare-removal','disable-during-load')-and$request.scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
-        if($request.persistenceCase-ceq'absent-kmc'-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent case is cold-load only.'}
+        if($request.persistenceCase-cin @('absent-kmc','removal-no-dll')-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent and no-DLL cases are cold-load only.'}
     }elseif($validation){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'P06 requires its exact validation variant.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','foreign-header-campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'P06 requires its exact validation variant.'}
     }elseif($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
         $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
@@ -132,24 +132,41 @@ elseif ($schemaVersion -eq 2) {
         $nativeSlot=($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-cin @('quick','auto'))-or$transitionAuto
         # The failed-load derivative is the only P06 variant that edits a native
         # member, so it owns its own leaf instead of the metadata-only one.
-        $cleanupCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'absent-kmc'
+        $cleanupCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-cin @('absent-kmc','removal-no-dll')
         $deathCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-cin @('rider-death','mount-death')
-        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){'Manual_301_KMC_CLEANUP.zks'}elseif($deathCold){'Manual_301_KMC_DEATH.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
-        $nameOk=if($second-and$validation){$d.internalName-ceq'KMC_P01'}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}elseif($cleanupCold){$d.internalName-ceq'KMC_CLEANUP'}elseif($deathCold){$d.internalName-ceq'KMC_DEATH'}else{$d.internalName-ceq'KMC_P01'}
+        $sizeCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'rider-size-change'
+        $campaignBCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'campaign-b'
+        # The foreign-header derivative is campaign B's own archive whose KMC
+        # member claims A: its native header carries B's minted identity.
+        $foreignHeader=$second-and$validation-and$request.persistenceCase-ceq'foreign-header-campaign'
+        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){'Manual_301_KMC_CLEANUP.zks'}elseif($deathCold){'Manual_301_KMC_DEATH.zks'}elseif($sizeCold){'Manual_301_KMC_SIZE.zks'}elseif($campaignBCold){'Manual_302_KMC_B.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        $nameOk=if($second-and$validation){if($foreignHeader){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}elseif($cleanupCold){$d.internalName-ceq'KMC_CLEANUP'}elseif($deathCold){$d.internalName-ceq'KMC_DEATH'}elseif($sizeCold){$d.internalName-ceq'KMC_SIZE'}elseif($campaignBCold){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}
         if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
             $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
             -not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or$d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Cold archive identity is invalid.'}
-        foreach($name in @('gameId','gameName')){if($d.$name-cne$request.fixture.working.$name){throw 'Cold archive campaign differs.'}}
+        if($campaignBCold-or$foreignHeader){
+            # Campaign B's archive carries the identity the engine minted for B, never the fixture's.
+            if($d.gameId-ceq$request.fixture.working.gameId-or$d.gameId-cnotmatch'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'-or$d.gameId-ceq'00000000-0000-0000-0000-000000000000'-or[string]::IsNullOrEmpty([string]$d.gameName)){throw 'Campaign B archive must carry B own minted identity.'}
+        }else{
+            foreach($name in @('gameId','gameName')){if($d.$name-cne$request.fixture.working.$name){throw 'Cold archive campaign differs.'}}
+        }
         # A cross-area source is committed after the transfer, so its native
         # header carries the declared destination rather than the fixture area.
         $expectedArea=if($transitionAuto){if($request.persistenceCase-ceq'area-cross-entry-auto'){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}}elseif($crossArea){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}
-        if($d.area-cne$expectedArea){throw 'Cold archive campaign differs.'}
+        if($campaignBCold-or$foreignHeader){
+            if($d.area-ceq$request.fixture.working.area-or$d.area-cnotmatch'^[0-9a-f]{32}$'){throw 'Campaign B archive area must be B own.'}
+        }elseif($d.area-cne$expectedArea){throw 'Cold archive campaign differs.'}
         }
         # A corrupted native member must actually change the bytes; the
         # metadata-only 'policy' variant is deliberately byte-identical instead.
         if($validation-and$request.persistenceCase-ceq'failed-area-load'-and
             $request.persistenceAlternate.sha256-ceq$request.persistenceLoad.sha256){
             throw 'Failed-load derivative is byte-identical to its source.'
+        }
+        # The foreign-header derivative is campaign B's own archive, never A's bytes.
+        if($validation-and$request.persistenceCase-ceq'foreign-header-campaign'-and
+            $request.persistenceAlternate.sha256-ceq$request.persistenceLoad.sha256){
+            throw 'Foreign-header derivative aliases the primary archive bytes.'
         }
     }
 }

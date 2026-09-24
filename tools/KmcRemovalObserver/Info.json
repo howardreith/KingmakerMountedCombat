@@ -1,0 +1,11 @@
+{
+  "Id": "KmcRemovalObserver",
+  "DisplayName": "KMC Removal Observer",
+  "Author": "Howie Reith",
+  "Version": "0.1.0-observer.1",
+  "ManagerVersion": "0.28.2",
+  "GameVersion": "2.1.7",
+  "AssemblyName": "KmcRemovalObserver.dll",
+  "EntryMethod": "KmcRemovalObserver.Main.Load",
+  "Requirements": []
+}

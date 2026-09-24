@@ -11,7 +11,7 @@ using KingmakerMountedCombat.Logging;
 
 namespace KingmakerMountedCombat.Integration
 {
-    internal enum RemovalPreparationState { Idle, Refused, Saving, Ready, Failed }
+    internal enum RemovalPreparationState { Idle, Refused, Saving, Ready, Unconfirmed, Failed }
 
     internal sealed class RemovalAssessment
     {
@@ -21,8 +21,9 @@ namespace KingmakerMountedCombat.Integration
         // KMC-registered blueprint. A save holding one cannot be opened without
         // the mod, so removal is refused rather than the campaign stripped.
         internal readonly List<string> PermanentReferences = new List<string>();
+        internal RemovalWorldFacts World;
         internal bool Mounted;
-        internal string Summary => Safe ? "Safe to prepare: no permanent KMC reference in the loaded world." :
+        internal string Summary => Safe ? "Safe to prepare: the world is settled and no permanent KMC reference is loaded." :
             string.Join(" ", Reasons);
     }
 
@@ -31,17 +32,24 @@ namespace KingmakerMountedCombat.Integration
     // a NEW native save is written through the engine's own serialization so
     // the campaign has a clean archive before KMC is switched off or deleted.
     // Nothing here edits an existing archive, strips a campaign, or claims
-    // more than the archive it verified.
+    // more than the archive it verified: readiness is reported only after the
+    // archive this operation requested is bound to KMC's own commit record,
+    // its KMC member records no pair, combat supplement or control binding,
+    // and every JSON member of the archive is free of KMC-registered blueprint
+    // identities (that scan covers stashed areas the live world does not show).
     internal sealed class MountedRemovalPreparation
     {
         internal const string CleanupSaveName = "KMC_CLEANUP";
         private const double SaveTimeoutSeconds = 120;
         private readonly GameMountedRelationshipService relationship;
         private readonly MountedPersistenceService persistence;
+        private readonly MountedCombatController combat;
         private readonly HorseCompanionBlueprintService horseCompanion;
         private readonly Func<bool> cleanup;
         private readonly IModLogger logger;
         private SaveInfo pendingSave;
+        private string pendingGameId;
+        private int commitsAtRequest;
         private bool saveCallback;
         private int failedSavesAtRequest;
         private DateTime saveRequestedAtUtc;
@@ -51,43 +59,96 @@ namespace KingmakerMountedCombat.Integration
         internal string CleanupSavePath { get; private set; }
         internal string CleanupSaveLeaf { get; private set; }
         internal string CleanupSaveSha256 { get; private set; }
+        internal string CleanupCampaignId { get; private set; }
+        internal int CleanupScannedMembers { get; private set; }
+        internal long CleanupScannedBytes { get; private set; }
+        internal IReadOnlyList<string> CleanupReferenceHits { get; private set; } = new string[0];
+        internal string CleanupBinding { get; private set; }
         internal int AssessmentCount { get; private set; }
         internal int RefusalCount { get; private set; }
         internal int CleanupSaveCount { get; private set; }
+        internal int UnconfirmedCount { get; private set; }
         internal RemovalAssessment LastAssessment { get; private set; }
 
         internal MountedRemovalPreparation(GameMountedRelationshipService relationship, MountedPersistenceService persistence,
-            HorseCompanionBlueprintService horseCompanion, Func<bool> cleanup, IModLogger logger)
+            MountedCombatController combat, HorseCompanionBlueprintService horseCompanion, Func<bool> cleanup, IModLogger logger)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.horseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
             this.cleanup = cleanup ?? throw new ArgumentNullException(nameof(cleanup));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
+        // The KMC-registered blueprint identities a save cannot carry without the
+        // mod: the Horse companion trio and its portrait, and the four native
+        // mounted-control abilities. Native blueprints KMC only references are
+        // not in this list; they resolve without KMC.
+        internal static string[] RegisteredBlueprintGuids => new[]
+        {
+            HorseCompanionBlueprintService.UnitGuid, HorseCompanionBlueprintService.FeatureGuid,
+            HorseCompanionBlueprintService.UpgradeGuid, HorseCompanionBlueprintService.PortraitGuid,
+            NativeMountedControlService.MountAbilityGuid, NativeMountedControlService.DismountAbilityGuid,
+            NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid
+        };
+
         // Inspection only: nothing is dismounted, saved or mutated here. The
-        // scan covers the loaded world and the cross-scene party; units stashed
-        // in areas that are not loaded are not inspected and are not claimed.
+        // live scan covers the loaded world and the cross-scene party; units
+        // stashed in areas that are not loaded are covered by the archive scan
+        // after the cleanup save, never claimed from here.
         internal RemovalAssessment Assess()
         {
             AssessmentCount++;
             var assessment = new RemovalAssessment { Mounted = relationship.State == RelationshipState.Mounted };
             var game = Game.Instance;
-            if (game?.Player == null || game.CurrentlyLoadedArea == null || game.SaveManager == null)
+            var facts = new RemovalWorldFacts();
+            try
             {
-                assessment.Reasons.Add("No loaded world: load the campaign first.");
-                LastAssessment = assessment;
-                return assessment;
+                facts.WorldLoaded = game?.Player != null && game.CurrentlyLoadedArea != null && game.SaveManager != null;
+                if (facts.WorldLoaded)
+                {
+                    facts.PartyInCombat = game.Player.IsInCombat;
+                    facts.AnyPartyMemberInCombat = game.Player.Party.Any(u => u != null && u.IsInCombat);
+                    facts.ActiveMountedCommand = combat.HasActiveCommand;
+                    facts.StockAttackIntent = combat.HasStockAttackIntent;
+                    facts.PairedActivation = !string.IsNullOrEmpty(combat.PairedActivationIdentity);
+                    facts.CombatRestorationPending = persistence.CombatRestorationPending;
+                    facts.LoadInFlight = persistence.LoadInFlight;
+                    facts.LoadingWorld = persistence.LoadingWorld;
+                    facts.LoadingProcess = LoadingProcess.Instance.IsLoadingInProcess;
+                    facts.SaveSuspended = persistence.SaveSuspended;
+                    facts.ActiveSaveScope = persistence.HasActiveSaveScope;
+                    facts.SaveDraining = persistence.SaveDraining;
+                    facts.WorldHoldReleasePending = persistence.WorldHoldReleasePending;
+                    facts.ResetToMainMenuPending = persistence.ResetToMainMenuPending;
+                    facts.DefaultMode = game.CurrentMode == Kingmaker.GameModes.GameModeType.Default;
+                    facts.SaveAllowed = game.SaveManager.IsSaveAllowed();
+                }
             }
-            if (persistence.SaveSuspended || persistence.HasActiveSaveScope || persistence.SaveDraining)
-                assessment.Reasons.Add("A mounted save is still being written; retry once it finishes.");
-            if (persistence.LoadInFlight)
-                assessment.Reasons.Add("A save is still being loaded; retry once the area has finished loading.");
-            if (!game.SaveManager.IsSaveAllowed())
-                assessment.Reasons.Add("Saving is not allowed right now (combat, dialog or cutscene); retry when the game allows a manual save.");
-            foreach (var reference in FindPermanentReferences(game))
-                assessment.PermanentReferences.Add(reference);
+            catch (Exception exception)
+            {
+                facts.InspectionFailed = true;
+                facts.InspectionFailure = exception.GetType().Name + ": " + exception.Message;
+                logger.Exception("Removal assessment could not inspect the world state", exception);
+            }
+            if (facts.WorldLoaded && !facts.InspectionFailed)
+            {
+                try
+                {
+                    foreach (var reference in FindPermanentReferences(game))
+                        assessment.PermanentReferences.Add(reference);
+                }
+                catch (Exception exception)
+                {
+                    // Fail closed: a scan that could not finish proves nothing.
+                    facts.InspectionFailed = true;
+                    facts.InspectionFailure = exception.GetType().Name + ": " + exception.Message;
+                    logger.Exception("Removal assessment could not enumerate the loaded world", exception);
+                }
+            }
+            assessment.World = facts;
+            assessment.Reasons.AddRange(RemovalReadinessPolicy.WorldReasons(facts));
             if (assessment.PermanentReferences.Count != 0)
                 assessment.Reasons.Add("This campaign still references KMC's Horse companion (" +
                     string.Join("; ", assessment.PermanentReferences) + "). A save with it cannot be opened without KMC: " +
@@ -96,29 +157,31 @@ namespace KingmakerMountedCombat.Integration
             return assessment;
         }
 
-        private IEnumerable<string> FindPermanentReferences(Game game)
+        private List<string> FindPermanentReferences(Game game)
         {
+            var references = new List<string>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var units = new List<UnitEntityData>();
-            try { units.AddRange(game.State.Units.Where(u => u != null)); }
-            catch (Exception exception) { logger.Exception("Removal assessment could not enumerate loaded units", exception); }
-            try { units.AddRange(game.Player.AllCharacters.Where(u => u != null)); }
-            catch (Exception exception) { logger.Exception("Removal assessment could not enumerate party characters", exception); }
+            // No catch here: an enumeration failure surfaces to Assess, which
+            // records it as a failed inspection rather than a clean world.
+            units.AddRange(game.State.Units.Where(u => u != null));
+            units.AddRange(game.Player.AllCharacters.Where(u => u != null));
+            var feature = horseCompanion.HorseFeature;
+            var upgrade = horseCompanion.HorseUpgrade;
             foreach (var unit in units)
             {
                 if (!seen.Add(unit.UniqueId)) continue;
                 var guid = unit.Blueprint?.AssetGuid;
                 if (string.Equals(guid, HorseCompanionBlueprintService.UnitGuid, StringComparison.Ordinal))
-                    yield return "unit " + unit.CharacterName + " [" + unit.UniqueId + "] is the KMC Horse";
+                    references.Add("unit " + unit.CharacterName + " [" + unit.UniqueId + "] is the KMC Horse");
                 var descriptor = unit.Descriptor;
                 if (descriptor == null) continue;
-                var feature = horseCompanion.HorseFeature;
-                var upgrade = horseCompanion.HorseUpgrade;
                 if (feature != null && descriptor.GetFact(feature) != null)
-                    yield return "character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Horse companion feature";
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Horse companion feature");
                 if (upgrade != null && descriptor.GetFact(upgrade) != null)
-                    yield return "character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Horse advancement feature";
+                    references.Add("character " + unit.CharacterName + " [" + unit.UniqueId + "] has the KMC Horse advancement feature");
             }
+            return references;
         }
 
         // The user's button. Refuses with the assessment's reasons; otherwise
@@ -169,10 +232,13 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
             pendingSave = descriptor;
+            pendingGameId = game.Player.GameId;
+            commitsAtRequest = NativeMountedArchiveCommit.CommitCount;
             saveCallback = false;
             failedSavesAtRequest = persistence.FailedSaveCount;
             saveRequestedAtUtc = DateTime.UtcNow;
-            CleanupSavePath = null; CleanupSaveLeaf = null; CleanupSaveSha256 = null;
+            CleanupSavePath = null; CleanupSaveLeaf = null; CleanupSaveSha256 = null; CleanupCampaignId = null;
+            CleanupScannedMembers = 0; CleanupScannedBytes = 0; CleanupReferenceHits = new string[0]; CleanupBinding = null;
             State = RemovalPreparationState.Saving;
             Status = "Writing the cleanup save " + CleanupSaveName + "...";
             game.SaveGame(descriptor, () => saveCallback = true);
@@ -180,7 +246,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         // Polled every frame by the composition root. Only the archive on disk
-        // decides readiness: complete, in the manager, and recording no pair.
+        // decides readiness, and only the archive this operation requested.
         internal void Update()
         {
             if (State != RemovalPreparationState.Saving || pendingSave == null) return;
@@ -197,43 +263,86 @@ namespace KingmakerMountedCombat.Integration
             }
             if (persistence.SaveSuspended || persistence.HasActiveSaveScope) return;
             var game = Game.Instance;
-            SaveInfo written = null;
+            RemovalWrittenArchiveFacts written;
             try
             {
-                written = game?.SaveManager?.FirstOrDefault(s => ReferenceEquals(s, pendingSave)) ??
-                    game?.SaveManager?.FirstOrDefault(s => s.Name == pendingSave.Name && s.HasFileOnDisk);
+                var registered = game?.SaveManager != null && game.SaveManager.Any(s => ReferenceEquals(s, pendingSave));
+                written = new RemovalWrittenArchiveFacts
+                {
+                    DescriptorRegistered = registered, HasFileOnDisk = pendingSave.HasFileOnDisk,
+                    OperationState = pendingSave.OperationState.ToString(), Path = pendingSave.FolderName,
+                    CommittedDestination = NativeMountedArchiveCommit.LastCommittedDestination,
+                    CommitsSinceRequest = NativeMountedArchiveCommit.CommitCount - commitsAtRequest,
+                    Name = pendingSave.Name, Type = pendingSave.Type.ToString(), GameId = pendingSave.GameId
+                };
             }
-            catch (Exception exception) { logger.Exception("Prepare-to-disable could not resolve the written save", exception); }
-            if (written == null || !written.HasFileOnDisk || written.OperationState != SaveInfo.StateType.None)
+            catch (Exception exception)
             {
-                if ((DateTime.UtcNow - saveRequestedAtUtc).TotalSeconds > SaveTimeoutSeconds)
-                    Fail("the cleanup save reported completion but no complete archive was found.");
+                logger.Exception("Prepare-to-disable could not read the written descriptor", exception);
+                Unconfirmed("the written save descriptor could not be read (" + exception.GetType().Name + ")");
                 return;
             }
+            if (!written.HasFileOnDisk || written.OperationState != "None")
+            {
+                if ((DateTime.UtcNow - saveRequestedAtUtc).TotalSeconds > SaveTimeoutSeconds)
+                    Unconfirmed("the cleanup save reported completion but its archive never became complete");
+                return;
+            }
+            var binding = RemovalReadinessPolicy.BindingReason(written, CleanupSaveName, pendingGameId);
+            if (binding != null) { Unconfirmed(binding); return; }
             MountedSaveReadResult read;
-            try { read = NativeMountedSaveStorage.Read(written.Saver); }
+            try { read = NativeMountedSaveStorage.Read(pendingSave.Saver); }
             catch (Exception exception)
             {
                 logger.Exception("Prepare-to-disable could not read the cleanup archive", exception);
-                Fail("the cleanup archive could not be read back.");
+                Unconfirmed("the cleanup archive could not be read back (" + exception.GetType().Name + ")");
                 return;
             }
-            var clean = read.Kind == MountedSaveReadKind.Missing || (read.Kind == MountedSaveReadKind.Current &&
-                read.Data != null && !read.Data.Mounted && read.Data.Rider == null && read.Data.Mount == null);
-            if (!clean)
+            var member = new RemovalMemberFacts
             {
-                Fail("the cleanup archive still records a mounted pair (" + read.Kind + ").");
+                Kind = read.Kind.ToString(), Mounted = read.Data?.Mounted == true,
+                RiderPresent = read.Data?.Rider != null, MountPresent = read.Data?.Mount != null,
+                CombatPresent = read.Data?.Combat != null, SlotCount = read.Data?.Slots?.Length ?? 0,
+                CampaignId = read.Data?.CampaignId
+            };
+            var memberReasons = RemovalReadinessPolicy.MemberReasons(member, pendingGameId);
+            if (memberReasons.Count != 0) { Fail(string.Join("; ", memberReasons) + "."); return; }
+            List<string> hits;
+            int scanned; long bytes;
+            try { hits = NativeMountedSaveStorage.FindReferences(pendingSave.Saver, RegisteredBlueprintGuids, out scanned, out bytes); }
+            catch (Exception exception)
+            {
+                logger.Exception("Prepare-to-disable could not scan the cleanup archive", exception);
+                Unconfirmed("the cleanup archive could not be scanned for KMC references (" + exception.GetType().Name + ")");
                 return;
             }
-            CleanupSavePath = written.FolderName;
-            CleanupSaveLeaf = written.FileName;
-            try { CleanupSaveSha256 = HashFile(written.FolderName); }
-            catch (Exception exception) { logger.Exception("Prepare-to-disable could not hash the cleanup archive", exception); }
+            CleanupScannedMembers = scanned; CleanupScannedBytes = bytes; CleanupReferenceHits = hits.ToArray();
+            if (scanned == 0) { Unconfirmed("the cleanup archive exposed no member to scan"); return; }
+            if (hits.Count != 0)
+            {
+                Fail("the cleanup archive still carries KMC blueprint references (" + string.Join("; ", hits) +
+                    "); a save with them cannot be opened without KMC, so this campaign must keep KMC installed.");
+                return;
+            }
+            string hash;
+            try { hash = HashFile(written.Path); }
+            catch (Exception exception)
+            {
+                logger.Exception("Prepare-to-disable could not hash the cleanup archive", exception);
+                Unconfirmed("the cleanup archive could not be hashed (" + exception.GetType().Name + ")");
+                return;
+            }
+            CleanupSavePath = written.Path;
+            CleanupSaveLeaf = pendingSave.FileName;
+            CleanupSaveSha256 = hash;
+            CleanupCampaignId = written.GameId;
+            CleanupBinding = "bound";
             CleanupSaveCount++;
             pendingSave = null;
             State = RemovalPreparationState.Ready;
-            Status = "Prepared: cleanup save " + CleanupSaveLeaf + " records no mounted pair. KMC can now be disabled or removed; " +
-                "load that save afterwards.";
+            Status = "Prepared: cleanup save " + CleanupSaveLeaf + " (campaign " + CleanupCampaignId + ") is the archive this operation wrote; " +
+                "it records no mounted pair, no combat participation and no KMC control binding, and none of its " + scanned +
+                " members names a KMC blueprint. KMC can now be disabled or removed; load that save afterwards.";
             logger.Info(Status);
         }
 
@@ -242,6 +351,17 @@ namespace KingmakerMountedCombat.Integration
             pendingSave = null;
             State = RemovalPreparationState.Failed;
             Status = "Not prepared: " + reason;
+            logger.Error(Status);
+        }
+
+        // Written, perhaps, but not established: the user is told removal is
+        // not confirmed rather than that it is safe.
+        private void Unconfirmed(string reason)
+        {
+            pendingSave = null;
+            UnconfirmedCount++;
+            State = RemovalPreparationState.Unconfirmed;
+            Status = "Preparation unconfirmed: " + reason + ". Do not remove KMC on this result; prepare again.";
             logger.Error(Status);
         }
 

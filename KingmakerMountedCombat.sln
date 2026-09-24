@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KingmakerMountedCombat", "s
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KingmakerMountedCombat.Tests", "tests\KingmakerMountedCombat.Tests.csproj", "{1B64D9A4-5994-49FA-863B-6C9C5CFE6FBF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KmcRemovalObserver", "tools\KmcRemovalObserver\KmcRemovalObserver.csproj", "{3C1F0B7E-6D2A-4F0B-9A61-2E7C5B8D4A10}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{1B64D9A4-5994-49FA-863B-6C9C5CFE6FBF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1B64D9A4-5994-49FA-863B-6C9C5CFE6FBF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1B64D9A4-5994-49FA-863B-6C9C5CFE6FBF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C1F0B7E-6D2A-4F0B-9A61-2E7C5B8D4A10}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C1F0B7E-6D2A-4F0B-9A61-2E7C5B8D4A10}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C1F0B7E-6D2A-4F0B-9A61-2E7C5B8D4A10}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C1F0B7E-6D2A-4F0B-9A61-2E7C5B8D4A10}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
