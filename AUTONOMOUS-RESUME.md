@@ -1,3 +1,19 @@
+# Chunk 5: completion candidate qualified on one frozen payload — 2026-09-24 UTC
+
+**COMPLETION CANDIDATE — natively qualified on one frozen payload; not accepted by the owner, not installed, not merged, not released.** Frozen source 2705a4b / 0.1.0-chunk5-preview.98, qualifier chunk5-completion. DLL 02f07ab634103d9c2224e3e5b1c49fb7973c2f7cdd94a29043bca9c05517637e, MVID 2db9c165-49b6-43ea-ba1b-53041ae48b40. Package SHA dfc05a31c70b335bd9d7390e3727a8f5cf4166e183ac988a1913fd61363a966e, manifest 6a336217, suite115 SHA 86ee9740. Source 28 / components 463 / contracts 178 / owned fixtures 500 / harness 261 / package 11 / ledger 37 PASS, all FAIL=0. Required paired=true; legacy authorities/overlay=false. Not installed, not merged, not released.
+
+**Ledger.** `docs/chunk5-ledger.json` checked by `scripts/Test-Chunk5Ledger.ps1`: 37 entries: PASS 26, MAPPED 2, NOT RUN 8, EXCLUDED 1, FAIL 0, BLOCKED 0. Regenerate only from restored runtime results; the checker refuses any PASS entry whose run did not execute exactly this payload and suite.
+
+**What this mission closed.** Section 4 repeated on the frozen payload; 5A campaign B; 5B Prepare-to-Disable/removal, disable during a real load, integration-absent load; 5C rider and mount death (rider = main character, live policy; mount, scoped permanent policy) with cold controls; the 30 s leaf-deadline triage (`analysis-cache/chunk5-persistence/leaf-deadline-triage86.md`); one ledger.
+
+**What stays open, by name.** P08 turn-based (bounded known issue since Phase 3H preview.6); the true no-DLL load (manual checklist item 7); P04 active TB / overlapping-effect rows and P05 quick/auto/queued/renamed and P07 area transitions and timeout/cancel-wait/locked-replace are MAPPED or NOT RUN on this payload with their earlier-payload evidence named; the ordinary-attack-controls-tb fixture geometry (a far-side preparation move past the 3 s move budget) is recorded as a fixture defect proposal, not changed.
+
+**Next action on resumption:** run `git status --short`, confirm the remote head `2705a4b` resolves from origin, read `analysis-cache/chunk5-persistence/ACTIVE.json`, and hand the manual checklist (docs/CHUNK5-PERSISTENCE.md, Restoration and removal) to the owner. Do not start Chunk 6 (full Charge, moving casting, feat expansion) from this checkpoint; it needs its own mission and its own candidate.
+
+Restoration: every native transaction of this mission restored the actual intake -- human chunk4-preview54 DLL 2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 installed, 275 saves, seven mod directories (SkipIntro deliberate), both automation fixtures byte-identical (BASELINE c29d965c, WORKING 5eb4e0b4), BASELINE immutable, no game process, no runtime lock. Last restoration 2026-09-24T02:18:33.5458033+00:00.
+
+---
+
 # Chunk 5: code-review remediation R1-R4/R7 qualified; R5/R6 incomplete — 2026-09-23 UTC
 
 **IN PROGRESS — NOT completed acceptance.** Frozen source 245a340 / 0.1.0-chunk5-preview.86, qualifier chunk5-remediation. DLL 86e27fa5beb98aaba1968f614de710369bf1801787439dfdf1857cc9a03d13a5, MVID 05c5cdbf-35ce-4882-9ddc-e0e009dbf556. Package SHA a83d80d0b3cf6e9cbae97dada4b377160347c0a29a4e13de4ee87309e271593b, manifest b44fa858, suite101. Source26/components30/contracts**140**/data56/owned-fixtures321/validation-copies104/harness261/profile**48**/package11 PASS. Required paired=true; legacy authorities/overlay=false.
