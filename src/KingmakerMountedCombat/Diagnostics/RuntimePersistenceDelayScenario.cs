@@ -16,18 +16,35 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeActorAllocationTrace delayTrace;
         private JObject delayCountsBefore;
         private int? delayOriginalInitiative;
+        private UnitEntityData delayArrangedTarget;
+        private int? delayArrangedOriginalInitiative;
 
         private void InstallDelayFixture()
         {
             Check(!Cold && !rider.IsInCombat, "P03-Delay-arrangement-is-pre-encounter-only");
             delayOriginalInitiative = rider.Stats.Initiative.BaseValue;
             rider.Stats.Initiative.BaseValue = 40;
+            // The same-round later controllable Delay target is arranged the same
+            // way: one other directly-controllable party member acts immediately
+            // after the rider, before any enemy AI turn can push its turn past the
+            // round boundary (final104-p03-save-suspended: rider, enemy, mount,
+            // companion, and no same-round target at the rider's first eligible turn).
+            delayArrangedTarget = Game.Instance.Player.Party.FirstOrDefault(u => u != null && u != rider && u != mount &&
+                u.IsDirectlyControllable && !u.IsInCombat);
+            Check(delayArrangedTarget != null, "P03-Delay-arrangement-has-a-controllable-party-member-after-the-rider");
+            delayArrangedOriginalInitiative = delayArrangedTarget.Stats.Initiative.BaseValue;
+            delayArrangedTarget.Stats.Initiative.BaseValue = 30;
             delayTrace = new NativeActorAllocationTrace(rider, mount, combat);
             delayTrace.BeginEncounter(request.RunId);
         }
 
         private void RestoreDelayInitiative()
         {
+            if (delayArrangedTarget != null && delayArrangedOriginalInitiative.HasValue)
+            {
+                delayArrangedTarget.Stats.Initiative.BaseValue = delayArrangedOriginalInitiative.Value;
+                delayArrangedOriginalInitiative = null;
+            }
             if (!delayOriginalInitiative.HasValue) return;
             rider.Stats.Initiative.BaseValue = delayOriginalInitiative.Value;
             delayOriginalInitiative = null;
@@ -102,12 +119,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 var sorted = controller.SortedUnits.ToList();
                 var target = sorted.Skip(sorted.IndexOf(rider) + 1).FirstOrDefault(u =>
                     u != mount && u.IsDirectlyControllable && u.GetTimeToNextTurn() < controller.TimeToNextRound);
+                // Every candidate's timing, so a missed precondition names its facts.
+                var candidates = new JArray(sorted.Select(u => new JObject {
+                    ["id"] = u.UniqueId, ["rider"] = u == rider, ["mount"] = u == mount, ["arranged"] = u == delayArrangedTarget,
+                    ["controllable"] = u.IsDirectlyControllable, ["wait"] = u.GetTimeToNextTurn(),
+                    ["initiative"] = u.CombatState.Cooldown.Initiative, ["standard"] = u.CombatState.Cooldown.StandardAction,
+                    ["move"] = u.CombatState.Cooldown.MoveAction }));
+                var timing = new JObject { ["candidates"] = candidates, ["nextRoundWait"] = controller.TimeToNextRound,
+                    ["canDelay"] = turn.CanDelay(), ["turnStatus"] = turn.Status.ToString(), ["round"] = controller.RoundNumber,
+                    ["target"] = target?.UniqueId };
+                if (target == null || !turn.CanDelay()) Write("delay-target-missing", timing);
                 Check(target != null && turn.CanDelay(), "P03-real-later-controllable-same-round-Delay-target");
                 savedBoundary = turn; savedSequence = combat.PairedActivationSequence; savedRound = controller.RoundNumber;
                 delayCountsBefore = DelayCounts();
                 Write("round-effect-applied", RoundEffects());
                 var before = CombatObservation(); before["delayTarget"] = target.UniqueId;
                 before["targetWait"] = target.GetTimeToNextTurn(); before["nextRoundWait"] = controller.TimeToNextRound;
+                before["timing"] = timing;
                 Write("delay-request-before", before);
                 turn.DelayInitiaive(target);
                 Check(turn.Status == TurnController.TurnStatus.Delayed && !ReferenceEquals(turn, controller.CurrentTurn) &&
