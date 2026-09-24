@@ -116,7 +116,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     // B's second A archive therefore carries its own exact name.
                     for (var n = 0; n < 2; n++)
                     {
-                        var name = n == 1 && request.PersistenceCase == "campaign-b" ? NativeCampaignBootstrap.SecondFixtureName : "KMC_P01";
+                        var name = n == 1 && request.PersistenceCase == "campaign-b" ? NativeCampaignBootstrap.SecondFixtureName :
+                            n == 1 && request.PersistenceCase == "prepare-removal" ? MountedRemovalPreparation.CleanupSaveName : "KMC_P01";
                         entries.Add(new PersistenceSaveEntry {
                             FileName = "Manual_" + (300 + n) + "_" + name + ".zks", InternalName = name,
                             SaveType = "Manual",

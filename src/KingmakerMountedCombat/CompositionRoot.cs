@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat
         private readonly MountedPlayerActionController playerAction;
         private readonly NativeMountedControlService nativeControls;
         private readonly MountedPersistenceService persistence;
+        private readonly MountedRemovalPreparation removal;
         private readonly MountedCombatController combat;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
@@ -72,6 +73,7 @@ namespace KingmakerMountedCombat
                     logger);
                 persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger);
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
+                removal = new MountedRemovalPreparation(relationship, persistence, horseCompanion, lifecycle.HandleModDisable, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
@@ -86,10 +88,12 @@ namespace KingmakerMountedCombat
                     horseCompanion,
                     nativeControls,
                     persistence,
+                    removal,
                     animation,
                     dollRoomIk,
                     settings,
-                    Main.InvokeRegisteredToggleForAutomation);
+                    Main.InvokeRegisteredToggleForAutomation,
+                    DetachIntegrationForAutomation);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
@@ -127,6 +131,22 @@ namespace KingmakerMountedCombat
         private const int TeardownDrainMilliseconds = 15000;
 
         public bool IsEnabled { get; private set; }
+
+        // Only an isolated automation process may detach KMC's gameplay and
+        // persistence integration in place: services off, mounted cleanup run,
+        // every Harmony guard removed. The run-scoped save isolation is a
+        // separate Harmony owner and stays, so the process still cannot touch
+        // human saves. The DLL itself remains loaded; this is "integration
+        // absent", not "mod absent", and is reported as exactly that.
+        internal bool DetachIntegrationForAutomation()
+        {
+            ThrowIfDisposed();
+            if (!NativePersistenceIsolation.IsIsolated) return false;
+            if (IsEnabled && !SetEnabled(false)) return false;
+            patches.Dispose();
+            logger.Info("KMC gameplay and persistence integration detached for an isolated automation load; save isolation retained.");
+            return !MountedPatchController.BridgeInstalled;
+        }
 
         internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
 
@@ -258,6 +278,7 @@ namespace KingmakerMountedCombat
             ThrowIfDisposed();
             horseCompanion.Update();
             persistence.Update();
+            removal.Update();
             // A latched update-failure cleanup runs on the first frame after the
             // owned save that deferred it has settled.
             if (failureCleanupPending && !persistence.SaveSuspended)
@@ -332,6 +353,15 @@ namespace KingmakerMountedCombat
             GUILayout.Label("Relationship: " + relationship.State);
             GUILayout.Label("Horse companion blueprints: " + horseCompanion.State +
                 (string.IsNullOrEmpty(horseCompanion.Failure) ? string.Empty : " — " + horseCompanion.Failure));
+            // Before disabling or deleting KMC: dismount and write a NEW clean
+            // save through the engine, or be told exactly why removal is unsafe.
+            GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
+            if (GUILayout.Button("Prepare to disable / remove KMC (dismount, then write a clean save)"))
+            {
+                removal.Begin();
+            }
+            GUI.enabled = priorEnabled;
+            GUILayout.Label(removal.Status);
             GUILayout.Label(relationship.LastResult);
             if (combat.CanShowCombatActions)
             {
