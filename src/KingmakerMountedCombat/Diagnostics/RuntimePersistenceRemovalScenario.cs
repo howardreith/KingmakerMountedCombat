@@ -62,7 +62,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // measured the earlier all-stage Default gate spinning to the deadline.
             if (removalStage == 2 || removalStage == 3)
             {
-                if (targetService != null && !targetService.RefreshBidirectionalCombatMemoryLease())
+                // The memory lease is refreshed only while the encounter is meant
+                // to continue; stage 3 is its teardown (final100-p07-removal).
+                if (removalStage == 2 && !targetService.RefreshBidirectionalCombatMemoryLease())
                     throw new InvalidOperationException("P07 removal native combat memory fixture lease was lost.");
                 if (game.IsPaused) { Write("fixture-native-unpause"); game.IsPaused = false; return; }
             }
