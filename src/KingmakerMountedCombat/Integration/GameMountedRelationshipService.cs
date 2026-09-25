@@ -262,10 +262,15 @@ namespace KingmakerMountedCombat.Integration
         private TransitionResult CompensateRefusedAdoption(string refusal, MidEncounterAdoptionPlan plan)
         {
             AdoptionCompensatedMountCount++;
+            // The activation residue goes first, so the detach announcement below
+            // sees no activation and cannot open a split release round that would
+            // lock the pair out of a later lawful transition.
             adoptionAuthority.RollbackMidEncounterAdoption(refusal);
-            var compensation = coordinator.Dismount(CleanupTrigger.AdoptionRefused);
-            ObserveCleanupState(compensation);
-            runtime.ClearPreparedPairWhenUnmounted();
+            // The ordinary cleanup path, not a bare coordinator call: every
+            // Dismounting subscriber must run, so pending native controls, the
+            // paired command scheduler and mounted combat state are cancelled and
+            // the detach is recorded as cleanup that books no voluntary cost.
+            var compensation = Dismount(CleanupTrigger.AdoptionRefused);
             var residue = compensation.MovementAuthorityResidual || compensation.PresentationResidual;
             LastAdoptionTransactionObservation = "compensated;reason=" + refusal +
                 ";relationship=" + coordinator.State +
