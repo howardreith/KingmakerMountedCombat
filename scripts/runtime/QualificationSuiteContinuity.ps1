@@ -7,6 +7,12 @@ function Assert-KmcPhase3fStartingInstallation {
     $root = Get-Item -LiteralPath $KmcRoot -Force
     if (-not $root.PSIsContainer -or $root.Name -cne 'KingmakerMountedCombat') { throw 'Existing KMC installation has ambiguous casing or type.' }
     Assert-KmcDirectoryTreeCloneable $KmcRoot 'Phase 3F starting KMC installation'
+    # Every pin set below is keyed on Info.json, so its absence is a refusal in its
+    # own right rather than a hashing error. This narrows nothing: a tree without
+    # Info.json could never have matched any registered payload.
+    if (-not (Test-Path -LiteralPath (Join-Path $KmcRoot 'Info.json') -PathType Leaf)) {
+        throw 'Existing KMC tree has no Info.json and matches no registered starting payload.'
+    }
     $pins = @{
         'Info.json'='f137e69d163967c4d5f36e3610be4b9270ac160923b029cc131d56cb32d24018'
         'KingmakerMountedCombat.dll'='5bcc3bc61bb1677ea81037fdc5a8ebd740ff4d0753d5255e37fcc789e6407f2f'
@@ -58,6 +64,21 @@ function Assert-KmcPhase3fStartingInstallation {
             'Info.json'='1224394f59ec598895a0d6ffd1db05527d04f334a063461a019c11f98ddbe528'
             'KingmakerMountedCombat.dll'='2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9'
             'KingmakerMountedCombat.dll.14349.cache'='2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9'
+        }
+    }
+    # Chunk 6A explicitly starts from the owner's accepted preview.105 alpha, which
+    # the owner deployed through the guarded deployment workflow and authorized in
+    # writing as one exact starting payload. Its expected entry count is TWO: the
+    # deployment replaced the DLL and the game has not been run since, so there is
+    # no loader cache. Provenance: guarded deployment receipt
+    # runtime-state/deployment-operations/20260925T0200587550503Z-94de251601b24a04a1f5394f57a92f64.json.
+    # This is one exact addition, not a relaxation: strict equality is preserved,
+    # there is no wildcard, no alternate count, no "latest" logic and no fallback
+    # match, and it grants no authority to restore any older or newer intake.
+    if ((Get-KmcSha256 (Join-Path $KmcRoot 'Info.json')) -ceq '917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476') {
+        $pins = @{
+            'Info.json'='917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476'
+            'KingmakerMountedCombat.dll'='8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2'
         }
     }
     if ($entries.Count -ne $pins.Count) { throw 'Existing KMC tree differs from the exact registered starting payload.' }
