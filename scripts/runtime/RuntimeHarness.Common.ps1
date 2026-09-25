@@ -3673,6 +3673,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
@@ -3747,6 +3748,11 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-mount-exhausted',
         'C4-SUSTAINED-TB-early-end',
         'C4-SUSTAINED-TB-after-early-end',
+        'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
+        'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
+        'CM03-combat-mount-conserves-debt', 'CM03-combat-mount-adoption-preparations',
+        'CM06-combat-mount-repeat-refused', 'CM05-combat-dismount-accepted',
+        'CM05-combat-dismount-conserves-debt', 'CM05-no-duplicate-mount-turn',
         'C4-CHARGE-mounted-rider', 'C4-CHARGE-unmounted-rider',
         'C4-CHARGE-mounted-mount', 'C4-CHARGE-unrelated-actor', 'C4-CHARGE-queued-state-change',
         'C01-B', 'C01-C', 'C01-D',
@@ -4954,6 +4960,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $kind = 'horse-companion-blueprint-registration'
     $isAudit = [string]$Request.scenario -cin @(
         $scenario,
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
@@ -5715,6 +5722,143 @@ function Assert-KmcUnmountedAttackControlRows {
     }
 }
 
+# Chunk 6A voluntary combat Mount/Dismount. The harness re-derives the rider's
+# native Move commitment and both actors' native preparation counts from the
+# recorded samples: the game may not assert its own accounting unchecked.
+function Assert-KmcChunk6aCombatMountEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Artifact,
+        [AllowNull()][string]$Status
+    )
+
+    $turnBased = [string]$Request.scenario -ceq 'chunk6a-combat-mount-tb'
+    $required = @(
+        'CM01-exploration-dismount-costs-nothing',
+        'CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-accepted',
+        'CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations',
+        'CM06-combat-mount-repeat-refused','CM05-combat-dismount-accepted',
+        'CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')
+    $rowNames = @(@($Artifact.rows) | ForEach-Object { [string]$_.name })
+    foreach ($name in $rowNames) {
+        if ($name -cnotin (Get-KmcPhase3dHorseRuntimeRows)) {
+            throw "Chunk 6A evidence declared an unregistered row: $name"
+        }
+    }
+    $observations = $Artifact.observations
+    if ($null -eq $observations.chunk6aCombatMount -or $observations.chunk6aCombatMount -isnot [Array]) {
+        throw 'Chunk 6A evidence omitted its native sample array.'
+    }
+    $configuration = $observations.phase3fActualConfiguration
+    Assert-KmcMountedRuntimeConfiguration $configuration $true 'Chunk 6A actual configuration'
+    if ([string]$Status -cne 'PASS') { return }
+
+    foreach ($name in $required) {
+        $matched = @(@($Artifact.rows) | Where-Object { [string]$_.name -ceq $name })
+        if ($matched.Count -ne 1 -or [string]$matched[0].status -cne 'PASS') {
+            throw "PASS Chunk 6A combat-mount evidence requires exactly one PASS row named $name."
+        }
+    }
+    $samples = @($observations.chunk6aCombatMount)
+    function Get-Chunk6aSample([string]$Kind) {
+        $found = @($samples | Where-Object { [string]$_.kind -ceq $Kind })
+        if ($found.Count -ne 1) { throw "Chunk 6A evidence needs exactly one $Kind sample; found $($found.Count)." }
+        return $found[0]
+    }
+    $mountBefore = Get-Chunk6aSample 'mount-before'
+    $mountAfter = Get-Chunk6aSample 'mount-after'
+    $dismountBefore = Get-Chunk6aSample 'dismount-before'
+    $dismountAfter = Get-Chunk6aSample 'dismount-after'
+
+    # Exactly one relationship transition per voluntary control, and exactly one
+    # accepted native delivery per control.
+    if ([long]$mountAfter.relationshipGeneration -ne [long]$mountBefore.relationshipGeneration + 1L) {
+        throw 'Chunk 6A combat Mount did not change the relationship generation exactly once.'
+    }
+    if ([long]$mountAfter.dispatchAccepted -ne [long]$mountBefore.dispatchAccepted + 1L) {
+        throw 'Chunk 6A combat Mount did not produce exactly one accepted native delivery.'
+    }
+    if ([long]$dismountAfter.dispatchAccepted -ne [long]$dismountBefore.dispatchAccepted + 1L) {
+        throw 'Chunk 6A combat Dismount did not produce exactly one accepted native delivery.'
+    }
+    if ([string]$mountAfter.relationshipState -cne 'Mounted' -or
+        [string]$dismountAfter.relationshipState -cne 'Unmounted') {
+        throw 'Chunk 6A evidence did not record one mounted and one unmounted terminal state.'
+    }
+    if ([long]$mountAfter.acceptedMountCount -ne 1L -or [long]$dismountAfter.acceptedDismountCount -ne 1L -or
+        [long]$dismountAfter.forcedDetachCount -ne 0L) {
+        throw 'Chunk 6A transition ledger did not record exactly one voluntary Mount, one voluntary Dismount and no forced detach.'
+    }
+
+    # The rider's native Move commitment, re-derived here.
+    foreach ($pair in @(@($mountBefore, $mountAfter), @($dismountBefore, $dismountAfter))) {
+        $before = [double]$pair[0].rider.move
+        $after = [double]$pair[1].rider.move
+        if ($turnBased) {
+            if ([Math]::Abs($after - ($before + 3.0)) -gt 0.0001) {
+                throw "Chunk 6A turn-based control did not add exactly one native Move charge: $before -> $after"
+            }
+        }
+        elseif ($after -le 2.5 -or $after -gt 3.0001) {
+            throw "Chunk 6A real-time control did not commit the native Move shell: observed $after"
+        }
+    }
+    # Nothing else may fall, and initiative may not move at all.
+    foreach ($pair in @(@($mountBefore, $mountAfter), @($dismountBefore, $dismountAfter))) {
+        foreach ($actor in @('rider','mount')) {
+            foreach ($field in @('standard','swift')) {
+                if ([double]$pair[1].$actor.$field -lt [double]$pair[0].$actor.$field) {
+                    throw "Chunk 6A control refunded $actor $field debt."
+                }
+            }
+            if ([double]$pair[1].$actor.move -lt [double]$pair[0].$actor.move) {
+                throw "Chunk 6A control refunded $actor Move debt."
+            }
+            if ([double]$pair[1].$actor.initiative -ne [double]$pair[0].$actor.initiative) {
+                throw "Chunk 6A control changed $actor initiative."
+            }
+        }
+    }
+    # The mount is never charged for being carried, and the Mount transition
+    # never charges the mount at all.
+    foreach ($field in @('standard','move','swift')) {
+        if ([double]$mountAfter.mount.$field -ne [double]$mountBefore.mount.$field) {
+            throw "Chunk 6A combat Mount charged the mount's $field resource."
+        }
+    }
+    # Adoption performed no principal preparation and at most one partner one.
+    if ([int]$mountAfter.rider.nativePrepareCount -ne [int]$mountBefore.rider.nativePrepareCount) {
+        throw 'Chunk 6A adoption repeated the principal native preparation.'
+    }
+    $partnerDelta = [int]$mountAfter.mount.nativePrepareCount - [int]$mountBefore.mount.nativePrepareCount
+    if ($partnerDelta -lt 0 -or $partnerDelta -gt 1) {
+        throw "Chunk 6A adoption performed $partnerDelta partner native preparations."
+    }
+    $disposition = [string]$Artifact.observations.chunk6aAdoptionDisposition.disposition
+    if ($turnBased) {
+        if ($disposition -cnotin @('PreparePartnerThisRound','RetainPartnerParticipation')) {
+            throw "Chunk 6A turn-based adoption recorded an unusable disposition: $disposition"
+        }
+        $expected = if ($disposition -ceq 'PreparePartnerThisRound') { 1 } else { 0 }
+        if ($partnerDelta -ne $expected) {
+            throw "Chunk 6A $disposition expected $expected partner preparations, observed $partnerDelta."
+        }
+        if ([long]$mountAfter.pairedSequence -ne 1L) {
+            throw 'Chunk 6A turn-based adoption did not take exactly one paired activation sequence.'
+        }
+    }
+    elseif ($disposition -cne 'RealTimeOwnership') {
+        throw "Chunk 6A real-time adoption recorded $disposition instead of RealTimeOwnership."
+    }
+    if ([long]$mountAfter.adoptionCount -ne 1L) {
+        throw 'Chunk 6A recorded more or fewer than one mid-encounter adoption.'
+    }
+    foreach ($sample in $samples) {
+        if ([int]$sample.mountTurnsWhileMounted -ne 0) {
+            throw 'Chunk 6A observed an independent native mount turn while the pair was mounted.'
+        }
+    }
+}
 function Assert-KmcPhase3dHorseScenarioEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -5724,6 +5868,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
@@ -5762,7 +5907,9 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L) -or
+        ($phase3dSchemaVersion -eq 28L -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb')) -or
+        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb') -and $phase3dSchemaVersion -ne 28L) -or
         ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
@@ -5785,7 +5932,14 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
-    if ($phase3dSchemaVersion -eq 23L -or (Test-KmcChunk4ExtendedScenario ([string]$Request.scenario))) {
+    if ($phase3dSchemaVersion -eq 28L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb')) {
+        Assert-KmcChunk6aCombatMountEvidence -Request $Request -Artifact $artifact -Status $Status
+        $afterFile = Get-Item -LiteralPath $path -Force
+        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
+            throw 'Chunk 6A combat-mount evidence changed during validation.'
+        }
+        return
+    }    if ($phase3dSchemaVersion -eq 23L -or (Test-KmcChunk4ExtendedScenario ([string]$Request.scenario))) {
         Assert-KmcChunk4ExtendedEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
@@ -5871,6 +6025,14 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Focused unmounted controls require actual native configuration schema 7.'
     }
     $requiredRows = switch -CaseSensitive ([string]$Request.scenario) {
+        'chunk6a-combat-mount-rt' {
+            @('CM01-combat-mount-accepted','CM05-combat-dismount-accepted')
+            break
+        }
+        'chunk6a-combat-mount-tb' {
+            @('CM01-combat-mount-accepted','CM05-combat-dismount-accepted')
+            break
+        }
         'unmounted-attack-controls-rt' {
             @('unmounted-stock-attack-control','unmounted-ranged-control')
             break

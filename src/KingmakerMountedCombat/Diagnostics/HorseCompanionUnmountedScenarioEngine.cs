@@ -303,6 +303,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)
                 {
@@ -318,6 +319,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario ||
                     request.Scenario == "phase3h-combat-loop-rt")
@@ -1579,6 +1581,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)
                 {
