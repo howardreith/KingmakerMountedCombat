@@ -423,7 +423,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
-                if (combat.AdoptionFaultConsumedCount == 0 || !Chunk6aIdle)
+                if (combat.AdoptionFaultConsumedCount == 0)
+                {
+                    // The fault fires inside the adoption commit, which runs only
+                    // after the relationship attaches. If the delivery was refused
+                    // earlier the commit never ran, so say that exactly instead of
+                    // waiting for the leaf deadline.
+                    if (Chunk6aIdle &&
+                        nativeControls.DispatchAcceptedCount == chunk6aCompensationDispatchesBefore)
+                    {
+                        FailCurrent("CM02-adoption-plan-invalidated",
+                            "The compensation regression's native Mount was refused before the adoption commit, " +
+                            "so the compensating path was never exercised: " + playerAction.LastFeedback);
+                        Chunk6aDisposeAdoptionFault();
+                        BeginCleanup();
+                    }
+                    return;
+                }
+                if (!Chunk6aIdle)
                 {
                     return;
                 }
