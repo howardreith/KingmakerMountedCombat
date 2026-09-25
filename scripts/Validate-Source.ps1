@@ -158,6 +158,96 @@ $onUnload = [Regex]::Match($mainText2, '(?s)private static bool OnUnload\(.*?\n 
 Assert-Kmc ($onUnload.Success -and $onUnload.Value -match 'root\?\.Dispose\(\);' -and
     $onUnload.Value -match '(?s)catch \(Exception exception\)\s*\{.*?return false;') 'a refused disposal is reported to UMM as a false unload'
 
+# ---------------------------------------------------------------------------
+# Chunk 6A: voluntary combat Mount/Dismount. Kingmaker's native Move shell is
+# the sole cost owner and TurnController.Prepare (0x06000C3C, which calls
+# Cooldowns.Clear 0x0600C3BE) is the per-round grant, so no relationship
+# transition may write a cooldown or repeat a preparation.
+# ---------------------------------------------------------------------------
+$playerActionText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPlayerActionController.cs')
+$relationshipServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\GameMountedRelationshipService.cs')
+$adoptionText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\PairedActivationLifecycle.cs')
+$candidateText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs')
+$nativeControlsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedControlService.cs')
+
+# One explicit voluntary combat admission, and no other way in.
+Assert-Kmc ($candidateText -match 'public string Validate\(MountedRelationshipAdmission admission\)' -and
+    $candidateText -match 'case MountedRelationshipAdmission\.VoluntaryCombat:' -and
+    $candidateText -match 'Voluntary combat mounting requires a live encounter\.' -and
+    $candidateText -notmatch 'private string Validate\(bool') `
+    'the pair candidate admits combat only through the explicit voluntary combat mode'
+Assert-Kmc ($relationshipServiceText -match 'admission != MountedRelationshipAdmission\.VoluntaryCombat' -and
+    $relationshipServiceText -match 'MountRiderOn\(rider, mount, MountedRelationshipAdmission\.Exploration\)' -and
+    $relationshipServiceText -match 'admission == MountedRelationshipAdmission\.SavedRestore[\s\S]{0,200}Saved restoration is not a voluntary mount admission') `
+    'the relationship service keeps one voluntary combat path and defaults every other entry to exploration'
+
+# The transition itself writes no resource and refreshes no readiness.
+$voluntaryMountBody = [Regex]::Match($playerActionText, '(?s)internal bool TryExecuteNativeMount\(UnitEntityData caster, UnitEntityData target, string controlIdentity\).*?\n        \}\r?\n')
+$voluntaryDismountBody = [Regex]::Match($playerActionText, '(?s)internal bool TryExecuteNativeDismount\(UnitEntityData caster, string controlIdentity\).*?\n        \}\r?\n')
+$forbiddenResourceWrite = 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative|AttackOfOpportunity)\s*=|IgnoreCooldown\(\)|\.Clear\(\)\s*;\s*//\s*cooldown|SetIsActed|ForceToEnd\(|JoinCombat|StartTurn|ChooseNextUnit|OnNewRound|\.Prepare\(\)'
+Assert-Kmc ($voluntaryMountBody.Success -and $voluntaryDismountBody.Success -and
+    $voluntaryMountBody.Value -notmatch $forbiddenResourceWrite -and
+    $voluntaryDismountBody.Value -notmatch $forbiddenResourceWrite) `
+    'neither voluntary transition writes a native resource, forces a turn end or calls a preparation'
+Assert-Kmc ($voluntaryMountBody.Value -match 'transitionLedger\.TryAdmitVoluntary\(\s*MountedTransitionKind\.VoluntaryMount' -and
+    $voluntaryMountBody.Value -match '(?s)finally\s*\{\s*transitionLedger\.Settle\(record, accepted\);' -and
+    $voluntaryDismountBody.Value -match 'transitionLedger\.TryAdmitVoluntary\(\s*MountedTransitionKind\.VoluntaryDismount' -and
+    $voluntaryDismountBody.Value -match '(?s)finally\s*\{\s*transitionLedger\.Settle\(record, accepted\);') `
+    'both voluntary transitions are admitted and settled exactly once through the transition ledger'
+Assert-Kmc ($voluntaryMountBody.Value -match 'IsTransitionInCombat\(caster, target\)\s*\r?\n?\s*\? MountedRelationshipAdmission\.VoluntaryCombat\s*\r?\n?\s*: MountedRelationshipAdmission\.Exploration') `
+    'the voluntary Mount admission mode is decided from live combat state at execution'
+Assert-Kmc ($playerActionText -match 'trigger == CleanupTrigger\.Manual' -and
+    $playerActionText -match 'transitionLedger\.RecordForcedDetach\(') `
+    'forced detach is recorded as cleanup and never books a voluntary cost'
+
+# Mid-encounter adoption: no principal preparation, no encounter-start re-entry.
+$adoptBody = [Regex]::Match($adoptionText, '(?s)internal string AdoptRunningEncounter\(UnitEntityData rider, UnitEntityData mount\).*?\n        \}\r?\n')
+Assert-Kmc ($adoptBody.Success -and
+    $adoptBody.Value -notmatch 'JoinCombat|ChooseNextUnit|StartTurn|HandleCombatStart|BeginNativeEncounter|OnNewRound|NativeEnd|ForceToEnd' -and
+    $adoptBody.Value -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative)\s*=') `
+    'adoption never re-enters encounter start, candidate selection or a resource write'
+Assert-Kmc ($adoptBody.Success -and
+    ([Regex]::Matches($adoptBody.Value, '\.Prepare\(\)').Count -eq 1) -and
+    $adoptBody.Value -match 'partnerContext\.Prepare\(\);' -and
+    $adoptBody.Value -match 'MidEncounterAdoption\.PreparePartnerThisRound') `
+    'adoption performs exactly one native preparation and only for a pending partner slot'
+Assert-Kmc ($adoptBody.Success -and
+    $adoptBody.Value -match 'if \(disposition == MidEncounterAdoption\.Unavailable\)[\s\S]{0,80}return refusal;') `
+    'adoption refuses an unresolvable transition round before changing any state'
+Assert-Kmc ($adoptionText -match 'internal MidEncounterAdoption ResolveMidEncounterAdoption\(' -and
+    $adoptionText -match 'adoptedPartnerNativeSlotRound' -and
+    $adoptionText -match 'private bool CanReplaceActivationForAdoption\(\)') `
+    'the adoption disposition is resolvable without side effects and a split pair is not layered over'
+
+# The admitted-shell bypass stays scoped to the stale Move-resource predicate.
+$evaluatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs')
+Assert-Kmc (([Regex]::Matches($evaluatorText, 'NativeMoveActionShellAdmitted').Count -eq 3) -and
+    $evaluatorText -match 'context\.InCombat && !context\.RiderHasMoveAction &&\s*\r?\n?\s*!context\.NativeMoveActionShellAdmitted') `
+    'the admitted native shell suppresses only the stale rider Move-resource predicate'
+Assert-Kmc ($evaluatorText -match 'context\.InCombat && !context\.PairedAdoptionAvailable' -and
+    $evaluatorText -match 'context\.RelationshipTransitionInFlight' -and
+    $evaluatorText -notmatch 'available only outside combat in this preview') `
+    'combat Mount availability reports the paired disposition and in-flight gates instead of a blanket refusal'
+
+# Every relationship shell binds its own caster, target and generation.
+Assert-Kmc ($nativeControlsText -match 'private sealed class NativeRelationshipShell' -and
+    $nativeControlsText -match 'GenerationAtInit = relationship\.MountedPairGeneration' -and
+    $nativeControlsText -match 'shell\.GenerationAtInit != relationship\.MountedPairGeneration' -and
+    $nativeControlsText -match 'deliveringShell != null &&\s*\r?\n?\s*playerAction\.TryExecuteNativeMount' -and
+    $nativeControlsText -match 'deliveringShell != null &&\s*\r?\n?\s*playerAction\.TryExecuteNativeDismount') `
+    'a relationship delivery must own its native Move shell and its original relationship generation'
+
+# Charge safety must remain exactly as accepted.
+$chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
+$chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')
+Assert-Kmc ($chargePolicyText -match 'state == RelationshipState\.Mounted && belongsToPair &&' -and
+    $chargePolicyText -match 'blueprintId == ChargeBlueprintId && exactNativeChargeLogic && !alreadyActed' -and
+    $chargeServiceText -match 'internal bool AllowClick\(' -and
+    $chargeServiceText -match 'internal bool AllowAdmission\(' -and
+    $chargeServiceText -match 'internal bool AllowExecution\(' -and
+    $chargeServiceText -notmatch 'MountedRelationshipAdmission|MidEncounterAdoption|transitionLedger') `
+    'mounted Charge safety keeps every boundary and is unchanged by the combat Mount work'
+
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'

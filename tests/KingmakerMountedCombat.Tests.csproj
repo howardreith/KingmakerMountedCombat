@@ -42,6 +42,7 @@
     <Compile Include="MountedCombatDomainTests.cs" />
     <Compile Include="ActorAllocationLifetimeTests.cs" />
     <Compile Include="PairedActivationTests.cs" />
+    <Compile Include="Chunk6aCombatMountTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedActivation.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\PairedActivationSnapshot.cs" />
     <Compile Include="ManualReviewBoundaryGuardTests.cs" />
@@ -162,6 +163,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\IMountedPairRuntime.cs"><Link>Shared\Domain\IMountedPairRuntime.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPair.cs"><Link>Shared\Domain\MountedPair.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs"><Link>Shared\Domain\MountedPairCandidate.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipAdmission.cs"><Link>Shared\Domain\MountedRelationshipAdmission.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MidEncounterAdoptionPolicy.cs"><Link>Shared\Domain\MidEncounterAdoptionPolicy.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedTransitionLedger.cs"><Link>Shared\Domain\MountedTransitionLedger.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatAction.cs"><Link>Shared\Domain\MountedCombatAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs"><Link>Shared\Domain\MountedCombatSpatialPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedCombatTransaction.cs"><Link>Shared\Domain\MountedCombatTransaction.cs</Link></Compile>

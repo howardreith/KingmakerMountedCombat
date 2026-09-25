@@ -152,6 +152,11 @@ namespace KingmakerMountedCombat.Integration
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);
         internal bool PairedActorEnded(UnitEntityData actor) => unifiedTurn.PairedActorEnded(actor);
         internal bool MayStartNativePreparationDuringSave(UnitCommand command) => unifiedTurn.MayStartNativePreparationDuringSave(command);
+        internal MidEncounterAdoption ResolveMidEncounterAdoption(
+            UnitEntityData rider, UnitEntityData mount, out string refusal) =>
+            unifiedTurn.ResolveMidEncounterAdoption(rider, mount, out refusal);
+        internal long MidEncounterAdoptionCount => unifiedTurn.MidEncounterAdoptionCount;
+        internal string LastPairedAdoptionObservation => unifiedTurn.LastAdoptionObservation;
         internal TurnController PairedPartnerContext => unifiedTurn.PartnerContext;
         internal bool PairedPartnerCanGetUp => unifiedTurn.PartnerCanGetUp;
 

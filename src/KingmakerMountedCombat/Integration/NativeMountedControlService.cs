@@ -155,22 +155,103 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastNativePrimaryShellObservation { get; private set; } = "not-observed";
 
+        // One exact record per native relationship shell, taken at the command's
+        // own Init boundary. It binds the transition that shell may later deliver
+        // to the caster and the relationship generation it was created against, so
+        // a stale shell cannot transition a relationship it never targeted and a
+        // repeated delivery of the same shell is recognized as the same control.
+        private sealed class NativeRelationshipShell
+        {
+            public NativeMountedControlKind Kind;
+            public long GenerationAtInit;
+            public string CasterId;
+            public string TargetId;
+            public string ControlIdentity;
+        }
+
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<UnitUseAbility, NativeRelationshipShell>
+            relationshipShells = new System.Runtime.CompilerServices.ConditionalWeakTable<UnitUseAbility, NativeRelationshipShell>();
+        private long relationshipShellSequence;
+
+        internal long NativeRelationshipShellCount { get; private set; }
+
+        internal string LastNativeRelationshipShellObservation { get; private set; } = "not-observed";
+
         internal void PrepareNativeMountApproach(UnitUseAbility command)
         {
             if (disposed || !enabled || !registered || serializationSuspended ||
-                command == null || command.IsStarted || command.IsFinished ||
-                !ReferenceEquals(command.Spell?.Blueprint, mountAbility)) { return; }
+                command == null || command.IsStarted || command.IsFinished) { return; }
+            var blueprint = command.Spell?.Blueprint;
+            var isMount = ReferenceEquals(blueprint, mountAbility);
+            var isDismount = ReferenceEquals(blueprint, dismountAbility);
+            if (!isMount && !isDismount) { return; }
             var caster = command.Executor;
+            if (caster == null || command.Spell.Caster?.Unit != caster) { return; }
             var target = command.Target?.Unit;
-            if (caster?.View == null || target?.View == null || command.Spell.Caster?.Unit != caster ||
+            if (isMount && (caster.View == null || target?.View == null ||
                 target != caster.Descriptor?.Pet || target.Descriptor?.Master.Value != caster ||
-                !SupportedMountedProfiles.IsSupported(target)) { return; }
+                !SupportedMountedProfiles.IsSupported(target))) { return; }
+            if (isDismount && target != caster) { return; }
+
+            NativeRelationshipShell existing;
+            if (!relationshipShells.TryGetValue(command, out existing))
+            {
+                var shell = new NativeRelationshipShell
+                {
+                    Kind = isMount ? NativeMountedControlKind.MountCompanion : NativeMountedControlKind.Dismount,
+                    GenerationAtInit = relationship.MountedPairGeneration,
+                    CasterId = caster.UniqueId,
+                    TargetId = target?.UniqueId,
+                    ControlIdentity = "shell:" + (++relationshipShellSequence).ToString(CultureInfo.InvariantCulture) +
+                        ":" + (isMount ? "mount" : "dismount") + ":" + caster.UniqueId
+                };
+                relationshipShells.Add(command, shell);
+                NativeRelationshipShellCount++;
+                LastNativeRelationshipShellObservation = "control=" + shell.ControlIdentity +
+                    ";generationAtInit=" + shell.GenerationAtInit +
+                    ";target=" + (shell.TargetId ?? "<none>");
+            }
+
+            if (!isMount) { return; }
             float radius;
             if (CombatMountDismountPolicy.TryGetMountApproachRadius(command.ApproachRadius,
                 caster.View.Corpulence, target.View.Corpulence, out radius))
             {
                 MountApproachRadiusSetter.Invoke(command, new object[] { radius });
             }
+        }
+
+        // The exact shell whose delivery is running: the caster's own native Move
+        // slot. A relationship control that cannot find its own shell there is not
+        // delivering its own admitted command and is refused.
+        private NativeRelationshipShell ResolveDeliveringShell(
+            NativeMountedControlKind kind, UnitEntityData caster, UnitEntityData target, out string refusal)
+        {
+            refusal = null;
+            var slot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+            NativeRelationshipShell shell;
+            if (slot == null || !relationshipShells.TryGetValue(slot, out shell))
+            {
+                refusal = "This mounted transition no longer owns its native Move command.";
+                return null;
+            }
+            if (shell.Kind != kind || !string.Equals(shell.CasterId, caster.UniqueId, StringComparison.Ordinal))
+            {
+                refusal = "This native Move command belongs to a different mounted control.";
+                return null;
+            }
+            if (kind == NativeMountedControlKind.MountCompanion &&
+                !string.Equals(shell.TargetId, target?.UniqueId, StringComparison.Ordinal))
+            {
+                refusal = "The mounted transition target changed after its native command was created.";
+                return null;
+            }
+            if (shell.GenerationAtInit != relationship.MountedPairGeneration)
+            {
+                refusal = "The mounted relationship changed after this transition was requested.";
+                return null;
+            }
+            return shell;
         }
 
         private static MethodInfo ResolveMountApproachRadiusSetter()
@@ -349,15 +430,23 @@ namespace KingmakerMountedCombat.Integration
                 null,
                 "dispatch-started");
             bool accepted;
+            string shellRefusal = null;
+            NativeRelationshipShell deliveringShell = null;
+            if (kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount)
+            {
+                deliveringShell = ResolveDeliveringShell(kind, caster, target, out shellRefusal);
+            }
             try
             {
                 switch (kind)
                 {
                     case NativeMountedControlKind.MountCompanion:
-                        accepted = playerAction.TryExecuteNativeMount(caster, target);
+                        accepted = deliveringShell != null &&
+                            playerAction.TryExecuteNativeMount(caster, target, deliveringShell.ControlIdentity);
                         break;
                     case NativeMountedControlKind.Dismount:
-                        accepted = playerAction.TryExecuteNativeDismount(caster);
+                        accepted = deliveringShell != null &&
+                            playerAction.TryExecuteNativeDismount(caster, deliveringShell.ControlIdentity);
                         break;
                     case NativeMountedControlKind.RiderPrimary:
                         accepted = combat.TryExecuteNativeAbility(
@@ -394,8 +483,12 @@ namespace KingmakerMountedCombat.Integration
             else
             {
                 DispatchRejectedCount++;
-                var refusal = kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount
-                    ? playerAction.LastFeedback : combat.LastFeedback;
+                var refusal = shellRefusal;
+                if (string.IsNullOrWhiteSpace(refusal))
+                {
+                    refusal = kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount
+                        ? playerAction.LastFeedback : combat.LastFeedback;
+                }
                 if (string.IsNullOrWhiteSpace(refusal)) refusal = DescribeRefusal(kind, caster, target);
                 RaiseWarning(refusal);
                 logger.Info("Native mounted dispatch refusal: " + refusal);

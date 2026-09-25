@@ -52,6 +52,18 @@ namespace KingmakerMountedCombat.Domain
 
         public bool NativeMoveActionShellAdmitted { get; set; }
 
+        // A KMC-owned voluntary relationship transition is already in flight. A
+        // second native control must not be offered, so repeated input cannot
+        // create a second committed Move shell.
+        public bool RelationshipTransitionInFlight { get; set; }
+
+        // In combat the paired lifecycle must be able to take over the running
+        // encounter unambiguously. When it cannot, the transition is refused
+        // before any native commitment rather than guessed at.
+        public bool PairedAdoptionAvailable { get; set; } = true;
+
+        public string PairedAdoptionUnavailableReason { get; set; }
+
         public bool PairAdjacent { get; set; }
 
         public bool SafeGameMode { get; set; }
@@ -122,6 +134,10 @@ namespace KingmakerMountedCombat.Domain
                 }
 
                 var dismountReasons = new List<string>();
+                if (context.RelationshipTransitionInFlight)
+                {
+                    dismountReasons.Add("A mounted transition is already in flight.");
+                }
                 if (context.InCombat && !context.CombatTurnEligible)
                 {
                     dismountReasons.Add("Dismount during turn-based combat belongs to the rider-led current turn.");
@@ -159,6 +175,10 @@ namespace KingmakerMountedCombat.Domain
             if (!context.FeatureEnabled)
             {
                 reasons.Add("Enable the private-alpha mounted movement feature in this mod's settings.");
+            }
+            if (context.RelationshipTransitionInFlight)
+            {
+                reasons.Add("A mounted transition is already in flight.");
             }
 
             if (!context.ExactlyOneRiderSelected)
@@ -208,11 +228,14 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("Mounting is blocked during loading, area transitions, and cutscenes.");
             }
-            if (context.InCombat)
+            if (context.InCombat && !context.PairedAdoptionAvailable)
             {
-                // MountedPairCandidate currently forbids combat mounting. Native
-                // availability must not advertise a Move shell that cannot create a pair.
-                reasons.Add("Mount Companion is available only outside combat in this preview.");
+                // The paired lifecycle could not dispose of this round's
+                // participation unambiguously. Availability must not advertise a
+                // Move shell whose delivery would have to guess.
+                reasons.Add(string.IsNullOrWhiteSpace(context.PairedAdoptionUnavailableReason)
+                    ? "The mounted pair cannot take over this encounter's activation yet."
+                    : context.PairedAdoptionUnavailableReason);
             }
             if (context.InCombat && !context.PairAdjacent)
             {
