@@ -1,6 +1,8 @@
 # Chunk 5: save-scoped persistence and cold-load recovery
 
-**COMPLETION CANDIDATE — every mandatory Chunk 5 behavior PASS natively on one frozen payload (`0.1.0-chunk5-preview.105`; completion gate PASS; see the completion section and `chunk5-ledger.json`); not accepted by the owner, not installed, not merged, not released.** Branch `codex/mounted-combat-phase3f-playable-core` preserves reviewed `8a297fa019ff205f50fd7b911b6f6e03d46fbb1a` and Chunk 4 source `429377d707a9976be65639e0c27954d8b4ff3717`. Chunk 4 native engineering is accepted; visual/HUD/physical-input and HUMAN PLAY remain TODO. Historical experiments and exact run identities remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md); runtime saves and proprietary evidence stay in the lab.
+**COMPLETE — every mandatory Chunk 5 behavior PASS natively on one frozen payload (`0.1.0-chunk5-preview.105`; completion gate PASS; see the completion section and `chunk5-ledger.json`); accepted by the owner on 2026-09-25 and delivered as the alpha prerelease `v0.1.0-chunk5-preview.105` from the `main` merge; not installed locally.** Branch `codex/mounted-combat-phase3f-playable-core` preserves reviewed `8a297fa019ff205f50fd7b911b6f6e03d46fbb1a` and Chunk 4 source `429377d707a9976be65639e0c27954d8b4ff3717`. Chunk 4 native engineering is accepted; visual/HUD/physical-input and HUMAN PLAY remain TODO. Historical experiments and exact run identities remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md); runtime saves and proprietary evidence stay in the lab.
+
+The owner accepted this candidate on 2026-09-25 and authorized the default-branch merge, the push and an alpha prerelease of the exact qualified payload; nothing was rebuilt, and local installation was not requested. Delivery receipts and the final merge/release identities are in the lab (nalysis-cache/chunk5-alpha105/ACTIVE.json). [Alpha setup and focused playtest](ALPHA-PLAYTEST.md).
 
 ## Storage and resume semantics
 
