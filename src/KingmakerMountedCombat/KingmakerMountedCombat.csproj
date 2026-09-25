@@ -224,6 +224,9 @@
     <Compile Include="Domain\IMountedPairRuntime.cs" />
     <Compile Include="Domain\MountedPair.cs" />
     <Compile Include="Domain\MountedPairCandidate.cs" />
+    <Compile Include="Domain\MountedRelationshipAdmission.cs" />
+    <Compile Include="Domain\MidEncounterAdoptionPolicy.cs" />
+    <Compile Include="Domain\MountedTransitionLedger.cs" />
     <Compile Include="Domain\MountedCombatAction.cs" />
     <Compile Include="Domain\MountedCombatSpatialPolicy.cs" />
     <Compile Include="Domain\MountedCombatTransaction.cs" />

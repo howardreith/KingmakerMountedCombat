@@ -136,13 +136,27 @@ namespace KingmakerMountedCombat.Integration
             return Record(result);
         }
 
-        public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount)
+        // Every entry point other than the one explicit voluntary combat path
+        // keeps exploration semantics, so a diagnostic, automation or restore
+        // caller can never authorize a combat transition.
+        public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount) =>
+            MountRiderOn(rider, mount, MountedRelationshipAdmission.Exploration);
+
+        public TransitionResult MountRiderOn(
+            UnitEntityData rider, UnitEntityData mount, MountedRelationshipAdmission admission)
         {
             ThrowIfDisposed();
-            if (settings.EnablePairedActivation && (rider?.IsInCombat == true || mount?.IsInCombat == true ||
-                Game.Instance?.Player?.IsInCombat == true))
+            if (admission == MountedRelationshipAdmission.SavedRestore)
                 return Record(new TransitionResult(false, coordinator.State, null,
-                    new[] { "Mount before combat to establish paired activation ownership." }, false, false));
+                    new[] { "Saved restoration is not a voluntary mount admission." }, false, false));
+            var inCombat = rider?.IsInCombat == true || mount?.IsInCombat == true ||
+                Game.Instance?.Player?.IsInCombat == true;
+            if (inCombat && admission != MountedRelationshipAdmission.VoluntaryCombat)
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Mounting during an encounter requires the voluntary combat control." }, false, false));
+            if (!inCombat && admission == MountedRelationshipAdmission.VoluntaryCombat)
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Voluntary combat mounting requires a live encounter." }, false, false));
             if (!settings.EnableUnsafeMovementExperiment)
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));
@@ -158,7 +172,7 @@ namespace KingmakerMountedCombat.Integration
             }
 
             runtime.Prepare(rider, mount);
-            var result = coordinator.Mount(runtime.CreateCandidate());
+            var result = coordinator.Mount(runtime.CreateCandidate(), admission);
             ObserveCleanupState(result);
             if (result.Succeeded)
             {

@@ -92,6 +92,7 @@ namespace KingmakerMountedCombat.Tests
             MountedCombatDomainTests.Register(runner);
             ActorAllocationLifetimeTests.Register(runner);
             PairedActivationTests.Register(runner);
+            Chunk6aCombatMountTests.Register(runner);
             ManualReviewBoundaryGuardTests.Register(runner);
             runner.Run("persistence isolation accepts only the qualified disposable fixture", () =>
             {

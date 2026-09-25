@@ -1,5 +1,52 @@
 # Phase 3D Combat Mount/Dismount Contract
 
+## Chunk 6A disposition — 2026-09-24 (supersedes the DEFER below)
+
+Status: `IMPLEMENTED — CHUNK 6A`. The owner's Chunk 6A mission authorizes legal
+voluntary combat Mount and requalified voluntary combat Dismount through normal
+native controls on the accepted paired-activation architecture. The historical
+`DEFER — EVIDENCED` disposition below is preserved as the record of why the
+Phase 3D/3E attempts stopped; it is no longer the current status.
+
+What changed relative to that history is the evidence, not the ambition. The
+Phase 3E blocker was the unified/scheduler turn authority, which no longer runs:
+paired activation is the accepted authority and both legacy experiments are off.
+The domain guard the dev.9 run recorded rejecting the transition
+(`Private-alpha mounting is available only outside combat.`) is replaced in 6A
+by an explicit admission mode rather than removed, so exploration, voluntary
+combat and saved restore each remain separately testable and a restore flag can
+no longer authorize gameplay.
+
+The full frozen contract — the exact native cost machinery, the commitment
+boundary, and the transition-round participation rule with its installed-IL
+evidence — lives in [planning/CHUNK6-ACTION-CONTRACT.md](CHUNK6-ACTION-CONTRACT.md)
+and is not duplicated here. Three points from it correct or sharpen statements
+made further down this page:
+
+- **The out-of-combat transition is free because native code charges nothing
+  outside combat.** `UnitActionController.UpdateCooldowns` `0x06009120` returns
+  without writing when `Executor.IsInCombat` is false. The historical wording
+  "free exploration transition" is therefore native behavior, not a KMC
+  exception, and no code path treats exploration specially for cost.
+- **The commitment boundary is the acted transition, after approach.**
+  `TickCommand` `0x0600911E` calls `UpdateCooldowns` only on the `IsActed`
+  false-to-true transition produced at `IL_0181` of `UnitCommand.Tick`
+  `0x060027A7`, and `TickApproaching` `0x060027A6` has already run by then.
+  Cancelling during approach or before commitment costs nothing; once committed
+  the cost stands and KMC performs no refund even when a later revalidation
+  legitimately refuses the relationship transition.
+- **"Mid-combat mount invokes the shared-initiative merge contract" is
+  superseded.** There is no merge. `TurnController.Prepare` `0x06000C3C` calls
+  `Cooldowns.Clear` `0x0600C3BE` and is itself the per-round grant, so no
+  relationship transition may call it. Mid-encounter pair creation instead uses
+  one explicit typed adoption operation that takes over the rider's already
+  running native turn as the activation boundary through pure bookkeeping, and
+  disposes of the mount's transition round from the exact positional observable
+  in `CombatController.ChooseNextUnit` `0x06000BD2`: prepared once as the paired
+  partner when its own slot is still pending, or left exactly as it stands when
+  its slot has already been taken. Mid-combat dismount continues to use the
+  accepted pending-split boundary, which the paragraph below describes correctly.
+
 ## Phase 3E final disposition
 
 Status: `DEFER — EVIDENCED` for unified-TB combat Mount/Dismount.

@@ -93,6 +93,204 @@ namespace KingmakerMountedCombat.Integration
                 !getUp && input.EnabledSingleActionMove);
         }
 
+        private static readonly MethodInfo NativeFindUnitInfo = ResolveMethod(typeof(CombatController),
+            "FindUnitInfo", 0x06000BBB, new[] { typeof(UnitEntityData) });
+        private static readonly FieldInfo NativeSurprised =
+            ResolveField(typeof(CombatController.TBUnitInfo), "Surprised", 0x04007069);
+        private static readonly FieldInfo NativeActingInSurpriseRound =
+            ResolveField(typeof(CombatController.TBUnitInfo), "ActingInSurpriseRound", 0x0400706F);
+
+        internal long MidEncounterAdoptionCount { get; private set; }
+
+        internal string LastAdoptionObservation { get; private set; } = "not-requested";
+
+        // The round in which an adopted partner keeps its own native slot. Only
+        // set when the partner's participation was retained rather than prepared,
+        // which never needs suppression, so this stays negative in practice; it
+        // exists so a future disposition cannot silently erase a pending slot.
+        private int adoptedPartnerNativeSlotRound = -1;
+
+        // Side-effect-free: usable from availability and from admission.
+        internal MidEncounterAdoption ResolveMidEncounterAdoption(
+            UnitEntityData rider, UnitEntityData mount, out string refusal)
+        {
+            refusal = null;
+            if (!PairedLifecycleEnabled)
+            {
+                refusal = "Paired activation is disabled.";
+                return MidEncounterAdoption.Unavailable;
+            }
+            if (rider == null || mount == null || ReferenceEquals(rider, mount))
+            {
+                refusal = "Adoption requires two exact distinct actors.";
+                return MidEncounterAdoption.Unavailable;
+            }
+            if (!CanReplaceActivationForAdoption())
+            {
+                refusal = "The pair's previous mounted participation is still resolving this round.";
+                return MidEncounterAdoption.Unavailable;
+            }
+
+            var turnBased = CombatController.IsInTurnBasedCombat();
+            var controller = Game.Instance?.TurnBasedCombatController;
+            var turn = controller?.CurrentTurn;
+            var riderIndex = -1;
+            var mountIndex = -1;
+            if (turnBased && controller != null)
+            {
+                var index = 0;
+                foreach (var unit in controller.SortedUnits)
+                {
+                    if (ReferenceEquals(unit, rider)) riderIndex = index;
+                    if (ReferenceEquals(unit, mount)) mountIndex = index;
+                    index++;
+                }
+            }
+
+            bool surprised = false;
+            bool actingInSurpriseRound = false;
+            if (turnBased && controller != null && mountIndex >= 0)
+            {
+                var info = NativeFindUnitInfo.Invoke(controller, new object[] { mount });
+                if (info == null)
+                {
+                    refusal = "Rider and mount must both be in this encounter's initiative order to mount during it.";
+                    return MidEncounterAdoption.Unavailable;
+                }
+                surprised = (bool)NativeSurprised.GetValue(info);
+                actingInSurpriseRound = (bool)NativeActingInSurpriseRound.GetValue(info);
+            }
+
+            var currentTurnIsExactRider = turn != null && ReferenceEquals(turn.Unit, rider);
+            var disposition = MidEncounterAdoptionPolicy.Resolve(
+                turnBased,
+                currentTurnIsExactRider,
+                riderIndex,
+                mountIndex,
+                surprised,
+                actingInSurpriseRound,
+                mount.IsVisibleForPlayer);
+            if (disposition == MidEncounterAdoption.Unavailable)
+            {
+                refusal = MidEncounterAdoptionPolicy.DescribeUnavailable(
+                              turnBased, currentTurnIsExactRider, riderIndex, mountIndex) ??
+                          "The mounted pair cannot take over this encounter's activation yet.";
+            }
+            return disposition;
+        }
+
+        // A split activation still governs the partner's participation until its
+        // release round has passed. Until then a fresh voluntary combat Mount is
+        // refused rather than layered on top of it.
+        private bool CanReplaceActivationForAdoption()
+        {
+            if (activation == null) return partnerContext == null;
+            if (!activation.Split) return false;
+            if (!CombatController.IsInTurnBasedCombat()) return true;
+            var round = Game.Instance?.TurnBasedCombatController?.RoundNumber ?? -1;
+            return splitReleaseRound < 0 || round > splitReleaseRound;
+        }
+
+        // One explicit typed adoption for a pair created during a running
+        // encounter. It calls no encounter-start code, no candidate selection, no
+        // JoinCombat, and no preparation for the principal. The partner's single
+        // native preparation runs only for the PreparePartnerThisRound
+        // disposition, whose own later slot is then suppressed.
+        internal string AdoptRunningEncounter(UnitEntityData rider, UnitEntityData mount)
+        {
+            if (relationship.State != RelationshipState.Mounted ||
+                !ReferenceEquals(relationship.Rider, rider) || !ReferenceEquals(relationship.Mount, mount))
+            {
+                return "Adoption requires the exact live mounted pair.";
+            }
+            if (!(Game.Instance?.Player?.IsInCombat ?? false) && !rider.IsInCombat && !mount.IsInCombat)
+            {
+                return "Adoption requires a live encounter.";
+            }
+
+            string refusal;
+            var disposition = ResolveMidEncounterAdoption(rider, mount, out refusal);
+            if (disposition == MidEncounterAdoption.Unavailable)
+            {
+                return refusal;
+            }
+
+            if (activation != null)
+            {
+                // Its release round has passed; retire the detached record only.
+                // Native cooldowns keep every observed cost; movement allocations
+                // are left untouched so no real expenditure is discarded.
+                DisposePartnerContext();
+                nativePreparationCommands.Clear();
+                activation = null;
+                splitReleaseRound = -1;
+                resumingContext = null;
+            }
+
+            armedRider = rider;
+            armedMount = mount;
+            activationSession = Game.Instance.Player;
+            var adopted = new PairedActivation<UnitEntityData, TurnController>(rider, mount);
+            var controller = Game.Instance.TurnBasedCombatController;
+            var turn = controller?.CurrentTurn;
+            if (disposition == MidEncounterAdoption.RealTimeOwnership)
+            {
+                activation = adopted;
+                // This encounter is already running, exactly as when turn-based
+                // mode is enabled mid-combat: a whole native resource period must
+                // pass before the pair may renew.
+                pairedRenewalNotBefore = Game.Instance.TimeController.GameTime.Ticks + TimeSpan.TicksPerSecond * 6;
+                adoptedPartnerNativeSlotRound = -1;
+                MidEncounterAdoptionCount++;
+                LastAdoptionObservation = "adopted-real-time-ownership;identity=" + adopted.EncounterId +
+                    ";principal=" + rider.UniqueId + ";partner=" + mount.UniqueId + ";no-grant;no-prepare";
+                LastInitiativeObservation = LastAdoptionObservation;
+                logger.Info("Paired activation adopted a running real-time encounter: " + LastAdoptionObservation + ".");
+                return null;
+            }
+
+            if (!adopted.AdoptRunningBoundary(turn, disposition))
+            {
+                return "The rider's running native turn could not be adopted.";
+            }
+            activation = adopted;
+            nativePreparationCommands.Clear();
+            // The principal's native Prepare already ran at its own slot; the
+            // observation records the debt it stands at, it does not reset it.
+            ObservePairedCosts(rider);
+            adoptedPartnerNativeSlotRound = -1;
+            if (disposition == MidEncounterAdoption.RetainPartnerParticipation)
+            {
+                ObservePairedCosts(mount);
+            }
+            else
+            {
+                if (!activation.BeginActorPreparation(mount, turn))
+                {
+                    activation = null;
+                    return "The partner's native preparation could not be reserved.";
+                }
+                DisposePartnerContext();
+                // Identical to the accepted pre-combat path: this private native
+                // context supplies the partner's ONE preparation and its actor
+                // command callbacks. It is never Start()ed, Tick()ed or selected.
+                partnerContext = new TurnController(mount);
+                SurpriseContext.SetValue(partnerContext, controller.IsActingSurpriseCommands(rider));
+                RefreshPartnerNativeState();
+                partnerContext.Prepare();
+                SynchronizePartnerPhase(turn);
+            }
+            MidEncounterAdoptionCount++;
+            LastAdoptionObservation = "adopted-running-turn;identity=" + activation.Identity +
+                ";principal=" + rider.UniqueId + ";partner=" + mount.UniqueId +
+                ";disposition=" + disposition + ";round=" + (controller?.RoundNumber ?? -1) +
+                ";principalPrepareCalls=0;partnerPrepareCalls=" +
+                (disposition == MidEncounterAdoption.PreparePartnerThisRound ? 1 : 0);
+            LastInitiativeObservation = LastAdoptionObservation;
+            logger.Info("Paired activation adopted a running turn-based encounter: " + LastAdoptionObservation + ".");
+            return null;
+        }
+
         private void ArmPairedEncounter(UnitEntityData rider, UnitEntityData mount)
         {
             if (!PairedLifecycleEnabled || rider == null || mount == null || rider.IsInCombat || mount.IsInCombat ||
@@ -130,6 +328,22 @@ namespace KingmakerMountedCombat.Integration
                 else if (candidate?.Unit == pendingSplitMount) return true;
             }
             if (!PairedLifecycleEnabled || activation == null || candidate?.Unit != activation.Partner) return false;
+            if (adoptedPartnerNativeSlotRound >= 0)
+            {
+                if (Game.Instance.TurnBasedCombatController.RoundNumber > adoptedPartnerNativeSlotRound)
+                {
+                    adoptedPartnerNativeSlotRound = -1;
+                }
+                else
+                {
+                    // Adoption retained this partner's own pending native slot for
+                    // the transition round. Suppressing it would erase a lawful
+                    // participation opportunity.
+                    LastTurnCandidateObservation = "adopted-partner-keeps-native-slot;activation=" +
+                        activation.Identity + ";mount=" + candidate.Unit.UniqueId;
+                    return false;
+                }
+            }
             if (activation.Split && Game.Instance.TurnBasedCombatController.RoundNumber > splitReleaseRound)
             {
                 // A new native round only releases participation. The actor still
@@ -348,6 +562,7 @@ namespace KingmakerMountedCombat.Integration
                 nativePreparationCommands.Clear();
                 DisposePartnerContext(); activation = null; activationSession = null;
                 armedRider = null; armedMount = null; splitReleaseRound = -1; pairedRenewalNotBefore = 0; resumingContext = null;
+                adoptedPartnerNativeSlotRound = -1;
             }
             // Native removal can already have retired activation ownership while
             // the relationship survives combat exit. Arm the next encounter even

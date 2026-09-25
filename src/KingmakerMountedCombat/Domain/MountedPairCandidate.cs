@@ -50,11 +50,12 @@ namespace KingmakerMountedCombat.Domain
 
         public bool SafeMovementMode { get; set; }
 
-        public string Validate() => Validate(false);
+        public string Validate() => Validate(MountedRelationshipAdmission.Exploration);
 
-        internal string ValidateSavedRelationship() => Validate(true);
+        internal string ValidateSavedRelationship() =>
+            Validate(MountedRelationshipAdmission.SavedRestore);
 
-        private string Validate(bool restoring)
+        public string Validate(MountedRelationshipAdmission admission)
         {
             if (string.IsNullOrWhiteSpace(RiderId) || string.IsNullOrWhiteSpace(MountId))
             {
@@ -81,9 +82,29 @@ namespace KingmakerMountedCombat.Domain
                 return "Mount must be the rider's exact active reciprocal companion.";
             }
 
-            if (!restoring && (RiderIsInCombat || MountIsInCombat || PartyIsInCombat))
+            var inCombat = RiderIsInCombat || MountIsInCombat || PartyIsInCombat;
+            switch (admission)
             {
-                return "Private-alpha mounting is available only outside combat.";
+                case MountedRelationshipAdmission.Exploration:
+                    if (inCombat)
+                    {
+                        // The free exploration transition never admits a live
+                        // encounter. Voluntary combat mounting is its own mode.
+                        return "Private-alpha mounting is available only outside combat.";
+                    }
+                    break;
+                case MountedRelationshipAdmission.VoluntaryCombat:
+                    if (!inCombat)
+                    {
+                        // A voluntary combat admission must never stand in for
+                        // the free exploration transition.
+                        return "Voluntary combat mounting requires a live encounter.";
+                    }
+                    break;
+                case MountedRelationshipAdmission.SavedRestore:
+                    break;
+                default:
+                    return "Unknown mounted relationship admission mode.";
             }
 
             if (MountSizeOrdinal <= RiderSizeOrdinal)

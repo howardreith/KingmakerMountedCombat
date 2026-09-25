@@ -103,6 +103,35 @@ namespace KingmakerMountedCombat.Domain
             return restored;
         }
 
+        // Mid-encounter adoption. The principal's native turn is ALREADY running
+        // and its native preparation already happened at its own initiative slot,
+        // before this pair existed. Adoption records ownership of that boundary
+        // through bookkeeping only: it calls no native method, clears no debt and
+        // moves no future action earlier. The partner disposition decides whether
+        // the caller must still perform the partner's ONE native preparation.
+        public bool AdoptRunningBoundary(TBoundary boundary, MidEncounterAdoption partner)
+        {
+            if (boundary == null || Split || Suspended || Ending || Finalized || Sequence > 0 ||
+                Boundary != null || boundaries.Contains(boundary)) return false;
+            if (partner != MidEncounterAdoption.PreparePartnerThisRound &&
+                partner != MidEncounterAdoption.RetainPartnerParticipation) return false;
+            boundaries.Add(boundary);
+            Boundary = boundary;
+            Sequence++;
+            Rider = new ActorState { Actor = Principal, Granted = true, Prepared = true };
+            Mount = new ActorState { Actor = Partner };
+            if (partner == MidEncounterAdoption.RetainPartnerParticipation)
+            {
+                // The partner already spent its own native slot in this round.
+                // Its grant is recorded as prepared so the pair may still address
+                // whatever native capacity it genuinely has left, and no native
+                // preparation runs for it.
+                Mount.Granted = true;
+                Mount.Prepared = true;
+            }
+            return true;
+        }
+
         public bool Begin(TBoundary boundary)
         {
             if (boundary == null || Split || boundaries.Contains(boundary)) return false;

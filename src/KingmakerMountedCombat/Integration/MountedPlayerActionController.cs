@@ -24,6 +24,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly MountedOverlayWorldInputGuard mountTargetWorldInputGuard = new MountedOverlayWorldInputGuard();
         private readonly MountedPlayerActionFeedbackState feedbackState =
             new MountedPlayerActionFeedbackState("Ready to mount when the selected rider is eligible.");
+        private readonly MountedTransitionLedger transitionLedger = new MountedTransitionLedger();
+        private long directTransitionSequence;
         private GameObject overlayObject;
         private MountedPlayerActionOverlay overlay;
         private UnitEntityData armedRider;
@@ -41,6 +43,24 @@ namespace KingmakerMountedCombat.Integration
             this.settings = settings ?? throw new ArgumentNullException(nameof(settings));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
+            relationship.Dismounting += ObserveRelationshipDetach;
+        }
+
+        // Every detach announcement is recorded. Manual is the player-paid
+        // voluntary path already admitted through the ledger; every other trigger
+        // is cleanup and is recorded as a forced detach that books no cost.
+        private void ObserveRelationshipDetach(CleanupTrigger trigger)
+        {
+            if (disposed || trigger == CleanupTrigger.Manual)
+            {
+                return;
+            }
+
+            transitionLedger.RecordForcedDetach(
+                relationship.Rider?.UniqueId,
+                relationship.Mount?.UniqueId,
+                relationship.MountedPairGeneration,
+                trigger.ToString());
         }
 
         public MountedPlayerActionAvailability GetAvailability()
@@ -225,7 +245,22 @@ namespace KingmakerMountedCombat.Integration
                 : "Mount target rejected: click the selected rider's exact active " + mountName + ".";
         }
 
-        internal bool TryExecuteNativeMount(UnitEntityData caster, UnitEntityData target)
+        internal MountedTransitionLedger TransitionLedger => transitionLedger;
+
+        internal bool HasVoluntaryTransitionInFlight => transitionLedger.HasVoluntaryTransitionInFlight;
+
+        private static bool IsTransitionInCombat(UnitEntityData rider, UnitEntityData mount) =>
+            rider?.IsInCombat == true || mount?.IsInCombat == true ||
+            Game.Instance?.Player?.IsInCombat == true;
+
+        private string NextDirectControlIdentity(string kind) =>
+            "direct:" + (++directTransitionSequence).ToString(System.Globalization.CultureInfo.InvariantCulture) +
+            ":" + kind;
+
+        internal bool TryExecuteNativeMount(UnitEntityData caster, UnitEntityData target) =>
+            TryExecuteNativeMount(caster, target, null);
+
+        internal bool TryExecuteNativeMount(UnitEntityData caster, UnitEntityData target, string controlIdentity)
         {
             ThrowIfDisposed();
             if (!MountedGameModePolicy.CanAdmitMountedAction(Game.Instance?.CurrentMode.ToString()))
@@ -256,14 +291,42 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            // The admission mode is decided from live state at execution, so a
+            // combat transition can only ever run under the voluntary combat
+            // authority and an exploration transition can never claim it.
+            var admission = IsTransitionInCombat(caster, target)
+                ? MountedRelationshipAdmission.VoluntaryCombat
+                : MountedRelationshipAdmission.Exploration;
+            MountedTransitionRecord record;
+            string ledgerRefusal;
+            if (!transitionLedger.TryAdmitVoluntary(
+                    MountedTransitionKind.VoluntaryMount,
+                    controlIdentity ?? NextDirectControlIdentity("mount"),
+                    caster.UniqueId,
+                    target.UniqueId,
+                    relationship.MountedPairGeneration,
+                    out record,
+                    out ledgerRefusal))
+            {
+                feedbackState.SetOperationFeedback(ledgerRefusal);
+                logger.Info("Native Mount Companion suppressed: " + ledgerRefusal +
+                    "; riderId=" + caster.UniqueId + "; ledger={" + transitionLedger.Describe() + "}.");
+                return false;
+            }
+
+            var accepted = false;
             try
             {
                 ClearMountTargetSelection();
-                var transition = relationship.MountRiderOn(caster, target);
+                var transition = relationship.MountRiderOn(caster, target, admission);
+                accepted = transition.Succeeded;
                 feedbackState.SetOperationFeedback(relationship.LastResult);
                 logger.Info("Native Mount Companion dispatch: riderId=" + caster.UniqueId +
-                    "; mountId=" + target.UniqueId + "; succeeded=" + transition.Succeeded + ".");
-                return transition.Succeeded;
+                    "; mountId=" + target.UniqueId + "; admission=" + admission +
+                    "; control=" + record.ControlIdentity +
+                    "; generationBefore=" + record.GenerationBefore +
+                    "; succeeded=" + transition.Succeeded + ".");
+                return accepted;
             }
             catch (Exception exception)
             {
@@ -277,9 +340,16 @@ namespace KingmakerMountedCombat.Integration
                 }
                 return false;
             }
+            finally
+            {
+                transitionLedger.Settle(record, accepted);
+            }
         }
 
-        internal bool TryExecuteNativeDismount(UnitEntityData caster)
+        internal bool TryExecuteNativeDismount(UnitEntityData caster) =>
+            TryExecuteNativeDismount(caster, null);
+
+        internal bool TryExecuteNativeDismount(UnitEntityData caster, string controlIdentity)
         {
             ThrowIfDisposed();
             if (!MountedGameModePolicy.CanAdmitMountedAction(Game.Instance?.CurrentMode.ToString())) { return false; }
@@ -290,14 +360,37 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            MountedTransitionRecord record;
+            string ledgerRefusal;
+            if (!transitionLedger.TryAdmitVoluntary(
+                    MountedTransitionKind.VoluntaryDismount,
+                    controlIdentity ?? NextDirectControlIdentity("dismount"),
+                    caster.UniqueId,
+                    relationship.Mount?.UniqueId,
+                    relationship.MountedPairGeneration,
+                    out record,
+                    out ledgerRefusal))
+            {
+                feedbackState.SetOperationFeedback(ledgerRefusal);
+                logger.Info("Native Dismount suppressed: " + ledgerRefusal +
+                    "; riderId=" + caster.UniqueId + "; ledger={" + transitionLedger.Describe() + "}.");
+                return false;
+            }
+
+            var accepted = false;
             try
             {
                 ClearMountTargetSelection();
+                // Voluntary Dismount is the player-paid Manual path. Forced detach
+                // uses its own cleanup triggers and never reaches this method.
                 var transition = relationship.Dismount(CleanupTrigger.Manual);
+                accepted = transition.Succeeded;
                 feedbackState.SetOperationFeedback(relationship.LastResult);
                 logger.Info("Native Dismount dispatch: riderId=" + caster.UniqueId +
+                    "; control=" + record.ControlIdentity +
+                    "; generationBefore=" + record.GenerationBefore +
                     "; succeeded=" + transition.Succeeded + ".");
-                return transition.Succeeded;
+                return accepted;
             }
             catch (Exception exception)
             {
@@ -310,6 +403,10 @@ namespace KingmakerMountedCombat.Integration
                     throw new InvalidOperationException("Native Dismount failure cleanup retained residue.", exception);
                 }
                 return false;
+            }
+            finally
+            {
+                transitionLedger.Settle(record, accepted);
             }
         }
 
@@ -526,6 +623,7 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            relationship.Dismounting -= ObserveRelationshipDetach;
             DestroyOverlay();
             ClearMountTargetSelection();
             disposed = true;
@@ -543,7 +641,10 @@ namespace KingmakerMountedCombat.Integration
                 FeatureEnabled = settings.EnableUnsafeMovementExperiment,
                 ConflictingMountedRelationship = state != RelationshipState.Unmounted &&
                     state != RelationshipState.Mounted &&
-                    state != RelationshipState.Faulted
+                    state != RelationshipState.Faulted,
+                // The execution pass is the in-flight transition's own delivery.
+                RelationshipTransitionInFlight = executionCaster == null &&
+                    transitionLedger.HasVoluntaryTransitionInFlight
             };
 
             if (!gameAvailable)
@@ -601,6 +702,20 @@ namespace KingmakerMountedCombat.Integration
                 turn != null && turn.Status == TurnController.TurnStatus.Preparing,
                 turn != null && turn.IsActing);
             context.RiderHasMoveAction = rider.HasMoveAction();
+            if (context.InCombat && state == RelationshipState.Unmounted && mount != null)
+            {
+                // Availability must never advertise a Move shell whose delivery
+                // would have to guess this round's paired participation.
+                string adoptionRefusal = null;
+                var adoptionAvailable = true;
+                if (settings.EnablePairedActivation)
+                {
+                    adoptionAvailable = combat.ResolveMidEncounterAdoption(rider, mount, out adoptionRefusal) !=
+                        MidEncounterAdoption.Unavailable;
+                }
+                context.PairedAdoptionAvailable = adoptionAvailable;
+                context.PairedAdoptionUnavailableReason = adoptionAvailable ? null : adoptionRefusal;
+            }
             context.PairAdjacent = mount != null && rider.View != null && mount.View != null &&
                 CombatMountDismountPolicy.IsAdjacent(
                     rider.DistanceTo(mount),

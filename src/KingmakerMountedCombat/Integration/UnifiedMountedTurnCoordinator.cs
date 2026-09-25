@@ -714,7 +714,24 @@ namespace KingmakerMountedCombat.Integration
 
         private void HandleMountedPairActivated(UnitEntityData rider, UnitEntityData mount)
         {
-            if (PairedLifecycleEnabled) { ArmPairedEncounter(rider, mount); return; }
+            if (PairedLifecycleEnabled)
+            {
+                if (Game.Instance?.Player?.IsInCombat == true || rider?.IsInCombat == true || mount?.IsInCombat == true)
+                {
+                    // The pair was created during a running encounter. Take
+                    // ownership through the explicit adoption operation; there is
+                    // no native mid-encounter hook to re-enter.
+                    var refusal = AdoptRunningEncounter(rider, mount);
+                    if (refusal != null)
+                    {
+                        LastAdoptionObservation = "adoption-refused;reason=" + refusal;
+                        logger.Error("Paired activation could not adopt the running encounter: " + refusal);
+                    }
+                    return;
+                }
+                ArmPairedEncounter(rider, mount);
+                return;
+            }
             preparedRiderTurn = null;
             pendingSplitMount = null;
             pendingSplitRound = -1;
