@@ -194,6 +194,16 @@ namespace KingmakerMountedCombat.Integration
                 ";partner=" + activation.Partner.UniqueId + ";native-preparations=2.");
         }
 
+        internal bool OwnsPartnerRoundEffects(UnitEntityData current, UnitEntityData actor)
+        {
+            var turn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            return PairedLifecycleEnabled && activation != null && turn != null &&
+                current == turn.Unit && current == activation.Principal && actor == activation.Partner &&
+                partnerContext?.Unit == actor && relationship.State == RelationshipState.Mounted &&
+                relationship.Rider == current && relationship.Mount == actor &&
+                activation.OwnsRoundEffects(actor, turn);
+        }
+
         internal bool NativeActorEligibleForCommand(UnitEntityData actor, UnitCommand command)
         {
             if (actor.IsCurrentUnit()) return true;

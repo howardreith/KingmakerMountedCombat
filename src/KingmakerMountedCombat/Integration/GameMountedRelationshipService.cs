@@ -109,6 +109,33 @@ namespace KingmakerMountedCombat.Integration
             return MountRiderOn(rider, mount);
         }
 
+        internal bool SaveSerializationSuspended { get; set; }
+
+        // Only the persistence service uses this path after unique loaded-actor
+        // and metadata validation. It neither executes Mount nor begins a turn.
+        internal TransitionResult RestoreSavedPair(UnitEntityData rider, UnitEntityData mount, string profileId)
+        {
+            ThrowIfDisposed();
+            if (coordinator.State == RelationshipState.Mounted && Rider == rider && Mount == mount &&
+                runtime.MountProfileId == profileId) return LastTransition;
+            if (!settings.EnableUnsafeMovementExperiment || !settings.EnablePairedActivation ||
+                settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler ||
+                coordinator.State != RelationshipState.Unmounted || rider == null || mount == null ||
+                SupportedMountedProfiles.Resolve(mount.Blueprint?.AssetGuid)?.Id != profileId)
+                return Record(new TransitionResult(false, coordinator.State, null,
+                    new[] { "Saved mounted relationship is incompatible with the active pair/policy." }, false, false));
+            runtime.Prepare(rider, mount);
+            var result = coordinator.RestoreSaved(runtime.CreateCandidate());
+            ObserveCleanupState(result);
+            if (result.Succeeded)
+            {
+                mountedPairGeneration = checked(mountedPairGeneration + 1);
+                ResetNativeTurnBasedExitAiLeaseEvidence();
+            }
+            else runtime.ClearPreparedPairWhenUnmounted();
+            return Record(result);
+        }
+
         public TransitionResult MountRiderOn(UnitEntityData rider, UnitEntityData mount)
         {
             ThrowIfDisposed();
@@ -419,6 +446,7 @@ namespace KingmakerMountedCombat.Integration
 
         public void ValidateActivePair()
         {
+            if (SaveSerializationSuspended) return;
             if (cleanupRetryRequired || coordinator.State == RelationshipState.Faulted)
             {
                 RetryFailedCleanupOrThrow();

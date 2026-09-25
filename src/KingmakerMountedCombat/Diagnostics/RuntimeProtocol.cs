@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -72,6 +73,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "ui-selection-portrait-actionbar",
             "camera-follow-and-command-routing",
             "fixture-intake",
+            "persistence-isolation", "persistence-p07-save", "persistence-p07-load", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load", "persistence-p06-load",
             "lifecycle-suite",
             "combat-lifecycle-suite",
             "chunk4-traversal-core", "chunk4-traversal-slope", "chunk4-area-cleanup", "movement-suite",
@@ -122,6 +124,51 @@ namespace KingmakerMountedCombat.Diagnostics
         public string SaveName { get; set; }
 
         public RuntimeFixtureIdentity Fixture { get; set; }
+
+        public RuntimeSaveDescriptor PersistenceLoad { get; set; }
+        public RuntimeSaveDescriptor PersistenceAlternate { get; set; }
+        public RuntimeAreaTransitionTarget PersistenceAreaTarget { get; set; }
+
+        // Cross-area cases declare their destination up front so the isolated
+        // save authority can pin post-transition writes to that exact area.
+        internal static bool IsCrossAreaCase(string persistenceCase) =>
+            persistenceCase == "area-cross-entry" || persistenceCase == "area-cross-exit";
+
+        // Cold-only cases that load the transition autosave a cross-area source
+        // actually produced, rather than its separate destination manual
+        // archive. AfterEntry committed in the destination; BeforeExit committed
+        // in the departure area before suspension, so each expects its own world.
+        internal static bool IsTransitionAutoCase(string persistenceCase) =>
+            persistenceCase == "area-cross-entry-auto" || persistenceCase == "area-cross-exit-auto";
+
+        internal static bool IsCrossAreaFamilyCase(string persistenceCase) =>
+            IsCrossAreaCase(persistenceCase) || IsTransitionAutoCase(persistenceCase);
+
+        // The harmful-lifecycle boundary cases: the rider or the mount dies to
+        // real native damage while mounted, and the no-pair archive that follows
+        // is reloaded in-process and cold.
+        internal static bool IsDeathCase(string persistenceCase) =>
+            persistenceCase == "rider-death" || persistenceCase == "mount-death";
+
+        // The live eligibility change: the engine's own size effect makes the
+        // mounted rider Large, KMC's invariant ends the pair, and the no-pair
+        // archive that follows is reloaded in-process and cold.
+        internal static bool IsEligibilityCase(string persistenceCase) => persistenceCase == "rider-size-change";
+
+        // The one P06 derivative that corrupts a native area member, so that the
+        // load fails after Game.DisposeState rather than at admission.
+        internal static bool IsFailedLoad(string persistenceCase) =>
+            persistenceCase == "failed-area-load";
+
+        internal string ExpectedTransitionAutoArea =>
+            PersistenceCase == "area-cross-entry-auto" ? PersistenceAreaTarget?.Area : Fixture?.Working?.Area;
+
+        // A transition autosave is a native Auto save, so the loader must expect
+        // that exact type rather than the destination manual leaf.
+        internal string ExpectedNativeLoadType => IsTransitionAutoCase(PersistenceCase) ? "Auto" :
+            Scenario == "persistence-p05-load" && PersistenceLoad != null ?
+            (PersistenceCase == "quick" ? "Quick" : PersistenceCase == "auto" ? "Auto" : "Manual") : "Manual";
+        public string PersistenceCase { get; set; }
 
         public RuntimeQualificationSuiteIdentity QualificationSuite { get; set; }
 
@@ -236,6 +283,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateLegacyNoSaveRequest(List<string> errors)
         {
+            if (PersistenceLoad != null || PersistenceAlternate != null) errors.Add("No-save requests cannot select an archive.");
+            if (PersistenceCase != null) errors.Add("No-save requests cannot select a persistence case.");
             if (SaveAccessAllowed)
             {
                 errors.Add("Schema v1 never authorizes save access.");
@@ -264,6 +313,121 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ValidateSaveBackedRequest(List<string> errors)
         {
+            var p07 = Scenario == "persistence-p07-save" || Scenario == "persistence-p07-load";
+            var p06 = Scenario == "persistence-p06-load";
+            var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
+            var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
+            var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
+            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "absent-kmc", "removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
+                p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
+                p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
+                new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
+                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
+                PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
+                Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
+                errors.Add("Persistence case is outside its exact combat checkpoint contract.");
+            // Removal preparation and disable-during-load write and probe a live
+            // world; the integration-absent case only ever opens a cleanup archive.
+            if (Scenario == "persistence-p07-load" && (PersistenceCase == "prepare-removal" || PersistenceCase == "disable-during-load"))
+                errors.Add("A removal or disable-during-load case is save-only.");
+            if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll"))
+                errors.Add("The integration-absent and no-DLL cases are cold-load only.");
+            if (Scenario == "persistence-p07-load" || Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load" || p06)
+            {
+                if (PersistenceLoad == null) errors.Add("Cold loading requires its actual owned archive identity.");
+                else
+                {
+                    var nativeSlot = p05 && (PersistenceCase == "quick" || PersistenceCase == "auto") ||
+                        IsTransitionAutoCase(PersistenceCase);
+                    // The integration-absent cold load opens the cleanup archive a
+                    // prepare-removal run wrote, under that archive's own name.
+                    var cleanup = Scenario == "persistence-p07-load" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll");
+                    // A death cold load opens the no-pair archive a death run wrote.
+                    var death = Scenario == "persistence-p07-load" && IsDeathCase(PersistenceCase);
+                    // An eligibility cold load opens the no-pair archive a size-change run wrote.
+                    var eligibility = Scenario == "persistence-p07-load" && IsEligibilityCase(PersistenceCase);
+                    // A campaign-B cold load opens B's own manual archive under B's
+                    // engine-minted identity, which is exactly NOT the fixture's.
+                    var campaignB = Scenario == "persistence-p07-load" && PersistenceCase == "campaign-b";
+                    var slotPattern = nativeSlot ? (PersistenceCase == "quick" ? "^Quick_1\\.zks$" : "^Auto_1\\.zks$") :
+                        cleanup ? "^Manual_301_KMC_CLEANUP\\.zks$" :
+                        death ? "^Manual_301_KMC_DEATH\\.zks$" :
+                        eligibility ? "^Manual_301_KMC_SIZE\\.zks$" :
+                        campaignB ? "^Manual_302_KMC_B\\.zks$" :
+                        p05 && PersistenceCase == "queued" ? "^Manual_302_KMC_P01\\.zks$" :
+                        p05 && PersistenceCase == "manual-renamed" ? "^Manual_811_KMC_RENAMED\\.zks$" : "^Manual_300_KMC_P01\\.zks$";
+                    if (nativeSlot && (string.IsNullOrWhiteSpace(PersistenceLoad.InternalName) ||
+                        PersistenceLoad.InternalName.Length > 256 || PersistenceLoad.InternalName.Any(char.IsControl)))
+                        errors.Add("Cold native slot name is missing or oversized.");
+                    errors.AddRange(PersistenceLoad.Validate("persistenceLoad",
+                        nativeSlot ? PersistenceLoad.InternalName : cleanup ? "KMC_CLEANUP" : death ? "KMC_DEATH" :
+                        eligibility ? "KMC_SIZE" : campaignB ? "KMC_B" : "KMC_P01", slotPattern));
+                    // A cross-area source archive is committed after the transition,
+                    // so its native header carries the declared destination area.
+                    // A transition autosave instead carries the area it actually
+                    // committed in: the destination for AfterEntry, the departure
+                    // area for BeforeExit.
+                    var expectedArea = PersistenceAreaTarget == null ? Fixture?.Working?.Area :
+                        IsTransitionAutoCase(PersistenceCase) ? ExpectedTransitionAutoArea :
+                        IsCrossAreaCase(PersistenceCase) ? PersistenceAreaTarget.Area : Fixture?.Working?.Area;
+                    if (campaignB)
+                    {
+                        if (Fixture?.Working == null || PersistenceLoad.GameId == Fixture.Working.GameId ||
+                            !Guid.TryParse(PersistenceLoad.GameId, out var minted) || minted == Guid.Empty ||
+                            string.IsNullOrWhiteSpace(PersistenceLoad.GameName) || PersistenceLoad.Area == Fixture.Working.Area)
+                            errors.Add("A campaign-B cold archive must carry B's own minted identity and area, never the fixture's.");
+                    }
+                    else if (Fixture?.Working == null || PersistenceLoad.GameId != Fixture.Working.GameId ||
+                        PersistenceLoad.GameName != Fixture.Working.GameName || PersistenceLoad.Area != expectedArea)
+                        errors.Add("Cold archive campaign/area differs from the disposable fixture contract.");
+                }
+            }
+            else if (PersistenceLoad != null) errors.Add("This scenario cannot select a persistence archive.");
+            if (IsCrossAreaFamilyCase(PersistenceCase))
+            {
+                if (!p07) errors.Add("A cross-area transfer requires the exact P07 scenario.");
+                if (PersistenceAreaTarget == null) errors.Add("A cross-area transfer requires its declared native destination.");
+                else errors.AddRange(PersistenceAreaTarget.Validate("persistenceAreaTarget", Fixture?.Working?.Area));
+                // The transition autosave already exists; it is only ever loaded.
+                if (IsTransitionAutoCase(PersistenceCase) && Scenario != "persistence-p07-load")
+                    errors.Add("A transition autosave case is cold-load only.");
+                if (IsTransitionAutoCase(PersistenceCase) && PersistenceAreaTarget != null &&
+                    PersistenceAreaTarget.AutoSaveMode !=
+                    (PersistenceCase == "area-cross-entry-auto" ? "AfterEntry" : "BeforeExit"))
+                    errors.Add("A transition autosave case must declare the mode that produced it.");
+            }
+            else if (PersistenceAreaTarget != null)
+                errors.Add("Only an exact cross-area transfer may declare a native destination.");
+            if (p06 || Scenario == "persistence-p05-load" && PersistenceCase == "alternating")
+            {
+                if (PersistenceAlternate == null) errors.Add("Alternating native loads require the second exact archive.");
+                else
+                {
+                    // The failed-load variant is the one P06 derivative that edits
+                    // a native member, so it gets its own leaf and must differ in
+                    // bytes; the metadata-only 'policy' case is deliberately equal.
+                    var failedLoad = IsFailedLoad(PersistenceCase);
+                    // The foreign-header derivative is campaign B's own archive
+                    // whose KMC member claims A: its native header is B's.
+                    var foreignHeader = p06 && PersistenceCase == "foreign-header-campaign";
+                    errors.AddRange(PersistenceAlternate.Validate("persistenceAlternate", foreignHeader ? "KMC_B" : p06 ? "KMC_P01" : "KMC_P05_UNMOUNTED",
+                        failedLoad ? "^Manual_813_KMC_P06_AREA\\.zks$" :
+                        p06 ? "^Manual_812_KMC_P06\\.zks$" : "^Manual_301_KMC_P05_UNMOUNTED\\.zks$"));
+                    if (foreignHeader)
+                    {
+                        if (PersistenceLoad == null || PersistenceAlternate.Sha256 == PersistenceLoad.Sha256 ||
+                            PersistenceAlternate.GameId == PersistenceLoad.GameId || !Guid.TryParse(PersistenceAlternate.GameId, out var minted) ||
+                            minted == Guid.Empty || PersistenceAlternate.Area == PersistenceLoad.Area)
+                            errors.Add("A foreign-header derivative must carry B's own native identity and area, distinct from A's.");
+                    }
+                    else if (PersistenceLoad == null || ((!p06 || failedLoad) && PersistenceAlternate.Sha256 == PersistenceLoad.Sha256) ||
+                        PersistenceAlternate.GameId != PersistenceLoad.GameId ||
+                        PersistenceAlternate.GameName != PersistenceLoad.GameName ||
+                        PersistenceAlternate.Area != PersistenceLoad.Area)
+                        errors.Add("Alternating archive must be distinct and from the exact same native campaign/area.");
+                }
+            }
+            else if (PersistenceAlternate != null) errors.Add("Only exact P05 alternating or P06 validation loads may select a second archive.");
             if (SaveAccessAllowed || !string.IsNullOrEmpty(SaveName))
             {
                 errors.Add("Schema v2 uses only its exact fixture write authorization.");
@@ -429,6 +593,32 @@ namespace KingmakerMountedCombat.Diagnostics
         }
     }
 
+    // The exact native destination of an ordinary cross-area transfer. Both the
+    // enter point and its area are declared so the scenario can verify the
+    // resolved blueprint rather than trusting whatever the engine loads.
+    public sealed class RuntimeAreaTransitionTarget
+    {
+        public string EnterPoint { get; set; }
+
+        public string Area { get; set; }
+
+        public string AutoSaveMode { get; set; }
+
+        internal IReadOnlyList<string> Validate(string prefix, string workingArea)
+        {
+            var errors = new List<string>();
+            if (!RuntimeRequest.IsLowerHex(EnterPoint, 32))
+                errors.Add(prefix + ".enterPoint must be an exact lowercase 32-character blueprint GUID.");
+            if (!RuntimeRequest.IsLowerHex(Area, 32))
+                errors.Add(prefix + ".area must be an exact lowercase 32-character blueprint GUID.");
+            if (Area != null && Area == workingArea)
+                errors.Add(prefix + ".area must differ from the loaded fixture area for a real transfer.");
+            if (AutoSaveMode != "BeforeExit" && AutoSaveMode != "AfterEntry")
+                errors.Add(prefix + ".autoSaveMode must be an ordinary authored BeforeExit or AfterEntry transition.");
+            return errors;
+        }
+    }
+
     public sealed class RuntimeSaveWriteAuthorization
     {
         public string Mode { get; set; }
@@ -477,6 +667,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static readonly HashSet<string> MissionScenarios = new HashSet<string>(StringComparer.Ordinal)
         {
+            "persistence-p07-save", "persistence-p07-load", "persistence-p01-save", "persistence-p01-load", "persistence-p02-save", "persistence-p02-load", "persistence-p03-save", "persistence-p03-load", "persistence-p04-save", "persistence-p04-load", "persistence-p05-save", "persistence-p05-load", "persistence-p06-load",
                     "C4-LIFE-rider-incapacitation",
         "C4-LIFE-rider-death-live-command",
         "C4-LIFE-mount-death-live-command",
@@ -730,6 +921,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public IReadOnlyList<string> Errors { get; set; }
 
         public RuntimeFixtureIdentity Fixture { get; set; }
+
 
         public bool BaselineImmutable { get; set; }
 

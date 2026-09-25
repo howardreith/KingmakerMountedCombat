@@ -18,7 +18,19 @@ Harmony:      exact installed legacy Harmony12 compatibility surface
 
 It must never become part of, or a required dependency of, Kingmaker Buff Planner, Tabletop Added Rules, Gunslinger, Call of the Wild, Wrath of the Righteous, or another gameplay mod.
 
-## Active Chunk 4: sustained play and core safety
+## Active Chunk 5: save-scoped persistence and cold-load recovery
+
+The owner's September 20 Chunk 5 mission authorizes scoped persistence source/tests, exact native serialization/turn hooks, isolated disposable save writes and cold launches, coherent commits, guarded integration-branch publication and private packaging. Continue on `codex/mounted-combat-phase3f-playable-core` from legitimate preview.54 descendants. No human campaign writes, permanent installation, main merge, public release, foreign-mod changes or Chunk 6 expansion are authorized. This supersedes historical no-persistence and exact-Working-only limits solely through a tested run-scoped isolated-root/campaign authorization mode; preserve strict old-scenario guards.
+
+Implement isolated native writes first, then a real outside-combat cold round trip, spent-action/participation continuity, and P01-P08 qualification on the final candidate. Save restoration must not grant actions or replay preparation. Keep paired activation true and both legacy authorities/overlay false. Chunk 4 native engineering is accepted; visual/HUD/physical-input and HUMAN PLAY remain TODO. Current human intake is preview.54 (verify afresh before runtime); never restore historical preview.37/preview.13 over it. [Single active report](docs/CHUNK5-PERSISTENCE.md).
+
+The owner subsequently approved raising only the packaged KingmakerMountedCombat.dll entry limit from 4 MiB to 5 MiB for Chunk 5. The ZIP limit, Info.json limit, entry/dependency allowlists, hashes and runtime safeguards remain unchanged. This narrow approved capacity change is the sole exception to the historical no-threshold-weakening rule.
+
+## Chunk 5 acceptance and alpha delivery
+
+The owner's September 25 acceptance authorizes finalizing the completed Chunk 5 work, merging it into the default branch, pushing, and publishing an alpha prerelease of the exact qualified `0.1.0-chunk5-preview.105` package (source `471e1df92ee919c92bf42d0bc03ab6c2d2cc4114`). This supersedes the no-merge/no-release limits above for this delivery only. Preserve the tested payload without rebuilding, keep the integration history with a merge commit, and retain human saves/settings and foreign Mods. No local installation, new gameplay change or Chunk 6 implementation is authorized by delivery.
+
+## Historical Chunk 4: sustained play and core safety
 
 The owner's September 20 acceptance authorizes committing the accepted work, merging it into the default branch, publishing an alpha prerelease and installing the exact tested package into local UMM. This supersedes historical no-merge/no-release/no-permanent-installation limits for this delivery only. Preserve the tested payload, back up actual installed preview.37 through the guarded deployment helper, and retain human saves/settings and foreign Mods. No new gameplay or Chunk 5 implementation is authorized by delivery.
 

@@ -8,6 +8,8 @@ namespace KingmakerMountedCombat.Tests
         public static void Register(TestRunner runner)
         {
             runner.Run("relationship valid mount transition", ValidMountTransition);
+            runner.Run("saved attachment does not unlock voluntary combat mounting", SavedAttachmentKeepsMountGuard);
+            runner.Run("saved attachment retains current life and size guards", SavedAttachmentKeepsValidityGuards);
             runner.Run("relationship invalid same-unit pair", InvalidSameUnitPair);
             runner.Run("relationship invalid dead rider", InvalidDeadRider);
             runner.Run("relationship invalid incapacitated mount", InvalidIncapacitatedMount);
@@ -60,6 +62,26 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("view attachment lease retains snapshot for cleanup retry", ViewAttachmentLeaseRetainsSnapshotForRetry);
             runner.Run("view attachment lease uses injected bounded restoration comparers", ViewAttachmentLeaseUsesInjectedBoundedComparers);
             runner.Run("view attachment lease releases an inherited replacement before anchor cleanup", ViewAttachmentLeaseReleasesInheritedReplacement);
+        }
+
+        private static void SavedAttachmentKeepsMountGuard()
+        {
+            var candidate = ValidCandidate(); candidate.PartyIsInCombat = true;
+            var runtime = new FakeRuntime();
+            var coordinator = new MountedRelationshipCoordinator(runtime);
+            TestRunner.True(!coordinator.Mount(candidate).Succeeded, "Voluntary combat mount accepted.");
+            TestRunner.True(coordinator.RestoreSaved(candidate).Succeeded, "Dedicated saved pair rejected.");
+            TestRunner.True(!coordinator.RestoreSaved(candidate).Succeeded, "Duplicate domain attachment accepted.");
+            TestRunner.Equal(1, runtime.AcquireCalls, "Restoration acquired twice.");
+        }
+
+        private static void SavedAttachmentKeepsValidityGuards()
+        {
+            var candidate = ValidCandidate(); candidate.PartyIsInCombat = true; candidate.MountIsAliveAndConscious = false;
+            var coordinator = new MountedRelationshipCoordinator(new FakeRuntime());
+            TestRunner.True(!coordinator.RestoreSaved(candidate).Succeeded, "Dead saved mount accepted.");
+            candidate.MountIsAliveAndConscious = true; candidate.MountSizeOrdinal = candidate.RiderSizeOrdinal;
+            TestRunner.True(!coordinator.RestoreSaved(candidate).Succeeded, "Undersized saved mount accepted.");
         }
 
         private static void ValidMountTransition()

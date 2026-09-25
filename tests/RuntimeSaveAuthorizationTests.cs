@@ -16,6 +16,24 @@ namespace KingmakerMountedCombat.Tests
 
         public static void Register(TestRunner runner)
         {
+            runner.Run("early load admission is read-only and retains strict Working authority", () =>
+            {
+                var authorization = new RuntimeSaveAuthorization();
+                using (authorization.Activate(ValidFixture(), SaveRoot, false))
+                {
+                    for (var i = 0; i < 3; i++)
+                        TestRunner.True(authorization.ValidateLoadBeforeWorldReplacement(WorkingTarget(), SaveRoot) == null,
+                            "Early valid entry was refused.");
+                    var foreign = WorkingTarget(); foreign.GameId = "foreign";
+                    TestRunner.True(authorization.ValidateLoadBeforeWorldReplacement(foreign, SaveRoot) != null,
+                        "Early admission allowed another campaign.");
+                    TestRunner.Equal(0, authorization.FatalViolationCount, "Read-only admission reported an unexecuted request.");
+                    TestRunner.True(authorization.Authorize(RuntimeSaveOperation.Load, WorkingTarget(), SaveRoot).Allowed,
+                        "Actual enumerated load was denied after early checks.");
+                    TestRunner.True(!authorization.Authorize(RuntimeSaveOperation.Write, WorkingTarget(), SaveRoot).Allowed,
+                        "Early load check granted a write.");
+                }
+            });
             runner.Run("save authorization is inert outside automation", InactiveAuthorizationPassesThrough);
             runner.Run("save authorization permits exact Working load", ExactWorkingLoadIsAllowed);
             runner.Run("save authorization requires express Working write permission", WorkingWriteRequiresPermission);

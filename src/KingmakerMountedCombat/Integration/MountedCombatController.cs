@@ -151,6 +151,7 @@ namespace KingmakerMountedCombat.Integration
         internal long PairedActivationSequence => unifiedTurn.ActivationSequence;
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);
         internal bool PairedActorEnded(UnitEntityData actor) => unifiedTurn.PairedActorEnded(actor);
+        internal bool MayStartNativePreparationDuringSave(UnitCommand command) => unifiedTurn.MayStartNativePreparationDuringSave(command);
         internal TurnController PairedPartnerContext => unifiedTurn.PartnerContext;
         internal bool PairedPartnerCanGetUp => unifiedTurn.PartnerCanGetUp;
 
@@ -1225,6 +1226,19 @@ namespace KingmakerMountedCombat.Integration
             }
             if (TrySuppressPropagatedOverlayWorldClick())
             {
+                return false;
+            }
+
+            // The archive worker serializes live object graphs, including this
+            // actor's command queue, and entity execution stays suspended for its
+            // whole lifetime. Accepting a new owned command would still mutate
+            // that queue under the serializer, so the owned pair refuses until
+            // the save settles. This flag is held across both the ordinary
+            // completion path and an interrupted save that is still draining.
+            if (relationship.SaveSerializationSuspended)
+            {
+                LastFeedback = "A save is still being written; mounted actions resume when it finishes.";
+                LastRejectionCodes = new[] { MountedCombatRejectionCode.WrongActionState };
                 return false;
             }
 

@@ -140,9 +140,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
                 ordinaryVariation = new NativeAttackFixtureVariation(rider, phase3hRapidToggle,
                     OrdinaryCurrent.Rapid, OrdinaryCurrent.Bab, OrdinaryCurrent.Haste);
-                BeginTarget(OrdinaryMovementCase || OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f,
-                    OrdinaryCaseIds[ordinaryCase], OrdinaryCurrent.Preparation == "mixed-range"
-                        ? (Vector3?)FindOrdinaryDistantTargetPoint() : null);
+                // A movement case spawns its enemy where the near-side adjacency
+                // endpoint is walkable and inside the mover's single-move
+                // budget: run final86-p08-ordinary-tb stalled 30 s because the
+                // only walkable ring point lay on the far side, the 5.8 m route
+                // cost 5.41 s of MoveAction, and the engine's UsedTwoMoveAction
+                // rule (MoveAction > 3 s) spent the standard action the stage
+                // then waited for. The spawn is measured first; nothing about
+                // resources or attack assertions changes.
+                BeginTarget(OrdinaryMovementCase ? OrdinaryMovementSpawnDistance :
+                    OrdinaryCurrent.Preparation == "mixed-range" ? 6f : 3.5f,
+                    OrdinaryCaseIds[ordinaryCase], OrdinaryMovementCase ? (Vector3?)FindOrdinaryMovementTargetPoint() :
+                    OrdinaryCurrent.Preparation == "mixed-range" ? (Vector3?)FindOrdinaryDistantTargetPoint() : null);
                 var nativePlan = new UnitAttack(target);
                 nativePlan.Init(rider);
                 if (OrdinaryCurrent.Preparation == "mixed-range")
@@ -197,6 +206,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     }
                 }
                 if (ReferenceEquals(turn, ordinarySetupTurn)) { TryEndPhase3gFixtureTurn(turn); return; }
+                // The fixture's own preparation move must have left the standard
+                // action; a double move is a named fixture defect, decided at
+                // once instead of waited out to the leaf deadline.
+                if (ordinaryMovementDone && rider.Commands.Empty && horse.Commands.Empty && !rider.HasStandardAction())
+                {
+                    ordinaryMovement["standardSpentByPreparation"] = true;
+                    CompleteOrdinaryCase(false, "Fixture defect: the preparation movement spent the standard action (double move), so the attack it prepares cannot be measured.");
+                    return;
+                }
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                     !rider.HasStandardAction() || game.HandsEquipmentController.IsUpdateScheduledFor(rider)) return;
                 if (rider.IsMoveActionRestricted()) { TryEndPhase3gFixtureTurn(turn); return; }
@@ -228,9 +246,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     // Start outside melee reach and spend the native Move entering
                     // adjacency. Crossing the target's occupied body from an already
                     // adjacent setup imposed an unrelated narrow-ring geometry test.
-                    var destination = FindOrdinaryControlPoint(mover.Position, 2.1f);
+                    var budget = OrdinarySingleMoveBudget(mover);
+                    var destination = FindOrdinaryControlPoint(mover.Position, 2.1f, budget);
                     ordinaryMovement = new JObject { ["before"] = CaptureOrdinaryLiveState(),
-                        ["requestedPoint"] = new JArray(destination.x, destination.y, destination.z), ["mover"] = mover.UniqueId };
+                        ["requestedPoint"] = new JArray(destination.x, destination.y, destination.z), ["mover"] = mover.UniqueId,
+                        ["singleMoveBudget"] = budget, ["combatSpeedMps"] = mover.CombatSpeedMps };
                     using (var input = new NativeOrdinaryAttackInput(destination))
                     {
                         input.Predict();
@@ -453,15 +473,68 @@ namespace KingmakerMountedCombat.Diagnostics
             });
         }
 
-        private Vector3 FindOrdinaryControlPoint(Vector3 preferredOrigin, float minimumDisplacement)
+        private Vector3 FindOrdinaryControlPoint(Vector3 preferredOrigin, float minimumDisplacement,
+            float maximumDisplacement = float.PositiveInfinity)
         {
             var mover = OrdinaryMounted ? horse : rider;
             return FindNativeAttackFixturePoint(mover, OrdinaryMounted, preferredOrigin, minimumDisplacement,
-                ordinarySetupRadius, "endpoint-" + OrdinaryCurrent.Id);
+                ordinarySetupRadius, "endpoint-" + OrdinaryCurrent.Id, maximumDisplacement);
+        }
+
+        // The distance a single native move action covers at the mover's combat
+        // speed (three seconds of MoveAction), less the ground command's own
+        // 0.3 m endpoint admission, so the preparation move never becomes the
+        // double move that spends the standard action.
+        private const float OrdinaryMovementSpawnDistance = 5.5f;
+        private static float OrdinarySingleMoveBudget(UnitEntityData mover) => mover.CombatSpeedMps * 3f - 0.3f;
+
+        // The enemy's spawn point for a movement case, chosen so that the
+        // near-side adjacency endpoint (the same ring the endpoint search uses)
+        // is walkable, unblocked and inside the single-move budget. Every
+        // candidate direction is recorded; none qualifying is a named fixture
+        // failure before any input is dispatched.
+        private Vector3 FindOrdinaryMovementTargetPoint()
+        {
+            var mover = OrdinaryMounted ? horse : rider;
+            if (global::AstarPath.active == null) throw new InvalidOperationException("Active native navigation graph is unavailable.");
+            var ring = mover.View.Corpulence + 0.7f + 0.6096f - 0.4f;
+            var budget = OrdinarySingleMoveBudget(mover);
+            var candidates = new JArray();
+            observations["movement-spawn-" + OrdinaryCurrent.Id] = new JObject {
+                ["ring"] = ring, ["budget"] = budget, ["spawnDistance"] = OrdinaryMovementSpawnDistance, ["candidates"] = candidates };
+            var baseDirection = mover.View == null ? Vector3.forward : mover.View.transform.forward;
+            baseDirection.y = 0f;
+            if (baseDirection.sqrMagnitude < 0.01f) baseDirection = Vector3.forward;
+            baseDirection.Normalize();
+            for (var index = 0; index < 16; index++)
+            {
+                var direction = Quaternion.Euler(0f, index * 22.5f, 0f) * baseDirection;
+                var spawnNearest = global::AstarPath.active.GetNearest(mover.Position + direction * OrdinaryMovementSpawnDistance);
+                var spawnWalkable = spawnNearest.node != null && spawnNearest.node.Walkable;
+                var spawn = spawnNearest.clampedPosition;
+                var spawnDistance = HorizontalDistance(mover.Position, spawn);
+                var toMover = mover.Position - spawn; toMover.y = 0f;
+                if (toMover.sqrMagnitude < 0.01f) toMover = -direction;
+                toMover.Normalize();
+                var nearNearest = global::AstarPath.active.GetNearest(spawn + toMover * ring);
+                var nearWalkable = nearNearest.node != null && nearNearest.node.Walkable;
+                var near = nearNearest.clampedPosition;
+                var displacement = HorizontalDistance(near, mover.Position);
+                var blockers = Game.Instance.State.Units.Where(unit => unit != mover && unit.IsInState && unit.View != null &&
+                    !(OrdinaryMounted && unit == rider) && (HorizontalDistance(near, unit.Position) < mover.View.Corpulence + unit.View.Corpulence + 0.05f ||
+                        HorizontalDistance(spawn, unit.Position) < 0.7f + unit.View.Corpulence + 0.05f)).Select(unit => unit.UniqueId).ToArray();
+                var qualifies = spawnWalkable && Math.Abs(spawnDistance - OrdinaryMovementSpawnDistance) <= 0.5f && nearWalkable &&
+                    displacement >= 2.1f && displacement <= budget && blockers.Length == 0;
+                candidates.Add(new JObject { ["spawn"] = new JArray(spawn.x, spawn.y, spawn.z), ["spawnWalkable"] = spawnWalkable,
+                    ["spawnDistance"] = spawnDistance, ["near"] = new JArray(near.x, near.y, near.z), ["nearWalkable"] = nearWalkable,
+                    ["displacement"] = displacement, ["blockers"] = new JArray(blockers), ["qualifies"] = qualifies });
+                if (qualifies) return spawn;
+            }
+            throw new InvalidOperationException("Fixture geometry: no spawn direction offers a walkable near-side adjacency endpoint inside the single-move budget at this arena position.");
         }
 
         private Vector3 FindNativeAttackFixturePoint(UnitEntityData mover, bool mounted, Vector3 preferredOrigin,
-            float minimumDisplacement, float weaponRadius, string evidenceKey)
+            float minimumDisplacement, float weaponRadius, string evidenceKey, float maximumDisplacement = float.PositiveInfinity)
         {
             var direction = preferredOrigin - target.Position;
             direction.y = 0f;
@@ -486,12 +559,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 var displacement = HorizontalDistance(point, mover.Position);
                 candidates.Add(new JObject { ["point"] = new JArray(point.x, point.y, point.z),
                     ["walkable"] = walkable, ["targetDistance"] = distance, ["displacement"] = displacement,
-                    ["minimumDisplacement"] = minimumDisplacement, ["radius"] = radius,
+                    ["minimumDisplacement"] = minimumDisplacement, ["maximumDisplacement"] = maximumDisplacement, ["radius"] = radius,
                     ["blockers"] = new JArray(blockers) });
-                if (walkable && distance <= radius + 0.05f && displacement >= minimumDisplacement && blockers.Length == 0)
+                if (walkable && distance <= radius + 0.05f && displacement >= minimumDisplacement &&
+                    displacement <= maximumDisplacement && blockers.Length == 0)
                     return point;
             }
-            throw new InvalidOperationException("No clear native fixture endpoint exists inside the actual weapon range.");
+            throw new InvalidOperationException(float.IsPositiveInfinity(maximumDisplacement)
+                ? "No clear native fixture endpoint exists inside the actual weapon range."
+                : "Fixture geometry: no clear adjacency endpoint lies inside the single-move budget at this arena position.");
         }
 
         private static JObject CaptureOrdinaryActor(Kingmaker.EntitySystem.Entities.UnitEntityData actor)

@@ -96,6 +96,68 @@ Assert-Kmc ($productionText -notmatch '(?i)HarmonyLib|UnitPartRider|UnitPartSadd
 Assert-Kmc ($productionText -notmatch '(?i)KingmakerBuffPlanner|TabletopAddedRules|KingmakerGunslinger|CallOfTheWild') 'production source has independent namespace and persistence identity'
 Assert-Kmc ($productionText -notmatch '[A-Za-z]:\\') 'production source contains no absolute machine path'
 
+# Disabling runs a full mounted cleanup over live graphs a native archive
+# worker may be serializing, and disposal unpatches the commit transpiler that
+# worker runs through. Both live-operation refusals must therefore stand ahead
+# of the cleanup call in the disable branch, and disposal must take its one
+# bounded drain before unpatching anything.
+$compositionRoot = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\CompositionRoot.cs')
+$disableBranch = [Regex]::Match($compositionRoot, '(?s)// Always execute idempotent cleanup.*?lifecycle\.HandleModDisable\(\)')
+$beforeCleanup = if ($disableBranch.Success) { $compositionRoot.Substring(0, $disableBranch.Index) } else { '' }
+Assert-Kmc ($disableBranch.Success -and
+    $beforeCleanup -match 'persistence\.SaveSuspended' -and
+    $beforeCleanup -match 'persistence\.LoadInFlight') 'disable refuses both live persistence operations before cleanup'
+$disposeBody = [Regex]::Match($compositionRoot, '(?s)public void Dispose\(\).*?patches\.Dispose\(\)')
+Assert-Kmc ($disposeBody.Success -and $disposeBody.Value -match 'persistence\.DrainForTeardown\(') 'disposal drains an owned archive worker before unpatching'
+
+# The archive is committed the moment the native replacement returns. Recording
+# that must happen before descriptor rebinding and ownership completion, either
+# of which can throw afterwards without un-writing the bytes; otherwise a
+# post-commit failure would be reported to the player as a lost save.
+$commitText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedArchiveCommit.cs')
+$replaceAt = $commitText.IndexOf('File.Replace(source, destination, null)', [StringComparison]::Ordinal)
+$recordAt = if ($replaceAt -ge 0) { $commitText.IndexOf('RecordCommit(destination);', $replaceAt, [StringComparison]::Ordinal) } else { -1 }
+$rebindAt = if ($replaceAt -ge 0) { $commitText.IndexOf('PathField.SetValue(staged, destination)', $replaceAt, [StringComparison]::Ordinal) } else { -1 }
+$completeAt = if ($replaceAt -ge 0) { $commitText.IndexOf('ownership?.Complete()', $replaceAt, [StringComparison]::Ordinal) } else { -1 }
+Assert-Kmc ($replaceAt -ge 0 -and $recordAt -gt $replaceAt -and $rebindAt -gt $recordAt -and
+    $completeAt -gt $recordAt) 'the archive commit is recorded before descriptor rebinding and ownership completion'
+
+# The per-frame drain runs on every ordinary frame with nothing draining.
+# Resolving a null scope legitimately answers "owns no worker", so the early
+# return must come first or the release runs against no scope at all.
+$serviceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPersistenceService.cs')
+$drainBody = [Regex]::Match($serviceText, '(?s)private void DrainAbandonedSave\(\).*?\r?\n        \}')
+Assert-Kmc ($drainBody.Success -and
+    $drainBody.Value -match '(?s)var scope = drainingSave;\s*(//[^\r\n]*\r?\n\s*)*if \(scope == null\) return;') `
+    'the per-frame drain returns before resolving when nothing is draining'
+
+# The isolation's write leases must not depend on the persistence controller:
+# the integration-absent load unpatches that controller before the engine's own
+# save, and final103-p07-absent measured the fail-closed commit guard refusing
+# that write while the lease seams lived in the controller.
+$isolationText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativePersistenceIsolation.cs')
+$controllerText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
+Assert-Kmc ($isolationText.Contains('PatchWriteSeam(harmony, typeof(SaveManager), "PrepareSave", 0x06008025, new[] { typeof(SaveInfo) }, "PreparedWritePostfix")') -and
+    $isolationText.Contains('PatchWriteSeam(harmony, typeof(SaveManager), "SerializeAndSaveThread", 0x0600802A,') -and
+    $isolationText.Contains('"WorkerCompletePostfix");') -and
+    $controllerText -notmatch 'ObservePreparedWrite|ObserveWorkerComplete') 'the isolation owns its write lease seams independently of the persistence controller'
+
+# Teardown must CONSUME the ownership verdict: a Refused verdict throws before
+# any lifecycle cleanup or unpatching, and Main.OnUnload turns that throw into
+# the false return the installed UMM honours (ModEntry.Reload aborts on it).
+$disposeAll = [Regex]::Match($compositionRoot, '(?s)public void Dispose\(\).*?logger\.Info\("Composition root disposed')
+$verdictAt = if ($disposeAll.Success) { $disposeAll.Value.IndexOf('var verdict = persistence.DrainForTeardown(', [StringComparison]::Ordinal) } else { -1 }
+$refuseAt = if ($verdictAt -ge 0) { $disposeAll.Value.IndexOf('OwnedWorkerTeardownVerdict.Refused', $verdictAt, [StringComparison]::Ordinal) } else { -1 }
+$throwAt = if ($refuseAt -ge 0) { $disposeAll.Value.IndexOf('throw new InvalidOperationException(', $refuseAt, [StringComparison]::Ordinal) } else { -1 }
+$cleanupAt = if ($disposeAll.Success) { $disposeAll.Value.IndexOf('lifecycle.HandleModDisable()', [StringComparison]::Ordinal) } else { -1 }
+$unpatchAt = if ($disposeAll.Success) { $disposeAll.Value.IndexOf('patches.Dispose()', [StringComparison]::Ordinal) } else { -1 }
+Assert-Kmc ($verdictAt -ge 0 -and $refuseAt -gt $verdictAt -and $throwAt -gt $refuseAt -and
+    $cleanupAt -gt $throwAt -and $unpatchAt -gt $cleanupAt) 'disposal consumes the teardown verdict and refuses before cleanup or unpatching'
+$mainText2 = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Main.cs')
+$onUnload = [Regex]::Match($mainText2, '(?s)private static bool OnUnload\(.*?\n        \}')
+Assert-Kmc ($onUnload.Success -and $onUnload.Value -match 'root\?\.Dispose\(\);' -and
+    $onUnload.Value -match '(?s)catch \(Exception exception\)\s*\{.*?return false;') 'a refused disposal is reported to UMM as a false unload'
+
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'

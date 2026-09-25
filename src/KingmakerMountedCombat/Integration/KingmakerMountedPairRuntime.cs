@@ -83,6 +83,25 @@ namespace KingmakerMountedCombat.Integration
 
         public string MountProfileId => supportedProfile?.Id;
 
+        internal Action SuspendSerializedAiLease()
+        {
+            if (!mountAiLeaseOwned || mount == null) return () => { };
+            var actor = mount;
+            if ((bool)MammothAiBackingField.GetValue(actor))
+                throw new InvalidOperationException("Mounted AI lease changed before saving.");
+            var original = mountAiBackingWasEnabled;
+            // Native saving has already paused game updates; only the serialized
+            // backing field is returned to its pre-mount value for the worker.
+            MammothAiBackingField.SetValue(actor, original);
+            return () =>
+            {
+                if (!mountAiLeaseOwned || mount != actor) return;
+                if ((bool)MammothAiBackingField.GetValue(actor) != original)
+                    throw new InvalidOperationException("Mounted AI serialization field changed outside its scope.");
+                MammothAiBackingField.SetValue(actor, false);
+            };
+        }
+
         public string MountDisplayName => supportedProfile?.DisplayName;
 
         public bool PresentationAttachmentLeaseActive => riderAttachmentLease.IsAcquired;

@@ -38,6 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly DiagnosticCombatTargetLifecycle lifecycle = new DiagnosticCombatTargetLifecycle();
         private readonly IDisposable lifeStateSubscription;
         private BlueprintFaction runtimeFaction;
+        private bool borrowedNativeFaction;
         private UnitGroup runtimeGroup;
         private string runtimeGroupId;
         private UnitEntityData target;
@@ -215,7 +216,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Vector3 position,
             string runId,
             bool exactWorkingAuthorized,
-            bool requireDurabilityLease)
+            bool requireDurabilityLease, bool persistenceFixture = false)
         {
             ThrowIfDisposed();
             var mountGuid = mount?.Blueprint?.AssetGuid;
@@ -276,11 +277,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 BlueprintEmptyHandWeaponBlueprintId = blueprintPrimary.AssetGuid;
 
-                runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();
-                runtimeFaction.name = "KMC_RuntimeHostile_" + runId;
-                runtimeFaction.hideFlags = HideFlags.HideAndDontSave;
-                runtimeFaction.AttackFactions = new[] { playerFaction };
-                runtimeFaction.AlwaysEnemy = true;
+                if (persistenceFixture)
+                {
+                    // A cold fixture must contain a real native blueprint reference.
+                    // Borrow an existing hostile faction without editing or destroying it.
+                    runtimeFaction = ResourcesLibrary.LibraryObject.GetAllBlueprints().OfType<BlueprintFaction>()
+                        .Where(f => f != playerFaction && f.AlwaysEnemy && MountedSaveData.HexId(f.AssetGuid))
+                        .OrderBy(f => f.AssetGuid, StringComparer.Ordinal).FirstOrDefault();
+                    if (runtimeFaction == null || ResourcesLibrary.TryGetBlueprint<BlueprintFaction>(runtimeFaction.AssetGuid) != runtimeFaction)
+                        throw new InvalidOperationException("No durable native hostile faction is available for the isolated combat fixture.");
+                    borrowedNativeFaction = true;
+                    logger.Info("Persistence fixture native hostile faction: " + runtimeFaction.AssetGuid + ".");
+                }
+                else
+                {
+                    runtimeFaction = ScriptableObject.CreateInstance<BlueprintFaction>();
+                    runtimeFaction.name = "KMC_RuntimeHostile_" + runId;
+                    runtimeFaction.hideFlags = HideFlags.HideAndDontSave;
+                    runtimeFaction.AttackFactions = new[] { playerFaction };
+                    runtimeFaction.AlwaysEnemy = true;
+                }
                 runtimeGroupId = proposedRuntimeGroupId;
                 CreatedRuntimeGroupId = proposedRuntimeGroupId;
 
@@ -293,6 +309,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 LifeImmediatelyAfterCreation = DiagnosticTargetLifeSnapshot.Capture(target);
                 LastObservedLife = LifeImmediatelyAfterCreation;
+                if (persistenceFixture)
+                {
+                    if (requireDurabilityLease || target.Damage != 0 || !target.Descriptor.State.IsConscious)
+                        throw new InvalidOperationException("Persistence target requires a fresh healthy native entity, without a transient durability lease.");
+                    // Stock companion blueprints spawn at one HP without a master.
+                    // Native CharacterStats.HitPoints and ModifiableValue.m_BaseValue
+                    // are serialized. Provision this disposable enemy once; a cold
+                    // process resolves its saved health and never repairs it.
+                    target.Stats.HitPoints.BaseValue = 256;
+                    if (target.Stats.HitPoints.ModifiedValue < 256)
+                        throw new InvalidOperationException("Native persistence target HP provision did not take effect.");
+                    logger.Info("Persistence fixture native HP provisioned once: target=" + target.UniqueId + "; base=256.");
+                }
                 AcquireTargetDurabilityLease(target, requireDurabilityLease);
                 targetSleeplessBefore = target.Sleepless;
                 target.Sleepless = true;
@@ -670,6 +699,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 target = null;
             }
             var groupRemoved = targetRemoved && ReleaseRuntimeGroup();
+            if (targetRemoved && groupRemoved && borrowedNativeFaction)
+            {
+                runtimeFaction = null;
+                borrowedNativeFaction = false;
+            }
             if (targetRemoved && groupRemoved && runtimeFaction != null && !runtimeFactionDestroyPending)
             {
                 UnityEngine.Object.Destroy(runtimeFaction);
