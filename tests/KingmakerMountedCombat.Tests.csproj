@@ -164,6 +164,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPair.cs"><Link>Shared\Domain\MountedPair.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPairCandidate.cs"><Link>Shared\Domain\MountedPairCandidate.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipAdmission.cs"><Link>Shared\Domain\MountedRelationshipAdmission.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedAuthorityPolicy.cs"><Link>Shared\Domain\MountedAuthorityPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MidEncounterAdoptionPlan.cs"><Link>Shared\Domain\MidEncounterAdoptionPlan.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DismountTargetIdentityPolicy.cs"><Link>Shared\Domain\DismountTargetIdentityPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MidEncounterAdoptionPolicy.cs"><Link>Shared\Domain\MidEncounterAdoptionPolicy.cs</Link></Compile>

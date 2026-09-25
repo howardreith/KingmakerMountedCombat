@@ -706,6 +706,12 @@ namespace KingmakerMountedCombat.Integration
                     ? "Dismount" : "Mount Companion",
                 turnBased, currentTurnIsExactRider, turnPreparing, turnActing);
             context.RiderHasMoveAction = rider.HasMoveAction();
+            // The qualified paired authority, decided by the one typed policy that
+            // execution-time admission also asks.
+            context.CombatMountAuthorityQualified = MountedAuthorityPolicy.IsQualifiedForCombatMount(
+                settings.EnablePairedActivation, settings.EnableUnifiedMountedTurn, settings.EnablePairedCommandScheduler);
+            context.CombatMountAuthorityReason = MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(
+                settings.EnablePairedActivation, settings.EnableUnifiedMountedTurn, settings.EnablePairedCommandScheduler);
             if (context.InCombat && state == RelationshipState.Unmounted && mount != null)
             {
                 // Availability must never advertise a Move shell whose delivery

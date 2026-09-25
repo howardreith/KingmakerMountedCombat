@@ -398,6 +398,36 @@ Assert-Kmc ($nativeControlsText -match 'private string DescribeInitPredicates\(U
     $nativeControlsText -match 'internal string DescribeNativeShellLifecycle\(\)') `
     'the shell lifecycle ledger publishes service, registration, serialization, command, blueprint, caster, target, ownership and profile state'
 
+# One typed authority policy, asked by prediction AND by execution-time admission, so
+# no diagnostic, automation, direct-service or queued route can reach a commitment on
+# an unqualified authority. Mounting outside combat is untouched.
+$authorityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedAuthorityPolicy.cs')
+Assert-Kmc ($authorityText -match 'public static bool IsQualifiedForCombatMount\(' -and
+    $authorityText -match 'return pairedActivationEnabled && !unifiedMountedTurnEnabled && !pairedCommandSchedulerEnabled;' -and
+    $authorityText -match 'public static string DescribeUnqualifiedCombatMount\(') `
+    'the qualified combat-mount authority is one typed policy over paired activation and both retired authorities'
+Assert-Kmc ($evaluatorText -match 'context\.InCombat && !context\.CombatMountAuthorityQualified' -and
+    $evaluatorText -match 'public bool CombatMountAuthorityQualified \{ get; set; \} = true;' -and
+    $playerActionText -match 'context\.CombatMountAuthorityQualified = MountedAuthorityPolicy\.IsQualifiedForCombatMount\(\s*\r?\n?\s*settings\.EnablePairedActivation, settings\.EnableUnifiedMountedTurn, settings\.EnablePairedCommandScheduler\)' -and
+    $playerActionText -match 'context\.CombatMountAuthorityReason = MountedAuthorityPolicy\.DescribeUnqualifiedCombatMount\(') `
+    'prediction gates combat Mount on the qualified authority and names the exact obstacle'
+Assert-Kmc ($mountRiderBody.Success -and
+    $mountRiderBody.Value -match '(?s)if \(inCombat\)[\s\S]{0,400}MountedAuthorityPolicy\.DescribeUnqualifiedCombatMount\([\s\S]{0,300}settings\.EnablePairedActivation' -and
+    $mountRiderBody.Value -match 'if \(authorityRefusal != null\)' -and
+    $mountRiderBody.Value.IndexOf('MountedAuthorityPolicy.DescribeUnqualifiedCombatMount') -lt
+        $mountRiderBody.Value.IndexOf('coordinator.Mount(runtime.CreateCandidate(), admission)')) `
+    'execution-time admission refuses an unqualified authority before any commitment'
+
+# The Dismount escape hatch: a mounted or faulted rider is never stranded, and it comes
+# before every feature gate. Mount stays feature-gated.
+$leasePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\NativeMountedControl.cs')
+$leaseBody = [Regex]::Match($leasePolicyText, '(?s)public static bool ShouldLease\(\s*\r?\n\s*NativeMountedControlKind kind,\s*\r?\n\s*bool featureEnabled,\s*\r?\n\s*bool unifiedMountedTurn,.*?\n        \}')
+$escapeIndex = $leaseBody.Value.IndexOf('kind == NativeMountedControlKind.Dismount &&')
+$featureGateIndex = $leaseBody.Value.IndexOf('if (!featureEnabled)')
+Assert-Kmc ($leaseBody.Success -and $escapeIndex -ge 0 -and $featureGateIndex -gt $escapeIndex -and
+    $leaseBody.Value -match '\(relationshipMounted \|\| relationshipFaulted\) && unitIsRider') `
+    'a mounted or faulted rider keeps its native Dismount lease ahead of every feature gate'
+
 # R5: the save barrier queries the relationship transition state exactly instead of
 # the documentation asserting that command settlement alone is sufficient.
 $deferredSaveText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDeferredSave.cs')
