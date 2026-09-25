@@ -22,6 +22,16 @@ candidate into `Mods` and so checks the existing KMC tree against the same
 registry, failing in four seconds before any launch with the identical message
 (retained at `runtime-evidence/c6a-smoke-2`).
 
+It also predates Chunk 6A and is independent of it. The standing Chunk 2 gate
+`scripts/Test-Chunk2StartingInstallation.ps1` fails on the same line with the same
+message today, and neither it nor `QualificationSuiteContinuity.ps1` was touched
+by this mission — `git diff 747156a..HEAD` over both files is empty. The registry's
+newest entry was added in `8612544` for Chunk 5's preview.54 intake; the
+installation became preview.105 in `747156a`, the intake head. So the gate has been
+failing since the owner's own guarded deployment, and three independent
+paths — that gate, the suite-snapshot script, and a real `mod-load-smoke`
+run — reproduce it identically.
+
 A save-backed runtime scenario additionally requires a qualification-suite
 snapshot, and `scripts/runtime/New-KmcQualificationSuiteSnapshot.ps1` refuses to
 create one for the same reason:
@@ -208,12 +218,19 @@ above, across two different commits. Only `docs/` changed between them.
 
 ## Offline gates
 
-On this source: source contracts 46/0, components 511/0, persistence
-assembly/storage contracts 180/0, persistence data 56/0, profile protection 53/0,
-owned fixtures 620/0, validation copies 118/0, harness 262/0, assembly-backed
-contracts 619/0, patch construction 30/0, package 11/0, Chunk 5 ledger 106/0 with
-its completion gate still PASS, Chunk 6A ledger record consistency 82/0 and its
-completion gate **FAIL 82/82**, which is the truthful state.
+All re-measured on the published head, not carried forward: source contracts 46/0,
+components 511/0, persistence assembly/storage contracts 180/0, persistence data
+56/0, profile protection 53/0, owned fixtures 620/0, validation copies 118/0,
+harness 262/0, assembly-backed contracts 619/0, patch construction 30/0, package
+11/0, Phase 3F contracts 9/0, Chunk 5 ledger 106/0 with its completion gate still
+**PASS** on all 105 mandatory behaviors, Chunk 6A ledger record consistency 82/0
+and its completion gate **FAIL 82/82**, which is the truthful state. The whole
+`Test.ps1` umbrella exits 0 in 221 s.
+
+One standing gate does fail, and it is not this work: as recorded under the
+blocker, `Test-Chunk2StartingInstallation.ps1` fails on the starting-payload
+registry because the owner's installation is preview.105. It is reported rather
+than adjusted.
 
 Every accepted protocol envelope is unchanged on this source, which is the
 regression signal that matters: ordinary controls 42/0, Chunk 4 play 123/0,
