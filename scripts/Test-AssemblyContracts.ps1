@@ -383,6 +383,14 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3BE,'Clear'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002763,'get_IsActed'),
         @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A6,'TickApproaching'),
+        # The exact Deliver-ownership seam. OnAction sets ExecutionProcess from
+        # RuleCastSpell and then returns a TERMINAL result unless
+        # AbilityExecutionProcess.IsEngageUnit, so a relationship command completes and
+        # leaves the Move slot while its process delivers on later frames. That is why
+        # the shell is bound to the exact execution context at this boundary instead of
+        # being rediscovered through the caster's current Move slot at Deliver.
+        # get_ExecutionProcess, get_Context and get_IsEngageUnit are pinned above.
+        @('Kingmaker.UnitLogic.Commands.UnitUseAbility',0x06002737,'OnAction'),
         @('Kingmaker.UnitLogic.Abilities.AbilityData',0x06002B48,'get_IsAvailable'),
         @('Kingmaker.UnitLogic.Abilities.AbilityData',0x06002B49,'get_IsAvailableForCast'),
         @('TurnBased.Controllers.CombatController',0x06000BF6,'IsInTurnBasedCombat'),

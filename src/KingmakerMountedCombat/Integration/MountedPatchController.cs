@@ -89,6 +89,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
                     nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
+                PatchExact(typeof(UnitUseAbility), "OnAction", 0x06002737, Type.EmptyTypes, null, nameof(PatchMethods.NativeAbilityActionPostfix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsSuitableForAutoUse", 0x06002B30,
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
@@ -423,6 +424,15 @@ namespace KingmakerMountedCombat.Integration
             {
                 PatchBridge.NativeControls?.PrepareNativeMountApproach(__instance);
                 PatchBridge.NativeControls?.PrepareNativePrimaryIntentShell(__instance);
+            }
+
+            // The OnAction boundary is where UnitUseAbility sets its ExecutionProcess.
+            // Binding the relationship shell to that exact execution context here is
+            // what lets Deliver prove ownership on a later frame, after the command has
+            // completed and left the Move slot.
+            internal static void NativeAbilityActionPostfix(UnitUseAbility __instance)
+            {
+                PatchBridge.NativeControls?.BindNativeRelationshipProcess(__instance);
             }
 
             internal static void RelationshipControlAutoUsePostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)

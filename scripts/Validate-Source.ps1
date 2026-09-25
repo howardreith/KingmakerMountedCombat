@@ -331,6 +331,59 @@ Assert-Kmc ($resolveShellBody.Success -and
     $dismountPolicyText -match 'shellGenerationAtInit != currentRelationshipGeneration') `
     'a dismount delivery revalidates its captured target, its delivery target, its rider and its generation'
 
+# The Deliver-ownership repair. Proven from the installed assembly: OnAction sets
+# ExecutionProcess and returns a terminal result unless IsEngageUnit, so the command
+# completes and leaves the Move slot while its process delivers on later frames. The
+# shell is therefore bound to the exact AbilityExecutionContext at OnAction and that
+# exact binding is consumed at Deliver. It must stay a one-to-one binding: no
+# recent-shell lookup, no caster-only lookup, and exactly-once on the shell itself.
+$bindBody = [Regex]::Match($nativeControlsText, '(?s)internal void BindNativeRelationshipProcess\(UnitUseAbility command\).*?\n        \}\r?\n')
+Assert-Kmc ($bindBody.Success -and
+    $bindBody.Value -match 'command\.ExecutionProcess\?\.Context' -and
+    $bindBody.Value -match 'relationshipShellContexts\.Add\(context, shell\)' -and
+    $bindBody.Value -match 'relationshipShells\.TryGetValue\(command, out shell\)' -and
+    $bindBody.Value -match '!ReferenceEquals\(bound, shell\)' -and
+    $bindBody.Value -notmatch 'Cooldown\.|\.Prepare\(\)|ForceToEnd|JoinCombat|StartTurn') `
+    'the relationship shell binds to its own command''s exact execution context at the OnAction boundary'
+Assert-Kmc ($resolveShellBody.Success -and
+    $resolveShellBody.Value -match 'relationshipShellContexts\.TryGetValue\(context, out shell\)' -and
+    $resolveShellBody.Value -match 'relationshipShells\.TryGetValue\(slot, out shell\)' -and
+    $resolveShellBody.Value -match 'shell\.Consumed' -and
+    $resolveShellBody.Value -notmatch 'OrderBy|Last\(\)|FirstOrDefault\(\)|recent|MostRecent') `
+    'a delivery resolves only through an exact per-command binding and refuses a consumed shell'
+Assert-Kmc ($nativeControlsText -match 'deliveringShell\.Consumed = true;' -and
+    $nativeControlsText -match 'private readonly System\.Runtime\.CompilerServices\.ConditionalWeakTable<AbilityExecutionContext, NativeRelationshipShell>') `
+    'exactly-once is recorded on the delivering shell and the process binding is per-context'
+$abilityLogicText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\NativeMountedAbilityLogic.cs')
+Assert-Kmc ($abilityLogicText -match 'service\.TryDispatch\(Kind, context\?\.Caster, target\?\.Unit, context\)') `
+    'Deliver passes its own exact execution context into the relationship dispatch'
+$patchText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
+Assert-Kmc ($patchText -match 'PatchExact\(typeof\(UnitUseAbility\), "OnAction", 0x06002737, Type\.EmptyTypes, null, nameof\(PatchMethods\.NativeAbilityActionPostfix\)\)' -and
+    $patchText -match 'internal static void NativeAbilityActionPostfix\(UnitUseAbility __instance\)[\s\S]{0,200}BindNativeRelationshipProcess\(__instance\)') `
+    'the exact OnAction boundary is patched once to establish the process binding'
+
+# The typed shell lifecycle ledger: every early return names its failed predicate.
+$prepareBody = [Regex]::Match($nativeControlsText, '(?s)internal void PrepareNativeMountApproach\(UnitUseAbility command\).*?\n        \}\r?\n')
+Assert-Kmc ($prepareBody.Success -and
+    $prepareBody.Value -match 'NativeShellStage\.InitRefused, null, "service-state"' -and
+    $prepareBody.Value -match 'NativeShellStage\.InitRefused, null, "command-state"' -and
+    $prepareBody.Value -match 'NativeShellStage\.InitRefused, null, "caster-identity"' -and
+    $prepareBody.Value -match 'NativeShellStage\.InitRefused, null, "mount-target-ownership-view-profile"' -and
+    $prepareBody.Value -match 'NativeShellStage\.InitRefused, null, "dismount-target-is-not-caster"' -and
+    $prepareBody.Value -match 'NativeShellStage\.Registered' -and
+    # Every return is accounted for: it either records its exact failed predicate or
+    # is explicitly marked as not a refusal. Nothing may exit silently.
+    ([Regex]::Matches($prepareBody.Value, 'return;').Count -eq
+        ([Regex]::Matches($prepareBody.Value, 'RecordShellLifecycle\(NativeShellStage\.InitRefused').Count +
+         [Regex]::Matches($prepareBody.Value, '// not-a-refusal:').Count))) `
+    'every shell-registration early return records its exact failed predicate or is marked as no refusal'
+Assert-Kmc ($nativeControlsText -match 'private string DescribeInitPredicates\(UnitUseAbility command\)' -and
+    $nativeControlsText -match ';isMountBlueprint=' -and $nativeControlsText -match ';executorIsSpellCaster=' -and
+    $nativeControlsText -match ';targetIsCasterPet=' -and $nativeControlsText -match ';targetMasterIsCaster=' -and
+    $nativeControlsText -match ';targetProfileSupported=' -and $nativeControlsText -match ';serializationSuspended=' -and
+    $nativeControlsText -match 'internal string DescribeNativeShellLifecycle\(\)') `
+    'the shell lifecycle ledger publishes service, registration, serialization, command, blueprint, caster, target, ownership and profile state'
+
 # R5: the save barrier queries the relationship transition state exactly instead of
 # the documentation asserting that command settlement alone is sufficient.
 $deferredSaveText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDeferredSave.cs')

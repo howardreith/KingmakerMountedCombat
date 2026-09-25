@@ -45,10 +45,16 @@ $mandatory=@(
     # CM05 voluntary combat Dismount and the forced-detach distinction.
     'CM05-rt','CM05-tb','CM05-after-rider-expenditure','CM05-after-mount-expenditure',
     'CM05-immediately-after-mount','CM05-repeated-input','CM05-forced-detach',
+    # R-policy: a mounted or faulted rider keeps an executable native Dismount even
+    # if the movement feature or the paired policy is later disabled.
+    'CM05-dismount-survives-feature-policy-disable',
     # CM06 native input, pause/queue and negative controls.
     'CM06-hotbar-path','CM06-pointer-target','CM06-paused-queue','CM06-repeated-request',
     'CM06-mount-selected','CM06-multiple-selection','CM06-unrelated-actor','CM06-ai-auto-use',
     'CM06-unmounted-ordinary',
+    # R-policy: combat Mount is refused unless the qualified paired authority is the
+    # single live one, in prediction and at execution-time admission alike.
+    'CM06-combat-mount-requires-qualified-paired-policy',
     # CM07 persistence and restoration.
     'CM07-mount-save-rt','CM07-mount-load-rt','CM07-mount-save-tb','CM07-mount-load-tb',
     'CM07-dismount-save','CM07-dismount-load','CM07-cold-load','CM07-save-slot-routes',
@@ -139,12 +145,45 @@ foreach($entry in $ledger.entries){
             $checks++
         }
         'FAIL' {
+            # A FAIL is evidence too, so it is bound as strictly as a PASS: its run,
+            # its scenario, the exact payload it was OBSERVED on, and its evidence
+            # artifact by hash. The observed payload is recorded on the entry rather
+            # than read from the ledger's current payload, so a real failure stays
+            # verifiable after the candidate advances and can never be mistaken for
+            # evidence about the current one.
             $run=[string](Get-Field $entry 'runId')
             if([string]::IsNullOrEmpty($run)-or[string]::IsNullOrEmpty([string](Get-Field $entry 'reason'))){
                 throw "Chunk 6A FAIL entry $id needs its run and reason."
             }
-            $result=Get-Content -Raw -LiteralPath (Join-Path $LabRoot ('runtime-evidence/'+$run+'/runtime-result.json'))|ConvertFrom-Json
+            $root=Join-Path $LabRoot ('runtime-evidence/'+$run)
+            $result=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
             if([string]$result.status-ceq'PASS'){throw "Chunk 6A entry $id claims FAIL for a passing run."}
+            if([string]$result.runId-cne$run){throw "Chunk 6A entry ${id}: run $run does not identify itself."}
+            if([string]$result.scenario-cne[string](Get-Field $entry 'scenario')){
+                throw "Chunk 6A entry ${id}: scenario differs from its run."
+            }
+            $observed=Get-Field $entry 'observedPayload'
+            if($null-eq$observed){throw "Chunk 6A FAIL entry ${id}: names no observed payload."}
+            $game=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-game-result.json')|ConvertFrom-Json
+            foreach($name in @('version','commit','dllSha256','dllMvid')){
+                if([string]::IsNullOrEmpty([string](Get-Field $observed $name))){
+                    throw "Chunk 6A FAIL entry ${id}: observed payload lacks $name."
+                }
+            }
+            if([string]$game.commit-cne[string](Get-Field $observed 'commit')-or
+                [string]$game.dllSha256-cne[string](Get-Field $observed 'dllSha256')-or
+                [string]$game.dllMvid-cne[string](Get-Field $observed 'dllMvid')-or
+                [string]$game.productVersion-cne[string](Get-Field $observed 'version')){
+                throw "Chunk 6A entry ${id}: run $run did not execute its recorded observed payload."
+            }
+            $evidenceLeaf=[string](Get-Field $entry 'evidenceLeaf')
+            $evidenceSha=[string](Get-Field $entry 'evidenceSha256')
+            if([string]::IsNullOrEmpty($evidenceLeaf)-or[string]::IsNullOrEmpty($evidenceSha)){
+                throw "Chunk 6A FAIL entry ${id}: its evidence artifact is not bound by hash."
+            }
+            $evidencePath=Join-Path $root $evidenceLeaf
+            if(-not(Test-Path -LiteralPath $evidencePath)){throw "Chunk 6A entry ${id}: evidence artifact is missing."}
+            if((Get-Sha256 $evidencePath)-cne$evidenceSha){throw "Chunk 6A entry ${id}: evidence bytes differ."}
             $checks++
         }
         'MAPPED' {

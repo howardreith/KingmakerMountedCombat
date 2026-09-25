@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-09-25T19:52:19.6372133Z",
+    "generatedAtUtc":  "2026-09-25T20:48:13.9905854Z",
     "payload":  {
                     "version":  "0.1.0-chunk6a-preview.108",
                     "commit":  "88328a31ff1636c68a65bdfb4bcffaf3072649a6",
@@ -28,7 +28,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM01-horse-tb",
@@ -44,7 +44,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM01-mammoth-rt",
@@ -60,7 +60,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM01-mammoth-tb",
@@ -76,23 +76,30 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM01-exploration-free",
                         "family":  "CM01",
                         "claim":  "The same native control outside combat performs the transition and charges nothing.",
-                        "scenario":  "",
-                        "runId":  "",
-                        "status":  "BLOCKED",
+                        "scenario":  "chunk6a-combat-mount-rt",
+                        "runId":  "c6a-mount-rt-1",
+                        "status":  "FAIL",
                         "passCount":  0,
-                        "failCount":  0,
+                        "failCount":  1,
                         "rows":  [
 
                                  ],
-                        "evidenceLeaf":  "",
-                        "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "evidenceLeaf":  "runtime-game-result.json",
+                        "evidenceSha256":  "9d53d1426a0d90f4ef15456851304eb783c7e1cac077ea9b4fffbd4c385323f6",
+                        "reason":  "FAIL on the exact mandatory behavior. The native out-of-combat Mount control did not establish a mounted relationship within its bounded 25-second deadline during run c6a-mount-rt-1 (chunk6a-combat-mount-rt). The deadline recorded mode Default, no pause, feedback \"Ready to mount.\", command null and hasCooldown false; the run produced 43 assertion passes against this one failure, with horse-companion-blueprint-registration PASS, and restored external state. The cause is now established from the installed assembly: UnitUseAbility.OnAction (0x06002737) sets ExecutionProcess from RuleCastSpell and returns a terminal result unless AbilityExecutionProcess.IsEngageUnit, so the command completes and UnitCommands nulls m_Commands[Move] while the process delivers on later frames - therefore ResolveDeliveringShell could not rediscover the shell through the caster\u0027s current Move slot at Deliver. Repaired by binding the shell to the exact AbilityExecutionContext at the OnAction boundary and consuming that exact binding in Deliver.",
+                        "observedPayload":  {
+                                                "version":  "0.1.0-chunk6a-preview.108",
+                                                "commit":  "88328a31ff1636c68a65bdfb4bcffaf3072649a6",
+                                                "dllSha256":  "6190c3540f70a8d288076a177913577d50107a5073b1a88357c63d1b6bd81f97",
+                                                "dllMvid":  "88f43b5f-86cd-4d68-b1a7-58b217c4ae16",
+                                                "qualifier":  "chunk6a-campaign-c"
+                                            }
                     },
                     {
                         "id":  "CM01-combat-mount-preparing-refused",
@@ -108,7 +115,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-approach-arrival",
@@ -124,7 +131,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-geometry-change",
@@ -140,7 +147,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-obstruction",
@@ -156,7 +163,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-wrong-creature-target",
@@ -172,7 +179,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-foreign-companion",
@@ -188,7 +195,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-ownership-change",
@@ -204,7 +211,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-size-form-change",
@@ -220,7 +227,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-lost-direct-control",
@@ -236,7 +243,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-left-area",
@@ -252,7 +259,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-view-agent-lost",
@@ -268,7 +275,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-loading-cutscene",
@@ -284,7 +291,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-rider-incapacitated",
@@ -300,7 +307,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-mount-incapacitated",
@@ -316,7 +323,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-generation-change",
@@ -332,7 +339,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-target-selection-cancelled",
@@ -348,7 +355,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-adoption-plan-invalidated",
@@ -364,7 +371,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM02-adoption-compensation-releases",
@@ -380,7 +387,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-rider-before-mount-slot",
@@ -396,7 +403,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-mount-slot-before-rider",
@@ -412,7 +419,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-mount-spent-move",
@@ -428,7 +435,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-mount-spent-standard",
@@ -444,7 +451,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-mount-spent-all",
@@ -460,7 +467,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-rider-without-move",
@@ -476,7 +483,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-rider-other-action",
@@ -492,7 +499,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-early-end-turn",
@@ -508,7 +515,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-next-round-activation",
@@ -524,7 +531,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM03-unrelated-candidate-between",
@@ -540,7 +547,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-stop-during-approach",
@@ -556,7 +563,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-command-replacement",
@@ -572,7 +579,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-turn-end",
@@ -588,7 +595,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-combat-end",
@@ -604,7 +611,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-mode-exit",
@@ -620,7 +627,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-area-session-transition",
@@ -636,7 +643,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-disable-unload",
@@ -652,7 +659,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-rider-death",
@@ -668,7 +675,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-mount-death",
@@ -684,7 +691,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM04-injected-exception",
@@ -700,7 +707,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM05-rt",
@@ -716,7 +723,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM05-tb",
@@ -732,7 +739,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM05-after-rider-expenditure",
@@ -748,7 +755,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM05-after-mount-expenditure",
@@ -764,7 +771,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM05-immediately-after-mount",
@@ -780,7 +787,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM05-repeated-input",
@@ -796,7 +803,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM05-forced-detach",
@@ -812,7 +819,23 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
+                    },
+                    {
+                        "id":  "CM05-dismount-survives-feature-policy-disable",
+                        "family":  "CM05",
+                        "claim":  "A mounted or faulted rider keeps a leased, executable native Dismount even after the movement feature or the paired policy is disabled, so a pair can always be released.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "BLOCKED",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-hotbar-path",
@@ -828,7 +851,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-pointer-target",
@@ -844,7 +867,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-paused-queue",
@@ -860,7 +883,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-repeated-request",
@@ -876,7 +899,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-mount-selected",
@@ -892,7 +915,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-multiple-selection",
@@ -908,7 +931,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-unrelated-actor",
@@ -924,7 +947,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-ai-auto-use",
@@ -940,7 +963,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM06-unmounted-ordinary",
@@ -956,7 +979,23 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
+                    },
+                    {
+                        "id":  "CM06-combat-mount-requires-qualified-paired-policy",
+                        "family":  "CM06",
+                        "claim":  "Combat Mount is refused unless EnablePairedActivation is true and both retired turn authorities are false, in prediction and at execution-time admission alike.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "BLOCKED",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-mount-save-rt",
@@ -972,7 +1011,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-mount-load-rt",
@@ -988,7 +1027,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-mount-save-tb",
@@ -1004,7 +1043,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-mount-load-tb",
@@ -1020,7 +1059,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-dismount-save",
@@ -1036,7 +1075,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-dismount-load",
@@ -1052,7 +1091,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-cold-load",
@@ -1068,7 +1107,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-save-slot-routes",
@@ -1084,7 +1123,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-unsettled-save-deferred",
@@ -1100,7 +1139,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-area-reload",
@@ -1116,7 +1155,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM07-schema-unchanged",
@@ -1132,7 +1171,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-mounted-charge-rejected-rt",
@@ -1148,7 +1187,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-mounted-charge-rejected-tb",
@@ -1164,7 +1203,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-unmounted-charge",
@@ -1180,7 +1219,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-ordinary-attack-controls-tb",
@@ -1196,7 +1235,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-chunk4-sustained-tb",
@@ -1212,7 +1251,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-mounted-mammoth-primary-hit-tb",
@@ -1228,7 +1267,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-sustained-rt",
@@ -1244,7 +1283,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-incoming-targeting",
@@ -1260,7 +1299,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-rider-death-cleanup",
@@ -1276,7 +1315,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-mount-death-cleanup",
@@ -1292,7 +1331,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-horse-smoke",
@@ -1308,7 +1347,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-mammoth-smoke",
@@ -1324,7 +1363,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-persistence-suite",
@@ -1340,7 +1379,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-area-restoration",
@@ -1356,7 +1395,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     },
                     {
                         "id":  "CM08-disable-removal-readiness",
@@ -1372,7 +1411,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: the campaign ran and this case was not reached. chunk6a-combat-mount-rt (run c6a-mount-rt-1) launched, loaded and identity-verified the Working fixture and produced 43 assertion passes against one failure, but the out-of-combat Mount preamble every tranche scenario depends on did not establish a mounted pair within its 25-second bound, so no CM case was attempted. That failure is unexplained and is not attributed: two mechanisms were checked against the installed assembly and both disproved. chunk6a-combat-mount-tb was never attempted. The diagnostic candidate built to name the exact root was not launched because its required pre-launch WhatIf purity proof was killed three times by the host under system-wide low memory."
+                        "reason":  "BLOCKED: no native evidence exists for this behavior on the current candidate. The campaign ran; the out-of-combat Mount preamble every tranche scenario depends on failed, so no further CM case was attempted, and chunk6a-combat-mount-tb was never attempted."
                     }
                 ]
 }
