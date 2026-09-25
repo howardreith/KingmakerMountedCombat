@@ -252,8 +252,30 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
         (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
         (Get-KmcDirectoryManifest $liveMods)
     )
+    # A purity failure must name the tree and the exact entries that differ. The
+    # comparison itself is unchanged: every byte of every root is still rehashed
+    # and any difference still fails closed.
     for($index=0;$index-lt$afterRoots.Count;$index++){
-        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){throw 'WhatIf purity failed: an external tree changed.'}
+        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){
+            $purityBefore=$beforeRoots[$index]; $purityAfter=$afterRoots[$index]
+            $purityBeforeEntries=@{}; foreach($entry in $purityBefore.entries){$purityBeforeEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityAfterEntries=@{}; foreach($entry in $purityAfter.entries){$purityAfterEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityDetails=New-Object 'System.Collections.Generic.List[string]'
+            foreach($key in $purityBeforeEntries.Keys){
+                if(-not$purityAfterEntries.ContainsKey($key)){$purityDetails.Add('removed '+$key)}
+                elseif($purityAfterEntries[$key]-cne$purityBeforeEntries[$key]){$purityDetails.Add('changed '+$key+' : '+$purityBeforeEntries[$key]+' -> '+$purityAfterEntries[$key])}
+                if($purityDetails.Count-ge20){break}
+            }
+            foreach($key in $purityAfterEntries.Keys){
+                if(-not$purityBeforeEntries.ContainsKey($key)){$purityDetails.Add('added '+$key)}
+                if($purityDetails.Count-ge40){break}
+            }
+            throw ('WhatIf purity failed: an external tree changed: '+$purityAfter.root+
+                ' (files '+$purityBefore.fileCount+'->'+$purityAfter.fileCount+
+                ', directories '+$purityBefore.directoryCount+'->'+$purityAfter.directoryCount+
+                ', bytes '+$purityBefore.totalBytes+'->'+$purityAfter.totalBytes+')'+
+                $(if($purityDetails.Count-eq0){''}else{[Environment]::NewLine+($purityDetails-join[Environment]::NewLine)}))
+        }
     }
     if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){throw 'WhatIf purity failed: save metadata changed.'}
     Assert-KmcNoGameProcesses
