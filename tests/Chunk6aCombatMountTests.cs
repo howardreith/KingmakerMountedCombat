@@ -27,6 +27,209 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("repeated forced cleanup for one generation is recorded once", LedgerForcedDetachIsIdempotent);
             runner.Run("the ledger requires an exact native control identity", LedgerRequiresControlIdentity);
             runner.Run("the ledger refuses to admit forced detach as voluntary", LedgerRefusesForcedAsVoluntary);
+            runner.Run("the ledger retains a bounded history without evicting the in-flight record", LedgerRetentionIsBounded);
+            runner.Run("the disposition table is total over the roster positions", DispositionTableIsTotal);
+            runner.Run("a split adopted pair conserves debt and refuses further grants", AdoptedSplitConservesDebt);
+            runner.Run("combat Mount refusal feedback names its exact obstacle", CombatMountRefusalFeedback);
+            runner.Run("combat Dismount gates combine without masking each other", CombatDismountGatesCombine);
+            runner.Run("relationship cleanup stays idempotent after a voluntary combat mount", VoluntaryCombatCleanupIsIdempotent);
+        }
+
+        private static void LedgerRetentionIsBounded()
+        {
+            var ledger = new MountedTransitionLedger();
+            MountedTransitionRecord record;
+            string refusal;
+            for (var index = 0; index < 40; index++)
+            {
+                var identity = "shell:" + index.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                TestRunner.True(ledger.TryAdmitVoluntary(MountedTransitionKind.VoluntaryMount, identity,
+                        "rider", "mount", index, out record, out refusal),
+                    "Admission " + index + " was refused: " + refusal);
+                TestRunner.True(ledger.HasVoluntaryTransitionInFlight,
+                    "Retention trimming evicted the in-flight record at " + index + ".");
+                TestRunner.True(ledger.Find(identity) != null,
+                    "The in-flight record was not findable at " + index + ".");
+                ledger.Settle(record, true);
+            }
+            TestRunner.True(ledger.Records.Count <= 24, "Retention exceeded its bound: " + ledger.Records.Count);
+            TestRunner.Equal(40L, ledger.AcceptedMountCount, "Accepted transitions were lost with the trimmed history.");
+            TestRunner.Equal(null, ledger.Find("shell:0"), "The oldest record was not trimmed.");
+            TestRunner.True(ledger.Find("shell:39") != null, "The newest record was trimmed.");
+        }
+
+        private static void DispositionTableIsTotal()
+        {
+            // Every roster position relative to the running principal resolves to
+            // exactly one disposition, and only a strictly later unskipped slot is
+            // ever prepared.
+            for (var mountSlot = -1; mountSlot <= 8; mountSlot++)
+            {
+                var resolved = Resolve(mountSlot);
+                var expected =
+                    mountSlot < 0 || mountSlot == RiderSlot ? MidEncounterAdoption.Unavailable :
+                    mountSlot < RiderSlot ? MidEncounterAdoption.RetainPartnerParticipation :
+                    MidEncounterAdoption.PreparePartnerThisRound;
+                TestRunner.Equal(expected, resolved, "Roster position " + mountSlot + " resolved to " + resolved + ".");
+                if (resolved == MidEncounterAdoption.PreparePartnerThisRound)
+                {
+                    TestRunner.True(mountSlot > RiderSlot,
+                        "A partner at or before the principal's slot was prepared: " + mountSlot);
+                }
+            }
+        }
+
+        private static void AdoptedSplitConservesDebt()
+        {
+            var rider = new object();
+            var mount = new object();
+            var turn = new object();
+            var pair = new PairedActivation<object, object>(rider, mount);
+            pair.AdoptRunningBoundary(turn, MidEncounterAdoption.PreparePartnerThisRound);
+            pair.BeginActorPreparation(mount, turn);
+            pair.FinishActorPreparation(mount);
+            pair.State(rider).Observe(0f, 3f, 0f);
+            pair.State(mount).Observe(6f, 3f, 0f);
+            pair.Detach();
+            TestRunner.True(pair.Split, "Detach did not split the adopted activation.");
+            TestRunner.Equal(3f, pair.State(rider).MoveSpent, "Split lost the adopted rider's Move debt.");
+            TestRunner.Equal(6f, pair.State(mount).StandardSpent, "Split lost the adopted mount's Standard debt.");
+            TestRunner.True(!pair.CanAddress(mount, turn), "A split adopted pair could still address its partner.");
+            TestRunner.True(!pair.OwnsRoundEffects(mount, turn), "A split adopted pair still owned partner round effects.");
+            TestRunner.True(!pair.Begin(turn), "A split adopted pair granted another activation on its own boundary.");
+            TestRunner.True(!pair.AdoptRunningBoundary(new object(), MidEncounterAdoption.PreparePartnerThisRound),
+                "A split adopted pair adopted a second boundary.");
+        }
+
+        private static void CombatMountRefusalFeedback()
+        {
+            // Each combat gate must surface its own obstacle, never a generic one.
+            var noTurn = EligibleCombatContext();
+            noTurn.CombatTurnEligible = false;
+            TestRunner.True(Reasons(noTurn).Contains("current turn"), "The turn obstacle is not named.");
+            var noAdjacency = EligibleCombatContext();
+            noAdjacency.PairAdjacent = false;
+            TestRunner.True(Reasons(noAdjacency).Contains("adjacent"), "The adjacency obstacle is not named.");
+            var noMove = EligibleCombatContext();
+            noMove.RiderHasMoveAction = false;
+            TestRunner.True(Reasons(noMove).Contains("no Move action"), "The Move obstacle is not named.");
+            var noAdoption = EligibleCombatContext();
+            noAdoption.PairedAdoptionAvailable = false;
+            noAdoption.PairedAdoptionUnavailableReason = "exact adoption obstacle";
+            TestRunner.True(Reasons(noAdoption).Contains("exact adoption obstacle"),
+                "The adoption obstacle is replaced by a generic reason.");
+            var noAdoptionReason = EligibleCombatContext();
+            noAdoptionReason.PairedAdoptionAvailable = false;
+            TestRunner.True(Reasons(noAdoptionReason).Contains("take over this encounter"),
+                "A missing adoption reason produced no fallback obstacle.");
+            // An eligible combat context must produce no reason at all, so none of
+            // the gates above is firing by accident.
+            TestRunner.Equal(string.Empty, Reasons(EligibleCombatContext()).Trim(),
+                "An eligible combat Mount produced a reason.");
+        }
+
+        private static void CombatDismountGatesCombine()
+        {
+            var context = EligibleCombatContext();
+            context.RelationshipState = RelationshipState.Mounted;
+            context.CombatTurnEligible = false;
+            context.RiderHasMoveAction = false;
+            context.RelationshipTransitionInFlight = true;
+            var reasons = Reasons(context);
+            TestRunner.True(reasons.Contains("already in flight") && reasons.Contains("rider-led current turn") &&
+                    reasons.Contains("no Move action"),
+                "Combined Dismount gates masked one another: " + reasons);
+            // The committed native shell must clear only the Move predicate.
+            context.NativeMoveActionShellAdmitted = true;
+            var admitted = Reasons(context);
+            TestRunner.True(!admitted.Contains("no Move action") && admitted.Contains("rider-led current turn") &&
+                    admitted.Contains("already in flight"),
+                "The admitted shell cleared more than the stale Move predicate: " + admitted);
+        }
+
+        private static void VoluntaryCombatCleanupIsIdempotent()
+        {
+            var candidate = CombatCandidate();
+            var runtime = new CountingRuntime();
+            var coordinator = new MountedRelationshipCoordinator(runtime);
+            TestRunner.True(coordinator.Mount(candidate, MountedRelationshipAdmission.VoluntaryCombat).Succeeded,
+                "Voluntary combat mount was refused.");
+            var first = coordinator.Dismount(CleanupTrigger.Manual);
+            TestRunner.True(first.Succeeded && first.Trigger == CleanupTrigger.Manual,
+                "Voluntary combat dismount did not complete as Manual.");
+            var second = coordinator.Dismount(CleanupTrigger.Exception);
+            TestRunner.True(second.Succeeded, "Repeated cleanup after a voluntary combat mount failed.");
+            TestRunner.True(!second.MovementAuthorityResidual && !second.PresentationResidual,
+                "Repeated cleanup retained residue.");
+            TestRunner.Equal(1, runtime.Acquires, "Voluntary combat mount acquired movement authority more than once.");
+            TestRunner.Equal(1, runtime.Attaches, "Voluntary combat mount attached presentation more than once.");
+            TestRunner.Equal(1, runtime.Restores, "Repeated cleanup restored movement authority more than once.");
+            TestRunner.Equal(1, runtime.Detaches, "Repeated cleanup restored presentation more than once.");
+        }
+
+        private static string Reasons(MountedPlayerActionContext context)
+        {
+            var result = MountedPlayerActionEvaluator.Evaluate(context);
+            return string.Join(" ", System.Linq.Enumerable.ToArray(result.UnavailableReasons));
+        }
+
+        private static MountedPlayerActionContext EligibleCombatContext() => new MountedPlayerActionContext
+        {
+            RelationshipState = RelationshipState.Unmounted,
+            GameAvailable = true,
+            FeatureEnabled = true,
+            ExactlyOneRiderSelected = true,
+            RiderIsExactlyMedium = true,
+            RiderBodyProfileSupported = true,
+            ExactActiveOwnedSupportedMount = true,
+            MountDisplayName = "Horse",
+            MountIsStrictlyLarger = true,
+            RiderIsAliveAndConscious = true,
+            MountIsAliveAndConscious = true,
+            RiderIsDirectlyControllableAndInGame = true,
+            MountIsDirectlyControllableAndInGame = true,
+            InCombat = true,
+            CombatTurnEligible = true,
+            RiderHasMoveAction = true,
+            PairAdjacent = true,
+            PairedAdoptionAvailable = true,
+            SafeGameMode = true,
+            ViewsAndStockAgentsAvailable = true,
+            StockAgentsReady = true,
+            AgentOverridesAvailable = true
+        };
+
+        private static MountedPairCandidate CombatCandidate() => new MountedPairCandidate("rider-1", "mount-1")
+        {
+            RiderIsDirectlyControllable = true,
+            MountIsDirectlyControllable = true,
+            RiderIsAliveAndConscious = true,
+            MountIsAliveAndConscious = true,
+            ExactReciprocalCompanionRelationship = true,
+            PartyIsInCombat = true,
+            RiderSizeOrdinal = 4,
+            MountSizeOrdinal = 5,
+            RiderViewAndStockAgentAvailable = true,
+            MountViewAndStockAgentAvailable = true,
+            RiderStockAgentEnabled = true,
+            MountStockAgentEnabled = true,
+            RiderAgentOverrideAvailable = true,
+            MountAgentOverrideAvailable = true,
+            RiderIsExactlyMedium = true,
+            SafeMovementMode = true
+        };
+
+        private sealed class CountingRuntime : IMountedPairRuntime
+        {
+            internal int Acquires;
+            internal int Attaches;
+            internal int Restores;
+            internal int Detaches;
+
+            public void AcquireMovementAuthority(MountedPair pair) { Acquires++; }
+            public void AttachPresentation(MountedPair pair) { Attaches++; }
+            public void RestorePresentation(MountedPair pair) { Detaches++; }
+            public void RestoreMovementAuthority(MountedPair pair, CleanupTrigger trigger) { Restores++; }
         }
 
         private const int RiderSlot = 3;
