@@ -167,15 +167,113 @@ namespace KingmakerMountedCombat.Integration
             public string CasterId;
             public string TargetId;
             public string ControlIdentity;
+            // Bound to the exact AbilityExecutionContext this command created at its
+            // own OnAction boundary. That binding, not the caster's current Move
+            // slot, is what survives to Deliver.
+            public bool ProcessBound;
+            // Exactly-once: a shell that has already delivered its transition can
+            // never deliver a second one.
+            public bool Consumed;
         }
 
         private readonly System.Runtime.CompilerServices.ConditionalWeakTable<UnitUseAbility, NativeRelationshipShell>
             relationshipShells = new System.Runtime.CompilerServices.ConditionalWeakTable<UnitUseAbility, NativeRelationshipShell>();
+        // The exact process binding. Established at OnAction, consumed at Deliver.
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<AbilityExecutionContext, NativeRelationshipShell>
+            relationshipShellContexts = new System.Runtime.CompilerServices.ConditionalWeakTable<AbilityExecutionContext, NativeRelationshipShell>();
         private long relationshipShellSequence;
 
         internal long NativeRelationshipShellCount { get; private set; }
 
+        internal long NativeRelationshipProcessBindingCount { get; private set; }
+
         internal string LastNativeRelationshipShellObservation { get; private set; } = "not-observed";
+
+        // A typed per-command lifecycle ledger. Every stage and every early-return
+        // reason is recorded with the state that decided it, so a missing shell names
+        // the exact failed predicate instead of only reporting a zero count.
+        internal enum NativeShellStage
+        {
+            InitObserved = 0,
+            InitRefused = 1,
+            Registered = 2,
+            ApproachClamped = 3,
+            ProcessBound = 4,
+            ProcessBindingRefused = 5,
+            DeliverResolved = 6,
+            DeliverRefused = 7,
+            DeliverConsumed = 8
+        }
+
+        internal sealed class NativeShellLifecycleRecord
+        {
+            public long Sequence;
+            public NativeShellStage Stage;
+            public string ControlIdentity;
+            public string Predicate;
+            public string State;
+
+            public override string ToString() =>
+                Sequence.ToString(CultureInfo.InvariantCulture) + ":" + Stage +
+                ";control=" + (ControlIdentity ?? "<none>") +
+                ";predicate=" + (Predicate ?? "<none>") +
+                ";" + (State ?? string.Empty);
+        }
+
+        private const int MaxShellLifecycleRecords = 64;
+        private readonly List<NativeShellLifecycleRecord> shellLifecycle = new List<NativeShellLifecycleRecord>();
+        private long shellLifecycleSequence;
+
+        internal IReadOnlyList<NativeShellLifecycleRecord> NativeShellLifecycle => shellLifecycle;
+
+        internal string DescribeNativeShellLifecycle()
+        {
+            if (shellLifecycle.Count == 0) { return "no-shell-lifecycle-records"; }
+            var parts = new string[shellLifecycle.Count];
+            for (var index = 0; index < shellLifecycle.Count; index++) { parts[index] = shellLifecycle[index].ToString(); }
+            return string.Join(" | ", parts);
+        }
+
+        private void RecordShellLifecycle(NativeShellStage stage, string controlIdentity, string predicate, string state)
+        {
+            shellLifecycle.Add(new NativeShellLifecycleRecord
+            {
+                Sequence = ++shellLifecycleSequence,
+                Stage = stage,
+                ControlIdentity = controlIdentity,
+                Predicate = predicate,
+                State = state
+            });
+            while (shellLifecycle.Count > MaxShellLifecycleRecords) { shellLifecycle.RemoveAt(0); }
+        }
+
+        // The complete predicate state PrepareNativeMountApproach decides from. Every
+        // early return names which of these failed rather than returning silently.
+        private string DescribeInitPredicates(UnitUseAbility command)
+        {
+            var blueprint = command?.Spell?.Blueprint;
+            var caster = command?.Executor;
+            var target = command?.Target?.Unit;
+            return "disposed=" + disposed + ";serviceEnabled=" + enabled + ";serviceRegistered=" + registered +
+                ";serializationSuspended=" + serializationSuspended +
+                ";commandPresent=" + (command != null) +
+                ";commandStarted=" + (command == null ? "<none>" : command.IsStarted.ToString()) +
+                ";commandFinished=" + (command == null ? "<none>" : command.IsFinished.ToString()) +
+                ";blueprint=" + (blueprint == null ? "<none>" : blueprint.AssetGuid) +
+                ";isMountBlueprint=" + ReferenceEquals(blueprint, mountAbility) +
+                ";isDismountBlueprint=" + ReferenceEquals(blueprint, dismountAbility) +
+                ";executor=" + (caster?.UniqueId ?? "<none>") +
+                ";spellCaster=" + (command?.Spell?.Caster?.Unit?.UniqueId ?? "<none>") +
+                ";executorIsSpellCaster=" + (caster != null && command.Spell?.Caster?.Unit == caster) +
+                ";casterView=" + (caster?.View != null) +
+                ";target=" + (target?.UniqueId ?? "<none>") +
+                ";targetView=" + (target?.View != null) +
+                ";targetIsCasterPet=" + (caster != null && target != null && target == caster.Descriptor?.Pet) +
+                ";targetMasterIsCaster=" + (caster != null && target != null && target.Descriptor?.Master.Value == caster) +
+                ";targetProfileSupported=" + (target != null && SupportedMountedProfiles.IsSupported(target)) +
+                ";targetIsCaster=" + (caster != null && target == caster) +
+                ";generation=" + relationship.MountedPairGeneration;
+        }
 
         // The exact reason the last relationship delivery was refused, and what its
         // Move slot actually held. A shell refusal is raised as a native warning
@@ -200,24 +298,53 @@ namespace KingmakerMountedCombat.Integration
                 ";moveSlotHasShell=" + (shell != null) +
                 ";moveSlotStarted=" + (slot == null ? "<none>" : slot.IsStarted.ToString()) +
                 ";moveSlotFinished=" + (slot == null ? "<none>" : slot.IsFinished.ToString()) +
-                ";lastShellRegistration=" + (LastNativeRelationshipShellObservation ?? "<none>");
+                ";moveSlotProcessPresent=" + (ability?.ExecutionProcess != null) +
+                ";processBindings=" + NativeRelationshipProcessBindingCount +
+                ";lastShellRegistration=" + (LastNativeRelationshipShellObservation ?? "<none>") +
+                ";lifecycle={" + DescribeNativeShellLifecycle() + "}";
         }
 
         internal void PrepareNativeMountApproach(UnitUseAbility command)
         {
-            if (disposed || !enabled || !registered || serializationSuspended ||
-                command == null || command.IsStarted || command.IsFinished) { return; }
+            // Every early return names the exact predicate that refused it. A missing
+            // shell must never be diagnosable only as registeredShells=0.
+            if (disposed || !enabled || !registered || serializationSuspended)
+            {
+                RecordShellLifecycle(NativeShellStage.InitRefused, null, "service-state", DescribeInitPredicates(command));
+                return;
+            }
+            if (command == null || command.IsStarted || command.IsFinished)
+            {
+                RecordShellLifecycle(NativeShellStage.InitRefused, null, "command-state", DescribeInitPredicates(command));
+                return;
+            }
             var blueprint = command.Spell?.Blueprint;
             var isMount = ReferenceEquals(blueprint, mountAbility);
             var isDismount = ReferenceEquals(blueprint, dismountAbility);
+            // not-a-refusal: an unrelated ability is none of this service's business.
             if (!isMount && !isDismount) { return; }
+            RecordShellLifecycle(NativeShellStage.InitObserved, null, "relationship-blueprint", DescribeInitPredicates(command));
             var caster = command.Executor;
-            if (caster == null || command.Spell.Caster?.Unit != caster) { return; }
+            if (caster == null || command.Spell.Caster?.Unit != caster)
+            {
+                RecordShellLifecycle(NativeShellStage.InitRefused, null, "caster-identity", DescribeInitPredicates(command));
+                return;
+            }
             var target = command.Target?.Unit;
             if (isMount && (caster.View == null || target?.View == null ||
                 target != caster.Descriptor?.Pet || target.Descriptor?.Master.Value != caster ||
-                !SupportedMountedProfiles.IsSupported(target))) { return; }
-            if (isDismount && target != caster) { return; }
+                !SupportedMountedProfiles.IsSupported(target)))
+            {
+                RecordShellLifecycle(NativeShellStage.InitRefused, null, "mount-target-ownership-view-profile",
+                    DescribeInitPredicates(command));
+                return;
+            }
+            if (isDismount && target != caster)
+            {
+                RecordShellLifecycle(NativeShellStage.InitRefused, null, "dismount-target-is-not-caster",
+                    DescribeInitPredicates(command));
+                return;
+            }
 
             NativeRelationshipShell existing;
             if (!relationshipShells.TryGetValue(command, out existing))
@@ -236,15 +363,66 @@ namespace KingmakerMountedCombat.Integration
                 LastNativeRelationshipShellObservation = "control=" + shell.ControlIdentity +
                     ";generationAtInit=" + shell.GenerationAtInit +
                     ";target=" + (shell.TargetId ?? "<none>");
+                RecordShellLifecycle(NativeShellStage.Registered, shell.ControlIdentity, "registered",
+                    LastNativeRelationshipShellObservation);
             }
 
+            // not-a-refusal: only the Mount approach radius is clamped.
             if (!isMount) { return; }
             float radius;
             if (CombatMountDismountPolicy.TryGetMountApproachRadius(command.ApproachRadius,
                 caster.View.Corpulence, target.View.Corpulence, out radius))
             {
                 MountApproachRadiusSetter.Invoke(command, new object[] { radius });
+                RecordShellLifecycle(NativeShellStage.ApproachClamped, null, "approach-radius-clamped",
+                    "radius=" + radius.ToString(CultureInfo.InvariantCulture));
             }
+        }
+
+        // The exact process binding, established at the command's own OnAction
+        // boundary.
+        //
+        // This exists because of an exact native fact read from the installed
+        // assembly: UnitUseAbility.OnAction (0x06002737) sets ExecutionProcess from
+        // RuleCastSpell and then returns a TERMINAL result unless
+        // AbilityExecutionProcess.IsEngageUnit (0x06008FD4). For a relationship
+        // control the process does not engage a unit, so the command completes and
+        // UnitCommands nulls m_Commands[Move] while the process goes on delivering on
+        // later frames. Rediscovering ownership through the caster's current Move slot
+        // therefore cannot work at Deliver: the command is no longer there.
+        //
+        // The binding is exact and one-to-one — this shell to this command's own
+        // execution context — not a recent-shell or caster-only lookup.
+        internal void BindNativeRelationshipProcess(UnitUseAbility command)
+        {
+            if (disposed || !enabled || !registered || serializationSuspended || command == null) { return; }
+            NativeRelationshipShell shell;
+            if (!relationshipShells.TryGetValue(command, out shell) || shell == null) { return; }
+            var context = command.ExecutionProcess?.Context;
+            if (context == null)
+            {
+                RecordShellLifecycle(NativeShellStage.ProcessBindingRefused, shell.ControlIdentity,
+                    "execution-process-absent-at-onaction",
+                    "processPresent=" + (command.ExecutionProcess != null) +
+                    ";commandFinished=" + command.IsFinished + ";commandStarted=" + command.IsStarted);
+                return;
+            }
+            NativeRelationshipShell bound;
+            if (relationshipShellContexts.TryGetValue(context, out bound))
+            {
+                if (!ReferenceEquals(bound, shell))
+                {
+                    RecordShellLifecycle(NativeShellStage.ProcessBindingRefused, shell.ControlIdentity,
+                        "context-already-bound-to-another-shell", "boundControl=" + (bound?.ControlIdentity ?? "<none>"));
+                }
+                return;
+            }
+            relationshipShellContexts.Add(context, shell);
+            shell.ProcessBound = true;
+            NativeRelationshipProcessBindingCount++;
+            RecordShellLifecycle(NativeShellStage.ProcessBound, shell.ControlIdentity, "bound-to-execution-context",
+                "generationAtInit=" + shell.GenerationAtInit + ";caster=" + (shell.CasterId ?? "<none>") +
+                ";target=" + (shell.TargetId ?? "<none>") + ";commandFinished=" + command.IsFinished);
         }
 
         // R5: the save barrier's exact relationship-transition term.
@@ -278,15 +456,44 @@ namespace KingmakerMountedCombat.Integration
         // slot. A relationship control that cannot find its own shell there is not
         // delivering its own admitted command and is refused.
         private NativeRelationshipShell ResolveDeliveringShell(
-            NativeMountedControlKind kind, UnitEntityData caster, UnitEntityData target, out string refusal)
+            NativeMountedControlKind kind, UnitEntityData caster, UnitEntityData target,
+            AbilityExecutionContext context, out string refusal)
         {
             refusal = null;
-            var slot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
-            NativeRelationshipShell shell;
-            if (slot == null || !relationshipShells.TryGetValue(slot, out shell))
+            NativeRelationshipShell shell = null;
+            var ownership = "none";
+            // 1. The exact process binding this command established at its own
+            //    OnAction boundary. This is the path that survives to Deliver.
+            if (context != null && relationshipShellContexts.TryGetValue(context, out shell) && shell != null)
             {
-                refusal = "This mounted transition no longer owns its native Move command.";
+                ownership = "execution-context";
+            }
+            else
+            {
+                // 2. The exact Move-slot binding, which is still the owner when the
+                //    process delivers instantly inside OnAction, before the command
+                //    completes. Both are exact one-to-one bindings of THIS shell; the
+                //    lookup is never by recency or by caster alone.
+                var slot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+                if (slot != null && relationshipShells.TryGetValue(slot, out shell) && shell != null)
+                {
+                    ownership = "move-slot";
+                }
+            }
+            if (shell == null)
+            {
+                refusal = "This mounted transition owns neither its native execution process nor its native Move command.";
                 LastRelationshipShellRefusal = refusal + " " + DescribeRelationshipShellState(caster);
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, null, "no-exact-ownership",
+                    "contextPresent=" + (context != null) + ";" + DescribeRelationshipShellState(caster));
+                return null;
+            }
+            if (shell.Consumed)
+            {
+                refusal = "This exact mounted transition has already been delivered.";
+                LastRelationshipShellRefusal = refusal;
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity, "exactly-once",
+                    "ownership=" + ownership);
                 return null;
             }
             if (shell.Kind != kind || !string.Equals(shell.CasterId, caster.UniqueId, StringComparison.Ordinal))
@@ -330,8 +537,13 @@ namespace KingmakerMountedCombat.Integration
             {
                 refusal = "The mounted relationship changed after this transition was requested.";
                 LastRelationshipShellRefusal = refusal;
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity, "generation",
+                    "shellGeneration=" + shell.GenerationAtInit + ";current=" + relationship.MountedPairGeneration);
                 return null;
             }
+            RecordShellLifecycle(NativeShellStage.DeliverResolved, shell.ControlIdentity, "resolved",
+                "ownership=" + ownership + ";processBound=" + shell.ProcessBound +
+                ";kind=" + shell.Kind + ";generation=" + shell.GenerationAtInit);
             return shell;
         }
 
@@ -500,7 +712,13 @@ namespace KingmakerMountedCombat.Integration
         internal bool TryDispatch(
             NativeMountedControlKind kind,
             UnitEntityData caster,
-            UnitEntityData target)
+            UnitEntityData target) => TryDispatch(kind, caster, target, null);
+
+        internal bool TryDispatch(
+            NativeMountedControlKind kind,
+            UnitEntityData caster,
+            UnitEntityData target,
+            AbilityExecutionContext context)
         {
             var activation = EnsureActivation(kind, caster);
             RecordActivation(
@@ -515,7 +733,7 @@ namespace KingmakerMountedCombat.Integration
             NativeRelationshipShell deliveringShell = null;
             if (kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount)
             {
-                deliveringShell = ResolveDeliveringShell(kind, caster, target, out shellRefusal);
+                deliveringShell = ResolveDeliveringShell(kind, caster, target, context, out shellRefusal);
             }
             try
             {
@@ -560,6 +778,14 @@ namespace KingmakerMountedCombat.Integration
             if (accepted)
             {
                 DispatchAcceptedCount++;
+                // Exactly-once: this exact shell can never deliver a second
+                // transition, whichever exact binding proved its ownership.
+                if (deliveringShell != null)
+                {
+                    deliveringShell.Consumed = true;
+                    RecordShellLifecycle(NativeShellStage.DeliverConsumed, deliveringShell.ControlIdentity,
+                        "consumed", "kind=" + deliveringShell.Kind);
+                }
             }
             else
             {
