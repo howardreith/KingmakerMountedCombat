@@ -160,17 +160,44 @@ evidence schema version 28 with a dedicated validator that re-derives the
 rider's native Move commitment and both actors' native preparation counts rather
 than trusting the game's own arithmetic. They have not been run.
 
-The measured obstacle is recorded rather than worked around. The harness's
-`-WhatIf` purity proof — required by this project before any live use — compares
-`runtime-state`, `runtime-backups`, `runtime-staging` and `runtime-evidence`
-before and after by full SHA-256 manifest. Those four accumulated lab trees now
-hold **623,407 files and about 148 GB**, so one purity proof hashes roughly
-296 GB and runs for tens of minutes to hours at the observed ~119 MB/s; a live
-run cannot start until it completes, because a concurrent staging write would
-make the purity comparison fail. This is a harness scalability observation about
-accumulated evidence, not a defect in the Chunk 6A work, and it is reported
-rather than fixed because narrowing that comparison would weaken a safety guard
-this mission does not authorize weakening.
+### Retained failure: the `-WhatIf` purity proof did not pass
+
+This project requires a `-WhatIf` purity proof before any live runtime use. One
+was attempted for `mod-load-smoke` against an unqualified throwaway package. It
+ran for 54 minutes and then **failed** with `WhatIf purity failed: an external
+tree changed.` That failure is retained here as the reason the native campaign is
+NOT RUN, and it is deliberately **not** attributed to a cause I did not establish.
+
+What is measured:
+
+- The purity proof compares `runtime-state`, `runtime-backups`, `runtime-staging`
+  and `runtime-evidence` plus the live `Mods` root before and after, by full
+  SHA-256 manifest over every file. Those four lab trees hold **623,407 files and
+  148,296,003,194 bytes**, so one proof hashes about 296 GB. Observed throughput
+  was 119 MB/s falling to 31 MB/s in small-file regions.
+- The harness's error does not name which of the five manifests differed.
+- No file in any of the four trees had a modification time inside the 90-minute
+  window, so a plain concurrent content write is **disproved**.
+- `runtime-state` (3,829 files) and the live `Mods` root (358 files) are stable
+  across two consecutive manifest passes and their path sets are unchanged.
+- Running `Test-Harness.ps1`, then the whole `Test.ps1` umbrella, then every
+  persistence gate (`Test-PersistenceContracts`, `Test-PersistenceData`,
+  `Test-PersistenceProfileProtection`, `Test-PersistenceSaveFixtures`,
+  `Test-PersistenceValidationFixtures`) left the path-and-length sets of
+  `runtime-evidence`, `runtime-staging` and `runtime-backups` **unchanged**. So
+  none of the offline work performed during the proof perturbs those trees.
+
+What is **not** established: which manifest differed, and why. Eliminating the
+causes I could think of does not prove the cause lies outside this repository's
+tooling, and it is not called an environmental or engine problem here. A
+determinism test — two consecutive manifest passes over each large tree — was
+started to distinguish a real perturbation from non-deterministic enumeration or
+hashing at this scale; its result is not part of this report.
+
+The proof is not narrowed or bypassed to get past this. Restricting that
+comparison to the trees a run can mutate would weaken a safety guard this mission
+does not authorize weakening, so the campaign stays NOT RUN and the candidate
+stays PARTIAL.
 
 ## External state
 
