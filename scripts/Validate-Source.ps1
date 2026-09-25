@@ -346,11 +346,25 @@ Assert-Kmc ($bindBody.Success -and
     $bindBody.Value -notmatch 'Cooldown\.|\.Prepare\(\)|ForceToEnd|JoinCombat|StartTurn') `
     'the relationship shell binds to its own command''s exact execution context at the OnAction boundary'
 Assert-Kmc ($resolveShellBody.Success -and
-    $resolveShellBody.Value -match 'relationshipShellContexts\.TryGetValue\(context, out shell\)' -and
-    $resolveShellBody.Value -match 'relationshipShells\.TryGetValue\(slot, out shell\)' -and
-    $resolveShellBody.Value -match 'shell\.Consumed' -and
-    $resolveShellBody.Value -notmatch 'OrderBy|Last\(\)|FirstOrDefault\(\)|recent|MostRecent') `
-    'a delivery resolves only through an exact per-command binding and refuses a consumed shell'
+    # The authoritative context binding.
+    $resolveShellBody.Value -match 'relationshipShellContexts\.TryGetValue\(context, out contextShell\)' -and
+    # The Move-slot route is admitted ONLY for synchronous delivery: that slot command's
+    # own execution process must have created this very context.
+    $resolveShellBody.Value -match 'ReferenceEquals\(slot\.ExecutionProcess\?\.Context, context\)' -and
+    $resolveShellBody.Value -match 'if \(slotOwnsThisContext\) \{ relationshipShells\.TryGetValue\(slot, out slotShell\); \}' -and
+    # Disagreement between two present bindings is an explicit refusal, not a preference.
+    $resolveShellBody.Value -match 'contextShell != null && slotShell != null && !ReferenceEquals\(contextShell, slotShell\)' -and
+    $resolveShellBody.Value -match 'Two different mounted transitions claim this native execution\.' -and
+    # A retired or consumed shell can never resolve again.
+    $resolveShellBody.Value -match 'if \(shell\.Retired\)' -and
+    $resolveShellBody.Value -match 'if \(shell\.Consumed\)' -and
+    # Every permanent refusal retires the shell.
+    ([Regex]::Matches($resolveShellBody.Value, 'RetireShell\(').Count -ge 7) -and
+    # No loose lookup of any kind. Comment lines are stripped first so the guard tests
+    # the code rather than the prose that describes it.
+    (($resolveShellBody.Value -split "`n" | Where-Object { $_ -notmatch '^\s*//' }) -join "`n") -notmatch
+        'OrderBy|\.Last\(|FirstOrDefault\(|MostRecent|\.Values') `
+    'a delivery resolves only through an exact per-command binding, refuses disagreement, and retires a refused shell'
 Assert-Kmc ($nativeControlsText -match 'deliveringShell\.Consumed = true;' -and
     $nativeControlsText -match 'private readonly System\.Runtime\.CompilerServices\.ConditionalWeakTable<AbilityExecutionContext, NativeRelationshipShell>') `
     'exactly-once is recorded on the delivering shell and the process binding is per-context'

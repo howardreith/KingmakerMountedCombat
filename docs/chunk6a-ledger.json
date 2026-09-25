@@ -92,14 +92,16 @@
                                  ],
                         "evidenceLeaf":  "runtime-game-result.json",
                         "evidenceSha256":  "9d53d1426a0d90f4ef15456851304eb783c7e1cac077ea9b4fffbd4c385323f6",
-                        "reason":  "FAIL on the exact mandatory behavior. The native out-of-combat Mount control did not establish a mounted relationship within its bounded 25-second deadline during run c6a-mount-rt-1 (chunk6a-combat-mount-rt). The deadline recorded mode Default, no pause, feedback \"Ready to mount.\", command null and hasCooldown false; the run produced 43 assertion passes against this one failure, with horse-companion-blueprint-registration PASS, and restored external state. The cause is now established from the installed assembly: UnitUseAbility.OnAction (0x06002737) sets ExecutionProcess from RuleCastSpell and returns a terminal result unless AbilityExecutionProcess.IsEngageUnit, so the command completes and UnitCommands nulls m_Commands[Move] while the process delivers on later frames - therefore ResolveDeliveringShell could not rediscover the shell through the caster\u0027s current Move slot at Deliver. Repaired by binding the shell to the exact AbilityExecutionContext at the OnAction boundary and consuming that exact binding in Deliver.",
+                        "reason":  "CM01-exploration-free FAIL. The exact mandatory behavior of this id - the same native control outside combat performing the transition and charging nothing - was exercised by run c6a-mount-rt-1 (chunk6a-combat-mount-rt) and failed: the native out-of-combat Mount control did not establish a mounted relationship within its bounded 25-second deadline. The failing row chunk6a-combat-mount-rt records 29 assertion passes and this one failure; the run produced 43 assertion passes overall with horse-companion-blueprint-registration PASS, and restored all external state. A deterministic blocker is established from installed IL - UnitUseAbility.OnAction (0x06002737) sets ExecutionProcess from RuleCastSpell and returns a terminal result unless AbilityExecutionProcess.IsEngageUnit (0x06008FD4), so the command completes and UnitCommands nulls m_Commands[Move] while the process delivers on later frames, which is why ResolveDeliveringShell could not rediscover the shell through the caster\u0027s current Move slot at Deliver - and it is repaired in the implementation candidate by binding the shell to the exact AbilityExecutionContext at the OnAction boundary and consuming that exact binding in Deliver. The repair passes offline gates and awaits exact native proof; it is NOT natively proven.",
                         "observedPayload":  {
                                                 "version":  "0.1.0-chunk6a-preview.108",
                                                 "commit":  "88328a31ff1636c68a65bdfb4bcffaf3072649a6",
                                                 "dllSha256":  "6190c3540f70a8d288076a177913577d50107a5073b1a88357c63d1b6bd81f97",
                                                 "dllMvid":  "88f43b5f-86cd-4d68-b1a7-58b217c4ae16",
                                                 "qualifier":  "chunk6a-campaign-c"
-                                            }
+                                            },
+                        "failingRow":  "chunk6a-combat-mount-rt",
+                        "failingAssertion":  "target-selected-mount-admission-deadline: Native Mount did not establish a mounted pair within 25 seconds"
                     },
                     {
                         "id":  "CM01-combat-mount-preparing-refused",
