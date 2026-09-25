@@ -16,8 +16,15 @@ candidate for acceptance and must not be described as one.
 
 ### The blocker, exactly
 
-A save-backed runtime scenario requires a qualification-suite snapshot, and
-`scripts/runtime/New-KmcQualificationSuiteSnapshot.ps1` refuses to create one:
+**It gates every live runtime scenario, not only the save-backed ones.** That was
+established by running them: the no-save `mod-load-smoke` also stages the
+candidate into `Mods` and so checks the existing KMC tree against the same
+registry, failing in four seconds before any launch with the identical message
+(retained at `runtime-evidence/c6a-smoke-2`).
+
+A save-backed runtime scenario additionally requires a qualification-suite
+snapshot, and `scripts/runtime/New-KmcQualificationSuiteSnapshot.ps1` refuses to
+create one for the same reason:
 
 ```
 Existing KMC tree differs from the exact registered starting payload.
@@ -52,8 +59,9 @@ preview.54 were registered for their own missions — `Info.json`
 entry-count expectation matching a two-entry tree that has no loader cache yet.
 Its provenance is already documented: guarded deployment receipt
 `runtime-state/deployment-operations/20260925T0200587550503Z-94de251601b24a04a1f5394f57a92f64.json`.
-Once registered, the frozen candidate below needs no rebuild: take a suite
-snapshot and run `chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb`.
+Once registered, the frozen candidate below needs no rebuild: run
+`mod-load-smoke` to confirm the payload loads, then take a suite snapshot and run
+`chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb`.
 
 `scripts/Test-Chunk6aLedger.ps1` has two modes, deliberately separated. Record
 consistency validates that each of the 82 entries is internally coherent and,
@@ -169,10 +177,10 @@ can run: the claim is an argument from the accepted Chunk 5 barrier, not evidenc
 | Branch | `codex/mounted-combat-phase3f-playable-core` |
 | Product version | `0.1.0-chunk6a-preview.107` |
 | Qualifier | `chunk6a-combat-mount` |
-| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-final-diagnostic.zip` |
-| Source commit bound by the manifest | `2d30822697bd87d78bd88dfc911d8d3757116322` |
-| ZIP SHA-256 | `fb6a8ab0fe336bddd75084d10e2e64284de6387aab0d5cf0bbefe6fe3a1b91f2` |
-| Manifest SHA-256 | `a812bc89429853bcee4c4e8fead57dcbde1c1cf6c45876b5d6408d462d8604fa` |
+| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-final3-diagnostic.zip` |
+| Source commit bound by the manifest | `9f3a6f244e9e44cca75d94a2c53b9fc00a25ab8d` |
+| ZIP SHA-256 | `3d9f7c78c9cc894f4911bff992329105a63d97e69d7ef9c6e1b1ec6ce7d111e6` |
+| Manifest SHA-256 | `9a0ca1804c2f8e3e9eaa73ebebda058d130ba2e216e3e549834a67e38600d864` |
 | DLL SHA-256 | `cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` |
 | DLL MVID | `3739324f-ff40-4049-9a82-91667d8dbf24` |
 | Qualification suite | **none** — blocked; see the blocker above |
@@ -229,62 +237,81 @@ than trusting the game's own arithmetic. They have not been run, because a
 save-backed scenario cannot obtain a qualification-suite snapshot — see the
 blocker under Status.
 
-### Retained failure: the `-WhatIf` purity proof did not pass
+### The `-WhatIf` purity proof: one retained failure, then three passes
 
-This project requires a `-WhatIf` purity proof before any live runtime use. One
-was attempted for `mod-load-smoke` against an unqualified throwaway package. It
-ran for 54 minutes and then **failed** with `WhatIf purity failed: an external
-tree changed.` That failure is retained here as the reason the native campaign is
-NOT RUN, and it is deliberately **not** attributed to a cause I did not establish.
+This project requires a `-WhatIf` purity proof before any live runtime use. Three
+were performed against the Chunk 6A packages.
 
-What is measured:
+| Attempt | Package | Result |
+|---|---|---|
+| `c6a-whatif-1` | preview.106 (unqualified) | **FAILED** after 54 min: `WhatIf purity failed: an external tree changed.` |
+| `c6a-whatif-3` | preview.107 `-r2` | refused correctly: the worktree was dirty |
+| `c6a-whatif-4` | preview.107 `-r2` | **PASS** after ~55 min |
+| `c6a-whatif-5` | preview.107 `-final2` | **PASS** |
+| `c6a-whatif-6` | preview.107 `-final3`, repaired invoker | **PASS** |
 
-- The purity proof compares `runtime-state`, `runtime-backups`, `runtime-staging`
-  and `runtime-evidence` plus the live `Mods` root before and after, by full
-  SHA-256 manifest over every file. Those four lab trees hold **623,407 files and
-  148,296,003,194 bytes**, so one proof hashes about 296 GB. Observed throughput
-  was 119 MB/s falling to 31 MB/s in small-file regions.
-- The harness's error does not name which of the five manifests differed.
-- No file in any of the four trees had a modification time inside the 90-minute
+The first failure is retained rather than explained away. It named neither the
+root nor the entry, so what it observed is unknown. Measured afterwards:
+
+- The proof manifests `runtime-state`, `runtime-backups`, `runtime-staging`,
+  `runtime-evidence` and the live `Mods` root by full SHA-256 before and after.
+  Those four lab trees hold **623,407 files and 148,296,003,194 bytes**, so one
+  proof hashes about 296 GB and takes roughly 55 minutes; the dominant cost is
+  `runtime-staging`'s 472,074 entries at roughly 400 per second, not the byte
+  volume.
+- No file in any of the four trees had a modification time inside the failing
   window, so a plain concurrent content write is **disproved**.
-- `runtime-state` (3,829 files) and the live `Mods` root (358 files) are stable
-  across two consecutive manifest passes and their path sets are unchanged.
-- Running `Test-Harness.ps1`, then the whole `Test.ps1` umbrella, then every
-  persistence gate (`Test-PersistenceContracts`, `Test-PersistenceData`,
-  `Test-PersistenceProfileProtection`, `Test-PersistenceSaveFixtures`,
-  `Test-PersistenceValidationFixtures`) left the path-and-length sets of
-  `runtime-evidence`, `runtime-staging` and `runtime-backups` **unchanged**. So
-  none of the offline work performed during the proof perturbs those trees.
+- Two consecutive manifest passes are byte-stable for `runtime-state`, the live
+  `Mods` root, `runtime-evidence` (13,321 files, 6.05 GB, 10 s and 8 s) and
+  `runtime-backups` (193,050 files, 49.96 GB, 172 s and 165 s).
+  `runtime-staging` was stopped after twenty minutes of its first pass so the
+  proof itself could run instead, so its determinism is unmeasured.
+- `Test-Harness.ps1`, the whole `Test.ps1` umbrella and every persistence gate
+  leave the path-and-length sets of `runtime-evidence`, `runtime-staging` and
+  `runtime-backups` **unchanged**, so none of the offline work performed during
+  the failing window perturbs those trees.
 
-A determinism test — two consecutive manifest passes over each tree, with nothing
-else running — was then performed to distinguish a real perturbation from
-non-deterministic enumeration or hashing at this scale:
+What is **not** established: which of the five manifests differed, and why. It did
+not recur across three later proofs. `runtime-staging` is the one tree whose
+determinism is unmeasured, which narrows the search but is not a finding.
+Eliminating the causes I could think of does not prove the cause lies outside this
+repository's tooling, and it is not called an environmental or engine problem
+here. The comparison was not narrowed or bypassed; it was only made
+**diagnosable**, so a recurrence now names the root, its before/after file,
+directory and byte counts, and up to forty removed, changed or added entries with
+their lengths and hashes. Every byte of all five roots is still rehashed and any
+difference still fails closed.
 
-| Tree | Files | Bytes | Pass 1 | Pass 2 | Digest stable |
-|---|---|---|---|---|---|
-| `runtime-state` | 3,829 | 279 MB | — | — | yes |
-| live `Mods` | 358 | — | — | — | yes |
-| `runtime-evidence` | 13,321 | 6.05 GB | 10 s | 8 s | yes |
-| `runtime-backups` | 193,050 | 49.96 GB | 172 s | 165 s | yes |
-| `runtime-staging` | 413,207 | 91.98 GB | >20 min, **stopped** | — | **not measured** |
+### The two live attempts, and the harness defect the first one found
 
-`runtime-staging` was stopped after twenty minutes of its first pass so the
-purity proof itself — which is a superset of this test and now names the
-differing tree — could run instead. Its per-entry cost is the dominant term:
-472,074 entries at roughly 400 per second, which also explains why the failed
-proof took 54 minutes rather than the few minutes the byte volume alone implies.
+Both are retained; neither launched the game, and both restored external state.
 
-What is **not** established: which of the five manifests differed, and why.
-`runtime-staging` is the one tree whose determinism is unmeasured, which makes it
-the most likely candidate, but that is a narrowing of the search and not a
-finding. Eliminating the causes I could think of does not prove the cause lies
-outside this repository's tooling, and it is not called an environmental or engine
-problem here.
+| Run | Outcome |
+|---|---|
+| `c6a-smoke-1` | **FAIL** in 4 s. `Cannot validate argument on parameter 'QualificationSuiteId'. The argument "" does not match ...` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
+| `c6a-smoke-2` | **FAIL** in 4 s. `Existing KMC tree differs from the exact registered starting payload.` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
 
-The proof is not narrowed or bypassed to get past this. Restricting that
-comparison to the trees a run can mutate would weaken a safety guard this mission
-does not authorize weakening, so the campaign stays NOT RUN and the candidate
-stays PARTIAL.
+The first was a **latent harness defect, now repaired**, and it meant no no-save
+runtime scenario had been runnable since the qualification-suite pin set became
+mandatory for save-backed runs. `New-KmcRunTransactionState` was always called
+with all three suite arguments; for a no-save run those variables are unbound, so
+PowerShell passed empty strings into `ValidatePattern`-guarded parameters, and an
+explicitly passed empty string is rejected at binding time — before the
+function's own completeness rule (exactly three suite values for a suite mode,
+exactly none otherwise) could run. The logic was already correct; only the
+argument binding was wrong. The call now splats the three suite arguments only
+for a save-backed run. Nothing is relaxed: the parameter patterns, the
+completeness rule and the mode-to-schema mapping are untouched, and the
+save-backed path still always supplies all three.
+
+The repair is proven by evidence rather than by inspection:
+`runtime-state/run-transactions/c6a-smoke-2.json` records `mode=no-save-v1` and
+`phase=restored`, which the run could not have reached before the fix.
+
+`c6a-smoke-2` then reached the starting-payload registry, which is how the
+blocker above was established to gate *every* live scenario rather than only the
+save-backed ones. That is the stronger and more useful statement, and it came
+from running the thing rather than from reading it.
 
 ## External state
 
@@ -293,10 +320,17 @@ holds the accepted preview.105 DLL
 (`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`) and its
 `Info.json` (`917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`),
 alongside the same seven mod directories including the deliberate SkipIntro. No
-guarded deployment, staging or save transaction was opened, no Kingmaker process
-was started, and no protected save, automation fixture, UMM Params, cache or
-foreign mod was read for anything but verification. The `-WhatIf` purity proof
-is read-only by construction and is the only harness invocation attempted.
+guarded deployment transaction was opened and no Kingmaker process was started.
+Two guarded no-save run transactions were opened and both restored: `c6a-smoke-1`
+failed before creating transaction state, and `c6a-smoke-2` recorded
+`mode=no-save-v1`, `phase=restored`, `modsRestored` true and
+`saveProtectionPassed` true. Verified afterwards: the installed `Info.json`
+(`917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`) and DLL
+(`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`) are
+byte-identical to intake, the same seven mod directories are present, the 275
+protected saves are unchanged, and there is no Kingmaker process and no
+active-transaction lock. No protected save, automation fixture, UMM Params, cache
+or foreign mod was written.
 
 ## HUMAN PLAY — owner checklist
 
