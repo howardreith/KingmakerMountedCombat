@@ -169,12 +169,12 @@ executes it.
 | Branch | `codex/mounted-combat-phase3f-playable-core` |
 | Product version | `0.1.0-chunk6a-preview.107` |
 | Qualifier | `chunk6a-combat-mount` |
-| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-diagnostic.zip` |
-| Source commit bound by the manifest | `3dfcb07e5d75b2677a7497337eb48384762dd918` |
-| ZIP SHA-256 | `9f0cb8d25ab83796a1a42222f3d7460bf9170b6d9902d41884e9184ef11c85e6` |
-| Manifest SHA-256 | `4feaacf9dd43de22d64f34183c62a02f870732092296d8680a65a6e47f793d56` |
-| DLL SHA-256 | `93656626d82277ab5b76eb616935d9361970f9edce54dd55a8e6616bf299272b` |
-| DLL MVID | `4574951e-e2e4-4329-9bd6-4b51e46430ed` |
+| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-final-diagnostic.zip` |
+| Source commit bound by the manifest | `2d30822697bd87d78bd88dfc911d8d3757116322` |
+| ZIP SHA-256 | `fb6a8ab0fe336bddd75084d10e2e64284de6387aab0d5cf0bbefe6fe3a1b91f2` |
+| Manifest SHA-256 | `a812bc89429853bcee4c4e8fead57dcbde1c1cf6c45876b5d6408d462d8604fa` |
+| DLL SHA-256 | `cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` |
+| DLL MVID | `3739324f-ff40-4049-9a82-91667d8dbf24` |
 | Qualification suite | **none** — blocked; see the blocker above |
 | Accepted Chunk 5 payload, untouched | ZIP `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`, DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID `638259af-9d31-4738-be8a-2784135d4235` |
 
