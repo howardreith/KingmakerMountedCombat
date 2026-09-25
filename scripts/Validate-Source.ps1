@@ -275,8 +275,7 @@ $compensateBody = [Regex]::Match($relationshipServiceText, '(?s)private Transiti
 Assert-Kmc ($compensateBody.Success -and
     $compensateBody.Value -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative|AttackOfOpportunity)\s*=' -and
     $compensateBody.Value -notmatch 'mountedPairGeneration\s*(=|--)' -and
-    $compensateBody.Value -match 'RollbackMidEncounterAdoption\(refusal\)' -and
-    $compensateBody.Value -match 'coordinator\.Dismount\(CleanupTrigger\.AdoptionRefused\)' -and
+    $compensateBody.Value -match 'RollbackMidEncounterAdoption\(refusal\)[\s\S]{0,400}Dismount\(CleanupTrigger\.AdoptionRefused\)' -and
     $compensateBody.Value -match 'new TransitionResult\(false,') `
     'the compensating path returns the relationship to unmounted, reports failure and never refunds or rewinds the generation'
 $coordinatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs')
