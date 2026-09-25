@@ -201,20 +201,32 @@ can run: the claim is an argument from the accepted Chunk 5 barrier, not evidenc
 
 This package is a private engineering candidate. It is not installed, not merged
 and not released, and the accepted preview.105 package is untouched. It is the
-payload the two live attempts below actually exercised, which is why the ledger
-is bound to it.
+payload that reached the blocker in `c6a-smoke-2`, which is why the ledger is
+bound to it; `c6a-smoke-1`, the run that found the harness defect, used the
+preceding `-final2` build of the same source, and the table below names both.
 
 `Assert-KmcPackageManifest` requires a manifest to bind the exact current `HEAD`
 on a clean worktree, so every documentation commit after a build invalidates that
 build for runtime use and the owner must rebuild at the then-current head. That
-rebuild carries no risk, and this is now **measured rather than claimed**: a
-second package built at `1d60100f332c8aced57efcd78f563e80436be5ec`
-(`KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-head-diagnostic.zip`,
-ZIP `699d64de0f26f0ef1e37119a00adbeae135fcfb9f418164e5da25d8f06b26e24`, manifest
-`9c8514474dee22157ebe95677e9b4fd0f7c23f0d56c2e0f47164d8f643c3d5c9`) produced DLL
-SHA-256 `cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` and
-MVID `3739324f-ff40-4049-9a82-91667d8dbf24`, byte-identical to the candidate
-above, across two different commits. Only `docs/` changed between them.
+rebuild carries no risk, and this is **measured rather than claimed**: four
+qualified packages built at four different commits all produced the identical DLL,
+`cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` / MVID
+`3739324f-ff40-4049-9a82-91667d8dbf24`, because nothing under `src/` changed
+between them.
+
+| Qualifier | Commit | ZIP SHA-256 |
+|---|---|---|
+| `-final` | `2d30822` | `fb6a8ab0fe336bddd75084d10e2e64284de6387aab0d5cf0bbefe6fe3a1b91f2` |
+| `-final2` | `f0f94fb` | `b4022902836ee1bfb914e3d9555e7f8220cbf86b279149bd6adb8763d337bea7` — the `c6a-smoke-1` payload |
+| `-final3` | `9f3a6f2` | `3d9f7c78c9cc894f4911bff992329105a63d97e69d7ef9c6e1b1ec6ce7d111e6` |
+| `-head` | `1d60100` | `699d64de0f26f0ef1e37119a00adbeae135fcfb9f418164e5da25d8f06b26e24` |
+
+The `-head` build exists only to establish that, and its manifest is
+`9c8514474dee22157ebe95677e9b4fd0f7c23f0d56c2e0f47164d8f643c3d5c9`. It is a
+determinism proof, not an evidence-bearing candidate: no scenario was run on it.
+Note that `9f3a6f2`, the harness repair, changed exactly one file —
+`scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` — which is why the
+DLL is unchanged across it.
 
 ## Offline gates
 
@@ -317,10 +329,10 @@ difference still fails closed.
 
 Both are retained; neither launched the game, and both restored external state.
 
-| Run | Outcome |
-|---|---|
-| `c6a-smoke-1` | **FAIL** in 4 s. `Cannot validate argument on parameter 'QualificationSuiteId'. The argument "" does not match ...` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
-| `c6a-smoke-2` | **FAIL** in 4 s. `Existing KMC tree differs from the exact registered starting payload.` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
+| Run | Package | Outcome |
+|---|---|---|
+| `c6a-smoke-1` | preview.107 `-final2` | **FAIL** in 4 s. `Cannot validate argument on parameter 'QualificationSuiteId'. The argument "" does not match ...` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
+| `c6a-smoke-2` | preview.107 `-final3` | **FAIL** in 4 s. `Existing KMC tree differs from the exact registered starting payload.` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
 
 The first was a **latent harness defect, now repaired**, and it meant no no-save
 runtime scenario had been runnable since the qualification-suite pin set became
