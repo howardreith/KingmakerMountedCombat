@@ -184,6 +184,37 @@ foreach($entry in $ledger.entries){
             $evidencePath=Join-Path $root $evidenceLeaf
             if(-not(Test-Path -LiteralPath $evidencePath)){throw "Chunk 6A entry ${id}: evidence artifact is missing."}
             if((Get-Sha256 $evidencePath)-cne$evidenceSha){throw "Chunk 6A entry ${id}: evidence bytes differ."}
+            # An overall FAIL result is not evidence for THIS behavior. The entry must
+            # name the exact failing row inside that artifact, that row must itself be
+            # FAIL with at least one failed assertion, and the entry's recorded failing
+            # assertion must appear verbatim in that row's own errors.
+            $failingRow=[string](Get-Field $entry 'failingRow')
+            $failingAssertion=[string](Get-Field $entry 'failingAssertion')
+            if([string]::IsNullOrEmpty($failingRow)-or[string]::IsNullOrEmpty($failingAssertion)){
+                throw "Chunk 6A FAIL entry ${id}: names no exact failing row and assertion."
+            }
+            $artifact=Get-Content -Raw -LiteralPath $evidencePath|ConvertFrom-Json
+            $candidateRows=@()
+            if($null-ne(Get-Field $artifact 'rows')){$candidateRows+=@($artifact.rows)}
+            if($null-ne(Get-Field $artifact 'subscenarioResults')){$candidateRows+=@($artifact.subscenarioResults)}
+            $matchedRows=@($candidateRows|Where-Object{[string]$_.name-ceq$failingRow})
+            if($matchedRows.Count-ne1){
+                throw "Chunk 6A entry ${id}: evidence has no single row named $failingRow."
+            }
+            if([string]$matchedRows[0].status-cne'FAIL'){
+                throw "Chunk 6A entry ${id}: row $failingRow is not FAIL in its own evidence."
+            }
+            if([int](Get-Field $matchedRows[0] 'assertionFailCount')-lt1){
+                throw "Chunk 6A entry ${id}: row $failingRow records no failed assertion."
+            }
+            $rowErrors=@(Get-Field $matchedRows[0] 'errors')
+            if(@($rowErrors|Where-Object{[string]$_-clike ('*'+$failingAssertion+'*')}).Count-lt1){
+                throw "Chunk 6A entry ${id}: row $failingRow does not contain the recorded failing assertion."
+            }
+            # The reason must attribute the failure to this behavior by naming its id.
+            if([string](Get-Field $entry 'reason')-cnotlike ('*'+$id+'*')){
+                throw "Chunk 6A FAIL entry ${id}: its reason does not attribute the failure to this behavior."
+            }
             $checks++
         }
         'MAPPED' {

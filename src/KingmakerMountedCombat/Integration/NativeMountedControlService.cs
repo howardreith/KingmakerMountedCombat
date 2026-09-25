@@ -174,6 +174,10 @@ namespace KingmakerMountedCombat.Integration
             // Exactly-once: a shell that has already delivered its transition can
             // never deliver a second one.
             public bool Consumed;
+            // A shell refused for a permanent reason is retired and can never become
+            // valid again, whichever exact binding later presents it.
+            public bool Retired;
+            public string RetiredReason;
         }
 
         private readonly System.Runtime.CompilerServices.ConditionalWeakTable<UnitUseAbility, NativeRelationshipShell>
@@ -233,6 +237,18 @@ namespace KingmakerMountedCombat.Integration
             for (var index = 0; index < shellLifecycle.Count; index++) { parts[index] = shellLifecycle[index].ToString(); }
             return string.Join(" | ", parts);
         }
+
+        // Permanent refusal. A retired shell can never be resolved again, so a stale or
+        // rejected transition cannot be revived by a later binding.
+        private void RetireShell(NativeRelationshipShell shell, string reason)
+        {
+            if (shell == null || shell.Retired) { return; }
+            shell.Retired = true;
+            shell.RetiredReason = reason;
+            NativeRelationshipShellRetiredCount++;
+        }
+
+        internal long NativeRelationshipShellRetiredCount { get; private set; }
 
         private void RecordShellLifecycle(NativeShellStage stage, string controlIdentity, string predicate, string state)
         {
@@ -306,23 +322,28 @@ namespace KingmakerMountedCombat.Integration
 
         internal void PrepareNativeMountApproach(UnitUseAbility command)
         {
-            // Every early return names the exact predicate that refused it. A missing
-            // shell must never be diagnosable only as registeredShells=0.
+            // The blueprint test comes FIRST so the lifecycle ledger only ever records
+            // relationship abilities. Ordinary gameplay casts thousands of other
+            // abilities through this same Init postfix, and none of them may churn a
+            // diagnostic ledger.
+            // not-a-refusal: an unrelated ability is none of this service's business.
+            var blueprint = command?.Spell?.Blueprint;
+            var isMount = ReferenceEquals(blueprint, mountAbility);
+            var isDismount = ReferenceEquals(blueprint, dismountAbility);
+            if (!isMount && !isDismount) { return; }
+
+            // From here every early return names the exact predicate that refused it. A
+            // missing shell must never be diagnosable only as registeredShells=0.
             if (disposed || !enabled || !registered || serializationSuspended)
             {
                 RecordShellLifecycle(NativeShellStage.InitRefused, null, "service-state", DescribeInitPredicates(command));
                 return;
             }
-            if (command == null || command.IsStarted || command.IsFinished)
+            if (command.IsStarted || command.IsFinished)
             {
                 RecordShellLifecycle(NativeShellStage.InitRefused, null, "command-state", DescribeInitPredicates(command));
                 return;
             }
-            var blueprint = command.Spell?.Blueprint;
-            var isMount = ReferenceEquals(blueprint, mountAbility);
-            var isDismount = ReferenceEquals(blueprint, dismountAbility);
-            // not-a-refusal: an unrelated ability is none of this service's business.
-            if (!isMount && !isDismount) { return; }
             RecordShellLifecycle(NativeShellStage.InitObserved, null, "relationship-blueprint", DescribeInitPredicates(command));
             var caster = command.Executor;
             if (caster == null || command.Spell.Caster?.Unit != caster)
@@ -460,38 +481,64 @@ namespace KingmakerMountedCombat.Integration
             AbilityExecutionContext context, out string refusal)
         {
             refusal = null;
-            NativeRelationshipShell shell = null;
-            var ownership = "none";
-            // 1. The exact process binding this command established at its own
-            //    OnAction boundary. This is the path that survives to Deliver.
-            if (context != null && relationshipShellContexts.TryGetValue(context, out shell) && shell != null)
+            // 1. The authoritative binding: the exact execution context this command
+            //    established at its own OnAction boundary.
+            NativeRelationshipShell contextShell = null;
+            if (context != null) { relationshipShellContexts.TryGetValue(context, out contextShell); }
+
+            // 2. The synchronous route, and ONLY that. A Move-slot command is an owner
+            //    solely when its own execution process created THIS very context, which
+            //    is exactly the case where delivery happened inside OnAction before the
+            //    postfix could bind. Anything else occupying that slot is a different
+            //    command and is never an owner: this is not a recent-shell, last-shell,
+            //    caster-only or generation-only lookup.
+            var slot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+            NativeRelationshipShell slotShell = null;
+            var slotOwnsThisContext = slot != null && context != null &&
+                ReferenceEquals(slot.ExecutionProcess?.Context, context);
+            if (slotOwnsThisContext) { relationshipShells.TryGetValue(slot, out slotShell); }
+
+            // 3. If both bindings exist they must name the same shell. Disagreement is
+            //    an explicit refusal, never a preference for one of them.
+            if (contextShell != null && slotShell != null && !ReferenceEquals(contextShell, slotShell))
             {
-                ownership = "execution-context";
+                refusal = "Two different mounted transitions claim this native execution.";
+                LastRelationshipShellRefusal = refusal;
+                RetireShell(contextShell, "binding-disagreement");
+                RetireShell(slotShell, "binding-disagreement");
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, contextShell.ControlIdentity,
+                    "binding-disagreement", "slotControl=" + (slotShell.ControlIdentity ?? "<none>"));
+                return null;
             }
+
+            NativeRelationshipShell shell;
+            string ownership;
+            if (contextShell != null) { shell = contextShell; ownership = "execution-context"; }
+            else if (slotShell != null) { shell = slotShell; ownership = "synchronous-move-slot"; }
             else
-            {
-                // 2. The exact Move-slot binding, which is still the owner when the
-                //    process delivers instantly inside OnAction, before the command
-                //    completes. Both are exact one-to-one bindings of THIS shell; the
-                //    lookup is never by recency or by caster alone.
-                var slot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
-                if (slot != null && relationshipShells.TryGetValue(slot, out shell) && shell != null)
-                {
-                    ownership = "move-slot";
-                }
-            }
-            if (shell == null)
             {
                 refusal = "This mounted transition owns neither its native execution process nor its native Move command.";
                 LastRelationshipShellRefusal = refusal + " " + DescribeRelationshipShellState(caster);
                 RecordShellLifecycle(NativeShellStage.DeliverRefused, null, "no-exact-ownership",
-                    "contextPresent=" + (context != null) + ";" + DescribeRelationshipShellState(caster));
+                    "contextPresent=" + (context != null) +
+                    ";slotOwnsThisContext=" + slotOwnsThisContext + ";" + DescribeRelationshipShellState(caster));
+                return null;
+            }
+            // A shell that has already been refused for a permanent reason can never
+            // become valid again, whichever binding later presents it.
+            if (shell.Retired)
+            {
+                refusal = "This mounted transition was already refused and cannot be revived.";
+                LastRelationshipShellRefusal = refusal + " retiredBecause=" + (shell.RetiredReason ?? "<none>");
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity, "retired",
+                    "ownership=" + ownership + ";retiredBecause=" + (shell.RetiredReason ?? "<none>"));
                 return null;
             }
             if (shell.Consumed)
             {
                 refusal = "This exact mounted transition has already been delivered.";
                 LastRelationshipShellRefusal = refusal;
+                RetireShell(shell, "exactly-once");
                 RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity, "exactly-once",
                     "ownership=" + ownership);
                 return null;
@@ -500,6 +547,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 refusal = "This native Move command belongs to a different mounted control.";
                 LastRelationshipShellRefusal = refusal;
+                RetireShell(shell, "kind-or-caster");
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity, "kind-or-caster",
+                    "ownership=" + ownership + ";shellKind=" + shell.Kind + ";deliverKind=" + kind);
                 return null;
             }
             if (kind == NativeMountedControlKind.MountCompanion &&
@@ -507,6 +557,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 refusal = "The mounted transition target changed after its native command was created.";
                 LastRelationshipShellRefusal = refusal;
+                RetireShell(shell, "target-changed");
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity, "target-changed",
+                    "ownership=" + ownership);
                 return null;
             }
             if (kind == NativeMountedControlKind.Dismount)
@@ -530,6 +583,9 @@ namespace KingmakerMountedCombat.Integration
                 if (refusal != null)
                 {
                     LastRelationshipShellRefusal = refusal;
+                    RetireShell(shell, "dismount-target-identity");
+                    RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity,
+                        "dismount-target-identity", "ownership=" + ownership);
                     return null;
                 }
             }
@@ -537,6 +593,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 refusal = "The mounted relationship changed after this transition was requested.";
                 LastRelationshipShellRefusal = refusal;
+                RetireShell(shell, "generation");
                 RecordShellLifecycle(NativeShellStage.DeliverRefused, shell.ControlIdentity, "generation",
                     "shellGeneration=" + shell.GenerationAtInit + ";current=" + relationship.MountedPairGeneration);
                 return null;
