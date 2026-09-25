@@ -2,7 +2,7 @@
     "schemaVersion":  1,
     "generatedAtUtc":  "2026-09-25T04:03:51.7650569Z",
     "payload":  {
-                    "version":  "0.1.0-chunk6a-preview.106",
+                    "version":  "0.1.0-chunk6a-preview.107",
                     "commit":  "b4500668fcaf7c307e431bae068ba909846d71c2",
                     "branch":  "codex/mounted-combat-phase3f-playable-core",
                     "dllSha256":  "pending",
