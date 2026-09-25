@@ -8,10 +8,52 @@ the installed-assembly seam map is the Chunk 6A section at the top of
 
 ## Status
 
-**PARTIAL.** The engineering work is complete and every offline gate passes, but
-the Chunk 6A acceptance ledger's completion gate does **not** pass: the native
-CM01-CM08 campaign has not been executed on a frozen candidate payload. This is
-not a candidate for acceptance and must not be described as one.
+**BLOCKED for native qualification; PARTIAL overall.** The engineering work is
+complete, the candidate is frozen and every offline gate passes, but no
+save-backed native scenario can be started, so the acceptance ledger's completion
+gate does **not** pass and all 82 mandatory behaviors are BLOCKED. This is not a
+candidate for acceptance and must not be described as one.
+
+### The blocker, exactly
+
+A save-backed runtime scenario requires a qualification-suite snapshot, and
+`scripts/runtime/New-KmcQualificationSuiteSnapshot.ps1` refuses to create one:
+
+```
+Existing KMC tree differs from the exact registered starting payload.
+  QualificationSuiteContinuity.ps1:63
+```
+
+`Assert-KmcRegisteredStartingPayload` holds a fixed registry of accepted starting
+installations, keyed by the installed `Info.json` hash. It has six entries, the
+newest being Chunk 5's starting payload preview.54
+(`Info.json` `1224394f59ec598895a0d6ffd1db05527d04f334a063461a019c11f98ddbe528`).
+The owner's current installation is the accepted **preview.105** alpha, whose
+`Info.json` is `917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`
+and whose DLL is `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`.
+That hash is not in the registry, so no pin set is selected. The installed tree
+also has only **two** entries — `Info.json` and the DLL, with no UMM loader cache,
+because the guarded deployment replaced the DLL and the game has not been run
+since — while every registered pin set describes a **three**-entry tree including
+that cache, so the entry-count check fails before any hash is compared.
+
+Registering preview.105 as an accepted starting payload is an identity-guard
+change, and this mission explicitly does not authorize broadening identity
+exceptions "merely to make a run pass." It is also genuinely the owner's call:
+that registry is the record of which installations the owner has accepted as a
+qualification starting point. So it is reported, not changed.
+
+**What would unblock it**, in the owner's own terms and needing no guard
+weakening: register the already-accepted preview.105 installation in
+`Assert-KmcRegisteredStartingPayload` the way preview.13, preview.37 and
+preview.54 were registered for their own missions — `Info.json`
+`917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`, DLL
+`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, with the
+entry-count expectation matching a two-entry tree that has no loader cache yet.
+Its provenance is already documented: guarded deployment receipt
+`runtime-state/deployment-operations/20260925T0200587550503Z-94de251601b24a04a1f5394f57a92f64.json`.
+Once registered, the frozen candidate below needs no rebuild: take a suite
+snapshot and run `chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb`.
 
 `scripts/Test-Chunk6aLedger.ps1` has two modes, deliberately separated. Record
 consistency validates that each of the 82 entries is internally coherent and,
