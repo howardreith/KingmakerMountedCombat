@@ -6010,6 +6010,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            // The Chunk 6A diagnostic adoption fault is scenario-owned and must be
+            // disarmed on every abort path so it can never outlive its own row.
+            try { Chunk6aDisposeAdoptionFault(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A adoption fault", exception); }
             try { pairedModeProbe?.Dispose(); pairedModeProbe = null; }
             catch (Exception exception) { AddCleanupError("paired mode restoration", exception); }
             try { combat.Cancel("Phase 3D Horse tranche cleanup"); }

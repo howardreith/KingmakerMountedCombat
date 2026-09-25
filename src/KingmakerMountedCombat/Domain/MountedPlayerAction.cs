@@ -48,6 +48,10 @@ namespace KingmakerMountedCombat.Domain
 
         public bool CombatTurnEligible { get; set; }
 
+        // The exact reason the turn is not eligible, so the Preparing boundary is
+        // refused with its own message instead of the generic wrong-turn one.
+        public string CombatTurnIneligibilityReason { get; set; }
+
         public bool RiderHasMoveAction { get; set; }
 
         public bool NativeMoveActionShellAdmitted { get; set; }
@@ -140,7 +144,9 @@ namespace KingmakerMountedCombat.Domain
                 }
                 if (context.InCombat && !context.CombatTurnEligible)
                 {
-                    dismountReasons.Add("Dismount during turn-based combat belongs to the rider-led current turn.");
+                    dismountReasons.Add(string.IsNullOrWhiteSpace(context.CombatTurnIneligibilityReason)
+                        ? "Dismount during turn-based combat belongs to the rider-led current turn."
+                        : context.CombatTurnIneligibilityReason);
                 }
                 if (context.InCombat && !context.RiderHasMoveAction &&
                     !context.NativeMoveActionShellAdmitted)
@@ -243,7 +249,9 @@ namespace KingmakerMountedCombat.Domain
             }
             if (context.InCombat && !context.CombatTurnEligible)
             {
-                reasons.Add("Mount Companion during turn-based combat belongs to the rider's current turn.");
+                reasons.Add(string.IsNullOrWhiteSpace(context.CombatTurnIneligibilityReason)
+                    ? "Mount Companion during turn-based combat belongs to the rider's current turn."
+                    : context.CombatTurnIneligibilityReason);
             }
             if (context.InCombat && !context.RiderHasMoveAction &&
                 !context.NativeMoveActionShellAdmitted)
@@ -318,13 +326,47 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
+        // A relationship transition in turn-based combat requires the exact rider's
+        // turn to be ACTING, not merely Preparing.
+        //
+        // Kingmaker's TurnController runs Prepare() at the actor's own initiative
+        // slot and only then advances the turn to Acting; a player command is
+        // delivered by UnitCommands.Tick inside Acting. Admitting a transition
+        // while the turn is still Preparing would settle the transition ledger and
+        // the adopted paired grant against a turn whose native preparation has not
+        // finished, and there is no exact native evidence that no callback or
+        // ledger step is skipped in that window. Preparing is therefore refused
+        // rather than retained on an assumption.
         public static bool IsTurnEligible(
+            bool turnBasedCombat,
+            bool currentTurnIsExactRider,
+            bool turnActing)
+        {
+            return !turnBasedCombat || currentTurnIsExactRider && turnActing;
+        }
+
+        // The exact reason a turn-based transition is not eligible, so the Preparing
+        // boundary is refused with its own message instead of the generic one.
+        public static string DescribeTurnIneligibility(
+            string actionName,
             bool turnBasedCombat,
             bool currentTurnIsExactRider,
             bool turnPreparing,
             bool turnActing)
         {
-            return !turnBasedCombat || currentTurnIsExactRider && (turnPreparing || turnActing);
+            if (IsTurnEligible(turnBasedCombat, currentTurnIsExactRider, turnActing))
+            {
+                return null;
+            }
+            if (!currentTurnIsExactRider)
+            {
+                return actionName + " during turn-based combat belongs to the rider's current turn.";
+            }
+            if (turnPreparing)
+            {
+                return actionName + " waits until the rider's turn has finished preparing.";
+            }
+            return actionName + " requires the rider's turn to be acting.";
         }
 
         public static bool IsAdjacent(

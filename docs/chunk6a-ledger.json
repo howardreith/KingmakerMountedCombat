@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-09-25T04:03:51.7650569Z",
+    "generatedAtUtc":  "2026-09-25T13:44:57.3588317Z",
     "payload":  {
                     "version":  "0.1.0-chunk6a-preview.107",
                     "commit":  "9f3a6f244e9e44cca75d94a2c53b9fc00a25ab8d",
@@ -93,6 +93,22 @@
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
                         "reason":  "BLOCKED upstream of execution: no live runtime scenario of any kind can start, because the owner\u0027s current preview.105 installation is not a registered starting payload in scripts/runtime/QualificationSuiteContinuity.ps1 and registering it is an identity-guard change this mission does not authorize. Established by running it: runtime-evidence/c6a-smoke-2."
+                    },
+                    {
+                        "id":  "CM01-combat-mount-preparing-refused",
+                        "family":  "CM01",
+                        "claim":  "While the rider\u0027s own native turn is still Preparing, combat Mount is refused with the reason that names the preparing boundary, and sampling it charges nothing.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "BLOCKED",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "BLOCKED upstream of execution: awaiting the authorized starting-payload registration and a fresh candidate campaign. No native evidence exists for this behavior."
                     },
                     {
                         "id":  "CM02-approach-arrival",
@@ -333,6 +349,38 @@
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
                         "reason":  "BLOCKED upstream of execution: no live runtime scenario of any kind can start, because the owner\u0027s current preview.105 installation is not a registered starting payload in scripts/runtime/QualificationSuiteContinuity.ps1 and registering it is an identity-guard change this mission does not authorize. Established by running it: runtime-evidence/c6a-smoke-2."
+                    },
+                    {
+                        "id":  "CM02-adoption-plan-invalidated",
+                        "family":  "CM02",
+                        "claim":  "An encounter adoption refused after the relationship attached is compensated exactly: unmounted with no activation, partner-context or prepared-pair residue, no repeated preparation for either actor, no refund of the already-committed native Move, and a generation that advanced once and was never rewound.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "BLOCKED",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "BLOCKED upstream of execution: awaiting the authorized starting-payload registration and a fresh candidate campaign. No native evidence exists for this behavior."
+                    },
+                    {
+                        "id":  "CM02-adoption-compensation-releases",
+                        "family":  "CM02",
+                        "claim":  "A compensated combat Mount leaves the pair free to attempt a later lawful transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "BLOCKED",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "BLOCKED upstream of execution: awaiting the authorized starting-payload registration and a fresh candidate campaign. No native evidence exists for this behavior."
                     },
                     {
                         "id":  "CM03-rider-before-mount-slot",

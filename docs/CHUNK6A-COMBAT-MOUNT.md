@@ -8,11 +8,14 @@ the installed-assembly seam map is the Chunk 6A section at the top of
 
 ## Status
 
-**BLOCKED for native qualification; PARTIAL overall.** The engineering work is
-complete, the candidate is frozen and every offline gate passes, but no
-save-backed native scenario can be started, so the acceptance ledger's completion
-gate does **not** pass and all 82 mandatory behaviors are BLOCKED. This is not a
-candidate for acceptance and must not be described as one.
+**IMPLEMENTATION CANDIDATE — NATIVE QUALIFICATION BLOCKED. PARTIAL overall.** The
+acceptance ledger's completion gate does **not** pass: all 82 mandatory behaviors
+are BLOCKED, so **0 of 82** are demonstrated. The work is built, gated offline and
+published, and that is not the same as complete — this milestone is complete only
+when `scripts/Test-Chunk6aLedger.ps1 -Completion` reports every mandatory case PASS
+on one frozen candidate. This is not a candidate for acceptance and must not be
+described as one, and no part of it may be called finished engineering while the
+completion ledger stands at 0/82.
 
 ### The blocker, exactly
 

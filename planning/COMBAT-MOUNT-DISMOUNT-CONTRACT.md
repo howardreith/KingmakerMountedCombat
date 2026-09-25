@@ -2,7 +2,10 @@
 
 ## Chunk 6A disposition — 2026-09-24 (supersedes the DEFER below)
 
-Status: `IMPLEMENTED — CHUNK 6A`. The owner's Chunk 6A mission authorizes legal
+Status: `IMPLEMENTATION CANDIDATE — NATIVE QUALIFICATION BLOCKED (CHUNK 6A)`. It is
+built, gated offline and published; every mandatory native case in
+`docs/chunk6a-ledger.json` is still BLOCKED, so this is not an accepted feature.
+The owner's Chunk 6A mission authorizes legal
 voluntary combat Mount and requalified voluntary combat Dismount through normal
 native controls on the accepted paired-activation architecture. The historical
 `DEFER — EVIDENCED` disposition below is preserved as the record of why the

@@ -157,6 +157,13 @@ namespace KingmakerMountedCombat.Integration
             unifiedTurn.ResolveMidEncounterAdoption(rider, mount, out refusal);
         internal long MidEncounterAdoptionCount => unifiedTurn.MidEncounterAdoptionCount;
         internal string LastPairedAdoptionObservation => unifiedTurn.LastAdoptionObservation;
+        internal long AdoptionPlanCount => unifiedTurn.AdoptionPlanCount;
+        internal long AdoptionRevalidationFailureCount => unifiedTurn.AdoptionRevalidationFailureCount;
+        internal long AdoptionRollbackCount => unifiedTurn.AdoptionRollbackCount;
+        internal long AdoptionFaultConsumedCount => unifiedTurn.AdoptionFaultConsumedCount;
+        internal string LastAdoptionPlanObservation => unifiedTurn.LastAdoptionPlanObservation;
+        internal IDisposable ArmMidEncounterAdoptionFault(UnitEntityData rider, UnitEntityData mount) =>
+            unifiedTurn.ArmMidEncounterAdoptionFault(rider, mount);
         internal TurnController PairedPartnerContext => unifiedTurn.PartnerContext;
         internal bool PairedPartnerCanGetUp => unifiedTurn.PartnerCanGetUp;
 

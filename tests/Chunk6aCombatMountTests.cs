@@ -16,8 +16,19 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("adoption refuses a turn that is not the exact rider's", WrongTurnRefusesAdoption);
             runner.Run("adoption disposition reasons name the exact obstacle", AdoptionRefusalReasons);
             runner.Run("adoption grants the principal without repeating preparation", AdoptionDoesNotPrepareThePrincipal);
-            runner.Run("adoption retains a spent partner without preparing it", AdoptionRetainsSpentPartner);
+            runner.Run("adoption ends a spent partner slot instead of reopening it", AdoptionEndsSpentPartnerSlot);
+            runner.Run("every shape of prior partner expenditure keeps its exact debt", SpentPartnerVariantsKeepTheirDebt);
+            runner.Run("a skipped partner slot never gains participation", SkippedPartnerSlotsNeverGainParticipation);
+            runner.Run("a spent partner becomes eligible only at its next allocation", SpentPartnerRecoversOnlyNextAllocation);
             runner.Run("adoption reserves one partner preparation when its slot is pending", AdoptionReservesPartnerPreparation);
+            runner.Run("the adoption plan refuses an unavailable or malformed disposition", AdoptionPlanRefusesMalformedInput);
+            runner.Run("the adoption plan matches only an identical observation", AdoptionPlanMatchesOnlyItself);
+            runner.Run("the adoption plan names the exact change it observed", AdoptionPlanNamesTheChange);
+            runner.Run("the adoption plan binds exactly the committed generation", AdoptionPlanBindsCommittedGeneration);
+            runner.Run("a compensated combat mount leaves no relationship residue", CompensatedCombatMountLeavesNoResidue);
+            runner.Run("a preparing rider turn refuses the transition with its own reason", PreparingRiderTurnRefusesTheTransition);
+            runner.Run("a dismount delivery rejects every wrong target identity", DismountTargetIdentityRejectsWrongConditions);
+            runner.Run("the ledger's in-flight window is exactly admit to settle", LedgerInFlightWindowIsExact);
             runner.Run("adoption refuses a used, split, suspended or repeated boundary", AdoptionRefusesUnusableBoundary);
             runner.Run("an adopted activation finalizes and begins the next round normally", AdoptedActivationFinalizes);
             runner.Run("adoption preserves every observed actor debt", AdoptionPreservesDebt);
@@ -166,6 +177,270 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal(1, runtime.Restores, "Repeated cleanup restored movement authority more than once.");
             TestRunner.Equal(1, runtime.Detaches, "Repeated cleanup restored presentation more than once.");
         }
+
+        // R2. The plan is a decision about an exact live encounter, so it refuses to
+        // record an unavailable disposition or a malformed pair at construction.
+        private static void AdoptionPlanRefusesMalformedInput()
+        {
+            TestRunner.True(Threw(() => Plan(MidEncounterAdoption.Unavailable, 7L)),
+                "An unavailable disposition was recorded as a plan.");
+            TestRunner.True(Threw(() => new MidEncounterAdoptionPlan(
+                    MidEncounterAdoption.PreparePartnerThisRound, 7L, "area", "rider-1", "rider-1",
+                    true, 2, "rider-1", 3, 4, false, false, true, true, true, true, true, true, true, true)),
+                "A plan was built for one actor playing both roles.");
+            TestRunner.True(Threw(() => new MidEncounterAdoptionPlan(
+                    MidEncounterAdoption.PreparePartnerThisRound, 7L, "area", "rider-1", "  ",
+                    true, 2, "rider-1", 3, 4, false, false, true, true, true, true, true, true, true, true)),
+                "A plan was built without an exact companion identity.");
+            var live = Plan(MidEncounterAdoption.PreparePartnerThisRound, 7L);
+            TestRunner.True(live.EncounterStillLive, "A live encounter was recorded as ended.");
+            var ended = new MidEncounterAdoptionPlan(
+                MidEncounterAdoption.PreparePartnerThisRound, 7L, "area", "rider-1", "mount-1",
+                true, 2, "rider-1", 3, 4, false, false, true,
+                false, false, false, true, true, true, true);
+            TestRunner.True(!ended.EncounterStillLive, "An ended encounter was recorded as live.");
+        }
+
+        // R2. Revalidation is exact equality over every observed fact.
+        private static void AdoptionPlanMatchesOnlyItself()
+        {
+            var plan = Plan(MidEncounterAdoption.PreparePartnerThisRound, 7L);
+            TestRunner.True(plan.Matches(Plan(MidEncounterAdoption.PreparePartnerThisRound, 7L)),
+                "An identical observation did not match its own plan.");
+            TestRunner.True(!plan.Matches(null), "A missing observation matched a plan.");
+            TestRunner.True(!plan.Matches(Plan(MidEncounterAdoption.RetainPartnerParticipation, 7L)),
+                "A changed disposition still matched.");
+            TestRunner.True(!plan.Matches(Plan(MidEncounterAdoption.PreparePartnerThisRound, 8L)),
+                "A changed relationship generation still matched.");
+            foreach (var mutated in MutatedPlans())
+            {
+                TestRunner.True(!plan.Matches(mutated.Value),
+                    "A plan with a changed " + mutated.Key + " still matched.");
+            }
+        }
+
+        // R2. A refusal must say what actually changed, not a generic message.
+        private static void AdoptionPlanNamesTheChange()
+        {
+            var plan = Plan(MidEncounterAdoption.PreparePartnerThisRound, 7L);
+            TestRunner.Equal(null, plan.DescribeDifference(Plan(MidEncounterAdoption.PreparePartnerThisRound, 7L)),
+                "An identical observation reported a difference.");
+            TestRunner.True(plan.DescribeDifference(null).Contains("could not be observed"),
+                "A missing observation was not named.");
+            var expected = new System.Collections.Generic.Dictionary<string, string>
+            {
+                { "round", "round advanced" },
+                { "currentTurn", "current turn moved" },
+                { "rosterIndex", "initiative order changed" },
+                { "surprise", "surprise or visibility" },
+                { "liveness", "liveness changed" },
+                { "ableToAct", "ability to act changed" },
+                { "conscious", "consciousness changed" },
+                { "session", "encounter session changed" },
+                { "identity", "rider or companion identity changed" },
+                { "mode", "combat mode changed" }
+            };
+            foreach (var mutated in MutatedPlans())
+            {
+                var described = plan.DescribeDifference(mutated.Value);
+                TestRunner.True(described != null, "A changed " + mutated.Key + " produced no description.");
+                TestRunner.True(described.Contains(expected[mutated.Key]),
+                    "A changed " + mutated.Key + " was described as: " + described);
+            }
+        }
+
+        // R2. The commit's generation check is exact equality, so the plan is
+        // rebound to the one generation a committed relationship produces.
+        private static void AdoptionPlanBindsCommittedGeneration()
+        {
+            var plan = Plan(MidEncounterAdoption.PreparePartnerThisRound, 7L);
+            var committed = plan.WithCommittedGeneration(8L);
+            TestRunner.Equal(8L, committed.RelationshipGeneration,
+                "The committed plan did not take the committed generation.");
+            TestRunner.True(!plan.Matches(committed), "The committed plan matched the pre-commit plan.");
+            TestRunner.True(committed.Matches(Plan(MidEncounterAdoption.PreparePartnerThisRound, 8L)),
+                "Rebinding the generation changed another observed fact.");
+            TestRunner.True(Threw(() => plan.WithCommittedGeneration(7L)),
+                "A generation that did not advance was accepted as committed.");
+            TestRunner.True(Threw(() => plan.WithCommittedGeneration(9L)),
+                "A generation that advanced by two was accepted as committed.");
+            TestRunner.True(Threw(() => plan.WithCommittedGeneration(6L)),
+                "A rewound generation was accepted as committed.");
+        }
+
+        // R2. When adoption is refused after the relationship attached, the
+        // attachment is undone exactly: back to Unmounted, no residue, one restore
+        // of each authority, and a repeated cleanup stays idempotent.
+        private static void CompensatedCombatMountLeavesNoResidue()
+        {
+            var runtime = new CountingRuntime();
+            var coordinator = new MountedRelationshipCoordinator(runtime);
+            TestRunner.True(coordinator.Mount(CombatCandidate(), MountedRelationshipAdmission.VoluntaryCombat).Succeeded,
+                "Voluntary combat mount was refused before the compensation could be tested.");
+            TestRunner.Equal(RelationshipState.Mounted, coordinator.State,
+                "The relationship did not attach before compensation.");
+            var compensation = coordinator.Dismount(CleanupTrigger.AdoptionRefused);
+            TestRunner.True(compensation.Succeeded, "Compensating cleanup failed.");
+            TestRunner.Equal(CleanupTrigger.AdoptionRefused, compensation.Trigger,
+                "Compensating cleanup did not record the adoption refusal as its trigger.");
+            TestRunner.Equal(RelationshipState.Unmounted, coordinator.State,
+                "The relationship did not return to unmounted after compensation.");
+            TestRunner.True(!compensation.MovementAuthorityResidual && !compensation.PresentationResidual,
+                "Compensating cleanup retained residue.");
+            TestRunner.Equal(1, runtime.Restores, "Compensation restored movement authority more than once.");
+            TestRunner.Equal(1, runtime.Detaches, "Compensation restored presentation more than once.");
+            TestRunner.True(coordinator.ActivePair == null, "Compensation left the pair behind.");
+            var again = coordinator.Dismount(CleanupTrigger.Exception);
+            TestRunner.True(again.Succeeded && !again.MovementAuthorityResidual && !again.PresentationResidual,
+                "Repeated cleanup after compensation was not idempotent.");
+            TestRunner.Equal(1, runtime.Restores, "Repeated cleanup restored movement authority a second time.");
+            // A fresh mount is admissible afterwards: compensation leaves no lock.
+            TestRunner.True(coordinator.Mount(CombatCandidate(), MountedRelationshipAdmission.VoluntaryCombat).Succeeded,
+                "A compensated relationship refused a later lawful mount.");
+        }
+
+        // R3. Turn-based delivery requires the rider's turn to be ACTING. The
+        // Preparing boundary is refused, and with its own reason.
+        private static void PreparingRiderTurnRefusesTheTransition()
+        {
+            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(true, true, true),
+                "An acting rider turn was refused.");
+            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, true, false),
+                "A rider turn that is not acting was admitted.");
+            TestRunner.True(!CombatMountDismountPolicy.IsTurnEligible(true, false, true),
+                "Another actor's acting turn was admitted.");
+            TestRunner.True(CombatMountDismountPolicy.IsTurnEligible(false, false, false),
+                "Real time was made to depend on a turn slot.");
+
+            TestRunner.Equal(null,
+                CombatMountDismountPolicy.DescribeTurnIneligibility("Mount Companion", true, true, false, true),
+                "An eligible acting turn produced a refusal reason.");
+            TestRunner.Equal(null,
+                CombatMountDismountPolicy.DescribeTurnIneligibility("Mount Companion", false, false, false, false),
+                "Real time produced a turn-based refusal reason.");
+            var preparing = CombatMountDismountPolicy.DescribeTurnIneligibility(
+                "Mount Companion", true, true, true, false);
+            TestRunner.True(preparing != null && preparing.Contains("finished preparing"),
+                "The preparing boundary was not named: " + preparing);
+            var wrongActor = CombatMountDismountPolicy.DescribeTurnIneligibility(
+                "Dismount", true, false, false, true);
+            TestRunner.True(wrongActor != null && wrongActor.Contains("rider's current turn"),
+                "A foreign current turn was not named: " + wrongActor);
+            var idle = CombatMountDismountPolicy.DescribeTurnIneligibility(
+                "Dismount", true, true, false, false);
+            TestRunner.True(idle != null && idle.Contains("acting"),
+                "A rider turn that is neither preparing nor acting was not named: " + idle);
+
+            // Availability surfaces the exact reason for both actions.
+            var mount = EligibleCombatContext();
+            mount.CombatTurnEligible = false;
+            mount.CombatTurnIneligibilityReason = preparing;
+            TestRunner.True(Reasons(mount).Contains("finished preparing"),
+                "Mount availability replaced the preparing reason with a generic one.");
+            var dismount = EligibleCombatContext();
+            dismount.RelationshipState = RelationshipState.Mounted;
+            dismount.CombatTurnEligible = false;
+            dismount.CombatTurnIneligibilityReason = "Dismount waits until the rider's turn has finished preparing.";
+            TestRunner.True(Reasons(dismount).Contains("finished preparing"),
+                "Dismount availability replaced the preparing reason with a generic one.");
+        }
+
+        // R4. Each wrong dismount target identity is rejected on its own terms.
+        private static void DismountTargetIdentityRejectsWrongConditions()
+        {
+            TestRunner.Equal(null,
+                DismountTargetIdentityPolicy.Refuse(true, true, "rider-1", "rider-1", true, true, 7L, 7L),
+                "An exact self-targeted dismount was refused.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(false, false, "rider-1", "rider-1", true, true, 7L, 7L)
+                    .Contains("must target its own rider"),
+                "A null dismount target was admitted.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, false, "rider-1", "rider-1", true, true, 7L, 7L)
+                    .Contains("must target its own rider"),
+                "A foreign dismount target was admitted.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, true, "rider-2", "rider-1", true, true, 7L, 7L)
+                    .Contains("created for a different rider"),
+                "A dismount whose captured target changed was admitted.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, true, null, "rider-1", true, true, 7L, 7L)
+                    .Contains("created for a different rider"),
+                "A dismount with no captured target was admitted.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, true, "rider-1", null, true, true, 7L, 7L)
+                    .Contains("created for a different rider"),
+                "A dismount with no caster identity was admitted.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, true, "rider-1", "rider-1", false, false, 7L, 7L)
+                    .Contains("rider changed"),
+                "A dismount with no live rider was admitted.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, true, "rider-1", "rider-1", true, false, 7L, 7L)
+                    .Contains("rider changed"),
+                "A dismount whose relationship rider changed was admitted.");
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, true, "rider-1", "rider-1", true, true, 6L, 7L)
+                    .Contains("relationship changed"),
+                "A stale-generation dismount was admitted.");
+            // The identity failures are reported before the generation one, so the
+            // message always names the most specific obstacle.
+            TestRunner.True(DismountTargetIdentityPolicy.Refuse(true, false, "rider-2", "rider-1", false, false, 6L, 7L)
+                    .Contains("must target its own rider"),
+                "A dismount with several faults did not name the most specific one.");
+        }
+
+        // R5. The save barrier's ledger term is exactly the admit-to-settle window,
+        // for an accepted transition and for a refused one alike.
+        private static void LedgerInFlightWindowIsExact()
+        {
+            foreach (var accepted in new[] { true, false })
+            {
+                var ledger = new MountedTransitionLedger();
+                TestRunner.True(!ledger.HasVoluntaryTransitionInFlight,
+                    "A fresh ledger reported a transition in flight.");
+                MountedTransitionRecord record;
+                string refusal;
+                TestRunner.True(ledger.TryAdmitVoluntary(MountedTransitionKind.VoluntaryMount, "shell:1",
+                        "rider-1", "mount-1", 7L, out record, out refusal),
+                    "Admission was refused: " + refusal);
+                TestRunner.True(ledger.HasVoluntaryTransitionInFlight,
+                    "An admitted transition was not reported in flight.");
+                TestRunner.Equal("shell:1", ledger.InFlightControlIdentity,
+                    "The in-flight control identity was not the admitted one.");
+                ledger.Settle(record, accepted);
+                TestRunner.True(!ledger.HasVoluntaryTransitionInFlight,
+                    "A settled transition (accepted=" + accepted + ") was still reported in flight.");
+                TestRunner.Equal(null, ledger.InFlightControlIdentity,
+                    "A settled transition left an in-flight control identity behind.");
+                // Forced cleanup never opens the window.
+                ledger.RecordForcedDetach("rider-1", "mount-1", 8L, "Death");
+                TestRunner.True(!ledger.HasVoluntaryTransitionInFlight,
+                    "Forced cleanup opened the voluntary in-flight window.");
+            }
+        }
+
+        private static MidEncounterAdoptionPlan Plan(MidEncounterAdoption disposition, long generation) =>
+            new MidEncounterAdoptionPlan(disposition, generation, "area-1", "rider-1", "mount-1",
+                true, 2, "rider-1", 3, 4, false, false, true, true, true, true, true, true, true, true);
+
+        // One mutated plan per observed fact, so revalidation coverage is total.
+        private static System.Collections.Generic.Dictionary<string, MidEncounterAdoptionPlan> MutatedPlans() =>
+            new System.Collections.Generic.Dictionary<string, MidEncounterAdoptionPlan>
+            {
+                { "mode", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", false, 2, "rider-1", 3, 4, false, false, true, true, true, true, true, true, true, true) },
+                { "round", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", true, 3, "rider-1", 3, 4, false, false, true, true, true, true, true, true, true, true) },
+                { "currentTurn", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", true, 2, "other-1", 3, 4, false, false, true, true, true, true, true, true, true, true) },
+                { "rosterIndex", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", true, 2, "rider-1", 3, 5, false, false, true, true, true, true, true, true, true, true) },
+                { "surprise", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", true, 2, "rider-1", 3, 4, true, false, true, true, true, true, true, true, true, true) },
+                { "liveness", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", true, 2, "rider-1", 3, 4, false, false, true, false, true, true, true, true, true, true) },
+                { "ableToAct", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", true, 2, "rider-1", 3, 4, false, false, true, true, true, true, false, true, true, true) },
+                { "conscious", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-1", true, 2, "rider-1", 3, 4, false, false, true, true, true, true, true, true, false, true) },
+                { "session", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-2",
+                    "rider-1", "mount-1", true, 2, "rider-1", 3, 4, false, false, true, true, true, true, true, true, true, true) },
+                { "identity", new MidEncounterAdoptionPlan(MidEncounterAdoption.PreparePartnerThisRound, 7L, "area-1",
+                    "rider-1", "mount-2", true, 2, "rider-1", 3, 4, false, false, true, true, true, true, true, true, true, true) }
+            };
 
         private static string Reasons(MountedPlayerActionContext context)
         {
@@ -331,7 +606,10 @@ namespace KingmakerMountedCombat.Tests
                 "Adoption allowed the principal's preparation to be completed twice.");
         }
 
-        private static void AdoptionRetainsSpentPartner()
+        // R1. A partner whose native initiative slot has already passed must not
+        // become actionable again on the rider's adopted boundary. Its allocation is
+        // recorded as granted, prepared AND ended.
+        private static void AdoptionEndsSpentPartnerSlot()
         {
             var rider = new object();
             var mount = new object();
@@ -339,15 +617,122 @@ namespace KingmakerMountedCombat.Tests
             var pair = new PairedActivation<object, object>(rider, mount);
             TestRunner.True(pair.AdoptRunningBoundary(turn, MidEncounterAdoption.RetainPartnerParticipation),
                 "Retaining adoption was refused.");
-            TestRunner.True(pair.State(mount).Granted && pair.State(mount).Prepared,
-                "A retained partner was not recorded as already prepared.");
-            TestRunner.True(!pair.State(mount).Ended,
-                "A retained partner was ended, forfeiting native capacity it still has.");
-            TestRunner.True(pair.Open, "A retained pair could not address its own actors.");
-            TestRunner.True(pair.CanAddress(mount, turn),
-                "A retained partner could not be addressed inside the adopted boundary.");
+            var state = pair.State(mount);
+            TestRunner.True(state.Granted && state.Prepared,
+                "A spent partner slot was not recorded as having really happened.");
+            TestRunner.True(state.Ended,
+                "A spent partner slot was left open, so an allocation it already took could be used again.");
+            TestRunner.True(!pair.CanAddress(mount, turn),
+                "An already-acted partner could still be addressed inside the rider's adopted boundary.");
+            TestRunner.True(pair.Open && pair.CanAddress(rider, turn),
+                "Ending the spent partner also closed the rider's own running turn.");
+            // Native timers due at this boundary still belong to the partner; only
+            // permission to spend actions is closed.
+            TestRunner.True(pair.OwnsRoundEffects(mount, turn),
+                "An ended partner lost the round effects it still owns at this boundary.");
             TestRunner.True(!pair.BeginActorPreparation(mount, turn),
-                "A retained partner was opened to a native preparation.");
+                "A spent partner was opened to a native preparation.");
+            TestRunner.True(!pair.IsPreparingActor(mount, turn),
+                "A spent partner was reported as preparing.");
+            // Finalization must accept the already-ended partner without a second End.
+            pair.BeginEnding();
+            pair.EndActor(rider);
+            TestRunner.True(pair.FinalizeActivation(), "An adopted pair with a spent partner could not finalize.");
+        }
+
+        // R1. Every shape of prior expenditure resolves the same way: the partner
+        // keeps exactly the debt it stands at and stays unaddressable.
+        private static void SpentPartnerVariantsKeepTheirDebt()
+        {
+            var cases = new[]
+            {
+                new { Name = "fully spent", Standard = 3f, Move = 3f, Swift = 3f },
+                new { Name = "partially spent", Standard = 3f, Move = 0f, Swift = 0f },
+                new { Name = "residual cooldown debt", Standard = 0.5f, Move = 1.25f, Swift = 0f },
+                new { Name = "nothing spent", Standard = 0f, Move = 0f, Swift = 0f }
+            };
+            foreach (var expenditure in cases)
+            {
+                var rider = new object();
+                var mount = new object();
+                var turn = new object();
+                var pair = new PairedActivation<object, object>(rider, mount);
+                TestRunner.True(pair.AdoptRunningBoundary(turn, MidEncounterAdoption.RetainPartnerParticipation),
+                    "Retaining adoption was refused for the " + expenditure.Name + " partner.");
+                var state = pair.State(mount);
+                state.Observe(expenditure.Standard, expenditure.Move, expenditure.Swift);
+                TestRunner.Equal(expenditure.Standard, state.StandardSpent,
+                    "Observed Standard debt was lost for the " + expenditure.Name + " partner.");
+                TestRunner.Equal(expenditure.Move, state.MoveSpent,
+                    "Observed Move debt was lost for the " + expenditure.Name + " partner.");
+                TestRunner.Equal(expenditure.Swift, state.SwiftSpent,
+                    "Observed Swift debt was lost for the " + expenditure.Name + " partner.");
+                TestRunner.True(state.Ended && !pair.CanAddress(mount, turn),
+                    "The " + expenditure.Name + " partner became addressable again.");
+                // Observation never lowers a recorded debt.
+                state.Observe(0f, 0f, 0f);
+                TestRunner.Equal(expenditure.Move, state.MoveSpent,
+                    "A later observation reduced the " + expenditure.Name + " partner's recorded Move debt.");
+            }
+        }
+
+        // R1. A skipped partner is never given participation. A later slot that
+        // would have been skipped refuses the transition outright; an earlier slot
+        // that was skipped is retained and ended, exactly like any spent slot.
+        private static void SkippedPartnerSlotsNeverGainParticipation()
+        {
+            // Later slot, surprise-skipped.
+            TestRunner.Equal(MidEncounterAdoption.Unavailable,
+                MidEncounterAdoptionPolicy.Resolve(true, true, RiderSlot, RiderSlot + 1, true, false, true),
+                "A surprised later partner slot was prepared.");
+            // Later slot, acting in the surprise round.
+            TestRunner.Equal(MidEncounterAdoption.Unavailable,
+                MidEncounterAdoptionPolicy.Resolve(true, true, RiderSlot, RiderSlot + 1, false, true, true),
+                "A later partner acting in the surprise round was prepared.");
+            // Later slot, not visible to the player.
+            TestRunner.Equal(MidEncounterAdoption.Unavailable,
+                MidEncounterAdoptionPolicy.Resolve(true, true, RiderSlot, RiderSlot + 1, false, false, false),
+                "A later partner the native walk would skip for visibility was prepared.");
+            // Earlier slot in each skipped shape: retained, and its allocation closed.
+            var skipped = new[]
+            {
+                new { Name = "surprised", Surprised = true, Acting = false, Visible = true },
+                new { Name = "acting in surprise round", Surprised = false, Acting = true, Visible = true },
+                new { Name = "not visible", Surprised = false, Acting = false, Visible = false }
+            };
+            foreach (var shape in skipped)
+            {
+                TestRunner.Equal(MidEncounterAdoption.RetainPartnerParticipation,
+                    MidEncounterAdoptionPolicy.Resolve(true, true, RiderSlot, RiderSlot - 1,
+                        shape.Surprised, shape.Acting, shape.Visible),
+                    "An earlier " + shape.Name + " partner changed the disposition.");
+                var rider = new object();
+                var mount = new object();
+                var turn = new object();
+                var pair = new PairedActivation<object, object>(rider, mount);
+                pair.AdoptRunningBoundary(turn, MidEncounterAdoption.RetainPartnerParticipation);
+                TestRunner.True(pair.State(mount).Ended && !pair.CanAddress(mount, turn),
+                    "An earlier " + shape.Name + " partner became addressable on the rider's boundary.");
+            }
+        }
+
+        // R1. Eligibility returns only through Kingmaker's next lawful allocation.
+        private static void SpentPartnerRecoversOnlyNextAllocation()
+        {
+            var rider = new object();
+            var mount = new object();
+            var turn = new object();
+            var pair = new PairedActivation<object, object>(rider, mount);
+            pair.AdoptRunningBoundary(turn, MidEncounterAdoption.RetainPartnerParticipation);
+            pair.BeginEnding();
+            pair.EndActor(rider);
+            TestRunner.True(pair.FinalizeActivation(), "The adopted allocation could not finalize.");
+            var nextTurn = new object();
+            TestRunner.True(pair.Begin(nextTurn), "The next lawful allocation was refused.");
+            TestRunner.True(!pair.State(mount).Ended && !pair.State(mount).Granted,
+                "The next allocation carried the previous round's closed partner state forward.");
+            TestRunner.True(pair.BeginActorPreparation(mount, nextTurn),
+                "The partner could not be prepared by its next lawful allocation.");
         }
 
         private static void AdoptionReservesPartnerPreparation()

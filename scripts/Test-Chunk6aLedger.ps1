@@ -25,11 +25,15 @@ function Get-Field($object,[string]$name){ if($null-ne$object-and@($object.PSObj
 $mandatory=@(
     # CM01 legal combat Mount through normal controls.
     'CM01-horse-rt','CM01-horse-tb','CM01-mammoth-rt','CM01-mammoth-tb','CM01-exploration-free',
+    # R3: a turn-based transition requires an acting rider turn; Preparing is refused.
+    'CM01-combat-mount-preparing-refused',
     # CM02 approach, arrival and stale-state revalidation.
     'CM02-approach-arrival','CM02-geometry-change','CM02-obstruction','CM02-wrong-creature-target',
     'CM02-foreign-companion','CM02-ownership-change','CM02-size-form-change','CM02-lost-direct-control',
     'CM02-left-area','CM02-view-agent-lost','CM02-loading-cutscene','CM02-rider-incapacitated',
     'CM02-mount-incapacitated','CM02-generation-change','CM02-target-selection-cancelled',
+    # R2: relationship attachment and encounter adoption are one transaction.
+    'CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases',
     # CM03 resource debt, actor order and turn ownership.
     'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-mount-spent-move',
     'CM03-mount-spent-standard','CM03-mount-spent-all','CM03-rider-without-move','CM03-rider-other-action',

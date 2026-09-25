@@ -139,10 +139,13 @@ disposition is still open.
 
 ## Action table
 
-Legend for **6A status**: `IMPLEMENTED` = built and qualified in Chunk 6A;
+Legend for **6A status**: `IMPLEMENTATION CANDIDATE - NATIVE QUALIFICATION BLOCKED`
+= built, gated offline and published, with every mandatory native case still
+BLOCKED in `docs/chunk6a-ledger.json`; `IMPLEMENTED` is reserved for built AND
+qualified and is not claimed by any row below;
 `MAPPED` = seam contract only, no code; `LATER` = deferred with its mission tag.
 
-### 1. Combat Mount — IMPLEMENTED (6A)
+### 1. Combat Mount — IMPLEMENTATION CANDIDATE, NATIVE QUALIFICATION BLOCKED (6A)
 
 | Facet | Contract |
 |---|---|
@@ -157,10 +160,10 @@ Legend for **6A status**: `IMPLEMENTED` = built and qualified in Chunk 6A;
 | Target/path/range | real geometry; approach radius clamped **down** only, by `CombatMountDismountPolicy.TryGetMountApproachRadius` through `UnitCommand.set_ApproachRadius` `0x06002767`; no teleport, no enlarged reach |
 | Interruption | before the acted transition: no cost, no transition. After it: the cost stands, the transition still revalidates and may legitimately refuse; no refund |
 | Paired participation | the transition-round rule above; one transition ledger entry makes repeated delivery idempotent |
-| Save/load | settled transitions persist normally; a save requested while a voluntary transition is unsettled is truthfully deferred by `MountedCombatTransitionLedger` reporting an unsettled control, never captured mid-flight. No schema change |
+| Save/load | settled transitions persist normally; a save requested while a voluntary transition is unsettled is truthfully deferred: `MountedPersistenceService.SaveEffectsReady` queries both `NativeMountedControlService.HasUnsettledRelationshipTransition` (the `MountedTransitionLedger` admit-to-settle window) and `OwnsUnsettledRelationshipShell` (a registered Mount/Dismount shell that has not finished, including one still queued), so the transition is never captured mid-flight. No schema change. The CM07 rows remain mandatory native work and are not claimed from this source reasoning |
 | Player-facing | native Mount Companion in the abilities drawer; disabled reason names the exact failing gate |
 
-### 2. Combat Dismount — IMPLEMENTED (6A)
+### 2. Combat Dismount — IMPLEMENTATION CANDIDATE, NATIVE QUALIFICATION BLOCKED (6A)
 
 | Facet | Contract |
 |---|---|

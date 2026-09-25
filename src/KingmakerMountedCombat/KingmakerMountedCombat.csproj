@@ -225,6 +225,8 @@
     <Compile Include="Domain\MountedPair.cs" />
     <Compile Include="Domain\MountedPairCandidate.cs" />
     <Compile Include="Domain\MountedRelationshipAdmission.cs" />
+    <Compile Include="Domain\DismountTargetIdentityPolicy.cs" />
+    <Compile Include="Domain\MidEncounterAdoptionPlan.cs" />
     <Compile Include="Domain\MidEncounterAdoptionPolicy.cs" />
     <Compile Include="Domain\MountedTransitionLedger.cs" />
     <Compile Include="Domain\MountedCombatAction.cs" />
@@ -299,6 +301,7 @@
     <Compile Include="Integration\MountedPlayerActionController.cs" />
     <Compile Include="Integration\MountedPlayerActionOverlay.cs" />
     <Compile Include="Integration\NativeMountedAbilityLogic.cs" />
+    <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
     <Compile Include="Integration\MountedRiderPoseAdapter.cs" />
     <Compile Include="Integration\RiderMovementAgent.cs" />

@@ -44,9 +44,27 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chunk6aDismountClicked;
         private bool chunk6aRepeatClicked;
         private MidEncounterAdoption chunk6aDisposition = MidEncounterAdoption.Unavailable;
+        private string chunk6aDispositionRefusal;
+        private bool chunk6aPreparingObserved;
+        private JObject chunk6aCompensationBefore;
+        private int chunk6aCompensationDispatchesBefore;
+        private long chunk6aCompensationGenerationBefore;
+        private long chunk6aCompensationRollbacksBefore;
+        private long chunk6aCompensationAdoptionsBefore;
+        private bool chunk6aCompensationClicked;
+        private IDisposable chunk6aAdoptionFault;
         private readonly JArray chunk6aSamples = new JArray();
         private readonly HashSet<TurnController> chunk6aVisitedTurns = new HashSet<TurnController>();
         private int chunk6aMountTurnsWhileMounted;
+
+        // The diagnostic adoption fault is owned by this scenario and is disarmed
+        // on use and on every abort path, so it can never outlive its own row.
+        private void Chunk6aDisposeAdoptionFault()
+        {
+            var fault = chunk6aAdoptionFault;
+            chunk6aAdoptionFault = null;
+            if (fault != null) { fault.Dispose(); }
+        }
 
         private void BeginChunk6aCombatMount()
         {
@@ -272,8 +290,37 @@ namespace KingmakerMountedCombat.Diagnostics
                     {
                         return;
                     }
-                    if (turn?.Unit != rider ||
-                        turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing)
+                    // R3 proof: while the rider's own turn is still Preparing, the
+                    // transition must be refused, and refused with the reason that
+                    // names the preparing boundary rather than a generic one. The
+                    // native turn reaches Acting on its own, so this observation is
+                    // taken in passing and nothing is forced.
+                    if (turn?.Unit == rider && turn.Status == TurnController.TurnStatus.Preparing &&
+                        !chunk6aPreparingObserved)
+                    {
+                        chunk6aPreparingObserved = true;
+                        var preparingBefore = CaptureChunk6aState("mount-preparing-before");
+                        var preparing = nativeControls.Evaluate(NativeMountedControlKind.MountCompanion, rider);
+                        var preparingAfter = CaptureChunk6aState("mount-preparing-after");
+                        AddRow("CM01-combat-mount-preparing-refused",
+                            !preparing.IsEnabled &&
+                                preparing.Reason != null && preparing.Reason.Contains("finished preparing") &&
+                                relationship.State == RelationshipState.Unmounted &&
+                                Chunk6aUnchangedExcept((JObject)preparingBefore["rider"], (JObject)preparingAfter["rider"]) &&
+                                Chunk6aUnchangedExcept((JObject)preparingBefore["mount"], (JObject)preparingAfter["mount"]),
+                            "While the rider's own native turn was still Preparing, combat Mount was refused with the reason that names the preparing boundary, and sampling it charged nothing.",
+                            new JObject
+                            {
+                                ["enabled"] = preparing.IsEnabled,
+                                ["visible"] = preparing.IsVisible,
+                                ["reason"] = preparing.Reason,
+                                ["turnStatus"] = turn.Status.ToString(),
+                                ["before"] = preparingBefore,
+                                ["after"] = preparingAfter
+                            });
+                        return;
+                    }
+                    if (turn?.Unit != rider || !turn.IsActing)
                     {
                         TryEndPhase3gFixtureTurn(turn);
                         return;
@@ -299,6 +346,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6aMountRound = controller?.RoundNumber ?? -1;
                 string dispositionRefusal;
                 chunk6aDisposition = combat.ResolveMidEncounterAdoption(rider, horse, out dispositionRefusal);
+                chunk6aDispositionRefusal = dispositionRefusal;
 
                 // CM02 negative control: exact native target selection started and
                 // cancelled before commitment must change nothing at all.
@@ -324,6 +372,159 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
+                chunk6aStage = 11;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 11: R2 regression. The adoption plan is invalidated between
+            // availability and delivery, so the relationship attachment must be
+            // compensated rather than left standing without a paired activation.
+            // The invalidation is injected through the bounded diagnostic adoption
+            // fault, which makes the commit refuse at its first check exactly as a
+            // late invalidation does; nothing else about the path changes and the
+            // scenario writes no resource.
+            if (chunk6aStage == 11)
+            {
+                if (!Chunk6aIdle)
+                {
+                    return;
+                }
+                chunk6aCompensationBefore = CaptureChunk6aState("mount-compensation-before");
+                chunk6aCompensationDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
+                chunk6aCompensationGenerationBefore = relationship.MountedPairGeneration;
+                chunk6aCompensationRollbacksBefore = combat.AdoptionRollbackCount;
+                chunk6aCompensationAdoptionsBefore = combat.MidEncounterAdoptionCount;
+                chunk6aAdoptionFault = combat.ArmMidEncounterAdoptionFault(rider, horse);
+                chunk6aCompensationClicked = TryNativeAbilityTargetClick(
+                    nativeControls.MountAbility, horse, "chunk6a-combat-mount-compensation-click");
+                if (!chunk6aCompensationClicked)
+                {
+                    FailCurrent("CM02-adoption-plan-invalidated",
+                        "The exact native combat Mount click was not admitted for the compensation regression.");
+                    Chunk6aDisposeAdoptionFault();
+                    BeginCleanup();
+                    return;
+                }
+                chunk6aStage = 12;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 12: the compensated transaction's terminal state.
+            if (chunk6aStage == 12)
+            {
+                if (relationship.State == RelationshipState.Mounted)
+                {
+                    FailCurrent("CM02-adoption-plan-invalidated",
+                        "A refused encounter adoption left the relationship mounted: " +
+                        relationship.LastAdoptionTransactionObservation);
+                    Chunk6aDisposeAdoptionFault();
+                    BeginCleanup();
+                    return;
+                }
+                if (combat.AdoptionFaultConsumedCount == 0 || !Chunk6aIdle)
+                {
+                    return;
+                }
+                Chunk6aDisposeAdoptionFault();
+                var compensated = CaptureChunk6aState("mount-compensation-after");
+                var riderBefore = (JObject)chunk6aCompensationBefore["rider"];
+                var riderAfter = (JObject)compensated["rider"];
+                var mountBefore = (JObject)chunk6aCompensationBefore["mount"];
+                var mountAfter = (JObject)compensated["mount"];
+
+                // No mounted or activation residue.
+                var noResidue = relationship.State == RelationshipState.Unmounted &&
+                    relationship.Runtime.NoPreparedPairResidue &&
+                    combat.PairedActivationIdentity == null &&
+                    combat.PairedPartnerContext == null &&
+                    combat.AdoptionRollbackCount == chunk6aCompensationRollbacksBefore + 1 &&
+                    combat.MidEncounterAdoptionCount == chunk6aCompensationAdoptionsBefore &&
+                    relationship.AdoptionCompensatedMountCount == 1;
+
+                // No duplicate preparation for either actor.
+                var noDuplicatePreparation =
+                    (int)riderBefore["nativePrepareCount"] == (int)riderAfter["nativePrepareCount"] &&
+                    (int)mountBefore["nativePrepareCount"] == (int)mountAfter["nativePrepareCount"];
+
+                // No refund: Kingmaker committed the rider's Move for the native
+                // shell, and the compensation must leave it exactly as committed.
+                var expectedMove = Chunk6aTurnBased
+                    ? (float?)((float)riderBefore["move"] + 3f)
+                    : null;
+                var moveStillCommitted = Chunk6aTurnBased
+                    ? Math.Abs((float)riderAfter["move"] - expectedMove.Value) <= 0.0001f
+                    : (float)riderAfter["move"] > 2.5f && (float)riderAfter["move"] <= 3.0001f;
+
+                // Nothing else moved: the mount keeps every resource and the
+                // generation advanced exactly once and was never rewound.
+                var mountUntouched = Chunk6aUnchangedExcept(mountBefore, mountAfter);
+                var riderOtherResourcesHeld = Chunk6aUnchangedExcept(riderBefore, riderAfter, "move");
+                var generationAdvancedOnce =
+                    relationship.MountedPairGeneration == chunk6aCompensationGenerationBefore + 1;
+                var ledgerTruthful = playerAction.TransitionLedger.AcceptedMountCount == 0 &&
+                    playerAction.TransitionLedger.AdmittedMountCount == 1 &&
+                    !playerAction.HasVoluntaryTransitionInFlight;
+
+                AddRow("CM02-adoption-plan-invalidated",
+                    noResidue && noDuplicatePreparation && moveStillCommitted && mountUntouched &&
+                        riderOtherResourcesHeld && generationAdvancedOnce && ledgerTruthful,
+                    "An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider's already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound.",
+                    new JObject
+                    {
+                        ["before"] = chunk6aCompensationBefore,
+                        ["after"] = compensated,
+                        ["noResidue"] = noResidue,
+                        ["noDuplicatePreparation"] = noDuplicatePreparation,
+                        ["moveStillCommitted"] = moveStillCommitted,
+                        ["expectedRiderMove"] = expectedMove,
+                        ["mountUntouched"] = mountUntouched,
+                        ["riderOtherResourcesHeld"] = riderOtherResourcesHeld,
+                        ["generationAdvancedOnce"] = generationAdvancedOnce,
+                        ["ledgerTruthful"] = ledgerTruthful,
+                        ["adoptionFaultConsumed"] = combat.AdoptionFaultConsumedCount,
+                        ["adoptionRollbacks"] = combat.AdoptionRollbackCount,
+                        ["compensatedMounts"] = relationship.AdoptionCompensatedMountCount,
+                        ["planObservation"] = combat.LastAdoptionPlanObservation,
+                        ["adoptionObservation"] = combat.LastPairedAdoptionObservation,
+                        ["transactionObservation"] = relationship.LastAdoptionTransactionObservation,
+                        ["ledger"] = playerAction.TransitionLedger.Describe(),
+                        ["allocationTrace"] = allocationTrace.Capture()
+                    });
+
+                // A compensated attachment must not lock the pair out of a later
+                // lawful transition, which the rest of this scenario then performs.
+                AddRow("CM02-adoption-compensation-releases",
+                    relationship.State == RelationshipState.Unmounted &&
+                        !playerAction.HasVoluntaryTransitionInFlight &&
+                        combat.PairedActivationIdentity == null,
+                    "A compensated combat Mount left the pair free to attempt a later lawful transition.",
+                    new JObject
+                    {
+                        ["state"] = relationship.State.ToString(),
+                        ["inFlight"] = playerAction.HasVoluntaryTransitionInFlight,
+                        ["activation"] = combat.PairedActivationIdentity
+                    });
+                chunk6aStage = 13;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 13: the real transition, on the turn the pair still owns.
+            if (chunk6aStage == 13)
+            {
+                if (!Chunk6aIdle)
+                {
+                    return;
+                }
+                if (Chunk6aTurnBased && (turn?.Unit != rider || !turn.IsActing))
+                {
+                    FailCurrent("CM01-combat-mount-accepted",
+                        "The rider's acting turn was lost during the compensation regression.");
+                    BeginCleanup();
+                    return;
+                }
                 chunk6aPreMount = CaptureChunk6aState("mount-before");
                 chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                 chunk6aRejectionsBefore = (int)nativeControls.DispatchRejectedCount;
@@ -331,7 +532,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 observations["chunk6aAdoptionDisposition"] = new JObject
                 {
                     ["disposition"] = chunk6aDisposition.ToString(),
-                    ["refusal"] = dispositionRefusal,
+                    ["refusal"] = chunk6aDispositionRefusal,
                     ["riderRosterIndex"] = chunk6aPreMount["riderRosterIndex"],
                     ["mountRosterIndex"] = chunk6aPreMount["mountRosterIndex"]
                 };
