@@ -253,7 +253,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool SupportsScenario(string scenario)
         {
-            return IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+            return IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
@@ -347,6 +347,7 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
 
+            if (IsChunk6aCombatMount) { BeginChunk6aCombatMount(); return; }
             if (IsChunk4Charge) { BeginChunk4Charge(); return; }
             if (IsChunk4Sustained) { BeginChunk4Sustained(); return; }
             if (IsChunk4PairedPlay) { BeginChunk4PairedPlay(); return; }
@@ -438,7 +439,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 switch (step)
                 {
                     case Phase3dHorseStep.Phase3gControls:
-                        if (IsChunk4Charge) TickChunk4Charge();
+                        if (IsChunk6aCombatMount) TickChunk6aCombatMount();
+                        else if (IsChunk4Charge) TickChunk4Charge();
                         else if (IsChunk4Sustained) TickChunk4Sustained();
                         else if (IsChunk4PairedPlay) TickChunk4PairedPlay();
                         else if (IsChunk4NativeLife) TickChunk4NativeLife();
@@ -6254,7 +6256,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk6aCombatMount ? 28 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
