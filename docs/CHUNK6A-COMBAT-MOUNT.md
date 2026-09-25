@@ -9,13 +9,29 @@ the installed-assembly seam map is the Chunk 6A section at the top of
 ## Status
 
 **IMPLEMENTATION CANDIDATE — NATIVE QUALIFICATION BLOCKED. PARTIAL overall.** The
-acceptance ledger's completion gate does **not** pass: all 82 mandatory behaviors
-are BLOCKED, so **0 of 82** are demonstrated. The work is built, gated offline and
-published, and that is not the same as complete — this milestone is complete only
-when `scripts/Test-Chunk6aLedger.ps1 -Completion` reports every mandatory case PASS
-on one frozen candidate. This is not a candidate for acceptance and must not be
-described as one, and no part of it may be called finished engineering while the
-completion ledger stands at 0/82.
+acceptance ledger's completion gate does **not** pass: all 85 mandatory behaviours
+are BLOCKED, so **0 of 85** are demonstrated. This is not a candidate for
+acceptance, must not be described as one, and no part of it may be called finished
+engineering while the completion ledger stands at 0/85.
+
+What changed since the reviewed candidate is that the campaign actually ran. The
+starting-payload registration the previous run reported as its blocker is done, the
+qualification suite exists, and `chunk6a-combat-mount-rt` reached gameplay and
+returned **43 assertion passes against one failure**. That one failure is in the
+out-of-combat Mount preamble every tranche scenario performs, it is **unexplained**,
+and it is deliberately **not attributed** after two candidate mechanisms were
+disproved against the installed assembly. `chunk6a-combat-mount-tb` was never
+attempted.
+
+Two things block completion, and they are different in kind:
+
+1. **The open preamble defect above.** Until it is understood, no CM case can be
+   demonstrated, because every tranche scenario depends on that preamble.
+2. **A host resource limit.** The diagnostic candidate built to identify that
+   defect's exact root has not been launched, because its required pre-launch
+   `-WhatIf` purity proof was killed three times by the host under system-wide low
+   memory, with an external Steam process holding roughly 12.5 GB of 32.5 GB. The
+   proof was not narrowed or skipped and the candidate was not launched without it.
 
 ### The review remediation: six repairs
 
@@ -271,51 +287,50 @@ them.
 
 ## Candidate identity
 
-The remediated candidate opens its own product line so no evidence, ledger entry
-or installation can confuse it with the reviewed preview.107.
+Four packages were built on the remediated preview.108 line. The campaign ran on
+`-campaign-c`; `-campaign-d` carries only diagnostics and was never launched.
 
-| Field | Value |
-|---|---|
-| Branch | `codex/mounted-combat-phase3f-playable-core` |
-| Product version | `0.1.0-chunk6a-preview.108` |
-| Qualifier | `chunk6a-remediated-r1` |
-| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.108-chunk6a-remediated-r1-diagnostic.zip` |
-| Source commit bound by the manifest | `2c0737eef78a1d60f4e1c6a9ac74dcd85b5560ab` |
-| ZIP SHA-256 | `a6a5036c28313303dfb544c59e1340736f9ac69e3fc13e4ed60d9a2cc0f28fc1` |
-| Manifest SHA-256 | `e6d303a5edbb8d6815862470ca966084cf39a648bd11038bf5100aee0342c161` |
-| DLL SHA-256 | `89766acb62555f22cb2da81badf4f9c5cea92be27cfed517dd7a91eab89d9f3b` |
-| DLL MVID | `68c8af22-4d2d-48e3-99d7-18a21f235108` |
-| Accepted Chunk 5 payload, untouched | ZIP `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`, DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID `638259af-9d31-4738-be8a-2784135d4235` |
-
-This is a private engineering candidate. It is not installed, not merged and not
-released, and the accepted preview.105 installation is untouched.
-
-`Assert-KmcPackageManifest` requires a manifest to bind the exact current `HEAD`
-on a clean worktree, so every documentation commit after a build invalidates that
-build for runtime use and the campaign payload must be rebuilt at the then-current
-head. That rebuild carries no risk for an unchanged `src/` tree, and on the
-reviewed preview.107 line it was **measured rather than claimed**: four qualified
-packages built at four different commits all produced the identical DLL
-`cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` / MVID
-`3739324f-ff40-4049-9a82-91667d8dbf24`, because nothing under `src/` changed
-between them.
-
-| preview.107 qualifier | Commit | ZIP SHA-256 |
+| Field | `-campaign-c` (the run candidate) | `-campaign-d` (diagnostics, unlaunched) |
 |---|---|---|
-| `-final` | `2d30822` | `fb6a8ab0fe336bddd75084d10e2e64284de6387aab0d5cf0bbefe6fe3a1b91f2` |
-| `-final2` | `f0f94fb` | `b4022902836ee1bfb914e3d9555e7f8220cbf86b279149bd6adb8763d337bea7` — the `c6a-smoke-1` payload |
-| `-final3` | `9f3a6f2` | `3d9f7c78c9cc894f4911bff992329105a63d97e69d7ef9c6e1b1ec6ce7d111e6` — the `c6a-smoke-2` payload |
-| `-head` | `1d60100` | `699d64de0f26f0ef1e37119a00adbeae135fcfb9f418164e5da25d8f06b26e24` |
+| Product version | `0.1.0-chunk6a-preview.108` | `0.1.0-chunk6a-preview.108` |
+| Source commit bound by the manifest | `88328a31ff1636c68a65bdfb4bcffaf3072649a6` | `796829731087462c87e5a525b21aac2c43fce8ae` |
+| ZIP SHA-256 | `e4bbc5ce1172916075aa341339b7f2e91782c316a50b214818f2b2493bb9800e` | `937144b1e917b0cd710c00de11d29f80874d4b1a3819ce890a42682625004bbb` |
+| DLL SHA-256 | `6190c3540f70a8d288076a177913577d50107a5073b1a88357c63d1b6bd81f97` | `1b130b280de0d0a0a4482c01388d5f8b1dd6d9ac101a07427e053e3dd6622e8b` |
+| DLL MVID | `88f43b5f-86cd-4d68-b1a7-58b217c4ae16` | `124fa1a4-ddc5-4cb8-a69b-dab6e091b4c4` |
+| Purity proof | `c6a-r3-whatif` **PASS** | **none** — killed three times |
+| Live runs | `c6a-r3-smoke` PASS, `c6a-mount-rt-1` FAIL | none |
 
-Those four are the reviewed line and are retained exactly as published. None of
-them carries the six repairs, so none may be used for a Chunk 6A campaign.
+The two earlier ones are superseded and must not be used for a campaign:
+`-remediated-r1` (`2c0737e`, ZIP `a6a5036c…`) predates the compensation cleanup-path
+repair, and `-campaign-a` (`bbda7ce`, ZIP `1cbe6554…`) predates it too.
+
+Qualification suite: `20260925-chunk6a-suite001`, snapshot `f48d1900…`, bound to
+`-campaign-c`.
+
+Accepted Chunk 5 payload, untouched: ZIP
+`35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`, DLL
+`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID
+`638259af-9d31-4738-be8a-2784135d4235`.
+
+Every one of these is a private engineering candidate. None is installed, merged or
+released, and the owner's accepted preview.105 installation is untouched.
+
+`Assert-KmcPackageManifest` requires a manifest to bind the exact current `HEAD` on a
+clean worktree, so every documentation commit after a build invalidates that build for
+runtime use and the next campaign payload must be rebuilt at the then-current head.
+On the reviewed preview.107 line that rebuild was **measured rather than claimed**:
+four qualified packages built at four different commits all produced the identical DLL
+`cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` / MVID
+`3739324f-ff40-4049-9a82-91667d8dbf24`, because nothing under `src/` changed between
+them. Those four are the reviewed line, retained exactly as published; none carries
+the six repairs, so none may be used for a Chunk 6A campaign.
 
 ## Offline gates
 
 All re-measured on the remediated source, not carried forward: source contracts
 **62/0**, components **522/0**, persistence assembly/storage contracts 180/0,
 persistence data 56/0, profile protection 53/0, owned fixtures 620/0, validation
-copies 118/0, harness 262/0, assembly-backed contracts 619/0, patch construction
+copies 118/0, harness 265/0, assembly-backed contracts 619/0, patch construction
 30/0, package 11/0, Phase 3F contracts 9/0, registered starting installation
 **13/0**, Chunk 4 core 375/0, ground 61/0, obstruction 106/0, traversal 149/0,
 Chunk 5 ledger 106/0 with its completion gate still **PASS** on all 105 mandatory
@@ -372,20 +387,15 @@ relationship shell and on the transition ledger itself; and that the diagnostic
 adoption fault is bounded to one idle exact pair, consumed once, refuses before any
 state change, writes nothing, and is armed exactly once by this scenario.
 
-## Native campaign: not executed
+## Native campaign: executed, and blocked on one unexplained preamble defect
 
-The `chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb` scenarios are
-implemented, registered through every harness allowlist, and carry their own
-evidence schema version 28 with a dedicated validator that re-derives the
-rider's native Move commitment and both actors' native preparation counts rather
-than trusting the game's own arithmetic. They have not been run, because a
-save-backed scenario cannot obtain a qualification-suite snapshot — see the
-blocker under Status.
+The campaign was run. It is not complete, and no mandatory case has native evidence.
+Everything below is what actually happened, in order.
 
-### The `-WhatIf` purity proof: one retained failure, then three passes
+### The `-WhatIf` purity proof: one retained failure, four passes, three host kills
 
-This project requires a `-WhatIf` purity proof before any live runtime use. Three
-were performed against the Chunk 6A packages.
+This project requires a `-WhatIf` purity proof before any live runtime use. Every
+attempt is listed, including the ones that produced no verdict.
 
 | Attempt | Package | Result |
 |---|---|---|
@@ -394,99 +404,165 @@ were performed against the Chunk 6A packages.
 | `c6a-whatif-4` | preview.107 `-r2` | **PASS** after ~55 min |
 | `c6a-whatif-5` | preview.107 `-final2` | **PASS** |
 | `c6a-whatif-6` | preview.107 `-final3`, repaired invoker | **PASS** |
+| `c6a-r1-whatif` | preview.108 `-remediated-r1` | **KILLED, no verdict** — host low memory |
+| `c6a-campaign-whatif` | preview.108 `-campaign-b` | **PASS** |
+| `c6a-r3-whatif` | preview.108 `-campaign-c` | **PASS** |
+| `c6a-r4-whatif` | preview.108 `-campaign-d` | **KILLED, no verdict** — host low memory |
+| `c6a-r4b-whatif` | preview.108 `-campaign-d` | **KILLED, no verdict** — host low memory |
 
-The first failure is retained rather than explained away. It named neither the
-root nor the entry, so what it observed is unknown. Measured afterwards:
+The three kills share one external cause that this mission may not touch: the host
+stopped the background proof under system-wide low memory while `steamwebhelper`
+held about **12.5 GB of the machine's 32.5 GB**. That is Steam's own process, not
+this work's, and Steam is also a prerequisite for launching the game, so it was left
+alone. Each kill left no lock and no partial state, because a `-WhatIf` run is
+read-only by construction and never reaches a transaction. None of them is evidence
+about purity, and none is counted as one.
 
-- The proof manifests `runtime-state`, `runtime-backups`, `runtime-staging`,
-  `runtime-evidence` and the live `Mods` root by full SHA-256 before and after.
-  Those four lab trees hold **623,407 files and 148,296,003,194 bytes**, so one
-  proof hashes about 296 GB and takes roughly 55 minutes; the dominant cost is
-  `runtime-staging`'s 472,074 entries at roughly 400 per second, not the byte
-  volume.
-- No file in any of the four trees had a modification time inside the failing
-  window, so a plain concurrent content write is **disproved**.
-- Two consecutive manifest passes are byte-stable for `runtime-state`, the live
-  `Mods` root, `runtime-evidence` (13,321 files, 6.05 GB, 10 s and 8 s) and
-  `runtime-backups` (193,050 files, 49.96 GB, 172 s and 165 s).
-  `runtime-staging` was stopped after twenty minutes of its first pass so the
-  proof itself could run instead, so its determinism is unmeasured.
-- `Test-Harness.ps1`, the whole `Test.ps1` umbrella and every persistence gate
-  leave the path-and-length sets of `runtime-evidence`, `runtime-staging` and
-  `runtime-backups` **unchanged**, so none of the offline work performed during
-  the failing window perturbs those trees.
+`c6a-whatif-1` is retained as an unresolved bounded finding, unchanged from the
+reviewed candidate: it named neither the root nor the entry, so what it observed is
+still unknown and still attributed to nothing. It has not recurred across four
+later passes. The comparison was never narrowed; it was only made diagnosable.
 
-What is **not** established: which of the five manifests differed, and why. It did
-not recur across three later proofs. `runtime-staging` is the one tree whose
-determinism is unmeasured, which narrows the search but is not a finding.
-Eliminating the causes I could think of does not prove the cause lies outside this
-repository's tooling, and it is not called an environmental or engine problem
-here. The comparison was not narrowed or bypassed; it was only made
-**diagnosable**, so a recurrence now names the root, its before/after file,
-directory and byte counts, and up to forty removed, changed or added entries with
-their lengths and hashes. Every byte of all five roots is still rehashed and any
-difference still fails closed.
+**What the missing proof does and does not permit.** `-campaign-d` carries only
+diagnostics, and its pre-launch proof could not complete, so **it was not launched**.
+That is the rule followed rather than argued around. For the record, and not as a
+substitute: between the candidate whose proof passed (`-campaign-c`, `88328a3`) and
+`-campaign-d` (`7968297`) the entire runtime-harness delta is **three lines added to
+a name list**; `Invoke-KingmakerRuntimeScenario.ps1` and
+`QualificationSuiteContinuity.ps1` are byte-identical, and no transaction, staging,
+restore, lock, backup, quarantine or manifest code differs. The purity-relevant
+harness behaviour is therefore provably the same code that proved pure — which is
+worth knowing, and is still not a proof of this package.
 
-### The two live attempts, and the harness defect the first one found
-
-Both are retained; neither launched the game, and both restored external state.
+### The live runs
 
 | Run | Package | Outcome |
 |---|---|---|
-| `c6a-smoke-1` | preview.107 `-final2` | **FAIL** in 4 s. `Cannot validate argument on parameter 'QualificationSuiteId'. The argument "" does not match ...` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
-| `c6a-smoke-2` | preview.107 `-final3` | **FAIL** in 4 s. `Existing KMC tree differs from the exact registered starting payload.` `modsRestored` true, `saveProtectionPassed` true, `launchIssued` false. |
+| `c6a-smoke-1` | preview.107 `-final2` | **FAIL** in 4 s: empty `QualificationSuiteId` rejected at binding |
+| `c6a-smoke-2` | preview.107 `-final3` | **FAIL** in 4 s: unregistered starting payload |
+| `c6a-r2-smoke` | preview.108 `-campaign-b` | **FAIL** after launch: shipped-default read |
+| `c6a-r3-smoke` | preview.108 `-campaign-c` | **PASS** |
+| `c6a-mount-rt-1` | preview.108 `-campaign-c` | **FAIL**: 43 assertion passes, 1 failure |
+| `chunk6a-combat-mount-tb` | — | **never attempted** |
 
-The first was a **latent harness defect, now repaired**, and it meant no no-save
-runtime scenario had been runnable since the qualification-suite pin set became
-mandatory for save-backed runs. `New-KmcRunTransactionState` was always called
-with all three suite arguments; for a no-save run those variables are unbound, so
-PowerShell passed empty strings into `ValidatePattern`-guarded parameters, and an
-explicitly passed empty string is rejected at binding time — before the
-function's own completeness rule (exactly three suite values for a suite mode,
-exactly none otherwise) could run. The logic was already correct; only the
-argument binding was wrong. The call now splats the three suite arguments only
-for a save-backed run. Nothing is relaxed: the parameter patterns, the
-completeness rule and the mode-to-schema mapping are untouched, and the
-save-backed path still always supplies all three.
+Every run restored external state. Each recorded `modsRestored` true and
+`saveProtectionPassed` true, and each run transaction reached `phase=restored`.
 
-The repair is proven by evidence rather than by inspection:
-`runtime-state/run-transactions/c6a-smoke-2.json` records `mode=no-save-v1` and
-`phase=restored`, which the run could not have reached before the fix.
+`c6a-r3-smoke` is the first live PASS. The game launched, this exact DLL loaded
+against the pinned `Assembly-CSharp`
+`3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb` with UMM
+0.28.2.0 and Harmony12 1.2.0.1, `relationshipState` Unmounted, no loaded area, zero
+save requests and zero load requests.
 
-`c6a-smoke-2` then reached the starting-payload registry, which is how the
-blocker above was established to gate *every* live scenario rather than only the
-save-backed ones. That is the stronger and more useful statement, and it came
-from running the thing rather than from reading it.
+`c6a-mount-rt-1` is the substantive run. It launched, loaded the Working fixture and
+verified its identity, ran 3,050 frames over 68.6 seconds, and produced **43
+assertion passes against one failure**, with `horse-companion-blueprint-registration`
+PASS. It is a real result, not a blocked run — and it is a FAIL.
+
+### Four latent defects that only running could expose
+
+Each was invisible while the starting-payload registry refused every run, and each is
+repaired with a regression rather than worked around.
+
+1. **The no-save run transaction binding.** `New-KmcRunTransactionState` was always
+   called with all three qualification-suite arguments; for a no-save run those
+   variables are unbound, so PowerShell passed empty strings into
+   `ValidatePattern`-guarded parameters and binding failed before the function's own
+   completeness rule could run. No no-save runtime scenario had been runnable since
+   the suite pin set became mandatory. Repaired by splatting the suite arguments only
+   for a save-backed run; nothing relaxed.
+2. **The registry's true scope.** It gates *every* live scenario, not only the
+   save-backed ones, because the no-save smoke also stages into `Mods`. Established
+   by running it, and reproduced independently by the standing Chunk 2 gate.
+3. **The no-save smoke read a shipped default.** It failed on
+   `movementExperimentEnabled` true, which was `DiagnosticSettings`' shipped default
+   after a deliberate flip on 2026-08-28 in `a84dde9`; the newest prior smoke
+   evidence is 2026-08-13, so no no-save smoke had been passable since. Repaired by
+   scoping every experiment off for the smoke's own duration, asserting it could, and
+   publishing the shipped defaults as new v1 evidence fields. Two harness regressions.
+4. **A scenario could reach the game and then be rejected as unknown.** A
+   tranche-handled scenario reports its own name as a subscenario;
+   `chunk6a-combat-mount-rt` was registered in the save-backed list, the
+   evidence-suite scope, the blueprint-audit scope and the required-rows switch, but
+   not in the one list `Test-RuntimeResult` uses as its known-subscenario registry.
+   That turned the RT run's real failure into a validator error. Repaired, and guarded
+   by the invariant: a new harness test parses the tranche's own scenario policy and
+   requires every scenario it handles to be in the validator's known set —
+   reconstructed from **both** halves of that set, since the split across two files is
+   what allowed the omission — and to be accepted by the orchestrator.
+
+### The open defect, unexplained and unattributed
+
+The out-of-combat native Mount that every tranche scenario performs as its preamble
+did not establish a mounted pair within its 25-second bound. The deadline recorded
+mode `Default`, no pause, `feedback` "Ready to mount.", `command` null and
+`hasCooldown` false — and nothing about **why**, because a relationship shell refusal
+is raised as a native warning and never written to the player-action feedback that
+observation samples.
+
+Two mechanisms were checked against the installed assembly and **both are disproved**:
+
+- `UnitCommands.Run` (`0x060026B3`) stores `m_Commands[cmd.Type] = cmd`
+  unconditionally, with no combat check, so an out-of-combat Move-typed ability
+  **does** occupy the Move slot. `GetCommand(CommandType)` (`0x060026A9`) is exactly
+  `m_Commands[(int)type]`.
+- `Init` runs before that store, and the shell is keyed on the command object rather
+  than the slot, so registration order is not the problem either.
+
+The cause is therefore **unknown**, and no component is blamed for it — not the
+engine, not the fixture, not the shell gate. What is true is narrower and worth
+stating exactly: the relationship shell gate requiring a delivery to own its caster's
+native Move command is new in the Chunk 6A line and **has never completed a live
+delivery**, because preview.107 never ran. It is the most conspicuous new hard gate
+on that path and it remains a suspect, not a finding.
+
+The next run is built to answer it rather than to guess. Every
+`ResolveDeliveringShell` refusal is now recorded, and the deadline carries the
+relationship state, the dispatch accepted and rejected counters, the native refusal
+count, and an exact shell-state description: the last shell refusal, whether the
+service is enabled, registered and not serialization-suspended, whether the rider
+actually holds the Mount ability fact, how many shells are registered, and what the
+Move slot holds — its type, whether it is a `UnitUseAbility`, whether it has a shell,
+and whether it is started or finished. That candidate is `-campaign-d`, built and
+ready; it has not been launched because its pre-launch purity proof could not
+complete.
+
+### The qualification suite
+
+Created and retained: `20260925-chunk6a-suite001`, snapshot
+`f48d19004ce942b9b8e5d5b316034d893797410a847cb23df15283500a27a6ec`, save digest
+`511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426`, Mods digest
+`c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c`, bound to
+`-campaign-c`. The blocker the reviewed candidate reported is gone: suite creation
+now succeeds, and the RT scenario reached gameplay through it.
 
 ## External state
 
-The owner's installed build is untouched: `Mods/KingmakerMountedCombat` still
-holds the accepted preview.105 DLL
-(`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`) and its
-`Info.json` (`917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`),
-alongside the same seven mod directories including the deliberate SkipIntro. No
-guarded deployment transaction was opened and no Kingmaker process was started.
-Two guarded no-save run transactions were opened and both restored: `c6a-smoke-1`
-failed before creating transaction state, and `c6a-smoke-2` recorded
-`mode=no-save-v1`, `phase=restored`, `modsRestored` true and
-`saveProtectionPassed` true. Verified afterwards: the installed `Info.json`
-(`917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`) and DLL
-(`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`) are
-byte-identical to intake, the same seven mod directories are present, the 275
-protected saves are unchanged, and there is no Kingmaker process and no
-active-transaction lock. No protected save, automation fixture, UMM Params, cache
-or foreign mod was written.
+The owner's installation is untouched, verified after every run and again at the
+close: `Mods/KingmakerMountedCombat` holds the accepted preview.105 `Info.json`
+`917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476` and DLL
+`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2` in a two-entry
+tree, alongside the same seven mod directories including the deliberate SkipIntro.
+`Assembly-CSharp.dll` is still
+`3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, the exact
+assembly every pinned contract and seam token was read from. 275 protected saves are
+unchanged. No Kingmaker process and no runtime lock remain.
 
-Checked once more at the close, on the published head: `Assembly-CSharp.dll` is
-still `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, the
-exact installed assembly every contract is pinned against, and UMM
-`Kingmaker_Data/Managed/UnityModManager/Params.xml`
-(`b4a135f4bc05fc150abf1a4106b4f2edbfad66730583ba8443e87fe69df7fe87`) was last
-written at 2026-09-25T01:08:00Z — an hour before the owner's own preview.105
-deployment at 02:00:58Z and some six hours before either smoke run, so it was
-written by the owner's session and not by this work. The candidate DLL
-`cac89e20…` appears nowhere in the installation: the final private candidate is
-not installed, as required.
+Six guarded run transactions were opened across the campaign and **all six reached
+`phase=restored`**: `c6a-smoke-1`, `c6a-smoke-2`, `c6a-r2-smoke` and `c6a-r3-smoke`
+as `no-save-v1`, and `c6a-mount-rt-1` as `save-backed-v3-suite`. Each recorded
+`modsRestored` true and `saveProtectionPassed` true. One save-backed run loaded the
+Working fixture exactly once and issued zero save requests.
+
+No guarded deployment transaction was opened, so the installed DLL was never
+replaced. No protected save, automation fixture outside its own run scope, UMM
+`Params.xml`, cache or foreign mod was written. The candidate DLLs
+`6190c354…` and `1b130b28…` appear nowhere in the installation: **no candidate is
+installed**, as required.
+
+The three killed purity proofs left nothing behind — no lock, no transaction, no
+partial state — because a `-WhatIf` run is read-only by construction and none of them
+reached a transaction.
 
 ## HUMAN PLAY — owner checklist
 
