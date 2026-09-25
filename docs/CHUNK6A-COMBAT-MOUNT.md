@@ -326,11 +326,51 @@ this work.
    Confirm the pair, both actors' spent actions and the turn order come back
    exactly once, with no repeated Mount animation and no refunded actions.
 
-## Remaining scope
+## Remaining scope, with the 6B handoff
 
-6B mounted Charge, 6C mounted casting and item use, 6D staged move-cast-move and
-double-move ranged actions, 6E the Mounted Combat defensive feat, 6F
-consolidation. Each has its bounded native seams recorded in the seam map so the
-next mission does not repeat basic discovery. Chunk 7 — multiple pairs,
-additional profiles, content and public release — remains out of scope, as do
-the visual, HUD and physical-input gates that Chunk 4 left as manual items.
+None of the following is implemented, partially enabled or simulated here. Each
+row of the action contract records the controlling actor, native surface, cost
+owner, boundaries and open question; the seam map records the exact metadata
+tokens so the next mission starts from evidence rather than discovery.
+
+**6B — mounted Charge.** The whole feature lives behind `AbilityCustomCharge`
+(type `0x02000598`). Its `Deliver` `0x06002BB6` dispatches to `RuntimeRoutine`
+`0x06002BB8` or `TurnBasesRoutine` `0x06002BB7`, each of which owns a **forced
+path** plus a **queued native `UnitAttack`**, and the resulting attack is stamped
+`RuleAttackWithWeapon.IsCharge` `0x06007186`. The concrete problem 6B must solve
+is a split of ownership the accepted architecture has not yet needed: the mount
+must own the forced path while the rider keeps the Standard action that the
+enclosing ability shell charges, and `IsEngageUnit` `0x06002BB5` must not strand
+the pair mid-path if the target dies or moves. `CanTarget` `0x06002BBD` plus
+`GetMinRangeMeters` `0x06002BBA`/`0x06002BBB` and `GetMaxRangeMeters`
+`0x06002BBC` are the range surface a mounted variant would have to satisfy with
+the mount's geometry rather than the rider's. Until that is done, the exact
+multi-boundary rejection in `MountedChargeSafetyPolicy` and
+`MountedChargeSafetyService` must stay exactly as it is; Chunk 6A's source
+contract pins it, and its `chunk4-charge-safety-rt`/`-tb` rows are mandatory
+CM08 ledger ids.
+
+**6C — mounted casting and item use.** Cost stays native per the spell's or item
+ability's own `ActionType`; the open questions are concentration
+(`MakeConcentrationCheckIfCastingIsDifficult` `0x0600273A`,
+`TryCastingDefensively` `0x0600273B`) and hand readiness
+(`DontWaitForHands` `0x06002720`) while the mount is the physical mover.
+
+**6D — staged moving actions.** The partner context's `TimeMoved`
+`0x06000C13`/`0x06000C14` must carry between legs without a second grant, and
+`m_AutoStopAfterFirstMoveAction` `0x04000687` must not end the rider-led boundary
+between them.
+
+**6E — the Mounted Combat defensive feat.** The pre-consequence seam is
+`RuleAttackWithWeapon.AttackRoll` `0x06007197` inside `OnTrigger` `0x0600719D`.
+The unresolved question is whether an immediate action is expressible at all:
+`UnitAttackOfOpportunity` `0x02000502` is the only native out-of-turn player
+command, so 6E must establish whether a Swift-typed command can be admitted out
+of turn, or whether the feat must be modelled as a per-round allowance observed
+at the attack rule. Swift debt itself is `Cooldowns.SwiftAction`
+`0x0600C3BA`/`0x0600C3BB`, reset by `Cooldowns.Clear` at each `Prepare`.
+
+**6F — consolidation.** Chunk 7 — multiple pairs, additional profiles, content
+and public release — remains out of scope, as do the visual, HUD and
+physical-input gates that Chunk 4 left as manual items, and the `P08-tb` bounded
+known issue that Chunk 5 left open.
