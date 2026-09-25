@@ -236,6 +236,27 @@ Assert-Kmc ($nativeControlsText -match 'private sealed class NativeRelationshipS
     $nativeControlsText -match 'deliveringShell != null &&\s*\r?\n?\s*playerAction\.TryExecuteNativeDismount') `
     'a relationship delivery must own its native Move shell and its original relationship generation'
 
+# The Chunk 6A runtime scenario observes native accounting and must never create
+# it: no resource write, no preparation, no turn forcing except the accepted
+# idle-fixture end-turn input, and no direct position or state assignment.
+$chunk6aScenarioText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCombatMountScenario.cs')
+Assert-Kmc ($chunk6aScenarioText -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative|AttackOfOpportunity)\s*=' -and
+    $chunk6aScenarioText -notmatch 'AttackOfOpportunityCount\s*=' -and
+    $chunk6aScenarioText -notmatch '\.Prepare\(\)|OnNewRound|StartTurn\(|JoinCombat|ChooseNextUnit|SetIsActed|IgnoreCooldown' -and
+    $chunk6aScenarioText -notmatch '\.Position\s*=' -and
+    $chunk6aScenarioText -notmatch 'Translocate\(' -and
+    $chunk6aScenarioText -notmatch 'EnablePairedActivation\s*=' -and
+    ([regex]::Matches($chunk6aScenarioText, 'ForceToEnd\(').Count -eq 0)) `
+    'the Chunk 6A scenario observes native accounting and never writes a resource, preparation, turn or position'
+Assert-Kmc ($chunk6aScenarioText -match 'TryNativeAbilityTargetClick\(\s*\r?\n?\s*nativeControls\.MountAbility, horse' -and
+    $chunk6aScenarioText -match 'TryNativeAbilityTargetClick\(\s*\r?\n?\s*nativeControls\.DismountAbility, rider' -and
+    $chunk6aScenarioText -match 'allocationTrace\.GrantCount\(actor\)' -and
+    $chunk6aScenarioText -match 'handler\.SetAbility\(data\);\s*\r?\n\s*handler\.DropAbility\(\);') `
+    'the Chunk 6A scenario drives the normal native control path and reads native preparation counts'
+Assert-Kmc ($chunk6aScenarioText -match 'if \(!settings\.EnablePairedActivation \|\| settings\.EnableUnifiedMountedTurn \|\|' -and
+    $chunk6aScenarioText -match 'settings\.EnableDiagnosticOverlay \|\|\s*\r?\n?\s*playerAction\.OverlayPresent') `
+    'the Chunk 6A scenario refuses to run outside the accepted single paired authority and without the overlay off'
+
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
 $chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')
