@@ -104,12 +104,6 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastAdoptionObservation { get; private set; } = "not-requested";
 
-        // The round in which an adopted partner keeps its own native slot. Only
-        // set when the partner's participation was retained rather than prepared,
-        // which never needs suppression, so this stays negative in practice; it
-        // exists so a future disposition cannot silently erase a pending slot.
-        private int adoptedPartnerNativeSlotRound = -1;
-
         // Side-effect-free: usable from availability and from admission.
         internal MidEncounterAdoption ResolveMidEncounterAdoption(
             UnitEntityData rider, UnitEntityData mount, out string refusal)
@@ -240,7 +234,7 @@ namespace KingmakerMountedCombat.Integration
                 // mode is enabled mid-combat: a whole native resource period must
                 // pass before the pair may renew.
                 pairedRenewalNotBefore = Game.Instance.TimeController.GameTime.Ticks + TimeSpan.TicksPerSecond * 6;
-                adoptedPartnerNativeSlotRound = -1;
+               
                 MidEncounterAdoptionCount++;
                 LastAdoptionObservation = "adopted-real-time-ownership;identity=" + adopted.EncounterId +
                     ";principal=" + rider.UniqueId + ";partner=" + mount.UniqueId + ";no-grant;no-prepare";
@@ -258,7 +252,7 @@ namespace KingmakerMountedCombat.Integration
             // The principal's native Prepare already ran at its own slot; the
             // observation records the debt it stands at, it does not reset it.
             ObservePairedCosts(rider);
-            adoptedPartnerNativeSlotRound = -1;
+           
             if (disposition == MidEncounterAdoption.RetainPartnerParticipation)
             {
                 ObservePairedCosts(mount);
@@ -328,22 +322,6 @@ namespace KingmakerMountedCombat.Integration
                 else if (candidate?.Unit == pendingSplitMount) return true;
             }
             if (!PairedLifecycleEnabled || activation == null || candidate?.Unit != activation.Partner) return false;
-            if (adoptedPartnerNativeSlotRound >= 0)
-            {
-                if (Game.Instance.TurnBasedCombatController.RoundNumber > adoptedPartnerNativeSlotRound)
-                {
-                    adoptedPartnerNativeSlotRound = -1;
-                }
-                else
-                {
-                    // Adoption retained this partner's own pending native slot for
-                    // the transition round. Suppressing it would erase a lawful
-                    // participation opportunity.
-                    LastTurnCandidateObservation = "adopted-partner-keeps-native-slot;activation=" +
-                        activation.Identity + ";mount=" + candidate.Unit.UniqueId;
-                    return false;
-                }
-            }
             if (activation.Split && Game.Instance.TurnBasedCombatController.RoundNumber > splitReleaseRound)
             {
                 // A new native round only releases participation. The actor still
@@ -562,7 +540,7 @@ namespace KingmakerMountedCombat.Integration
                 nativePreparationCommands.Clear();
                 DisposePartnerContext(); activation = null; activationSession = null;
                 armedRider = null; armedMount = null; splitReleaseRound = -1; pairedRenewalNotBefore = 0; resumingContext = null;
-                adoptedPartnerNativeSlotRound = -1;
+               
             }
             // Native removal can already have retired activation ownership while
             // the relationship survives combat exit. Arm the next encounter even

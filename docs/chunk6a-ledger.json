@@ -1,0 +1,1330 @@
+{
+    "schemaVersion":  1,
+    "generatedAtUtc":  "2026-09-25T04:03:51.7650569Z",
+    "payload":  {
+                    "version":  "0.1.0-chunk6a-preview.106",
+                    "commit":  "b4500668fcaf7c307e431bae068ba909846d71c2",
+                    "branch":  "codex/mounted-combat-phase3f-playable-core",
+                    "dllSha256":  "pending",
+                    "dllMvid":  "pending",
+                    "packageSha256":  "pending",
+                    "manifestSha256":  "pending",
+                    "packagePath":  "pending",
+                    "suiteId":  "pending",
+                    "suiteSha256":  "pending"
+                },
+    "entries":  [
+                    {
+                        "id":  "CM01-horse-rt",
+                        "family":  "CM01",
+                        "claim":  "Legal voluntary combat Mount of the Horse pair in real time through the native Mount Companion control.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM01-horse-tb",
+                        "family":  "CM01",
+                        "claim":  "Legal voluntary combat Mount of the Horse pair in turn-based combat on the exact rider-led current turn.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM01-mammoth-rt",
+                        "family":  "CM01",
+                        "claim":  "The same real-time combat Mount for the Mammoth supported profile.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM01-mammoth-tb",
+                        "family":  "CM01",
+                        "claim":  "The same turn-based combat Mount for the Mammoth supported profile.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM01-exploration-free",
+                        "family":  "CM01",
+                        "claim":  "The same native control outside combat performs the transition and charges nothing.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-approach-arrival",
+                        "family":  "CM02",
+                        "claim":  "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-geometry-change",
+                        "family":  "CM02",
+                        "claim":  "The mount or target geometry changes during approach; the transition revalidates at arrival.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-obstruction",
+                        "family":  "CM02",
+                        "claim":  "Obstruction or path failure reaches a truthful native terminal state with no transition and no residue.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-wrong-creature-target",
+                        "family":  "CM02",
+                        "claim":  "A wrong creature target is refused with an exact reason and performs no transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-foreign-companion",
+                        "family":  "CM02",
+                        "claim":  "A foreign companion is refused; nearby creatures are never inferred.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-ownership-change",
+                        "family":  "CM02",
+                        "claim":  "An ownership or pet-relationship change before delivery refuses the transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-size-form-change",
+                        "family":  "CM02",
+                        "claim":  "A rider or mount size, form or body-support change before delivery refuses the transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-lost-direct-control",
+                        "family":  "CM02",
+                        "claim":  "Lost direct control before delivery refuses the transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-left-area",
+                        "family":  "CM02",
+                        "claim":  "An actor leaving the area before delivery refuses the transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-view-agent-lost",
+                        "family":  "CM02",
+                        "claim":  "A disappeared or unavailable view or movement agent refuses the transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-loading-cutscene",
+                        "family":  "CM02",
+                        "claim":  "A loading, cutscene or game-mode transition refuses the transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-rider-incapacitated",
+                        "family":  "CM02",
+                        "claim":  "Rider death or incapacitation before delivery refuses the transition and leaves no residue.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-mount-incapacitated",
+                        "family":  "CM02",
+                        "claim":  "Mount death or incapacitation before delivery refuses the transition and leaves no residue.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-generation-change",
+                        "family":  "CM02",
+                        "claim":  "A relationship generation change before delivery refuses the stale shell.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM02-target-selection-cancelled",
+                        "family":  "CM02",
+                        "claim":  "Cancelling target selection before commitment costs nothing and performs no transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-rider-before-mount-slot",
+                        "family":  "CM03",
+                        "claim":  "The rider\u0027s turn occurs before the mount\u0027s ordinary native slot: one lawful mount participation in the transition round.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-mount-slot-before-rider",
+                        "family":  "CM03",
+                        "claim":  "The mount\u0027s ordinary native slot occurred before the rider\u0027s turn: its participation stands and is not repeated.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-mount-spent-move",
+                        "family":  "CM03",
+                        "claim":  "The mount has already spent Move; no refresh and no fresh allocation.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-mount-spent-standard",
+                        "family":  "CM03",
+                        "claim":  "The mount has already spent Standard; no refresh and no fresh allocation.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-mount-spent-all",
+                        "family":  "CM03",
+                        "claim":  "The mount has spent all participation; adoption grants nothing.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-rider-without-move",
+                        "family":  "CM03",
+                        "claim":  "A rider with no Move action cannot mount and is refused before commitment.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-rider-other-action",
+                        "family":  "CM03",
+                        "claim":  "A rider that spent another action but retains a legal Move may mount, paying only that Move.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-early-end-turn",
+                        "family":  "CM03",
+                        "claim":  "Early End Turn immediately after a successful Mount conserves participation and creates no extra turn.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-next-round-activation",
+                        "family":  "CM03",
+                        "claim":  "The next native round begins an ordinary paired activation with no inherited adoption bookkeeping.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM03-unrelated-candidate-between",
+                        "family":  "CM03",
+                        "claim":  "An unrelated actor candidate between rider and mount keeps native, deterministic selection.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-stop-during-approach",
+                        "family":  "CM04",
+                        "claim":  "Stop or Hold during approach ends the command truthfully with no cost and no transition.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-command-replacement",
+                        "family":  "CM04",
+                        "claim":  "Replacement by another player command leaves no duplicate transition and no residue.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-turn-end",
+                        "family":  "CM04",
+                        "claim":  "Turn end or forfeit during the sequence leaves valid actors and no residue.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-combat-end",
+                        "family":  "CM04",
+                        "claim":  "Combat end during the sequence cleans up exactly once.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-mode-exit",
+                        "family":  "CM04",
+                        "claim":  "Native mode exit forfeits the pair exactly once with no duplicate cost.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-area-session-transition",
+                        "family":  "CM04",
+                        "claim":  "An area or session transition attempt during the sequence cleans up exactly once.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-disable-unload",
+                        "family":  "CM04",
+                        "claim":  "Feature disable or unload refuses or cleans up with no residue.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-rider-death",
+                        "family":  "CM04",
+                        "claim":  "Rider death during the sequence is forced detach: no voluntary cost, one cleanup.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-mount-death",
+                        "family":  "CM04",
+                        "claim":  "Mount death during the sequence is forced detach: no voluntary cost, one cleanup.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM04-injected-exception",
+                        "family":  "CM04",
+                        "claim":  "An exact injected exception at an owned boundary fails closed with no residue.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM05-rt",
+                        "family":  "CM05",
+                        "claim":  "Voluntary real-time combat Dismount costs the rider one native Move exactly once.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM05-tb",
+                        "family":  "CM05",
+                        "claim":  "Voluntary turn-based combat Dismount costs the rider one native Move exactly once.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM05-after-rider-expenditure",
+                        "family":  "CM05",
+                        "claim":  "Dismount after rider movement or action expenditure conserves that debt.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM05-after-mount-expenditure",
+                        "family":  "CM05",
+                        "claim":  "Dismount after mount expenditure conserves that debt.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM05-immediately-after-mount",
+                        "family":  "CM05",
+                        "claim":  "Dismount immediately after a legal combat Mount pays its own Move and creates no duplicate turn.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM05-repeated-input",
+                        "family":  "CM05",
+                        "claim":  "Repeated Dismount input or cancel creates no second transition or cost.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM05-forced-detach",
+                        "family":  "CM05",
+                        "claim":  "Forced detach through death, invalid pair or lifecycle cleanup creates no voluntary Move cost.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-hotbar-path",
+                        "family":  "CM06",
+                        "claim":  "The normal hotbar or action-bar path reaches the control without the diagnostic overlay.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-pointer-target",
+                        "family":  "CM06",
+                        "claim":  "Ordinary pointer target selection reaches the control.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-paused-queue",
+                        "family":  "CM06",
+                        "claim":  "A real-time paused queue holds the control and executes exactly once on unpause.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-repeated-request",
+                        "family":  "CM06",
+                        "claim":  "A repeated request while one is pending or started produces one owned request and no duplicate.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-mount-selected",
+                        "family":  "CM06",
+                        "claim":  "With the mount selected instead of the rider the control is refused with an exact reason.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-multiple-selection",
+                        "family":  "CM06",
+                        "claim":  "Multiple or foreign selection is refused with an exact reason.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-unrelated-actor",
+                        "family":  "CM06",
+                        "claim":  "An unrelated actor with a similar ability surface passes through untouched.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-ai-auto-use",
+                        "family":  "CM06",
+                        "claim":  "AI or auto-use control never activates the relationship controls.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM06-unmounted-ordinary",
+                        "family":  "CM06",
+                        "claim":  "Unmounted ordinary movement and commands are unaffected.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-mount-save-rt",
+                        "family":  "CM07",
+                        "claim":  "A settled real-time combat Mount saves its exact pair, debt and participation.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-mount-load-rt",
+                        "family":  "CM07",
+                        "claim":  "That real-time archive restores once with no replayed Mount, preparation or cost.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-mount-save-tb",
+                        "family":  "CM07",
+                        "claim":  "A settled turn-based combat Mount saves at a supported committed boundary.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-mount-load-tb",
+                        "family":  "CM07",
+                        "claim":  "That turn-based archive restores once with no replayed Mount, preparation or cost.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-dismount-save",
+                        "family":  "CM07",
+                        "claim":  "A settled combat Dismount saves two separate valid actors.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-dismount-load",
+                        "family":  "CM07",
+                        "claim":  "That archive restores separate valid actors without resurrecting the relationship.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-cold-load",
+                        "family":  "CM07",
+                        "claim":  "A cold process load of a combat-mounted archive restores once and plays.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-save-slot-routes",
+                        "family":  "CM07",
+                        "claim":  "The representative quick, auto and manual save routes are unaffected.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-unsettled-save-deferred",
+                        "family":  "CM07",
+                        "claim":  "A save requested during target selection, approach or an unsettled transition is truthfully deferred or settled before capture.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-area-reload",
+                        "family":  "CM07",
+                        "claim":  "Area reload or supported lifecycle cleanup after a combat-mounted save behaves exactly once.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM07-schema-unchanged",
+                        "family":  "CM07",
+                        "claim":  "The accepted KMC save schema is unchanged by Chunk 6A, and no supplemental transition state is persisted.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-mounted-charge-rejected-rt",
+                        "family":  "CM08",
+                        "claim":  "Mounted Charge remains rejected in real time at availability, click, target, admission and execution.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-mounted-charge-rejected-tb",
+                        "family":  "CM08",
+                        "claim":  "Mounted Charge remains rejected in turn-based combat at every boundary.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-unmounted-charge",
+                        "family":  "CM08",
+                        "claim":  "Ordinary unmounted native Charge passes through untouched.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-ordinary-attack-controls-tb",
+                        "family":  "CM08",
+                        "claim":  "The accepted ordinary-attack-controls-tb baseline is unchanged on this payload.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-chunk4-sustained-tb",
+                        "family":  "CM08",
+                        "claim":  "The accepted chunk4-sustained-tb baseline is unchanged on this payload.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-mounted-mammoth-primary-hit-tb",
+                        "family":  "CM08",
+                        "claim":  "The accepted mounted-mammoth-primary-hit-tb baseline is unchanged on this payload.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-sustained-rt",
+                        "family":  "CM08",
+                        "claim":  "Sustained real-time attacks and repeated-click cadence are unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-incoming-targeting",
+                        "family":  "CM08",
+                        "claim":  "Incoming targeting and area effects are unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-rider-death-cleanup",
+                        "family":  "CM08",
+                        "claim":  "Native rider death cleanup is unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-mount-death-cleanup",
+                        "family":  "CM08",
+                        "claim":  "Native mount death cleanup is unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-horse-smoke",
+                        "family":  "CM08",
+                        "claim":  "The Horse profile smoke set is unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-mammoth-smoke",
+                        "family":  "CM08",
+                        "claim":  "The Mammoth profile smoke set is unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-persistence-suite",
+                        "family":  "CM08",
+                        "claim":  "Representative manual, quick and auto persistence plus cold load are unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-area-restoration",
+                        "family":  "CM08",
+                        "claim":  "Relevant area restoration is unchanged.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    },
+                    {
+                        "id":  "CM08-disable-removal-readiness",
+                        "family":  "CM08",
+                        "claim":  "Supported disable, removal and no-DLL readiness checks are unaffected by any new saved state.",
+                        "scenario":  "",
+                        "runId":  "",
+                        "status":  "NOT RUN",
+                        "passCount":  0,
+                        "failCount":  0,
+                        "rows":  [
+
+                                 ],
+                        "evidenceLeaf":  "",
+                        "evidenceSha256":  "",
+                        "reason":  "Not executed in this mission: the Chunk 6A native campaign has not run this behavior on the frozen candidate payload."
+                    }
+                ]
+}

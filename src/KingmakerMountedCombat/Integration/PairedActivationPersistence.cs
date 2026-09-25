@@ -91,7 +91,7 @@ namespace KingmakerMountedCombat.Integration
             activation = null; armedRider = null; armedMount = null; activationSession = null;
             preparingConfusionActor = null; preparedRiderTurn = null; resumingContext = null;
             pendingSplitMount = null; pendingSplitRound = -1; splitReleaseRound = -1;
-            pairedRenewalNotBefore = 0; adoptedPartnerNativeSlotRound = -1;
+            pairedRenewalNotBefore = 0;
         }
 
         private static SavedParticipation CaptureParticipation(PairedActorSnapshot actor) => actor == null ? null :

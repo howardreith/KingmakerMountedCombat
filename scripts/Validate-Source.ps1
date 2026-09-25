@@ -215,7 +215,6 @@ Assert-Kmc ($adoptBody.Success -and
     $adoptBody.Value -match 'if \(disposition == MidEncounterAdoption\.Unavailable\)[\s\S]{0,80}return refusal;') `
     'adoption refuses an unresolvable transition round before changing any state'
 Assert-Kmc ($adoptionText -match 'internal MidEncounterAdoption ResolveMidEncounterAdoption\(' -and
-    $adoptionText -match 'adoptedPartnerNativeSlotRound' -and
     $adoptionText -match 'private bool CanReplaceActivationForAdoption\(\)') `
     'the adoption disposition is resolvable without side effects and a split pair is not layered over'
 
