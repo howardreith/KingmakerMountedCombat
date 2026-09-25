@@ -251,12 +251,30 @@ What is measured:
   `runtime-evidence`, `runtime-staging` and `runtime-backups` **unchanged**. So
   none of the offline work performed during the proof perturbs those trees.
 
-What is **not** established: which manifest differed, and why. Eliminating the
-causes I could think of does not prove the cause lies outside this repository's
-tooling, and it is not called an environmental or engine problem here. A
-determinism test — two consecutive manifest passes over each large tree — was
-started to distinguish a real perturbation from non-deterministic enumeration or
-hashing at this scale; its result is not part of this report.
+A determinism test — two consecutive manifest passes over each tree, with nothing
+else running — was then performed to distinguish a real perturbation from
+non-deterministic enumeration or hashing at this scale:
+
+| Tree | Files | Bytes | Pass 1 | Pass 2 | Digest stable |
+|---|---|---|---|---|---|
+| `runtime-state` | 3,829 | 279 MB | — | — | yes |
+| live `Mods` | 358 | — | — | — | yes |
+| `runtime-evidence` | 13,321 | 6.05 GB | 10 s | 8 s | yes |
+| `runtime-backups` | 193,050 | 49.96 GB | 172 s | 165 s | yes |
+| `runtime-staging` | 413,207 | 91.98 GB | >20 min, **stopped** | — | **not measured** |
+
+`runtime-staging` was stopped after twenty minutes of its first pass so the
+purity proof itself — which is a superset of this test and now names the
+differing tree — could run instead. Its per-entry cost is the dominant term:
+472,074 entries at roughly 400 per second, which also explains why the failed
+proof took 54 minutes rather than the few minutes the byte volume alone implies.
+
+What is **not** established: which of the five manifests differed, and why.
+`runtime-staging` is the one tree whose determinism is unmeasured, which makes it
+the most likely candidate, but that is a narrowing of the search and not a
+finding. Eliminating the causes I could think of does not prove the cause lies
+outside this repository's tooling, and it is not called an environmental or engine
+problem here.
 
 The proof is not narrowed or bypassed to get past this. Restricting that
 comparison to the trees a run can mutate would weaken a safety guard this mission
