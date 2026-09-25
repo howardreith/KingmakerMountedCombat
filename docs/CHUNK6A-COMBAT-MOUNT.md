@@ -59,8 +59,11 @@ preview.54 were registered for their own missions — `Info.json`
 entry-count expectation matching a two-entry tree that has no loader cache yet.
 Its provenance is already documented: guarded deployment receipt
 `runtime-state/deployment-operations/20260925T0200587550503Z-94de251601b24a04a1f5394f57a92f64.json`.
-Once registered, the frozen candidate below needs no rebuild: run
-`mod-load-smoke` to confirm the payload loads, then take a suite snapshot and run
+Once registered, the campaign needs no new engineering. Rebuild the candidate at
+the then-current head — `scripts/Package.ps1 -ArtifactQualifier <new>`, which the
+manifest-binds-HEAD guard requires and which provably reproduces the same DLL
+bytes and MVID (see Candidate identity) — then run `mod-load-smoke` to confirm
+the payload loads, take a qualification-suite snapshot, and run
 `chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb`.
 
 `scripts/Test-Chunk6aLedger.ps1` has two modes, deliberately separated. Record
@@ -187,10 +190,21 @@ can run: the claim is an argument from the accepted Chunk 5 barrier, not evidenc
 | Accepted Chunk 5 payload, untouched | ZIP `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`, DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID `638259af-9d31-4738-be8a-2784135d4235` |
 
 This package is a private engineering candidate. It is not installed, not merged
-and not released, and the accepted preview.105 package is untouched. Note that
-the harness requires a package manifest to bind the exact current `HEAD`, so a
-later documentation commit invalidates this binding for runtime use; rebuilding
-at the final `HEAD` reproduces the same DLL bytes because no `src/` file changes.
+and not released, and the accepted preview.105 package is untouched. It is the
+payload the two live attempts below actually exercised, which is why the ledger
+is bound to it.
+
+`Assert-KmcPackageManifest` requires a manifest to bind the exact current `HEAD`
+on a clean worktree, so every documentation commit after a build invalidates that
+build for runtime use and the owner must rebuild at the then-current head. That
+rebuild carries no risk, and this is now **measured rather than claimed**: a
+second package built at `1d60100f332c8aced57efcd78f563e80436be5ec`
+(`KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-head-diagnostic.zip`,
+ZIP `699d64de0f26f0ef1e37119a00adbeae135fcfb9f418164e5da25d8f06b26e24`, manifest
+`9c8514474dee22157ebe95677e9b4fd0f7c23f0d56c2e0f47164d8f643c3d5c9`) produced DLL
+SHA-256 `cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` and
+MVID `3739324f-ff40-4049-9a82-91667d8dbf24`, byte-identical to the candidate
+above, across two different commits. Only `docs/` changed between them.
 
 ## Offline gates
 
