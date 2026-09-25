@@ -118,16 +118,26 @@ performed by the transition.
 
 Both are deliberate and neither affects accounting.
 
-**Movement-limit presentation in the retain disposition.** The `partner slot
-spent` disposition creates no private partner `TurnController`, because doing so
-would require a native `Prepare` the partner has already had. Delegated mounted
-movement still debits the mount's own real allocation through
-`MountedMovementStateAdapter.TickDelegated`, and `CanMovePairedMount` still reads
-that allocation, so remaining movement is accounted correctly. What is missing is
-the mirror write `CopyGrantedMovementToContext(partnerContext)` performs on the
-accepted pre-combat path, so the turn-panel movement limit shown for the rest of
-that one transition round reflects the rider's own turn rather than the mount's
-consumption. Ordinary paired presentation resumes at the next round's `Begin`.
+**No paired participation in the retain disposition's own round.** The `partner
+slot spent` disposition creates no private partner `TurnController` and records
+the mount's allocation as granted, prepared and ended. Because `CanAddressActor`
+requires a non-ended actor, the mount cannot be addressed, selected as the pair's
+acting partner, admitted for a paired native command, or moved as the pair's mover
+for the remainder of the rider's adopted boundary.
+
+That is the correct reading of Kingmaker's own rules rather than a lost resource.
+This disposition fires only when the mount's roster slot is *earlier* than the
+rider's, which means its turn in this round has already ended, and an actor whose
+turn has ended cannot act again until its next turn. The mount's native cooldowns
+are untouched and every observed debt is retained; what is withheld is a second
+participation it had already relinquished. Ordinary paired movement and
+presentation resume at the next round's `Begin`, where the partner is prepared
+normally. The rider, meanwhile, has just spent its own Move on the transition.
+
+Before this correction the pair could still address and move that partner, which
+handed out an action opportunity the engine had already closed. The contract above
+always said "granted, marked prepared and immediately ended"; the code did not,
+and R1 repaired the code to match its own frozen contract.
 
 **Re-mounting after a voluntary combat Dismount within one round.** A voluntary
 Dismount splits the activation and `splitReleaseRound` governs the partner's

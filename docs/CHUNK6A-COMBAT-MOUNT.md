@@ -17,74 +17,137 @@ on one frozen candidate. This is not a candidate for acceptance and must not be
 described as one, and no part of it may be called finished engineering while the
 completion ledger stands at 0/82.
 
-### The blocker, exactly
+### The review remediation: six repairs
 
-**It gates every live runtime scenario, not only the save-backed ones.** That was
-established by running them: the no-save `mod-load-smoke` also stages the
-candidate into `Mods` and so checks the existing KMC tree against the same
-registry, failing in four seconds before any launch with the identical message
-(retained at `runtime-evidence/c6a-smoke-2`).
+An owner review of the published preview.107 candidate found six defects. All six
+are repaired on this candidate; none was argued away and none of the earlier
+retained failures was removed.
 
-It also predates Chunk 6A and is independent of it. The standing Chunk 2 gate
-`scripts/Test-Chunk2StartingInstallation.ps1` fails on the same line with the same
-message today, and neither it nor `QualificationSuiteContinuity.ps1` was touched
-by this mission — `git diff 747156a..HEAD` over both files is empty. The registry's
-newest entry was added in `8612544` for Chunk 5's preview.54 intake; the
-installation became preview.105 in `747156a`, the intake head. So the gate has been
-failing since the owner's own guarded deployment, and three independent
-paths — that gate, the suite-snapshot script, and a real `mod-load-smoke`
-run — reproduce it identically.
+**R1 — a spent partner slot is closed, not reopened.** The retain disposition
+recorded a partner whose native initiative slot had already passed as `Granted`
+and `Prepared` but **not** `Ended`, and the tests affirmed that the pair could
+still address it on the rider's adopted boundary. That is a second action
+opportunity for an actor that already took its slot, and it applied equally to a
+fully spent, partially spent, surprise-skipped or visibility-skipped companion.
+The disposition now records that slot as granted, prepared **and ended**. `Ended`
+closes `CanAddress`, and with it partner selection, paired native command
+admission and paired movement, while `OwnsRoundEffects` stays true so native
+timers due at that boundary still belong to it. The observed Standard, Move and
+Swift debt is recorded and never lowered, no private partner `TurnController` is
+created, no preparation, refresh or callback replay runs, and eligibility returns
+only through Kingmaker's next lawful allocation. The tests that asserted
+addressability are replaced rather than loosened, with new behavioral cases for a
+fully spent mount, a partially spent mount, residual cooldown debt, nothing
+spent, surprise-skipped and visibility-skipped slots in both roster positions,
+and recovery at the next allocation.
 
-A save-backed runtime scenario additionally requires a qualification-suite
-snapshot, and `scripts/runtime/New-KmcQualificationSuiteSnapshot.ps1` refuses to
-create one for the same reason:
+**R2 — attachment and adoption are one transaction.** The relationship used to
+commit and increment its generation, after which `MountedPairActivated` attempted
+adoption and merely *logged* a refusal, so a successful native Mount could leave a
+mounted relationship with no valid paired activation.
+`MidEncounterAdoptionPlan` is now a typed, immutable, generation-bound record of
+the exact live encounter: session, round, current turn, roster identities and
+indices, initiative disposition, surprise and visibility, liveness, ability to act
+and consciousness. `MountRiderOn` plans it before committing, revalidates it field
+by field immediately before the commit, and only then commits the adoption,
+rebound to the one generation a committed relationship produces. A refusal after
+attachment performs exact compensating cleanup — activation, private partner
+context, preparation reservation, armed pair and renewal floor removed, the
+relationship returned to `Unmounted`, and the transition reported as **failed**
+rather than Mounted.
+
+The compensation writes no native resource, calls no preparation or turn end, and
+refunds nothing, so a Move that Kingmaker already committed for the approach
+stays spent. The generation stays **advanced**, which is what retires every native
+shell bound to the old relationship so the failed control cannot be delivered
+again. Every refusal path inside the commit precedes the single
+`partnerContext.Prepare()`, because that call clears the partner's cooldowns and
+cannot be undone; a rollback therefore never has to un-prepare an actor, and a
+source contract pins that ordering. The activation announcement no longer attempts
+adoption at all: it is the consistency check for the transaction's invariant.
+
+**R3 — turn-based delivery requires an *acting* rider turn.** `Preparing` was
+accepted on the assumption that nothing is skipped in that window, and there is no
+exact native evidence for it: `TurnController.Prepare` runs at the actor's own
+slot and only then advances to Acting, and a player command is delivered by
+`UnitCommands.Tick` inside Acting. Admitting a transition while the turn is still
+Preparing would settle the transition ledger and the adopted paired grant against
+a turn whose native preparation has not finished, so Preparing is now refused —
+with its own reason, not the generic wrong-turn one.
+
+**R4 — a Dismount delivery revalidates its target identity.**
+`DismountTargetIdentityPolicy` decides it, free of engine types so each rejected
+condition is directly tested: a missing target, a foreign target, a target that
+changed after the command was created, a missing caster identity, a relationship
+whose rider changed, and a stale generation. The most specific obstacle is always
+the one reported.
+
+**R5 — the save barrier queries the transition state.** The action contract
+claimed the ledger deferred an unsettled transition, but `SaveEffectsReady` never
+consulted it. It now defers on `HasUnsettledRelationshipTransition`, the ledger's
+own admit-to-settle window, and on `OwnsUnsettledRelationshipShell`, a registered
+Mount/Dismount shell that has not finished. The second term is strictly more than
+`CommandNeedsSettlement` covers, because that predicate requires the command to be
+*running* and would let a queued but unstarted relationship shell through. Nothing
+is claimed for CM07 from this: all eleven CM07 rows remain mandatory native work.
+
+**R6 — durable status language.** The action contract's legend claimed
+`IMPLEMENTED` meaning built **and qualified**. Combat Mount and combat Dismount are
+relabelled `IMPLEMENTATION CANDIDATE — NATIVE QUALIFICATION BLOCKED`, and
+`IMPLEMENTED` is reserved and claimed by no row. This report and the three active
+documents no longer describe the work as complete.
+
+The mandatory list grows from 82 to **85** ids: `CM01-combat-mount-preparing-refused`
+for R3's boundary, and `CM02-adoption-plan-invalidated` plus
+`CM02-adoption-compensation-releases` for R2's transaction. Nothing was removed or
+relabelled.
+
+R2's regression needs a late invalidation that cannot be produced from outside
+without writing game state, because the adoption disposition changes only at a turn
+boundary and a turn boundary cancels the approach. It is therefore driven by a
+**bounded diagnostic adoption fault**, which makes the commit refuse at its first
+check exactly as a real late invalidation does. The fault arms only on an idle
+unmounted pair with the paired lifecycle enabled, only one at a time, bound to two
+exact distinct actor identities; it is consumed once, disarmed on use and on every
+cleanup path, and writes nothing. Three source contracts pin those properties and
+pin that it is armed exactly once, by this scenario only.
+
+### The starting-payload registration, now authorized
+
+The previous run reported this as its one blocker and declined to change it. The
+owner has now explicitly authorized the exact addition, so it is made:
 
 ```
-Existing KMC tree differs from the exact registered starting payload.
-  QualificationSuiteContinuity.ps1:63
+Info.json                   917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476
+KingmakerMountedCombat.dll  8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2
 ```
 
-`Assert-KmcRegisteredStartingPayload` holds a fixed registry of accepted starting
-installations, keyed by the installed `Info.json` hash. It has six entries, the
-newest being Chunk 5's starting payload preview.54
-(`Info.json` `1224394f59ec598895a0d6ffd1db05527d04f334a063461a019c11f98ddbe528`).
-The owner's current installation is the accepted **preview.105** alpha, whose
-`Info.json` is `917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`
-and whose DLL is `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`.
-That hash is not in the registry, so no pin set is selected. The installed tree
-also has only **two** entries — `Info.json` and the DLL, with no UMM loader cache,
-because the guarded deployment replaced the DLL and the game has not been run
-since — while every registered pin set describes a **three**-entry tree including
-that cache, so the entry-count check fails before any hash is compared.
-
-Registering preview.105 as an accepted starting payload is an identity-guard
-change, and this mission explicitly does not authorize broadening identity
-exceptions "merely to make a run pass." It is also genuinely the owner's call:
-that registry is the record of which installations the owner has accepted as a
-qualification starting point. So it is reported, not changed.
-
-**What would unblock it**, in the owner's own terms and needing no guard
-weakening: register the already-accepted preview.105 installation in
-`Assert-KmcRegisteredStartingPayload` the way preview.13, preview.37 and
-preview.54 were registered for their own missions — `Info.json`
-`917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`, DLL
-`8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, with the
-entry-count expectation matching a two-entry tree that has no loader cache yet.
-Its provenance is already documented: guarded deployment receipt
+Its expected entry count is **two**, which is a fact about the tree rather than a
+loosened bound: the guarded deployment replaced the DLL and the game has not been
+run since, so there is no UMM loader cache, and the count is expressed the way every
+other payload expresses it — as the size of its own pin set. Provenance is the
+guarded deployment receipt
 `runtime-state/deployment-operations/20260925T0200587550503Z-94de251601b24a04a1f5394f57a92f64.json`.
-Once registered, the campaign needs no new engineering. Rebuild the candidate at
-the then-current head — `scripts/Package.ps1 -ArtifactQualifier <new>`, which the
-manifest-binds-HEAD guard requires and which provably reproduces the same DLL
-bytes and MVID (see Candidate identity) — then run `mod-load-smoke` to confirm
-the payload loads, take a qualification-suite snapshot, and run
-`chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb`.
+
+Nothing is widened. Strict byte equality is preserved for every pinned file, and
+there is no wildcard, no alternate entry count, no "latest" or newest-wins logic, no
+fallback or partial match, and no authority to restore any older or newer intake. A
+tree matching no pin set still fails closed. The absence of `Info.json` is now its
+own refusal rather than a hashing error, which narrows nothing — every pin set is
+keyed on that file, so a tree without it could never have matched.
+
+The negative tests are retained and **extended from 4 assertions to 13**: mutated
+bytes per leaf, an extra unregistered file, a missing registered file, a renamed
+registered file with the right bytes and the right count, a mixed payload whose DLL
+bytes are foreign to its `Info.json`, and a subdirectory. Each is proven rejected,
+and the exact live installation is proven accepted before and after, read only.
 
 `scripts/Test-Chunk6aLedger.ps1` has two modes, deliberately separated. Record
-consistency validates that each of the 82 entries is internally coherent and,
+consistency validates that each of the 85 entries is internally coherent and,
 for a PASS entry, that its named run really executed the frozen payload with the
 recorded assertion counts, restored the intake, used the recorded qualification
 suite, and contains a single PASS row for every row the entry claims, with the
-evidence artifact bound by hash. `-Completion` holds the fixed list of 82
+evidence artifact bound by hash. `-Completion` holds the fixed list of 85
 mandatory behaviors and fails on any that is missing, NOT RUN, BLOCKED, FAIL, or
 MAPPED / EXCLUDED without the owner's own recorded decision. The record-mode
 count is **not** a count of satisfied requirements and is printed with that
@@ -130,8 +193,14 @@ therefore adds one explicit typed adoption operation:
    exactly once as the paired partner, through the same private `TurnController`
    the accepted pre-combat path uses, and its own later slot is suppressed. When
    that slot has already been taken, no partner context is created and no native
-   preparation runs: its grant is recorded as already prepared so the pair may
-   still address the native capacity it genuinely has left.
+   preparation runs, and its allocation for this round is recorded as granted,
+   prepared **and ended**: the slot really did happen, so it is not re-offered.
+   An ended partner cannot be addressed, selected as the pair's acting partner or
+   admitted for a paired native command on the rider's boundary, while the native
+   timers due at that boundary still belong to it. Its observed native Standard,
+   Move and Swift debt is recorded and never lowered, nothing is refreshed or
+   replayed, and it becomes eligible again only at Kingmaker's next lawful
+   allocation.
 4. When the disposition cannot be resolved unambiguously — the mount is outside
    the initiative order, shares the rider's slot, is surprised, is acting in a
    surprise round without proof it will act, or is not visible to the player —
@@ -174,104 +243,134 @@ therefore stay true for its own running shell, so the in-flight gate is scoped t
 the ledger and is suppressed on the execution pass. Adding an "owns a live shell"
 gate to availability would have made every committed shell fail its own action.
 
-### Persistence: no schema change
+### Persistence: no schema change, and the barrier now queries the transition
 
-The accepted Chunk 5 save barrier already covers the whole transient sequence.
+No schema change: a voluntary transition adds no saved field, and the existing
+pair, debt and turn-context records carry the new states.
+
+The accepted Chunk 5 save barrier already covers the transient sequence.
 `NativeSaveEffectBoundary.CommandNeedsSettlement` holds any running unfinished
 command — including the Mount/Dismount shell during approach and execution — and
 `HasUnresolvedAbilities` holds the `AbilityExecutionProcess` until it ends, which
-is after `Deliver` has performed the relationship transition. A save requested
-mid-transition is therefore deferred until the transition is settled, and no
-supplemental Chunk 6A state is persisted. `CM07-schema-unchanged` records this
-claim, and like every other CM07 row it is BLOCKED until the native campaign
-can run: the claim is an argument from the accepted Chunk 5 barrier, not evidence.
+is after `Deliver` has performed the relationship transition.
+
+That was the whole argument before the review, and R5 replaced the argument with
+two exact queries. `SaveEffectsReady` now also defers on
+`NativeMountedControlService.HasUnsettledRelationshipTransition`, the transition
+ledger's own admit-to-settle window, and on `OwnsUnsettledRelationshipShell`, a
+registered Mount/Dismount shell that has not finished. The second term is strictly
+more than `CommandNeedsSettlement` covers, because that predicate requires the
+command to be **running** and would let a queued but unstarted relationship shell
+through. The ledger term is a guard that fails closed rather than one a frame
+boundary is expected to observe, since the admit-to-settle window lies inside one
+synchronous game-thread call — it is queried instead of argued away.
+
+None of that is CM07 evidence. All eleven CM07 rows, `CM07-schema-unchanged`
+included, remain mandatory native work and are BLOCKED until the campaign runs
+them.
 
 ## Candidate identity
+
+The remediated candidate opens its own product line so no evidence, ledger entry
+or installation can confuse it with the reviewed preview.107.
 
 | Field | Value |
 |---|---|
 | Branch | `codex/mounted-combat-phase3f-playable-core` |
-| Product version | `0.1.0-chunk6a-preview.107` |
-| Qualifier | `chunk6a-combat-mount` |
-| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-final3-diagnostic.zip` |
-| Source commit bound by the manifest | `9f3a6f244e9e44cca75d94a2c53b9fc00a25ab8d` |
-| ZIP SHA-256 | `3d9f7c78c9cc894f4911bff992329105a63d97e69d7ef9c6e1b1ec6ce7d111e6` |
-| Manifest SHA-256 | `9a0ca1804c2f8e3e9eaa73ebebda058d130ba2e216e3e549834a67e38600d864` |
-| DLL SHA-256 | `cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` |
-| DLL MVID | `3739324f-ff40-4049-9a82-91667d8dbf24` |
-| Qualification suite | **none** — blocked; see the blocker above |
+| Product version | `0.1.0-chunk6a-preview.108` |
+| Qualifier | `chunk6a-remediated-r1` |
+| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.108-chunk6a-remediated-r1-diagnostic.zip` |
+| Source commit bound by the manifest | `2c0737eef78a1d60f4e1c6a9ac74dcd85b5560ab` |
+| ZIP SHA-256 | `a6a5036c28313303dfb544c59e1340736f9ac69e3fc13e4ed60d9a2cc0f28fc1` |
+| Manifest SHA-256 | `e6d303a5edbb8d6815862470ca966084cf39a648bd11038bf5100aee0342c161` |
+| DLL SHA-256 | `89766acb62555f22cb2da81badf4f9c5cea92be27cfed517dd7a91eab89d9f3b` |
+| DLL MVID | `68c8af22-4d2d-48e3-99d7-18a21f235108` |
 | Accepted Chunk 5 payload, untouched | ZIP `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`, DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID `638259af-9d31-4738-be8a-2784135d4235` |
 
-This package is a private engineering candidate. It is not installed, not merged
-and not released, and the accepted preview.105 package is untouched. It is the
-payload that reached the blocker in `c6a-smoke-2`, which is why the ledger is
-bound to it; `c6a-smoke-1`, the run that found the harness defect, used the
-preceding `-final2` build of the same source, and the table below names both.
+This is a private engineering candidate. It is not installed, not merged and not
+released, and the accepted preview.105 installation is untouched.
 
 `Assert-KmcPackageManifest` requires a manifest to bind the exact current `HEAD`
 on a clean worktree, so every documentation commit after a build invalidates that
-build for runtime use and the owner must rebuild at the then-current head. That
-rebuild carries no risk, and this is **measured rather than claimed**: four
-qualified packages built at four different commits all produced the identical DLL,
+build for runtime use and the campaign payload must be rebuilt at the then-current
+head. That rebuild carries no risk for an unchanged `src/` tree, and on the
+reviewed preview.107 line it was **measured rather than claimed**: four qualified
+packages built at four different commits all produced the identical DLL
 `cac89e2037b898813925782e25d5e1b5c8ef8dc24bead2388abbb01b590c8366` / MVID
 `3739324f-ff40-4049-9a82-91667d8dbf24`, because nothing under `src/` changed
 between them.
 
-| Qualifier | Commit | ZIP SHA-256 |
+| preview.107 qualifier | Commit | ZIP SHA-256 |
 |---|---|---|
 | `-final` | `2d30822` | `fb6a8ab0fe336bddd75084d10e2e64284de6387aab0d5cf0bbefe6fe3a1b91f2` |
 | `-final2` | `f0f94fb` | `b4022902836ee1bfb914e3d9555e7f8220cbf86b279149bd6adb8763d337bea7` — the `c6a-smoke-1` payload |
-| `-final3` | `9f3a6f2` | `3d9f7c78c9cc894f4911bff992329105a63d97e69d7ef9c6e1b1ec6ce7d111e6` |
+| `-final3` | `9f3a6f2` | `3d9f7c78c9cc894f4911bff992329105a63d97e69d7ef9c6e1b1ec6ce7d111e6` — the `c6a-smoke-2` payload |
 | `-head` | `1d60100` | `699d64de0f26f0ef1e37119a00adbeae135fcfb9f418164e5da25d8f06b26e24` |
 
-The `-head` build exists only to establish that, and its manifest is
-`9c8514474dee22157ebe95677e9b4fd0f7c23f0d56c2e0f47164d8f643c3d5c9`. It is a
-determinism proof, not an evidence-bearing candidate: no scenario was run on it.
-Note that `9f3a6f2`, the harness repair, changed exactly one file —
-`scripts/runtime/Invoke-KingmakerRuntimeScenario.ps1` — which is why the
-DLL is unchanged across it.
+Those four are the reviewed line and are retained exactly as published. None of
+them carries the six repairs, so none may be used for a Chunk 6A campaign.
 
 ## Offline gates
 
-All re-measured on the published head, not carried forward: source contracts 46/0,
-components 511/0, persistence assembly/storage contracts 180/0, persistence data
-56/0, profile protection 53/0, owned fixtures 620/0, validation copies 118/0,
-harness 262/0, assembly-backed contracts 619/0, patch construction 30/0, package
-11/0, Phase 3F contracts 9/0, Chunk 5 ledger 106/0 with its completion gate still
-**PASS** on all 105 mandatory behaviors, Chunk 6A ledger record consistency 82/0
-and its completion gate **FAIL 82/82**, which is the truthful state. The whole
-`Test.ps1` umbrella exits 0 in 221 s.
+All re-measured on the remediated source, not carried forward: source contracts
+**62/0**, components **522/0**, persistence assembly/storage contracts 180/0,
+persistence data 56/0, profile protection 53/0, owned fixtures 620/0, validation
+copies 118/0, harness 262/0, assembly-backed contracts 619/0, patch construction
+30/0, package 11/0, Phase 3F contracts 9/0, registered starting installation
+**13/0**, Chunk 4 core 375/0, ground 61/0, obstruction 106/0, traversal 149/0,
+Chunk 5 ledger 106/0 with its completion gate still **PASS** on all 105 mandatory
+behaviors, and Chunk 6A ledger record consistency **85/0** with its completion gate
+**FAIL 85/85**, which is the truthful state. The whole `Test.ps1` umbrella exits 0
+in 227 s.
 
-One standing gate does fail, and it is not this work: as recorded under the
-blocker, `Test-Chunk2StartingInstallation.ps1` fails on the starting-payload
-registry because the owner's installation is preview.105. It is reported rather
-than adjusted.
+No standing gate fails. `Test-Chunk2StartingInstallation.ps1`, which failed on
+every run of the reviewed candidate because the owner's installation was
+unregistered, now passes 13 of 13 with its negative controls extended rather than
+relaxed.
 
 Every accepted protocol envelope is unchanged on this source, which is the
 regression signal that matters: ordinary controls 42/0, Chunk 4 play 123/0,
 Chunk 4 extended 382/0, Chunk 4 traversal 149/0, Chunk 4 Charge 460/0, actor
 allocation 82/0, paired restrictions 41/0, paired condition commands 67/0, paired
-death 32/0 and Mammoth paired 18/0 all match their pre-change counts exactly.
-The eighteen new assembly contracts pin the exact seams this design rests on:
+death 32/0, Phase 3G 20/0, Phase 3H 42/0 and Mammoth paired 18/0 all match their
+pre-change counts exactly.
+The eighteen assembly contracts pin the exact seams this design rests on:
 `TickCommand`, both `UpdateCooldowns` overloads, `HasMoveAction` with its two
 `Used*MoveAction` predicates, `Cooldowns.Clear`, `UnitCommand.get_IsActed` and
 `TickApproaching`, `AbilityData.get_IsAvailable` and `get_IsAvailableForCast`, and
 the roster observables `FindUnitInfo`, `ChooseNextUnit`, `StartRound`,
 `HandleCombatStart` and the three `TBUnitInfo` fields adoption reads.
 
-The source contracts added for Chunk 6A pin, by construction rather than by
-convention: that the pair candidate admits combat only through the explicit
-voluntary mode; that the relationship service keeps one voluntary combat path
-and defaults every other entry to exploration; that neither voluntary transition
-writes a native resource, forces a turn end or calls a preparation; that both
-are admitted and settled exactly once through the ledger; that the admission
-mode is decided from live combat state at execution; that forced detach is
-recorded as cleanup; that adoption never re-enters encounter start, candidate
-selection or a resource write and performs exactly one native preparation and
-only for a pending partner slot; that adoption refuses an unresolvable
-transition round before changing any state; that the admitted native shell
-suppresses only the stale rider Move-resource predicate; and that mounted Charge
-safety keeps every boundary unchanged.
+The source contracts pin, by construction rather than by convention: that the pair
+candidate admits combat only through the explicit voluntary mode; that the
+relationship service keeps one voluntary combat path and defaults every other entry
+to exploration; that neither voluntary transition writes a native resource, forces a
+turn end or calls a preparation; that both are admitted and settled exactly once
+through the ledger; that the admission mode is decided from live combat state at
+execution; that forced detach is recorded as cleanup; that adoption never re-enters
+encounter start, candidate selection or a resource write and performs exactly one
+native preparation and only for a pending partner slot; that adoption refuses an
+unresolvable transition round before changing any state; that the admitted native
+shell suppresses only the stale rider Move-resource predicate; and that mounted
+Charge safety keeps every boundary unchanged.
+
+The remediation adds thirteen more, one per repaired property: that a spent partner
+slot is ended and can never be addressed again on that boundary; that a retained
+partner creates no private native context and its closed allocation is observable;
+that the adoption plan is immutable, generation-bound and never records an
+unavailable disposition; that the lifecycle exposes plan, revalidate, commit and
+rollback separately; that the rollback removes only KMC bookkeeping and never writes
+or refunds a native resource; that a voluntary combat mount plans, revalidates,
+commits and only then adopts, compensating a refusal; that the compensating path
+returns the relationship to unmounted, reports failure and never refunds or rewinds
+the generation; that the lifecycle is bound exactly once as the single adoption
+authority; that the activation announcement never attempts adoption; that a
+turn-based transition requires an acting rider turn and names the preparing
+boundary; that a dismount delivery revalidates its captured target, its delivery
+target, its rider and its generation; that the save barrier defers on an unsettled
+relationship shell and on the transition ledger itself; and that the diagnostic
+adoption fault is bounded to one idle exact pair, consumed once, refuses before any
+state change, writes nothing, and is armed exactly once by this scenario.
 
 ## Native campaign: not executed
 
@@ -421,6 +520,19 @@ this work.
 9. Save and reload while mounted in combat, then again after dismounting.
    Confirm the pair, both actors' spent actions and the turn order come back
    exactly once, with no repeated Mount animation and no refunded actions.
+10. Mount when the companion's initiative slot has **already passed** this round
+    (its turn came before the rider's). Confirm the mount succeeds, then confirm
+    the companion is not selectable as the pair's actor and the pair cannot move
+    for the remainder of that turn: the companion's turn this round is over, and
+    the rider has just spent its Move. Confirm ordinary paired movement returns
+    at the next round.
+11. Watch the moment the rider's turn begins. While the turn panel is still
+    settling — before the rider can act — confirm Mount Companion is disabled and
+    its tooltip says the transition waits until the rider's turn has finished
+    preparing, and that it becomes enabled once the turn is actually acting.
+12. Mount, dismount and mount again across several rounds in one encounter, then
+    save, quit to the main menu, relaunch and load. Confirm both actors' spent
+    actions, the pair and the turn order come back exactly once.
 
 ## Remaining scope, with the 6B handoff
 
