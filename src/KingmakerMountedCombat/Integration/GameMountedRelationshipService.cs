@@ -80,6 +80,25 @@ namespace KingmakerMountedCombat.Integration
 
         internal event Action<UnitEntityData, UnitEntityData> MountedPairActivated;
 
+        // The paired lifecycle's half of the one combat-mount transaction.
+        // Relationship attachment and encounter adoption either both succeed or
+        // neither stands, so the authority is bound explicitly rather than reached
+        // through the activation event, whose result cannot be acted on.
+        private IMidEncounterAdoptionAuthority adoptionAuthority;
+
+        internal long AdoptionCompensatedMountCount { get; private set; }
+
+        internal string LastAdoptionTransactionObservation { get; private set; } = "not-requested";
+
+        internal void BindMidEncounterAdoptionAuthority(IMidEncounterAdoptionAuthority authority)
+        {
+            if (adoptionAuthority != null || authority == null)
+            {
+                throw new InvalidOperationException("Exactly one mid-encounter adoption authority is bound once.");
+            }
+            adoptionAuthority = authority;
+        }
+
         public TransitionResult MountSelectedRider()
         {
             ThrowIfDisposed();
@@ -171,13 +190,55 @@ namespace KingmakerMountedCombat.Integration
                     new[] { "An exact rider and supported active companion are required." }, false, false));
             }
 
+            // One transaction. A voluntary combat Mount plans its encounter
+            // adoption from exact live state BEFORE the relationship is committed,
+            // so an unresolvable transition round refuses the whole operation with
+            // nothing to undo.
+            MidEncounterAdoptionPlan adoptionPlan = null;
+            if (admission == MountedRelationshipAdmission.VoluntaryCombat && adoptionAuthority != null)
+            {
+                string planRefusal;
+                if (!adoptionAuthority.TryPlanMidEncounterAdoption(rider, mount, out adoptionPlan, out planRefusal))
+                {
+                    LastAdoptionTransactionObservation = "plan-refused;reason=" + planRefusal;
+                    return Record(new TransitionResult(false, coordinator.State, null,
+                        new[] { planRefusal }, false, false));
+                }
+            }
+
             runtime.Prepare(rider, mount);
+
+            // Revalidated immediately before the commit, field by field, against
+            // freshly observed state.
+            if (adoptionPlan != null)
+            {
+                string revalidationRefusal;
+                if (!adoptionAuthority.RevalidateMidEncounterAdoptionPlan(
+                        adoptionPlan, rider, mount, out revalidationRefusal))
+                {
+                    runtime.ClearPreparedPairWhenUnmounted();
+                    LastAdoptionTransactionObservation = "revalidation-refused;reason=" + revalidationRefusal;
+                    return Record(new TransitionResult(false, coordinator.State, null,
+                        new[] { revalidationRefusal }, false, false));
+                }
+            }
+
             var result = coordinator.Mount(runtime.CreateCandidate(), admission);
             ObserveCleanupState(result);
             if (result.Succeeded)
             {
                 mountedPairGeneration = checked(mountedPairGeneration + 1);
                 ResetNativeTurnBasedExitAiLeaseEvidence();
+                if (adoptionPlan != null)
+                {
+                    var committedPlan = adoptionPlan.WithCommittedGeneration(mountedPairGeneration);
+                    var adoptionRefusal = adoptionAuthority.AdoptRunningEncounter(committedPlan, rider, mount);
+                    if (adoptionRefusal != null)
+                    {
+                        return Record(CompensateRefusedAdoption(adoptionRefusal, committedPlan));
+                    }
+                    LastAdoptionTransactionObservation = "committed;" + committedPlan.Describe();
+                }
                 MountedPairActivated?.Invoke(rider, mount);
             }
             if (!result.Succeeded)
@@ -185,6 +246,41 @@ namespace KingmakerMountedCombat.Integration
                 runtime.ClearPreparedPairWhenUnmounted();
             }
             return Record(result);
+        }
+
+        // The relationship attached but its encounter adoption was refused, so the
+        // attachment must not stand. This returns the relationship to Unmounted,
+        // removes every KMC-owned residue and reports the transition as FAILED
+        // rather than Mounted.
+        //
+        // What it deliberately does not do: it writes no native resource, calls no
+        // native preparation or turn end, and refunds nothing. A native Move that
+        // Kingmaker already committed for the approach stays spent, which is the
+        // truthful outcome; and the mounted-pair generation stays advanced, which is
+        // what retires every native shell bound to the old relationship so the
+        // failed control cannot be delivered again.
+        private TransitionResult CompensateRefusedAdoption(string refusal, MidEncounterAdoptionPlan plan)
+        {
+            AdoptionCompensatedMountCount++;
+            adoptionAuthority.RollbackMidEncounterAdoption(refusal);
+            var compensation = coordinator.Dismount(CleanupTrigger.AdoptionRefused);
+            ObserveCleanupState(compensation);
+            runtime.ClearPreparedPairWhenUnmounted();
+            var residue = compensation.MovementAuthorityResidual || compensation.PresentationResidual;
+            LastAdoptionTransactionObservation = "compensated;reason=" + refusal +
+                ";relationship=" + coordinator.State +
+                ";movementResidual=" + compensation.MovementAuthorityResidual +
+                ";presentationResidual=" + compensation.PresentationResidual +
+                ";generation=" + mountedPairGeneration + ";plan={" + plan.Describe() + "}";
+            logger.Error("Voluntary combat mount compensated: " + LastAdoptionTransactionObservation);
+            var errors = new List<string> { refusal };
+            if (!compensation.Succeeded || residue)
+            {
+                errors.Add("Compensating cleanup did not fully release the mounted relationship.");
+                errors.AddRange(compensation.Errors);
+            }
+            return new TransitionResult(false, coordinator.State, CleanupTrigger.AdoptionRefused, errors,
+                compensation.MovementAuthorityResidual, compensation.PresentationResidual);
         }
 
         public bool TryResolveAutomationPair(out UnitEntityData rider, out UnitEntityData mount, out string error)

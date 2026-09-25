@@ -200,8 +200,9 @@ Assert-Kmc ($playerActionText -match 'trigger == CleanupTrigger\.Manual' -and
     $playerActionText -match 'transitionLedger\.RecordForcedDetach\(') `
     'forced detach is recorded as cleanup and never books a voluntary cost'
 
-# Mid-encounter adoption: no principal preparation, no encounter-start re-entry.
-$adoptBody = [Regex]::Match($adoptionText, '(?s)internal string AdoptRunningEncounter\(UnitEntityData rider, UnitEntityData mount\).*?\n        \}\r?\n')
+# Mid-encounter adoption: no principal preparation, no encounter-start re-entry,
+# and the commit runs only with the immutable plan taken at admission.
+$adoptBody = [Regex]::Match($adoptionText, '(?s)internal string AdoptRunningEncounter\(\s*\r?\n?\s*MidEncounterAdoptionPlan plan, UnitEntityData rider, UnitEntityData mount\).*?\n        \}\r?\n')
 Assert-Kmc ($adoptBody.Success -and
     $adoptBody.Value -notmatch 'JoinCombat|ChooseNextUnit|StartTurn|HandleCombatStart|BeginNativeEncounter|OnNewRound|NativeEnd|ForceToEnd' -and
     $adoptBody.Value -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative)\s*=') `
@@ -218,6 +219,77 @@ Assert-Kmc ($adoptionText -match 'internal MidEncounterAdoption ResolveMidEncoun
     $adoptionText -match 'private bool CanReplaceActivationForAdoption\(\)') `
     'the adoption disposition is resolvable without side effects and a split pair is not layered over'
 
+# R1: a partner whose native slot in this round is already behind the running turn
+# is granted, prepared AND ENDED, so an allocation it has already taken can never
+# become addressable again on the principal's adopted boundary.
+$pairedActivationText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\PairedActivation.cs')
+$retainBody = [Regex]::Match($pairedActivationText, '(?s)if \(partner == MidEncounterAdoption\.RetainPartnerParticipation\)\s*\r?\n\s*\{.*?\n            \}')
+Assert-Kmc ($retainBody.Success -and
+    $retainBody.Value -match 'Mount\.Granted = true;' -and
+    $retainBody.Value -match 'Mount\.Prepared = true;' -and
+    $retainBody.Value -match 'Mount\.Ended = true;' -and
+    $pairedActivationText -match 'public bool CanAddress\(TActor actor, TBoundary boundary\)[\s\S]{0,200}!State\(actor\)\.Ended') `
+    'a spent partner slot is ended at adoption and can never be addressed again on that boundary'
+Assert-Kmc ($adoptBody.Success -and
+    $adoptBody.Value -match 'A retained partner cannot own a private native turn context\.' -and
+    $adoptBody.Value -match 'spent allocation was not closed\.' -and
+    $adoptBody.Value -match ';partnerEnded=' -and
+    $adoptBody.Value -match ';partnerAddressable=') `
+    'a retained partner creates no private native context and its closed allocation is observable'
+
+# R2: relationship attachment and encounter adoption are ONE transaction. The plan
+# is typed, immutable and generation-bound; it is revalidated immediately before
+# the commit; and a refused commit compensates the attachment instead of leaving a
+# mounted relationship with no valid paired activation.
+$planText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MidEncounterAdoptionPlan.cs')
+Assert-Kmc ($planText -match 'public sealed class MidEncounterAdoptionPlan' -and
+    $planText -notmatch 'get;\s*(internal |private |)set;' -and
+    $planText -match 'disposition == MidEncounterAdoption\.Unavailable[\s\S]{0,200}never a plan' -and
+    $planText -match 'public bool Matches\(MidEncounterAdoptionPlan other\)' -and
+    $planText -match 'public MidEncounterAdoptionPlan WithCommittedGeneration\(long committedGeneration\)' -and
+    $planText -match 'committedGeneration != RelationshipGeneration \+ 1') `
+    'the adoption plan is immutable, generation-bound and never records an unavailable disposition'
+Assert-Kmc ($adoptionText -match 'internal bool TryPlanMidEncounterAdoption\(' -and
+    $adoptionText -match 'internal bool RevalidateMidEncounterAdoptionPlan\(' -and
+    $adoptionText -match 'internal void RollbackMidEncounterAdoption\(string reason\)' -and
+    $adoptionText -match 'private MidEncounterAdoption ObserveMidEncounterAdoption\(') `
+    'the paired lifecycle exposes plan, revalidate, commit and rollback as separate operations'
+$rollbackBody = [Regex]::Match($adoptionText, '(?s)internal void RollbackMidEncounterAdoption\(string reason\).*?\n        \}\r?\n')
+Assert-Kmc ($rollbackBody.Success -and
+    $rollbackBody.Value -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative|AttackOfOpportunity)\s*=' -and
+    $rollbackBody.Value -notmatch '\.Prepare\(\)|NativeEnd|ForceToEnd|JoinCombat|StartTurn|OnNewRound|SetIsActed' -and
+    $rollbackBody.Value -match 'activation = null;' -and
+    $rollbackBody.Value -match 'DisposePartnerContext\(\);' -and
+    $rollbackBody.Value -match 'nativePreparationCommands\.Clear\(\);') `
+    'the adoption rollback removes only KMC bookkeeping and never writes or refunds a native resource'
+$mountRiderBody = [Regex]::Match($relationshipServiceText, '(?s)public TransitionResult MountRiderOn\(\s*\r?\n?\s*UnitEntityData rider, UnitEntityData mount, MountedRelationshipAdmission admission\).*?\n        \}\r?\n')
+$planIndex = $mountRiderBody.Value.IndexOf('TryPlanMidEncounterAdoption')
+$revalidateIndex = $mountRiderBody.Value.IndexOf('RevalidateMidEncounterAdoptionPlan')
+$commitIndex = $mountRiderBody.Value.IndexOf('coordinator.Mount(runtime.CreateCandidate(), admission)')
+$adoptIndex = $mountRiderBody.Value.IndexOf('AdoptRunningEncounter(committedPlan, rider, mount)')
+Assert-Kmc ($mountRiderBody.Success -and $planIndex -ge 0 -and $revalidateIndex -gt $planIndex -and
+    $commitIndex -gt $revalidateIndex -and $adoptIndex -gt $commitIndex -and
+    $mountRiderBody.Value -match 'CompensateRefusedAdoption\(adoptionRefusal, committedPlan\)') `
+    'a voluntary combat mount plans, revalidates, commits and only then adopts, compensating a refusal'
+$compensateBody = [Regex]::Match($relationshipServiceText, '(?s)private TransitionResult CompensateRefusedAdoption\(string refusal, MidEncounterAdoptionPlan plan\).*?\n        \}\r?\n')
+Assert-Kmc ($compensateBody.Success -and
+    $compensateBody.Value -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative|AttackOfOpportunity)\s*=' -and
+    $compensateBody.Value -notmatch 'mountedPairGeneration\s*(=|--)' -and
+    $compensateBody.Value -match 'RollbackMidEncounterAdoption\(refusal\)' -and
+    $compensateBody.Value -match 'coordinator\.Dismount\(CleanupTrigger\.AdoptionRefused\)' -and
+    $compensateBody.Value -match 'new TransitionResult\(false,') `
+    'the compensating path returns the relationship to unmounted, reports failure and never refunds or rewinds the generation'
+$coordinatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\UnifiedMountedTurnCoordinator.cs')
+Assert-Kmc ($coordinatorText -match 'IDisposable, IMidEncounterAdoptionAuthority' -and
+    $coordinatorText -match 'relationship\.BindMidEncounterAdoptionAuthority\(this\);' -and
+    $relationshipServiceText -match 'if \(adoptionAuthority != null \|\| authority == null\)') `
+    'the paired lifecycle is bound exactly once as the single mid-encounter adoption authority'
+$activatedBody = [Regex]::Match($coordinatorText, '(?s)private void HandleMountedPairActivated\(UnitEntityData rider, UnitEntityData mount\).*?\n        \}\r?\n')
+Assert-Kmc ($activatedBody.Success -and
+    $activatedBody.Value -notmatch 'AdoptRunningEncounter' -and
+    $activatedBody.Value -match 'adoption-invariant-violated') `
+    'the activation announcement never attempts adoption and only checks the transaction invariant'
+
 # The admitted-shell bypass stays scoped to the stale Move-resource predicate.
 $evaluatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs')
 Assert-Kmc (([Regex]::Matches($evaluatorText, 'NativeMoveActionShellAdmitted').Count -eq 3) -and
@@ -227,6 +299,48 @@ Assert-Kmc ($evaluatorText -match 'context\.InCombat && !context\.PairedAdoption
     $evaluatorText -match 'context\.RelationshipTransitionInFlight' -and
     $evaluatorText -notmatch 'available only outside combat in this preview') `
     'combat Mount availability reports the paired disposition and in-flight gates instead of a blanket refusal'
+
+# R3: a turn-based relationship transition requires the rider's turn to be ACTING.
+# Preparing is refused with its own message rather than retained on an assumption.
+Assert-Kmc ($evaluatorText -match 'public static bool IsTurnEligible\(\s*\r?\n\s*bool turnBasedCombat,\s*\r?\n\s*bool currentTurnIsExactRider,\s*\r?\n\s*bool turnActing\)' -and
+    $evaluatorText -match 'return !turnBasedCombat \|\| currentTurnIsExactRider && turnActing;' -and
+    $evaluatorText -match 'public static string DescribeTurnIneligibility\(' -and
+    $evaluatorText -match 'if \(turnPreparing\)[\s\S]{0,160}finished preparing') `
+    'a turn-based relationship transition requires an acting rider turn and names the preparing boundary'
+Assert-Kmc ($playerActionText -match 'CombatMountDismountPolicy\.IsTurnEligible\(\s*\r?\n?\s*turnBased, currentTurnIsExactRider, turnActing\);' -and
+    $playerActionText -match 'context\.CombatTurnIneligibilityReason = CombatMountDismountPolicy\.DescribeTurnIneligibility\(' -and
+    $evaluatorText -match 'context\.CombatTurnIneligibilityReason') `
+    'the controller decides turn eligibility from acting alone and surfaces the exact reason'
+
+# R4: a Dismount shell must prove that its captured target and its delivery target
+# are both the exact caster, and that the caster is still the live rider.
+$resolveShellBody = [Regex]::Match($nativeControlsText, '(?s)private NativeRelationshipShell ResolveDeliveringShell\(.*?\n        \}\r?\n')
+$dismountPolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\DismountTargetIdentityPolicy.cs')
+Assert-Kmc ($resolveShellBody.Success -and
+    $resolveShellBody.Value -match 'kind == NativeMountedControlKind\.Dismount' -and
+    $resolveShellBody.Value -match 'DismountTargetIdentityPolicy\.Refuse\(' -and
+    $resolveShellBody.Value -match 'target != null,' -and
+    $resolveShellBody.Value -match 'target != null && ReferenceEquals\(target, caster\),' -and
+    $resolveShellBody.Value -match 'shell\.TargetId,' -and
+    $resolveShellBody.Value -match 'caster\.UniqueId,' -and
+    $resolveShellBody.Value -match 'liveRider != null && ReferenceEquals\(liveRider, caster\),' -and
+    $resolveShellBody.Value -match 'shell\.GenerationAtInit,' -and
+    $resolveShellBody.Value -match 'shell\.GenerationAtInit != relationship\.MountedPairGeneration' -and
+    $dismountPolicyText -match 'must target its own rider' -and
+    $dismountPolicyText -match 'created for a different rider' -and
+    $dismountPolicyText -match 'rider changed after this dismount' -and
+    $dismountPolicyText -match 'shellGenerationAtInit != currentRelationshipGeneration') `
+    'a dismount delivery revalidates its captured target, its delivery target, its rider and its generation'
+
+# R5: the save barrier queries the relationship transition state exactly instead of
+# the documentation asserting that command settlement alone is sufficient.
+$deferredSaveText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedDeferredSave.cs')
+Assert-Kmc ($deferredSaveText -match 'internal bool SaveEffectsReady\(\)[\s\S]{0,2000}!controls\.HasUnsettledRelationshipTransition' -and
+    $deferredSaveText -match 'Any\(controls\.OwnsUnsettledRelationshipShell\)' -and
+    $nativeControlsText -match 'internal bool OwnsUnsettledRelationshipShell\(UnitCommand command\)' -and
+    $nativeControlsText -match 'internal bool HasUnsettledRelationshipTransition => playerAction\.HasVoluntaryTransitionInFlight;' -and
+    $nativeControlsText -match 'ability == null \|\| ability\.IsFinished') `
+    'the save barrier defers on an unsettled relationship shell and on the transition ledger itself'
 
 # Every relationship shell binds its own caster, target and generation.
 Assert-Kmc ($nativeControlsText -match 'private sealed class NativeRelationshipShell' -and
@@ -256,6 +370,32 @@ Assert-Kmc ($chunk6aScenarioText -match 'TryNativeAbilityTargetClick\(\s*\r?\n?\
 Assert-Kmc ($chunk6aScenarioText -match 'if \(!settings\.EnablePairedActivation \|\| settings\.EnableUnifiedMountedTurn \|\|' -and
     $chunk6aScenarioText -match 'settings\.EnableDiagnosticOverlay \|\|\s*\r?\n?\s*playerAction\.OverlayPresent') `
     'the Chunk 6A scenario refuses to run outside the accepted single paired authority and without the overlay off'
+
+# The diagnostic adoption fault exists only to make the compensating path
+# observable in the running game. It must stay bounded, owned and incapable of
+# widening anything: one at a time, only on an idle unmounted pair, bound to two
+# exact distinct actor identities, consumed once, and writing nothing.
+$armFaultBody = [Regex]::Match($adoptionText, '(?s)internal IDisposable ArmMidEncounterAdoptionFault\(UnitEntityData rider, UnitEntityData mount\).*?\n        \}\r?\n')
+$consumeFaultBody = [Regex]::Match($adoptionText, '(?s)private string ConsumeAdoptionFault\(UnitEntityData rider, UnitEntityData mount\).*?\n        \}\r?\n')
+Assert-Kmc ($armFaultBody.Success -and $consumeFaultBody.Success -and
+    $armFaultBody.Value -match '!PairedLifecycleEnabled' -and
+    $armFaultBody.Value -match 'relationship\.State != RelationshipState\.Unmounted \|\| activation != null \|\| partnerContext != null' -and
+    $armFaultBody.Value -match 'ReferenceEquals\(rider, mount\)' -and
+    $armFaultBody.Value -match 'adoptionFault != null' -and
+    $armFaultBody.Value -notmatch 'Cooldown\.|\.Prepare\(\)|ForceToEnd|NativeEnd|StartTurn|JoinCombat' -and
+    $consumeFaultBody.Value -match 'fault\.Consumed' -and
+    $consumeFaultBody.Value -match 'fault\.Consumed = true;' -and
+    $consumeFaultBody.Value -notmatch 'Cooldown\.|\.Prepare\(\)|ForceToEnd|NativeEnd|StartTurn|JoinCombat') `
+    'the diagnostic adoption fault is bounded to one idle exact pair, consumed once and writes nothing'
+Assert-Kmc ($adoptBody.Success -and
+    $adoptBody.Value -match '(?s)var injected = ConsumeAdoptionFault\(rider, mount\);[\s\S]{0,120}return injected;[\s\S]{0,400}plan\.RelationshipGeneration != relationship\.MountedPairGeneration') `
+    'an injected adoption fault refuses before any state change and before the partner preparation'
+Assert-Kmc ($chunk6aScenarioText -match 'private void Chunk6aDisposeAdoptionFault\(\)' -and
+    ([Regex]::Matches($chunk6aScenarioText, 'ArmMidEncounterAdoptionFault\(').Count -eq 1) -and
+    $chunk6aScenarioText -match 'CM02-adoption-plan-invalidated' -and
+    $chunk6aScenarioText -match 'CM01-combat-mount-preparing-refused' -and
+    (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs')) -match 'Chunk6aDisposeAdoptionFault\(\); \}') `
+    'the Chunk 6A scenario arms the adoption fault exactly once and disarms it on every cleanup path'
 
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')

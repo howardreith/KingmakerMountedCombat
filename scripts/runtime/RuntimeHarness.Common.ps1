@@ -3750,6 +3750,8 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-after-early-end',
         'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
+        'CM01-combat-mount-preparing-refused',
+        'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
         'CM03-combat-mount-conserves-debt', 'CM03-combat-mount-adoption-preparations',
         'CM06-combat-mount-repeat-refused', 'CM05-combat-dismount-accepted',
         'CM05-combat-dismount-conserves-debt', 'CM05-no-duplicate-mount-turn',
@@ -5736,9 +5738,15 @@ function Assert-KmcChunk6aCombatMountEvidence {
     $required = @(
         'CM01-exploration-dismount-costs-nothing',
         'CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-accepted',
+        'CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases',
         'CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations',
         'CM06-combat-mount-repeat-refused','CM05-combat-dismount-accepted',
         'CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')
+    if ($turnBased) {
+        # The Preparing boundary exists only in turn-based combat, so its proof row
+        # is required there and must be absent in real time.
+        $required += 'CM01-combat-mount-preparing-refused'
+    }
     $rowNames = @(@($Artifact.rows) | ForEach-Object { [string]$_.name })
     foreach ($name in $rowNames) {
         if ($name -cnotin (Get-KmcPhase3dHorseRuntimeRows)) {

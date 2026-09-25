@@ -221,6 +221,33 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // R5: the save barrier's exact relationship-transition term.
+        //
+        // A registered Mount/Dismount shell that has not finished defers a save
+        // whether it is queued, approaching or delivering. This is strictly more
+        // than NativeSaveEffectBoundary.CommandNeedsSettlement covers, because that
+        // predicate requires the command to be RUNNING and so would let a queued but
+        // unstarted relationship shell through.
+        internal bool OwnsUnsettledRelationshipShell(UnitCommand command)
+        {
+            var ability = command as UnitUseAbility;
+            if (ability == null || ability.IsFinished) { return false; }
+            NativeRelationshipShell shell;
+            return relationshipShells.TryGetValue(ability, out shell) && shell != null;
+        }
+
+        // The transition ledger's own in-flight window: between admission and
+        // settlement the relationship is being mutated, so a save must not snapshot
+        // it. The window is entirely inside one synchronous game-thread call, so this
+        // term is a guard that fails closed rather than one a frame boundary is
+        // expected to observe; it is queried instead of argued away.
+        internal bool HasUnsettledRelationshipTransition => playerAction.HasVoluntaryTransitionInFlight;
+
+        internal string DescribeRelationshipTransitionSettlement() =>
+            "ledgerInFlight=" + playerAction.HasVoluntaryTransitionInFlight +
+            ";inFlightControl=" + (playerAction.TransitionLedger.InFlightControlIdentity ?? "<none>") +
+            ";registeredShells=" + NativeRelationshipShellCount;
+
         // The exact shell whose delivery is running: the caster's own native Move
         // slot. A relationship control that cannot find its own shell there is not
         // delivering its own admitted command and is refused.
@@ -245,6 +272,29 @@ namespace KingmakerMountedCombat.Integration
             {
                 refusal = "The mounted transition target changed after its native command was created.";
                 return null;
+            }
+            if (kind == NativeMountedControlKind.Dismount)
+            {
+                // A Dismount targets the rider itself. Both the target recorded at
+                // the command's own Init boundary and the target being delivered now
+                // must still be that exact caster, and that caster must still be the
+                // exact rider of the live relationship. The decision itself lives in
+                // DismountTargetIdentityPolicy so each rejected condition — missing,
+                // foreign, changed, changed-rider and stale-generation — is testable.
+                var liveRider = relationship.Rider;
+                refusal = DismountTargetIdentityPolicy.Refuse(
+                    target != null,
+                    target != null && ReferenceEquals(target, caster),
+                    shell.TargetId,
+                    caster.UniqueId,
+                    liveRider != null,
+                    liveRider != null && ReferenceEquals(liveRider, caster),
+                    shell.GenerationAtInit,
+                    relationship.MountedPairGeneration);
+                if (refusal != null)
+                {
+                    return null;
+                }
             }
             if (shell.GenerationAtInit != relationship.MountedPairGeneration)
             {

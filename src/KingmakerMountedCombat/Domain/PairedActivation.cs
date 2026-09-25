@@ -122,12 +122,24 @@ namespace KingmakerMountedCombat.Domain
             Mount = new ActorState { Actor = Partner };
             if (partner == MidEncounterAdoption.RetainPartnerParticipation)
             {
-                // The partner already spent its own native slot in this round.
-                // Its grant is recorded as prepared so the pair may still address
-                // whatever native capacity it genuinely has left, and no native
-                // preparation runs for it.
+                // The partner's own native slot in this round is already behind
+                // the principal's running turn, so its participation in this
+                // allocation is over. It is recorded as granted, prepared AND
+                // ENDED: granted and prepared because its native slot really did
+                // happen, ended because an allocation it has already taken must
+                // not become addressable again on the principal's boundary.
+                //
+                // Ended closes CanAddress, and with it partner selection, paired
+                // native command admission and paired movement, while leaving
+                // OwnsRoundEffects true so native timers due at this boundary
+                // still belong to it. Its observed native Standard, Move and
+                // Swift debt is recorded by the caller's own observation and is
+                // never cleared here; no native cooldown is written at all. The
+                // partner becomes eligible again only through Kingmaker's next
+                // lawful allocation, which is its own slot in a later round.
                 Mount.Granted = true;
                 Mount.Prepared = true;
+                Mount.Ended = true;
             }
             return true;
         }

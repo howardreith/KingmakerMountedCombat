@@ -1,6 +1,6 @@
 # BLOCKED: Chunk 6A native qualification needs the owner's current installation registered as a starting payload - 2026-09-25 UTC
 
-**This is the one open Chunk 6A blocker.** Every other authorized Chunk 6A item is done: the action contract is frozen, the implementation is complete, the runtime scenarios and the acceptance ledger exist, and every offline gate passes.
+**This is the one open Chunk 6A blocker.** Status is IMPLEMENTATION CANDIDATE - NATIVE QUALIFICATION BLOCKED: the action contract is frozen, the implementation is built and gated offline, the runtime scenarios and the 82-id acceptance ledger exist, and every offline gate passes. That is not completion. The completion ledger stands at 0 of 82 mandatory behaviors PASS, so no part of Chunk 6A may be called complete or accepted.
 
 **What the gate needs.** A save-backed runtime scenario requires a qualification-suite snapshot. `scripts/runtime/New-KmcQualificationSuiteSnapshot.ps1` refuses to create one and throws `Existing KMC tree differs from the exact registered starting payload.` from `scripts/runtime/QualificationSuiteContinuity.ps1:63`.
 

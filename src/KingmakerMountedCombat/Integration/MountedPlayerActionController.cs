@@ -696,11 +696,15 @@ namespace KingmakerMountedCombat.Integration
             context.InCombat = rider.IsInCombat || (mount?.IsInCombat ?? false) || game.Player.IsInCombat;
             var turnBased = CombatController.IsInTurnBasedCombat();
             var turn = game.TurnBasedCombatController?.CurrentTurn;
+            var currentTurnIsExactRider = turn?.Unit == rider;
+            var turnPreparing = turn != null && turn.Status == TurnController.TurnStatus.Preparing;
+            var turnActing = turn != null && turn.IsActing;
             context.CombatTurnEligible = CombatMountDismountPolicy.IsTurnEligible(
-                turnBased,
-                turn?.Unit == rider,
-                turn != null && turn.Status == TurnController.TurnStatus.Preparing,
-                turn != null && turn.IsActing);
+                turnBased, currentTurnIsExactRider, turnActing);
+            context.CombatTurnIneligibilityReason = CombatMountDismountPolicy.DescribeTurnIneligibility(
+                state == RelationshipState.Mounted || state == RelationshipState.Faulted
+                    ? "Dismount" : "Mount Companion",
+                turnBased, currentTurnIsExactRider, turnPreparing, turnActing);
             context.RiderHasMoveAction = rider.HasMoveAction();
             if (context.InCombat && state == RelationshipState.Unmounted && mount != null)
             {

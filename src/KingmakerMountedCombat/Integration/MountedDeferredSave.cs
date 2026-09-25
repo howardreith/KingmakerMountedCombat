@@ -55,9 +55,19 @@ namespace KingmakerMountedCombat.Integration
             // Movement/approach intent is transient; its position and accrued
             // native debt are captured at the real header barrier. A running
             // action or undelivered projectile must first resolve natively.
+            //
+            // The two relationship-transition terms are exact queries, not an
+            // argument from game-thread atomicity: an unsettled Mount/Dismount shell
+            // defers the save even while it is only queued, and the transition
+            // ledger's own admit-to-settle window defers it as well. Together they
+            // make the documented claim true by construction rather than by
+            // reasoning about when a frame boundary can be observed.
             return !unifiedTurn.HasUnsettledPreparation &&
+                !controls.HasUnsettledRelationshipTransition &&
                 !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
                     .Any(NativeSaveEffectBoundary.CommandNeedsSettlement)) &&
+                !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
+                    .Any(controls.OwnsUnsettledRelationshipShell)) &&
                 !NativeSaveEffectBoundary.HasUnresolvedProjectiles() &&
                 !NativeSaveEffectBoundary.HasUnresolvedAbilities();
         }

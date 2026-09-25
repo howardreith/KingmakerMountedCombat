@@ -102,12 +102,86 @@ namespace KingmakerMountedCombat.Integration
 
         internal long MidEncounterAdoptionCount { get; private set; }
 
+        internal long AdoptionPlanCount { get; private set; }
+
+        internal long AdoptionRevalidationFailureCount { get; private set; }
+
+        internal long AdoptionRollbackCount { get; private set; }
+
         internal string LastAdoptionObservation { get; private set; } = "not-requested";
+
+        internal string LastAdoptionPlanObservation { get; private set; } = "not-planned";
 
         // Side-effect-free: usable from availability and from admission.
         internal MidEncounterAdoption ResolveMidEncounterAdoption(
             UnitEntityData rider, UnitEntityData mount, out string refusal)
         {
+            MidEncounterAdoptionPlan ignored;
+            return ObserveMidEncounterAdoption(rider, mount, out ignored, out refusal);
+        }
+
+        // Relationship attachment and encounter adoption must be one transaction,
+        // so the admission path takes an immutable generation-bound plan here,
+        // revalidates it immediately before the relationship commit, and carries it
+        // into the commit. Returns false only when a required adoption cannot be
+        // planned; when the paired lifecycle is not enabled there is nothing to
+        // adopt and the plan is null.
+        internal bool TryPlanMidEncounterAdoption(
+            UnitEntityData rider, UnitEntityData mount, out MidEncounterAdoptionPlan plan, out string refusal)
+        {
+            plan = null;
+            refusal = null;
+            if (!PairedLifecycleEnabled) return true;
+            var disposition = ObserveMidEncounterAdoption(rider, mount, out plan, out refusal);
+            if (disposition == MidEncounterAdoption.Unavailable || plan == null)
+            {
+                if (string.IsNullOrWhiteSpace(refusal))
+                {
+                    refusal = "The mounted pair cannot take over this encounter's activation yet.";
+                }
+                plan = null;
+                return false;
+            }
+            AdoptionPlanCount++;
+            LastAdoptionPlanObservation = "planned;" + plan.Describe();
+            return true;
+        }
+
+        // Exact revalidation: the live encounter is observed again and compared
+        // field by field. Any difference refuses the transition before the
+        // relationship is committed, so nothing has to be compensated.
+        internal bool RevalidateMidEncounterAdoptionPlan(
+            MidEncounterAdoptionPlan plan, UnitEntityData rider, UnitEntityData mount, out string refusal)
+        {
+            refusal = null;
+            if (plan == null) return true;
+            MidEncounterAdoptionPlan current;
+            string observationRefusal;
+            ObserveMidEncounterAdoption(rider, mount, out current, out observationRefusal);
+            if (current == null || !plan.Matches(current))
+            {
+                AdoptionRevalidationFailureCount++;
+                var difference = plan.DescribeDifference(current) ?? observationRefusal ?? "the encounter changed";
+                refusal = "The encounter changed before this mount could be completed: " + difference + ".";
+                LastAdoptionPlanObservation = "revalidation-failed;" + refusal + ";planned={" + plan.Describe() +
+                    "};observed={" + (current == null ? "<none>" : current.Describe()) + "}";
+                return false;
+            }
+            if (!plan.EncounterStillLive)
+            {
+                AdoptionRevalidationFailureCount++;
+                refusal = "The encounter ended before this mount could be completed.";
+                LastAdoptionPlanObservation = "revalidation-failed;" + refusal;
+                return false;
+            }
+            LastAdoptionPlanObservation = "revalidated;" + plan.Describe();
+            return true;
+        }
+
+        private MidEncounterAdoption ObserveMidEncounterAdoption(
+            UnitEntityData rider, UnitEntityData mount, out MidEncounterAdoptionPlan plan, out string refusal)
+        {
+            plan = null;
             refusal = null;
             if (!PairedLifecycleEnabled)
             {
@@ -169,7 +243,34 @@ namespace KingmakerMountedCombat.Integration
                 refusal = MidEncounterAdoptionPolicy.DescribeUnavailable(
                               turnBased, currentTurnIsExactRider, riderIndex, mountIndex) ??
                           "The mounted pair cannot take over this encounter's activation yet.";
+                return disposition;
             }
+
+            // Every observation above is recorded so a change between admission
+            // and delivery is detected by exact comparison. Building the plan
+            // writes nothing and reserves nothing.
+            var game = Game.Instance;
+            plan = new MidEncounterAdoptionPlan(
+                disposition,
+                relationship.MountedPairGeneration,
+                game?.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                rider.UniqueId,
+                mount.UniqueId,
+                turnBased,
+                controller?.RoundNumber ?? -1,
+                turn?.Unit?.UniqueId,
+                riderIndex,
+                mountIndex,
+                surprised,
+                actingInSurpriseRound,
+                mount.IsVisibleForPlayer,
+                rider.IsInCombat,
+                mount.IsInCombat,
+                game?.Player?.IsInCombat ?? false,
+                rider.IsAbleToAct(),
+                mount.IsAbleToAct(),
+                rider.Descriptor?.State?.IsConscious ?? false,
+                mount.Descriptor?.State?.IsConscious ?? false);
             return disposition;
         }
 
@@ -190,8 +291,42 @@ namespace KingmakerMountedCombat.Integration
         // JoinCombat, and no preparation for the principal. The partner's single
         // native preparation runs only for the PreparePartnerThisRound
         // disposition, whose own later slot is then suppressed.
-        internal string AdoptRunningEncounter(UnitEntityData rider, UnitEntityData mount)
+        // The commit half of the one combat-mount transaction. It runs only with
+        // the immutable plan taken when the transition was admitted and already
+        // revalidated field by field immediately before the relationship commit.
+        //
+        // Ordering contract: every failure path in this method precedes the single
+        // native partner preparation. Nothing that can be refused happens after
+        // partnerContext.Prepare(), because that call clears the partner's native
+        // cooldowns and cannot be undone. A rollback therefore never has to
+        // un-prepare an actor.
+        internal string AdoptRunningEncounter(
+            MidEncounterAdoptionPlan plan, UnitEntityData rider, UnitEntityData mount)
         {
+            if (plan == null)
+            {
+                return "Adoption requires the plan taken when this transition was admitted.";
+            }
+            if (rider == null || mount == null ||
+                !string.Equals(plan.RiderId, rider.UniqueId, StringComparison.Ordinal) ||
+                !string.Equals(plan.MountId, mount.UniqueId, StringComparison.Ordinal))
+            {
+                return "Adoption requires the exact planned pair.";
+            }
+            var injected = ConsumeAdoptionFault(rider, mount);
+            if (injected != null)
+            {
+                return injected;
+            }
+            if (plan.RelationshipGeneration != relationship.MountedPairGeneration)
+            {
+                return "The mounted relationship generation changed after this transition was planned.";
+            }
+            if (!string.Equals(plan.EncounterSessionId,
+                    Game.Instance?.CurrentlyLoadedArea?.AssetGuidThreadSafe, StringComparison.Ordinal))
+            {
+                return "The area changed after this transition was planned.";
+            }
             if (relationship.State != RelationshipState.Mounted ||
                 !ReferenceEquals(relationship.Rider, rider) || !ReferenceEquals(relationship.Mount, mount))
             {
@@ -202,11 +337,20 @@ namespace KingmakerMountedCombat.Integration
                 return "Adoption requires a live encounter.";
             }
 
+            // The disposition is the one decision this commit depends on, and it is
+            // resolved from scheduling state alone, so re-resolving it here cannot
+            // be perturbed by the presentation the relationship commit just
+            // attached. A change since the pre-commit revalidation is refused.
             string refusal;
             var disposition = ResolveMidEncounterAdoption(rider, mount, out refusal);
             if (disposition == MidEncounterAdoption.Unavailable)
             {
                 return refusal;
+            }
+            if (disposition != plan.Disposition)
+            {
+                return "The companion's participation in this round changed from " + plan.Disposition +
+                    " to " + disposition + " before the mount could be completed.";
             }
 
             if (activation != null)
@@ -255,7 +399,22 @@ namespace KingmakerMountedCombat.Integration
            
             if (disposition == MidEncounterAdoption.RetainPartnerParticipation)
             {
+                // The partner's slot in this round is already behind the running
+                // turn, so its allocation is recorded as ended and it gets no
+                // private native context at all. The observation records the debt
+                // it genuinely stands at; nothing is cleared, refreshed or
+                // replayed, and no native preparation or callback runs for it.
+                if (partnerContext != null)
+                {
+                    activation = null;
+                    return "A retained partner cannot own a private native turn context.";
+                }
                 ObservePairedCosts(mount);
+                if (!activation.State(mount).Ended)
+                {
+                    activation = null;
+                    return "A retained partner's spent allocation was not closed.";
+                }
             }
             else
             {
@@ -279,11 +438,138 @@ namespace KingmakerMountedCombat.Integration
                 ";principal=" + rider.UniqueId + ";partner=" + mount.UniqueId +
                 ";disposition=" + disposition + ";round=" + (controller?.RoundNumber ?? -1) +
                 ";principalPrepareCalls=0;partnerPrepareCalls=" +
-                (disposition == MidEncounterAdoption.PreparePartnerThisRound ? 1 : 0);
+                (disposition == MidEncounterAdoption.PreparePartnerThisRound ? 1 : 0) +
+                ";partnerEnded=" + (activation.State(mount)?.Ended == true) +
+                ";partnerAddressable=" + CanAddressActor(mount, turn) +
+                ";partnerContext=" + (partnerContext != null) +
+                ";partnerStandardObserved=" + (activation.State(mount)?.StandardSpent ?? -1f) +
+                ";partnerMoveObserved=" + (activation.State(mount)?.MoveSpent ?? -1f) +
+                ";partnerSwiftObserved=" + (activation.State(mount)?.SwiftSpent ?? -1f);
             LastInitiativeObservation = LastAdoptionObservation;
             logger.Info("Paired activation adopted a running turn-based encounter: " + LastAdoptionObservation + ".");
             return null;
         }
+
+        // Exact compensating cleanup for a combat Mount whose adoption did not
+        // complete. It removes KMC bookkeeping only: the partial activation, the
+        // private partner context, any preparation reservation, the armed pair and
+        // the renewal floor. It writes no native cooldown, calls no native
+        // preparation or end, and refunds nothing, so a native Move that Kingmaker
+        // has already committed stays spent and pre-existing actor debt is
+        // untouched. The mounted-pair generation is deliberately left advanced:
+        // that is what retires every native shell created against the old
+        // relationship, so a repeated delivery of the failed control is refused.
+        internal void RollbackMidEncounterAdoption(string reason)
+        {
+            DisposePartnerContext();
+            nativePreparationCommands.Clear();
+            activation = null;
+            armedRider = null;
+            armedMount = null;
+            activationSession = null;
+            splitReleaseRound = -1;
+            resumingContext = null;
+            pairedRenewalNotBefore = 0;
+            preparedRiderTurn = null;
+            pendingSplitMount = null;
+            pendingSplitRound = -1;
+            AdoptionRollbackCount++;
+            LastAdoptionObservation = "adoption-rolled-back;reason=" + (reason ?? "<none>") +
+                ";activation=none;partnerContext=false;preparationCommands=0";
+            LastInitiativeObservation = LastAdoptionObservation;
+            logger.Error("Paired activation rolled back an incomplete mid-encounter adoption: " +
+                (reason ?? "<none>"));
+        }
+
+        // A bounded diagnostic adoption fault. It exists so the combat-mount
+        // transaction's compensating path is observable in the running game rather
+        // than argued from source: it makes the adoption commit refuse at its first
+        // check, before any state change and before the single native partner
+        // preparation, exactly as a late invalidation would.
+        //
+        // It writes nothing and cannot widen anything: it arms only for two exact
+        // distinct actors while the relationship is unmounted and the paired
+        // lifecycle is enabled, only one may be armed, it is bound to those exact
+        // actor identities, it is consumed by the first matching adoption commit,
+        // and disposing it disarms it.
+        private AdoptionFault adoptionFault;
+
+        internal long AdoptionFaultConsumedCount { get; private set; }
+
+        internal IDisposable ArmMidEncounterAdoptionFault(UnitEntityData rider, UnitEntityData mount)
+        {
+            if (!PairedLifecycleEnabled)
+            {
+                throw new InvalidOperationException("A diagnostic adoption fault requires the paired lifecycle.");
+            }
+            if (relationship.State != RelationshipState.Unmounted || activation != null || partnerContext != null)
+            {
+                throw new InvalidOperationException("A diagnostic adoption fault arms only on an idle unmounted pair.");
+            }
+            if (rider == null || mount == null || ReferenceEquals(rider, mount))
+            {
+                throw new InvalidOperationException("A diagnostic adoption fault requires two exact distinct actors.");
+            }
+            if (adoptionFault != null)
+            {
+                throw new InvalidOperationException("A diagnostic adoption fault is already armed.");
+            }
+            adoptionFault = new AdoptionFault(this, rider.UniqueId, mount.UniqueId);
+            return adoptionFault;
+        }
+
+        private sealed class AdoptionFault : IDisposable
+        {
+            private readonly UnifiedMountedTurnCoordinator owner;
+            internal readonly string RiderId;
+            internal readonly string MountId;
+            internal bool Consumed;
+
+            internal AdoptionFault(UnifiedMountedTurnCoordinator owner, string riderId, string mountId)
+            {
+                this.owner = owner;
+                RiderId = riderId;
+                MountId = mountId;
+            }
+
+            public void Dispose()
+            {
+                if (ReferenceEquals(owner.adoptionFault, this)) { owner.adoptionFault = null; }
+            }
+        }
+
+        private string ConsumeAdoptionFault(UnitEntityData rider, UnitEntityData mount)
+        {
+            var fault = adoptionFault;
+            if (fault == null || fault.Consumed ||
+                !string.Equals(fault.RiderId, rider?.UniqueId, StringComparison.Ordinal) ||
+                !string.Equals(fault.MountId, mount?.UniqueId, StringComparison.Ordinal))
+            {
+                return null;
+            }
+            fault.Consumed = true;
+            AdoptionFaultConsumedCount++;
+            return "Injected diagnostic adoption fault: the planned encounter adoption was refused.";
+        }
+
+        // The adoption authority the relationship service binds. These are thin
+        // explicit forwarders so the four operations above keep their internal
+        // surface and their exact pinned signatures.
+        bool IMidEncounterAdoptionAuthority.TryPlanMidEncounterAdoption(
+            UnitEntityData rider, UnitEntityData mount,
+            out MidEncounterAdoptionPlan plan, out string refusal) =>
+            TryPlanMidEncounterAdoption(rider, mount, out plan, out refusal);
+
+        bool IMidEncounterAdoptionAuthority.RevalidateMidEncounterAdoptionPlan(
+            MidEncounterAdoptionPlan plan, UnitEntityData rider, UnitEntityData mount, out string refusal) =>
+            RevalidateMidEncounterAdoptionPlan(plan, rider, mount, out refusal);
+
+        string IMidEncounterAdoptionAuthority.AdoptRunningEncounter(
+            MidEncounterAdoptionPlan plan, UnitEntityData rider, UnitEntityData mount) =>
+            AdoptRunningEncounter(plan, rider, mount);
+
+        void IMidEncounterAdoptionAuthority.RollbackMidEncounterAdoption(string reason) =>
+            RollbackMidEncounterAdoption(reason);
 
         private void ArmPairedEncounter(UnitEntityData rider, UnitEntityData mount)
         {
