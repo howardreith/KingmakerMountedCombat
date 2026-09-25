@@ -363,6 +363,17 @@ protected saves are unchanged, and there is no Kingmaker process and no
 active-transaction lock. No protected save, automation fixture, UMM Params, cache
 or foreign mod was written.
 
+Checked once more at the close, on the published head: `Assembly-CSharp.dll` is
+still `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, the
+exact installed assembly every contract is pinned against, and UMM
+`Kingmaker_Data/Managed/UnityModManager/Params.xml`
+(`b4a135f4bc05fc150abf1a4106b4f2edbfad66730583ba8443e87fe69df7fe87`) was last
+written at 2026-09-25T01:08:00Z — an hour before the owner's own preview.105
+deployment at 02:00:58Z and some six hours before either smoke run, so it was
+written by the owner's session and not by this work. The candidate DLL
+`cac89e20…` appears nowhere in the installation: the final private candidate is
+not installed, as required.
+
 ## HUMAN PLAY — owner checklist
 
 Not performed and not inferable from automation. This list is the manual gate
