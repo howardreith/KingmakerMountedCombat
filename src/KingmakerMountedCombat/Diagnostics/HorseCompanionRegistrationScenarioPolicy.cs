@@ -6,7 +6,12 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal static bool SupportsScenario(string scenario)
         {
-            return string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||
+            // The Chunk 6A rows are named literally here: this policy is shared
+            // with the component test project, which cannot compile the runtime
+            // tranche because that type binds Kingmaker assemblies.
+            return string.Equals(scenario, "chunk6a-combat-mount-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-combat-mount-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-companion-unmounted-suite", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-mounted-alpha-suite", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-native-controls-ux-suite", StringComparison.Ordinal) ||
