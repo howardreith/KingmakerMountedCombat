@@ -88,9 +88,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 { "KMC.Native.Mount.Name", "Mount Companion" },
                 { "KMC.Native.Empty", "" },
-                { "KMC.Native.Mount.Description", "Outside combat, select your active Horse or Mammoth. Walk into reach and mount. You can queue this order while gameplay is paused; it executes after unpausing." },
+                { "KMC.Native.Mount.Description", "Select your active Horse or Mammoth. Walk into reach and mount. Outside combat this is free; during an encounter it costs one Move action, taken by the ability's own move order. You can queue this order while gameplay is paused; it executes after unpausing." },
                 { "KMC.Native.Dismount.Name", "Dismount" },
-                { "KMC.Native.Dismount.Description", "Get off your companion. Mounted seating is temporary and is cleared before saving or changing areas." },
+                { "KMC.Native.Dismount.Description", "Get off your companion. Outside combat this is free; during an encounter it costs one Move action, taken by the ability's own move order." },
                 { "KMC.Native.RiderPrimary.Name", "Rider Primary" },
                 { "KMC.Native.RiderPrimary.Description", "Make one mounted attack with your equipped melee or ranged weapon. Uses the rider's Standard action. In turn-based mode, use this on the rider's own turn. Private preview: mounted turn-based movement costs are not yet qualified." },
                 { "KMC.Native.MountPrimary.Name", "Mount Primary" },
