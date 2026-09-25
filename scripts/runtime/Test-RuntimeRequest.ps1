@@ -89,7 +89,86 @@ if ($schemaVersion -eq 1) {
     Assert-KmcExactProperties $request @($commonRequired + @('saveAccessAllowed','saveName')) 'runtime request v1'
 }
 elseif ($schemaVersion -eq 2) {
-    Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite')) 'runtime request v2'
+    $validation=$request.scenario-ceq'persistence-p06-load'
+    $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
+    if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
+        if($request.persistenceCase-cin @('prepare-removal','disable-during-load')-and$request.scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
+        if($request.persistenceCase-cin @('absent-kmc','removal-no-dll')-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent and no-DLL cases are cold-load only.'}
+    }elseif($validation){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','foreign-header-campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'P06 requires its exact validation variant.'}
+    }elseif($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
+        $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
+    }elseif($request.scenario-cin @('persistence-p04-save','persistence-p04-load')){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
+    }elseif($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction','condition','condition-preparing','suspended')){throw 'P03 requires its exact native commitment case.'}
+    }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
+        $request.persistenceCase-cnotin @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end'))){throw 'Persistence case is outside the exact P02 checkpoint contract.'}
+    $alternating=$request.scenario-ceq'persistence-p05-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'alternating'
+    $crossArea=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')
+    $transitionAuto=$hasPersistenceCase-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')
+    $extra=@(if($alternating-or$validation){'persistenceAlternate'}; if($request.scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){'persistenceLoad'}; if($hasPersistenceCase){'persistenceCase'}; if($crossArea){'persistenceAreaTarget'})
+    Assert-KmcExactProperties $request @($commonRequired + @('fixture','qualificationSuite') + $extra) 'runtime request v2'
+    if($crossArea){
+        $t=$request.persistenceAreaTarget
+        Assert-KmcExactProperties $t @('enterPoint','area','autoSaveMode') 'cross-area transition target'
+        $expectedMode=if($request.persistenceCase-cin @('area-cross-entry','area-cross-entry-auto')){'AfterEntry'}else{'BeforeExit'}
+        if($t.enterPoint-cnotmatch'^[0-9a-f]{32}$'-or$t.area-cnotmatch'^[0-9a-f]{32}$'-or
+            $t.area-ceq$request.fixture.working.area-or$t.enterPoint-ceq$t.area-or$t.autoSaveMode-cne$expectedMode){
+            throw 'Cross-area transition target is not an exact distinct native destination for its authored mode.'
+        }
+    }
+    if($request.scenario -cin @('persistence-p07-load','persistence-p01-load','persistence-p02-load','persistence-p03-load','persistence-p04-load','persistence-p05-load','persistence-p06-load')){
+        $descriptors=@($request.persistenceLoad)
+        if($alternating-or$validation){
+            $descriptors+=@($request.persistenceAlternate)
+            if($alternating-and$request.persistenceAlternate.sha256-ceq$request.persistenceLoad.sha256){throw 'Alternating archives cannot alias the same bytes.'}
+        }
+        foreach($d in $descriptors){
+        $second=($alternating-or$validation)-and[object]::ReferenceEquals($d,$request.persistenceAlternate)
+        Assert-KmcExactProperties $d @('internalName','fileName','sha256','length','lastWriteTimeUtcTicks','gameId','gameName','area') 'cold archive descriptor'
+        $nativeSlot=($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-cin @('quick','auto'))-or$transitionAuto
+        # The failed-load derivative is the only P06 variant that edits a native
+        # member, so it owns its own leaf instead of the metadata-only one.
+        $cleanupCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-cin @('absent-kmc','removal-no-dll')
+        $deathCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-cin @('rider-death','mount-death')
+        $sizeCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'rider-size-change'
+        $campaignBCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'campaign-b'
+        # The foreign-header derivative is campaign B's own archive whose KMC
+        # member claims A: its native header carries B's minted identity.
+        $foreignHeader=$second-and$validation-and$request.persistenceCase-ceq'foreign-header-campaign'
+        $leaf=if($second-and$validation){if($request.persistenceCase-ceq'failed-area-load'){'Manual_813_KMC_P06_AREA.zks'}else{'Manual_812_KMC_P06.zks'}}elseif($second){'Manual_301_KMC_P05_UNMOUNTED.zks'}elseif($nativeSlot){if($request.persistenceCase-ceq'quick'){'Quick_1.zks'}else{'Auto_1.zks'}}elseif($cleanupCold){'Manual_301_KMC_CLEANUP.zks'}elseif($deathCold){'Manual_301_KMC_DEATH.zks'}elseif($sizeCold){'Manual_301_KMC_SIZE.zks'}elseif($campaignBCold){'Manual_302_KMC_B.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'queued'){'Manual_302_KMC_P01.zks'}elseif($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-ceq'manual-renamed'){'Manual_811_KMC_RENAMED.zks'}else{'Manual_300_KMC_P01.zks'}
+        $nameOk=if($second-and$validation){if($foreignHeader){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}}elseif($second){$d.internalName-ceq'KMC_P05_UNMOUNTED'}elseif($nativeSlot){$d.internalName-is[string]-and$d.internalName.Length-gt0-and$d.internalName.Length-le256-and$d.internalName-cnotmatch'[\x00-\x1f\x7f]'}elseif($cleanupCold){$d.internalName-ceq'KMC_CLEANUP'}elseif($deathCold){$d.internalName-ceq'KMC_DEATH'}elseif($sizeCold){$d.internalName-ceq'KMC_SIZE'}elseif($campaignBCold){$d.internalName-ceq'KMC_B'}else{$d.internalName-ceq'KMC_P01'}
+        if(-not$nameOk-or$d.fileName-cne$leaf-or$d.sha256-cnotmatch'^[0-9a-f]{64}$'-or
+            $d.sha256-ceq$request.fixture.baseline.sha256-or-not(Test-JsonInteger $d.length)-or$d.length-le0-or$d.length-gt256MB-or
+            -not(Test-JsonInteger $d.lastWriteTimeUtcTicks)-or$d.lastWriteTimeUtcTicks-le0-or$d.lastWriteTimeUtcTicks-gt[DateTime]::MaxValue.Ticks){throw 'Cold archive identity is invalid.'}
+        if($campaignBCold-or$foreignHeader){
+            # Campaign B's archive carries the identity the engine minted for B, never the fixture's.
+            if($d.gameId-ceq$request.fixture.working.gameId-or$d.gameId-cnotmatch'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'-or$d.gameId-ceq'00000000-0000-0000-0000-000000000000'-or[string]::IsNullOrEmpty([string]$d.gameName)){throw 'Campaign B archive must carry B own minted identity.'}
+        }else{
+            foreach($name in @('gameId','gameName')){if($d.$name-cne$request.fixture.working.$name){throw 'Cold archive campaign differs.'}}
+        }
+        # A cross-area source is committed after the transfer, so its native
+        # header carries the declared destination rather than the fixture area.
+        $expectedArea=if($transitionAuto){if($request.persistenceCase-ceq'area-cross-entry-auto'){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}}elseif($crossArea){[string]$request.persistenceAreaTarget.area}else{[string]$request.fixture.working.area}
+        if($campaignBCold-or$foreignHeader){
+            if($d.area-ceq$request.fixture.working.area-or$d.area-cnotmatch'^[0-9a-f]{32}$'){throw 'Campaign B archive area must be B own.'}
+        }elseif($d.area-cne$expectedArea){throw 'Cold archive campaign differs.'}
+        }
+        # A corrupted native member must actually change the bytes; the
+        # metadata-only 'policy' variant is deliberately byte-identical instead.
+        if($validation-and$request.persistenceCase-ceq'failed-area-load'-and
+            $request.persistenceAlternate.sha256-ceq$request.persistenceLoad.sha256){
+            throw 'Failed-load derivative is byte-identical to its source.'
+        }
+        # The foreign-header derivative is campaign B's own archive, never A's bytes.
+        if($validation-and$request.persistenceCase-ceq'foreign-header-campaign'-and
+            $request.persistenceAlternate.sha256-ceq$request.persistenceLoad.sha256){
+            throw 'Foreign-header derivative aliases the primary archive bytes.'
+        }
+    }
 }
 else { throw 'Runtime request schemaVersion must be 1 or 2.' }
 
@@ -122,7 +201,7 @@ $missionScenarios = @(
     'mounted-rider-melee-combat-end-rt', 'mounted-rider-melee-combat-end-tb',
     'mounted-rider-melee-human-play-path-rt', 'mounted-rider-melee-human-play-path-tb'
 )
-$aggregateScenarios = @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
+$aggregateScenarios = @('fixture-intake','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite','combat-core-control-suite')
 $interactiveScenarios = @('manual-visual-review')
 
 if ([string]$request.runId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Runtime request runId is invalid.' }

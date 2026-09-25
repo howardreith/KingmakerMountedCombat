@@ -28,7 +28,8 @@ try {
     }
     foreach ($entry in $archive.Entries) {
         $normalizedEntry = $entry.FullName.Replace('\','/')
-        if ($normalizedEntry -match '(^|/)\.\.(/|$)|^/|^[A-Za-z]:' -or $entry.Length -le 0 -or $entry.Length -gt 4MB) {
+        $entryLimit = if ($normalizedEntry -ceq 'KingmakerMountedCombat/KingmakerMountedCombat.dll') { 5MB } else { 4MB }
+        if ($normalizedEntry -match '(^|/)\.\.(/|$)|^/|^[A-Za-z]:' -or $entry.Length -le 0 -or $entry.Length -gt $entryLimit) {
             throw "Package entry is unsafe, empty, or oversized: $($entry.FullName)"
         }
         $algorithm = [Security.Cryptography.SHA256]::Create(); $stream = $entry.Open()

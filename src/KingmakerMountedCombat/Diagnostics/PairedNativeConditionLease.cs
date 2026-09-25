@@ -27,6 +27,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly PairedConditionRoundAction action;
         private readonly IDisposable subscription;
         private readonly int choice;
+        internal event Action NativeChoiceObserved;
         private bool applied;
         private bool disposed;
         private UnitPartConfusion ownedPart;
@@ -82,6 +83,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (ownedPart == null) throw new InvalidOperationException("Native condition choice has no native condition part.");
             Evidence["nativePartCreated"] = true;
             evt.Override(choice); Evidence["choiceOverrides"] = 1;
+            NativeChoiceObserved?.Invoke();
         }
         public void OnEventDidTrigger(RuleRollDice evt) { }
         public void OnEventAboutToTrigger(RuleDealDamage evt) { }

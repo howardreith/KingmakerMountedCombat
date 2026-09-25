@@ -48,6 +48,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly DiagnosticSettings diagnosticSettings;
         private readonly Func<bool, bool> registeredToggle;
+        private readonly Func<bool> detachIntegration;
+        private readonly MountedRemovalPreparation removal;
+        private bool integrationDetached;
         private readonly string resultPath;
         private readonly DateTimeOffset startedAt;
         private readonly Stopwatch runtimeClock;
@@ -59,6 +62,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private int loadRequestCount;
         private IDisposable saveAuthorizationLease;
         private WorkingFixtureLoader fixtureLoader;
+        private PersistenceIsolationBootstrap persistenceBootstrap;
+        private readonly MountedPersistenceService persistence;
+        private RuntimePersistenceScenario persistenceEngine;
+        private NativeModeTransitionProbe persistenceMode;
         private bool fixtureLoaderStarted;
         private bool fixtureIdentityVerified;
         private bool fixtureScenarioCompleted;
@@ -82,6 +89,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public string Scenario => request.Scenario;
 
         internal bool RequiresLegacyDiagnosticOverlay =>
+            request.Scenario != PersistenceIsolationBootstrap.Scenario &&
             request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario &&
             request.Scenario != Phase3dHorseScenarioTranche.Phase3gRealTimeScenario &&
             request.Scenario != Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario &&
@@ -92,7 +100,7 @@ namespace KingmakerMountedCombat.Diagnostics
             request.Scenario != "combat-lifecycle-suite" &&
             request.Scenario != "chunk4-area-cleanup" &&
             request.Scenario != "chunk4-traversal-core" &&
-            request.Scenario != "chunk4-traversal-slope";
+            request.Scenario != "chunk4-traversal-slope" && !PersistenceIsolationBootstrap.Supports(request.Scenario);
 
         public string RunId => request.RunId;
 
@@ -131,13 +139,18 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedCombatController combat,
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
+            MountedPersistenceService persistence,
+            MountedRemovalPreparation removal,
             MountedAnimationAdapter animation,
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
-            Func<bool, bool> registeredToggle)
+            Func<bool, bool> registeredToggle,
+            Func<bool> detachIntegration)
         {
             this.logger = logger;
             this.request = request;
+            this.removal = removal ?? throw new ArgumentNullException(nameof(removal));
+            this.detachIntegration = detachIntegration ?? throw new ArgumentNullException(nameof(detachIntegration));
             this.loadedModId = loadedModId;
             this.relationshipStateProvider = relationshipStateProvider;
             this.movementExperimentProvider = movementExperimentProvider;
@@ -148,6 +161,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
             this.horseCompanion = horseCompanion ?? throw new ArgumentNullException(nameof(horseCompanion));
             this.nativeControls = nativeControls ?? throw new ArgumentNullException(nameof(nativeControls));
+            this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             this.animation = animation ?? throw new ArgumentNullException(nameof(animation));
             this.dollRoomIk = dollRoomIk ?? throw new ArgumentNullException(nameof(dollRoomIk));
             this.diagnosticSettings = diagnosticSettings ?? throw new ArgumentNullException(nameof(diagnosticSettings));
@@ -183,10 +197,13 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedCombatController combat,
             HorseCompanionBlueprintService horseCompanion,
             NativeMountedControlService nativeControls,
+            MountedPersistenceService persistence,
+            MountedRemovalPreparation removal,
             MountedAnimationAdapter animation,
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
-            Func<bool, bool> registeredToggle)
+            Func<bool, bool> registeredToggle,
+            Func<bool> detachIntegration)
         {
             if (logger == null)
             {
@@ -253,8 +270,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
-                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls,
-                animation, dollRoomIk, diagnosticSettings, registeredToggle);
+                saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls, persistence,
+                removal, animation, dollRoomIk, diagnosticSettings, registeredToggle, detachIntegration);
         }
 
         internal static void ObserveSaveRequest()
@@ -284,6 +301,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 prepared,
                 inCombat,
                 awake);
+        }
+
+        internal static void ReapplyDeclaredPersistenceMode()
+        {
+            var host = active;
+            if (host?.persistenceMode == null || host.completed ||
+                host.request.Scenario != "persistence-p02-save" && host.request.Scenario != "persistence-p02-load" &&
+                host.request.Scenario != "persistence-p03-save" && host.request.Scenario != "persistence-p03-load" &&
+                host.request.Scenario != "persistence-p04-save" && host.request.Scenario != "persistence-p04-load" &&
+                !(host.request.Scenario == "persistence-p06-load" && RuntimePersistenceScenario.IsCombatValidation(host.request.PersistenceCase))) return;
+            if (host.persistenceMode.ReapplyTemporaryCacheAfterNativeRefresh())
+                host.logger.Info("Declared persistence combat mode cache reapplied after native settings refresh; no persisted setting or gameplay state written.");
         }
 
         internal static void ObserveNativeTurnBasedCommandEligibility(
@@ -490,6 +519,31 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (!fixtureLoaderStarted)
             {
+                if (persistenceBootstrap != null)
+                {
+                    if (!persistenceBootstrap.TryPrepare()) return;
+                    saveAuthorizationLease.Dispose();
+                    saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, persistenceBootstrap.SaveRoot, false);
+                    saveAuthorization.BindPersistenceScope(persistenceBootstrap.Authority);
+                }
+                if (request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load" ||
+                    request.Scenario == "persistence-p06-load" && RuntimePersistenceScenario.IsCombatValidation(request.PersistenceCase))
+                {
+                    // Test configuration only, chosen before reading the selected archive.
+                    persistenceMode = new NativeModeTransitionProbe(request.Scenario != "persistence-p04-save" && request.Scenario != "persistence-p04-load");
+                    persistenceMode.DispatchTemporaryValueIfRequired();
+                    logger.Info("Declared persistence combat mode before native load: " + persistenceMode.CurrentValue + ".");
+                }
+                // The integration-absent cold load: KMC's gameplay and persistence
+                // guards are removed and its services switched off BEFORE the
+                // native load, so the engine opens the archive with no KMC
+                // restoration at all. The run-scoped save isolation stays.
+                if (RuntimePersistenceScenario.IsIntegrationAbsentCase(request))
+                {
+                    integrationDetached = detachIntegration();
+                    if (!integrationDetached)
+                        throw new InvalidOperationException("KMC integration could not be detached before the integration-absent load.");
+                }
                 fixtureLoaderStarted = true;
                 fixtureLoader.Start();
                 return;
@@ -649,7 +703,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 CollectEngineErrors(boundaryEngine.Errors, "Boundary");
                 boundaryEngine = null;
             }
-            else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal))
+            else if (request.Scenario == "persistence-p07-save" || request.Scenario == "persistence-p07-load" || request.Scenario == "persistence-p06-load" || request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load" ||
+                request.Scenario == "persistence-p01-save" || request.Scenario == "persistence-p01-load" ||
+                request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load")
+            {
+                if (persistenceEngine == null)
+                    persistenceEngine = new RuntimePersistenceScenario(request, relationship, nativeControls, persistence, combat, diagnosticSettings, logger, removal, horseCompanion, integrationDetached);
+                persistenceEngine.Update();
+                if (!persistenceEngine.Completed) return;
+                subscenarioResults = new[] { persistenceEngine.Result };
+            }
+            else if (string.Equals(request.Scenario, "fixture-intake", StringComparison.Ordinal) || PersistenceIsolationBootstrap.Supports(request.Scenario))
             {
                 subscenarioResults = new[]
                 {
@@ -782,6 +846,15 @@ namespace KingmakerMountedCombat.Diagnostics
             // already-transactional Working header; every SaveRoutine request stays denied.
             saveAuthorizationLease = saveAuthorization.Activate(request.Fixture, game.SaveManager.SavePath, false);
             fixtureLoader = new WorkingFixtureLoader(request, logger);
+            if (PersistenceIsolationBootstrap.Supports(request.Scenario))
+            {
+                diagnosticSettings.EnablePairedActivation = true;
+                diagnosticSettings.EnableUnsafeMovementExperiment = request.Scenario != PersistenceIsolationBootstrap.Scenario;
+                diagnosticSettings.EnableUnifiedMountedTurn = false;
+                diagnosticSettings.EnablePairedCommandScheduler = false;
+                diagnosticSettings.EnableDiagnosticOverlay = false;
+                persistenceBootstrap = new PersistenceIsolationBootstrap(request);
+            }
         }
 
         private RuntimeSubscenarioResult EvaluateMountedContracts()
@@ -795,6 +868,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 "Exact SaveManager.LoadZipSave(string) seam is unavailable.", ref passed, ref failed);
             AssertRuntime(errors, typeof(Kingmaker.Controllers.Units.UnitMoveController).GetMethod("Tick", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic) != null,
                 "Exact Kingmaker unit-movement controller seam is unavailable.", ref passed, ref failed);
+            if (persistenceBootstrap != null)
+                AssertRuntime(errors, persistenceBootstrap.VerifyLoaded(fixtureLoader.WorkingPath),
+                    "Isolated save/stash root, exact loaded archive or source bytes changed.", ref passed, ref failed);
             return BuildSubscenario("export-mounted-contracts", passed, failed, errors);
         }
 
@@ -878,6 +954,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             disposed = true;
+            persistenceEngine?.Dispose();
+            persistenceMode?.Dispose();
             manualReviewSession?.Dispose();
             manualReviewSession = null;
             lifecycleEngine?.Dispose();
@@ -1506,6 +1584,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 BoundaryScenarioEvidenceContract.EvidenceFileName,
                 "boundary-evidence");
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "persistence-observations.jsonl", "persistence-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-telemetry.jsonl", "telemetry");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "movement-scenario-evidence.jsonl", "scenario-evidence");
             AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot, "combat-scenario-evidence.jsonl", "combat-evidence");

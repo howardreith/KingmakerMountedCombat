@@ -89,7 +89,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
 
                 var root = Path.GetFullPath(game.SaveManager.SavePath).TrimEnd(Path.DirectorySeparatorChar);
-                var working = request.Fixture.Working;
+                var working = (request.PersistenceLoad ?? request.Fixture.Working);
                 var candidate = Path.GetFullPath(Path.Combine(root, working.FileName));
                 if (!string.Equals(Path.GetDirectoryName(candidate).TrimEnd(Path.DirectorySeparatorChar), root, StringComparison.OrdinalIgnoreCase) ||
                     !string.Equals(Path.GetFileName(candidate), working.FileName, StringComparison.Ordinal))
@@ -114,7 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     throw new InvalidOperationException("Kingmaker could not read the exact Working descriptor.");
                 }
-                VerifyDescriptor(descriptor, working, candidate);
+                VerifyDescriptor(descriptor, working, candidate, request.ExpectedNativeLoadType);
 
                 file.Refresh();
                 if (!file.Exists || file.Length != working.Length || file.LastWriteTimeUtc.Ticks != working.LastWriteTimeUtcTicks ||
@@ -166,7 +166,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return false;
                 }
 
-                var fixture = request.Fixture.Working;
+                var fixture = (request.PersistenceLoad ?? request.Fixture.Working);
                 if (!string.Equals(game.Player.GameId, fixture.GameId, StringComparison.Ordinal))
                 {
                     throw new InvalidOperationException("Loaded Player.GameId differs from the qualified Working descriptor.");
@@ -211,16 +211,16 @@ namespace KingmakerMountedCombat.Diagnostics
             State = WorkingFixtureLoadState.Failed;
         }
 
-        private static void VerifyDescriptor(SaveInfo observed, RuntimeSaveDescriptor expected, string expectedPath)
+        private static void VerifyDescriptor(SaveInfo observed, RuntimeSaveDescriptor expected, string expectedPath, string expectedNativeType)
         {
             var observedArea = observed.Area == null ? null : observed.Area.AssetGuidThreadSafe;
-            if (!string.Equals(observed.Name, RuntimeRequest.WorkingSaveName, StringComparison.Ordinal) ||
+            if (!string.Equals(observed.Name, expected.InternalName, StringComparison.Ordinal) ||
                 !string.Equals(observed.FileName, expected.FileName, StringComparison.Ordinal) ||
                 !string.Equals(Path.GetFullPath(observed.FolderName), expectedPath, StringComparison.OrdinalIgnoreCase) ||
                 !string.Equals(observed.GameId, expected.GameId, StringComparison.Ordinal) ||
                 !string.Equals(observed.GameName, expected.GameName, StringComparison.Ordinal) ||
                 !string.Equals(observedArea, expected.Area, StringComparison.Ordinal) ||
-                observed.Type != SaveInfo.SaveType.Manual || observed.CompatibilityVersion != 1)
+                observed.Type.ToString() != expectedNativeType || observed.CompatibilityVersion != 1)
             {
                 throw new InvalidOperationException("Kingmaker Working SaveInfo differs from the request-bound descriptor.");
             }

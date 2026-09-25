@@ -22,7 +22,11 @@ namespace KingmakerMountedCombat.Domain
 
         public MountedPair ActivePair => pair;
 
-        public TransitionResult Mount(MountedPairCandidate candidate)
+        public TransitionResult Mount(MountedPairCandidate candidate) => Attach(candidate, false);
+
+        internal TransitionResult RestoreSaved(MountedPairCandidate candidate) => Attach(candidate, true);
+
+        private TransitionResult Attach(MountedPairCandidate candidate, bool restoring)
         {
             if (State == RelationshipState.Disposed)
             {
@@ -35,7 +39,7 @@ namespace KingmakerMountedCombat.Domain
             }
 
             State = RelationshipState.Validating;
-            var validationError = candidate == null ? "Pair candidate is required." : candidate.Validate();
+            var validationError = candidate == null ? "Pair candidate is required." : (restoring ? candidate.ValidateSavedRelationship() : candidate.Validate());
             if (validationError != null)
             {
                 State = RelationshipState.Unmounted;

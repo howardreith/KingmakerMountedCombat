@@ -13,6 +13,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 
 function Assert-NoDuplicateJsonObjectProperties {
     param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
@@ -104,7 +106,8 @@ function Assert-RuntimeArtifactManifest {
         $kind = $artifact.kind
         if (-not $seen.Add($relativePath)) { throw "Runtime artifact manifest contains duplicate path: $relativePath" }
 
-        $allowed = ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+        $allowed = ($relativePath -ceq 'persistence-observations.jsonl' -and $kind -ceq 'persistence-evidence') -or
+            ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relativePath -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
@@ -156,6 +159,7 @@ function Assert-FixtureEcho {
 function Assert-SubscenarioResults {
     param($Game)
     $missionScenarios = @(
+        'persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load', 'persistence-p02-save', 'persistence-p02-load', 'persistence-p03-save', 'persistence-p03-load', 'persistence-p04-save', 'persistence-p04-load', 'persistence-p05-save', 'persistence-p05-load', 'persistence-p06-load',
         'mod-load-smoke', 'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'player-action-availability', 'mount-dismount-user-flow',
         'mounted-pair-create-and-clear', 'mounted-pair-double-mount-rejected', 'mounted-pair-invalid-pair-rejected',
@@ -280,21 +284,48 @@ Assert-KmcCombatScenarioEvidence -Request $request -Manifest $validatedArtifactM
 Assert-KmcHorseNativeAssetAuditEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
+Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -GameResult $game
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
-    $expectedWorkingLoads = if ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
+    $alternating=$game.scenario-cin @('persistence-p05-save','persistence-p05-load')-and$request.persistenceCase-ceq'alternating'
+    # Campaign B writes A twice and B's engine autosave always; its manual save
+    # in B happens only when the authored start allows one, which the run
+    # records and the evidence validator has already tied to the bytes on disk.
+    $campaignB=$game.scenario-ceq'persistence-p07-save'-and$request.persistenceCase-ceq'campaign-b'
+    $campaignBWrites=if($campaignB){
+        $bRows=@(Get-Content -LiteralPath (Join-Path ([IO.Path]::GetFullPath([string]$request.evidenceRoot)) 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
+        $frozen=@($bRows|Where-Object kind -CEQ 'campaign-b-frozen')
+        if($frozen.Count-ne1){throw 'P07 campaign B quota needs its exact frozen observation.'}
+        if($frozen[0].detail.manualSaved-eq$true){4}else{3}
+    }else{0}
+    # The integration-absent cold load runs with every KMC guard removed before
+    # the native load, so the authorization prefixes that count loads and
+    # writes are not installed: both quotas are exactly zero.
+    $absentKmc=$game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'absent-kmc'
+    $expectedNativeWrites = if($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){1} elseif($campaignB){$campaignBWrites} elseif($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'campaign-b'){1} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','serialization-cancel-output','prepare-removal','rider-death','mount-death','rider-size-change')){2}elseif($request.persistenceCase-ceq'disable-during-load'){1}else{3}} elseif($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save')) { 1 } else { 0 }
+    $expectedWorkingLoads = if($absentKmc){0} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('combat-missing','combat-ai')){4} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit')){1}elseif($request.persistenceCase-ceq'cancel-wait'){4}elseif($request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output','disable-reenable','prepare-removal')){1}elseif($campaignB-or$request.persistenceCase-cin @('rider-death','mount-death','rider-size-change')){2}else{3}} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('legacy','schema1','missing-rider','missing-mount','mismatched-profile','failed-area-load')){3} elseif($alternating-and$game.scenario-ceq'persistence-p05-load'){3} elseif ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
-        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne 0) {
+        [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne $expectedNativeWrites) {
         throw 'Save-backed PASS crossed its exact scenario-bound load/save quota.'
     }
     $expectedSuppressedSaves = if ([string]$game.scenario -ceq 'native-save-clean-dismount') { 1 } else { 0 }
     if ([int]$game.suppressedWorkingSaveRequestCount -ne $expectedSuppressedSaves -or
-        [int]$game.saveRequestCount -ne $expectedSuppressedSaves) {
+        [int]$game.saveRequestCount -ne ($expectedSuppressedSaves + $expectedNativeWrites)) {
         throw 'Save-backed PASS crossed its exact suppressed-save request quota.'
     }
-    if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or
+    # The post-disposal failed-load case deliberately ends with no world: the
+    # engine destroys the old one, fails to build the new one, and then cannot
+    # load any archive in that process. For that one case the expectation is
+    # INVERTED rather than skipped, so an accidental world would still fail.
+    if ([string]$game.scenario -ceq 'persistence-p06-load' -and [string]$request.persistenceCase -ceq 'failed-area-load') {
+        if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $false -or
+            [string]$game.currentGameMode -cne 'None') {
+            throw 'P06 failed-load PASS must end with no loaded world and no active native game mode.'
+        }
+    }
+    elseif ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $true -or
         [string]$game.currentGameMode -cne 'Default') { throw 'Save-backed PASS did not restore its exact game-mode and diagnostic-setting boundary.' }
     if ([int]$game.subscenarioFailCount -ne 0 -or [int]$game.assertionFailCount -ne 0) { throw 'PASS runtime game result contains subscenario failures.' }
 }

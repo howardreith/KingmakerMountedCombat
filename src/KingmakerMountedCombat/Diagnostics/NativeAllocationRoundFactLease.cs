@@ -20,6 +20,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static string ComponentType => typeof(AddFactContextActions).FullName;
         private readonly UnitEntityData actor;
         private readonly int originalDamage;
+        private readonly bool healingProbe;
         private readonly BlueprintFeature blueprint;
         private readonly AddFactContextActions component;
         private readonly AddFactContextActions activeComponent;
@@ -36,7 +37,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Native round stimulus lost its exact active fact component.");
             // Fact activation clones its GameLogicComponent. Updating the
             // blueprint after activation does not update that actor instance.
-            activeComponent.NewRound = new ActionList { Actions = action == null ? new GameAction[] { heal } : new GameAction[] { heal, action } };
+            activeComponent.NewRound = new ActionList { Actions = (healingProbe ? new GameAction[] { heal } : new GameAction[0])
+                .Concat(action == null ? new GameAction[0] : new[] { action }).ToArray() };
         }
 
         internal JObject CaptureDiagnosticBinding(GameAction action) => new JObject {
@@ -47,12 +49,12 @@ namespace KingmakerMountedCombat.Diagnostics
             ["exactActionBound"] = activeComponent.NewRound.Actions.Count(item => ReferenceEquals(item, action)) == 1
         };
 
-        internal NativeAllocationRoundFactLease(UnitEntityData actor)
+        internal NativeAllocationRoundFactLease(UnitEntityData actor, bool healingProbe = true)
         {
             if (actor == null || actor.IsInCombat || !actor.Descriptor.State.IsConscious ||
                 actor.Stats.HitPoints.ModifiedValue - actor.Damage <= 6)
                 throw new InvalidOperationException("Native round fact requires a healthy disposable actor before combat.");
-            this.actor = actor;
+            this.actor = actor; this.healingProbe = healingProbe;
             originalDamage = actor.Damage;
             // Progression features are not stored in Unit.Logic. Resolve the
             // already-qualified native template from the loaded library; only
@@ -73,11 +75,11 @@ namespace KingmakerMountedCombat.Diagnostics
             heal.Value = new ContextDiceValue { DiceType = DiceType.Zero, DiceCountValue = 0, BonusValue = 1 };
             component.Activated = new ActionList { Actions = new GameAction[0] };
             component.Deactivated = new ActionList { Actions = new GameAction[0] };
-            component.NewRound = new ActionList { Actions = new GameAction[] { heal } };
+            component.NewRound = new ActionList { Actions = healingProbe ? new GameAction[] { heal } : new GameAction[0] };
             blueprint.ComponentsArray = new BlueprintComponent[] { component };
             try
             {
-                actor.Descriptor.Damage = originalDamage + 6;
+                if (healingProbe) actor.Descriptor.Damage = originalDamage + 6;
                 var context = new MechanicsContext(actor, actor.Descriptor, blueprint);
                 var fact = actor.Logic.AddFact(blueprint, context);
                 if (fact == null || !actor.Logic.HasFact(blueprint))
@@ -92,14 +94,15 @@ namespace KingmakerMountedCombat.Diagnostics
             ["currentDamage"] = actor.Damage, ["blueprint"] = blueprintId, ["template"] = templateId,
             ["nativeComponent"] = ComponentType, ["nativeEffect"] = typeof(ContextActionHealTarget).FullName,
             ["nativeCollection"] = "Unit.Logic", ["active"] = actor.Logic.HasFact(blueprint),
-            ["healPerRound"] = 1, ["restored"] = disposed && actor.Damage == originalDamage && !actor.Logic.HasFact(blueprint)
+            ["healPerRound"] = healingProbe ? 1 : 0, ["damageRestorationEnabled"] = healingProbe,
+            ["restored"] = disposed && (!healingProbe || actor.Damage == originalDamage) && !actor.Logic.HasFact(blueprint)
         };
 
         public void Dispose()
         {
             if (disposed) return;
             foreach (var owned in actor.Logic.Enumerable.Where(item => item.Blueprint == blueprint).ToArray()) actor.Logic.RemoveFact(owned);
-            actor.Descriptor.Damage = originalDamage;
+            if (healingProbe) actor.Descriptor.Damage = originalDamage;
             UnityEngine.Object.Destroy(blueprint);
             UnityEngine.Object.Destroy(component);
             UnityEngine.Object.Destroy(heal);

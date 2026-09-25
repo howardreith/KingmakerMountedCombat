@@ -42,6 +42,10 @@ namespace KingmakerMountedCombat.Integration
                 (ReferenceEquals(actor.Commands.GetCommand(command.Type), command) || actor.Commands.Queue.Contains(command));
         }
 
+        internal bool MayStartNativePreparationDuringSave(UnitCommand command) =>
+            command != null && OwnsNativePreparationCommand(command.Executor, command,
+                Game.Instance?.TurnBasedCombatController?.CurrentTurn);
+
         private bool HasNativePreparationActivity(TurnController turn)
         {
             if (activation == null) return false;

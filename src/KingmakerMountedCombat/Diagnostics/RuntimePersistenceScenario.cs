@@ -1,0 +1,541 @@
+using System;
+using System.Diagnostics;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using Kingmaker;
+using Kingmaker.EntitySystem.Entities;
+using Kingmaker.EntitySystem.Persistence;
+using Kingmaker.UI.Selection;
+using Kingmaker.UI.UnitSettings;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
+using KingmakerMountedCombat.Domain;
+using KingmakerMountedCombat.Integration;
+using KingmakerMountedCombat.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+
+namespace KingmakerMountedCombat.Diagnostics
+{
+    // Two native processes, one archive. The load variant may inspect metadata,
+    // but never creates/acquires a companion or invokes any Mount operation.
+    internal sealed partial class RuntimePersistenceScenario : IDisposable
+    {
+        private readonly RuntimeRequest request;
+        private readonly GameMountedRelationshipService relationship;
+        private readonly NativeMountedControlService controls;
+        private readonly MountedPersistenceService persistence;
+        private readonly DiagnosticSettings settings;
+        private readonly IModLogger logger;
+        private readonly Stopwatch clock = Stopwatch.StartNew();
+        private readonly string evidence;
+        private UnitEntityData rider;
+        private UnitEntityData mount;
+        private UnitMoveTo move;
+        private Vector3 origin;
+        private Vector3 destination;
+        private NativeMountedControlSnapshot beforeControls;
+        private DiagnosticCombatTargetService targetService;
+        private MountedCombatRuleProbe ruleProbe;
+        private NativeModeTransitionProbe realtime;
+        private int stage;
+        private int passed;
+        private bool callback;
+        private bool disposed;
+        internal bool Completed { get; private set; }
+        internal RuntimeSubscenarioResult Result { get; private set; }
+        private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
+        private int completedSlotWrites;
+        private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load";
+        private bool Cold => request.Scenario == "persistence-p07-load" || ValidationCase || request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
+        private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load";
+        private readonly MountedCombatController combat;
+        private readonly MountedRemovalPreparation removal;
+        private readonly HorseCompanionBlueprintService horseCompanion;
+        private readonly bool integrationDetached;
+
+        internal RuntimePersistenceScenario(RuntimeRequest request, GameMountedRelationshipService relationship,
+            NativeMountedControlService controls, MountedPersistenceService persistence, MountedCombatController combat,
+            DiagnosticSettings settings, IModLogger logger, MountedRemovalPreparation removal,
+            HorseCompanionBlueprintService horseCompanion, bool integrationDetached)
+        {
+            this.request = request; this.relationship = relationship; this.controls = controls;
+            this.persistence = persistence; this.combat = combat; this.settings = settings; this.logger = logger;
+            this.removal = removal; this.horseCompanion = horseCompanion; this.integrationDetached = integrationDetached;
+            evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
+            if (RealtimeCase && (RealtimeApproach || RealtimeCasting) && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
+            if (CrossAreaCase) persistence.SaveSnapshotStaged += ObserveAreaTransitionSnapshot;
+        }
+
+        internal void Update()
+        {
+            if (Completed) return;
+            try { if (IntegrationAbsentCase) AdvanceAbsentLoad(); else if (CampaignBColdCase) AdvanceCampaignBCold(); else if (EligibilityColdCase) AdvanceEligibilityCold(); else if (EligibilityCase && stage > 0) AdvanceEligibility(); else if (DeathColdCase) AdvanceDeathCold(); else if (DeathCase && stage > 0) AdvanceDeath(); else if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (CampaignBCase && stage > 0 && !recoveryContinuation) AdvanceCampaignB(); else if (RemovalCase && stage > 0 && !recoveryContinuation) AdvanceRemoval(); else if (DisableLoadCase && stage > 0 && !recoveryContinuation) AdvanceDisableLoad(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (DisableCase && stage > 0 && !recoveryContinuation) AdvanceDisable(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            catch (Exception exception)
+            {
+                var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
+                try { Write("scenario-failed", new JObject { ["error"] = errors[0], ["stack"] = exception.ToString(),
+                    ["delay"] = SuspendedCase && delayTrace != null ? DelayFailure() : null }); }
+                catch (Exception error) { errors.Add("Failure observation: " + error.Message); }
+                try { Dispose(); }
+                catch (Exception error) { errors.Add("P01 cleanup: " + error.Message); }
+                Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "FAIL",
+                    AssertionPassCount = passed, AssertionFailCount = 1, Errors = errors.ToArray() };
+                Completed = true;
+            }
+        }
+
+        private void Advance()
+        {
+            if (clock.Elapsed.TotalSeconds > 150) throw new InvalidOperationException("P01 native stage timed out: " + stage);
+            var game = Game.Instance;
+            // A native save runs inside the loading process, so this observation
+            // has to precede the loading early return or it never records.
+            if (stage == 7) ObserveAutoColdWriteWait();
+            if (LoadingProcess.Instance.IsLoadingInProcess) return;
+            if (stage >= 4 && stage <= 5)
+            {
+                if (!targetService.RefreshBidirectionalCombatMemoryLease())
+                    throw new InvalidOperationException("P01 native combat memory fixture lease was lost.");
+                // The owned RT attack scenario explicitly resumes native auto-pause
+                // before waiting for initiative, which cannot recover while paused.
+                if (game.IsPaused)
+                {
+                    Write("fixture-native-unpause");
+                    game.IsPaused = false;
+                    return;
+                }
+            }
+            if (stage == 0)
+            {
+                Check(settings.EnablePairedActivation && !settings.EnableUnifiedMountedTurn &&
+                    !settings.EnablePairedCommandScheduler && !settings.EnableDiagnosticOverlay, "required-policy");
+                if (Cold)
+                {
+                    Check(persistence.LoadedData?.Mounted == true && relationship.State == RelationshipState.Mounted,
+                        "cold-pair-restored-from-archive: " + persistence.Feedback);
+                    rider = relationship.Rider; mount = relationship.Mount;
+                    Check(persistence.SemanticRestoreCount == 2 && persistence.PresentationRestoreCount == 1,
+                        "early-semantic-and-once-presentation");
+                    Check(rider.UniqueId == persistence.LoadedData.Rider.Id && mount.UniqueId == persistence.LoadedData.Mount.Id,
+                        "same-saved-native-actors");
+                    Check(game.State.Units.Count(u => u.UniqueId == rider.UniqueId) == 1 &&
+                        game.State.Units.Count(u => u.UniqueId == mount.UniqueId) == 1, "unique-native-actors");
+                    var bindings = controls.CapturePersistentSlots();
+                    Check(bindings.Length == persistence.LoadedData.Slots.Length && persistence.LoadedData.Slots.All(
+                        s => bindings.Any(x => x.ActorId == s.ActorId && x.Index == s.Index && x.Kind == s.Kind)),
+                        "cold-owned-hotbar-bindings");
+                    Check(controls.NativeCastRequestCount == 0, "cold-restoration-did-not-cast-mount");
+                    if (AreaAutoColdCase) QualifyTransitionAutoColdLoad();
+                }
+                else
+                {
+                    UnitEntityData selectedRider; UnitEntityData selectedMount; string error;
+                    if (!relationship.TryResolveAutomationPair(out selectedRider, out selectedMount, out error))
+                        throw new InvalidOperationException(error);
+                    rider = selectedRider; mount = selectedMount;
+                    Check(!game.Player.IsInCombat && relationship.MountRiderOn(rider, mount).Succeeded, "mount-before-combat");
+                    controls.Update();
+                    BindOwnedControlSlots();
+                }
+                controls.Update();
+                beforeControls = controls.CaptureSnapshot();
+                Check(beforeControls.ExactFactCount > 0 && beforeControls.DuplicateFactCount == 0 &&
+                    !beforeControls.SerializationSuspended, "controls-present-once");
+                Write("initial");
+                if (Cold) { stage = 2; return; }
+                if (QueuedCase) { QueueNativeManualSaves(); stage = 1; return; }
+                if (SlotCase) { RequestNativeSlotWrite(); stage = 1; return; }
+                // A cross-area case makes no pre-transfer manual write: the engine's
+                // own authored autosave is its departure or arrival evidence.
+                if (CrossAreaCase) { stage = 1; return; }
+                var descriptor = game.SaveManager.CreateNewSave("KMC_P01");
+                Check(descriptor.Name == "KMC_P01" && descriptor.Type == SaveInfo.SaveType.Manual &&
+                    game.SaveManager.IsSaveAllowed(), "actual-native-manual-admission");
+                game.SaveGame(descriptor, () => callback = true);
+                stage = 1; return;
+            }
+            if (stage == 1)
+            {
+                if (QueuedCase) { if (ObserveQueuedWrites()) stage = 2; return; }
+                if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
+                var name = SlotCase ? SlotName(SlotType(request.PersistenceCase)) : "KMC_P01";
+                var saved = game.SaveManager.SingleOrDefault(s => s.Name == name);
+                if (saved == null || saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
+                var read = NativeMountedSaveStorage.Read(saved.Saver);
+                Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted &&
+                    read.Data.Rider.Id == rider.UniqueId && read.Data.Mount.Id == mount.UniqueId, "actual-archive-pair-metadata");
+                Check(persistence.SnapshotCount == (SlotCase ? completedSlotWrites + 1 : 1) && relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == rider && relationship.Mount == mount, "save-retains-live-pair");
+                var after = controls.CaptureSnapshot();
+                Check(after.ExactFactCount == beforeControls.ExactFactCount && after.DuplicateFactCount == 0 &&
+                    after.ManagedHotbarSlotCount == beforeControls.ManagedHotbarSlotCount && !after.SerializationSuspended,
+                    "save-restores-owned-controls-once");
+                Check(!game.IsPaused && game.CurrentMode == Kingmaker.GameModes.GameModeType.Default, "save-resumes-native-play");
+                var elapsedGame = Math.Max(0, (game.TimeController.GameTime.Ticks - read.Data.GameTimeTicks) / (double)TimeSpan.TicksPerSecond);
+                Check(LegitimateContinuation(read.Data.Rider, MountedPersistenceService.CaptureActor(rider), elapsedGame) &&
+                    LegitimateContinuation(read.Data.Mount, MountedPersistenceService.CaptureActor(mount), elapsedGame),
+                    "save-preserves-legitimate-native-debt");
+                var file = new FileInfo(saved.FolderName);
+                completedSlotWrites++;
+                Write(SlotCase && completedSlotWrites < 3 ? "native-slot-write-complete" : "native-write-complete", new JObject
+                {
+                    ["ordinal"] = completedSlotWrites,
+                    ["path"] = saved.FolderName, ["sha256"] = Hash(saved.FolderName), ["length"] = file.Length,
+                    ["nativeType"] = saved.Type.ToString(), ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
+                    ["nativeCallback"] = callback, ["operation"] = saved.OperationState.ToString()
+                });
+                if (SlotCase)
+                {
+                    Check(saved.Type == SlotType(request.PersistenceCase) && game.SaveManager.Count(s => s.Type == saved.Type &&
+                        s.Name == saved.Name) == 1, "one-actual-native-slot-after-write");
+                    var leaf = saved.Type == SaveInfo.SaveType.Manual ? "Manual_300_KMC_P01.zks" : saved.Type + "_1.zks";
+                    Check(saved.FileName == leaf && Directory.GetFiles(game.SaveManager.SavePath, "*.zks").Length == 2,
+                        "rotation-retains-exact-slot-and-read-only-fixture");
+                    if (completedSlotWrites < 3) { RequestNativeSlotWrite(); return; }
+                }
+                stage = 2; return;
+            }
+            if (stage == 2)
+            {
+                if (rider.Commands.Move != null || mount.Commands.Move != null) return;
+                // Arriving in a new area places the whole party at one enter
+                // point, so ordinary movement waits for their native placement to
+                // settle rather than pathing a Large mount through them. This is
+                // fixture readiness only; no movement threshold changes.
+                if (CrossAreaFixture && !ArrivalSettled()) return;
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                // SetAbility(null) still enters Ability mode in this native build.
+                // Use the native Escape/cancel path before an ordinary point click.
+                game.DefaultPointerController.ClearPointerMode();
+                Check(game.DefaultPointerController.Mode == Kingmaker.Controllers.Clicks.PointerMode.Default &&
+                    game.SelectedAbilityHandler.Ability == null, "native-pointer-cancel-before-ground-input");
+                origin = mount.Position; destination = FindContinuationDestination();
+                using (var input = new NativeOrdinaryAttackInput(destination))
+                    Check(input.Click(), "ordinary-ground-input");
+                move = mount.Commands.Move as UnitMoveTo;
+                Check(move != null && move.Executor == mount && move.CreatedByPlayer, "native-mount-movement-owner");
+                Write("movement-dispatched"); stage = 3; return;
+            }
+            if (stage == 3)
+            {
+                if (!move.IsFinished) return;
+                // Observation precedes qualification: a blocked or short native
+                // route must still record its measured path and outcome.
+                var movement = NativeGroundMovementObservation.Capture(mount, move) ?? new JObject();
+                movement["result"] = move.Result.ToString();
+                movement["originDistance"] = GeometryUtils.MechanicsDistance(origin, mount.Position);
+                movement["origin"] = new JArray(origin.x, origin.y, origin.z);
+                movement["requestedDestination"] = new JArray(destination.x, destination.y, destination.z);
+                movement["partyMoving"] = game.Player.ControllableCharacters.Count(u => u.Commands.Move != null);
+                Write("movement-completed", movement);
+                Check(move.Result == UnitCommand.ResultType.Success &&
+                    GeometryUtils.MechanicsDistance(origin, mount.Position) > 1f, "normal-native-movement");
+                Check(relationship.State == RelationshipState.Mounted &&
+                    rider.CombatState.Cooldown.MoveAction <= 0.001f, "transport-retains-pair-without-rider-move-tax");
+                realtime = new NativeModeTransitionProbe(false);
+                realtime.DispatchTemporaryValueIfRequired();
+                targetService = new DiagnosticCombatTargetService(logger);
+                var target = targetService.Spawn(rider, mount, FindDestination(8f), request.RunId, true, true);
+                Check(targetService.PrepareForPlayerClick(target), "owned-target-prepared");
+                Check(targetService.QueueBidirectionalCombatMemory(rider, target), "native-combat-requested");
+                stage = 4; return;
+            }
+            if (stage == 4)
+            {
+                if (!game.Player.IsInCombat || !rider.CombatState.CanActInCombat) return;
+                Check(!TurnBased.Controllers.CombatController.IsInTurnBasedCombat(), "native-rt-control");
+                var target = targetService.Target;
+                Check(targetService.PrepareForPlayerClick(target) && targetService.BeginExpectedAttackDispatch(target),
+                    "ordinary-attack-fixture-admission");
+                ruleProbe = new MountedCombatRuleProbe();
+                ruleProbe.Arm(rider, mount, rider, target);
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                using (var input = new NativeOrdinaryAttackInput(target)) Check(input.Click(), "ordinary-attack-input");
+                Write("attack-dispatched"); stage = 5; return;
+            }
+            if (stage == 5)
+            {
+                targetService.RefreshBidirectionalCombatMemoryLease();
+                if (ruleProbe.AttackRuleCount < 1 || ruleProbe.AttackRollCount < 1) return;
+                Check(ruleProbe.LastInitiatorId == rider.UniqueId && ruleProbe.LastTargetId == targetService.TargetId &&
+                    ruleProbe.UnexpectedPairAttackCount == 0, "native-ordinary-attack-delivered");
+                Write("attack-delivered", new JObject { ["rules"] = ruleProbe.AttackRuleCount,
+                    ["rolls"] = ruleProbe.AttackRollCount, ["damage"] = ruleProbe.TotalDamage });
+                SelectionManager.Instance.Stop();
+                stage = 6; return;
+            }
+            if (stage == 6)
+            {
+                if (!targetService.DestroyAndVerify()) return;
+                Check(relationship.State == RelationshipState.Mounted, "mounted-continuation-after-save-or-cold-load");
+                Write("usable-continuation-complete");
+                // A transition autosave must also still support an ordinary
+                // subsequent write from the world it actually restored.
+                if (AreaAutoColdCase)
+                {
+                    callback = false;
+                    game.SaveGame(game.SaveManager.CreateNewSave("KMC_P01"), () => callback = true);
+                    stage = 7; return;
+                }
+                Dispose();
+                Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
+                    AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
+                Completed = true;
+            }
+            if (stage == 7)
+            {
+                if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
+                var saved = game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01");
+                if (saved == null || saved.OperationState != SaveInfo.StateType.None || !saved.HasFileOnDisk) return;
+                var written = NativeMountedSaveStorage.Read(saved.Saver);
+                Check(written.Kind == MountedSaveReadKind.Current && written.Data.Mounted &&
+                    written.Data.Rider.Id == rider.UniqueId && written.Data.Mount.Id == mount.UniqueId &&
+                    written.Data.AreaId == ExpectedAutoColdArea && persistence.SnapshotCount == 1 &&
+                    Hash(saved.FolderName) != request.PersistenceLoad.Sha256,
+                    "P07-auto-cold-supports-a-subsequent-actual-write");
+                Write("native-write-complete", new JObject {
+                    ["ordinal"] = 1, ["path"] = saved.FolderName, ["sha256"] = Hash(saved.FolderName),
+                    ["length"] = new FileInfo(saved.FolderName).Length, ["nativeType"] = saved.Type.ToString(),
+                    ["nativeCallback"] = callback, ["operation"] = saved.OperationState.ToString(),
+                    ["snapshot"] = JObject.FromObject(written.Data, MountedSaveCodec.CreateSerializer()) });
+                Dispose();
+                Result = new RuntimeSubscenarioResult { Name = request.Scenario, Status = "PASS",
+                    AssertionPassCount = passed, AssertionFailCount = 0, Errors = new string[0] };
+                Completed = true;
+            }
+        }
+
+        internal static SaveInfo.SaveType SlotType(string value)
+        {
+            switch (value) {
+                case "manual":
+                case "manual-renamed":
+                case "queued":
+                case "alternating": return SaveInfo.SaveType.Manual;
+                case "quick": return SaveInfo.SaveType.Quick;
+                case "auto": return SaveInfo.SaveType.Auto;
+                default: throw new InvalidOperationException("Unknown native slot category.");
+            }
+        }
+
+        internal static string SlotName(SaveInfo.SaveType type) =>
+            type == SaveInfo.SaveType.Manual ? "KMC_P01" :
+            (string)(type == SaveInfo.SaveType.Quick ? Kingmaker.Blueprints.Root.Strings.UIStrings.Instance.SaveLoadTexts.SavePrefixQuick :
+                Kingmaker.Blueprints.Root.Strings.UIStrings.Instance.SaveLoadTexts.SavePrefixAuto) + "1";
+
+        private void RequestNativeSlotWrite()
+        {
+            var game = Game.Instance;
+            var type = SlotType(request.PersistenceCase);
+            NativePersistenceIsolation.EnableNativeSlotRotation();
+            var descriptor = type == SaveInfo.SaveType.Quick ? game.SaveManager.GetNextQuickslot() :
+                type == SaveInfo.SaveType.Auto ? game.SaveManager.GetNextAutoslot() :
+                game.SaveManager.SingleOrDefault(s => s.Name == "KMC_P01") ?? game.SaveManager.CreateNewSave("KMC_P01");
+            Check(descriptor != null && descriptor.Type == type && descriptor.Name == SlotName(type) &&
+                game.SaveManager.IsSaveAllowed(), "actual-native-slot-admission");
+            Check((completedSlotWrites == 0) == !descriptor.IsActuallySaved, "native-new-or-oldest-slot-selection");
+            callback = false;
+            Write("native-slot-write-requested", new JObject { ["ordinal"] = completedSlotWrites + 1,
+                ["nativeType"] = type.ToString(), ["overwrite"] = descriptor.IsActuallySaved,
+                ["slotLimit"] = type == SaveInfo.SaveType.Quick ? Kingmaker.UI.SettingsUI.SettingsRoot.Instance.QuicksaveSlots.CurrentValue :
+                    type == SaveInfo.SaveType.Auto ? Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutosaveSlots.CurrentValue : 0f,
+                ["autosaveEnabled"] = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.AutosaveEnabled.CurrentValue });
+            game.SaveGame(descriptor, () => callback = true);
+        }
+
+        private void BindOwnedControlSlots()
+        {
+            var kinds = new[] { controls.DismountAbility, controls.RiderPrimaryAbility };
+            foreach (var blueprint in kinds)
+            {
+                var fact = rider.Descriptor.Abilities.GetAbility(blueprint);
+                var slots = rider.UISettings.Slots;
+                var index = Array.FindIndex(slots, s => s == null || s is MechanicActionBarSlotEmpty);
+                Check(index >= 0 && index < 128 && fact != null, "available-owned-control-slot");
+                rider.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = rider, Ability = fact.Data }, index);
+            }
+        }
+
+        private int arrivalStableFrames;
+
+        // Unqualified destination terrain ended a native route as Interrupt 1.2m
+        // short of an endpoint a point trace had accepted: a Large mount could
+        // not occupy it. A declared transfer therefore selects a route whose
+        // endpoint is clear for the mount's own footprint, and records which one
+        // it took. This chooses where to walk; the movement outcome, progress
+        // and cadence checks are unchanged.
+        private Vector3 FindContinuationDestination()
+        {
+            if (!CrossAreaFixture) return FindDestination(3f);
+            foreach (var distance in new[] { 3f, 2.5f, 2f })
+            {
+                Vector3 candidate;
+                if (!TryFindOccupiableDestination(distance, out candidate)) continue;
+                Write("area-continuation-route", new JObject {
+                    ["requestedDistance"] = distance,
+                    ["destination"] = new JArray(candidate.x, candidate.y, candidate.z),
+                    ["origin"] = new JArray(mount.Position.x, mount.Position.y, mount.Position.z),
+                    ["footprint"] = NativeGroundMovementObservation.CaptureFootprint(mount, candidate) });
+                return candidate;
+            }
+            Write("area-continuation-route", new JObject { ["requestedDistance"] = null,
+                ["origin"] = new JArray(mount.Position.x, mount.Position.y, mount.Position.z),
+                ["footprint"] = NativeGroundMovementObservation.CaptureFootprint(mount, mount.Position) });
+            throw new InvalidOperationException("No occupiable native destination exists for the declared transfer fixture.");
+        }
+
+        private bool TryFindOccupiableDestination(float distance, out Vector3 destinationPoint)
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                var wanted = mount.Position + Quaternion.Euler(0, i * 22.5f, 0) * Vector3.forward * distance;
+                var actual = Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(mount.Position, wanted);
+                if (GeometryUtils.MechanicsDistance(actual, wanted) > 0.25f ||
+                    GeometryUtils.MechanicsDistance(actual, mount.Position) <= distance - 0.5f) continue;
+                var probes = (JArray)NativeGroundMovementObservation.CaptureFootprint(mount, actual)["probes"];
+                if (probes.All(p => (float)p["residual"] <= 0.25f)) { destinationPoint = actual; return true; }
+            }
+            destinationPoint = Vector3.zero;
+            return false;
+        }
+
+        private bool ArrivalSettled()
+        {
+            var game = Game.Instance;
+            var moving = game.Player.ControllableCharacters.Any(u => u.Commands.Move != null) ||
+                game.Player.ControllableCharacters.Any(u => u.View != null && u.View.AgentASP != null &&
+                    u.View.AgentASP.IsReallyMoving);
+            arrivalStableFrames = moving ? 0 : arrivalStableFrames + 1;
+            if (arrivalStableFrames != 10) return arrivalStableFrames > 10;
+            Write("area-arrival-settled", new JObject {
+                ["area"] = game.CurrentlyLoadedArea.AssetGuidThreadSafe,
+                ["party"] = game.Player.ControllableCharacters.Count,
+                ["mountPosition"] = new JArray(mount.Position.x, mount.Position.y, mount.Position.z),
+                ["corpulence"] = mount.View == null ? 0f : mount.View.Corpulence });
+            return true;
+        }
+
+        private Vector3 FindDestination(float distance)
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                var wanted = mount.Position + Quaternion.Euler(0, i * 22.5f, 0) * Vector3.forward * distance;
+                var actual = Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(mount.Position, wanted);
+                if (GeometryUtils.MechanicsDistance(actual, wanted) <= 0.25f &&
+                    GeometryUtils.MechanicsDistance(actual, mount.Position) > distance - 0.5f) return actual;
+            }
+            throw new InvalidOperationException("No native walkable destination exists for the owned P01 fixture.");
+        }
+
+        private void Check(bool condition, string label)
+        {
+            if (!condition) { Write("assertion-failed", new JObject { ["assertion"] = label }); throw new InvalidOperationException(label); }
+            passed++;
+        }
+
+        private void Write(string kind, JObject detail = null)
+        {
+            var observedTarget = CombatCase || RealtimeCase ? combatTarget : targetService?.Target;
+            var targetLife = DiagnosticTargetLifeSnapshot.Capture(observedTarget);
+            // A native load that fails after Game.DisposeState leaves no world to
+            // describe. These observations must still be recorded, so every world
+            // lookup below tolerates its absence; assertions remain separate.
+            var world = Game.Instance;
+            var player = world?.Player;
+            var turns = world?.TurnBasedCombatController;
+            JObject controlState = null;
+            try { controlState = JObject.FromObject(controls.CaptureSnapshot(), MountedSaveCodec.CreateSerializer()); }
+            catch (Exception exception) { logger.Exception("Owned control snapshot unavailable for observation", exception); }
+            var row = new JObject
+            {
+                ["runId"] = request.RunId, ["scenario"] = request.Scenario, ["processId"] = Process.GetCurrentProcess().Id,
+                ["kind"] = kind, ["checkpoint"] = CombatCase || RealtimeCase ? Checkpoint : SlotCase || ValidationCase || RecoveryCase || AreaCase || request.Scenario == "persistence-p07-load" ? request.PersistenceCase : null, ["stage"] = stage, ["time"] = DateTimeOffset.UtcNow.ToString("o"),
+                ["gameTicks"] = world?.TimeController?.GameTime.Ticks, ["source"] = request.Commit,
+                ["dll"] = request.DllSha256, ["relationship"] = relationship.State.ToString(),
+                ["rider"] = rider == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(rider), MountedSaveCodec.CreateSerializer()),
+                ["mount"] = mount == null ? null : JObject.FromObject(MountedPersistenceService.CaptureActor(mount), MountedSaveCodec.CreateSerializer()),
+                ["controls"] = controlState,
+                ["native"] = new JObject { ["paused"] = world?.IsPaused,
+                    ["mode"] = world?.CurrentMode.ToString(), ["partyCombat"] = player?.IsInCombat,
+                    ["tbSetting"] = Kingmaker.UI.SettingsUI.SettingsRoot.Instance.EnableTurnBasedMode.CurrentValue,
+                    ["tbInitialized"] = turns?.Initialized,
+                    ["tbCurrent"] = turns?.CurrentTurn?.Unit.UniqueId,
+                    ["tbStatus"] = turns?.CurrentTurn?.Status.ToString(),
+                    ["tbWaitingUi"] = turns == null ? null : (bool?)turns.WaitingForUI,
+                    ["tbRoster"] = turns == null ? null : new JArray(turns.SortedUnits.Select(u => u.UniqueId)),
+                    ["riderCombat"] = rider?.IsInCombat, ["mountCombat"] = mount?.IsInCombat,
+                    ["riderCanAct"] = rider?.CombatState.CanActInCombat,
+                    ["targetCombat"] = observedTarget?.IsInCombat, ["targetId"] = observedTarget?.UniqueId,
+                    ["targetLife"] = targetLife == null ? null : JObject.FromObject(targetLife, MountedSaveCodec.CreateSerializer()) },
+                ["persistence"] = new JObject { ["semantics"] = persistence.SemanticRestoreCount,
+                    ["presentation"] = persistence.PresentationRestoreCount, ["feedback"] = persistence.Feedback },
+                ["detail"] = detail
+            };
+            File.AppendAllText(evidence, row.ToString(Formatting.None) + Environment.NewLine);
+        }
+
+        // Native debt may only fall, and only by what the restored game clock
+        // ticked. The installed clock advances by TimeSpan.FromSeconds(DeltaTime),
+        // which rounds each frame's delta to a whole millisecond
+        // (TimeController.Tick IL_0151..0161), while the cooldown controller
+        // subtracts the unrounded float delta (UnitCombatCooldownsController
+        // .TickOnUnit IL_0039..0080), so the clock can trail the cooldowns by up
+        // to 0.5 ms per frame. The slack is derived from that: 1 ms plus one tenth
+        // of the elapsed game time (0.5 ms per frame at no more than 200 frames
+        // per second). final104-p04-load-mounted-casting measured 1.4 ms of
+        // drift over 0.156 s against a fixed 1 ms slack.
+        private static bool LegitimateContinuation(SavedNativeActor before, SavedNativeActor after, double elapsed)
+        {
+            var a = new[] { before.Standard, before.Move, before.Swift, before.Initiative, before.Reaction };
+            var b = new[] { after.Standard, after.Move, after.Swift, after.Initiative, after.Reaction };
+            var slack = 0.001 + Math.Max(0, elapsed) * 0.1;
+            return before.Id == after.Id && before.ReactionsRemaining == after.ReactionsRemaining &&
+                before.LastSurpriseTicks == after.LastSurpriseTicks &&
+                Enumerable.Range(0, a.Length).All(i => b[i] <= a[i] + 0.001f && b[i] + elapsed + slack >= a[i]);
+        }
+
+        private static string Hash(string path)
+        {
+            using (var sha = SHA256.Create()) using (var stream = File.OpenRead(path))
+                return BitConverter.ToString(sha.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+        }
+
+        public void Dispose()
+        {
+            if (disposed) return;
+            recoveryFault?.Dispose(); recoveryFault = null;
+            recoveryArchiveLock?.Dispose(); recoveryArchiveLock = null;
+            // A held worker must never outlive its scenario, including a failure.
+            drainHold?.Dispose(); drainHold = null;
+            NativeSaveWorkerBoundary.ReleaseWorkerHold();
+            persistence.SaveSnapshotStaged -= ObserveApproachSnapshot;
+            persistence.SaveSnapshotStaged -= ObserveAreaTransitionSnapshot;
+            persistence.SaveSnapshotStarting -= BeforeConditionPreparationSnapshot;
+            if (conditionLease != null) conditionLease.NativeChoiceObserved -= RequestConditionPreparationSave;
+            if (SlotCase || CrossAreaCase || campaignSlotRotationForced) NativePersistenceIsolation.DisableNativeSlotRotation();
+            targetService?.Dispose(); ruleProbe?.Dispose(); reactionProbe?.Dispose(); realtimeProbe?.Dispose(); realtimeRounds?.Dispose(); realtime?.Dispose();
+            castingEffects?.Dispose();
+            conditionLease?.Dispose(); conditionFact?.Dispose(); conditionTrace?.Dispose();
+            delayTrace?.Dispose(); RestoreDelayInitiative();
+            // The death case's scoped policy must never outlive its process,
+            // including a failure; an inexact restoration is logged, not hidden
+            // behind the failure that led here.
+            if (deathPolicy != null)
+            {
+                try { deathPolicy.Dispose(); }
+                catch (Exception error) { logger.Warning("Native death fixture policy restoration failed during teardown: " + error.Message); }
+                finally { deathPolicy = null; }
+            }
+            relationship.Dismount(CleanupTrigger.ProcessTeardown);
+            try { realtimeWeapon?.Dispose(); } finally { realtimeWeapon = null; }
+            try { restoreRealtimeAi?.Invoke(); } finally { restoreRealtimeAi = null; }
+            settings.EnableUnsafeMovementExperiment = false;
+            disposed = true;
+        }
+    }
+}

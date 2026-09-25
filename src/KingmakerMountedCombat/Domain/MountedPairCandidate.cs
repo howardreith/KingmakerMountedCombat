@@ -50,7 +50,11 @@ namespace KingmakerMountedCombat.Domain
 
         public bool SafeMovementMode { get; set; }
 
-        public string Validate()
+        public string Validate() => Validate(false);
+
+        internal string ValidateSavedRelationship() => Validate(true);
+
+        private string Validate(bool restoring)
         {
             if (string.IsNullOrWhiteSpace(RiderId) || string.IsNullOrWhiteSpace(MountId))
             {
@@ -77,7 +81,7 @@ namespace KingmakerMountedCombat.Domain
                 return "Mount must be the rider's exact active reciprocal companion.";
             }
 
-            if (RiderIsInCombat || MountIsInCombat || PartyIsInCombat)
+            if (!restoring && (RiderIsInCombat || MountIsInCombat || PartyIsInCombat))
             {
                 return "Private-alpha mounting is available only outside combat.";
             }
