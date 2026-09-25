@@ -1,3 +1,13 @@
+# 2026-09-25 UTC - owner acceptance of Chunk 5 and alpha delivery authority
+
+**ACCEPTED - Chunk 5 complete; alpha delivery of the exact preview.105 payload.** The owner accepted the Chunk 5 completion candidate on 2026-09-25 and authorized finalizing it, merging into default branch `main`, pushing, and cutting an alpha prerelease. These instructions supersede the historical no-merge/no-release limits for this delivery only. The tested source remains `471e1df92ee919c92bf42d0bc03ab6c2d2cc4114`; the qualified ZIP/DLL is unchanged (ZIP SHA256 `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`, DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID `638259af-9d31-4738-be8a-2784135d4235`, suite `20260924-chunk5-suite122`). Local installation was not requested and was not performed: the owner's installed build remains chunk4-preview.54 (DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`). [Setup and focused playtest](docs/ALPHA-PLAYTEST.md), [qualification and ledger](docs/CHUNK5-PERSISTENCE.md).
+
+Delivery: this documentation commit on the integration branch through the guarded push helper, a pull request merged into `main` with a merge commit (integration history preserved), then the alpha prerelease `v0.1.0-chunk5-preview.105` targeting that merge commit with the exact qualified ZIP attached and verified by download before publication. Receipts and the final merge/release identities belong in `analysis-cache/chunk5-alpha105/ACTIVE.json`. On resumption, first run `git status --short` and read that receipt before changing external state.
+
+Paired activation starts off in this unchanged developer build. Before mounting each game process, enable **Enable paired activation prototype (before mounting)** in KMC's UMM panel while dismounted and outside combat; keep both legacy authorities and the overlay off. No new gameplay change, rebuild or Chunk 6 implementation is part of delivery.
+
+---
+
 # 2026-09-20 UTC - authorized permanent alpha installation verified
 
 **PASS - exact preview.54 installed for the owner's alpha test.** The owner accepted Chunk 4 and authorized committing, merging into default branch `main`, publishing an alpha prerelease and installing it locally. These instructions supersede historical delivery restrictions. The tested source remains `429377d707a9976be65639e0c27954d8b4ff3717`; the qualified ZIP/DLL is unchanged. [Setup and manual checklist](docs/ALPHA-PLAYTEST.md), [qualification](docs/CHUNK4-PLAYABILITY.md).
