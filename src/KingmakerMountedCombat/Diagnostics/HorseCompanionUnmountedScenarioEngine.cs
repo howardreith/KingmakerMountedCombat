@@ -1745,7 +1745,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["feedback"] = playerAction.LastFeedback, ["command"] = command?.GetType().Name,
                     ["started"] = command?.IsStarted, ["finished"] = command?.IsFinished,
                     ["result"] = command?.Result.ToString(), ["enoughClose"] = command?.IsUnitEnoughClose,
-                    ["hasCooldown"] = command != null && owner.CombatState.HasCooldownForCommand(command)
+                    ["hasCooldown"] = command != null && owner.CombatState.HasCooldownForCommand(command),
+                    // A relationship shell refusal is raised as a native warning, not
+                    // written to the player-action feedback, so without these the
+                    // deadline names no root at all.
+                    ["relationshipState"] = relationship.State.ToString(),
+                    ["dispatchAccepted"] = nativeControls.DispatchAcceptedCount,
+                    ["dispatchRejected"] = nativeControls.DispatchRejectedCount,
+                    ["nativeRefusals"] = nativeControls.NativeRefusalCount,
+                    ["shellState"] = nativeControls.DescribeRelationshipShellState(owner)
                 };
                 Fail("target-selected-mount-admission-deadline", "Native Mount did not establish a mounted pair within 25 seconds; no attack cases were attempted. " +
                     observations["phase3gMountDeadline"].ToString(Formatting.None));

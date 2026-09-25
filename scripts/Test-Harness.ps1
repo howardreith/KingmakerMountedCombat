@@ -50,6 +50,50 @@ Invoke-HarnessTest 'runtime scenario orchestrator parses before any transaction'
     }
 }
 
+# Found by running it: chunk6a-combat-mount-rt reached the game, produced 43
+# assertion passes and one real failure, and then the RESULT VALIDATOR rejected the
+# whole run as an unknown subscenario - masking the real failure behind a registry
+# omission. The scenario name had been registered in the save-backed list, the
+# evidence-suite scope and the required-rows switch, but not in the one list
+# Test-RuntimeResult uses as its known-subscenario registry.
+#
+# The guard is the invariant that was actually violated, and it is statically
+# decidable: a scenario the Horse-companion tranche handles reports ITS OWN NAME as a
+# subscenario, so every scenario that tranche accepts must be registered in the one
+# list Test-RuntimeResult uses as its known-subscenario registry. Suite scenarios are
+# deliberately out of scope - they expand into individual row names and never report
+# the suite name itself.
+Invoke-HarnessTest 'every tranche-handled scenario is a registered known subscenario' {
+    $policyPath = Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs'
+    Assert-Test (Test-Path -LiteralPath $policyPath) 'The tranche scenario policy source is missing.'
+    $policyText = [IO.File]::ReadAllText($policyPath)
+    $handled = @([Regex]::Matches($policyText, 'scenario,\s*"([A-Za-z0-9._-]+)"') | ForEach-Object { $_.Groups[1].Value })
+    Assert-Test ($handled.Count -gt 20) ('The tranche scenario policy yielded too few names: ' + $handled.Count)
+    # The validator's known set is a union of its own literal and the rows list, and
+    # that split is exactly what let a scenario reach the game unregistered. The test
+    # reconstructs the same union, so it fails if either half drifts.
+    $validatorPath = Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1'
+    $validatorText = [IO.File]::ReadAllText($validatorPath)
+    $literalBlock = [Regex]::Match($validatorText, '(?s)\$missionScenarios = @\((.*?)\r?\n    \)')
+    Assert-Test $literalBlock.Success 'The runtime result validator no longer declares its mission scenario literal.'
+    $literalNames = @([Regex]::Matches($literalBlock.Groups[1].Value, "'([A-Za-z0-9._-]+)'") | ForEach-Object { $_.Groups[1].Value })
+    Assert-Test ($literalNames.Count -gt 40) ('The validator literal yielded too few names: ' + $literalNames.Count)
+    $known = @(Get-KmcPhase3dHorseRuntimeRows) + $literalNames
+    $missing = @($handled | Where-Object { $known -cnotcontains $_ })
+    Assert-Test ($missing.Count -eq 0) ('Tranche scenarios missing from the known-subscenario registry: ' + ($missing -join ', '))
+    $command = Get-Command (Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1')
+    $declared = @($command.Parameters['Scenario'].Attributes | Where-Object { $_ -is [Management.Automation.ValidateSetAttribute] })
+    Assert-Test ($declared.Count -eq 1) 'Runtime scenario parameter has no unique bounded set.'
+    foreach ($scenario in $handled) {
+        Assert-Test ($declared[0].ValidValues -ccontains $scenario) ('Tranche scenario is not accepted by the orchestrator: ' + $scenario)
+    }
+    foreach ($scenario in @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb')) {
+        Assert-Test ($handled -ccontains $scenario) ('Chunk 6A scenario is not handled by the tranche policy: ' + $scenario)
+        Assert-Test ($known -ccontains $scenario) ('Chunk 6A scenario is not a known subscenario: ' + $scenario)
+        Assert-Test (@(Get-KmcSaveBackedRuntimeScenarios) -ccontains $scenario) ('Chunk 6A scenario is not save-backed: ' + $scenario)
+    }
+}
+
 function New-TestSaveArchive {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
