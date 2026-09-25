@@ -375,10 +375,20 @@ try{
             -After $lockedContinuity.saveMetadata `
             -Description 'runtime locked fixture-continuity save metadata'
     }
+    # The no-save mode must bind NO suite argument, not an empty one: the
+    # receiving parameters are ValidatePattern-guarded, so an explicitly passed
+    # empty string is rejected before the function's own completeness check
+    # ('exactly three for a suite mode, exactly none otherwise') can run. The
+    # save-backed binding is unchanged and still always supplies all three.
+    $suiteBinding=@{}
+    if($isSaveBacked){
+        $suiteBinding['QualificationSuiteSnapshotPath']=$QualificationSuiteSnapshotPath
+        $suiteBinding['QualificationSuiteId']=$ExpectedQualificationSuiteId
+        $suiteBinding['QualificationSuiteSnapshotSha256']=$ExpectedQualificationSuiteSnapshotSha256
+    }
     $combinedStatePath=New-KmcRunTransactionState -Lock $lock -Mode $(if($isSaveBacked){'save-backed-v3-suite'}else{'no-save-v1'}) `
         -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeMods -SavesBefore $beforeSaves `
-        -QualificationSuiteSnapshotPath $QualificationSuiteSnapshotPath -QualificationSuiteId $ExpectedQualificationSuiteId `
-        -QualificationSuiteSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256
+        @suiteBinding
     if($isSaveBacked){
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
