@@ -1,6 +1,6 @@
 # Chunk 5: save-scoped persistence and cold-load recovery
 
-**COMPLETION CANDIDATE — natively qualified on one frozen payload (`0.1.0-chunk5-preview.98`; see the completion section and `chunk5-ledger.json`); not accepted by the owner, not installed, not merged, not released.** Branch `codex/mounted-combat-phase3f-playable-core` preserves reviewed `8a297fa019ff205f50fd7b911b6f6e03d46fbb1a` and Chunk 4 source `429377d707a9976be65639e0c27954d8b4ff3717`. Chunk 4 native engineering is accepted; visual/HUD/physical-input and HUMAN PLAY remain TODO. Historical experiments and exact run identities remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md); runtime saves and proprietary evidence stay in the lab.
+**COMPLETION CANDIDATE — every mandatory Chunk 5 behavior PASS natively on one frozen payload (`0.1.0-chunk5-preview.105`; completion gate PASS; see the completion section and `chunk5-ledger.json`); not accepted by the owner, not installed, not merged, not released.** Branch `codex/mounted-combat-phase3f-playable-core` preserves reviewed `8a297fa019ff205f50fd7b911b6f6e03d46fbb1a` and Chunk 4 source `429377d707a9976be65639e0c27954d8b4ff3717`. Chunk 4 native engineering is accepted; visual/HUD/physical-input and HUMAN PLAY remain TODO. Historical experiments and exact run identities remain in [the journal](../MOUNTED-COMBAT-JOURNAL.md); runtime saves and proprietary evidence stay in the lab.
 
 ## Storage and resume semantics
 
@@ -20,131 +20,311 @@ These are causal engineering checkpoints, **not the consolidated final-candidate
 
 | Gate | Evidence to date | Mandatory remainder |
 |---|---|---|
-| P01 | Preview6 save-D23/0, preview7 cold-B20/0: real Manual archive, full exit, same actors/controls, movement/attack | Exact-final repeat, including Horse |
-| P02 | Partial movement9:26/0+20/0; rider spent12:36/0+29/0; partner orders13:34/0+24/0; exhausted13/14:33/0+23/0; pending End15/16:30/0+28/0. Legal remainder/rejected spent work and two later grants measured | Exact-final boundaries |
-| P03 | Step16:34/0+28/0; conversion17:46/0+29/0; real round effect20:31/0+24/0; reaction21:45/0+31/0. Condition/split43:25/0+17/0, native harm/forfeit and principal remainder retained, next two true actor preparations. Preparation45:28/0+17/0 saves from inside preparation after its command resolves. Suspended Delay46:82/0+66/0 retains same-round grant and native effects | Exact-final suite |
-| P04 | Idle RT29, active attack30, projectile32, unmounted approach33, mounted approach/attack34 all save/cold PASS. Casting38: unmounted390/0+370/0, mounted690/0+720/0 | TB active/preparation boundaries, relevant overlapping effects, final comparisons |
-| P05 | Manual/quick/auto native writes and overwrite/rotation22/23:44/0 source and20/0 cold each; renamed archive23:20/0. A/B/A25:17/0+45/0, distinct mounted/unmounted saves and another actual save after load. Queued48:34/0+20/0, three requests/actual commits and cold302 | Exact-final suite |
-| P06 | Preview52 ten native/outer cases335/0: legacy/current retry, schema1 migration, missing actors/mismatched profile, malformed/unsupported profile, metadata campaign/policy/future refusals  Preview56 damaged-combat missing/AI:49/0 each; canceled retry stays fenced, four duplicate callbacks do not replay debt/preparation, valid reload advances two activations. Preview70 post-disposal load failure26/0 plus restart recovery20/0: corrupt area member passes admission and fails after the world is destroyed, nothing is presented, and recovery is restart-only | Campaign B exists on the completion candidate (`final98-p07-campaign-b` 63/0); the native foreign-header refusal against B's archives is NOT RUN (no longer blocked); exact-final repeat done |
-| P07 | Preview53 canceled wait/queued load60/0+cold20/0; real timeout58/0+cold20/0. Same world/debt/controls, unchanged last-good native reload, subsequent actual write and usable play. Preview54 locked replacement59/0+cold20/0: one actual replacement failure, no success callback, previous bytes intact, real retry write. Preview58 same-area reload33/0+cold20/0: measured retained cross-scene views, real post-area write and ordinary continuation. Preview63 cross-area entry34/0+cold20/0 and preview64 cross-area exit34/0+cold20/0 at the campaign's own hub: real transfers, retained views, both authored autosave modes proven distinct at their native barriers, destination writes and cold round trips. Preview69 transition-autosave cold load24/0 each: both authored Auto archives themselves open, in a fresh process, the exact world each captured | Removal, disable during a real load, integration-absent load, campaign B and rider/mount death are qualified on the completion candidate below; area transitions and timeout/cancel-wait/locked-replace keep their earlier-payload evidence (NOT RUN on this payload) |
-| P08 | Accepted Chunk 4 evidence remains historical; `final98-p08-rt` 54/0 on the completion candidate | Turn-based remains the bounded known issue (`P08-tb` NOT RUN) |
+| P01 | Preview6 save-D23/0, preview7 cold-B20/0: real Manual archive, full exit, same actors/controls, movement/attack | PASS on the completion candidate (`P01-save`, `P01-load`) |
+| P02 | Partial movement9:26/0+20/0; rider spent12:36/0+29/0; partner orders13:34/0+24/0; exhausted13/14:33/0+23/0; pending End15/16:30/0+28/0. Legal remainder/rejected spent work and two later grants measured | PASS on the completion candidate: all five checkpoints, save and cold, as their own entries |
+| P03 | Step16:34/0+28/0; conversion17:46/0+29/0; real round effect20:31/0+24/0; reaction21:45/0+31/0. Condition/split43:25/0+17/0, native harm/forfeit and principal remainder retained, next two true actor preparations. Preparation45:28/0+17/0 saves from inside preparation after its command resolves. Suspended Delay46:82/0+66/0 retains same-round grant and native effects | PASS on the completion candidate: all seven, save and cold, as their own entries |
+| P04 | Idle RT29, active attack30, projectile32, unmounted approach33, mounted approach/attack34 all save/cold PASS. Casting38: unmounted390/0+370/0, mounted690/0+720/0 | PASS on the completion candidate: ten real-time checkpoints, save and cold; the active turn-based, unresolved-preparation and overlapping-effect boundaries are the P02 and P03 entries executed on the same payload (preparing condition, pending reaction, round effect, suspended Delay), not mappings |
+| P05 | Manual/quick/auto native writes and overwrite/rotation22/23:44/0 source and20/0 cold each; renamed archive23:20/0. A/B/A25:17/0+45/0, distinct mounted/unmounted saves and another actual save after load. Queued48:34/0+20/0, three requests/actual commits and cold302 | PASS on the completion candidate: manual, quick, auto, queued, alternating, and the renamed archive, save and cold |
+| P06 | Preview52 ten native/outer cases335/0: legacy/current retry, schema1 migration, missing actors/mismatched profile, malformed/unsupported profile, metadata campaign/policy/future refusals  Preview56 damaged-combat missing/AI:49/0 each; canceled retry stays fenced, four duplicate callbacks do not replay debt/preparation, valid reload advances two activations. Preview70 post-disposal load failure26/0 plus restart recovery20/0: corrupt area member passes admission and fails after the world is destroyed, nothing is presented, and recovery is restart-only | PASS on the completion candidate: all fourteen refusals and migrations, including the foreign native header against campaign B own archive |
+| P07 | Preview53 canceled wait/queued load60/0+cold20/0; real timeout58/0+cold20/0. Same world/debt/controls, unchanged last-good native reload, subsequent actual write and usable play. Preview54 locked replacement59/0+cold20/0: one actual replacement failure, no success callback, previous bytes intact, real retry write. Preview58 same-area reload33/0+cold20/0: measured retained cross-scene views, real post-area write and ordinary continuation. Preview63 cross-area entry34/0+cold20/0 and preview64 cross-area exit34/0+cold20/0 at the campaign's own hub: real transfers, retained views, both authored autosave modes proven distinct at their native barriers, destination writes and cold round trips. Preview69 transition-autosave cold load24/0 each: both authored Auto archives themselves open, in a fresh process, the exact world each captured | PASS on the completion candidate: timeout, cancel-wait, locked replacement, serialization cancel and its output (each with cold), disable/re-enable, campaign B and cold, removal, integration-absent, genuine no-DLL, disable during load, rider and mount death with cold, rider size change with cold, area reload, cross-entry and cross-exit with cold and transition autosaves |
+| P08 | Accepted Chunk 4 evidence remains historical; `final98-p08-rt` 54/0 on the completion candidate | PASS on the completion candidate: the real-time loop and the three accepted turn-based controls; `P08-tb` stays the bounded, non-mandatory known issue |
 
 ## Chunk 5 completion candidate: one frozen payload, one ledger
 
-Candidate `0.1.0-chunk5-preview.98`, qualifier `chunk5-completion`, source `2705a4b3729544e0e9cc21d4e1b7ee0a7795966e`.
-Private ZIP `KingmakerMountedCombat-0.1.0-chunk5-preview.98-chunk5-completion-diagnostic.zip` SHA256 `dfc05a31c70b335bd9d7390e3727a8f5cf4166e183ac988a1913fd61363a966e`, manifest `6a3362178ac701ae99d14e32777226d46b5ebf8ea33dd3bf677053246c0008f8`, DLL
-`02f07ab634103d9c2224e3e5b1c49fb7973c2f7cdd94a29043bca9c05517637e`, MVID `2db9c165-49b6-43ea-ba1b-53041ae48b40`, qualification suite `20260923-chunk5-suite115` SHA256
-`86ee97404b1dcdee1995f748a7249a3cd615be7e3ba0cf340c4b2c8ee8c1c1e3`. Offline gates on that exact source: source 28, components 463,
-contracts 178, owned fixtures 500, harness 261, package 11, all
+Candidate `0.1.0-chunk5-preview.105`, qualifier `chunk5-completion`, source
+`471e1df92ee919c92bf42d0bc03ab6c2d2cc4114`. Private ZIP
+`KingmakerMountedCombat-0.1.0-chunk5-preview.105-chunk5-completion-diagnostic.zip`
+SHA256 `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`,
+manifest `d772d8dded65e54249f77e1a6e10829a938f90483c56041228fb70651b753fa3`,
+DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID
+`638259af-9d31-4738-be8a-2784135d4235`, qualification suite
+`20260924-chunk5-suite122` SHA256
+`5200fee36cfd316def98eee2a5f7208499029b141ef27d4f0f5d2af384a2c9dd`; removal
+observer `KmcRemovalObserver-0.1.0-observer.1-chunk5-completion-105-diagnostic.zip`
+SHA256 `46a2f3e8017cc9cf2fa51dfe8284351a748ae791d46f6337dbba1e4250e2342c`
+from the same commit. Offline gates on that exact source: source 29, components 483, contracts 180, data 56, owned fixtures 620, validation copies 118, harness 262, profile protection 53, package 11, observer package 7, all
 FAIL=0. This remains an unqualified private engineering candidate: it is not
 installed for the owner, not merged and not released.
 
-The acceptance ledger is `chunk5-ledger.json` beside this document, generated
-from the restored runtime results of the runs named in it and checked by
-`scripts/Test-Chunk5Ledger.ps1` (37/0). Every entry is one of
-PASS, FAIL, MAPPED, NOT RUN, BLOCKED or EXCLUDED. A PASS entry binds a run's
-scenario, case, assertion counts, frozen payload identity, suite identity,
-restoration flags and the SHA256 of its evidence rows; the checker refuses a
-PASS entry whose run did not execute exactly this payload, a MAPPED entry whose
-targets are not PASS entries, and any other entry without a reason. Nothing in
-the ledger is scored by the generator.
+The acceptance ledger `chunk5-ledger.json` beside this document holds one entry
+per mandatory behavior of `scripts/Test-Chunk5Ledger.ps1`'s fixed list (105
+ids) plus the non-mandatory `P08-tb` known issue, generated from the restored
+runtime results of the runs named in it; nothing in the ledger is scored by the
+generator. The checker has two modes. Record consistency binds every PASS entry
+to its run's scenario, case, assertion counts, frozen payload identity, suite
+identity, restoration flags and the SHA256 of its evidence rows, a death cold
+entry to its source run's recorded life state, and the no-DLL entry to the
+observer result and to the `prepare-removal` run whose cleanup archive it
+opened (106/0). `-Completion` fails on any mandatory id that is
+missing, NOT RUN, BLOCKED, FAIL, or MAPPED / EXCLUDED without the owner's own
+recorded decision: CHUNK5 COMPLETION GATE PASS: all 105 mandatory behaviors PASS on 0.1.0-chunk5-preview.105.
 
 | Entry | Gate | Status | Run | Result | Note |
 |---|---|---|---|---|---|
-| `P01-save` | P01 | **PASS** | `final98-p01-save` | 23/0 (PID 17912) |  |
-| `P01-load` | P01 | **PASS** | `final98-p01-load` | 20/0 (PID 16768) |  |
-| `P02-save-partial-movement` | P02 | **PASS** | `final98-p02-save-partial-movement` | 31/0 (PID 20996) |  |
-| `P02-load-partial-movement` | P02 | **PASS** | `final98-p02-load-partial-movement` | 26/0 (PID 17732) |  |
-| `P03-save-step` | P03 | **PASS** | `final98-p03-save-step` | 33/0 (PID 19076) |  |
-| `P03-load-step` | P03 | **PASS** | `final98-p03-load-step` | 28/0 (PID 12548) |  |
-| `P04-save-mounted-attack` | P04 | **PASS** | `final98-p04-save-mounted-attack` | 27/0 (PID 12656) |  |
-| `P04-load-mounted-attack` | P04 | **PASS** | `final98-p04-load-mounted-attack` | 18/0 (PID 10104) |  |
-| `P05-save-manual` | P05 | **PASS** | `final98-p05-save-manual` | 44/0 (PID 17544) |  |
-| `P05-load-manual` | P05 | **PASS** | `final98-p05-load-manual` | 20/0 (PID 22312) |  |
-| `P06-legacy` | P06 | **PASS** | `final98-p06-legacy` | 34/0 (PID 23424) |  |
-| `P06-failed-area-load` | P06 | **PASS** | `final98-p06-failedarea` | 26/0 (PID 21752) |  |
-| `P07-serialization-cancel` | P07 | **PASS** | `final98-p07-cancel` | 52/0 (PID 11928) |  |
-| `P07-serialization-cancel-output` | P07 | **PASS** | `final98-p07-output` | 51/0 (PID 17528) |  |
-| `P07-serialization-cancel-output-cold` | P07 | **PASS** | `final98-p07-output-cold` | 20/0 (PID 21304) |  |
-| `P07-disable-reenable` | P07 | **PASS** | `final98-p07-disable` | 53/0 (PID 21340) |  |
-| `P07-campaign-b` | P07 | **PASS** | `final98-p07-campaign-b` | 63/0 (PID 19368) |  |
-| `P07-prepare-removal` | P07 | **PASS** | `final98-p07-removal` | 34/0 (PID 20572) |  |
-| `P07-absent-kmc` | P07 | **PASS** | `final98-p07-absent` | 5/0 (PID 17416) |  |
-| `P07-disable-during-load` | P07 | **PASS** | `final98-p07-disable-load` | 33/0 (PID 7252) |  |
-| `P07-rider-death` | P07 | **PASS** | `final98-p07-rider-death` | 26/0 (PID 5808) |  |
-| `P07-rider-death-cold` | P07 | **PASS** | `final98-p07-rider-death-cold` | 3/0 (PID 20652) |  |
-| `P07-mount-death` | P07 | **PASS** | `final98-p07-mount-death` | 26/0 (PID 12520) |  |
-| `P07-mount-death-cold` | P07 | **PASS** | `final98-p07-mount-death-cold` | 3/0 (PID 19260) |  |
-| `P07-area-reload` | P07 | **PASS** | `final98-p07-area-reload` | 33/0 (PID 720) |  |
-| `P08-rt` | P08 | **PASS** | `final98-p08-rt` | 54/0 (PID 20556) |  |
-| `P07-area-cross-entry` | P07 | **NOT RUN** |  |  | Qualified source and cold on preview.63/69 (see docs); not re-executed on the frozen payload within this mission. |
-| `P07-area-cross-exit` | P07 | **NOT RUN** |  |  | Qualified source and cold on preview.64/69 (see docs); not re-executed on the frozen payload within this mission. |
-| `P07-timeout` | P07 | **NOT RUN** |  |  | Qualified on preview.53; not re-executed on the frozen payload within this mission. |
-| `P07-cancel-wait` | P07 | **NOT RUN** |  |  | Qualified on preview.53; not re-executed on the frozen payload within this mission. |
-| `P07-locked-replace` | P07 | **NOT RUN** |  |  | Qualified on preview.54; not re-executed on the frozen payload within this mission. |
-| `P05-quick-auto-queued-renamed-alternating` | P05 | **NOT RUN** |  |  | Qualified on earlier payloads (preview.22-48); not re-executed on the frozen payload within this mission. |
-| `P04-active-tb-and-overlapping-effects` | P04 | **MAPPED** |  |  | to `P02-save-partial-movement`, `P02-load-partial-movement`, `P03-save-step`, `P03-load-step` |
-| `P07-harmful-lifecycle-mapped` | P07 | **MAPPED** |  |  | to `P07-rider-death`, `P07-rider-death-cold`, `P07-mount-death`, `P07-mount-death-cold`, `P06-legacy`, `P06-failed-area-load`, `P07-disable-reenable` |
-| `P06-foreign-header-campaign` | P06 | **NOT RUN** |  |  | The disposable campaign B now exists (P07-campaign-b wrote B own autosave and manual archives under isolated routing), so this case is no longer blocked on a fixture, but the na... |
-| `P07-mod-absent-load` | P07 | **EXCLUDED** |  |  | A load with the KMC DLL physically absent cannot be driven or reported by this automation (the DLL hosts it). The integration-absent case detaches every KMC guard and service be... |
-| `P08-tb` | P08 | **NOT RUN** |  |  | Bounded known issue: the turn-based longbow full-round attack count fails with the same assertion on Phase 3H preview.6, before any Chunk 5 work; the accepted Chunk 4 turn-based... |
+| `P01-save` | P01 | **PASS** | `final105-p01-save` | 23/0 (PID 25876) |  |
+| `P01-load` | P01 | **PASS** | `final105-p01-load` | 20/0 (PID 15856) |  |
+| `P02-save-partial-movement` | P02 | **PASS** | `final105-p02-save-partial-movement` | 31/0 (PID 27760) |  |
+| `P02-load-partial-movement` | P02 | **PASS** | `final105-p02-load-partial-movement` | 26/0 (PID 27080) |  |
+| `P02-save-rider-spent` | P02 | **PASS** | `final105-p02-save-rider-spent` | 39/0 (PID 26192) |  |
+| `P02-load-rider-spent` | P02 | **PASS** | `final105-p02-load-rider-spent` | 30/0 (PID 22164) |  |
+| `P02-save-between-partner-orders` | P02 | **PASS** | `final105-p02-save-between-partner-orders` | 34/0 (PID 17580) |  |
+| `P02-load-between-partner-orders` | P02 | **PASS** | `final105-p02-load-between-partner-orders` | 24/0 (PID 18064) |  |
+| `P02-save-exhausted` | P02 | **PASS** | `final105-p02-save-exhausted` | 34/0 (PID 27104) |  |
+| `P02-load-exhausted` | P02 | **PASS** | `final105-p02-load-exhausted` | 23/0 (PID 28420) |  |
+| `P02-save-explicit-end` | P02 | **PASS** | `final105-p02-save-explicit-end` | 31/0 (PID 26172) |  |
+| `P02-load-explicit-end` | P02 | **PASS** | `final105-p02-load-explicit-end` | 28/0 (PID 16020) |  |
+| `P03-save-step` | P03 | **PASS** | `final105-p03-save-step` | 34/0 (PID 28520) |  |
+| `P03-load-step` | P03 | **PASS** | `final105-p03-load-step` | 28/0 (PID 14224) |  |
+| `P03-save-conversion` | P03 | **PASS** | `final105-p03-save-conversion` | 46/0 (PID 27768) |  |
+| `P03-load-conversion` | P03 | **PASS** | `final105-p03-load-conversion` | 29/0 (PID 27476) |  |
+| `P03-save-round-effect` | P03 | **PASS** | `final105-p03-save-round-effect` | 30/0 (PID 27976) |  |
+| `P03-load-round-effect` | P03 | **PASS** | `final105-p03-load-round-effect` | 24/0 (PID 23976) |  |
+| `P03-save-reaction` | P03 | **PASS** | `final105-p03-save-reaction` | 45/0 (PID 25488) |  |
+| `P03-load-reaction` | P03 | **PASS** | `final105-p03-load-reaction` | 30/0 (PID 28560) |  |
+| `P03-save-condition` | P03 | **PASS** | `final105-p03-save-condition` | 25/0 (PID 25704) |  |
+| `P03-load-condition` | P03 | **PASS** | `final105-p03-load-condition` | 17/0 (PID 27220) |  |
+| `P03-save-condition-preparing` | P03 | **PASS** | `final105-p03-save-condition-preparing` | 28/0 (PID 23212) |  |
+| `P03-load-condition-preparing` | P03 | **PASS** | `final105-p03-load-condition-preparing` | 17/0 (PID 24320) |  |
+| `P03-save-suspended` | P03 | **PASS** | `final105-p03-save-suspended` | 83/0 (PID 22020) |  |
+| `P03-load-suspended` | P03 | **PASS** | `final105-p03-load-suspended` | 66/0 (PID 22776) |  |
+| `P04-save-unmounted-spent` | P04 | **PASS** | `final105-p04-save-unmounted-spent` | 22/0 (PID 20868) |  |
+| `P04-load-unmounted-spent` | P04 | **PASS** | `final105-p04-load-unmounted-spent` | 18/0 (PID 28212) |  |
+| `P04-save-mounted-spent` | P04 | **PASS** | `final105-p04-save-mounted-spent` | 25/0 (PID 18908) |  |
+| `P04-load-mounted-spent` | P04 | **PASS** | `final105-p04-load-mounted-spent` | 18/0 (PID 26048) |  |
+| `P04-save-unmounted-attack` | P04 | **PASS** | `final105-p04-save-unmounted-attack` | 24/0 (PID 27500) |  |
+| `P04-load-unmounted-attack` | P04 | **PASS** | `final105-p04-load-unmounted-attack` | 18/0 (PID 24888) |  |
+| `P04-save-mounted-attack` | P04 | **PASS** | `final105-p04-save-mounted-attack` | 27/0 (PID 28080) |  |
+| `P04-load-mounted-attack` | P04 | **PASS** | `final105-p04-load-mounted-attack` | 18/0 (PID 26964) |  |
+| `P04-save-unmounted-projectile` | P04 | **PASS** | `final105-p04-save-unmounted-projectile` | 26/0 (PID 19500) |  |
+| `P04-load-unmounted-projectile` | P04 | **PASS** | `final105-p04-load-unmounted-projectile` | 19/0 (PID 21264) |  |
+| `P04-save-mounted-projectile` | P04 | **PASS** | `final105-p04-save-mounted-projectile` | 29/0 (PID 23740) |  |
+| `P04-load-mounted-projectile` | P04 | **PASS** | `final105-p04-load-mounted-projectile` | 19/0 (PID 29608) |  |
+| `P04-save-unmounted-approach` | P04 | **PASS** | `final105-p04-save-unmounted-approach` | 22/0 (PID 25920) |  |
+| `P04-load-unmounted-approach` | P04 | **PASS** | `final105-p04-load-unmounted-approach` | 20/0 (PID 24204) |  |
+| `P04-save-mounted-approach` | P04 | **PASS** | `final105-p04-save-mounted-approach` | 25/0 (PID 28536) |  |
+| `P04-load-mounted-approach` | P04 | **PASS** | `final105-p04-load-mounted-approach` | 20/0 (PID 28712) |  |
+| `P04-save-unmounted-casting` | P04 | **PASS** | `final105-p04-save-unmounted-casting` | 396/0 (PID 17672) |  |
+| `P04-load-unmounted-casting` | P04 | **PASS** | `final105-p04-load-unmounted-casting` | 388/0 (PID 1504) |  |
+| `P04-save-mounted-casting` | P04 | **PASS** | `final105-p04-save-mounted-casting` | 677/0 (PID 16696) |  |
+| `P04-load-mounted-casting` | P04 | **PASS** | `final105-p04-load-mounted-casting` | 737/0 (PID 22048) |  |
+| `P05-save-manual` | P05 | **PASS** | `final105-p05-save-manual` | 44/0 (PID 29560) |  |
+| `P05-load-manual` | P05 | **PASS** | `final105-p05-load-manual` | 20/0 (PID 28424) |  |
+| `P05-save-quick` | P05 | **PASS** | `final105-p05-save-quick` | 44/0 (PID 28540) |  |
+| `P05-load-quick` | P05 | **PASS** | `final105-p05-load-quick` | 20/0 (PID 29668) |  |
+| `P05-save-auto` | P05 | **PASS** | `final105-p05-save-auto` | 44/0 (PID 29416) |  |
+| `P05-load-auto` | P05 | **PASS** | `final105-p05-load-auto` | 20/0 (PID 28840) |  |
+| `P05-save-queued` | P05 | **PASS** | `final105-p05-save-queued` | 34/0 (PID 28040) |  |
+| `P05-load-queued` | P05 | **PASS** | `final105-p05-load-queued` | 20/0 (PID 28228) |  |
+| `P05-save-alternating` | P05 | **PASS** | `final105-p05-save-alternating` | 17/0 (PID 29540) |  |
+| `P05-load-alternating` | P05 | **PASS** | `final105-p05-load-alternating` | 45/0 (PID 28572) |  |
+| `P05-load-manual-renamed` | P05 | **PASS** | `final105-p05-load-manual-renamed` | 20/0 (PID 26684) |  |
+| `P06-legacy` | P06 | **PASS** | `final105-p06-legacy` | 34/0 (PID 21884) |  |
+| `P06-schema1` | P06 | **PASS** | `final105-p06-schema1` | 34/0 (PID 29372) |  |
+| `P06-future` | P06 | **PASS** | `final105-p06-future` | 33/0 (PID 28280) |  |
+| `P06-malformed` | P06 | **PASS** | `final105-p06-malformed` | 33/0 (PID 24684) |  |
+| `P06-profile` | P06 | **PASS** | `final105-p06-profile` | 33/0 (PID 27612) |  |
+| `P06-campaign` | P06 | **PASS** | `final105-p06-campaign` | 33/0 (PID 24100) |  |
+| `P06-missing-rider` | P06 | **PASS** | `final105-p06-missing-rider` | 34/0 (PID 6104) |  |
+| `P06-missing-mount` | P06 | **PASS** | `final105-p06-missing-mount` | 34/0 (PID 24656) |  |
+| `P06-mismatched-profile` | P06 | **PASS** | `final105-p06-mismatched-profile` | 34/0 (PID 29132) |  |
+| `P06-policy` | P06 | **PASS** | `final105-p06-policy` | 33/0 (PID 28484) |  |
+| `P06-combat-missing` | P06 | **PASS** | `final105-p06-combat-missing` | 49/0 (PID 28344) |  |
+| `P06-combat-ai` | P06 | **PASS** | `final105-p06-combat-ai` | 49/0 (PID 23320) |  |
+| `P06-failed-area-load` | P06 | **PASS** | `final105-p06-failed-area-load` | 26/0 (PID 18276) |  |
+| `P06-foreign-header-campaign` | P06 | **PASS** | `final105-p06-foreign-header` | 33/0 (PID 27876) |  |
+| `P07-timeout` | P07 | **PASS** | `final105-p07-timeout` | 58/0 (PID 23032) |  |
+| `P07-timeout-cold` | P07 | **PASS** | `final105-p07-timeout-cold` | 20/0 (PID 27772) |  |
+| `P07-cancel-wait` | P07 | **PASS** | `final105-p07-cancel-wait` | 60/0 (PID 28788) |  |
+| `P07-cancel-wait-cold` | P07 | **PASS** | `final105-p07-cancel-wait-cold` | 20/0 (PID 29172) |  |
+| `P07-locked-replace` | P07 | **PASS** | `final105-p07-locked-replace` | 59/0 (PID 24052) |  |
+| `P07-locked-replace-cold` | P07 | **PASS** | `final105-p07-locked-replace-cold` | 20/0 (PID 28304) |  |
+| `P07-serialization-cancel` | P07 | **PASS** | `final105-p07-cancel` | 52/0 (PID 23288) |  |
+| `P07-serialization-cancel-output` | P07 | **PASS** | `final105-p07-output` | 51/0 (PID 22316) |  |
+| `P07-serialization-cancel-output-cold` | P07 | **PASS** | `final105-p07-output-cold` | 20/0 (PID 20052) |  |
+| `P07-disable-reenable` | P07 | **PASS** | `final105-p07-disable` | 53/0 (PID 27192) |  |
+| `P07-campaign-b` | P07 | **PASS** | `final105-p07-campaign-b` | 63/0 (PID 27096) |  |
+| `P07-campaign-b-cold` | P07 | **PASS** | `final105-p07-campaign-b-cold` | 7/0 (PID 26908) |  |
+| `P07-prepare-removal` | P07 | **PASS** | `final105-p07-removal` | 40/0 (PID 27344) |  |
+| `P07-absent-kmc` | P07 | **PASS** | `final105-p07-absent` | 9/0 (PID 26648) |  |
+| `P07-removal-no-dll` | P07 | **PASS** | `final105-p07-removal-no-dll` | 12/0 (PID 26796) |  |
+| `P07-disable-during-load` | P07 | **PASS** | `final105-p07-disable-load` | 33/0 (PID 10524) |  |
+| `P07-rider-death` | P07 | **PASS** | `final105-p07-rider-death` | 26/0 (PID 11368) |  |
+| `P07-rider-death-cold` | P07 | **PASS** | `final105-p07-rider-death-cold` | 3/0 (PID 26356) |  |
+| `P07-mount-death` | P07 | **PASS** | `final105-p07-mount-death` | 26/0 (PID 26752) |  |
+| `P07-mount-death-cold` | P07 | **PASS** | `final105-p07-mount-death-cold` | 3/0 (PID 27056) |  |
+| `P07-rider-size-change` | P07 | **PASS** | `final105-p07-size` | 22/0 (PID 27204) |  |
+| `P07-rider-size-change-cold` | P07 | **PASS** | `final105-p07-size-cold` | 3/0 (PID 28108) |  |
+| `P07-area-reload` | P07 | **PASS** | `final105-p07-area-reload` | 33/0 (PID 29280) |  |
+| `P07-area-reload-cold` | P07 | **PASS** | `final105-p07-area-reload-cold` | 20/0 (PID 26612) |  |
+| `P07-area-cross-entry` | P07 | **PASS** | `final105-p07-area-cross-entry` | 34/0 (PID 29104) |  |
+| `P07-area-cross-entry-cold` | P07 | **PASS** | `final105-p07-area-cross-entry-cold` | 20/0 (PID 24264) |  |
+| `P07-area-cross-entry-auto` | P07 | **PASS** | `final105-p07-area-cross-entry-auto` | 24/0 (PID 28580) |  |
+| `P07-area-cross-exit` | P07 | **PASS** | `final105-p07-area-cross-exit` | 34/0 (PID 28356) |  |
+| `P07-area-cross-exit-cold` | P07 | **PASS** | `final105-p07-area-cross-exit-cold` | 20/0 (PID 6632) |  |
+| `P07-area-cross-exit-auto` | P07 | **PASS** | `final105-p07-area-cross-exit-auto` | 24/0 (PID 27708) |  |
+| `P08-rt` | P08 | **PASS** | `final105-p08-rt` | 54/0 (PID 25780) |  |
+| `P08-ordinary-attack-controls-tb` | P08 | **PASS** | `final105-p08-ordinary-tb` | 64/0 (PID 27236) |  |
+| `P08-chunk4-sustained-tb` | P08 | **PASS** | `final105-p08-sustained-tb` | 52/0 (PID 27832) |  |
+| `P08-mounted-mammoth-primary-hit-tb` | P08 | **PASS** | `final105-p08-mammoth-tb` | 66/0 (PID 24436) |  |
+| `P08-tb` | P08 | **NOT RUN** |  |  | Bounded known issue, not mandatory: the turn-based longbow full-round attack count fails with the same assertion on Phase 3H preview.6, before any Chunk 5 work; the accepted Chu... |
 
 Every row above ran against that single payload and suite in its own process,
 and every run restored the actual intake (`modsRestored`/`workingRestored`
 true, no runtime lock retained).
 
+The failing runs on the way to this payload are retained with their evidence,
+each a finding that changed the payload: `final99-p07-removal` and
+`final99-p06-foreign-header` (preview.99), `final100-p07-removal`,
+`final101-p07-removal`, `final102-p07-removal` (the removal binding, 5B),
+`final103-p07-absent` (the isolation's write-lease seams, 5B),
+`final104-p03-save-suspended` (the suspended-Delay fixture left its same-round
+target to the initiative dice; the target is now arranged pre-encounter like
+the rider and every candidate's timing is recorded) and
+`final104-p04-load-mounted-casting` (the debt-continuity helper's fixed 1 ms
+slack sat below the installed clock's millisecond rounding of each frame's
+delta against the float cooldown tick; the slack is now derived from that
+rounding, and debt may still only fall). Every one of those runs restored the
+actual intake.
+
 ## Disable and removal contract (5B)
 
 **Prepare-to-Disable / removal.** `MountedRemovalPreparation` is the user-visible
 contract: a UMM GUI button ("Prepare to disable / remove KMC") runs an
-inspection-only assessment first. It refuses, with the exact reason, while a
-permanent KMC Horse reference exists in the loaded world or cross-scene party --
-a unit of the KMC Horse blueprint `4016c7db400ab721ff125aef9e65e202`, or a
-character holding the KMC Horse companion or advancement feature -- because a
-save holding one cannot be opened without the mod, and the campaign must not be
-stripped to make removal "safe". It also refuses while a save or load is in
-flight or while the engine forbids a manual save. Otherwise it dismounts through
-the registered disable's own cleanup, requests one NEW native save named
-`KMC_CLEANUP` through the engine, and reports readiness only from the written
-archive (complete, in the manager, KMC member recording no pair). Units stashed
-in areas that are not loaded are not inspected and are not claimed. Native case
-`prepare-removal` (`final98-p07-removal`): a real KMC Horse unit spawned through the
-engine's creator is named and refused; after its destruction the cleanup save
-`Manual_301_KMC_CLEANUP.zks` is written and verified from its bytes; the
-registered disable then succeeds and re-enable/remount reuse the same actors.
+inspection-only assessment first (`RemovalReadinessPolicy`, pure, component-tested).
+It refuses, with the exact reason, while a permanent KMC Horse reference exists
+in the loaded world or cross-scene party (a unit of the KMC Horse blueprint
+`4016c7db400ab721ff125aef9e65e202`, or a character holding the KMC Horse
+companion or advancement feature), because a save holding one cannot be opened
+without the mod and the campaign must not be stripped to make removal "safe".
+It refuses outside a settled out-of-combat world: any party member in combat
+(the engine's own `IsSaveAllowed` admits a manual save under the qualified
+paired policy, so it is deliberately not the removal rule), an active mounted
+command or stock attack intent, a paired activation, pending combat
+restoration, a load in flight, a suspended or draining save, a held world or a
+pending reset, a non-Default game mode. The inspection fails CLOSED: an
+exception during the permanent-reference scan is "cannot establish safe
+removal", never "clean". Units stashed in areas that are not loaded are not
+inspected; their absence from the written cleanup archive is what is verified
+instead (below). Otherwise it dismounts through the registered disable's own
+cleanup and requests one NEW native save named `KMC_CLEANUP` through the
+engine.
+
+**The cleanup archive is bound, not looked up.** The installed engine never
+updates the descriptor a save is requested with: `SaveManager.SaveRoutine`
+(`0x0600BEF3`) keeps it only as `originalSave` (IL_01A0), prepares and
+registers a copy of its own (IL_01DC..IL_022C), and the worker
+`SerializeAndSaveThread` (`0x0600802A`) writes that copy's archive in place,
+reaching the Clear/RenameFile replacement site KMC transpiles only when an
+original archive is passed (IL_031C). A first-ever save such as `KMC_CLEANUP`
+therefore records no replacement commit, and the requested instance never
+learns its path (read-only IL receipts `saveinfo-lifecycle-il.txt`,
+`save-worker-il.txt`). `MountedPersistenceService` records each ordinary
+completion per operation (`CompletedSaveCount`, `LastCompletedSave`: the
+requested descriptor, the registered descriptor the engine wrote, its path),
+latched only on the path that saw the wrapped routine end, the archive worker
+settle without fault and the prepared descriptor read complete, and recorded
+before the scope is released. Readiness is reported only when the written
+archive binds to exactly that record: one wrapped save operation completed
+since the request, completed for this request's own descriptor (reference
+identity, never a name, never a `FirstOrDefault` over the save list), its
+written descriptor registered in the requested one's place, complete on disk,
+manual, named `KMC_CLEANUP` and of the loaded campaign; every retained member
+scanned (`NativeMountedSaveStorage.FindReferences`: all `.json` members and
+`kmc-mounted-state`, bounded at 1024 members / 64 MB per member / 512 MB total,
+length mismatch is a failure) for any KMC-registered blueprint identity with
+zero hits; the KMC member recording no pair, no `Combat` supplement and no
+control binding; the archive hashed. Once the operation has completed every
+binding fact is final, so a mismatch, a failed read-back, scan or hash is
+reported as **unconfirmed** ("Do not remove KMC on this result; prepare
+again"), never as safe.
+
+Native case `prepare-removal` (`final105-p07-removal` PASS 40/0): a real KMC
+Horse unit spawned through the engine's creator is named and refused; then, in
+real combat with the diagnostic enemy, the assessment refuses by its own rule
+while the engine itself would admit a manual save (`engineSaveAllowed`
+recorded); after the encounter the assessment settles, the cleanup save
+`Manual_301_KMC_CLEANUP.zks` is written, bound to the completion record with
+the replacement-commit record at zero (both archives of the walk are
+first-ever saves) and verified from its bytes; the registered disable then
+succeeds and re-enable/remount reuse the same actors. Four failing runs of
+this case on earlier payloads are retained, each a payload-changing finding:
+`final99-p07-removal` (real combat pauses the game and the walk must unpause
+before gating on Default mode), `final100-p07-removal` (the diagnostic
+enemy's memory lease may be refreshed only while the encounter continues),
+`final101-p07-removal` (the written-archive facts were read from the requested
+descriptor, which the engine never updates) and `final102-p07-removal` (the
+binding waited on a replacement commit a first-ever save never records).
 
 **Disable during a real load.** Native case `disable-during-load`
-(`final98-p07-disable-load`) probes the exact registered UMM toggle at every third
-frame a live mounted load owns -- before early restoration and at the
-semantic-restored / presentation-pending boundary -- and requires refusal at
-every one, with the load then restoring the pair exactly once; then the
-equivalent-state cycle at rest (disable, six native frames, re-enable, remount,
-four native frames, invariants clean, bounded control counts, same actors);
-then a second load whose disable is requested in the same frame as the load
-before the routine has started, recorded as what production does and judged by
-its outcome (an accepted disable must mean the engine opened the save with no
-KMC restoration at all; a refused one, the measured outcome, means the load
-restored the pair once and the rest cycle repeats from it). Run
-`final94-p07-disable-load` established that a same-frame disable, re-enable
-and remount right after a load produces a scoped attachment the next frame's
-production invariant check invalidates; the case now separates those steps by
-the same native frames the `disable-reenable` case uses and judges the remount
-only after that check has run. That failure is retained.
+(`final105-p07-disable-load` PASS 33/0) probes the exact registered UMM
+toggle at every third frame a live mounted load owns -- before early
+restoration and at the semantic-restored / presentation-pending boundary -- and
+requires refusal at every one, with the load then restoring the pair exactly
+once; then the equivalent-state cycle at rest (disable, six native frames,
+re-enable, remount, four native frames, invariants clean, bounded control
+counts, same actors); then a second load whose disable is requested in the
+same frame as the load before the routine has started, recorded as what
+production does and judged by its outcome (an accepted disable must mean the
+engine opened the save with no KMC restoration at all; a refused one, the
+measured outcome, means the load restored the pair once and the rest cycle
+repeats from it). Run `final94-p07-disable-load` established that a same-frame
+disable, re-enable and remount right after a load produces a scoped attachment
+the next frame's production invariant check invalidates; the case separates
+those steps by the same native frames the `disable-reenable` case uses and
+judges the remount only after that check has run. That failure is retained.
 
-**Integration-absent load.** Native case `absent-kmc` (`final98-p07-absent`,
-`persistence-p07-load`) opens the cleanup archive a `prepare-removal` run wrote,
-in a fresh process, with KMC's gameplay and persistence integration DETACHED
-before the native load: every KMC gameplay and persistence Harmony guard
-removed, services off, so the engine deserializes the archive with no KMC
-restoration, admission or snapshot. The DLL is still loaded (it hosts the
-automation) and the run-scoped save isolation stays, so this is **"integration
-absent", never "mod absent"**; a true no-DLL load is a manual checklist item,
-because without the host nothing can drive or report it. Run
-`final94-p07-absent` established that the isolation's fail-closed header commit
-guard refuses the engine's own header update during such a load unless the
-isolation itself keeps the loaded archive read-only; the isolation now installs
-its own `SaveManager.LoadRoutine` seam once for that purpose (contract probe
-178/0). That failure is retained.
+**Integration-absent load.** Native case `absent-kmc` (`final105-p07-absent`
+PASS 9/0) opens the cleanup archive the `prepare-removal` run wrote, in a
+fresh process, with KMC's gameplay and persistence integration DETACHED before
+the native load (every KMC gameplay and persistence Harmony guard removed,
+services off), moves the main character through ordinary input and writes one
+NEW engine-only archive (`Manual_302_KMC_ABSENT2.zks`) that carries no KMC
+member at all, over an untouched cleanup archive. The DLL is still loaded (it
+hosts the automation) and the run-scoped save isolation stays, so this is
+"integration absent", not "mod absent". Run `final94-p07-absent` established
+that the isolation's fail-closed header commit guard refuses the engine's own
+header update during such a load unless the isolation itself keeps the loaded
+archive read-only; the isolation installs its own `SaveManager.LoadRoutine`
+seam once for that purpose. Run `final103-p07-absent` established the same
+for writes: the isolation's write leases were observed through the
+persistence controller's `PrepareSave` postfix, which this case detaches, so
+the engine-only save reached the commit guard with no lease and was refused
+(the engine deleted its output and never called back). The leases are now
+observed and released through the isolation's own seams on the exact
+`PrepareSave` and `SerializeAndSaveThread` tokens, and the controller carries
+neither. Both failures are retained.
+
+**The genuine no-DLL load.** Native case `removal-no-dll`
+(`final105-p07-removal-no-dll` PASS 12/0) is the mission's bounded external
+observation path: `tools/KmcRemovalObserver` is a separate minimal UMM mod
+(its own assembly, no reference to KMC, packaged by
+`scripts/Package-Observer.ps1` from the same clean commit and validated by
+`scripts/Validate-ObserverPackage.ps1`). The launcher stages the live Mods
+clone WITHOUT any `KingmakerMountedCombat` entry (staging mode
+`live-clone-minus-kmc-plus-observer`: the verified starting installation is
+removed from the clone and restored exactly afterwards) with the observer in
+its place, binds the observer package to the candidate commit, and passes only
+observer arguments. The observer routes every native save-root, area-stash and
+cloud-replication resolution into the owned profile (the same patched seams
+and metadata tokens as KMC's own isolation, the same installed assembly MVID),
+proves KMC absent from the Mods tree, the process's loaded assemblies, UMM's
+mod list and Harmony's patch owners, reads the cleanup archive header through
+the engine, loads it through the engine's own main-menu path
+(`UI.MainMenu.LoadGame`), records the opened campaign, area and party, moves
+the main character through a real ground click, and quits. It writes no save.
+`scripts/runtime/Test-KmcObserverResult.ps1` validates that result against the
+run's request and the archive bytes on disk (only the engine's own header
+member may differ after its LoadedTimes update; every other member is
+byte-identical; the KMC member's retention is recorded) and composes the run
+record, and the ledger binds the entry to the observer result and to the
+`prepare-removal` run whose cleanup archive it opened. UMM's startup rewrite
+replaces the KMC entry in `Params.xml` with the observer's entry in its exact
+place; that one replacement is admitted only for a declared removal-observer
+run and the snapshot bytes are restored exactly. Shakedown
+`final99-p07-removal-no-dll-pilot` (observer 12/0 in-process on the preview.98
+cleanup archive; harness FAIL on the then-unadmitted UMM delta and a schema-1
+game record; profile restored through `Recover-KmcPersistenceProfile.ps1`) is
+retained.
 
 ## Harmful lifecycle boundaries (5C)
 
@@ -187,19 +367,36 @@ Conscious). The case records the policy decision (`permanent`, `essential`,
 `mainCharacter`, `immortal`, `trueDeath`) and the fixture validator admits the
 live policy only for an essential subject and only unchanged.
 
+**Live eligibility change.** Native case `rider-size-change`
+(`final105-p07-size` PASS 22/0, cold `final105-p07-size-cold` PASS 3/0): the
+engine's own `EnlargePersonBuff` (resolved by name, applied through the native
+buff system, never a state edit) makes the mounted Medium rider Large; KMC's
+mounted invariant (rider exactly Medium) ends the pair by its own rule with
+both actors alive and the effect in place; the engine admits a save; a NEW
+no-pair archive `Manual_301_KMC_SIZE.zks` is written over an untouched first
+archive; the in-process reload and the fresh-process cold load restore nothing
+and invent nothing while exactly the enlarged rider it recorded is Large and
+carries the effect (the supported mount is natively larger than Medium and is
+excluded from that count).
+
 The three earlier payloads are retained as their failing runs: preview.95 and
 preview.96 measured the revival under the live policy for both subjects before
 the policy lease was used (`death-revival-triage96.md`); preview.97 measured
 the rider as the main character under the permanent policy and the finally
 dead pet absent from `Player.Party` in a fresh process (`death98.md`).
 
-Other harmful boundaries are mapped in the ledger to existing PASS evidence with
-their justification: condition/form/size eligibility and missing actors to P06
-(mismatched profile, missing rider/mount, damaged combat), party removal / mode
-transitions to the accepted Chunk 4 lifecycle rows, and the P04 active TB /
-preparation / overlapping-effect boundaries to P02 (active paired turn
-checkpoints) and P03 (round effect, condition, preparation, suspended Delay),
-which save from inside exactly those windows.
+Nothing in the ledger is mapped any more. The P05 quick/auto/queued/renamed/
+alternating slots and the P07 area transitions, timeout, cancel-wait and
+locked replacement each have their own PASS entry on this payload (the ledger
+table above). The active turn-based, unresolved-preparation and
+overlapping-effect boundaries the P04 gate names are the P02 and P03 entries
+executed on this same payload -- the active paired turn at its five
+checkpoints; step, conversion, round effect, pending reaction, condition,
+preparing condition and suspended Delay -- each its own PASS entry rather
+than a mapping to older evidence. Condition, form and missing-actor
+boundaries are the P06 refusals; party removal and mode transitions remain
+the accepted Chunk 4 lifecycle evidence.
+
 
 ## The intermittent 30 s leaf deadline, triaged
 
@@ -265,8 +462,27 @@ to `Manual_301_KMC_P01B` from inside B: A under its own identity in a new world,
 the exact pair restored once (semantics 2 / presentation 1), 2/2 bindings, mount
 position delta 0.0 m, debt conserved, B's world disposed exactly once, all four
 archives byte-identical, then movement, a delivered attack and usable play.
-Receipt: lab `campaign-b92.md`. B's own cold load in a fresh process is a
-separate control, not yet run; the B archives are retained for it.
+Receipt: lab `campaign-b92.md`. B's own cold load in a fresh process and the
+foreign native header against B's archive are the two cases below.
+**B's archives opened cold.** Native case `campaign-b` cold
+(`final105-p07-campaign-b-cold` PASS 7/0): B's own manual archive
+`Manual_302_KMC_B.zks` (admitted under the identity the engine minted for B,
+read from the source run's own frozen observation, never the fixture's) opens
+in a fresh process as a world of its own -- B's identity and area, no
+supported mount, no pair, no binding, nothing restored or invented -- then B's
+main character moves through a real ground click and a NEW manual save
+`Manual_303_KMC_B2.zks` is written in B, with B's source byte-identical
+afterwards.
+
+**Foreign native header.** P06 case `foreign-header-campaign`
+(`final105-p06-foreign-header` PASS 33/0): B's own archive whose KMC member is
+rewritten to claim A (a metadata-only derivation of B's manual archive; the
+native header stays B's) is refused before enumeration at all three native
+entry points, and the original world is retained. The run's isolation
+authority admits that archive as a declared read-only foreign-identity leaf
+(loads of exactly B's identity, never a write). Run `final99-p06-foreign-header`
+established that the authority must declare it; that failure is retained.
+
 
 ## Code-review remediation (R1-R7)
 
@@ -286,7 +502,7 @@ before being changed.
 |---|---|---|
 | R1 first-yield worker ownership | **Partly already present, completed.** The double capture around the native step and the re-read at the release boundary were already there. Added: the latch is now taken in a `finally` so a step that creates the worker and then throws cannot leave it unobserved, and the read reports whether the answer was *established* -- an unreadable routine defers instead of releasing. Static inspection settles the premise: `<saveTask>5__2` (`0x04008CEA`) is stored exactly once, at `IL_0621` of `MoveNext`, and never rewritten or nulled, so it outlives disposal. | contracts 140/0 incl. 6 new ownership checks; `final86-p07-cancel` 47/0 |
 | R2 interrupted-save consistency | **Boundary established and the missing artifact delivered.** The worker reads LIVE state on its own thread: `Game.Instance.Player.CrossSceneState` at `IL_0063-006D`, the live `LoadedAreaState` three times, and `b__2` stashes the live area state. Area transfer now joins save, load and teardown in refusing while an owned worker can still commit. A new `serialization-cancel-output` case stops at settlement so the interrupted operation's own archive survives and is cold-loaded directly. | `final86-p07-output` 46/0; **`final86-p07-output-cold` 20/0** on hash `d8805fdd72099fd5dd16b53df097d4c825c625c5d2adca0e5a170bd05272b398` |
-| R3 commit vs cleanup reporting | **Fixed.** The commit is recorded the instant the native replacement returns, before descriptor rebinding and ownership completion, and the outcome is decided from that boundary: committed, not written, or unconfirmed. Unchanged previous bytes are claimed only when a previous archive existed and is still present; a first-ever save says so instead. | contracts 140/0 incl. the post-commit-fault case; source contract pins the recording order |
+| R3 commit vs cleanup reporting | **Fixed.** The commit is recorded the instant the native replacement returns, before descriptor rebinding and ownership completion, and the outcome is decided from that boundary: committed, not written, or unconfirmed. Unchanged previous bytes are claimed only when a previous archive existed and is still present; a first-ever save says so instead. The commit record covers replacement commits only: a first-ever save never reaches the replacement site (`SerializeAndSaveThread` IL_031C), its archive is written in place, and the engine deletes that output itself when its worker fails, so "not written" stands for it; its ordinary completion is the persistence service's own per-operation completion record (preview.105). | contracts 140/0 incl. the post-commit-fault case; source contract pins the recording order |
 | R4 turn-based regression | **Reclassified.** The previous comparison used Phase 3H preview.6, an old failed candidate. The accepted Chunk 4 controls all match their accepted counts on this payload. The Phase 3H fixture's own evidence shows `nativeFullAttack=false`, `actorFullAttackRestrictedByMove=true`, one planned and one completed attack, range satisfied -- a **disproved obsolete fixture expectation**, original FAIL retained, fixture not rebuilt. | `ordinary-attack-controls-tb` 64/0 (HG 64/0), `chunk4-sustained-tb` 52/0 (GN 52/0), `mounted-mammoth-primary-hit-tb` 66/0 (HL 66/0); receipt `tb-regression-classification86.md` |
 | R5 disable/re-enable, load refusal, removal | **Partly done.** Disable/re-enable and disable-during-save are natively qualified; disable during a live load is guarded in production and covered by source contracts only. The bounded Prepare-to-Disable/removal contract and mod-absent loading are **NOT IMPLEMENTED**. | `final86-p07-disable` 51/0 |
 | R6 campaign isolation, missing cases | **NOT DONE.** Disposable campaign B, A->B->A isolation, and the remaining P04 active TB/overlapping-effect boundaries are not implemented. | BLOCKED/NOT RUN below |
@@ -453,13 +669,13 @@ The legacy case exposed native LoadGameFromMainMenu disposing views before LoadR
 
 ## Restoration and removal
 
-This mission's 26 native transactions on the completion candidate, and every failed run on preview.94-97, restored the actual intake (`modsRestored`/`workingRestored` true); final restoration **2026-09-24T02:18:33.5458033+00:00** after `final98-p08-rt`. Human preview.54 DLL 2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 installed, 275 saves, all seven Mods directories, both automation fixtures byte-identical (BASELINE c29d965c…, WORKING 5eb4e0b4…), BASELINE immutable, no game process, no runtime lock. Earlier restorations below are historical.
+This mission's 105 native transactions on the completion candidate, and every failed run on preview.99-104, restored the actual intake (`modsRestored`/`workingRestored` true); final restoration **2026-09-25T01:08:15.9725085+00:00** after `final105-p08-mammoth-tb`. The preview.98 set (26 transactions, final restoration 2026-09-24T02:18:33.5458033+00:00) is historical. Human preview.54 DLL 2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9 installed, 275 saves, all seven Mods directories, both automation fixtures byte-identical (BASELINE c29d965c…, WORKING 5eb4e0b4…), BASELINE immutable, no game process, no runtime lock. Earlier restorations below are historical.
 
 Both preview69 P07 transition-autosave processes exited and restored their actual intake; final restoration **2026-09-23T05:58:01.4574559+00:00**, both with `profileBytesRestoredExactly` true and zero accepted cache churn. Human preview.54 DLL 2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9, 275 saves, settings, caches, all seven Mods directories and the separate preview.37/preview.13 backups remain preserved; both automation fixtures are byte-identical to their recorded intake (BASELINE c29d965c9ff5dc0f971659d9ae154877aa4a9a461ca220d1ce28e7c7fd9d2512, WORKING 5eb4e0b4cbd8d60dc879a02ff71aadfde3f517304754857f0cc68d0f9a93f1c6) and KMC_AUTOMATION_BASELINE stayed immutable. No game process or transaction remains.
 
 The owner's SkipIntro mod is installed deliberately to shorten boot time for automated runs, and its actual registration in UMM's Params.xml is preserved unchanged. It needed no special-case setting and no broad Params or PlayerPrefs exemption: the mod-directory check simply accounts for it. A separate PlayerPrefs drift (EternalKingdom, KingdomDifficulty and Unity session counters) seen on an earlier root did **not** recur on either clean preview69 run, which confirms it was an artifact of that run's abnormal deadline termination rather than of normal operation — so no prefs guard was widened to accommodate it. Earlier exact analytics/profile recoveries and original failures, including the preview57 area failure, are historical journal evidence. Every next transaction requires fresh current-data checks.
 
-The preview44 preparation timeout raised native LoadGameException and reset the world. Its exact profile drift was recovered through pinned one-run guards; that failure remains FAIL. Preview53 qualifies graceful pre-serialization timeout/cancellation recovery. Preview54 additionally qualifies locked-destination commit failure recovery. Cancellation during native serialization and the bounded Prepare-to-Disable/removal contract are natively qualified on the completion candidate (`final98-p07-cancel`, `final98-p07-output` + cold, `final98-p07-removal`, `final98-p07-absent`, `final98-p07-disable-load`). Permanent custom Horse/feature dependencies are separate from transient pair metadata. Arbitrary DLL deletion is not certified; valuable campaigns must not be stripped. No permanent candidate deployment, main merge or public release is authorized. The owner approved only the DLL package-entry limit from4 to5 MiB; ZIP/Info limits, allowlists, hashes, dependencies and runtime protections are unchanged.
+The preview44 preparation timeout raised native LoadGameException and reset the world. Its exact profile drift was recovered through pinned one-run guards; that failure remains FAIL. Preview53 qualifies graceful pre-serialization timeout/cancellation recovery. Preview54 additionally qualifies locked-destination commit failure recovery. Cancellation during native serialization and the bounded Prepare-to-Disable/removal contract are natively qualified on the completion candidate (`final105-p07-cancel`, `final105-p07-output` + cold, `final105-p07-removal`, `final105-p07-absent`, `final105-p07-removal-no-dll`, `final105-p07-disable-load`). Permanent custom Horse/feature dependencies are separate from transient pair metadata. Arbitrary DLL deletion is not certified; valuable campaigns must not be stripped. No permanent candidate deployment, main merge or public release is authorized. The owner approved only the DLL package-entry limit from4 to5 MiB; ZIP/Info limits, allowlists, hashes, dependencies and runtime protections are unchanged.
 
 Removal instructions for a human install: open KMC's UMM panel while a game is
 loaded, dismounted or mounted, outside combat and outside a save or load; press
@@ -482,8 +698,11 @@ Manual checklist after engineering qualification, using an authorized disposable
    status names a new `KMC_CLEANUP` save and that the archive lists in the
    native load menu.
 7. Quit fully, disable KMC in UMM or move the DLL out of `Mods`, launch a fresh
-   process, and load that `KMC_CLEANUP` save with no KMC DLL present (the true
-   no-DLL load automation cannot perform); confirm the party opens dismounted
-   with no missing-blueprint errors. Restore the DLL afterwards.
+   process, and load that `KMC_CLEANUP` save with no KMC DLL present; confirm
+   the party opens dismounted with no missing-blueprint errors. Restore the DLL
+   afterwards. (The automation performs this exact observation natively through
+   the removal observer, `final105-p07-removal-no-dll`; the human step is the
+   owner's own confirmation of it.)
+
 8. With a party member holding the KMC Horse companion feature, press the button
    again and confirm it refuses with the permanent-reference reason.
