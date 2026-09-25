@@ -228,7 +228,11 @@ $fingerprint = Read-KmcJson $FingerprintPath
 $schemaVersion = [int]$request.schemaVersion
 $commonRequired = @('schemaVersion','runId','scenario','status','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','startedAtUtc','completedAtUtc','loadedModId','gameVersion','gameAssemblySha256','gameAssemblyMvid','ummVersion','ummSha256','harmony12Version','harmony12Sha256','relationshipState','movementExperimentEnabled','processId','currentGameMode','loadedAreaPresent','saveRequestCount','loadRequestCount','frameCount','elapsedSeconds','errors')
 if ($schemaVersion -eq 1) {
-    Assert-KmcExactProperties $game $commonRequired 'runtime game result v1'
+    # The no-save smoke scopes every experiment off for its own duration and
+    # publishes the defaults the loaded build shipped with, so those two
+    # observations are part of the v1 result's exact property set.
+    $v1Fields = @('shippedMovementExperimentEnabled','shippedPairedActivationEnabled')
+    Assert-KmcExactProperties $game @($commonRequired + $v1Fields) 'runtime game result v1'
 }
 elseif ($schemaVersion -eq 2) {
     $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','suppressedWorkingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
@@ -267,7 +271,13 @@ if ($RequirePass -and [string]$game.status -cne 'PASS') { throw 'Runtime game re
 if ($schemaVersion -eq 1) {
     if ([string]$game.relationshipState -cne 'Unmounted' -or $game.movementExperimentEnabled -ne $false -or
         $game.loadedAreaPresent -ne $false -or [int]$game.saveRequestCount -ne 0 -or [int]$game.loadRequestCount -ne 0) { throw 'Runtime game-result safety state is not an unmounted no-save smoke PASS.' }
-    Write-Host 'TOTAL PASS=24 FAIL=0'
+    # The shipped defaults are observations, not a gate: either value is lawful and
+    # both must be recorded as booleans so the smoke cannot omit them.
+    if ($game.shippedMovementExperimentEnabled -isnot [bool] -or
+        $game.shippedPairedActivationEnabled -isnot [bool]) {
+        throw 'No-save smoke did not record the defaults the loaded build shipped with.'
+    }
+    Write-Host 'TOTAL PASS=26 FAIL=0'
     return
 }
 

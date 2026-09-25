@@ -5079,11 +5079,39 @@ try {
         gameVersion=[string]$fingerprint.kingmaker.displayVersion; gameAssemblySha256=[string]$gameAssembly.sha256; gameAssemblyMvid=[string]$gameAssembly.mvid
         ummVersion='0.28.2.0'; ummSha256=[string]$ummAssembly.sha256; harmony12Version='1.2.0.1'; harmony12Sha256=[string]$harmonyAssembly.sha256
         relationshipState='Unmounted'; movementExperimentEnabled=$false; processId=$PID; currentGameMode='None'; loadedAreaPresent=$false
+        shippedMovementExperimentEnabled=$true; shippedPairedActivationEnabled=$false
         saveRequestCount=0; loadRequestCount=0; frameCount=10; elapsedSeconds=1.0; errors=@()
     }
     Write-KmcJsonAtomic $gameResultPath $gameResult
     Invoke-HarnessTest 'runtime game result accepts exact platform and no-save state' {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1)
+    }
+    # Regression for the latent defect a real run exposed: the no-save smoke must
+    # scope every experiment off and report movementExperimentEnabled false, while
+    # still publishing the default the build shipped with. A smoke that reports the
+    # shipped default as its live state is rejected, and one that omits either
+    # shipped observation is rejected too.
+    Invoke-HarnessTest 'runtime game result rejects a no-save smoke that left an experiment live' {
+        $gameResult.movementExperimentEnabled = $true
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        $rejected = $false
+        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) }
+        catch { $rejected = $true }
+        if (-not $rejected) { throw 'A no-save smoke with a live movement experiment was accepted.' }
+        $gameResult.movementExperimentEnabled = $false
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    Invoke-HarnessTest 'runtime game result rejects a no-save smoke that omits its shipped defaults' {
+        $withoutShipped = [ordered]@{}
+        foreach ($entry in $gameResult.GetEnumerator()) {
+            if ($entry.Key -cne 'shippedPairedActivationEnabled') { $withoutShipped[$entry.Key] = $entry.Value }
+        }
+        Write-KmcJsonAtomic $gameResultPath $withoutShipped
+        $rejected = $false
+        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) }
+        catch { $rejected = $true }
+        if (-not $rejected) { throw 'A no-save smoke without its shipped-default observations was accepted.' }
+        Write-KmcJsonAtomic $gameResultPath $gameResult
     }
     Invoke-HarnessTest 'runtime game result rejects platform mutation' {
         $gameResult.gameAssemblySha256 = ('00' * 32)
