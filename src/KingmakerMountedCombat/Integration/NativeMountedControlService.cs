@@ -177,6 +177,32 @@ namespace KingmakerMountedCombat.Integration
 
         internal string LastNativeRelationshipShellObservation { get; private set; } = "not-observed";
 
+        // The exact reason the last relationship delivery was refused, and what its
+        // Move slot actually held. A shell refusal is raised as a native warning
+        // rather than written to the player-action feedback, so without this a
+        // refused delivery is invisible to a scenario that only samples feedback.
+        internal string LastRelationshipShellRefusal { get; private set; } = "not-observed";
+
+        internal string DescribeRelationshipShellState(UnitEntityData caster)
+        {
+            var slot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            NativeRelationshipShell shell = null;
+            var ability = slot as UnitUseAbility;
+            if (ability != null) { relationshipShells.TryGetValue(ability, out shell); }
+            var mountFact = caster?.Descriptor?.Abilities?.GetAbility(mountAbility);
+            return "lastShellRefusal=" + (LastRelationshipShellRefusal ?? "<none>") +
+                ";serviceEnabled=" + enabled + ";serviceRegistered=" + registered +
+                ";serializationSuspended=" + serializationSuspended +
+                ";mountAbilityFactPresent=" + (mountFact != null) +
+                ";registeredShells=" + NativeRelationshipShellCount +
+                ";moveSlot=" + (slot == null ? "<none>" : slot.GetType().Name) +
+                ";moveSlotIsUseAbility=" + (ability != null) +
+                ";moveSlotHasShell=" + (shell != null) +
+                ";moveSlotStarted=" + (slot == null ? "<none>" : slot.IsStarted.ToString()) +
+                ";moveSlotFinished=" + (slot == null ? "<none>" : slot.IsFinished.ToString()) +
+                ";lastShellRegistration=" + (LastNativeRelationshipShellObservation ?? "<none>");
+        }
+
         internal void PrepareNativeMountApproach(UnitUseAbility command)
         {
             if (disposed || !enabled || !registered || serializationSuspended ||
@@ -260,17 +286,20 @@ namespace KingmakerMountedCombat.Integration
             if (slot == null || !relationshipShells.TryGetValue(slot, out shell))
             {
                 refusal = "This mounted transition no longer owns its native Move command.";
+                LastRelationshipShellRefusal = refusal + " " + DescribeRelationshipShellState(caster);
                 return null;
             }
             if (shell.Kind != kind || !string.Equals(shell.CasterId, caster.UniqueId, StringComparison.Ordinal))
             {
                 refusal = "This native Move command belongs to a different mounted control.";
+                LastRelationshipShellRefusal = refusal;
                 return null;
             }
             if (kind == NativeMountedControlKind.MountCompanion &&
                 !string.Equals(shell.TargetId, target?.UniqueId, StringComparison.Ordinal))
             {
                 refusal = "The mounted transition target changed after its native command was created.";
+                LastRelationshipShellRefusal = refusal;
                 return null;
             }
             if (kind == NativeMountedControlKind.Dismount)
@@ -293,12 +322,14 @@ namespace KingmakerMountedCombat.Integration
                     relationship.MountedPairGeneration);
                 if (refusal != null)
                 {
+                    LastRelationshipShellRefusal = refusal;
                     return null;
                 }
             }
             if (shell.GenerationAtInit != relationship.MountedPairGeneration)
             {
                 refusal = "The mounted relationship changed after this transition was requested.";
+                LastRelationshipShellRefusal = refusal;
                 return null;
             }
             return shell;

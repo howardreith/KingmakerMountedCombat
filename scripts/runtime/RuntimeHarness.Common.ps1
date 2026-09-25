@@ -3748,6 +3748,9 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-mount-exhausted',
         'C4-SUSTAINED-TB-early-end',
         'C4-SUSTAINED-TB-after-early-end',
+        # This list is also the known-subscenario registry Test-RuntimeResult uses,
+        # so a scenario's own name belongs here alongside the rows it emits.
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
         'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
         'CM01-combat-mount-preparing-refused',
