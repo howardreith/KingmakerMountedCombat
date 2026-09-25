@@ -186,7 +186,7 @@ at the final `HEAD` reproduces the same DLL bytes because no `src/` file changes
 
 ## Offline gates
 
-On this source: source contracts 43/0, components 511/0, persistence
+On this source: source contracts 46/0, components 511/0, persistence
 assembly/storage contracts 180/0, persistence data 56/0, profile protection 53/0,
 owned fixtures 620/0, validation copies 118/0, harness 262/0, assembly-backed
 contracts 619/0, patch construction 30/0, package 11/0, Chunk 5 ledger 106/0 with
