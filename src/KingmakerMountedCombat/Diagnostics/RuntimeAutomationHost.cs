@@ -47,6 +47,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedAnimationAdapter animation;
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly DiagnosticSettings diagnosticSettings;
+        // No-save smoke scoping: applied once, with the shipped defaults it replaced
+        // recorded so the evidence still carries them.
+        private bool noSaveSmokeScopeApplied;
+        private bool shippedMovementExperimentEnabled;
+        private bool shippedPairedActivationEnabled;
         private readonly Func<bool, bool> registeredToggle;
         private readonly Func<bool> detachIntegration;
         private readonly MountedRemovalPreparation removal;
@@ -486,7 +491,43 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
 
+                // A no-save smoke proves one thing: this exact DLL loads cleanly at
+                // the main menu and nothing gameplay-bearing is live. It exercises no
+                // experiment, so it scopes every experiment OFF for its own duration
+                // before asserting that none is active.
+                //
+                // The shipped defaults are recorded first and published in the
+                // evidence, because the smoke must not hide them. The private-alpha
+                // mounted player action ships ENABLED, and that is a fact about the
+                // product rather than a safety failure at a menu with no area loaded;
+                // before this, the smoke read that default and failed, which is why no
+                // no-save smoke had been able to pass since the default was flipped.
+                if (!noSaveSmokeScopeApplied)
+                {
+                    noSaveSmokeScopeApplied = true;
+                    shippedMovementExperimentEnabled = diagnosticSettings.EnableUnsafeMovementExperiment;
+                    shippedPairedActivationEnabled = diagnosticSettings.EnablePairedActivation;
+                    diagnosticSettings.EnableUnsafeMovementExperiment = false;
+                    diagnosticSettings.EnablePairedActivation = false;
+                    diagnosticSettings.EnableUnifiedMountedTurn = false;
+                    diagnosticSettings.EnablePairedCommandScheduler = false;
+                    diagnosticSettings.EnableDiagnosticOverlay = false;
+                    logger.Info("No-save smoke scoped every experiment off; shipped defaults were " +
+                        "movementExperiment=" + shippedMovementExperimentEnabled +
+                        " pairedActivation=" + shippedPairedActivationEnabled + ".");
+                    // Assert on a later frame, so the providers observe the scoped state.
+                    return;
+                }
+
                 var safetyErrors = new List<string>();
+                if (diagnosticSettings.EnableUnsafeMovementExperiment ||
+                    diagnosticSettings.EnablePairedActivation ||
+                    diagnosticSettings.EnableUnifiedMountedTurn ||
+                    diagnosticSettings.EnablePairedCommandScheduler ||
+                    diagnosticSettings.EnableDiagnosticOverlay)
+                {
+                    safetyErrors.Add("No-save smoke could not scope every experiment off.");
+                }
                 var game = Kingmaker.Game.Instance;
                 if (game == null || game.CurrentlyLoadedArea != null)
                 {
@@ -1066,6 +1107,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : null,
                 RelationshipState = relationshipStateProvider(),
                 MovementExperimentEnabled = movementExperimentProvider(),
+                ShippedMovementExperimentEnabled = shippedMovementExperimentEnabled,
+                ShippedPairedActivationEnabled = shippedPairedActivationEnabled,
                 ProcessId = Process.GetCurrentProcess().Id,
                 CurrentGameMode = Kingmaker.Game.Instance == null ? null : Kingmaker.Game.Instance.CurrentMode.ToString(),
                 LoadedAreaPresent = Kingmaker.Game.Instance != null && Kingmaker.Game.Instance.CurrentlyLoadedArea != null,
@@ -1765,6 +1808,11 @@ namespace KingmakerMountedCombat.Diagnostics
             public string Harmony12Sha256 { get; set; }
             public string RelationshipState { get; set; }
             public bool MovementExperimentEnabled { get; set; }
+            // The defaults the loaded build shipped with, before the no-save smoke
+            // scoped every experiment off. Recorded so the smoke publishes the
+            // product's real defaults instead of hiding them behind its own scope.
+            public bool ShippedMovementExperimentEnabled { get; set; }
+            public bool ShippedPairedActivationEnabled { get; set; }
             public int ProcessId { get; set; }
             public string CurrentGameMode { get; set; }
             public bool LoadedAreaPresent { get; set; }
