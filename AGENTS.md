@@ -28,7 +28,7 @@ The owner subsequently approved raising only the packaged KingmakerMountedCombat
 
 ## Chunk 5 acceptance and alpha delivery
 
-The owner's September 25 acceptance authorizes finalizing the completed Chunk 5 work, merging it into the default branch, pushing, and publishing an alpha prerelease of the exact qualified `0.1.0-chunk5-preview.105` package (source `471e1df92ee919c92bf42d0bc03ab6c2d2cc4114`). This supersedes the no-merge/no-release limits above for this delivery only. Preserve the tested payload without rebuilding, keep the integration history with a merge commit, and retain human saves/settings and foreign Mods. No local installation, new gameplay change or Chunk 6 implementation is authorized by delivery.
+The owner's September 25 acceptance authorizes finalizing the completed Chunk 5 work, merging it into the default branch, pushing, and publishing an alpha prerelease of the exact qualified `0.1.0-chunk5-preview.105` package (source `471e1df92ee919c92bf42d0bc03ab6c2d2cc4114`). This supersedes the no-merge/no-release limits above for this delivery only. Preserve the tested payload without rebuilding, keep the integration history with a merge commit, and retain human saves/settings and foreign Mods. The owner subsequently authorized local installation on September 25; the exact qualified package was installed through the guarded deployment helper with the installed preview.54 backed up, and preview.105 is now the human installation. No new gameplay change or Chunk 6 implementation is authorized by delivery.
 
 ## Historical Chunk 4: sustained play and core safety
 
