@@ -114,6 +114,29 @@ participation opportunity in the transition round; no actor silently loses
 already-spent debt; no fresh grant, cooldown write or initiative change is
 performed by the transition.
 
+### Named limitations of the adoption dispositions
+
+Both are deliberate and neither affects accounting.
+
+**Movement-limit presentation in the retain disposition.** The `partner slot
+spent` disposition creates no private partner `TurnController`, because doing so
+would require a native `Prepare` the partner has already had. Delegated mounted
+movement still debits the mount's own real allocation through
+`MountedMovementStateAdapter.TickDelegated`, and `CanMovePairedMount` still reads
+that allocation, so remaining movement is accounted correctly. What is missing is
+the mirror write `CopyGrantedMovementToContext(partnerContext)` performs on the
+accepted pre-combat path, so the turn-panel movement limit shown for the rest of
+that one transition round reflects the rider's own turn rather than the mount's
+consumption. Ordinary paired presentation resumes at the next round's `Begin`.
+
+**Re-mounting after a voluntary combat Dismount within one round.** A voluntary
+Dismount splits the activation and `splitReleaseRound` governs the partner's
+participation until the next native round. A second voluntary combat Mount is
+therefore refused until that release round has passed, with the reason "The
+pair's previous mounted participation is still resolving this round." Allowing it
+would mean layering a second activation over a split one whose participation
+disposition is still open.
+
 ## Action table
 
 Legend for **6A status**: `IMPLEMENTED` = built and qualified in Chunk 6A;

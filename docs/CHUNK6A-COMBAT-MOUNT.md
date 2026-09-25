@@ -167,18 +167,38 @@ executes it.
 | Field | Value |
 |---|---|
 | Branch | `codex/mounted-combat-phase3f-playable-core` |
-| Product version | `0.1.0-chunk6a-preview.106` |
-| Qualifier | not yet frozen; the final candidate takes `chunk6a-combat-mount` |
-| Package / manifest / DLL / MVID / suite | **pending** — no frozen Chunk 6A candidate exists yet |
+| Product version | `0.1.0-chunk6a-preview.107` |
+| Qualifier | `chunk6a-combat-mount` |
+| Package | `KingmakerMountedCombat-0.1.0-chunk6a-preview.107-chunk6a-combat-mount-diagnostic.zip` |
+| Source commit bound by the manifest | `3dfcb07e5d75b2677a7497337eb48384762dd918` |
+| ZIP SHA-256 | `9f0cb8d25ab83796a1a42222f3d7460bf9170b6d9902d41884e9184ef11c85e6` |
+| Manifest SHA-256 | `4feaacf9dd43de22d64f34183c62a02f870732092296d8680a65a6e47f793d56` |
+| DLL SHA-256 | `93656626d82277ab5b76eb616935d9361970f9edce54dd55a8e6616bf299272b` |
+| DLL MVID | `4574951e-e2e4-4329-9bd6-4b51e46430ed` |
+| Qualification suite | **none** — blocked; see the blocker above |
 | Accepted Chunk 5 payload, untouched | ZIP `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`, DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID `638259af-9d31-4738-be8a-2784135d4235` |
+
+This package is a private engineering candidate. It is not installed, not merged
+and not released, and the accepted preview.105 package is untouched. Note that
+the harness requires a package manifest to bind the exact current `HEAD`, so a
+later documentation commit invalidates this binding for runtime use; rebuilding
+at the final `HEAD` reproduces the same DLL bytes because no `src/` file changes.
 
 ## Offline gates
 
-On this source: source contracts 43/0, components 505/0, persistence
-assembly/storage contracts 180/0, persistence data 56/0, harness 262/0,
-assembly-backed contracts 601/0, patch construction 30/0, Chunk 5 ledger 106/0
-with its completion gate still PASS, Chunk 6A ledger record consistency 82/0 and
-its completion gate **FAIL 82/82**, which is the truthful state.
+On this source: source contracts 43/0, components 511/0, persistence
+assembly/storage contracts 180/0, persistence data 56/0, profile protection 53/0,
+owned fixtures 620/0, validation copies 118/0, harness 262/0, assembly-backed
+contracts 619/0, patch construction 30/0, package 11/0, Chunk 5 ledger 106/0 with
+its completion gate still PASS, Chunk 6A ledger record consistency 82/0 and its
+completion gate **FAIL 82/82**, which is the truthful state.
+
+The eighteen new assembly contracts pin the exact seams this design rests on:
+`TickCommand`, both `UpdateCooldowns` overloads, `HasMoveAction` with its two
+`Used*MoveAction` predicates, `Cooldowns.Clear`, `UnitCommand.get_IsActed` and
+`TickApproaching`, `AbilityData.get_IsAvailable` and `get_IsAvailableForCast`, and
+the roster observables `FindUnitInfo`, `ChooseNextUnit`, `StartRound`,
+`HandleCombatStart` and the three `TBUnitInfo` fields adoption reads.
 
 The source contracts added for Chunk 6A pin, by construction rather than by
 convention: that the pair candidate admits combat only through the explicit
@@ -200,7 +220,9 @@ The `chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb` scenarios are
 implemented, registered through every harness allowlist, and carry their own
 evidence schema version 28 with a dedicated validator that re-derives the
 rider's native Move commitment and both actors' native preparation counts rather
-than trusting the game's own arithmetic. They have not been run.
+than trusting the game's own arithmetic. They have not been run, because a
+save-backed scenario cannot obtain a qualification-suite snapshot — see the
+blocker under Status.
 
 ### Retained failure: the `-WhatIf` purity proof did not pass
 
