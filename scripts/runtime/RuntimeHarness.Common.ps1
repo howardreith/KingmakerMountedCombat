@@ -3448,7 +3448,8 @@ function Assert-KmcSteamSafety {
 }
 
 function Assert-KmcPackageManifest {
-    param([Parameter(Mandatory = $true)][string]$PackagePath, [Parameter(Mandatory = $true)][string]$ManifestPath)
+    param([Parameter(Mandatory = $true)][string]$PackagePath, [Parameter(Mandatory = $true)][string]$ManifestPath,
+        [ValidateSet('scripts/Package.ps1','scripts/Package-Observer.ps1')][string]$Generator = 'scripts/Package.ps1')
     $repoRoot = Get-KmcRepositoryRoot; $labRoot = Get-KmcLabRoot
     $resolvedPackage = [IO.Path]::GetFullPath($PackagePath)
     $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $labRoot 'artifacts')).TrimEnd('\')
@@ -3458,7 +3459,7 @@ function Assert-KmcPackageManifest {
     $head = (& git -C $repoRoot rev-parse HEAD).Trim(); $branch = (& git -C $repoRoot branch --show-current).Trim()
     $status = @(& git -C $repoRoot status --porcelain --untracked-files=all)
     if ($status.Count -ne 0) { throw 'Runtime qualification requires a clean Git worktree.' }
-    if ([int]$manifest.schemaVersion -ne 2 -or [string]$manifest.generator -cne 'scripts/Package.ps1' -or
+    if ([int]$manifest.schemaVersion -ne 2 -or [string]$manifest.generator -cne $Generator -or
         $manifest.worktreeClean -ne $true -or $manifest.qualificationEligible -ne $true -or
         [string]$manifest.commit -cne $head -or [string]$manifest.branch -cne $branch -or
         [string]$manifest.packagePath -cne $resolvedPackage -or [string]$manifest.packageSha256 -cne (Get-KmcSha256 $resolvedPackage)) {
@@ -3493,9 +3494,14 @@ function Enter-KmcModsTransaction {
         [Parameter(Mandatory = $true)][string]$PackagePath,
         [Parameter(Mandatory = $true)][string]$StateRoot,
         [Parameter(Mandatory = $true)][string]$BackupRoot,
-        [Parameter(Mandatory = $true)][string]$StagingRoot
+        [Parameter(Mandatory = $true)][string]$StagingRoot,
+        # The genuine no-DLL observation stages the live clone WITHOUT any KMC entry
+        # and with the removal observer's own directory instead of the KMC overlay.
+        [ValidateSet('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer')][string]$StagingMode = 'live-clone-plus-kmc-overlay'
     )
     [void](Assert-KmcRuntimeLockOwner $Lock); Assert-KmcNoGameProcesses
+    $observerMode = $StagingMode -ceq 'live-clone-minus-kmc-plus-observer'
+    $overlayName = if ($observerMode) { 'KmcRemovalObserver' } else { 'KingmakerMountedCombat' }
     $runId = [string]$Lock.RunId; $fullLive = [IO.Path]::GetFullPath($LiveModsRoot).TrimEnd('\')
     if (-not (Test-Path -LiteralPath $fullLive -PathType Container)) { throw "Live Mods root is missing: $fullLive" }
     Assert-KmcNotReparsePoint $fullLive 'live Mods root'
@@ -3530,16 +3536,16 @@ function Enter-KmcModsTransaction {
     $overlayManifest = Get-KmcDirectoryManifest $packageOverlay
     $actualOverlayEntries = @($overlayManifest.entries | ForEach-Object { '{0}|{1}' -f $_.kind, $_.path } | Sort-Object)
     $expectedOverlayEntries = @(
-        'directory|KingmakerMountedCombat',
-        'file|KingmakerMountedCombat/Info.json',
-        'file|KingmakerMountedCombat/KingmakerMountedCombat.dll'
+        ('directory|' + $overlayName),
+        ('file|' + $overlayName + '/Info.json'),
+        ('file|' + $overlayName + '/' + $overlayName + '.dll')
     ) | Sort-Object
     if (($actualOverlayEntries -join "`n") -cne ($expectedOverlayEntries -join "`n")) {
         throw "Frozen package overlay entry set is not exact: $($actualOverlayEntries -join ', ')"
     }
-    $expectedRoot = Join-Path $packageOverlay 'KingmakerMountedCombat'
-    if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot 'KingmakerMountedCombat.dll'))) {
-        throw 'Pre-staged package does not contain the exact KMC mod root.'
+    $expectedRoot = Join-Path $packageOverlay $overlayName
+    if (-not (Test-Path -LiteralPath (Join-Path $expectedRoot 'Info.json')) -or -not (Test-Path -LiteralPath (Join-Path $expectedRoot ($overlayName + '.dll')))) {
+        throw 'Pre-staged package does not contain the exact mod root.'
     }
     $cloneBase = Copy-KmcDirectoryTreeExact -SourceRoot $fullLive -DestinationRoot $ready
     Assert-KmcDirectoryManifestsEqual $before $cloneBase 'Pre-overlay live Mods clone'
@@ -3553,7 +3559,17 @@ function Enter-KmcModsTransaction {
         # is moved intact into its transactional backup and restored in finally.
         Remove-Item -LiteralPath $stagedKmcRoot -Recurse -Force
     }
-    Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot
+    if ($observerMode) {
+        # Genuinely absent: the staged clone carries no KMC entry at all (the
+        # verified starting installation was removed from the clone above) and
+        # the observer's own directory is the only addition.
+        $stagedObserverRoot = Join-Path $ready 'KmcRemovalObserver'
+        if (Test-Path -LiteralPath $stagedObserverRoot) { throw 'Live Mods already contains a removal-observer directory.' }
+        Move-Item -LiteralPath $expectedRoot -Destination $stagedObserverRoot
+        $kmcResidue = @(Get-ChildItem -LiteralPath $ready -Recurse -Force | Where-Object { $_.Name -match '(?i)KingmakerMountedCombat' })
+        if ($kmcResidue.Count -ne 0) { throw 'The no-DLL staging still carries a KingmakerMountedCombat entry.' }
+    }
+    else { Move-Item -LiteralPath $expectedRoot -Destination $stagedKmcRoot }
     $sentinel = [ordered]@{ schemaVersion=1; runId=$runId; token=[string]$Lock.Token; packageSha256=$packageHash }
     Write-KmcJsonAtomic (Join-Path $ready '.kmc-runtime-sentinel.json') $sentinel
     $staged = Get-KmcDirectoryManifest $ready
@@ -3561,7 +3577,7 @@ function Enter-KmcModsTransaction {
     Assert-KmcDirectoryManifestsEqual $before (Get-KmcDirectoryManifest $fullLive) 'Live Mods source immediately before activation'
     $state = [ordered]@{
         schemaVersion=3; runId=$runId; token=[string]$Lock.Token; phase='prepared'; preparedAtUtc=[DateTime]::UtcNow.ToString('o')
-        stagingMode='live-clone-plus-kmc-overlay'
+        stagingMode=$StagingMode
         liveModsRoot=$fullLive; originalBackup=$originalBackup; stagedReady=$ready; stagedAfter=$stagedAfter
         frozenPackage=$frozenPackage; packageSha256=$packageHash
         beforeDigest=$before.digest; beforeFileCount=$before.fileCount; beforeDirectoryCount=$before.directoryCount; beforeTotalBytes=$before.totalBytes
@@ -3612,7 +3628,7 @@ function Restore-KmcModsTransaction {
         throw 'Transaction state property set is missing required fields or contains unknown fields.'
     }
     if ([string]$state.runId -cne [string]$Lock.RunId -or [string]$state.token -cne [string]$Lock.Token) { throw 'Transaction state ownership does not match the open lock.' }
-    if ($schemaVersion -eq 3 -and ([string]$state.stagingMode -cne 'live-clone-plus-kmc-overlay' -or
+    if ($schemaVersion -eq 3 -and ([string]$state.stagingMode -cnotin @('live-clone-plus-kmc-overlay','live-clone-minus-kmc-plus-observer') -or
         [string]$state.cloneBaseDigest -cne [string]$state.beforeDigest -or
         [int]$state.cloneBaseFileCount -ne [int]$state.beforeFileCount -or
         [int]$state.cloneBaseDirectoryCount -ne [int]$state.beforeDirectoryCount -or
@@ -3672,7 +3688,7 @@ function Get-KmcSaveBackedRuntimeScenarios {
         'mounted-pair-stop-start', 'mounted-pair-turns-and-corners', 'mounted-pair-doorway', 'mounted-distance-door-interaction', 'mounted-pair-selection',
         'mounted-pair-party-formation', 'mounted-pair-pause-unpause', 'mounted-pair-destination-cancel',
         'mounted-pair-turn-based-entry-cleanup', 'mounted-pair-realtime-entry-cleanup', 'mounted-pair-save-safety',
-        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake', 'lifecycle-suite', 'combat-lifecycle-suite',
+        'mounted-pair-load-safety', 'mounted-pair-area-transition-safety', 'fixture-intake','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load', 'lifecycle-suite', 'combat-lifecycle-suite',
         'native-save-clean-dismount', 'native-area-clean-dismount', 'native-mode-transition-cleanup',
         'presentation-residue-and-uninstall-safety', 'pose-idle', 'pose-walk-run', 'pose-turn-stop',
         'pose-doorway-formation', 'pose-equipment-variants', 'ui-selection-portrait-actionbar',
@@ -4672,7 +4688,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','phase3d-horse-scenario-evidence.json')) {
+    foreach ($leaf in @('persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -12700,7 +12716,8 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcExactProperties $artifact @('relativePath','kind','length','sha256') 'orchestration artifact manifest record'
         $relative = [string]$artifact.relativePath
         $kind = [string]$artifact.kind
-        $allowed = ($relative -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
+        $allowed = ($relative -ceq 'persistence-observations.jsonl' -and $kind -ceq 'persistence-evidence') -or
+            ($relative -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relative -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
             ($relative -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
             ($relative -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
@@ -13002,7 +13019,7 @@ function New-KmcRuntimeResultV2 {
     }
     else {
         $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
-            [string]$Request.scenario -notin @('fixture-intake','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite')) {
+            [string]$Request.scenario -notin @('fixture-intake','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite')) {
             [string]$Request.scenario
         } else { 'observe-mount-diagnostic-availability' }
         $fallbackErrors = if (@($Errors).Count -eq 0) { @('Runtime game result was unavailable or invalid.') } else { @($Errors) }

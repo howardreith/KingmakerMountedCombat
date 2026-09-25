@@ -14,7 +14,7 @@ namespace KingmakerMountedCombat.Integration
 {
     // Pair-scoped actor records survive dismount/reselection. No live synthetic
     // TurnController, rider cooldown projection, selection mutation or turn reset.
-    internal sealed class MountedMovementStateAdapter
+    internal sealed partial class MountedMovementStateAdapter
     {
         private sealed class Allocation
         {

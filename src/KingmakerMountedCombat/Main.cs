@@ -59,6 +59,21 @@ namespace KingmakerMountedCombat
             return callback(modEntry, enabled);
         }
 
+        // The exact registered UMM unload delegate, for a native probe of the
+        // refusal path: while an owned archive worker can still commit, it must
+        // return false and leave the root, its hooks and its drain intact.
+        internal static bool InvokeRegisteredUnloadForAutomation()
+        {
+            var modEntry = activeModEntry;
+            var callback = modEntry == null ? null : modEntry.OnUnload;
+            if (modEntry == null || callback == null)
+            {
+                throw new InvalidOperationException("The exact registered UMM unload callback is unavailable.");
+            }
+
+            return callback(modEntry);
+        }
+
         private static bool OnToggle(UnityModManager.ModEntry modEntry, bool enabled)
         {
             try

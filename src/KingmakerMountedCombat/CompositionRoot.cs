@@ -20,6 +20,8 @@ namespace KingmakerMountedCombat
         private readonly MountedPatchController patches;
         private readonly MountedPlayerActionController playerAction;
         private readonly NativeMountedControlService nativeControls;
+        private readonly MountedPersistenceService persistence;
+        private readonly MountedRemovalPreparation removal;
         private readonly MountedCombatController combat;
         private readonly MountedPairCommandScheduler pairedCommandScheduler;
         private readonly UnifiedMountedTurnCoordinator unifiedTurn;
@@ -28,6 +30,9 @@ namespace KingmakerMountedCombat
         private readonly MountedDollRoomIkAdapter dollRoomIk;
         private readonly MovementTelemetryWriter movementTelemetry;
         private bool disposed;
+        // An update failure whose destructive cleanup was deferred because an
+        // owned save was in flight; consumed by Update once that save settles.
+        private bool failureCleanupPending;
 
         public CompositionRoot(IModLogger logger, string loadedModId)
         {
@@ -55,7 +60,7 @@ namespace KingmakerMountedCombat
                 unifiedTurn.BindCombat(combat);
                 animation = new MountedAnimationAdapter(relationship, combat, horsePrimaryAttackAnimation, logger);
                 dollRoomIk = new MountedDollRoomIkAdapter(relationship, logger);
-                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn);
+
                 saveAuthorization = new RuntimeSaveAuthorization();
                 playerAction = new MountedPlayerActionController(relationship, settings, logger, combat);
                 nativeControls = new NativeMountedControlService(
@@ -66,7 +71,10 @@ namespace KingmakerMountedCombat
                     settings,
                     lifecycleLedger,
                     logger);
-                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
+                persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger);
+                lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
+                removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
+                patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
                 runtimeAutomation = RuntimeAutomationHost.CreateFromCommandLine(
                     logger,
                     loadedModId,
@@ -79,10 +87,13 @@ namespace KingmakerMountedCombat
                     combat,
                     horseCompanion,
                     nativeControls,
+                    persistence,
+                    removal,
                     animation,
                     dollRoomIk,
                     settings,
-                    Main.InvokeRegisteredToggleForAutomation);
+                    Main.InvokeRegisteredToggleForAutomation,
+                    DetachIntegrationForAutomation);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(
@@ -115,11 +126,39 @@ namespace KingmakerMountedCombat
             }
         }
 
+        // A native archive worker writes a few megabytes; this is generous for
+        // that and still short enough that a stuck one cannot hang an unload.
+        private const int TeardownDrainMilliseconds = 15000;
+
         public bool IsEnabled { get; private set; }
+
+        // Only an isolated automation process may detach KMC's gameplay and
+        // persistence integration in place: services off, mounted cleanup run,
+        // every Harmony guard removed. The run-scoped save isolation is a
+        // separate Harmony owner and stays, so the process still cannot touch
+        // human saves. The DLL itself remains loaded; this is "integration
+        // absent", not "mod absent", and is reported as exactly that.
+        internal bool DetachIntegrationForAutomation()
+        {
+            ThrowIfDisposed();
+            if (!NativePersistenceIsolation.IsIsolated) return false;
+            if (IsEnabled && !SetEnabled(false)) return false;
+            patches.Dispose();
+            // The persistence controller's LoadRoutine wrapper is gone with the
+            // patches; the isolation keeps its own read-only load scope so the
+            // engine's header update during the load stays swallowed, exactly
+            // as in every isolated load. Run final94-p07-absent measured the
+            // fail-closed commit guard refusing that update without this seam.
+            NativePersistenceIsolation.InstallDetachedReadOnlyLoad();
+            logger.Info("KMC gameplay and persistence integration detached for an isolated automation load; save isolation retained.");
+            return !MountedPatchController.BridgeInstalled && NativePersistenceIsolation.DetachedReadOnlyLoadInstalled;
+        }
 
         internal RuntimeSaveAuthorization SaveAuthorization => saveAuthorization;
 
         internal MountedLifecycleSubscriber Lifecycle => lifecycle;
+
+        internal MountedPersistenceService Persistence => persistence;
 
         public bool SetEnabled(bool enabled)
         {
@@ -133,6 +172,7 @@ namespace KingmakerMountedCombat
                     return false;
                 }
                 IsEnabled = true;
+                persistence.Enabled = true;
                 nativeControls.SetEnabled(true);
                 var overlayEnabled = settings.EnableDiagnosticOverlay ||
                     (runtimeAutomation != null && runtimeAutomation.RequiresLegacyDiagnosticOverlay);
@@ -140,6 +180,29 @@ namespace KingmakerMountedCombat
                 logger.Info("Private-alpha services and native mounted abilities enabled; diagnostic overlay=" +
                     overlayEnabled + ".");
                 return true;
+            }
+
+            // Disabling runs a full mounted cleanup over the exact live Player
+            // and cross-scene graphs an owned archive worker serializes on its
+            // own thread. Nothing can cancel a started worker, so refuse the
+            // disable instead of mutating the write in flight; the save always
+            // settles, and its drain keeps running because persistence.Update
+            // is deliberately not gated on IsEnabled.
+            if (persistence.SaveSuspended)
+            {
+                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
+                    "retry once it finishes.");
+                return false;
+            }
+
+            // The same argument for the other live operation: cleanup during an
+            // owned world replacement would tear the pair down across a world
+            // being replaced underneath it. Bounded by the load finishing.
+            if (persistence.LoadInFlight)
+            {
+                logger.Error("Diagnostic services cannot be disabled while a mounted save is still being loaded; " +
+                    "retry once the area has finished loading.");
+                return false;
             }
 
             // Always execute idempotent cleanup on a disable request. A prior
@@ -156,6 +219,7 @@ namespace KingmakerMountedCombat
                 return false;
             }
             IsEnabled = false;
+            persistence.Enabled = false;
             nativeControls.SetEnabled(false);
             playerAction.SetOverlayEnabled(false);
             logger.Info("Private-alpha services disabled; native control facts and transient UI removed with no mounted state retained.");
@@ -175,17 +239,23 @@ namespace KingmakerMountedCombat
                 return;
             }
 
-            try
+            // Update-failure cleanup is a full mounted cleanup over the exact live
+            // graphs an owned archive worker may be serializing. While an owned
+            // save is in flight it is latched, not skipped: persistence.Update
+            // runs first in every frame and keeps draining, and the cleanup runs
+            // on the first frame after the save settles.
+            if (persistence.SaveSuspended)
             {
-                combat.Cancel("update failure");
-                settings.EnableUnsafeMovementExperiment = false;
-                var cleanup = relationship.Dismount(CleanupTrigger.Exception);
-                if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+                failureCleanupPending = true;
+                logger.Warning("Update failure latched: an owned save is still in flight; mounted cleanup runs once it settles.");
+                if (first != null)
                 {
-                    throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+                    throw new InvalidOperationException("Runtime update failure could not be handled without residue.", first);
                 }
-                IsEnabled = false;
+                return;
             }
+
+            try { PerformFailureCleanup(); }
             catch (Exception cleanupException)
             {
                 first = first ?? cleanupException;
@@ -197,10 +267,31 @@ namespace KingmakerMountedCombat
             }
         }
 
+        private void PerformFailureCleanup()
+        {
+            combat.Cancel("update failure");
+            settings.EnableUnsafeMovementExperiment = false;
+            var cleanup = relationship.Dismount(CleanupTrigger.Exception);
+            if (!cleanup.Succeeded || cleanup.MovementAuthorityResidual || cleanup.PresentationResidual)
+            {
+                throw new InvalidOperationException("Update-failure cleanup retained mounted runtime residue.");
+            }
+            IsEnabled = false;
+        }
+
         public void Update(float deltaTime)
         {
             ThrowIfDisposed();
             horseCompanion.Update();
+            persistence.Update();
+            removal.Update();
+            // A latched update-failure cleanup runs on the first frame after the
+            // owned save that deferred it has settled.
+            if (failureCleanupPending && !persistence.SaveSuspended)
+            {
+                failureCleanupPending = false;
+                PerformFailureCleanup();
+            }
             nativeControls.Update();
             runtimeAutomation?.Update(deltaTime);
             if (runtimeAutomation != null && runtimeAutomation.IsSaveBackedFailurePending)
@@ -216,6 +307,7 @@ namespace KingmakerMountedCombat
                 return;
             }
 
+            if (persistence.SaveSuspended || persistence.AreaTransitionPending || persistence.CombatRestorationPending) return;
             combat.Update();
             unifiedTurn.Update();
             relationship.ValidateActivePair();
@@ -224,7 +316,8 @@ namespace KingmakerMountedCombat
         public void DrawGui()
         {
             ThrowIfDisposed();
-            GUILayout.Label("Phase 2 private-alpha presentation work. The mounted relationship is transient and is cleaned before save/load/area boundaries.");
+            GUILayout.Label("Chunk 5 development: mounted saves restore the eligible pair and its saved state. Cold-load qualification is in progress.");
+            GUILayout.Label(persistence.Feedback);
             settings.EnableUnsafeMovementExperiment = GUILayout.Toggle(settings.EnableUnsafeMovementExperiment, "Enable private-alpha mounted player action");
             var configurationEnabled = GUI.enabled;
             GUI.enabled = configurationEnabled && unifiedTurn.CanConfigurePairedActivation;
@@ -266,6 +359,15 @@ namespace KingmakerMountedCombat
             GUILayout.Label("Relationship: " + relationship.State);
             GUILayout.Label("Horse companion blueprints: " + horseCompanion.State +
                 (string.IsNullOrEmpty(horseCompanion.Failure) ? string.Empty : " — " + horseCompanion.Failure));
+            // Before disabling or deleting KMC: dismount and write a NEW clean
+            // save through the engine, or be told exactly why removal is unsafe.
+            GUI.enabled = priorEnabled && removal.State != RemovalPreparationState.Saving;
+            if (GUILayout.Button("Prepare to disable / remove KMC (dismount, then write a clean save)"))
+            {
+                removal.Begin();
+            }
+            GUI.enabled = priorEnabled;
+            GUILayout.Label(removal.Status);
             GUILayout.Label(relationship.LastResult);
             if (combat.CanShowCombatActions)
             {
@@ -283,6 +385,25 @@ namespace KingmakerMountedCombat
             if (disposed)
             {
                 return;
+            }
+
+            // Unload is the one place a bounded wait for an owned archive worker
+            // is right: patches.Dispose below removes the commit transpiler the
+            // worker is still running through. The verdict is CONSUMED, never
+            // assumed. A wait that expires, or ownership that could not be
+            // established, refuses the unload: nothing has been released, the
+            // root, its hooks and its per-frame drain stay intact, and the throw
+            // reaches Main.OnUnload, which reports false to UMM. The installed
+            // UMM honours that: ModEntry.Reload aborts on a false OnUnload before
+            // any cache, assembly or hook teardown (IL_007D brfalse IL_0335).
+            var verdict = persistence.DrainForTeardown(TeardownDrainMilliseconds);
+            if (verdict == OwnedWorkerTeardownVerdict.Refused)
+            {
+                logger.Error("Unload refused: an owned archive worker can still commit, or its ownership could not " +
+                    "be established, within the bounded teardown wait. Nothing was unpatched or cleaned up; retry " +
+                    "once the save settles.");
+                throw new InvalidOperationException(
+                    "Composition root refuses to dispose while an owned archive worker can still commit.");
             }
 
             if (!lifecycle.HandleModDisable())
@@ -303,7 +424,7 @@ namespace KingmakerMountedCombat
             horseCompanion.Dispose();
             IsEnabled = false;
             disposed = true;
-            logger.Info("Composition root disposed; no mounted relationship was serialized.");
+            logger.Info("Composition root disposed; transient mounted references released.");
         }
 
         private void ThrowIfDisposed()

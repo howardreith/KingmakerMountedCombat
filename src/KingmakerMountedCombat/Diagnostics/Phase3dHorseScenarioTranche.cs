@@ -6513,7 +6513,23 @@ namespace KingmakerMountedCombat.Diagnostics
             rider.Body.CurrentHandEquipmentSetIndex == leasedSetIndex &&
             rider.GetFirstWeapon()?.Blueprint?.IsRanged == true;
 
-        internal void Acquire(WeaponCategory category)
+        internal void AcquireCompatibleRanged()
+        {
+            var blueprint = ResourcesLibrary.LibraryObject.GetAllBlueprints().OfType<BlueprintItemWeapon>()
+                .Where(b => b != null && b.IsRanged && !b.IsMagic && !b.IsMasterwork && !b.IsNatural &&
+                    b.VisualParameters.Projectiles.Length > 0 && b.CanBeEquippedBy(rider.Descriptor) &&
+                    rider.Descriptor.Proficiencies.Contains(b.Category))
+                .OrderBy(b => b.Cost).ThenBy(b => b.name, StringComparer.Ordinal)
+                .ThenBy(b => b.AssetGuid, StringComparer.Ordinal).FirstOrDefault();
+            if (blueprint == null)
+                throw new InvalidOperationException("No stock projectile weapon matches native rider proficiencies: " +
+                    string.Join(",", rider.Descriptor.Proficiencies.WeaponProficiencies));
+            Acquire(blueprint.Category, true);
+        }
+
+        internal void Acquire(WeaponCategory category) => Acquire(category, false);
+
+        private void Acquire(WeaponCategory category, bool requireNativeEligibility)
         {
             if (disposed || leasedSetIndex >= 0)
             {
@@ -6543,7 +6559,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var rangedBlueprint = ResourcesLibrary.LibraryObject.GetAllBlueprints()
                 .OfType<BlueprintItemWeapon>()
                 .Where(candidate => candidate != null && candidate.IsRanged && candidate.Category == category &&
-                    !candidate.IsMagic && !candidate.IsMasterwork && !candidate.IsNatural)
+                    !candidate.IsMagic && !candidate.IsMasterwork && !candidate.IsNatural &&
+                    (!requireNativeEligibility || (candidate.VisualParameters.Projectiles.Length > 0 &&
+                        candidate.CanBeEquippedBy(rider.Descriptor) && rider.Descriptor.Proficiencies.Contains(candidate.Category))))
                 .OrderBy(candidate => candidate.Cost)
                 .ThenBy(candidate => candidate.name, StringComparer.Ordinal)
                 .ThenBy(candidate => candidate.AssetGuid, StringComparer.Ordinal)

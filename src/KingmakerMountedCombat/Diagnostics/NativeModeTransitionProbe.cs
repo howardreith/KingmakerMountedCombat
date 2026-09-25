@@ -110,6 +110,19 @@ namespace KingmakerMountedCombat.Diagnostics
             setting.OnInvokeUpdateCallback();
         }
 
+        internal bool ReapplyTemporaryCacheAfterNativeRefresh()
+        {
+            ThrowIfDisposed();
+            if (!ReferenceEquals(setting, SettingsRoot.Instance.EnableTurnBasedMode))
+                throw new InvalidOperationException("Native setting object changed during the owned mode configuration lease.");
+            if ((bool?)cachedField.GetValue(setting) == TemporaryValue) return false;
+            // SettingsRoot.HandleSettingsUpdated drops every boolean cache during
+            // native UI/load refresh. Keep this test's declared configuration in
+            // cache only; the normal area callback enables the native controller.
+            cachedField.SetValue(setting, (bool?)TemporaryValue);
+            return true;
+        }
+
         public void DispatchTemporaryValueIfRequired()
         {
             ThrowIfDisposed();

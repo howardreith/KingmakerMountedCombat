@@ -93,7 +93,413 @@ namespace KingmakerMountedCombat.Tests
             ActorAllocationLifetimeTests.Register(runner);
             PairedActivationTests.Register(runner);
             ManualReviewBoundaryGuardTests.Register(runner);
+            runner.Run("persistence isolation accepts only the qualified disposable fixture", () =>
+            {
+                var request = ValidSaveBackedRequest();
+                request.Scenario = "persistence-isolation";
+                TestRunner.Equal(0, request.Validate().Count, "Isolated bootstrap request rejected.");
+                request.Fixture.Working.InternalName = "KMC_arbitrary";
+                TestRunner.True(request.Validate().Count > 0, "Display prefix authorized an arbitrary fixture.");
+            });
+            runner.Run("P02 accepts only bounded checkpoint parameters", () =>
+            {
+                foreach (var name in new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = "persistence-p02-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "P02 checkpoint rejected.");
+                    request.Scenario = "mounted-pair-create-and-clear";
+                    TestRunner.True(request.Validate().Count > 0, "Checkpoint leaked to an unrelated scenario.");
+                }
+                var invalid = ValidSaveBackedRequest(); invalid.Scenario = "persistence-p02-save"; invalid.PersistenceCase = "../human";
+                TestRunner.True(invalid.Validate().Count > 0, "Unrecognized checkpoint accepted.");
+                invalid.PersistenceCase = "";
+                TestRunner.True(invalid.Validate().Count > 0, "Empty checkpoint accepted.");
+                invalid.PersistenceCase = "rider-spent"; invalid.Fixture = null;
+                TestRunner.True(invalid.Validate().Count > 0, "Checkpoint bypassed fixture authority.");
+            });
+            runner.Run("P03 preserves disjoint native commitment and save authority", () =>
+            {
+                foreach (var name in new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = "persistence-p03-save";
+                    request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "P03 commitment rejected.");
+                    request.Scenario = "persistence-p02-save";
+                    TestRunner.True(request.Validate().Count > 0, "P03 case leaked into P02.");
+                    request.Scenario = "persistence-p03-load";
+                    TestRunner.True(request.Validate().Count > 0, "Cold P03 bypassed its archive identity.");
+                }
+                var invalid = ValidSaveBackedRequest(); invalid.Scenario = "persistence-p03-save";
+                TestRunner.True(invalid.Validate().Count > 0, "P03 inferred an undeclared commitment.");
+                invalid.PersistenceCase = "partial-movement";
+                TestRunner.True(invalid.Validate().Count > 0, "P02 case leaked into P03.");
+                invalid.PersistenceCase = "step"; invalid.Fixture = null;
+                TestRunner.True(invalid.Validate().Count > 0, "P03 bypassed fixture authority.");
+            });
+            runner.Run("P04 requires a declared RT boundary and actual cold archive", () =>
+            {
+                foreach (var name in new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" })
+                {
+                    var request = ValidSaveBackedRequest(); var fixture = request.Fixture.Working;
+                    request.Scenario = "persistence-p04-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "Exact RT source rejected.");
+                    request.Scenario = "persistence-p04-load";
+                    TestRunner.True(request.Validate().Count > 0, "RT cold load accepted missing archive.");
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks",
+                        GameId = fixture.GameId, GameName = fixture.GameName, Area = fixture.Area,
+                        Sha256 = new string('c', 64), Length = 1024, LastWriteTimeUtcTicks = fixture.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact RT cold archive rejected.");
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "RT admitted a foreign campaign.");
+                    request.PersistenceLoad.GameId = fixture.GameId;
+                    request.Scenario = "persistence-p03-load";
+                    TestRunner.True(request.Validate().Count > 0, "RT case escaped into TB qualification.");
+                }
+            });
+            runner.Run("P05 requires exact native categories and isolated cold identity", () =>
+            {
+                foreach (var name in new[] { "manual", "quick", "auto" })
+                {
+                    var request = ValidSaveBackedRequest(); request.Scenario = "persistence-p05-save";
+                    request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "P05 category rejected.");
+                    request.Scenario = "persistence-p03-save";
+                    TestRunner.True(request.Validate().Count > 0, "P05 category leaked into combat fixture.");
+                    request.Scenario = "persistence-p05-load";
+                    TestRunner.True(request.Validate().Count > 0, "P05 cold bypassed archive identity.");
+                }
+                var invalid = ValidSaveBackedRequest(); invalid.Scenario = "persistence-p05-save";
+                TestRunner.True(invalid.Validate().Count > 0, "P05 inferred an undeclared category.");
+                invalid.PersistenceCase = "reaction";
+                TestRunner.True(invalid.Validate().Count > 0, "P03 checkpoint leaked into P05.");
+            });
+            runner.Run("cold category and renamed archive cannot broaden Working descriptor types", () =>
+            {
+                foreach (var name in new[] { "manual", "quick", "auto", "manual-renamed", "queued" })
+                {
+                    var request = ValidSaveBackedRequest(); var fixture = request.Fixture.Working;
+                    request.Scenario = "persistence-p05-load"; request.PersistenceCase = name;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = name == "quick" || name == "auto" ? "Native slot 1" : "KMC_P01",
+                        FileName = name == "quick" ? "Quick_1.zks" : name == "auto" ? "Auto_1.zks" :
+                            name == "manual-renamed" ? "Manual_811_KMC_RENAMED.zks" : name == "queued" ? "Manual_302_KMC_P01.zks" : "Manual_300_KMC_P01.zks",
+                        GameId = fixture.GameId, GameName = fixture.GameName, Area = fixture.Area,
+                        Sha256 = new string('c', 64), Length = 1024, LastWriteTimeUtcTicks = fixture.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact native cold category rejected.");
+                    TestRunner.Equal(name == "quick" ? "Quick" : name == "auto" ? "Auto" : "Manual",
+                        request.ExpectedNativeLoadType, "Declared native category lost before loader admission.");
+                    request.PersistenceLoad.FileName = "../Manual_811_KMC_RENAMED.zks";
+                    TestRunner.True(request.Validate().Count > 0, "Renamed archive traversal accepted.");
+                    request.Scenario = "persistence-p01-load";
+                    TestRunner.Equal("Manual", request.ExpectedNativeLoadType, "Native category escaped P05.");
+                    TestRunner.True(request.Validate().Count > 0, "P05 case escaped its scenario.");
+                }
+            });
+            runner.Run("alternating cold loads require two distinct exact native archives", () =>
+            {
+                var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                request.Scenario = "persistence-p05-save"; request.PersistenceCase = "alternating";
+                TestRunner.Equal(0, request.Validate().Count, "Alternating source rejected.");
+                request.Scenario = "persistence-p05-load";
+                request.PersistenceLoad = new RuntimeSaveDescriptor {
+                    InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                    GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                TestRunner.True(request.Validate().Count > 0, "Missing alternate archive was accepted.");
+                request.PersistenceAlternate = new RuntimeSaveDescriptor {
+                    InternalName = "KMC_P05_UNMOUNTED", FileName = "Manual_301_KMC_P05_UNMOUNTED.zks", Sha256 = new string('d', 64),
+                    GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                TestRunner.Equal(0, request.Validate().Count, "Exact distinct A/B archives rejected.");
+                request.PersistenceAlternate.Sha256 = request.PersistenceLoad.Sha256;
+                TestRunner.True(request.Validate().Count > 0, "A/B aliased identical archive bytes.");
+                request.PersistenceAlternate.Sha256 = new string('d', 64);
+                request.PersistenceAlternate.FileName = "../Manual_301_KMC_P05_UNMOUNTED.zks";
+                TestRunner.True(request.Validate().Count > 0, "Alternate traversal accepted.");
+                request.PersistenceAlternate.FileName = "Manual_301_KMC_P05_UNMOUNTED.zks";
+                request.PersistenceCase = "manual";
+                TestRunner.True(request.Validate().Count > 0, "Alternate archive leaked into single-load scenario.");
+                request.PersistenceCase = "alternating"; request.Scenario = "persistence-p05-save";
+                TestRunner.True(request.Validate().Count > 0, "Source creation accepted cold archive authority.");
+            });
+            runner.Run("P06 owns exactly two read-only archive identities and a bounded validation case", () =>
+            {
+                foreach (var name in new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign",
+                    "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai",
+                    "failed-area-load" })
+                {
+                    // The failed-load derivative edits a native member, so it owns
+                    // its own leaf and can never be byte-identical to its source.
+                    var failedLoad = RuntimeRequest.IsFailedLoad(name);
+                    var leaf = failedLoad ? "Manual_813_KMC_P06_AREA.zks" : "Manual_812_KMC_P06.zks";
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p06-load"; request.PersistenceCase = name;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.True(request.Validate().Count > 0, "P06 accepted a missing validation copy.");
+                    request.PersistenceAlternate = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = leaf, Sha256 = new string('d', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "P06 exact archive pair rejected.");
+                    request.PersistenceAlternate.FileName = failedLoad ? "Manual_812_KMC_P06.zks" : "Manual_813_KMC_P06_AREA.zks";
+                    TestRunner.True(request.Validate().Count > 0, "P06 accepted the other variant's leaf.");
+                    request.PersistenceAlternate.FileName = leaf;
+                    if (failedLoad)
+                    {
+                        request.PersistenceAlternate.Sha256 = request.PersistenceLoad.Sha256;
+                        TestRunner.True(request.Validate().Count > 0, "P06 failed-load accepted an unchanged derivative.");
+                        request.PersistenceAlternate.Sha256 = new string('d', 64);
+                    }
+                    request.PersistenceAlternate.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "P06 allowed a foreign native campaign.");
+                    request.PersistenceAlternate.GameId = f.GameId;
+                    request.PersistenceAlternate.FileName = "../" + leaf;
+                    TestRunner.True(request.Validate().Count > 0, "P06 variant escaped its direct-child leaf.");
+                    request.PersistenceAlternate.FileName = leaf;
+                    request.Scenario = "persistence-p01-load";
+                    TestRunner.True(request.Validate().Count > 0, "P06 variant leaked into an old scenario.");
+                }
+            });
+            runner.Run("P06 foreign-header derivative carries B's own native identity on the alternate only", () =>
+            {
+                // Campaign B's own archive whose KMC member claims A: the alternate
+                // is B's native header and bytes; the primary stays A's mounted save.
+                const string minted = "bf673e4e-5e19-4ec3-b5a5-54d59ea73357";
+                var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                request.Scenario = "persistence-p06-load"; request.PersistenceCase = "foreign-header-campaign";
+                request.PersistenceLoad = new RuntimeSaveDescriptor {
+                    InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                    GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header load accepted a missing derivative.");
+                request.PersistenceAlternate = new RuntimeSaveDescriptor {
+                    InternalName = "KMC_B", FileName = "Manual_812_KMC_P06.zks", Sha256 = new string('d', 64),
+                    GameId = minted, GameName = "Baron", Area = new string('e', 32),
+                    Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                TestRunner.Equal(0, request.Validate().Count, "Exact foreign-header pair rejected.");
+                request.PersistenceAlternate.GameId = f.GameId;
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header derivative accepted A's own campaign.");
+                request.PersistenceAlternate.GameId = Guid.Empty.ToString();
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header derivative accepted an empty campaign identity.");
+                request.PersistenceAlternate.GameId = minted; request.PersistenceAlternate.Area = f.Area;
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header derivative accepted A's own area.");
+                request.PersistenceAlternate.Area = new string('e', 32); request.PersistenceAlternate.InternalName = "KMC_P01";
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header derivative accepted A's own save name.");
+                request.PersistenceAlternate.InternalName = "KMC_B"; request.PersistenceAlternate.Sha256 = request.PersistenceLoad.Sha256;
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header derivative aliased A's bytes.");
+                request.PersistenceAlternate.Sha256 = new string('d', 64); request.PersistenceAlternate.FileName = "Manual_813_KMC_P06_AREA.zks";
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header derivative accepted the failed-load leaf.");
+                request.PersistenceAlternate.FileName = "Manual_812_KMC_P06.zks"; request.PersistenceCase = "campaign";
+                TestRunner.True(request.Validate().Count > 0, "The metadata-only campaign variant accepted a foreign native header.");
+                request.PersistenceCase = "foreign-header-campaign"; request.PersistenceLoad.GameId = minted;
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header primary accepted B's identity.");
+                request.PersistenceLoad.GameId = f.GameId; request.Scenario = "persistence-p07-load";
+                TestRunner.True(request.Validate().Count > 0, "Foreign-header derivative leaked into a recovery scenario.");
+            });
+            runner.Run("P07 recovery requests retain exact source and cold archive authority", () =>
+            {
+                // The transition autosave each cross-area source produced is a
+                // distinct cold artifact from its destination manual archive:
+                // AfterEntry committed in the destination, BeforeExit in the
+                // departure area, and neither may be swapped for the other.
+                foreach (var entry in new[] { true, false })
+                {
+                    var target = new string('e', 32);
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceCase = entry ? "area-cross-entry-auto" : "area-cross-exit-auto";
+                    request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                        EnterPoint = new string('d', 32), Area = target,
+                        AutoSaveMode = entry ? "AfterEntry" : "BeforeExit" };
+                    var committed = entry ? target : f.Area;
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "Auto 1", FileName = "Auto_1.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = committed,
+                        Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact transition autosave cold request rejected.");
+                    request.PersistenceLoad.Area = entry ? f.Area : target;
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted the other leg's area.");
+                    request.PersistenceLoad.Area = committed;
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a manual leaf.");
+                    request.PersistenceLoad.FileName = "Auto_1.zks";
+                    request.PersistenceAreaTarget.AutoSaveMode = entry ? "BeforeExit" : "AfterEntry";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted the other authored mode.");
+                    request.PersistenceAreaTarget.AutoSaveMode = entry ? "AfterEntry" : "BeforeExit";
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a foreign campaign.");
+                    request.PersistenceLoad.GameId = f.GameId;
+                    request.Scenario = "persistence-p07-save";
+                    TestRunner.True(request.Validate().Count > 0, "Transition autosave accepted a writing scenario.");
+                }
+                foreach (var name in new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "area-reload",
+                    "area-cross-entry", "area-cross-exit" })
+                {
+                    var cross = name == "area-cross-entry" || name == "area-cross-exit";
+                    var target = new string('e', 32);
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;
+                    if (cross)
+                    {
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area case accepted no declared destination.");
+                        request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                            EnterPoint = new string('d', 32), Area = target,
+                            AutoSaveMode = name == "area-cross-entry" ? "AfterEntry" : "BeforeExit" };
+                    }
+                    TestRunner.Equal(0, request.Validate().Count, "Exact recovery save rejected.");
+                    if (cross)
+                    {
+                        var declared = request.PersistenceAreaTarget;
+                        request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                            EnterPoint = declared.EnterPoint, Area = f.Area, AutoSaveMode = declared.AutoSaveMode };
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area accepted its own loaded area as the destination.");
+                        request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                            EnterPoint = declared.EnterPoint, Area = target, AutoSaveMode = "None" };
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area accepted an unauthored transition mode.");
+                        request.PersistenceAreaTarget = declared;
+                    }
+                    request.Scenario = "persistence-p07-load";
+                    TestRunner.True(request.Validate().Count > 0, "Recovery cold load accepted no archive.");
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = cross ? target : f.Area,
+                        Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact recovery cold archive rejected.");
+                    if (cross)
+                    {
+                        request.PersistenceLoad.Area = f.Area;
+                        TestRunner.True(request.Validate().Count > 0, "Cross-area cold archive accepted the departure area.");
+                        request.PersistenceLoad.Area = target;
+                    }
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "Recovery cold request allowed a foreign campaign.");
+                    request.PersistenceLoad = null; request.Scenario = "persistence-p01-save";
+                    TestRunner.True(request.Validate().Count > 0, "Recovery fault leaked into an old scenario.");
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "area-reload";
+                    request.PersistenceAreaTarget = new RuntimeAreaTransitionTarget {
+                        EnterPoint = new string('d', 32), Area = target, AutoSaveMode = "AfterEntry" };
+                    TestRunner.True(request.Validate().Count > 0, "A same-area case accepted a cross-area destination.");
+                }
+                // Save-only removal cases, and the cold-only integration-absent
+                // case that opens the cleanup archive under its own name.
+                foreach (var name in new[] { "prepare-removal", "disable-during-load" })
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "Exact removal save case rejected.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.True(request.Validate().Count > 0, "A save-only removal case accepted a cold load.");
+                }
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "absent-kmc";
+                    TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a writing scenario.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_CLEANUP", FileName = "Manual_301_KMC_CLEANUP.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact integration-absent cold request rejected.");
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
+                    TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a mounted archive leaf.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_CLEANUP.zks"; request.PersistenceLoad.InternalName = "KMC_CLEANUP";
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "The integration-absent case accepted a foreign campaign.");
+                }
+                // The genuine no-DLL cleanup-save observation is cold-load only and
+                // opens the prepared cleanup archive under its own name.
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "removal-no-dll";
+                    TestRunner.True(request.Validate().Count > 0, "The no-DLL case accepted a writing scenario.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_CLEANUP", FileName = "Manual_301_KMC_CLEANUP.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact no-DLL cold request rejected.");
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
+                    TestRunner.True(request.Validate().Count > 0, "The no-DLL case accepted a mounted archive leaf.");
+                }
+                // Death boundaries: a writing run and a cold load of the exact
+                // no-pair archive that run wrote, under its own name.
+                foreach (var name in new[] { "rider-death", "mount-death" })
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = name;
+                    TestRunner.Equal(0, request.Validate().Count, "Exact death save case rejected.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_DEATH", FileName = "Manual_301_KMC_DEATH.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact death cold request rejected.");
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
+                    TestRunner.True(request.Validate().Count > 0, "A death cold load accepted the mounted archive leaf.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_DEATH.zks"; request.PersistenceLoad.InternalName = "KMC_DEATH";
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "A death cold load accepted a foreign campaign.");
+                }
+                // The live eligibility change: a writing run and a cold load of
+                // the exact no-pair archive that run wrote, under its own name.
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "rider-size-change";
+                    TestRunner.Equal(0, request.Validate().Count, "Exact eligibility save case rejected.");
+                    request.Scenario = "persistence-p07-load";
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_SIZE", FileName = "Manual_301_KMC_SIZE.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact eligibility cold request rejected.");
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
+                    TestRunner.True(request.Validate().Count > 0, "An eligibility cold load accepted the mounted archive leaf.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_DEATH.zks"; request.PersistenceLoad.InternalName = "KMC_DEATH";
+                    TestRunner.True(request.Validate().Count > 0, "An eligibility cold load accepted a death archive leaf.");
+                    request.PersistenceLoad.FileName = "Manual_301_KMC_SIZE.zks"; request.PersistenceLoad.InternalName = "KMC_SIZE";
+                    request.PersistenceLoad.GameId = "00000000-0000-0000-0000-000000000001";
+                    TestRunner.True(request.Validate().Count > 0, "An eligibility cold load accepted a foreign campaign.");
+                }
+                // Campaign B's own manual archive opened cold: B's minted identity
+                // and area, which are exactly NOT the fixture's.
+                {
+                    var request = ValidSaveBackedRequest(); var f = request.Fixture.Working;
+                    const string minted = "bf673e4e-5e19-4ec3-b5a5-54d59ea73357";
+                    request.Scenario = "persistence-p07-save"; request.PersistenceCase = "campaign-b";
+                    TestRunner.Equal(0, request.Validate().Count, "Exact campaign-B save case rejected.");
+                    request.Scenario = "persistence-p07-load";
+                    TestRunner.True(request.Validate().Count > 0, "A campaign-B cold load accepted no archive.");
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_P01", FileName = "Manual_300_KMC_P01.zks", Sha256 = new string('c', 64),
+                        GameId = f.GameId, GameName = f.GameName, Area = f.Area, Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.True(request.Validate().Count > 0, "A campaign-B cold load accepted the fixture's own mounted archive.");
+                    request.PersistenceLoad = new RuntimeSaveDescriptor {
+                        InternalName = "KMC_B", FileName = "Manual_302_KMC_B.zks", Sha256 = new string('c', 64),
+                        GameId = minted, GameName = "Baron", Area = new string('c', 32),
+                        Length = 1024, LastWriteTimeUtcTicks = f.LastWriteTimeUtcTicks };
+                    TestRunner.Equal(0, request.Validate().Count, "Exact campaign-B cold request rejected.");
+                    request.PersistenceLoad.GameId = f.GameId;
+                    TestRunner.True(request.Validate().Count > 0, "A campaign-B cold load accepted the fixture campaign.");
+                    request.PersistenceLoad.GameId = Guid.Empty.ToString();
+                    TestRunner.True(request.Validate().Count > 0, "A campaign-B cold load accepted an empty campaign identity.");
+                    request.PersistenceLoad.GameId = minted; request.PersistenceLoad.Area = f.Area;
+                    TestRunner.True(request.Validate().Count > 0, "A campaign-B cold load accepted the fixture area.");
+                    request.PersistenceLoad.Area = new string('c', 32); request.PersistenceLoad.GameName = "";
+                    TestRunner.True(request.Validate().Count > 0, "A campaign-B cold load accepted an empty campaign name.");
+                    request.PersistenceLoad.GameName = "Baron";
+                    request.PersistenceLoad.FileName = "Manual_300_KMC_P01.zks"; request.PersistenceLoad.InternalName = "KMC_P01";
+                    TestRunner.True(request.Validate().Count > 0, "A campaign-B cold load accepted the mounted archive leaf.");
+                    request.PersistenceLoad.FileName = "Manual_302_KMC_B.zks"; request.PersistenceLoad.InternalName = "KMC_B";
+                    request.Scenario = "persistence-p01-load";
+                    TestRunner.True(request.Validate().Count > 0, "Campaign B's archive leaked into an old scenario.");
+                }
+            });
             RuntimeSaveAuthorizationTests.Register(runner);
+            ScopedEnumeratorTests.Register(runner);
+            DeferredSaveEnumeratorTests.Register(runner);
+            OwnedWorkerTeardownPolicyTests.Register(runner);
+            NativeSaveCommitOutcomeTests.Register(runner);
+            RemovalReadinessPolicyTests.Register(runner);
+            NativeLoadWorldTests.Register(runner);
+            PersistenceSaveAuthorizationTests.Register(runner);
             WorkingFixtureLoadWatchdogTests.Register(runner);
             SustainedRoutineProgressTests.Register(runner);
             BoundaryFailureDrainTests.Register(runner);

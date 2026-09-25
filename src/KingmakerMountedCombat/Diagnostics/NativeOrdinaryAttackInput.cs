@@ -52,7 +52,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 pointer.UpdateSelectedClickHandler();
                 var handler = SimulatedHandler.GetValue(pointer);
                 if (target != null ? !(handler is ClickUnitHandler) : !(handler is ClickGroundHandler))
-                    throw new InvalidOperationException("Native pointer priority did not select the requested fixture handler.");
+                    throw new InvalidOperationException("Native pointer priority did not select the requested fixture handler: mode=" +
+                        pointer.Mode + "; actual=" + (handler?.GetType().Name ?? "null") + "; requested=" +
+                        (target == null ? "ClickGroundHandler" : "ClickUnitHandler") + ".");
             }
             catch { Dispose(); throw; }
         }

@@ -240,10 +240,23 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        private bool areaSuspended;
+        internal void SuspendAreaControls()
+        {
+            if (serializationSuspended) throw new InvalidOperationException("Area unload overlaps native save serialization.");
+            areaSuspended = true;
+            RemoveAllManagedFacts(true);
+        }
+        internal void ResumeAreaControls()
+        {
+            areaSuspended = false;
+            if (!disposed && enabled) Update();
+        }
+
         internal void Update()
         {
             ObservePendingRiderPrimaryOutcome();
-            if (disposed || !enabled || serializationSuspended)
+            if (disposed || !enabled || serializationSuspended || areaSuspended)
             {
                 return;
             }
@@ -264,7 +277,7 @@ namespace KingmakerMountedCombat.Integration
             NativeMountedControlKind kind,
             UnitEntityData caster)
         {
-            if (disposed || !enabled || !registered || serializationSuspended)
+            if (disposed || !enabled || !registered || serializationSuspended || areaSuspended)
             {
                 return new NativeMountedControlAvailability(false, false, "Mounted control services are not active.");
             }
@@ -428,27 +441,19 @@ namespace KingmakerMountedCombat.Integration
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> inner)
         {
-            if (inner == null)
-            {
-                EndSaveSerializationScope();
-                yield break;
-            }
-
-            try
-            {
-                while (inner.MoveNext())
+            var ownsScope = false;
+            return new ScopedEnumerator<object>(inner,
+                () =>
                 {
-                    yield return inner.Current;
-                }
-            }
-            finally
-            {
-                var disposable = inner as IDisposable;
-                disposable?.Dispose();
-                EndSaveSerializationScope();
-            }
+                    if (disposed || serializationSuspended)
+                        throw new InvalidOperationException("Mounted control save scope is unavailable.");
+                    // Set before acquisition so a partial hotbar/fact failure rolls back.
+                    ownsScope = true;
+                    if (!BeginSaveSerializationScope())
+                        throw new InvalidOperationException("Mounted control save scope could not start.");
+                },
+                () => { if (ownsScope) EndSaveSerializationScope(); });
         }
-
         internal NativeMountedControlSnapshot CaptureSnapshot()
         {
             var units = CollectCandidateUnits();
@@ -912,6 +917,52 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        internal SavedMountedSlot[] CapturePersistentSlots()
+        {
+            var result = new List<SavedMountedSlot>();
+            foreach (var unit in CollectCurrentCandidateUnits())
+            {
+                var slots = unit?.UISettings?.Slots;
+                if (slots == null) continue;
+                for (var i = 0; i < slots.Length; i++)
+                {
+                    var ability = (slots[i] as MechanicActionBarSlotAbility)?.Ability;
+                    var kind = ResolveKind(ability?.Blueprint);
+                    if (kind == NativeMountedControlKind.None || !ShouldLease(unit, kind)) continue;
+                    var fact = unit.Descriptor.Abilities.GetAbility(ability.Blueprint);
+                    // Native hotbars can retain AbilityData after its runtime fact
+                    // was removed by a real dismount. That is not a live control
+                    // binding and must not require inventing a fact after loading.
+                    if (fact != null && fact.Active && ReferenceEquals(fact.Data, ability) &&
+                        ability.Caster?.Unit == unit)
+                        result.Add(new SavedMountedSlot { ActorId = unit.UniqueId, Index = i, Kind = (int)kind });
+                }
+            }
+            return result.ToArray();
+        }
+
+        internal void RestorePersistentSlots(SavedMountedSlot[] bindings)
+        {
+            Update();
+            var candidates = CollectCandidateUnits();
+            foreach (var binding in bindings)
+            {
+                var units = candidates.Where(u => u.UniqueId == binding.ActorId).ToArray();
+                if (units.Length != 1) continue;
+                var unit = units[0];
+                var slots = unit.UISettings?.Slots;
+                if (slots == null || binding.Index >= slots.Length) continue;
+                var current = slots[binding.Index];
+                var existingKind = ResolveKind((current as MechanicActionBarSlotAbility)?.Ability?.Blueprint);
+                if (existingKind == (NativeMountedControlKind)binding.Kind) continue;
+                if (current != null && !(current is MechanicActionBarSlotEmpty)) continue;
+                var blueprint = EnumerateBlueprints().SingleOrDefault(b => (int)ResolveKind(b) == binding.Kind);
+                var fact = blueprint == null ? null : unit.Descriptor.Abilities.GetAbility(blueprint);
+                if (fact != null && fact.Active)
+                    unit.UISettings.SetSlot(new MechanicActionBarSlotAbility { Unit = unit, Ability = fact.Data }, binding.Index);
+            }
+        }
+
         private void CaptureAndClearManagedHotbarSlots()
         {
             hotbarSerializationLeases.Clear();
@@ -937,18 +988,21 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private void EndSaveSerializationScope()
+        internal void EndSaveSerializationScope()
         {
             if (!serializationSuspended)
             {
                 return;
             }
             serializationSuspended = false;
-            if (enabled && !disposed)
+            try
             {
-                Update();
+                if (enabled && !disposed) Update();
             }
-            ClearSerializationHotbarLeases(true);
+            finally
+            {
+                ClearSerializationHotbarLeases(true);
+            }
             logger.Info("Native mounted control save-serialization suspension ended; current runtime facts were rebuilt without saved residue.");
         }
 

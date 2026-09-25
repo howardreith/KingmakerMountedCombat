@@ -29,6 +29,30 @@ namespace KingmakerMountedCombat.Integration
             return code;
         }
 
+        internal static IEnumerable<CodeInstruction> BuffTimerEligibility(IEnumerable<CodeInstruction> source, MethodInfo eligible)
+        {
+            var code = source.ToList();
+            var current = Enumerable.Range(0, code.Count).Where(i => Token(code[i], 0x06000BFA)).ToArray();
+            Require(current.Length == 2 && code.Count(i => Token(i, 0x060029E1)) == 1,
+                "BuffCollection.Tick current-owner/caster and native effect delivery");
+            var branches = new[] { current[0] + 4, current[1] + 5 };
+            Require(current[1] == branches[0] + 1 && branches[1] < code.Count &&
+                code[current[0] + 1].opcode == OpCodes.Ldarg_0 &&
+                code[current[1] + 1].opcode == OpCodes.Ldarg_0 &&
+                Token(code[branches[1] - 1], 0x060021B3) &&
+                branches.All(i => code[i].opcode == OpCodes.Beq || code[i].opcode == OpCodes.Beq_S),
+                "BuffCollection.Tick exact two actor comparisons");
+            foreach (var index in branches.Reverse())
+            {
+                var target = code[index].operand;
+                // Keep both original actors on the stack. Only this equality is
+                // extended; native clock, timer, removal and TickMechanics stay intact.
+                code[index].opcode = OpCodes.Call; code[index].operand = eligible;
+                code.Insert(index + 1, new CodeInstruction(OpCodes.Brtrue, target));
+            }
+            return code;
+        }
+
         internal static IEnumerable<CodeInstruction> ActorEligibility(IEnumerable<CodeInstruction> source, MethodInfo replacement, bool commandArgument)
         {
             var code = source.ToList();
