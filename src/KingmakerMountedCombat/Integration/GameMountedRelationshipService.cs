@@ -176,6 +176,23 @@ namespace KingmakerMountedCombat.Integration
             if (!inCombat && admission == MountedRelationshipAdmission.VoluntaryCombat)
                 return Record(new TransitionResult(false, coordinator.State, null,
                     new[] { "Voluntary combat mounting requires a live encounter." }, false, false));
+            // Execution-time admission of the qualified paired authority, decided by the
+            // same typed policy prediction uses. This is the deepest choke point for a
+            // combat transition, so no diagnostic, automation, direct-service or queued
+            // route can reach a commitment on an unqualified authority. Mounting outside
+            // combat is untouched: it adopts no running encounter.
+            if (inCombat)
+            {
+                var authorityRefusal = MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(
+                    settings.EnablePairedActivation,
+                    settings.EnableUnifiedMountedTurn,
+                    settings.EnablePairedCommandScheduler);
+                if (authorityRefusal != null)
+                {
+                    return Record(new TransitionResult(false, coordinator.State, null,
+                        new[] { authorityRefusal }, false, false));
+                }
+            }
             if (!settings.EnableUnsafeMovementExperiment)
             {
                 return Record(new TransitionResult(false, coordinator.State, null, new[] { "Movement experiment is disabled." }, false, false));

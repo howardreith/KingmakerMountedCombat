@@ -68,6 +68,13 @@ namespace KingmakerMountedCombat.Domain
 
         public string PairedAdoptionUnavailableReason { get; set; }
 
+        // Combat Mount is supported only on the accepted architecture: paired
+        // activation live and both retired turn authorities off. One typed policy
+        // decides it for prediction and for execution-time admission alike.
+        public bool CombatMountAuthorityQualified { get; set; } = true;
+
+        public string CombatMountAuthorityReason { get; set; }
+
         public bool PairAdjacent { get; set; }
 
         public bool SafeGameMode { get; set; }
@@ -233,6 +240,12 @@ namespace KingmakerMountedCombat.Domain
             if (context.LoadingTransitionOrCutscene)
             {
                 reasons.Add("Mounting is blocked during loading, area transitions, and cutscenes.");
+            }
+            if (context.InCombat && !context.CombatMountAuthorityQualified)
+            {
+                reasons.Add(string.IsNullOrWhiteSpace(context.CombatMountAuthorityReason)
+                    ? "Mounting during combat requires the qualified paired authority."
+                    : context.CombatMountAuthorityReason);
             }
             if (context.InCombat && !context.PairedAdoptionAvailable)
             {

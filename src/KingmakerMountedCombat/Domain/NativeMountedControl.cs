@@ -117,6 +117,17 @@ namespace KingmakerMountedCombat.Domain
             bool unitIsRider,
             bool unitIsMount)
         {
+            // The escape hatch, and it comes before every feature gate. A mounted or
+            // faulted rider must always keep its own native Dismount, even after the
+            // movement feature or the paired policy is disabled: otherwise a live pair
+            // has no lawful way to separate and the player is stranded mounted. Mount
+            // and the mounted attack controls stay feature-gated below.
+            if (kind == NativeMountedControlKind.Dismount &&
+                (relationshipMounted || relationshipFaulted) && unitIsRider)
+            {
+                return true;
+            }
+
             if (!featureEnabled)
             {
                 return false;

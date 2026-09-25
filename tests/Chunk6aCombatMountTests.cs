@@ -29,6 +29,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("a preparing rider turn refuses the transition with its own reason", PreparingRiderTurnRefusesTheTransition);
             runner.Run("a dismount delivery rejects every wrong target identity", DismountTargetIdentityRejectsWrongConditions);
             runner.Run("the ledger's in-flight window is exactly admit to settle", LedgerInFlightWindowIsExact);
+            runner.Run("combat Mount requires the qualified paired authority", CombatMountRequiresQualifiedAuthority);
+            runner.Run("a mounted rider keeps its Dismount after the feature or policy is disabled", DismountSurvivesFeatureDisable);
             runner.Run("adoption refuses a used, split, suspended or repeated boundary", AdoptionRefusesUnusableBoundary);
             runner.Run("an adopted activation finalizes and begins the next round normally", AdoptedActivationFinalizes);
             runner.Run("adoption preserves every observed actor debt", AdoptionPreservesDebt);
@@ -410,6 +412,98 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(!ledger.HasVoluntaryTransitionInFlight,
                     "Forced cleanup opened the voluntary in-flight window.");
             }
+        }
+
+        // Combat Mount is supported only on the accepted architecture, and the one typed
+        // policy that prediction asks is the one execution-time admission asks.
+        private static void CombatMountRequiresQualifiedAuthority()
+        {
+            // The complete truth table: only paired activation alone qualifies.
+            for (var mask = 0; mask < 8; mask++)
+            {
+                var paired = (mask & 1) != 0;
+                var unified = (mask & 2) != 0;
+                var scheduler = (mask & 4) != 0;
+                var expected = paired && !unified && !scheduler;
+                TestRunner.Equal(expected,
+                    MountedAuthorityPolicy.IsQualifiedForCombatMount(paired, unified, scheduler),
+                    "Authority qualification wrong for paired=" + paired + " unified=" + unified + " scheduler=" + scheduler);
+                var reason = MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(paired, unified, scheduler);
+                TestRunner.Equal(expected, reason == null,
+                    "Reason presence disagreed with qualification for paired=" + paired +
+                    " unified=" + unified + " scheduler=" + scheduler);
+            }
+            // Each obstacle names itself.
+            TestRunner.True(MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(false, false, false)
+                    .Contains("paired activation to be enabled"),
+                "A disabled paired activation was not named.");
+            TestRunner.True(MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(true, true, false)
+                    .Contains("unified mounted turn"),
+                "The retired unified mounted turn was not named.");
+            TestRunner.True(MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(true, false, true)
+                    .Contains("paired command scheduler"),
+                "The retired paired command scheduler was not named.");
+            TestRunner.True(MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(true, true, true)
+                    .Contains("both retired turn experiments"),
+                "Two retired authorities were not named together.");
+
+            // Prediction refuses in combat with the exact obstacle, and never outside it.
+            var inCombat = EligibleCombatContext();
+            inCombat.CombatMountAuthorityQualified = false;
+            inCombat.CombatMountAuthorityReason = "Mounting during combat requires paired activation to be enabled.";
+            TestRunner.True(Reasons(inCombat).Contains("paired activation to be enabled"),
+                "Combat Mount prediction did not surface the authority obstacle.");
+            var fallback = EligibleCombatContext();
+            fallback.CombatMountAuthorityQualified = false;
+            TestRunner.True(Reasons(fallback).Contains("qualified paired authority"),
+                "A missing authority reason produced no fallback obstacle.");
+            var outOfCombat = EligibleCombatContext();
+            outOfCombat.InCombat = false;
+            outOfCombat.CombatMountAuthorityQualified = false;
+            outOfCombat.CombatMountAuthorityReason = "should not appear";
+            TestRunner.True(!Reasons(outOfCombat).Contains("should not appear"),
+                "Mounting outside combat was gated on the paired authority.");
+        }
+
+        // The escape hatch. A mounted or faulted rider must never be stranded when the
+        // movement feature or the paired policy is switched off.
+        private static void DismountSurvivesFeatureDisable()
+        {
+            foreach (var faulted in new[] { false, true })
+            {
+                TestRunner.True(NativeMountedControlPolicy.ShouldLease(
+                        NativeMountedControlKind.Dismount, false, false, true, !faulted, faulted, true, false),
+                    "Dismount was withdrawn from the exact rider with the feature disabled (faulted=" + faulted + ").");
+                TestRunner.True(NativeMountedControlPolicy.ShouldLease(
+                        NativeMountedControlKind.Dismount, false, true, true, !faulted, faulted, true, false),
+                    "Dismount was withdrawn from the exact rider with a retired authority live (faulted=" + faulted + ").");
+                // Only the exact rider keeps it; the mount never gains it.
+                TestRunner.True(!NativeMountedControlPolicy.ShouldLease(
+                        NativeMountedControlKind.Dismount, false, false, true, !faulted, faulted, false, true),
+                    "The mount was leased a Dismount control (faulted=" + faulted + ").");
+                // Mount stays feature-gated.
+                TestRunner.True(!NativeMountedControlPolicy.ShouldLease(
+                        NativeMountedControlKind.MountCompanion, false, false, true, !faulted, faulted, true, false),
+                    "Mount survived the disabled feature (faulted=" + faulted + ").");
+            }
+            // Unmounted and feature-disabled: nothing is leased at all.
+            TestRunner.True(!NativeMountedControlPolicy.ShouldLease(
+                    NativeMountedControlKind.Dismount, false, false, true, false, false, true, false),
+                "An unmounted rider was leased a Dismount control with the feature disabled.");
+            TestRunner.True(!NativeMountedControlPolicy.ShouldLease(
+                    NativeMountedControlKind.MountCompanion, false, false, true, false, false, true, false),
+                "An unmounted rider was leased a Mount control with the feature disabled.");
+            // The feature flag never appears in the mounted Dismount availability branch,
+            // so the action stays visible and enabled for the exact rider.
+            var mounted = EligibleCombatContext();
+            mounted.RelationshipState = RelationshipState.Mounted;
+            mounted.FeatureEnabled = false;
+            mounted.InCombat = false;
+            var availability = MountedPlayerActionEvaluator.Evaluate(mounted);
+            TestRunner.Equal(MountedPlayerActionKind.Dismount, availability.Action,
+                "A mounted rider with the feature disabled was not offered Dismount.");
+            TestRunner.True(availability.IsVisible && availability.IsEnabled,
+                "Dismount was hidden or disabled for a mounted rider with the feature disabled: " + availability.Feedback);
         }
 
         private static MidEncounterAdoptionPlan Plan(MidEncounterAdoption disposition, long generation) =>

@@ -226,6 +226,7 @@
     <Compile Include="Domain\MountedPairCandidate.cs" />
     <Compile Include="Domain\MountedRelationshipAdmission.cs" />
     <Compile Include="Domain\DismountTargetIdentityPolicy.cs" />
+    <Compile Include="Domain\MountedAuthorityPolicy.cs" />
     <Compile Include="Domain\MidEncounterAdoptionPlan.cs" />
     <Compile Include="Domain\MidEncounterAdoptionPolicy.cs" />
     <Compile Include="Domain\MountedTransitionLedger.cs" />
