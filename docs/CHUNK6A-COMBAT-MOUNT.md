@@ -159,8 +159,8 @@ command — including the Mount/Dismount shell during approach and execution —
 is after `Deliver` has performed the relationship transition. A save requested
 mid-transition is therefore deferred until the transition is settled, and no
 supplemental Chunk 6A state is persisted. `CM07-schema-unchanged` records this
-claim, and like every other CM07 row it is NOT RUN until the native campaign
-executes it.
+claim, and like every other CM07 row it is BLOCKED until the native campaign
+can run: the claim is an argument from the accepted Chunk 5 barrier, not evidence.
 
 ## Candidate identity
 
@@ -193,6 +193,11 @@ contracts 619/0, patch construction 30/0, package 11/0, Chunk 5 ledger 106/0 wit
 its completion gate still PASS, Chunk 6A ledger record consistency 82/0 and its
 completion gate **FAIL 82/82**, which is the truthful state.
 
+Every accepted protocol envelope is unchanged on this source, which is the
+regression signal that matters: ordinary controls 42/0, Chunk 4 play 123/0,
+Chunk 4 extended 382/0, Chunk 4 traversal 149/0, Chunk 4 Charge 460/0, actor
+allocation 82/0, paired restrictions 41/0, paired condition commands 67/0, paired
+death 32/0 and Mammoth paired 18/0 all match their pre-change counts exactly.
 The eighteen new assembly contracts pin the exact seams this design rests on:
 `TickCommand`, both `UpdateCooldowns` overloads, `HasMoveAction` with its two
 `Used*MoveAction` predicates, `Cooldowns.Clear`, `UnitCommand.get_IsActed` and
