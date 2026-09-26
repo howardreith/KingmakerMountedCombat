@@ -212,11 +212,26 @@ namespace KingmakerMountedCombat.Diagnostics
         // rider-to-Horse direction, so asking for more than the current separation can only
         // widen the gap. This creates a normal player-owned Horse Move command and writes no
         // transform; it is the same native input every other ground-movement case uses.
-        private UnitMoveTo Chunk6aSendHorseAway(float extraMeters, out Vector3 destination)
+        // A bounded walkable point may genuinely not exist in this fixture's geometry, and
+        // FindWalkablePointNearTarget says so by throwing. That is an exact, reportable
+        // obstacle rather than a reason to abort the tick opaquely, so the refusal is
+        // returned as a message the caller turns into a named row failure.
+        private UnitMoveTo Chunk6aSendHorseAway(
+            float extraMeters, out Vector3 destination, out string refusal)
         {
-            SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
-            destination = FindWalkablePointNearTarget(
-                rider.Position, horse.Position, rider.DistanceTo(horse) + extraMeters);
+            destination = horse?.Position ?? Vector3.zero;
+            refusal = null;
+            try
+            {
+                SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
+                destination = FindWalkablePointNearTarget(
+                    rider.Position, horse.Position, rider.DistanceTo(horse) + extraMeters);
+            }
+            catch (Exception exception)
+            {
+                refusal = exception.GetType().Name + ": " + exception.Message;
+                return null;
+            }
             ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
             return horse.Commands.Move as UnitMoveTo;
         }
@@ -1355,13 +1370,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
-                chunk6aSeparationCommand = Chunk6aSendHorseAway(4.5f, out chunk6aSeparationDestination);
+                string separationRefusal;
+                chunk6aSeparationCommand = Chunk6aSendHorseAway(
+                    4.5f, out chunk6aSeparationDestination, out separationRefusal);
                 if (chunk6aSeparationCommand == null || chunk6aSeparationCommand.Executor != horse ||
                     !chunk6aSeparationCommand.CreatedByPlayer)
                 {
                     FailCurrent("CM02-obstruction",
                         "Ordinary native Horse ground input did not admit one exact player-created Horse Move command, " +
-                        "so neither approach case could start from measured non-adjacency.");
+                        "so neither approach case could start from measured non-adjacency. obstacle=\"" +
+                        (separationRefusal ?? "no exact player-created Horse Move command appeared") + "\"");
                     BeginCleanup();
                     return;
                 }
@@ -1580,14 +1598,16 @@ namespace KingmakerMountedCombat.Diagnostics
                         : "geometry-change-approach");
                     if (!chunk6aGeometryChanged && changeSlot.IsStarted && !changeSlot.IsActed)
                     {
-                        chunk6aGeometryChangeCommand =
-                            Chunk6aSendHorseAway(3.0f, out chunk6aGeometryChangeDestination);
+                        string changeRefusal;
+                        chunk6aGeometryChangeCommand = Chunk6aSendHorseAway(
+                            3.0f, out chunk6aGeometryChangeDestination, out changeRefusal);
                         SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                         chunk6aGeometryChanged = true;
                         chunk6aGeometryChangeAtChange = CaptureChunk6aGeometry("geometry-change-applied");
                         observations["chunk6aGeometryChangeOrder"] = new JObject
                         {
                             ["destination"] = CapturePosition(chunk6aGeometryChangeDestination),
+                            ["refusal"] = changeRefusal,
                             ["commandOwnerId"] = chunk6aGeometryChangeCommand?.Executor?.UniqueId,
                             ["commandCreatedByPlayer"] =
                                 chunk6aGeometryChangeCommand != null && chunk6aGeometryChangeCommand.CreatedByPlayer

@@ -753,9 +753,15 @@ Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-obstruction",' -and
 # only while the approach is running and uncommitted, and it can only ever WIDEN the gap --
 # moving the Horse toward the rider to manufacture adjacency is what the charter forbids.
 $chunk6aRowRequirementText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1')
+$chunk6aTrancheText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs')
 Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-geometry-change",' -and
     $chunk6aScenarioText -match 'rider\.Position, horse\.Position, rider\.DistanceTo\(horse\) \+ extraMeters\);' -and
     $chunk6aScenarioText -match 'ClickGroundHandler\.MoveSelectedUnitsToPoint\(destination, false\);' -and
+    # An absent bounded walkable point is an exact reportable obstacle, not an opaque abort,
+    # and either Horse order can still be in flight when a run aborts.
+    $chunk6aScenarioText -match 'refusal = exception\.GetType\(\)\.Name \+ ": " \+ exception\.Message;' -and
+    $chunk6aTrancheText -match 'chunk6aSeparationCommand\?\.Interrupt\(\);' -and
+    $chunk6aTrancheText -match 'chunk6aGeometryChangeCommand\?\.Interrupt\(\);' -and
     $chunk6aScenarioText -match 'if \(!chunk6aGeometryChanged && changeSlot\.IsStarted && !changeSlot\.IsActed\)' -and
     # The change must be real, by the Horse's own player command and by a measured distance.
     $chunk6aScenarioText -match 'var geometryReallyChanged = horseMoved > Chunk6aStationaryToleranceMeters &&' -and
