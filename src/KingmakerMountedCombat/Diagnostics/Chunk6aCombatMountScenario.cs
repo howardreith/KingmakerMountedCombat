@@ -86,6 +86,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitMoveTo chunk6aGeometryChangeCommand;
         private bool chunk6aGeometryChanged;
         private float chunk6aGeometryChangeMaxRiderMoveCooldown;
+        private JObject chunk6aEncounterLiveness;
         private bool chunk6aPreparingObserved;
         // Bounded geometry and command evidence, one sample per named boundary.
         private readonly JArray chunk6aGeometry = new JArray();
@@ -206,6 +207,83 @@ namespace KingmakerMountedCombat.Diagnostics
         // animation settle, not a licence to move it.
         private const float Chunk6aStationaryToleranceMeters = 0.35f;
 
+        // The diagnostic encounter stays alive only while the bidirectional combat-memory
+        // lease keeps refreshing, and a run lost combat between the combat Mount and the
+        // combat Dismount with nothing recording why: the Dismount then ran out of combat,
+        // where Kingmaker charges nothing, and the row failed on a derived clause instead of
+        // the real cause. This records the encounter's liveness each frame, bounded to the
+        // first lapse of each kind plus running counts, so the next run names the exact lease
+        // that stopped validating rather than leaving it to be guessed at.
+        private void ObserveChunk6aEncounterLiveness(bool? combatMemoryRefreshed)
+        {
+            var live = rider != null && horse != null &&
+                rider.IsInCombat && horse.IsInCombat && Game.Instance.Player.IsInCombat;
+            if (chunk6aEncounterLiveness == null)
+            {
+                chunk6aEncounterLiveness = new JObject
+                {
+                    ["refreshObservedCount"] = 0,
+                    ["refreshFailedCount"] = 0,
+                    ["firstRefreshFailure"] = null,
+                    ["firstCombatLoss"] = null,
+                    ["lastLiveFrame"] = -1,
+                    ["lastLiveSeconds"] = -1d
+                };
+                observations["chunk6aEncounterLiveness"] = chunk6aEncounterLiveness;
+            }
+            if (combatMemoryRefreshed.HasValue)
+            {
+                chunk6aEncounterLiveness["refreshObservedCount"] =
+                    (int)chunk6aEncounterLiveness["refreshObservedCount"] + 1;
+                if (!combatMemoryRefreshed.Value)
+                {
+                    chunk6aEncounterLiveness["refreshFailedCount"] =
+                        (int)chunk6aEncounterLiveness["refreshFailedCount"] + 1;
+                    if (chunk6aEncounterLiveness["firstRefreshFailure"] == null ||
+                        chunk6aEncounterLiveness["firstRefreshFailure"].Type == JTokenType.Null)
+                    {
+                        chunk6aEncounterLiveness["firstRefreshFailure"] = Chunk6aLivenessMark(live);
+                    }
+                }
+            }
+            if (live)
+            {
+                chunk6aEncounterLiveness["lastLiveFrame"] = Time.frameCount;
+                chunk6aEncounterLiveness["lastLiveSeconds"] = clock.Elapsed.TotalSeconds;
+                return;
+            }
+            if (chunk6aEncounterLiveness["firstCombatLoss"] == null ||
+                chunk6aEncounterLiveness["firstCombatLoss"].Type == JTokenType.Null)
+            {
+                chunk6aEncounterLiveness["firstCombatLoss"] = Chunk6aLivenessMark(false);
+            }
+        }
+
+        private JObject Chunk6aLivenessMark(bool live)
+        {
+            return new JObject
+            {
+                ["frame"] = Time.frameCount,
+                ["seconds"] = clock.Elapsed.TotalSeconds,
+                ["stage"] = chunk6aStage,
+                ["encounterLive"] = live,
+                ["riderInCombat"] = rider != null && rider.IsInCombat,
+                ["horseInCombat"] = horse != null && horse.IsInCombat,
+                ["playerInCombat"] = Game.Instance.Player.IsInCombat,
+                ["targetPresent"] = target != null,
+                ["targetInState"] = target != null && target.IsInState,
+                ["targetConscious"] = target != null && target.Descriptor != null &&
+                    target.Descriptor.State.IsConscious,
+                ["targetHitPoints"] = target?.HPLeft,
+                ["targetState"] = targetService == null ? null : targetService.State.ToString(),
+                ["targetBrainLeaseReleased"] = targetService?.TargetBrainLeaseReleased,
+                ["targetSleeplessLeaseReleased"] = targetService?.TargetSleeplessLeaseReleased,
+                ["targetDurabilityLeaseReleased"] = targetService?.TargetDurabilityLeaseReleased,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["riderResources"] = Chunk6aCooldowns(rider)
+            };
+        }
+
         // Send the Horse AWAY from the rider through Kingmaker's own ground-click input, so
         // an approach case can start from measured non-adjacency. FindWalkablePointNearTarget
         // picks a walkable node at the requested distance from the RIDER along the
@@ -233,7 +311,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 return null;
             }
             ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
-            return horse.Commands.Move as UnitMoveTo;
+            var order = horse.Commands.Move as UnitMoveTo;
+            // Hand the selection straight back to the rider. Ground input acts on the current
+            // selection, so the Horse has to be selected to receive the order -- but combat
+            // Mount availability and target admission both require the exact rider to be the
+            // single selected unit, and a run left the selection on the Horse and then spun
+            // to the leaf deadline while availability reported every selection-derived
+            // refusal it has. The selection is restored here, not at the later click, so no
+            // caller can observe availability through the wrong actor.
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            return order;
         }
 
         // The largest rider Move cooldown any sample recorded at or after a frame, with the
@@ -1251,6 +1338,26 @@ namespace KingmakerMountedCombat.Diagnostics
                     (turn?.Unit != rider || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing))
                 {
                     TryEndPhase3gFixtureTurn(turn);
+                    return;
+                }
+                // The combat Dismount is only a COMBAT Dismount while the encounter is live.
+                // A run reached this stage with the rider's Move still draining from the
+                // combat Mount, the encounter ended while it waited, and the Dismount then
+                // ran out of combat where Kingmaker correctly charges nothing -- so the row
+                // failed on its derived move-commitment clause rather than on the real cause.
+                // The encounter is now a stated precondition, reported with the liveness
+                // observation that names which lease stopped validating.
+                if (!rider.IsInCombat || !horse.IsInCombat || !Game.Instance.Player.IsInCombat)
+                {
+                    FailCurrent("CM05-combat-dismount-accepted",
+                        "The encounter ended before the combat Dismount became available, so no combat Dismount could be " +
+                        "observed and Kingmaker would charge nothing for one performed outside combat. " +
+                        "riderInCombat=" + rider.IsInCombat + "; horseInCombat=" + horse.IsInCombat +
+                        "; playerInCombat=" + Game.Instance.Player.IsInCombat +
+                        "; liveness=" + (chunk6aEncounterLiveness == null
+                            ? "not-observed"
+                            : chunk6aEncounterLiveness.ToString(Formatting.None)));
+                    BeginCleanup();
                     return;
                 }
                 var dismountAvailability = nativeControls.Evaluate(NativeMountedControlKind.Dismount, rider);
