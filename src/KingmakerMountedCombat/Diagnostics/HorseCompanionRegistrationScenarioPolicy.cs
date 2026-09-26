@@ -11,6 +11,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // tranche because that type binds Kingmaker assemblies.
             return string.Equals(scenario, "chunk6a-combat-mount-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-combat-mount-tb", StringComparison.Ordinal) ||
+                // The narrow save-backed Mount preamble: one native selected-ability
+                // click, sixteen staged causal assertions, no mount and no combat.
+                string.Equals(scenario, "chunk6a-mount-preamble", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-companion-unmounted-suite", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-mounted-alpha-suite", StringComparison.Ordinal) ||
