@@ -786,6 +786,26 @@ Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-geometry-change",' -and
     $chunk6aRowRequirementText -match 'elseif \(-not \$approachOnly\) \{') `
     'a geometry change during approach revalidates at arrival and never refunds the committed native cost'
 
+# The harness RE-DERIVES resource conservation, so it has to use the same mode-aware
+# instrument the scenario does. A run failed with "Chunk 6A control refunded rider standard
+# debt" because the validator treated any fall as a refund. In real time Kingmaker drains
+# every cooldown against its own clock, and one correct combat Mount was measured taking the
+# rider's standard cooldown from 4.447 to 3.084. A refund is a fall FASTER than the clock,
+# and a charge is a cooldown that ROSE.
+Assert-Kmc ($chunk6aRowRequirementText -match '\$elapsedSeconds = \[double\]\$pair\[1\]\.seconds - \[double\]\$pair\[0\]\.seconds' -and
+    $chunk6aRowRequirementText -match '\$floor = if \(\$turnBased\) \{ \$was \} else \{ \$was - \$elapsedSeconds - 0\.25 \}' -and
+    $chunk6aRowRequirementText -match 'if \(\$now -lt \$floor\) \{' -and
+    # Every charged field goes through that one floor, so none can keep the old instrument.
+    "$chunk6aRowRequirementText" -match "foreach \(\`$field in @\('standard','swift','move'\)\) \{" -and
+    # Out-of-order samples would make the elapsed clock meaningless, so they fail closed.
+    $chunk6aRowRequirementText -match 'Chunk 6A transition samples are out of order on their own clock\.' -and
+    # "The mount was charged" means a cooldown that ROSE; exact equality is right only in
+    # turn-based combat, where nothing drains between boundaries.
+    $chunk6aRowRequirementText -match '\$charged = if \(\$turnBased\) \{ \$now -ne \$was \} else \{ \$now -gt \$was \+ 0\.0001 \}' -and
+    # Initiative does not tick, so it stays exact in both modes.
+    $chunk6aRowRequirementText -match 'Chunk 6A control changed \$actor initiative\.') `
+    'the harness measures a refund against the real-time clock and a charge as a cooldown that rose'
+
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
 $chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')
