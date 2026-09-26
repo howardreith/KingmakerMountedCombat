@@ -58,6 +58,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chunk6aRepeatClicked;
         private MidEncounterAdoption chunk6aDisposition = MidEncounterAdoption.Unavailable;
         private string chunk6aDispositionRefusal;
+        // The observed wait for Kingmaker to restore the native Move its earlier refused
+        // delivery kept. Published so the evidence shows the resource came back on the
+        // engine's own clock rather than from anything this scenario did.
+        private JObject chunk6aMoveRestorationWait;
         private bool chunk6aPreparingObserved;
         // Bounded geometry and command evidence, one sample per named boundary.
         private readonly JArray chunk6aGeometry = new JArray();
@@ -817,6 +821,56 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
+                // The rider must own its native Move before this request is lawful at all.
+                // The compensated adoption refusal one stage earlier performed a REAL native
+                // Mount whose delivery was refused, and the charter keeps that cost: after
+                // native commitment a stale-state delivery refusal receives no refund. In
+                // real time Kingmaker then drains the Move cooldown it charged, so the only
+                // lawful route to a second attempt is to WAIT for the engine to restore the
+                // resource. A run reached this point with 0.045s of that cooldown left,
+                // clicked, and was correctly refused with "The rider has no Move action
+                // available to mount." -- the product was right and the scenario was early.
+                // Nothing here writes, clears or refunds the cooldown; it is only read.
+                var readinessCooldowns = Chunk6aCooldowns(rider);
+                var moveReadiness = MountedNativeMoveReadinessPolicy.Decide(
+                    readinessCooldowns["hasMove"] != null && (bool)readinessCooldowns["hasMove"],
+                    readinessCooldowns["move"] == null ? 0f : (float)readinessCooldowns["move"],
+                    Chunk6aTurnBased);
+                if (chunk6aMoveRestorationWait == null)
+                {
+                    chunk6aMoveRestorationWait = new JObject
+                    {
+                        ["firstReadiness"] = moveReadiness.ToString(),
+                        ["firstDescription"] = MountedNativeMoveReadinessPolicy.Describe(
+                            moveReadiness,
+                            readinessCooldowns["move"] == null ? 0f : (float)readinessCooldowns["move"],
+                            Chunk6aTurnBased),
+                        ["firstCooldowns"] = readinessCooldowns,
+                        ["waitedFrames"] = 0
+                    };
+                    observations["chunk6aMoveRestorationWait"] = chunk6aMoveRestorationWait;
+                }
+                if (MountedNativeMoveReadinessPolicy.ShouldWait(moveReadiness))
+                {
+                    chunk6aMoveRestorationWait["waitedFrames"] =
+                        (int)chunk6aMoveRestorationWait["waitedFrames"] + 1;
+                    chunk6aMoveRestorationWait["lastWaitingCooldowns"] = readinessCooldowns;
+                    return;
+                }
+                if (moveReadiness == MountedNativeMoveReadiness.Unavailable)
+                {
+                    FailCurrent("CM01-combat-mount-accepted",
+                        "The rider held no native Move when the combat Mount request became due, and none was being restored. " +
+                        MountedNativeMoveReadinessPolicy.Describe(
+                            moveReadiness,
+                            readinessCooldowns["move"] == null ? 0f : (float)readinessCooldowns["move"],
+                            Chunk6aTurnBased) +
+                        " cooldowns=" + readinessCooldowns.ToString(Formatting.None));
+                    BeginCleanup();
+                    return;
+                }
+                chunk6aMoveRestorationWait["resolvedReadiness"] = moveReadiness.ToString();
+                chunk6aMoveRestorationWait["resolvedCooldowns"] = readinessCooldowns;
                 chunk6aPreMount = CaptureChunk6aState("mount-before");
                 chunk6aMountLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;

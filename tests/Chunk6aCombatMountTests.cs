@@ -51,6 +51,77 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("combat Mount refusal feedback names its exact obstacle", CombatMountRefusalFeedback);
             runner.Run("combat Dismount gates combine without masking each other", CombatDismountGatesCombine);
             runner.Run("relationship cleanup stays idempotent after a voluntary combat mount", VoluntaryCombatCleanupIsIdempotent);
+            runner.Run("a draining native Move cooldown is waited for, never written", DrainingMoveCooldownIsWaitedFor);
+            runner.Run("a spent Move that nothing will restore refuses instead of waiting", UnrestorableMoveRefusesImmediately);
+        }
+
+        // A refused delivery after native commitment keeps its cost, so the next attempt is
+        // only lawful once Kingmaker restores the rider's Move on its own clock. A run
+        // clicked combat Mount with 0.045s of that cooldown left and was correctly refused;
+        // the repair is to WAIT for the engine, never to write, clear or refund the cooldown.
+        private static void DrainingMoveCooldownIsWaitedFor()
+        {
+            var draining = MountedNativeMoveReadinessPolicy.Decide(false, 0.0445586443f, false);
+            TestRunner.Equal(MountedNativeMoveReadiness.RestoringOnNativeClock, draining,
+                "A real-time rider with a draining Move cooldown was not treated as restoring.");
+            TestRunner.True(MountedNativeMoveReadinessPolicy.ShouldWait(draining),
+                "A restoring native Move did not ask the caller to wait.");
+            TestRunner.True(MountedNativeMoveReadinessPolicy.Describe(draining, 0.0445586443f, false)
+                    .Contains("0.045"),
+                "The restoring description does not report the exact remaining cooldown.");
+
+            // A charge RAISES the cooldown in real time, so a whole spent Move is still only
+            // a wait.
+            TestRunner.Equal(MountedNativeMoveReadiness.RestoringOnNativeClock,
+                MountedNativeMoveReadinessPolicy.Decide(false, 2.989f, false),
+                "A freshly charged real-time Move cooldown was not treated as restoring.");
+
+            // Whenever Kingmaker itself reports the Move available the request is lawful now,
+            // whatever the cooldown field happens to read.
+            foreach (var cooldown in new[] { 0f, 0.0445586443f, 2.989f, -1f })
+            {
+                TestRunner.Equal(MountedNativeMoveReadiness.Available,
+                    MountedNativeMoveReadinessPolicy.Decide(true, cooldown, false),
+                    "An available native Move was not admitted at cooldown " + cooldown + " in real time.");
+                TestRunner.Equal(MountedNativeMoveReadiness.Available,
+                    MountedNativeMoveReadinessPolicy.Decide(true, cooldown, true),
+                    "An available native Move was not admitted at cooldown " + cooldown + " in turn-based play.");
+                TestRunner.True(!MountedNativeMoveReadinessPolicy.ShouldWait(
+                        MountedNativeMoveReadinessPolicy.Decide(true, cooldown, false)),
+                    "An available native Move asked the caller to wait.");
+            }
+        }
+
+        // Waiting is only correct while the engine is actually restoring the resource.
+        // Turn-based play holds the cooldown static between boundaries, so a spent Move stays
+        // spent until the rider's next turn -- and forcing a turn boundary to recover one is
+        // exactly what the mounted-cost contract forbids. Those cases must refuse with an
+        // exact reason rather than burn a leaf deadline.
+        private static void UnrestorableMoveRefusesImmediately()
+        {
+            foreach (var cooldown in new[] { 0f, 0.0445586443f, 3f })
+            {
+                var turnBased = MountedNativeMoveReadinessPolicy.Decide(false, cooldown, true);
+                TestRunner.Equal(MountedNativeMoveReadiness.Unavailable, turnBased,
+                    "A turn-based rider without a Move was told to wait at cooldown " + cooldown + ".");
+                TestRunner.True(!MountedNativeMoveReadinessPolicy.ShouldWait(turnBased),
+                    "A turn-based spent Move asked the caller to wait for a restoration that cannot come.");
+                TestRunner.True(MountedNativeMoveReadinessPolicy.Describe(turnBased, cooldown, true)
+                        .Contains("already spent its native Move on this turn"),
+                    "The turn-based refusal does not name the spent turn.");
+            }
+
+            // Real time with nothing draining is a refusal with another cause, and a
+            // not-a-number cooldown is never evidence of a restoration in progress.
+            foreach (var cooldown in new[] { 0f, -0.5f, float.NaN })
+            {
+                var realTime = MountedNativeMoveReadinessPolicy.Decide(false, cooldown, false);
+                TestRunner.Equal(MountedNativeMoveReadiness.Unavailable, realTime,
+                    "A real-time rider with no draining cooldown was told to wait at " + cooldown + ".");
+                TestRunner.True(MountedNativeMoveReadinessPolicy.Describe(realTime, cooldown, false)
+                        .Contains("another condition refuses it"),
+                    "The real-time refusal does not send the reader to the other conditions.");
+            }
         }
 
         private static void LedgerRetentionIsBounded()
