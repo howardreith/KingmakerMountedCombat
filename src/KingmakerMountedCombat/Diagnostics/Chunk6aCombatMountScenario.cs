@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
@@ -62,6 +63,29 @@ namespace KingmakerMountedCombat.Diagnostics
         // delivery kept. Published so the evidence shows the resource came back on the
         // engine's own clock rather than from anything this scenario did.
         private JObject chunk6aMoveRestorationWait;
+
+        // CM02-obstruction and CM02-geometry-change. Both need the pair outside the
+        // adjacency envelope again, because the combat Dismount leaves the rider standing
+        // beside the Horse with no distance for a native approach to close. The Horse is
+        // sent AWAY through its own ordinary ground input: away can never manufacture
+        // adjacency, which is the thing the charter forbids, and it is the only lawful way
+        // back to the starting condition these two cases are about.
+        private Vector3 chunk6aSeparationDestination;
+        private UnitMoveTo chunk6aSeparationCommand;
+        private JObject chunk6aObstructionBefore;
+        private JObject chunk6aObstructionLedgerBefore;
+        private JObject chunk6aObstructionStart;
+        private JObject chunk6aObstructionAtStop;
+        private UnitUseAbility chunk6aObstructionCommand;
+        private bool chunk6aObstructionStopped;
+        private JObject chunk6aGeometryChangeBefore;
+        private JObject chunk6aGeometryChangeLedgerBefore;
+        private JObject chunk6aGeometryChangeStart;
+        private JObject chunk6aGeometryChangeAtChange;
+        private Vector3 chunk6aGeometryChangeDestination;
+        private UnitMoveTo chunk6aGeometryChangeCommand;
+        private bool chunk6aGeometryChanged;
+        private float chunk6aGeometryChangeMaxRiderMoveCooldown;
         private bool chunk6aPreparingObserved;
         // Bounded geometry and command evidence, one sample per named boundary.
         private readonly JArray chunk6aGeometry = new JArray();
@@ -181,6 +205,57 @@ namespace KingmakerMountedCombat.Diagnostics
         // CM02-approach-arrival to count. This is a measurement tolerance for idle drift and
         // animation settle, not a licence to move it.
         private const float Chunk6aStationaryToleranceMeters = 0.35f;
+
+        // Send the Horse AWAY from the rider through Kingmaker's own ground-click input, so
+        // an approach case can start from measured non-adjacency. FindWalkablePointNearTarget
+        // picks a walkable node at the requested distance from the RIDER along the
+        // rider-to-Horse direction, so asking for more than the current separation can only
+        // widen the gap. This creates a normal player-owned Horse Move command and writes no
+        // transform; it is the same native input every other ground-movement case uses.
+        private UnitMoveTo Chunk6aSendHorseAway(float extraMeters, out Vector3 destination)
+        {
+            SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
+            destination = FindWalkablePointNearTarget(
+                rider.Position, horse.Position, rider.DistanceTo(horse) + extraMeters);
+            ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
+            return horse.Commands.Move as UnitMoveTo;
+        }
+
+        // The largest rider Move cooldown any sample recorded at or after a frame, with the
+        // moment it was seen. A real-time charge RAISES the cooldown to roughly one Move, so
+        // this is how a genuine native commitment is observed to have been taken -- and,
+        // paired with the elapsed clock, how it is observed to have been KEPT rather than
+        // refunded.
+        private JObject Chunk6aPeakRiderMoveCooldownSince(int frame)
+        {
+            var peak = new JObject { ["cooldown"] = 0f, ["seconds"] = 0d, ["frame"] = frame };
+            foreach (var sample in chunk6aGeometry.OfType<JObject>())
+            {
+                if ((int)sample["frame"] < frame) { continue; }
+                var resources = sample["riderResources"] as JObject;
+                if (resources == null || resources["move"] == null) { continue; }
+                var value = (float)resources["move"];
+                if (value <= (float)peak["cooldown"]) { continue; }
+                peak["cooldown"] = value;
+                peak["seconds"] = sample["seconds"];
+                peak["frame"] = sample["frame"];
+            }
+            return peak;
+        }
+
+        // A real-time Move cooldown drains with the clock and nothing else may touch it, so
+        // a later reading must be at least the observed charge minus the seconds that have
+        // passed since. A refund -- a write that cleared or credited the resource -- shows up
+        // as a reading below that floor. The tolerance covers frame pacing only.
+        private static bool Chunk6aMoveCostRetained(JObject peak, float currentCooldown, double nowSeconds)
+        {
+            var charged = (float)peak["cooldown"];
+            if (charged <= 0f) { return true; }
+            var elapsed = nowSeconds - (double)peak["seconds"];
+            if (elapsed < 0d) { return false; }
+            var floor = charged - (float)elapsed - 0.25f;
+            return floor <= 0f || currentCooldown >= floor;
+        }
 
         private static float Chunk6aPlanarDistance(JObject from, JObject to)
         {
@@ -1256,6 +1331,354 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["visitedTurns"] = chunk6aVisitedTurns.Count
                     });
                 chunk6aStage = 6;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 6: restore measured non-adjacency for the two remaining approach cases.
+            // These run in real time only. In turn-based combat the Horse's reposition and
+            // the rider's attempt would each consume that actor's Move for the round, and
+            // recovering one by forcing a turn boundary is prohibited outright; the
+            // turn-based scenario proves the Preparing boundary instead, and the two
+            // approach behaviours are proved once, in the mode where a native approach is a
+            // continuous multi-frame process.
+            if (chunk6aStage == 6)
+            {
+                if (Chunk6aTurnBased)
+                {
+                    chunk6aStage = 99;
+                    ResetLeafClock();
+                    BeginCleanup();
+                    return;
+                }
+                if (!Chunk6aIdle)
+                {
+                    return;
+                }
+                chunk6aSeparationCommand = Chunk6aSendHorseAway(4.5f, out chunk6aSeparationDestination);
+                if (chunk6aSeparationCommand == null || chunk6aSeparationCommand.Executor != horse ||
+                    !chunk6aSeparationCommand.CreatedByPlayer)
+                {
+                    FailCurrent("CM02-obstruction",
+                        "Ordinary native Horse ground input did not admit one exact player-created Horse Move command, " +
+                        "so neither approach case could start from measured non-adjacency.");
+                    BeginCleanup();
+                    return;
+                }
+                observations["chunk6aApproachSeparation"] = new JObject
+                {
+                    ["destination"] = CapturePosition(chunk6aSeparationDestination),
+                    ["commandOwnerId"] = chunk6aSeparationCommand.Executor?.UniqueId,
+                    ["commandCreatedByPlayer"] = chunk6aSeparationCommand.CreatedByPlayer,
+                    ["geometry"] = CaptureChunk6aGeometry("approach-separation-start")
+                };
+                chunk6aStage = 7;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 7: the obstruction case begins. The pair must be measurably outside the
+            // envelope and the rider must own the Move Kingmaker charged for the Dismount,
+            // which the engine restores on its own clock.
+            if (chunk6aStage == 7)
+            {
+                if (!Chunk6aIdle || chunk6aSeparationCommand == null || !chunk6aSeparationCommand.IsFinished)
+                {
+                    return;
+                }
+                var separated = CaptureChunk6aGeometry("approach-separation-settled");
+                if ((bool)separated["isAdjacent"])
+                {
+                    FailCurrent("CM02-obstruction",
+                        "The Horse's own native move left the pair inside the measured adjacency envelope, " +
+                        "so there was no distance for a native approach to close: " +
+                        separated.ToString(Formatting.None));
+                    BeginCleanup();
+                    return;
+                }
+                var obstructionAvailability = nativeControls.Evaluate(
+                    NativeMountedControlKind.MountCompanion, rider);
+                if (!obstructionAvailability.IsEnabled)
+                {
+                    // The combat Dismount charged the rider's Move. Availability reports that
+                    // exactly, and waiting for Kingmaker to drain the cooldown it set is the
+                    // only lawful way to reach a further attempt.
+                    return;
+                }
+                chunk6aObstructionBefore = CaptureChunk6aState("obstruction-before");
+                chunk6aObstructionLedgerBefore = Chunk6aLedgerCounters();
+                chunk6aObstructionStart = separated;
+                chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
+                chunk6aRejectionsBefore = (int)nativeControls.DispatchRejectedCount;
+                chunk6aGenerationBefore = relationship.MountedPairGeneration;
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                if (!TryNativeAbilityTargetClick(
+                        nativeControls.MountAbility, horse, "chunk6a-obstruction-click"))
+                {
+                    FailCurrent("CM02-obstruction",
+                        "Exact native combat Mount target click was not admitted for the obstruction case. " +
+                        "availabilityReason=\"" + obstructionAvailability.Reason +
+                        "\"; targetRejection=\"" +
+                        playerAction.DescribeNativeMountTargetRejection(rider, horse) +
+                        "\"; geometry=" + separated.ToString(Formatting.None));
+                    BeginCleanup();
+                    return;
+                }
+                chunk6aStage = 8;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 8: obstruct the running approach BEFORE it commits, through the ordinary
+            // native Stop control, and then observe the command's own terminal state.
+            if (chunk6aStage == 8)
+            {
+                var obstructionSlot =
+                    rider?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+                if (!chunk6aObstructionStopped)
+                {
+                    if (obstructionSlot == null ||
+                        !ReferenceEquals(obstructionSlot.Spell?.Blueprint, nativeControls.MountAbility))
+                    {
+                        return;
+                    }
+                    chunk6aObstructionCommand = obstructionSlot;
+                    if (obstructionSlot.IsActed)
+                    {
+                        // The claim is specifically about cancellation BEFORE commitment. If
+                        // the Move was already committed the claim cannot be made truthfully,
+                        // so it is reported rather than relabelled as something weaker.
+                        FailCurrent("CM02-obstruction",
+                            "The native Mount approach committed its Move before the obstruction could be applied, " +
+                            "so no pre-commitment cancellation was observed: " +
+                            CaptureChunk6aGeometry("obstruction-already-acted").ToString(Formatting.None));
+                        BeginCleanup();
+                        return;
+                    }
+                    if (!obstructionSlot.IsStarted)
+                    {
+                        return;
+                    }
+                    chunk6aObstructionAtStop = CaptureChunk6aGeometry("obstruction-at-stop");
+                    // The ordinary native Stop control, the same player input every other
+                    // cancellation case in this project uses. Nothing is written.
+                    SelectionManager.Instance.Stop();
+                    chunk6aObstructionStopped = true;
+                    return;
+                }
+                if (obstructionSlot != null || !Chunk6aIdle)
+                {
+                    return;
+                }
+                var obstructionAfterGeometry = CaptureChunk6aGeometry("obstruction-terminal");
+                var obstructionAfter = CaptureChunk6aState("obstruction-after");
+                var terminalTruthful = chunk6aObstructionCommand != null &&
+                    chunk6aObstructionCommand.IsFinished &&
+                    !chunk6aObstructionCommand.IsActed &&
+                    chunk6aObstructionCommand.Result != UnitCommand.ResultType.Success;
+                var noTransition = relationship.State == RelationshipState.Unmounted &&
+                    relationship.MountedPairGeneration == chunk6aGenerationBefore &&
+                    nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore &&
+                    Chunk6aLedgerDelta(chunk6aObstructionLedgerBefore, "admittedMount", 0) &&
+                    Chunk6aLedgerDelta(chunk6aObstructionLedgerBefore, "acceptedMount", 0) &&
+                    Chunk6aLedgerDelta(chunk6aObstructionLedgerBefore, "forcedDetach", 0);
+                // No residue: nothing is left in flight and the rider keeps no Move-slot
+                // command, so a later lawful attempt starts from a clean state.
+                var noResidue = !playerAction.TransitionLedger.HasVoluntaryTransitionInFlight &&
+                    rider.Commands.Empty && horse.Commands.Empty;
+                // No cost: a cancellation before commitment charges nothing, so in real time
+                // every cooldown may only continue draining and none may rise.
+                var obstructionRider = (JObject)chunk6aObstructionBefore["rider"];
+                var obstructionRiderAfter = (JObject)obstructionAfter["rider"];
+                var noCost = Chunk6aUnchangedExcept(obstructionRider, obstructionRiderAfter) &&
+                    Chunk6aUnchangedExcept(
+                        (JObject)chunk6aObstructionBefore["mount"], (JObject)obstructionAfter["mount"]) &&
+                    (int)obstructionRider["nativePrepareCount"] ==
+                        (int)obstructionRiderAfter["nativePrepareCount"];
+                AddRow("CM02-obstruction",
+                    terminalTruthful && noTransition && noResidue && noCost &&
+                        chunk6aObstructionAtStop != null &&
+                        (bool)chunk6aObstructionAtStop["isAdjacent"] == false,
+                    "A native Mount approach obstructed by the ordinary Stop control before commitment reached its own truthful terminal state, performed no relationship transition, left no residue in flight and charged nothing.",
+                    new JObject
+                    {
+                        ["start"] = chunk6aObstructionStart,
+                        ["atStop"] = chunk6aObstructionAtStop,
+                        ["terminal"] = obstructionAfterGeometry,
+                        ["commandFinished"] = chunk6aObstructionCommand?.IsFinished,
+                        ["commandActed"] = chunk6aObstructionCommand?.IsActed,
+                        ["commandResult"] = chunk6aObstructionCommand?.Result.ToString(),
+                        ["terminalTruthful"] = terminalTruthful,
+                        ["noTransition"] = noTransition,
+                        ["noResidue"] = noResidue,
+                        ["noCost"] = noCost,
+                        ["before"] = chunk6aObstructionBefore,
+                        ["after"] = obstructionAfter,
+                        ["transitionLedger"] = playerAction.TransitionLedger.Describe()
+                    });
+                chunk6aStage = 9;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 9: the geometry-change case begins from whatever separation the cancelled
+            // approach left, which is re-measured rather than assumed.
+            if (chunk6aStage == 9)
+            {
+                if (!Chunk6aIdle)
+                {
+                    return;
+                }
+                var changeStart = CaptureChunk6aGeometry("geometry-change-start");
+                if ((bool)changeStart["isAdjacent"])
+                {
+                    FailCurrent("CM02-geometry-change",
+                        "The cancelled approach left the pair inside the measured adjacency envelope, " +
+                        "so no approach remained for a mid-flight geometry change to affect: " +
+                        changeStart.ToString(Formatting.None));
+                    BeginCleanup();
+                    return;
+                }
+                var changeAvailability = nativeControls.Evaluate(
+                    NativeMountedControlKind.MountCompanion, rider);
+                if (!changeAvailability.IsEnabled)
+                {
+                    return;
+                }
+                chunk6aGeometryChangeBefore = CaptureChunk6aState("geometry-change-before");
+                chunk6aGeometryChangeLedgerBefore = Chunk6aLedgerCounters();
+                chunk6aGeometryChangeStart = changeStart;
+                chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
+                chunk6aGenerationBefore = relationship.MountedPairGeneration;
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                if (!TryNativeAbilityTargetClick(
+                        nativeControls.MountAbility, horse, "chunk6a-geometry-change-click"))
+                {
+                    FailCurrent("CM02-geometry-change",
+                        "Exact native combat Mount target click was not admitted for the geometry-change case. " +
+                        "availabilityReason=\"" + changeAvailability.Reason +
+                        "\"; geometry=" + changeStart.ToString(Formatting.None));
+                    BeginCleanup();
+                    return;
+                }
+                chunk6aStage = 10;
+                ResetLeafClock();
+                return;
+            }
+
+            // Stage 10: change the target geometry while the approach is still running and
+            // still uncommitted, then let Kingmaker resolve it however it lawfully does.
+            if (chunk6aStage == 10)
+            {
+                var changeSlot =
+                    rider?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+                if (changeSlot != null &&
+                    ReferenceEquals(changeSlot.Spell?.Blueprint, nativeControls.MountAbility))
+                {
+                    CaptureChunk6aGeometry(changeSlot.IsActed
+                        ? "geometry-change-acted"
+                        : "geometry-change-approach");
+                    if (!chunk6aGeometryChanged && changeSlot.IsStarted && !changeSlot.IsActed)
+                    {
+                        chunk6aGeometryChangeCommand =
+                            Chunk6aSendHorseAway(3.0f, out chunk6aGeometryChangeDestination);
+                        SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                        chunk6aGeometryChanged = true;
+                        chunk6aGeometryChangeAtChange = CaptureChunk6aGeometry("geometry-change-applied");
+                        observations["chunk6aGeometryChangeOrder"] = new JObject
+                        {
+                            ["destination"] = CapturePosition(chunk6aGeometryChangeDestination),
+                            ["commandOwnerId"] = chunk6aGeometryChangeCommand?.Executor?.UniqueId,
+                            ["commandCreatedByPlayer"] =
+                                chunk6aGeometryChangeCommand != null && chunk6aGeometryChangeCommand.CreatedByPlayer
+                        };
+                    }
+                    return;
+                }
+                if (!chunk6aGeometryChanged)
+                {
+                    FailCurrent("CM02-geometry-change",
+                        "The native Mount approach left the Move slot before a mid-flight geometry change could be " +
+                        "applied, so the revalidation this row is about was never exercised: " +
+                        CaptureChunk6aGeometry("geometry-change-missed").ToString(Formatting.None));
+                    BeginCleanup();
+                    return;
+                }
+                if (!Chunk6aIdle)
+                {
+                    return;
+                }
+                var changeArrival = CaptureChunk6aGeometry("geometry-change-arrival");
+                var changeAfter = CaptureChunk6aState("geometry-change-after");
+                var changeStartFrame = (int)chunk6aGeometryChangeStart["frame"];
+                var changePeak = Chunk6aPeakRiderMoveCooldownSince(changeStartFrame);
+                chunk6aGeometryChangeMaxRiderMoveCooldown = (float)changePeak["cooldown"];
+                // The geometry must genuinely have changed, by the Horse's own player-created
+                // native Move and by a measurable distance. Otherwise this row proves nothing.
+                var horseMoved = Chunk6aPlanarDistance(
+                    (JObject)chunk6aGeometryChangeStart["horsePosition"],
+                    (JObject)changeArrival["horsePosition"]);
+                var geometryReallyChanged = horseMoved > Chunk6aStationaryToleranceMeters &&
+                    chunk6aGeometryChangeCommand != null &&
+                    chunk6aGeometryChangeCommand.Executor == horse &&
+                    chunk6aGeometryChangeCommand.CreatedByPlayer;
+                var transitioned = relationship.State == RelationshipState.Mounted;
+                var arrivedInsideEnvelope = (bool)changeArrival["isAdjacent"];
+                var oneAcceptedTransition =
+                    relationship.MountedPairGeneration == chunk6aGenerationBefore + 1 &&
+                    nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore + 1 &&
+                    Chunk6aLedgerDelta(chunk6aGeometryChangeLedgerBefore, "acceptedMount", 1);
+                var noTransitionAtAll =
+                    relationship.MountedPairGeneration == chunk6aGenerationBefore &&
+                    Chunk6aLedgerDelta(chunk6aGeometryChangeLedgerBefore, "acceptedMount", 0);
+                // A native commitment is observed as a Move cooldown the engine RAISED. When
+                // delivery is refused after that commitment the cost must still be there:
+                // that is the whole of "may refuse delivery but must retain the native cost",
+                // and it is why a refusal is only accepted alongside an observed charge.
+                var nativeCostObserved = chunk6aGeometryChangeMaxRiderMoveCooldown > 2.5f;
+                // Whatever the outcome, an observed native charge must still be draining on
+                // the engine's clock at the terminal boundary: that is the measurable form of
+                // "must retain the native cost", and it is what a refund would break.
+                var costRetained = Chunk6aMoveCostRetained(
+                    changePeak,
+                    (float)((JObject)changeAfter["rider"])["move"],
+                    (double)changeArrival["seconds"]);
+                // Either lawful outcome is accepted, and each is held to its own condition:
+                // an accepted transition must have arrived inside the measured envelope, and a
+                // refusal must have left no transition while keeping the committed cost.
+                var acceptedLawfully = transitioned && arrivedInsideEnvelope &&
+                    oneAcceptedTransition && nativeCostObserved;
+                var refusedLawfully = !transitioned && noTransitionAtAll &&
+                    Chunk6aLedgerDelta(chunk6aGeometryChangeLedgerBefore, "forcedDetach", 0) &&
+                    !playerAction.TransitionLedger.HasVoluntaryTransitionInFlight;
+                AddRow("CM02-geometry-change",
+                    geometryReallyChanged && costRetained && (acceptedLawfully || refusedLawfully) &&
+                        (int)((JObject)chunk6aGeometryChangeBefore["rider"])["nativePrepareCount"] ==
+                            (int)((JObject)changeAfter["rider"])["nativePrepareCount"],
+                    "The Horse's own native move changed the target geometry while the rider's approach was still running and uncommitted, and the transition revalidated at arrival: it was accepted only inside the measured adjacency envelope, and a refusal produced no transition while the native Move Kingmaker had already committed stayed spent.",
+                    new JObject
+                    {
+                        ["start"] = chunk6aGeometryChangeStart,
+                        ["atChange"] = chunk6aGeometryChangeAtChange,
+                        ["arrival"] = changeArrival,
+                        ["horseDisplacement"] = horseMoved,
+                        ["geometryReallyChanged"] = geometryReallyChanged,
+                        ["transitioned"] = transitioned,
+                        ["arrivedInsideEnvelope"] = arrivedInsideEnvelope,
+                        ["oneAcceptedTransition"] = oneAcceptedTransition,
+                        ["noTransitionAtAll"] = noTransitionAtAll,
+                        ["peakRiderMoveCooldown"] = changePeak,
+                        ["maxRiderMoveCooldownObserved"] = chunk6aGeometryChangeMaxRiderMoveCooldown,
+                        ["nativeCostObserved"] = nativeCostObserved,
+                        ["costRetained"] = costRetained,
+                        ["acceptedLawfully"] = acceptedLawfully,
+                        ["refusedLawfully"] = refusedLawfully,
+                        ["feedback"] = playerAction.LastFeedback,
+                        ["before"] = chunk6aGeometryChangeBefore,
+                        ["after"] = changeAfter,
+                        ["transitionLedger"] = playerAction.TransitionLedger.Describe()
+                    });
+                chunk6aStage = 99;
                 ResetLeafClock();
                 BeginCleanup();
                 return;
