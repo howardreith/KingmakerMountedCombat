@@ -5860,27 +5860,47 @@ function Assert-KmcChunk6aCombatMountEvidence {
             throw "Chunk 6A real-time control did not commit the native Move shell: observed $after"
         }
     }
-    # Nothing else may fall, and initiative may not move at all.
+    # Nothing may be refunded, and initiative may not move at all. What "refunded" means
+    # depends on the mode, exactly as it does inside the scenario. In turn-based combat a
+    # cooldown is static between boundaries, so any fall is a refund. In real time Kingmaker
+    # drains every cooldown continuously against its own clock, so a fall is expected and a
+    # REFUND is a fall faster than the clock allows: a run measured the rider's standard
+    # cooldown legitimately going 4.447 -> 3.084 across one correct combat Mount. The floor
+    # is therefore the earlier reading minus the seconds that actually elapsed between the
+    # two samples, and the tolerance covers frame pacing only.
     foreach ($pair in $transitionPairs) {
+        $elapsedSeconds = [double]$pair[1].seconds - [double]$pair[0].seconds
+        if ($elapsedSeconds -lt 0) {
+            throw 'Chunk 6A transition samples are out of order on their own clock.'
+        }
         foreach ($actor in @('rider','mount')) {
-            foreach ($field in @('standard','swift')) {
-                if ([double]$pair[1].$actor.$field -lt [double]$pair[0].$actor.$field) {
-                    throw "Chunk 6A control refunded $actor $field debt."
+            foreach ($field in @('standard','swift','move')) {
+                $was = [double]$pair[0].$actor.$field
+                $now = [double]$pair[1].$actor.$field
+                $floor = if ($turnBased) { $was } else { $was - $elapsedSeconds - 0.25 }
+                if ($now -lt $floor) {
+                    throw ("Chunk 6A control refunded $actor $field debt: $was -> $now " +
+                        "over $elapsedSeconds s (floor $floor).")
                 }
-            }
-            if ([double]$pair[1].$actor.move -lt [double]$pair[0].$actor.move) {
-                throw "Chunk 6A control refunded $actor Move debt."
             }
             if ([double]$pair[1].$actor.initiative -ne [double]$pair[0].$actor.initiative) {
                 throw "Chunk 6A control changed $actor initiative."
             }
         }
     }
-    # The mount is never charged for being carried, and the Mount transition
-    # never charges the mount at all.
+    # The mount is never charged for being carried, and the Mount transition never charges
+    # the mount at all. Being charged means a cooldown that RISES, so that is what is
+    # forbidden. Exact equality is the right instrument only in turn-based combat; in real
+    # time the mount's own cooldowns drain on Kingmaker's clock like everyone else's, and
+    # demanding equality would turn that drain into a false charge.
+    $mountElapsedSeconds = [double]$mountAfter.seconds - [double]$mountBefore.seconds
     foreach ($field in @('standard','move','swift')) {
-        if ([double]$mountAfter.mount.$field -ne [double]$mountBefore.mount.$field) {
-            throw "Chunk 6A combat Mount charged the mount's $field resource."
+        $was = [double]$mountBefore.mount.$field
+        $now = [double]$mountAfter.mount.$field
+        $charged = if ($turnBased) { $now -ne $was } else { $now -gt $was + 0.0001 }
+        if ($charged) {
+            throw ("Chunk 6A combat Mount charged the mount's $field resource: $was -> $now " +
+                "over $mountElapsedSeconds s.")
         }
     }
     # Adoption performed no principal preparation and at most one partner one.
