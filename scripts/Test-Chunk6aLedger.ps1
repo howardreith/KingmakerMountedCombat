@@ -78,6 +78,7 @@ $ids=@{}
 $counts=@{}
 foreach($s in $statuses){$counts[$s]=0}
 $checks=0
+$retainedChecks=0
 foreach($entry in $ledger.entries){
     $entryId=[string](Get-Field $entry 'id')
     if([string]::IsNullOrEmpty($entryId)-or$ids.ContainsKey($entryId)){throw 'Chunk 6A ledger entry id missing or duplicated.'}
@@ -236,6 +237,122 @@ foreach($entry in $ledger.entries){
     }
 }
 
+
+# ---------------------------------------------------------------------------
+# Retained failures. A behavior that really failed on a real payload stays
+# failed for that payload forever. When a later candidate passes the same
+# behavior the live entry flips to PASS on the new frozen payload, and the
+# historical failure must survive that flip untouched -- otherwise the repair
+# quietly rewrites the record of what happened. This list is fixed in the
+# validator exactly like the mandatory id list, so a retained failure cannot be
+# dropped by editing the ledger.
+# ---------------------------------------------------------------------------
+$requiredRetainedFailures=@(
+    @{ id='CM01-exploration-free'; runId='c6a-mount-rt-1'; scenario='chunk6a-combat-mount-rt';
+       commit='88328a31ff1636c68a65bdfb4bcffaf3072649a6'; qualifier='chunk6a-campaign-c' }
+)
+$retainedField=Get-Field $ledger 'retainedFailures'
+if($null-eq$retainedField){throw 'Chunk 6A ledger has no retainedFailures collection; a real failure must survive a later PASS.'}
+$retained=@($retainedField)
+$retainedById=@{}
+foreach($record in $retained){
+    $recordId=[string](Get-Field $record 'id')
+    $recordRun=[string](Get-Field $record 'runId')
+    if([string]::IsNullOrEmpty($recordId)-or[string]::IsNullOrEmpty($recordRun)){
+        throw 'Chunk 6A retained failure names no id and run.'
+    }
+    $key=$recordId+'|'+$recordRun
+    if($retainedById.ContainsKey($key)){throw "Chunk 6A retained failures repeat ${key}."}
+    $retainedById[$key]=$record
+    if([string](Get-Field $record 'status')-cne'FAIL'){
+        throw "Chunk 6A retained failure ${key} is not recorded as a FAIL."
+    }
+    # A retained failure is bound exactly as strictly as a live FAIL entry: its own
+    # run, its scenario, the payload it was OBSERVED on, its evidence artifact by
+    # hash, the exact failing row, and that row's own recorded assertion text.
+    $recordRoot=Join-Path $LabRoot ('runtime-evidence/'+$recordRun)
+    $recordResult=Get-Content -Raw -LiteralPath (Join-Path $recordRoot 'runtime-result.json')|ConvertFrom-Json
+    if([string]$recordResult.status-ceq'PASS'){throw "Chunk 6A retained failure ${key} points at a passing run."}
+    if([string]$recordResult.runId-cne$recordRun){throw "Chunk 6A retained failure ${key}: the run does not identify itself."}
+    if([string]$recordResult.scenario-cne[string](Get-Field $record 'scenario')){
+        throw "Chunk 6A retained failure ${key}: scenario differs from its run."
+    }
+    $recordObserved=Get-Field $record 'observedPayload'
+    if($null-eq$recordObserved){throw "Chunk 6A retained failure ${key}: names no observed payload."}
+    $recordGame=Get-Content -Raw -LiteralPath (Join-Path $recordRoot 'runtime-game-result.json')|ConvertFrom-Json
+    foreach($name in @('version','commit','dllSha256','dllMvid')){
+        if([string]::IsNullOrEmpty([string](Get-Field $recordObserved $name))){
+            throw "Chunk 6A retained failure ${key}: observed payload lacks $name."
+        }
+    }
+    if([string]$recordGame.commit-cne[string](Get-Field $recordObserved 'commit')-or
+        [string]$recordGame.dllSha256-cne[string](Get-Field $recordObserved 'dllSha256')-or
+        [string]$recordGame.dllMvid-cne[string](Get-Field $recordObserved 'dllMvid')-or
+        [string]$recordGame.productVersion-cne[string](Get-Field $recordObserved 'version')){
+        throw "Chunk 6A retained failure ${key}: the run did not execute its recorded observed payload."
+    }
+    $recordLeaf=[string](Get-Field $record 'evidenceLeaf')
+    $recordSha=[string](Get-Field $record 'evidenceSha256')
+    if([string]::IsNullOrEmpty($recordLeaf)-or[string]::IsNullOrEmpty($recordSha)){
+        throw "Chunk 6A retained failure ${key}: its evidence artifact is not bound by hash."
+    }
+    $recordEvidence=Join-Path $recordRoot $recordLeaf
+    if(-not(Test-Path -LiteralPath $recordEvidence)){throw "Chunk 6A retained failure ${key}: evidence artifact is missing."}
+    if((Get-Sha256 $recordEvidence)-cne$recordSha){throw "Chunk 6A retained failure ${key}: evidence bytes differ."}
+    $recordFailingRow=[string](Get-Field $record 'failingRow')
+    $recordFailingAssertion=[string](Get-Field $record 'failingAssertion')
+    if([string]::IsNullOrEmpty($recordFailingRow)-or[string]::IsNullOrEmpty($recordFailingAssertion)){
+        throw "Chunk 6A retained failure ${key}: names no exact failing row and assertion."
+    }
+    $recordArtifact=Get-Content -Raw -LiteralPath $recordEvidence|ConvertFrom-Json
+    $recordCandidateRows=@()
+    if($null-ne(Get-Field $recordArtifact 'rows')){$recordCandidateRows+=@($recordArtifact.rows)}
+    if($null-ne(Get-Field $recordArtifact 'subscenarioResults')){$recordCandidateRows+=@($recordArtifact.subscenarioResults)}
+    $recordMatched=@($recordCandidateRows|Where-Object{[string]$_.name-ceq$recordFailingRow})
+    if($recordMatched.Count-ne1){throw "Chunk 6A retained failure ${key}: evidence has no single row named $recordFailingRow."}
+    if([string]$recordMatched[0].status-cne'FAIL'){
+        throw "Chunk 6A retained failure ${key}: row $recordFailingRow is not FAIL in its own evidence."
+    }
+    if([int](Get-Field $recordMatched[0] 'assertionFailCount')-lt1){
+        throw "Chunk 6A retained failure ${key}: row $recordFailingRow records no failed assertion."
+    }
+    $recordRowErrors=@(Get-Field $recordMatched[0] 'errors')
+    if(@($recordRowErrors|Where-Object{[string]$_-clike ('*'+$recordFailingAssertion+'*')}).Count-lt1){
+        throw "Chunk 6A retained failure ${key}: row $recordFailingRow does not contain the recorded failing assertion."
+    }
+    if([string](Get-Field $record 'reason')-cnotlike ('*'+$recordId+'*')){
+        throw "Chunk 6A retained failure ${key}: its reason does not attribute the failure to that behavior."
+    }
+    if([string]::IsNullOrEmpty([string](Get-Field $record 'retention'))){
+        throw "Chunk 6A retained failure ${key}: does not state that it is retained immutably."
+    }
+    if(-not$ids.ContainsKey($recordId)){
+        throw "Chunk 6A retained failure ${key}: names a behavior that is not on the mandatory list."
+    }
+    $retainedChecks++
+}
+foreach($required in $requiredRetainedFailures){
+    $key=[string]$required.id+'|'+[string]$required.runId
+    if(-not$retainedById.ContainsKey($key)){
+        throw ("Chunk 6A ledger dropped the retained failure ${key}; a real failure may never be erased by a later PASS.")
+    }
+    $record=$retainedById[$key]
+    if([string](Get-Field $record 'scenario')-cne[string]$required.scenario-or
+        [string](Get-Field (Get-Field $record 'observedPayload') 'commit')-cne[string]$required.commit-or
+        [string](Get-Field (Get-Field $record 'observedPayload') 'qualifier')-cne[string]$required.qualifier){
+        throw ("Chunk 6A retained failure ${key} was rewritten: its scenario, observed commit or qualifier changed.")
+    }
+}
+# Every behavior that is currently FAIL must also be retained, so the record exists
+# before any later candidate can flip the live entry to PASS.
+foreach($entry in $ledger.entries){
+    if([string]$entry.status-cne'FAIL'){continue}
+    $key=[string]$entry.id+'|'+[string](Get-Field $entry 'runId')
+    if(-not$retainedById.ContainsKey($key)){
+        throw ("Chunk 6A live FAIL ${key} is not in retainedFailures; it would vanish when the entry flips to PASS.")
+    }
+}
+Write-Host ("CHUNK6A RETAINED FAILURES="+$retained.Count+" bound=$retainedChecks (immutable; a later PASS never erases one)")
 Write-Host ("CHUNK6A LEDGER payload="+$payload.version+" commit="+$payload.commit+" entries="+@($ledger.entries).Count+
     " PASS="+$counts['PASS']+" FAIL="+$counts['FAIL']+" MAPPED="+$counts['MAPPED']+" NOTRUN="+$counts['NOT RUN']+
     " BLOCKED="+$counts['BLOCKED']+" EXCLUDED="+$counts['EXCLUDED'])

@@ -9,24 +9,37 @@ the installed-assembly seam map is the Chunk 6A section at the top of
 ## Status
 
 **IMPLEMENTATION CANDIDATE — NATIVE QUALIFICATION BLOCKED. PARTIAL overall.** The
-acceptance ledger's completion gate does **not** pass: all 85 mandatory behaviours
-are BLOCKED, so **0 of 85** are demonstrated. This is not a candidate for
-acceptance, must not be described as one, and no part of it may be called finished
-engineering while the completion ledger stands at 0/85.
+acceptance ledger's completion gate does **not** pass. The mandatory list is **87
+behaviours**; the truthful count is **0 PASS, 1 FAIL, 86 BLOCKED**, so completion
+fails **87/87**. This is not a candidate for acceptance, must not be described as
+one, and no part of it may be called finished engineering while the completion
+ledger stands at 0 of 87.
 
 What changed since the reviewed candidate is that the campaign actually ran. The
 starting-payload registration the previous run reported as its blocker is done, the
 qualification suite exists, and `chunk6a-combat-mount-rt` reached gameplay and
 returned **43 assertion passes against one failure**. That one failure is in the
-out-of-combat Mount preamble every tranche scenario performs, it is **unexplained**,
-and it is deliberately **not attributed** after two candidate mechanisms were
-disproved against the installed assembly. `chunk6a-combat-mount-tb` was never
-attempted.
+out-of-combat Mount preamble every tranche scenario performs. It is recorded as
+`CM01-exploration-free` **FAIL** — not BLOCKED — bound to run `c6a-mount-rt-1`, its
+exact failing row and assertion, and the campaign-c payload it was observed on.
+`chunk6a-combat-mount-tb` was never attempted.
+
+Its root is **no longer unexplained**. Read-only inspection of the installed
+assembly established it: `UnitUseAbility.OnAction` (`0x06002737`) returns a
+terminal result unless the execution process engages a unit, so the command
+completes and leaves the native Move slot while its `AbilityExecutionProcess`
+delivers on later frames — which is why rediscovering the shell from that slot at
+`Deliver` could not work. See *Deliver ownership* below. **A deterministic blocker
+is established from installed IL and repaired in the implementation candidate; the
+repair passes offline gates and awaits exact native proof.** It is not natively
+proven, and the historical FAIL is retained immutably rather than replaced by the
+repair.
 
 Two things block completion, and they are different in kind:
 
-1. **The open preamble defect above.** Until it is understood, no CM case can be
-   demonstrated, because every tranche scenario depends on that preamble.
+1. **The repaired preamble defect above, still unproven natively.** No CM case can
+   be demonstrated until a new candidate actually runs, because every tranche
+   scenario depends on that preamble.
 2. **A host resource limit.** The diagnostic candidate built to identify that
    defect's exact root has not been launched, because its required pre-launch
    `-WhatIf` purity proof was killed three times by the host under system-wide low
@@ -159,15 +172,27 @@ bytes are foreign to its `Info.json`, and a subdirectory. Each is proven rejecte
 and the exact live installation is proven accepted before and after, read only.
 
 `scripts/Test-Chunk6aLedger.ps1` has two modes, deliberately separated. Record
-consistency validates that each of the 85 entries is internally coherent and,
+consistency validates that each of the 87 entries is internally coherent and,
 for a PASS entry, that its named run really executed the frozen payload with the
 recorded assertion counts, restored the intake, used the recorded qualification
 suite, and contains a single PASS row for every row the entry claims, with the
-evidence artifact bound by hash. `-Completion` holds the fixed list of 85
+evidence artifact bound by hash. `-Completion` holds the fixed list of 87
 mandatory behaviors and fails on any that is missing, NOT RUN, BLOCKED, FAIL, or
 MAPPED / EXCLUDED without the owner's own recorded decision. The record-mode
 count is **not** a count of satisfied requirements and is printed with that
 warning attached.
+
+Record consistency also holds the `retainedFailures` collection, and it holds it
+the way the mandatory list is held: the required retained records are fixed in the
+validator itself, so a failure that really happened cannot be dropped by editing
+the ledger. Each retained record is bound exactly as strictly as a live FAIL —
+its own run, scenario, observed payload, evidence artifact by hash, exact failing
+row, that row's own assertion text, and a reason naming the behaviour — and every
+behaviour that is currently FAIL must already be retained, so the record exists
+before any later candidate can flip the live entry to PASS. When that flip
+happens, the live entry moves to PASS on the new frozen payload and the retained
+record stays byte-for-byte as it is: a PASS on a newer payload never unmakes a
+FAIL on an older one.
 
 ## What changed
 
@@ -495,7 +520,7 @@ relationship shell and on the transition ledger itself; and that the diagnostic
 adoption fault is bounded to one idle exact pair, consumed once, refuses before any
 state change, writes nothing, and is armed exactly once by this scenario.
 
-## Native campaign: executed, and blocked on one unexplained preamble defect
+## Native campaign: executed, and blocked on one preamble defect now rooted in IL
 
 The campaign was run. It is not complete, and no mandatory case has native evidence.
 Everything below is what actually happened, in order.
@@ -599,7 +624,7 @@ repaired with a regression rather than worked around.
    reconstructed from **both** halves of that set, since the split across two files is
    what allowed the omission — and to be accepted by the orchestrator.
 
-### The open defect, unexplained and unattributed
+### The defect: root established from installed IL, repaired, not yet proven
 
 The out-of-combat native Mount that every tranche scenario performs as its preamble
 did not establish a mounted pair within its 25-second bound. The deadline recorded
@@ -608,7 +633,8 @@ mode `Default`, no pause, `feedback` "Ready to mount.", `command` null and
 is raised as a native warning and never written to the player-action feedback that
 observation samples.
 
-Two mechanisms were checked against the installed assembly and **both are disproved**:
+Two mechanisms were checked first and **both were disproved**, which narrowed the
+search without resolving it:
 
 - `UnitCommands.Run` (`0x060026B3`) stores `m_Commands[cmd.Type] = cmd`
   unconditionally, with no combat check, so an out-of-combat Move-typed ability
@@ -617,23 +643,30 @@ Two mechanisms were checked against the installed assembly and **both are dispro
 - `Init` runs before that store, and the shell is keyed on the command object rather
   than the slot, so registration order is not the problem either.
 
-The cause is therefore **unknown**, and no component is blamed for it — not the
-engine, not the fixture, not the shell gate. What is true is narrower and worth
-stating exactly: the relationship shell gate requiring a delivery to own its caster's
-native Move command is new in the Chunk 6A line and **has never completed a live
-delivery**, because preview.107 never ran. It is the most conspicuous new hard gate
-on that path and it remains a suspect, not a finding.
+At that point the cause was genuinely unknown and nothing was blamed for it. It was
+then **established**, from the same read-only inspection of the installed assembly:
+`UnitUseAbility.OnAction` (`0x06002737`) sets `ExecutionProcess` from
+`RuleCastSpell.ExecutionProcess` and ends with `get_IsEngageUnit` → `brtrue` →
+`ldc.i4.0/ret`, else `ldc.i4.3/ret`. For a relationship ability that engages no
+unit the return is **terminal**, so the command completes and leaves the Move slot
+while its `AbilityExecutionProcess` goes on delivering on later frames. Move-slot
+rediscovery at `Deliver` therefore had no owner left to find. That is a
+deterministic blocker, not a suspicion, and *Deliver ownership* above describes
+the exact binding that repairs it.
 
-The next run is built to answer it rather than to guess. Every
-`ResolveDeliveringShell` refusal is now recorded, and the deadline carries the
-relationship state, the dispatch accepted and rejected counters, the native refusal
-count, and an exact shell-state description: the last shell refusal, whether the
-service is enabled, registered and not serialization-suspended, whether the rider
-actually holds the Mount ability fact, how many shells are registered, and what the
-Move slot holds — its type, whether it is a `UnitUseAbility`, whether it has a shell,
-and whether it is started or finished. That candidate is `-campaign-d`, built and
-ready; it has not been launched because its pre-launch purity proof could not
-complete.
+The repair passes the offline gates and **awaits exact native proof**. It is not
+natively qualified, and the `CM01-exploration-free` FAIL on campaign-c is retained
+immutably in the ledger's `retainedFailures` collection: when a later candidate
+passes this behaviour, the live entry flips to PASS on that new frozen payload and
+the historical failure stays exactly as recorded, because a PASS on a newer payload
+never unmakes a FAIL on an older one.
+
+Two instruments exist to prove it. `chunk6a-mount-preamble` is a narrow save-backed
+scenario whose entire claim is that preamble, so a regression is attributable
+without running a long suite; and every `ResolveDeliveringShell` refusal is now
+recorded in a bounded lifecycle ledger, with the deadline carrying the relationship
+state, the dispatch and refusal counters, and an exact shell-state description.
+Neither has been run against a new candidate yet.
 
 ### The qualification suite
 
