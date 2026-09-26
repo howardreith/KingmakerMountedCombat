@@ -676,6 +676,63 @@ Assert-Kmc ($publishedBlock.Success -and $validatorBlock.Success -and $resultBlo
     $bootstrapBlock.Groups[1].Value -notmatch 'Shipped\w+Enabled = false') `
     'the mod-load smoke field set is identical across the policy, the emitted result, the bootstrap failure and the validator'
 
+$harnessText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\Test-Harness.ps1')
+$runtimeCommonText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1')
+
+# The Mount preamble. Its evidence used to be one assertion on
+# ClickWithSelectedAbilityHandler.OnClick returning true, described as proof that a
+# native ability command had been created for KMC dispatch. The bool was never that
+# proof, so the claim is replaced by sixteen staged causal assertions over what was
+# actually observed, with state captured on both sides of DropAbility().
+$unmountedEngineText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs')
+$clickChainBody = [Regex]::Match($unmountedEngineText, '(?s)private void AssertNativeMountClickChain\(NativeTargetClickCapture capture\).*?\n        \}\r?\n')
+$stagedNames = @(
+    'native-saddle-up-exact-ability-fact',
+    'native-saddle-up-handler-holds-exact-ability',
+    'native-saddle-up-priority-admits-horse',
+    'native-saddle-up-resolved-target-is-exact-horse',
+    'native-saddle-up-click-accepted',
+    'native-saddle-up-native-command-created',
+    'native-saddle-up-command-ability-is-exact',
+    'native-saddle-up-command-executor-is-exact-rider',
+    'native-saddle-up-command-target-is-exact-horse',
+    'native-saddle-up-single-command-no-duplicate',
+    'native-saddle-up-native-provenance',
+    'native-saddle-up-shell-registered-once',
+    'native-saddle-up-shell-identity-exact',
+    'native-saddle-up-one-cast-request-no-refusal',
+    'native-saddle-up-transition-not-yet-delivered',
+    'native-saddle-up-drop-ability-preserves-command')
+$missingStages = @($stagedNames | Where-Object { $clickChainBody.Value -notmatch [Regex]::Escape('"' + $_ + '"') })
+$captureBody = [Regex]::Match($unmountedEngineText, '(?s)private NativeTargetClickCapture CaptureNativeAbilityTargetClick\(.*?\n        \}\r?\n')
+Assert-Kmc ($clickChainBody.Success -and $captureBody.Success -and
+    $stagedNames.Count -eq 16 -and $missingStages.Count -eq 0 -and
+    ([Regex]::Matches($clickChainBody.Value, 'Check\(').Count -eq 16) -and
+    # The overclaimed row is gone, everywhere.
+    $unmountedEngineText -notmatch 'native-saddle-up-target-valid-horse' -and
+    # Identity is observed on the command itself, not inferred from the click result.
+    $captureBody.Value -match 'ReferenceEquals\(slot\.Spell\?\.Blueprint, blueprint\)' -and
+    $captureBody.Value -match 'slot\.Executor == caster' -and
+    $captureBody.Value -match 'slot\.Target\?\.Unit == clickedTarget' -and
+    $captureBody.Value -match 'nativeControls\.TryDescribeRelationshipShell\(' -and
+    # The before/after pair around the explicit release.
+    $captureBody.Value -match 'capture\.AbilitySelectedBeforeDrop = handler\.Ability != null;' -and
+    $captureBody.Value -match 'handler\.DropAbility\(\);' -and
+    $captureBody.Value -match 'capture\.AbilitySelectedAfterDrop = handler\.Ability != null;' -and
+    ($captureBody.Value.IndexOf('capture.ProcessPresentBeforeDrop') -lt
+        $captureBody.Value.IndexOf('handler.DropAbility();')) -and
+    ($captureBody.Value.IndexOf('handler.DropAbility();') -lt
+        $captureBody.Value.IndexOf('capture.ProcessPresentAfterDrop')) -and
+    # The capture only reads: it creates no command, writes no resource and forces nothing.
+    $captureBody.Value -notmatch 'Commands\.Run\(|Cooldown|\.Prepare\(\)|ForceToEnd|JoinCombat|StartTurn|MountRiderOn|Dismount\(' -and
+    # Both known-subscenario registries name all sixteen stages and no longer name the
+    # single overclaiming row.
+    $harnessText -notmatch 'native-saddle-up-target-valid-horse' -and
+    $runtimeCommonText -notmatch 'native-saddle-up-target-valid-horse' -and
+    ($null -eq (@($stagedNames | Where-Object { $harnessText -notmatch [Regex]::Escape("'" + $_ + "'") }) | Select-Object -First 1)) -and
+    ($null -eq (@($stagedNames | Where-Object { $runtimeCommonText -notmatch [Regex]::Escape("'" + $_ + "'") }) | Select-Object -First 1))) `
+    'the Mount preamble proves its native command through sixteen staged causal assertions'
+
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'

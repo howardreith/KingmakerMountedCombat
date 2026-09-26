@@ -1650,15 +1650,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (failed != 0) { BeginCleanup(); return; }
 
                 var before = nativeControls.CaptureSnapshot();
-                var nativeClicked = TryNativeAbilityTargetClick(
-                    owner,
-                    nativeControls.MountAbility,
-                    horse,
-                    "nativeMountValidHorse");
                 observations["nativeMountDispatchBefore"] = JObject.FromObject(before, JsonSerializer.Create(JsonSettings));
-                Check(nativeClicked,
-                    "native-saddle-up-target-valid-horse",
-                    "The actual Kingmaker selected-ability handler admitted the exact Horse target click and created one native ability command for KMC dispatch.");
+                // The previous evidence for this preamble was a single assertion on
+                // ClickWithSelectedAbilityHandler.OnClick returning true, described as
+                // proof that one native ability command had been created for KMC
+                // dispatch. OnClick's bool was never that proof: nothing observed the
+                // command, its identity, its KMC shell, or what survived the handler
+                // releasing the ability. The click is now staged into sixteen causal
+                // assertions over exactly what was observed, with the command, slot,
+                // shell, process, context, transition and relationship state captured
+                // immediately before and after SelectedAbilityHandler.DropAbility().
+                var capture = CaptureNativeAbilityTargetClick(
+                    owner, nativeControls.MountAbility, horse, "nativeMountValidHorse");
+                AssertNativeMountClickChain(capture);
                 if (failed != 0) { BeginCleanup(); return; }
                 step = EngineStep.AwaitMountedReady;
                 return;
@@ -1680,6 +1684,260 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The rider armed Mount, clicked the exact KMC horse, and created one exact transient pair through the player-facing target path.");
             if (failed != 0) { BeginCleanup(); return; }
             step = EngineStep.AwaitMountedReady;
+        }
+
+        // Everything the staged Mount preamble observed, in the order the native pipeline
+        // produced it. Fields are nullable where the stage could not be reached, so a
+        // stage that never ran can never read as a pass.
+        private sealed class NativeTargetClickCapture
+        {
+            internal int ExactAbilityFactCount;
+            internal bool AbilityFactActive;
+            internal bool HandlerPresent;
+            internal bool TargetViewPresent;
+            internal bool HandlerHeldExactAbilityAfterSelect;
+            internal float Priority;
+            internal bool ResolvedTargetPresent;
+            internal bool ResolvedTargetIsExactClicked;
+            internal string ResolvedTargetId;
+            internal bool Clicked;
+
+            internal bool MoveSlotHoldsUseAbility;
+            internal bool CommandAbilityIsExactBlueprint;
+            internal bool CommandExecutorIsExactCaster;
+            internal bool CommandSpellCasterIsExecutor;
+            internal bool CommandTargetIsExactClicked;
+            internal int MatchingCommandCount;
+            internal bool CommandCreatedByPlayer;
+            internal bool CommandHasAiAction;
+            internal bool CommandStarted;
+            internal bool CommandFinished;
+
+            internal long ShellCountDelta;
+            internal bool ShellOwnsExactCommand;
+            internal bool ShellDescribed;
+            internal NativeMountedControlKind ShellKind;
+            internal string ShellCasterId;
+            internal string ShellTargetId;
+            internal long ShellGenerationAtInit;
+            internal bool ShellProcessBound;
+            internal long LiveGeneration;
+
+            internal long CastRequestDelta;
+            internal long RefusalDelta;
+            internal long DispatchAcceptedDelta;
+            internal long DispatchRejectedDelta;
+            internal long TargetSelectionStartDelta;
+            internal long TargetSelectionEndDelta;
+
+            internal string RelationshipStateAfterClick;
+            internal long AdmittedMountDelta;
+            internal bool TransitionInFlightAfterClick;
+
+            internal bool AbilitySelectedBeforeDrop;
+            internal bool AbilitySelectedAfterDrop;
+            internal bool SameCommandInstanceAcrossDrop;
+            internal bool ShellOwnsCommandAfterDrop;
+            internal bool ProcessPresentBeforeDrop;
+            internal bool ProcessPresentAfterDrop;
+            internal long ShellCountDeltaAcrossDrop;
+            internal long ProcessBindingDeltaAcrossDrop;
+            internal long CounterDeltaAcrossDrop;
+            internal string RelationshipStateAfterDrop;
+            internal long GenerationAfterDrop;
+        }
+
+        // Sixteen staged assertions over one native target click. Each stage names exactly
+        // what was observed, so the preamble can no longer claim a command it never looked
+        // at. The pointer-mode IL settles what the last stage means: SetAbility puts the
+        // pointer in Ability mode, and a successful OnClick ends with ClearPointerMode,
+        // which itself calls DropAbility. The explicit DropAbility that follows is
+        // therefore expected to be a no-op, and that is the point -- the created command,
+        // its KMC shell and every counter must survive the release untouched.
+        private void AssertNativeMountClickChain(NativeTargetClickCapture capture)
+        {
+            Check(capture.ExactAbilityFactCount == 1 && capture.AbilityFactActive,
+                "native-saddle-up-exact-ability-fact",
+                "The exact rider carried exactly one active KMC Mount Companion fact, with no duplicate to disambiguate.");
+            if (failed != 0) { return; }
+            Check(capture.HandlerPresent && capture.TargetViewPresent && capture.HandlerHeldExactAbilityAfterSelect,
+                "native-saddle-up-handler-holds-exact-ability",
+                "The live stock ClickWithSelectedAbilityHandler accepted SetAbility and reported that exact AbilityData as its selected ability.");
+            if (failed != 0) { return; }
+            Check(capture.Priority > 0f,
+                "native-saddle-up-priority-admits-horse",
+                "The stock handler returned a positive pointer priority for the exact Horse view, so the native cursor genuinely claimed that click.");
+            if (failed != 0) { return; }
+            Check(capture.ResolvedTargetPresent && capture.ResolvedTargetIsExactClicked,
+                "native-saddle-up-resolved-target-is-exact-horse",
+                "The stock handler resolved the click to exactly the Horse that was clicked, not to a nearby unit and not to a position.");
+            if (failed != 0) { return; }
+            Check(capture.Clicked,
+                "native-saddle-up-click-accepted",
+                "The stock handler accepted the exact Horse target click and returned true rather than refusing the target.");
+            if (failed != 0) { return; }
+            Check(capture.MoveSlotHoldsUseAbility,
+                "native-saddle-up-native-command-created",
+                "Kingmaker created a native UnitUseAbility and ran it into the rider's own Move command slot; the command is observed, not inferred from the click result.");
+            if (failed != 0) { return; }
+            Check(capture.CommandAbilityIsExactBlueprint,
+                "native-saddle-up-command-ability-is-exact",
+                "That native command casts exactly the KMC Mount Companion blueprint.");
+            if (failed != 0) { return; }
+            Check(capture.CommandExecutorIsExactCaster && capture.CommandSpellCasterIsExecutor,
+                "native-saddle-up-command-executor-is-exact-rider",
+                "That native command is executed by the exact rider, and its AbilityData caster is that same unit.");
+            if (failed != 0) { return; }
+            Check(capture.CommandTargetIsExactClicked,
+                "native-saddle-up-command-target-is-exact-horse",
+                "That native command targets exactly the clicked Horse.");
+            if (failed != 0) { return; }
+            Check(capture.MatchingCommandCount == 1,
+                "native-saddle-up-single-command-no-duplicate",
+                "Exactly one such native command exists on the rider; the click created no duplicate and left no earlier shell behind.");
+            if (failed != 0) { return; }
+            Check(!capture.CommandCreatedByPlayer && !capture.CommandHasAiAction,
+                "native-saddle-up-native-provenance",
+                "Native provenance is the exact lifecycle and identity, not a flag: the stock path leaves CreatedByPlayer false and AiAction null, and KMC did not write either.");
+            if (failed != 0) { return; }
+            Check(capture.ShellCountDelta == 1 && capture.ShellOwnsExactCommand,
+                "native-saddle-up-shell-registered-once",
+                "KMC registered exactly one relationship shell, bound to that exact native command and to no other.");
+            if (failed != 0) { return; }
+            Check(capture.ShellDescribed &&
+                    capture.ShellKind == NativeMountedControlKind.MountCompanion &&
+                    string.Equals(capture.ShellCasterId, owner.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(capture.ShellTargetId, horse.UniqueId, StringComparison.Ordinal) &&
+                    capture.ShellGenerationAtInit == capture.LiveGeneration,
+                "native-saddle-up-shell-identity-exact",
+                "The shell recorded the exact kind, the exact rider, the exact Horse and the live relationship generation at its own Init boundary.");
+            if (failed != 0) { return; }
+            Check(capture.CastRequestDelta == 1 && capture.RefusalDelta == 0 &&
+                    capture.DispatchAcceptedDelta == 0 && capture.DispatchRejectedDelta == 0,
+                "native-saddle-up-one-cast-request-no-refusal",
+                "The click produced exactly one native cast request, no KMC refusal, and no dispatch either way: creation and delivery are separate events.");
+            if (failed != 0) { return; }
+            Check(string.Equals(capture.RelationshipStateAfterClick, RelationshipState.Unmounted.ToString(), StringComparison.Ordinal) &&
+                    capture.AdmittedMountDelta == 0 && !capture.TransitionInFlightAfterClick,
+                "native-saddle-up-transition-not-yet-delivered",
+                "Immediately after the click the pair is still Unmounted with nothing admitted to the transition ledger: the click created a command, it did not perform the transition.");
+            if (failed != 0) { return; }
+            Check(!capture.AbilitySelectedAfterDrop &&
+                    capture.SameCommandInstanceAcrossDrop && capture.ShellOwnsCommandAfterDrop &&
+                    capture.ProcessPresentBeforeDrop == capture.ProcessPresentAfterDrop &&
+                    capture.ShellCountDeltaAcrossDrop == 0 && capture.ProcessBindingDeltaAcrossDrop == 0 &&
+                    capture.CounterDeltaAcrossDrop == 0 &&
+                    string.Equals(capture.RelationshipStateAfterDrop, capture.RelationshipStateAfterClick, StringComparison.Ordinal) &&
+                    capture.GenerationAfterDrop == capture.LiveGeneration,
+                "native-saddle-up-drop-ability-preserves-command",
+                "Releasing the selected ability leaves the handler holding nothing while the identical command instance, its KMC shell binding, its execution process, every counter, the relationship state and the generation are unchanged.");
+        }
+
+        private NativeTargetClickCapture CaptureNativeAbilityTargetClick(
+            UnitEntityData caster,
+            BlueprintAbility blueprint,
+            UnitEntityData clickedTarget,
+            string observationName)
+        {
+            nativeControls.Update();
+            var capture = new NativeTargetClickCapture();
+            var facts = caster?.Descriptor?.Abilities?.Enumerable
+                .Where(item => ReferenceEquals(item.Blueprint, blueprint)).ToList();
+            capture.ExactAbilityFactCount = facts == null ? 0 : facts.Count;
+            var fact = facts != null && facts.Count == 1 ? facts[0] : null;
+            capture.AbilityFactActive = fact != null && fact.Active;
+            var data = fact?.Data;
+            var handler = Game.Instance?.SelectedAbilityHandler;
+            var targetObject = clickedTarget?.View?.gameObject;
+            var targetPosition = clickedTarget?.Position ?? Vector3.zero;
+            capture.HandlerPresent = handler != null;
+            capture.TargetViewPresent = targetObject != null;
+            if (data == null || handler == null || targetObject == null)
+            {
+                observations[observationName] = JObject.FromObject(capture, JsonSerializer.Create(JsonSettings));
+                return capture;
+            }
+
+            var ledger = playerAction.TransitionLedger;
+            var admittedBefore = ledger.AdmittedMountCount;
+            var shellsBefore = nativeControls.NativeRelationshipShellCount;
+            var before = nativeControls.CaptureSnapshot();
+
+            handler.SetAbility(data);
+            capture.HandlerHeldExactAbilityAfterSelect = ReferenceEquals(handler.Ability, data);
+            capture.Priority = handler.GetPriority(targetObject, targetPosition);
+            var resolvedTarget = handler.GetTarget(targetObject, targetPosition, data);
+            capture.ResolvedTargetPresent = resolvedTarget?.Unit != null;
+            capture.ResolvedTargetId = resolvedTarget?.Unit?.UniqueId;
+            capture.ResolvedTargetIsExactClicked = resolvedTarget?.Unit == clickedTarget;
+            capture.Clicked = handler.OnClick(targetObject, targetPosition, 0, false, false);
+
+            // Immediately after the click, before anything else touches the pair.
+            var afterClick = nativeControls.CaptureSnapshot();
+            var slot = caster.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+            capture.MoveSlotHoldsUseAbility = slot != null;
+            capture.CommandAbilityIsExactBlueprint = slot != null && ReferenceEquals(slot.Spell?.Blueprint, blueprint);
+            capture.CommandExecutorIsExactCaster = slot != null && slot.Executor == caster;
+            capture.CommandSpellCasterIsExecutor = slot != null && slot.Spell?.Caster?.Unit == slot.Executor;
+            capture.CommandTargetIsExactClicked = slot != null && slot.Target?.Unit == clickedTarget;
+            capture.MatchingCommandCount = caster.Commands?.Raw.OfType<UnitUseAbility>()
+                .Count(item => ReferenceEquals(item.Spell?.Blueprint, blueprint)) ?? 0;
+            capture.CommandCreatedByPlayer = slot != null && slot.CreatedByPlayer;
+            capture.CommandHasAiAction = slot?.AiAction != null;
+            capture.CommandStarted = slot != null && slot.IsStarted;
+            capture.CommandFinished = slot != null && slot.IsFinished;
+            capture.ShellCountDelta = nativeControls.NativeRelationshipShellCount - shellsBefore;
+            capture.ShellOwnsExactCommand = slot != null && nativeControls.OwnsUnsettledRelationshipShell(slot);
+            var shellKind = NativeMountedControlKind.None;
+            string shellCasterId = null;
+            string shellTargetId = null;
+            var shellGeneration = -1L;
+            var shellProcessBound = false;
+            capture.ShellDescribed = slot != null && nativeControls.TryDescribeRelationshipShell(
+                slot, out shellKind, out shellCasterId, out shellTargetId, out shellGeneration, out shellProcessBound);
+            capture.ShellKind = capture.ShellDescribed ? shellKind : NativeMountedControlKind.None;
+            capture.ShellCasterId = capture.ShellDescribed ? shellCasterId : null;
+            capture.ShellTargetId = capture.ShellDescribed ? shellTargetId : null;
+            capture.ShellGenerationAtInit = capture.ShellDescribed ? shellGeneration : -1L;
+            capture.ShellProcessBound = capture.ShellDescribed && shellProcessBound;
+            capture.LiveGeneration = relationship.MountedPairGeneration;
+            capture.CastRequestDelta = afterClick.NativeCastRequestCount - before.NativeCastRequestCount;
+            capture.RefusalDelta = afterClick.NativeRefusalCount - before.NativeRefusalCount;
+            capture.DispatchAcceptedDelta = afterClick.DispatchAcceptedCount - before.DispatchAcceptedCount;
+            capture.DispatchRejectedDelta = afterClick.DispatchRejectedCount - before.DispatchRejectedCount;
+            capture.TargetSelectionStartDelta = afterClick.TargetSelectionStartCount - before.TargetSelectionStartCount;
+            capture.TargetSelectionEndDelta = afterClick.TargetSelectionEndCount - before.TargetSelectionEndCount;
+            capture.RelationshipStateAfterClick = relationship.State.ToString();
+            capture.AdmittedMountDelta = ledger.AdmittedMountCount - admittedBefore;
+            capture.TransitionInFlightAfterClick = ledger.HasVoluntaryTransitionInFlight;
+            capture.AbilitySelectedBeforeDrop = handler.Ability != null;
+            capture.ProcessPresentBeforeDrop = slot?.ExecutionProcess != null;
+            var shellsAfterClick = nativeControls.NativeRelationshipShellCount;
+            var bindingsAfterClick = nativeControls.NativeRelationshipProcessBindingCount;
+
+            // The explicit release, with the same observations taken again on the far side.
+            handler.DropAbility();
+
+            var afterDrop = nativeControls.CaptureSnapshot();
+            var slotAfterDrop = caster.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+            capture.AbilitySelectedAfterDrop = handler.Ability != null;
+            capture.SameCommandInstanceAcrossDrop = slot != null && ReferenceEquals(slotAfterDrop, slot);
+            capture.ShellOwnsCommandAfterDrop = slotAfterDrop != null &&
+                nativeControls.OwnsUnsettledRelationshipShell(slotAfterDrop);
+            capture.ProcessPresentAfterDrop = slotAfterDrop?.ExecutionProcess != null;
+            capture.ShellCountDeltaAcrossDrop = nativeControls.NativeRelationshipShellCount - shellsAfterClick;
+            capture.ProcessBindingDeltaAcrossDrop =
+                nativeControls.NativeRelationshipProcessBindingCount - bindingsAfterClick;
+            capture.CounterDeltaAcrossDrop =
+                afterDrop.NativeCastRequestCount - afterClick.NativeCastRequestCount +
+                (afterDrop.NativeRefusalCount - afterClick.NativeRefusalCount) +
+                (afterDrop.DispatchAcceptedCount - afterClick.DispatchAcceptedCount) +
+                (afterDrop.DispatchRejectedCount - afterClick.DispatchRejectedCount);
+            capture.RelationshipStateAfterDrop = relationship.State.ToString();
+            capture.GenerationAfterDrop = relationship.MountedPairGeneration;
+
+            observations[observationName] = JObject.FromObject(capture, JsonSerializer.Create(JsonSettings));
+            return capture;
         }
 
         private bool TryNativeAbilityTargetClick(

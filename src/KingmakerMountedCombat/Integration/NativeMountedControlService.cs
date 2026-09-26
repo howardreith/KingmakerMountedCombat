@@ -325,6 +325,36 @@ namespace KingmakerMountedCombat.Integration
         // refused delivery is invisible to a scenario that only samples feedback.
         internal string LastRelationshipShellRefusal { get; private set; } = "not-observed";
 
+        // Read-only. Publishes what the shell recorded at its own Init boundary so a
+        // scenario can prove the binding's identity instead of only its presence. Nothing
+        // is registered, retired, consumed or created by asking.
+        internal bool TryDescribeRelationshipShell(
+            UnitCommand command,
+            out NativeMountedControlKind kind,
+            out string casterId,
+            out string targetId,
+            out long generationAtInit,
+            out bool processBound)
+        {
+            kind = NativeMountedControlKind.None;
+            casterId = null;
+            targetId = null;
+            generationAtInit = 0;
+            processBound = false;
+            var ability = command as UnitUseAbility;
+            NativeRelationshipShell shell;
+            if (ability == null || !relationshipShells.TryGetValue(ability, out shell) || shell == null)
+            {
+                return false;
+            }
+            kind = shell.Kind;
+            casterId = shell.CasterId;
+            targetId = shell.TargetId;
+            generationAtInit = shell.GenerationAtInit;
+            processBound = shell.ProcessBound;
+            return true;
+        }
+
         internal string DescribeRelationshipShellState(UnitEntityData caster)
         {
             var slot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move);

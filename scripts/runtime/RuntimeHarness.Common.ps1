@@ -7466,7 +7466,26 @@ function Assert-KmcHorseNativeControlsUxEvidence {
             'native-control-disable-reenable',
             'native-control-save-load-presence',
             'native-saddle-up-invalid-target',
-            'native-saddle-up-target-valid-horse',
+            # The valid-Horse preamble is sixteen staged causal assertions, not one
+            # OnClick bool. Each stage names exactly what was observed, and the last
+            # captures the command, slot, shell, process, transition and relationship
+            # state on both sides of SelectedAbilityHandler.DropAbility().
+            'native-saddle-up-exact-ability-fact',
+            'native-saddle-up-handler-holds-exact-ability',
+            'native-saddle-up-priority-admits-horse',
+            'native-saddle-up-resolved-target-is-exact-horse',
+            'native-saddle-up-click-accepted',
+            'native-saddle-up-native-command-created',
+            'native-saddle-up-command-ability-is-exact',
+            'native-saddle-up-command-executor-is-exact-rider',
+            'native-saddle-up-command-target-is-exact-horse',
+            'native-saddle-up-single-command-no-duplicate',
+            'native-saddle-up-native-provenance',
+            'native-saddle-up-shell-registered-once',
+            'native-saddle-up-shell-identity-exact',
+            'native-saddle-up-one-cast-request-no-refusal',
+            'native-saddle-up-transition-not-yet-delivered',
+            'native-saddle-up-drop-ability-preserves-command',
             'native-mounted-control-surface',
             'inventory-horse-preview-no-ik-exception',
             'mounted-turn-based-rider-movement',
