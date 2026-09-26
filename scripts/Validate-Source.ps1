@@ -732,6 +732,33 @@ Assert-Kmc ($clickChainBody.Success -and $captureBody.Success -and
     ($null -eq (@($stagedNames | Where-Object { $harnessText -notmatch [Regex]::Escape("'" + $_ + "'") }) | Select-Object -First 1)) -and
     ($null -eq (@($stagedNames | Where-Object { $runtimeCommonText -notmatch [Regex]::Escape("'" + $_ + "'") }) | Select-Object -First 1))) `
     'the Mount preamble proves its native command through sixteen staged causal assertions'
+$runtimeProtocolText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs')
+$registrationPolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs')
+
+# The narrow save-backed Mount preamble. Its whole claim is one native selected-ability
+# click proved through the staged chain, so it must stop before mounting, keep its own
+# evidence kind, and skip the broader native-controls lifecycle it does not assert.
+Assert-Kmc ($unmountedEngineText -match 'internal const string PreambleScenarioName = "chunk6a-mount-preamble";' -and
+    $unmountedEngineText -match 'internal const string PreambleEvidenceKind = "chunk6a-mount-preamble";' -and
+    $unmountedEngineText -match 'internal const string PreambleEvidenceFileName = "chunk6a-mount-preamble\.json";' -and
+    $unmountedEngineText -match 'private bool IsMountPreambleOnly =>\s*\r?\n\s*string\.Equals\(request\.Scenario, PreambleScenarioName, StringComparison\.Ordinal\);' -and
+    # It borrows the native click path and nothing else: the pre-mount control lifecycle
+    # is skipped, so the narrow ledger is the preamble alone.
+    $unmountedEngineText -match 'if \(IncludesNativeControlsUx && !IsMountPreambleOnly\)\s*\r?\n\s*\{\s*\r?\n\s*ValidateNativeControlLifecycleBeforeMount\(\);' -and
+    # It stops the moment the staged chain is proved; it never waits for a mounted pair.
+    $unmountedEngineText -match '(?s)AssertNativeMountClickChain\(capture\);.{0,400}if \(IsMountPreambleOnly\)\s*\r?\n\s*\{.{0,300}BeginCleanup\(\);' -and
+    # Its own evidence kind and schema, so it cannot be mistaken for either historical one.
+    $unmountedEngineText -match '\["schemaVersion"\] = IsMountPreambleOnly \? 1 : IncludesNativeControlsUx \? 8 : 4,' -and
+    $unmountedEngineText -match 'var leaf = IsMountPreambleOnly\s*\r?\n\s*\? PreambleEvidenceFileName' -and
+    # Registered everywhere a save-backed scenario must be, on both sides of the harness.
+    $runtimeProtocolText -match '"chunk6a-mount-preamble"' -and
+    ([Regex]::Matches($runtimeProtocolText, '"chunk6a-mount-preamble"').Count -ge 2) -and
+    $registrationPolicyText -match 'string\.Equals\(scenario, "chunk6a-mount-preamble", StringComparison\.Ordinal\)' -and
+    $runtimeCommonText -match 'function Assert-KmcMountPreambleEvidence \{' -and
+    $runtimeCommonText -match 'Assert-KmcMountPreambleEvidence -Request \$Request -Manifest \$manifestValue' -and
+    ([Regex]::Matches($runtimeCommonText, "'chunk6a-mount-preamble'").Count -ge 5) -and
+    $harnessText -match "'chunk6a-mount-preamble'") `
+    'the narrow save-backed Mount preamble stops at the staged click and carries its own evidence kind'
 
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"

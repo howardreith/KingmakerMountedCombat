@@ -10147,7 +10147,17 @@ try {
             $horseScenarioSource.Contains('mountedRiderOutcome,') -and
             $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
             $horseScenarioSource.Contains('if (includeAnimation)') -and
-            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 8 : 4') -and
+            # The historical schemas are unchanged: the unmounted suite still emits 4 and
+            # the native-controls suite still emits 8. The narrow Mount preamble is a
+            # third, separate evidence kind at schema 1, so it cannot be mistaken for
+            # either of them and cannot silently alter their output.
+            $horseScenarioSource.Contains('["schemaVersion"] = IsMountPreambleOnly ? 1 : IncludesNativeControlsUx ? 8 : 4') -and
+            $horseScenarioSource.Contains('internal const string PreambleEvidenceKind = "chunk6a-mount-preamble";') -and
+            $horseScenarioSource.Contains('? PreambleEvidenceFileName') -and
+            $runtimeLauncherSource.Contains("'chunk6a-mount-preamble'") -and
+            $runtimeRequestValidatorSource.Contains("'chunk6a-mount-preamble'") -and
+            $runtimeGameResultValidatorSource.Contains('($relativePath -ceq ''chunk6a-mount-preamble.json'' -and $kind -ceq ''chunk6a-mount-preamble'')') -and
+            $runtimeResultValidatorSource.Contains('($relativePath -ceq ''chunk6a-mount-preamble.json'' -and $kind -ceq ''chunk6a-mount-preamble'')') -and
             $horseScenarioSource.Contains('"legacy-overlay-default-hidden"') -and
             $horseScenarioSource.Contains('"legacy-overlay-debug-fallback"') -and
             $horseScenarioSource.Contains('DollRoomSimpleAvatarField.MetadataToken == 0x04002F58') -and
@@ -10973,6 +10983,147 @@ try {
         try { Assert-KmcHorseNativeControlsUxEvidence -Request $nativeRequest -Manifest $nativeManifest -Status PASS -SubscenarioResults @($nativeSubresult) }
         catch { $threw = $true }
         Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
+    }
+
+    Invoke-HarnessTest 'narrow Mount preamble validator binds the staged click and refuses a widened run' {
+        $preambleRoot = Join-Path $runtimeEvidenceTestRoot 'chunk6a-mount-preamble-validator'
+        New-Item -ItemType Directory -Path $preambleRoot -Force | Out-Null
+        $preambleRequest = [pscustomobject]@{
+            runId='chunk6a-mount-preamble-validator';scenario='chunk6a-mount-preamble'
+            branch='codex/mounted-combat-phase3f-playable-core';commit=('e'*40)
+            productVersion=$currentProductVersion;dllSha256=('f'*64)
+            dllMvid='44444444-5555-6666-7777-888888888888';evidenceRoot=$preambleRoot
+        }
+        $preambleStages = @(
+            'native-saddle-up-invalid-target',
+            'native-saddle-up-exact-ability-fact','native-saddle-up-handler-holds-exact-ability',
+            'native-saddle-up-priority-admits-horse','native-saddle-up-resolved-target-is-exact-horse',
+            'native-saddle-up-click-accepted','native-saddle-up-native-command-created',
+            'native-saddle-up-command-ability-is-exact','native-saddle-up-command-executor-is-exact-rider',
+            'native-saddle-up-command-target-is-exact-horse','native-saddle-up-single-command-no-duplicate',
+            'native-saddle-up-native-provenance','native-saddle-up-shell-registered-once',
+            'native-saddle-up-shell-identity-exact','native-saddle-up-one-cast-request-no-refusal',
+            'native-saddle-up-transition-not-yet-delivered','native-saddle-up-drop-ability-preserves-command')
+        $newPreambleArtifact = {
+            [ordered]@{
+                schemaVersion=1;evidenceKind='chunk6a-mount-preamble'
+                runId=$preambleRequest.runId;scenario=$preambleRequest.scenario
+                branch=$preambleRequest.branch;commit=$preambleRequest.commit
+                productVersion=$preambleRequest.productVersion
+                dllSha256=$preambleRequest.dllSha256;dllMvid=$preambleRequest.dllMvid
+                createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o');status='PASS'
+                assertions=@($preambleStages | ForEach-Object {
+                    [ordered]@{name=$_;status='PASS';detail="Synthetic staged preamble contract for $_."}
+                })
+                observations=[ordered]@{
+                    nativeMountValidHorse=[ordered]@{
+                        clicked=$true;moveSlotHoldsUseAbility=$true
+                        abilitySelectedBeforeDrop=$false;abilitySelectedAfterDrop=$false
+                        sameCommandInstanceAcrossDrop=$true;shellOwnsCommandAfterDrop=$true
+                        relationshipStateAfterClick='Unmounted';relationshipStateAfterDrop='Unmounted'
+                    }
+                }
+                assertionPassCount=$preambleStages.Count;assertionFailCount=0;errors=@()
+            }
+        }
+        $preamblePath = Join-Path $preambleRoot 'chunk6a-mount-preamble.json'
+        $publishPreamble = {
+            param($Artifact)
+            Write-KmcJsonAtomic -Path $preamblePath -Value $Artifact
+            $record = [ordered]@{
+                relativePath='chunk6a-mount-preamble.json';kind='chunk6a-mount-preamble'
+                length=(Get-Item -LiteralPath $preamblePath).Length;sha256=(Get-KmcSha256 $preamblePath)
+            }
+            [void](New-TestArtifactManifest -EvidenceRoot $preambleRoot -RunId $preambleRequest.runId -Scenario $preambleRequest.scenario -Artifacts @($record))
+            return Read-KmcJson (Join-Path $preambleRoot 'runtime-artifacts.json')
+        }
+        $validatePreamble = {
+            param($Manifest, $Artifact)
+            $subresult = [pscustomobject]@{
+                name='chunk6a-mount-preamble';status=[string]$Artifact.status
+                assertionPassCount=[int]$Artifact.assertionPassCount
+                assertionFailCount=[int]$Artifact.assertionFailCount;errors=@()
+            }
+            Assert-KmcMountPreambleEvidence -Request $preambleRequest -Manifest $Manifest -Status ([string]$Artifact.status) -SubscenarioResults @($subresult)
+        }
+        $assertPreambleRejected = {
+            param($Artifact, [string]$because)
+            $manifest = & $publishPreamble $Artifact
+            $threw = $false
+            try { & $validatePreamble $manifest $Artifact } catch { $threw = $true }
+            Assert-Test $threw ('Narrow Mount preamble validator accepted ' + $because)
+        }
+
+        $clean = & $newPreambleArtifact
+        $cleanManifest = & $publishPreamble $clean
+        & $validatePreamble $cleanManifest $clean
+
+        # Every staged assertion is mandatory: dropping any one is a refusal.
+        foreach ($omitted in @('native-saddle-up-click-accepted','native-saddle-up-shell-identity-exact',
+            'native-saddle-up-drop-ability-preserves-command','native-saddle-up-invalid-target')) {
+            $short = & $newPreambleArtifact
+            $short.assertions = @($short.assertions | Where-Object { [string]$_.name -cne $omitted })
+            $short.assertionPassCount = @($short.assertions).Count
+            & $assertPreambleRejected $short ("a run missing the stage " + $omitted)
+        }
+
+        # The preamble stops before mounting. A row from beyond it means a different run.
+        foreach ($beyond in @('independent-horse-mounted-profile','native-dismount-ability',
+            'target-selected-mount-action')) {
+            $widened = & $newPreambleArtifact
+            $widened.assertions = @($widened.assertions) + @([ordered]@{
+                name=$beyond;status='PASS';detail="Synthetic row from beyond the preamble: $beyond."
+            })
+            $widened.assertionPassCount = @($widened.assertions).Count
+            & $assertPreambleRejected $widened ("a run widened past the preamble with " + $beyond)
+        }
+
+        # The published capture is part of the claim, not decoration.
+        $mounted = & $newPreambleArtifact
+        $mounted.observations.nativeMountValidHorse.relationshipStateAfterClick = 'Mounted'
+        & $assertPreambleRejected $mounted 'a capture that was already mounted at its own click'
+
+        $mountedAfter = & $newPreambleArtifact
+        $mountedAfter.observations.nativeMountValidHorse.relationshipStateAfterDrop = 'Mounting'
+        & $assertPreambleRejected $mountedAfter 'a capture that transitioned across the release'
+
+        $stillSelected = & $newPreambleArtifact
+        $stillSelected.observations.nativeMountValidHorse.abilitySelectedAfterDrop = $true
+        & $assertPreambleRejected $stillSelected 'a handler still holding a selected ability after the release'
+
+        foreach ($field in @('clicked','moveSlotHoldsUseAbility','sameCommandInstanceAcrossDrop',
+            'shellOwnsCommandAfterDrop','abilitySelectedBeforeDrop')) {
+            $trimmed = & $newPreambleArtifact
+            $capture = [ordered]@{}
+            foreach ($entry in $trimmed.observations.nativeMountValidHorse.GetEnumerator()) {
+                if ($entry.Key -cne $field) { $capture[$entry.Key] = $entry.Value }
+            }
+            $trimmed.observations.nativeMountValidHorse = $capture
+            & $assertPreambleRejected $trimmed ("a capture omitting " + $field)
+        }
+
+        $noCapture = & $newPreambleArtifact
+        $noCapture.observations = [ordered]@{}
+        & $assertPreambleRejected $noCapture 'a run that published no staged click capture'
+
+        # The wrong evidence kind or schema is not this scenario.
+        $wrongKind = & $newPreambleArtifact
+        $wrongKind.evidenceKind = 'horse-native-controls-ux'
+        & $assertPreambleRejected $wrongKind 'an artifact wearing another evidence kind'
+
+        $wrongSchema = & $newPreambleArtifact
+        $wrongSchema.schemaVersion = 8
+        & $assertPreambleRejected $wrongSchema 'an artifact at the native-controls schema version'
+
+        # A truthful FAIL is preserved: incomplete staging is exactly what a FAIL reports.
+        $failed = & $newPreambleArtifact
+        $failed.status = 'FAIL'
+        $failed.assertions = @($failed.assertions | Select-Object -First 5)
+        $failed.assertions[4].status = 'FAIL'
+        $failed.assertionPassCount = 4
+        $failed.assertionFailCount = 1
+        $failedManifest = & $publishPreamble $failed
+        & $validatePreamble $failedManifest $failed
     }
 
     Invoke-HarnessTest 'paired condition schema reaches the strict native evidence validator' {

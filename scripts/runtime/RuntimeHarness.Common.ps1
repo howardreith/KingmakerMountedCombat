@@ -3673,7 +3673,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble',
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
@@ -3750,7 +3750,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-after-early-end',
         # This list is also the known-subscenario registry Test-RuntimeResult uses,
         # so a scenario's own name belongs here alongside the rows it emits.
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble',
         'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
         'CM01-combat-mount-preparing-refused',
@@ -4699,7 +4699,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','phase3d-horse-scenario-evidence.json')) {
+    foreach ($leaf in @('persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -4965,7 +4965,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $kind = 'horse-companion-blueprint-registration'
     $isAudit = [string]$Request.scenario -cin @(
         $scenario,
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble',
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
@@ -7377,6 +7377,135 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
 }
 
+
+function Assert-KmcMountPreambleEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+
+    # The narrow save-backed Mount preamble. Its whole claim is one native
+    # selected-ability target click proved through sixteen staged causal assertions, so
+    # its required set is exactly those sixteen plus the ineligible-target control. A
+    # run that produced fewer rows, or that mounted, is not this scenario.
+    $scenario = 'chunk6a-mount-preamble'
+    $leaf = 'chunk6a-mount-preamble.json'
+    $kind = 'chunk6a-mount-preamble'
+    $records = @($Manifest.artifacts | Where-Object {
+        [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
+    })
+    if ([string]$Request.scenario -cne $scenario) {
+        if ($records.Count -ne 0) { throw 'A non-preamble scenario manifested narrow Mount preamble evidence.' }
+        return
+    }
+    if ($records.Count -ne 1 -or [string]$records[0].relativePath -cne $leaf -or [string]$records[0].kind -cne $kind) {
+        throw 'The narrow Mount preamble did not manifest exactly one evidence artifact.'
+    }
+
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot)
+    $artifactPath = Assert-KmcChildPath (Join-Path $evidenceRoot $leaf) $evidenceRoot 'narrow Mount preamble evidence'
+    if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) { throw 'Narrow Mount preamble evidence is missing.' }
+    Assert-KmcNotReparsePoint $artifactPath 'narrow Mount preamble evidence'
+    Assert-KmcNotHardLink $artifactPath 'narrow Mount preamble evidence'
+    $beforeFile = Get-Item -LiteralPath $artifactPath -Force
+    $artifact = Read-KmcJson $artifactPath
+
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 1 -or
+        [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
+        $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or
+        [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$artifact.dllMvid -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        throw 'Narrow Mount preamble schema, status, or DLL identity is invalid.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ([string]$artifact.$name -cne [string]$Request.$name) {
+            throw "Narrow Mount preamble identity mismatch: $name"
+        }
+    }
+
+    $assertionNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $pass = 0
+    $fail = 0
+    foreach ($assertion in @($artifact.assertions)) {
+        Assert-KmcExactProperties $assertion @('name','status','detail') 'narrow Mount preamble assertion'
+        if ($assertion.name -isnot [string] -or [string]$assertion.name -cnotmatch '^[a-z0-9-]{1,100}$' -or
+            -not $assertionNames.Add([string]$assertion.name) -or [string]$assertion.status -cnotin @('PASS','FAIL') -or
+            $assertion.detail -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$assertion.detail)) {
+            throw 'Narrow Mount preamble contains an invalid or duplicate assertion.'
+        }
+        if ([string]$assertion.status -ceq 'PASS') { $pass++ } else { $fail++ }
+    }
+    if ([long]$artifact.assertionPassCount -ne $pass -or [long]$artifact.assertionFailCount -ne $fail -or
+        ([string]$artifact.status -ceq 'PASS') -ne ($fail -eq 0 -and @($artifact.errors).Count -eq 0)) {
+        throw 'Narrow Mount preamble assertion totals or status do not reconcile.'
+    }
+    if ($null -ne $SubscenarioResults) {
+        $matched = @($SubscenarioResults | Where-Object { [string]$_.name -ceq $scenario })
+        if ($matched.Count -ne 1 -or [string]$matched[0].status -cne [string]$artifact.status -or
+            [long]$matched[0].assertionPassCount -ne $pass -or [long]$matched[0].assertionFailCount -ne $fail) {
+            throw 'Narrow Mount preamble does not reconcile to one exact runtime subscenario.'
+        }
+    }
+
+    if ([string]$artifact.status -ceq 'PASS') {
+        foreach ($required in @(
+            'native-saddle-up-invalid-target',
+            'native-saddle-up-exact-ability-fact',
+            'native-saddle-up-handler-holds-exact-ability',
+            'native-saddle-up-priority-admits-horse',
+            'native-saddle-up-resolved-target-is-exact-horse',
+            'native-saddle-up-click-accepted',
+            'native-saddle-up-native-command-created',
+            'native-saddle-up-command-ability-is-exact',
+            'native-saddle-up-command-executor-is-exact-rider',
+            'native-saddle-up-command-target-is-exact-horse',
+            'native-saddle-up-single-command-no-duplicate',
+            'native-saddle-up-native-provenance',
+            'native-saddle-up-shell-registered-once',
+            'native-saddle-up-shell-identity-exact',
+            'native-saddle-up-one-cast-request-no-refusal',
+            'native-saddle-up-transition-not-yet-delivered',
+            'native-saddle-up-drop-ability-preserves-command')) {
+            if (-not $assertionNames.Contains($required)) {
+                throw "PASS narrow Mount preamble is missing a staged assertion: $required"
+            }
+        }
+        # The preamble stops before mounting. A PASS that carries a mounted row is a
+        # different scenario wearing this name.
+        foreach ($forbidden in @('independent-horse-mounted-profile','horse-pose-calibration',
+            'native-mounted-control-surface','native-dismount-ability','target-selected-mount-action')) {
+            if ($assertionNames.Contains($forbidden)) {
+                throw "PASS narrow Mount preamble carried a row from beyond the preamble: $forbidden"
+            }
+        }
+        $capture = $artifact.observations.nativeMountValidHorse
+        if ($null -eq $capture) { throw 'PASS narrow Mount preamble published no staged click capture.' }
+        # The capture must show both sides of the release, and the relationship must still
+        # be unmounted at the moment the command existed.
+        foreach ($field in @('clicked','moveSlotHoldsUseAbility','abilitySelectedBeforeDrop',
+            'abilitySelectedAfterDrop','sameCommandInstanceAcrossDrop','shellOwnsCommandAfterDrop',
+            'relationshipStateAfterClick','relationshipStateAfterDrop')) {
+            if ($null -eq $capture.PSObject.Properties[$field]) {
+                throw "PASS narrow Mount preamble click capture omits: $field"
+            }
+        }
+        if ([string]$capture.relationshipStateAfterClick -cne 'Unmounted' -or
+            [string]$capture.relationshipStateAfterDrop -cne 'Unmounted') {
+            throw 'PASS narrow Mount preamble reported a mounted relationship around its own click.'
+        }
+        if ($capture.abilitySelectedAfterDrop -ne $false) {
+            throw 'PASS narrow Mount preamble left the stock handler holding a selected ability.'
+        }
+    }
+
+    $afterFile = Get-Item -LiteralPath $artifactPath -Force
+    if ($afterFile.Length -ne $beforeFile.Length -or
+        $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
+        throw 'Narrow Mount preamble evidence changed while being validated.'
+    }
+}
 function Assert-KmcHorseNativeControlsUxEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -12919,6 +13048,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
             ($relative -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
             ($relative -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
+            ($relative -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
             ($relative -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
@@ -12943,6 +13073,7 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseCompanionUnmountedEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseNativeControlsUxEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcMountPreambleEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcPhase3dHorseScenarioEvidence -Request $Request -Manifest $manifestValue
     }
     $hash = Get-KmcSha256 $manifestPath

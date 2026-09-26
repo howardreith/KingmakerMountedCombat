@@ -56,6 +56,18 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string NativeControlsEvidenceFileName = "horse-native-controls-ux.json";
         internal const string NativeControlsEvidenceKind = "horse-native-controls-ux";
 
+        // The narrow save-backed preamble. It reaches legal out-of-combat Mount adjacency,
+        // performs exactly one native selected-ability target click, proves that click
+        // through the sixteen staged causal assertions, and stops. It never mounts, never
+        // enters combat and never exercises the broader native-controls UX surface, so a
+        // preamble regression is attributable on its own instead of only being visible as
+        // a deadline inside a long suite.
+        internal const string PreambleScenarioName = "chunk6a-mount-preamble";
+
+        internal const string PreambleEvidenceKind = "chunk6a-mount-preamble";
+
+        internal const string PreambleEvidenceFileName = "chunk6a-mount-preamble.json";
+
         private const double ScenarioTimeoutSeconds = 180.0;
         private const double MountedScenarioTimeoutSeconds = 300.0;
         private const double LifecycleTimeoutSeconds = 60.0;
@@ -253,6 +265,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return string.Equals(scenario, ScenarioName, StringComparison.Ordinal) ||
                 string.Equals(scenario, MountedScenarioName, StringComparison.Ordinal) ||
                 string.Equals(scenario, NativeControlsScenarioName, StringComparison.Ordinal) ||
+                string.Equals(scenario, PreambleScenarioName, StringComparison.Ordinal) ||
                 Phase3dHorseScenarioTranche.SupportsScenario(scenario);
         }
 
@@ -262,7 +275,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool IncludesNativeControlsUx =>
             string.Equals(request.Scenario, NativeControlsScenarioName, StringComparison.Ordinal) ||
+            IsMountPreambleOnly ||
             IsPhase3dScenario;
+
+        // The narrow preamble borrows exactly one thing from the native-controls suite:
+        // the stock selected-ability click path. It deliberately skips the pre-mount
+        // control lifecycle, never mounts, and finishes the moment the staged chain is
+        // proved, so its ledger is the preamble and nothing else.
+        private bool IsMountPreambleOnly =>
+            string.Equals(request.Scenario, PreambleScenarioName, StringComparison.Ordinal);
 
         private bool IsPhase3dScenario =>
             Phase3dHorseScenarioTranche.SupportsScenario(request.Scenario);
@@ -793,7 +814,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The native selection manager selected exactly the unmounted horse.");
             if (failed != 0) { BeginCleanup(); return; }
 
-            if (IncludesNativeControlsUx)
+            if (IncludesNativeControlsUx && !IsMountPreambleOnly)
             {
                 ValidateNativeControlLifecycleBeforeMount();
                 if (failed != 0) { BeginCleanup(); return; }
@@ -1664,6 +1685,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     owner, nativeControls.MountAbility, horse, "nativeMountValidHorse");
                 AssertNativeMountClickChain(capture);
                 if (failed != 0) { BeginCleanup(); return; }
+                if (IsMountPreambleOnly)
+                {
+                    // The narrow scenario's whole claim is the preamble. It stops here
+                    // rather than waiting for a mounted pair, so the shell it created is
+                    // released by ordinary cleanup and no mounted state is ever asserted.
+                    BeginCleanup();
+                    return;
+                }
                 step = EngineStep.AwaitMountedReady;
                 return;
             }
@@ -3879,10 +3908,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = IncludesNativeControlsUx ? 8 : 4,
-                ["evidenceKind"] = IncludesNativeControlsUx
-                    ? NativeControlsEvidenceKind
-                    : IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
+                ["schemaVersion"] = IsMountPreambleOnly ? 1 : IncludesNativeControlsUx ? 8 : 4,
+                ["evidenceKind"] = IsMountPreambleOnly
+                    ? PreambleEvidenceKind
+                    : IncludesNativeControlsUx
+                        ? NativeControlsEvidenceKind
+                        : IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
                 ["branch"] = request.Branch,
@@ -3918,9 +3949,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private void WriteArtifact(JObject artifact)
         {
             var root = Path.GetFullPath(request.EvidenceRoot).TrimEnd(Path.DirectorySeparatorChar);
-            var leaf = IncludesNativeControlsUx
-                ? NativeControlsEvidenceFileName
-                : IncludesMountedAlpha ? MountedEvidenceFileName : EvidenceFileName;
+            var leaf = IsMountPreambleOnly
+                ? PreambleEvidenceFileName
+                : IncludesNativeControlsUx
+                    ? NativeControlsEvidenceFileName
+                    : IncludesMountedAlpha ? MountedEvidenceFileName : EvidenceFileName;
             var path = Path.Combine(root, leaf);
             if (!Directory.Exists(root)) { throw new DirectoryNotFoundException("Runtime evidence root is missing."); }
             if (File.Exists(path)) { throw new InvalidOperationException("Horse unmounted evidence artifact already exists."); }
