@@ -5794,31 +5794,50 @@ function Assert-KmcChunk6aCombatMountEvidence {
     }
     $mountBefore = Get-Chunk6aSample 'mount-before'
     $mountAfter = Get-Chunk6aSample 'mount-after'
-    $dismountBefore = Get-Chunk6aSample 'dismount-before'
-    $dismountAfter = Get-Chunk6aSample 'dismount-after'
+    # The narrow approach scenario stops at CM02-approach-arrival, so it never reaches the
+    # combat Dismount and produces no dismount samples. Requiring them there would make the
+    # narrow instrument unusable; the full scenarios still require both halves.
+    $transitionPairs = @(, @($mountBefore, $mountAfter))
+    if (-not $approachOnly) {
+        $dismountBefore = Get-Chunk6aSample 'dismount-before'
+        $dismountAfter = Get-Chunk6aSample 'dismount-after'
+        $transitionPairs = @(@($mountBefore, $mountAfter), @($dismountBefore, $dismountAfter))
+    }
 
     # Exactly one relationship transition per voluntary control, and exactly one
-    # accepted native delivery per control.
+    # accepted native delivery per control. Ledger claims are DELTAS across each
+    # control's own window: this scenario legitimately performs an exploration Mount, an
+    # exploration Dismount and a compensation-refused Mount before the combat Mount, so a
+    # cumulative "acceptedMountCount == 1" would describe an earlier design of the
+    # scenario rather than what the control under test did.
     if ([long]$mountAfter.relationshipGeneration -ne [long]$mountBefore.relationshipGeneration + 1L) {
         throw 'Chunk 6A combat Mount did not change the relationship generation exactly once.'
     }
     if ([long]$mountAfter.dispatchAccepted -ne [long]$mountBefore.dispatchAccepted + 1L) {
         throw 'Chunk 6A combat Mount did not produce exactly one accepted native delivery.'
     }
-    if ([long]$dismountAfter.dispatchAccepted -ne [long]$dismountBefore.dispatchAccepted + 1L) {
-        throw 'Chunk 6A combat Dismount did not produce exactly one accepted native delivery.'
+    if ([string]$mountAfter.relationshipState -cne 'Mounted') {
+        throw 'Chunk 6A evidence did not record a mounted terminal state for the combat Mount.'
     }
-    if ([string]$mountAfter.relationshipState -cne 'Mounted' -or
-        [string]$dismountAfter.relationshipState -cne 'Unmounted') {
-        throw 'Chunk 6A evidence did not record one mounted and one unmounted terminal state.'
+    if ([long]$mountAfter.acceptedMountCount -ne [long]$mountBefore.acceptedMountCount + 1L -or
+        [long]$mountAfter.forcedDetachCount -ne [long]$mountBefore.forcedDetachCount) {
+        throw 'Chunk 6A transition ledger did not record exactly one voluntary combat Mount and no forced detach in its own window.'
     }
-    if ([long]$mountAfter.acceptedMountCount -ne 1L -or [long]$dismountAfter.acceptedDismountCount -ne 1L -or
-        [long]$dismountAfter.forcedDetachCount -ne 0L) {
-        throw 'Chunk 6A transition ledger did not record exactly one voluntary Mount, one voluntary Dismount and no forced detach.'
+    if (-not $approachOnly) {
+        if ([long]$dismountAfter.dispatchAccepted -ne [long]$dismountBefore.dispatchAccepted + 1L) {
+            throw 'Chunk 6A combat Dismount did not produce exactly one accepted native delivery.'
+        }
+        if ([string]$dismountAfter.relationshipState -cne 'Unmounted') {
+            throw 'Chunk 6A evidence did not record an unmounted terminal state for the combat Dismount.'
+        }
+        if ([long]$dismountAfter.acceptedDismountCount -ne [long]$dismountBefore.acceptedDismountCount + 1L -or
+            [long]$dismountAfter.forcedDetachCount -ne [long]$dismountBefore.forcedDetachCount) {
+            throw 'Chunk 6A transition ledger did not record exactly one voluntary combat Dismount and no forced detach in its own window.'
+        }
     }
 
     # The rider's native Move commitment, re-derived here.
-    foreach ($pair in @(@($mountBefore, $mountAfter), @($dismountBefore, $dismountAfter))) {
+    foreach ($pair in $transitionPairs) {
         $before = [double]$pair[0].rider.move
         $after = [double]$pair[1].rider.move
         if ($turnBased) {
@@ -5831,7 +5850,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
         }
     }
     # Nothing else may fall, and initiative may not move at all.
-    foreach ($pair in @(@($mountBefore, $mountAfter), @($dismountBefore, $dismountAfter))) {
+    foreach ($pair in $transitionPairs) {
         foreach ($actor in @('rider','mount')) {
             foreach ($field in @('standard','swift')) {
                 if ([double]$pair[1].$actor.$field -lt [double]$pair[0].$actor.$field) {
