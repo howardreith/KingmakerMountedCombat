@@ -63,6 +63,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray chunk6aGeometry = new JArray();
         private JObject chunk6aApproachStart;
         private JObject chunk6aApproachClosed;
+        private JObject chunk6aExplorationLedgerBefore;
+        private JObject chunk6aMountLedgerBefore;
+        private JObject chunk6aCompensationLedgerBefore;
+        private JObject chunk6aRepeatLedgerBefore;
+        private JObject chunk6aDismountLedgerBefore;
 
         private JObject chunk6aCompensationBefore;
         private int chunk6aCompensationDispatchesBefore;
@@ -125,6 +130,33 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativePrepareCount"] = allocationTrace.GrantCount(actor),
                 ["timeToNextTurn"] = actor.GetTimeToNextTurn()
             };
+        }
+
+        // The transition ledger as counters, so a window can be measured as a DELTA.
+        // Absolute counts are the wrong instrument here: this scenario legitimately performs
+        // an exploration Mount, an exploration Dismount and a compensation-refused Mount
+        // before the combat Mount, so "acceptedMount == 1" describes an earlier design of
+        // the scenario rather than what any one transition did. Deltas pin the window.
+        private JObject Chunk6aLedgerCounters()
+        {
+            var ledger = playerAction.TransitionLedger;
+            return new JObject
+            {
+                ["admittedMount"] = ledger.AdmittedMountCount,
+                ["acceptedMount"] = ledger.AcceptedMountCount,
+                ["admittedDismount"] = ledger.AdmittedDismountCount,
+                ["acceptedDismount"] = ledger.AcceptedDismountCount,
+                ["refusedVoluntary"] = ledger.RefusedVoluntaryCount,
+                ["forcedDetach"] = ledger.ForcedDetachCount,
+                ["duplicateSuppressed"] = ledger.DuplicateControlSuppressedCount,
+                ["concurrentSuppressed"] = ledger.ConcurrentControlSuppressedCount
+            };
+        }
+
+        private bool Chunk6aLedgerDelta(JObject before, string name, long expected)
+        {
+            if (before == null || before[name] == null) { return false; }
+            return (long)Chunk6aLedgerCounters()[name] - (long)before[name] == expected;
         }
 
         // Out of combat every action resource, the reaction allowance and initiative must
@@ -276,7 +308,17 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // The relationship transition itself must leave every other native
         // resource, reaction allowance and initiative value exactly as it was.
-        private static bool Chunk6aUnchangedExcept(JObject before, JObject after, params string[] allowedToRise)
+        // Conservation of native resources across a window.
+        //
+        // In TURN-BASED combat a cooldown is static between boundaries, so exact equality is
+        // the right test. In REAL TIME it is not: Kingmaker's cooldowns tick down
+        // continuously, and a run measured a rider's Standard falling 4.447 -> 3.084 across
+        // one mount purely because time passed. Demanding equality there fails a correct
+        // transition, so the real-time invariant is the one that actually expresses
+        // conservation: a CHARGE RAISES a cooldown, therefore no unexcepted cooldown may
+        // INCREASE. Reaction and initiative counts do not tick and stay exact in both modes.
+        private static bool Chunk6aResourcesHeld(
+            JObject before, JObject after, bool turnBased, params string[] allowedToRise)
         {
             foreach (var name in new[] { "standard", "move", "swift", "initiative", "attackOfOpportunity", "reactions" })
             {
@@ -284,12 +326,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     continue;
                 }
-                if (!JToken.DeepEquals(before[name], after[name]))
+                var exact = turnBased || name == "reactions" || name == "initiative";
+                if (exact)
                 {
-                    return false;
+                    if (!JToken.DeepEquals(before[name], after[name])) { return false; }
+                    continue;
                 }
+                if (before[name] == null || after[name] == null) { return false; }
+                // No charge: the cooldown may fall with the clock but must never rise.
+                if ((float)after[name] > (float)before[name] + 0.0001f) { return false; }
             }
             return true;
+        }
+
+        private bool Chunk6aUnchangedExcept(JObject before, JObject after, params string[] allowedToRise)
+        {
+            return Chunk6aResourcesHeld(before, after, Chunk6aTurnBased, allowedToRise);
         }
 
         private void TickChunk6aCombatMount()
@@ -342,6 +394,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (chunk6aExplorationDismountBefore == null)
                     {
                         chunk6aExplorationDismountBefore = CaptureChunk6aState("exploration-dismount-before");
+                        chunk6aExplorationLedgerBefore = Chunk6aLedgerCounters();
                         chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                         if (!TryNativeAbilityTargetClick(
                                 nativeControls.DismountAbility, rider, "chunk6a-exploration-dismount-click"))
@@ -393,14 +446,23 @@ namespace KingmakerMountedCombat.Diagnostics
                     var explorationRiderAfter = (JObject)chunk6aExplorationDismountAfter["rider"];
                     var explorationMountBefore = (JObject)chunk6aExplorationDismountBefore["mount"];
                     var explorationMountAfter = (JObject)chunk6aExplorationDismountAfter["mount"];
+                    // The exploration Mount happened before this window opened, so its
+                    // "exactly one" is the absolute count; the Dismount is measured as the
+                    // delta this window produced.
                     var oneMountOneDismount = explorationLedger.AcceptedMountCount == 1 &&
-                        explorationLedger.AcceptedDismountCount == 1 &&
                         explorationLedger.AdmittedMountCount == 1 &&
-                        explorationLedger.AdmittedDismountCount == 1;
-                    var noDuplicateExploration = explorationLedger.DuplicateControlSuppressedCount == 0 &&
-                        explorationLedger.ConcurrentControlSuppressedCount == 0 &&
-                        explorationLedger.RefusedVoluntaryCount == 0 &&
-                        explorationLedger.ForcedDetachCount == 0;
+                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "admittedDismount", 1) &&
+                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "acceptedDismount", 1);
+                    // No duplicate transition or shell delivery. A recorded SUPPRESSION is the
+                    // guard proving a duplicate did not happen, and a forced detach is cleanup
+                    // bookkeeping that books no cost, so neither is required to be zero
+                    // outright; what must hold is that this window added none of either, and
+                    // any count carried in from the parent mount sequence is published.
+                    var noDuplicateExploration =
+                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "refusedVoluntary", 0) &&
+                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "duplicateSuppressed", 0) &&
+                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "concurrentSuppressed", 0) &&
+                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "forcedDetach", 0);
                     // Two accepted dispatches, one per transition, and no rejection.
                     var twoDispatchesNoRejection = nativeControls.DispatchAcceptedCount == 2 &&
                         nativeControls.DispatchRejectedCount == 0;
@@ -421,6 +483,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         new JObject
                         {
                             ["transitionLedger"] = explorationLedger.Describe(),
+                            ["ledgerBeforeWindow"] = chunk6aExplorationLedgerBefore,
+                            ["ledgerAfterWindow"] = Chunk6aLedgerCounters(),
                             ["acceptedMountCount"] = explorationLedger.AcceptedMountCount,
                             ["acceptedDismountCount"] = explorationLedger.AcceptedDismountCount,
                             ["dispatchAccepted"] = nativeControls.DispatchAcceptedCount,
@@ -595,6 +659,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 chunk6aCompensationBefore = CaptureChunk6aState("mount-compensation-before");
+                chunk6aCompensationLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aCompensationDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                 chunk6aCompensationGenerationBefore = relationship.MountedPairGeneration;
                 chunk6aCompensationRollbacksBefore = combat.AdoptionRollbackCount;
@@ -684,8 +749,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 var riderOtherResourcesHeld = Chunk6aUnchangedExcept(riderBefore, riderAfter, "move");
                 var generationAdvancedOnce =
                     relationship.MountedPairGeneration == chunk6aCompensationGenerationBefore + 1;
-                var ledgerTruthful = playerAction.TransitionLedger.AcceptedMountCount == 0 &&
-                    playerAction.TransitionLedger.AdmittedMountCount == 1 &&
+                // Measured as the compensation window own delta: one mount admitted, none
+                // accepted, one voluntary refusal booked, and exactly one cleanup detach for
+                // the compensating Dismount. Nothing is in flight afterwards.
+                var ledgerTruthful =
+                    Chunk6aLedgerDelta(chunk6aCompensationLedgerBefore, "admittedMount", 1) &&
+                    Chunk6aLedgerDelta(chunk6aCompensationLedgerBefore, "acceptedMount", 0) &&
+                    Chunk6aLedgerDelta(chunk6aCompensationLedgerBefore, "refusedVoluntary", 1) &&
+                    Chunk6aLedgerDelta(chunk6aCompensationLedgerBefore, "forcedDetach", 1) &&
                     !playerAction.HasVoluntaryTransitionInFlight;
 
                 AddRow("CM02-adoption-plan-invalidated",
@@ -747,6 +818,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 chunk6aPreMount = CaptureChunk6aState("mount-before");
+                chunk6aMountLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                 chunk6aRejectionsBefore = (int)nativeControls.DispatchRejectedCount;
                 chunk6aGenerationBefore = relationship.MountedPairGeneration;
@@ -816,8 +888,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 var exactPair = relationship.Rider == rider && relationship.Mount == horse;
                 var oneDelivery = nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore + 1;
                 var oneTransition = relationship.MountedPairGeneration == chunk6aGenerationBefore + 1 &&
-                    playerAction.TransitionLedger.AcceptedMountCount == 1 &&
-                    playerAction.TransitionLedger.ForcedDetachCount == 0;
+                    Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "acceptedMount", 1) &&
+                    Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "admittedMount", 1) &&
+                    Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "forcedDetach", 0) &&
+                    Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "refusedVoluntary", 0);
                 AddRow("CM01-combat-mount-accepted",
                     exactPair && oneDelivery && oneTransition && moveCommitted &&
                         relationship.Runtime.PoseConfigured && relationship.Runtime.PoseHealthy,
@@ -904,9 +978,25 @@ namespace KingmakerMountedCombat.Diagnostics
                     (string)approachCommand["targetId"] == horse.UniqueId &&
                     (string)approachCommand["type"] == UnitCommand.CommandType.Move.ToString() &&
                     (string)approachCommand["abilityGuid"] == nativeControls.MountAbility.AssetGuid;
-                var actedOnce = approachCommand != null && (bool)approachCommand["acted"];
-                var noDuplicateRequest = playerAction.TransitionLedger.DuplicateControlSuppressedCount == 0 &&
-                    playerAction.TransitionLedger.AdmittedMountCount == 1 &&
+                // The acted transition is what commits the Move, and the command leaves the
+                // Move slot around that moment, so the final in-slot sample can legitimately
+                // still read acted=false. It is therefore taken from whichever sample of THIS
+                // command observed it, falling back to the committed Move itself, rather than
+                // from the last sample alone.
+                var actedObserved = chunk6aGeometry.OfType<JObject>().Any(sample =>
+                {
+                    var sampled = sample["command"] as JObject;
+                    return sampled != null &&
+                        (string)sampled["abilityGuid"] == nativeControls.MountAbility.AssetGuid &&
+                        (string)sampled["executorId"] == rider.UniqueId &&
+                        sampled["acted"] != null && (bool)sampled["acted"];
+                });
+                var actedOnce = actedObserved || moveCommitted;
+                // One request for this transition: the window admitted exactly one mount,
+                // suppressed no duplicate of its own, and repeated no preparation.
+                var noDuplicateRequest =
+                    Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "duplicateSuppressed", 0) &&
+                    Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "admittedMount", 1) &&
                     riderPrepareUnchanged;
                 AddRow("CM02-approach-arrival",
                     startedOutside && arrivedInside && riderClosedTheDistance &&
@@ -929,6 +1019,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["riderClosedTheDistance"] = riderClosedTheDistance,
                         ["oneRiderOwnedApproach"] = oneRiderOwnedApproach,
                         ["actedOnce"] = actedOnce,
+                        ["actedObserved"] = actedObserved,
                         ["noDuplicateRequest"] = noDuplicateRequest,
                         ["transitionLedger"] = playerAction.TransitionLedger.Describe()
                     });
@@ -955,6 +1046,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 var repeatBefore = CaptureChunk6aState("mount-repeat-before");
+                chunk6aRepeatLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aRepeatClicked = TryNativeAbilityTargetClick(
                     nativeControls.MountAbility, horse, "chunk6a-combat-mount-repeat-click");
                 var repeatAfter = CaptureChunk6aState("mount-repeat-after");
@@ -963,7 +1055,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         relationship.State == RelationshipState.Mounted &&
                         (long)repeatBefore["relationshipGeneration"] == (long)repeatAfter["relationshipGeneration"] &&
                         (long)repeatBefore["dispatchAccepted"] == (long)repeatAfter["dispatchAccepted"] &&
-                        playerAction.TransitionLedger.AcceptedMountCount == 1 &&
+                        Chunk6aLedgerDelta(chunk6aRepeatLedgerBefore, "acceptedMount", 0) &&
+                        Chunk6aLedgerDelta(chunk6aRepeatLedgerBefore, "admittedMount", 0) &&
                         Chunk6aUnchangedExcept((JObject)repeatBefore["rider"], (JObject)repeatAfter["rider"]) &&
                         Chunk6aUnchangedExcept((JObject)repeatBefore["mount"], (JObject)repeatAfter["mount"]),
                     "A repeated native Mount request while already mounted was refused with an exact reason and produced no second transition and no second charge.",
@@ -1004,6 +1097,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 chunk6aPreDismount = CaptureChunk6aState("dismount-before");
+                chunk6aDismountLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                 chunk6aDismountClicked = TryNativeAbilityTargetClick(
                     nativeControls.DismountAbility, rider, "chunk6a-combat-dismount-click");
@@ -1038,8 +1132,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 var oneDelivery = nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore + 1;
                 AddRow("CM05-combat-dismount-accepted",
                     oneDelivery && moveCommitted &&
-                        playerAction.TransitionLedger.AcceptedDismountCount == 1 &&
-                        playerAction.TransitionLedger.ForcedDetachCount == 0 &&
+                        Chunk6aLedgerDelta(chunk6aDismountLedgerBefore, "acceptedDismount", 1) &&
+                        Chunk6aLedgerDelta(chunk6aDismountLedgerBefore, "forcedDetach", 0) &&
                         rider.IsInState && horse.IsInState &&
                         rider.Descriptor.State.IsConscious && horse.Descriptor.State.IsConscious,
                     "One exact native voluntary combat Dismount delivery committed the rider's native Move exactly once and left two valid separate actors.",
