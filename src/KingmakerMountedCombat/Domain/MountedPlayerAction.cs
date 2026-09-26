@@ -94,16 +94,33 @@ namespace KingmakerMountedCombat.Domain
             MountedPlayerActionKind action,
             string label,
             IReadOnlyList<string> unavailableReasons)
+            : this(visible, enabled, action, label, unavailableReasons, Array.Empty<string>())
+        {
+        }
+
+        public MountedPlayerActionAvailability(
+            bool visible,
+            bool enabled,
+            MountedPlayerActionKind action,
+            string label,
+            IReadOnlyList<string> unavailableReasons,
+            IReadOnlyList<string> transitionDeferredReasons)
         {
             IsVisible = visible;
             IsEnabled = enabled;
             Action = action;
             Label = label ?? string.Empty;
             UnavailableReasons = unavailableReasons ?? throw new ArgumentNullException(nameof(unavailableReasons));
+            TransitionDeferredReasons = transitionDeferredReasons ??
+                throw new ArgumentNullException(nameof(transitionDeferredReasons));
         }
 
         public bool IsVisible { get; }
 
+        /// <summary>
+        /// APPROACH admission: the control may be offered, armed and targeted, and
+        /// Kingmaker may create its own Move-typed command. Distance is not part of this.
+        /// </summary>
         public bool IsEnabled { get; }
 
         public MountedPlayerActionKind Action { get; }
@@ -112,9 +129,28 @@ namespace KingmakerMountedCombat.Domain
 
         public IReadOnlyList<string> UnavailableReasons { get; }
 
-        public string Feedback => UnavailableReasons.Count == 0
-            ? (Action == MountedPlayerActionKind.Mount ? "Ready to mount." : "Mounted relationship is active.")
-            : string.Join(" ", UnavailableReasons);
+        /// <summary>
+        /// Conditions that block the relationship TRANSITION but are lawfully resolved by
+        /// the native approach itself. Only distance belongs here; it is deferred, never
+        /// waived, and is revalidated at delivery against live state.
+        /// </summary>
+        public IReadOnlyList<string> TransitionDeferredReasons { get; }
+
+        /// <summary>
+        /// TRANSITION admission: approach-admissible and every deferred condition resolved.
+        /// </summary>
+        public bool TransitionReady => MountedAdmissionPolicy.Admits(
+            MountedAdmissionPhase.Transition, UnavailableReasons.Count, TransitionDeferredReasons.Count) && IsEnabled;
+
+        public string Feedback
+        {
+            get
+            {
+                if (UnavailableReasons.Count != 0) { return string.Join(" ", UnavailableReasons); }
+                if (TransitionDeferredReasons.Count != 0) { return string.Join(" ", TransitionDeferredReasons); }
+                return Action == MountedPlayerActionKind.Mount ? "Ready to mount." : "Mounted relationship is active.";
+            }
+        }
     }
 
     public static class MountedPlayerActionEvaluator
@@ -182,6 +218,9 @@ namespace KingmakerMountedCombat.Domain
             }
 
             var reasons = new List<string>();
+            // Conditions the native approach itself resolves. Distance is the only member;
+            // MountedAdmissionPolicy exists so a second one cannot be added silently.
+            var transitionDeferred = new List<string>();
             var mountName = string.IsNullOrWhiteSpace(context.MountDisplayName)
                 ? "supported mount"
                 : context.MountDisplayName;
@@ -256,9 +295,14 @@ namespace KingmakerMountedCombat.Domain
                     ? "The mounted pair cannot take over this encounter's activation yet."
                     : context.PairedAdoptionUnavailableReason);
             }
+            // Distance is DEFERRED, not waived. It blocks the relationship transition and
+            // is revalidated at delivery, but it must never block approach admission:
+            // Kingmaker's own Move-typed command is what closes the distance, so refusing
+            // to create that command because the distance is not yet closed is circular and
+            // is exactly what made CM02-approach-arrival unreachable.
             if (context.InCombat && !context.PairAdjacent)
             {
-                reasons.Add("Rider and " + mountName + " must be adjacent to mount during combat.");
+                transitionDeferred.Add(MountedAdmissionPolicy.DescribeDeferredDistance(mountName));
             }
             if (context.InCombat && !context.CombatTurnEligible)
             {
@@ -290,10 +334,12 @@ namespace KingmakerMountedCombat.Domain
 
             return new MountedPlayerActionAvailability(
                 true,
-                reasons.Count == 0,
+                MountedAdmissionPolicy.Admits(
+                    MountedAdmissionPhase.Approach, reasons.Count, transitionDeferred.Count),
                 MountedPlayerActionKind.Mount,
                 "Mount",
-                reasons);
+                reasons,
+                transitionDeferred);
         }
 
         private static MountedPlayerActionAvailability Hidden()

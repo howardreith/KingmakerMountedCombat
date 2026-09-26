@@ -14,15 +14,34 @@ namespace KingmakerMountedCombat.Domain
     public sealed class NativeMountedControlAvailability
     {
         public NativeMountedControlAvailability(bool visible, bool enabled, string reason)
+            : this(visible, enabled, enabled, reason)
+        {
+        }
+
+        public NativeMountedControlAvailability(
+            bool visible, bool enabled, bool transitionReady, string reason)
         {
             IsVisible = visible;
             IsEnabled = enabled;
+            IsTransitionReady = transitionReady;
             Reason = reason ?? string.Empty;
         }
 
         public bool IsVisible { get; }
 
+        /// <summary>
+        /// APPROACH admission: the control may be offered, armed and targeted, and
+        /// Kingmaker may create its own Move-typed command for it.
+        /// </summary>
         public bool IsEnabled { get; }
+
+        /// <summary>
+        /// TRANSITION admission. Equal to <see cref="IsEnabled"/> for every control that
+        /// defers nothing; combat Mount defers distance to the native approach, so this is
+        /// false while the pair is still outside the envelope even though the control is
+        /// enabled and targetable.
+        /// </summary>
+        public bool IsTransitionReady { get; }
 
         public string Reason { get; }
     }
