@@ -829,12 +829,37 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderRosterIndex"] = chunk6aPreMount["riderRosterIndex"],
                     ["mountRosterIndex"] = chunk6aPreMount["mountRosterIndex"]
                 };
+                // Select the exact rider immediately before clicking, which is the player
+                // action this scenario simulates and what the availability contract requires.
+                // Earlier stages -- notably the compensated adoption refusal and its cleanup
+                // -- run many frames before this point and a run was observed reaching here
+                // with the selection no longer on the rider, which refuses target admission
+                // for a reason that has nothing to do with the transition under test.
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 chunk6aMountClicked = TryNativeAbilityTargetClick(
                     nativeControls.MountAbility, horse, "chunk6a-combat-mount-click");
                 if (!chunk6aMountClicked)
                 {
+                    // Name the exact obstacle. A refusal here reports whichever condition the
+                    // availability and target contracts actually rejected, plus the live
+                    // selection and measured geometry, instead of a generic message that
+                    // leaves the next reader to guess.
+                    var refusedAvailability = nativeControls.Evaluate(
+                        NativeMountedControlKind.MountCompanion, rider);
+                    var refusedSelection = SelectionManager.Instance?.SelectedUnits;
                     FailCurrent("CM01-combat-mount-accepted",
-                        "Exact native combat Mount target click was not admitted.");
+                        "Exact native combat Mount target click was not admitted. " +
+                        "availabilityEnabled=" + refusedAvailability.IsEnabled +
+                        "; transitionReady=" + refusedAvailability.IsTransitionReady +
+                        "; availabilityReason=\"" + refusedAvailability.Reason + "\"" +
+                        "; targetRejection=\"" +
+                        playerAction.DescribeNativeMountTargetRejection(rider, horse) + "\"" +
+                        "; canTarget=" + nativeControls.CanTarget(
+                            NativeMountedControlKind.MountCompanion, rider, horse) +
+                        "; selectedCount=" + (refusedSelection?.Count ?? -1) +
+                        "; selectedIsRider=" + (refusedSelection != null && refusedSelection.Count == 1 &&
+                            refusedSelection[0] == rider) +
+                        "; geometry=" + CaptureChunk6aGeometry("mount-click-refused").ToString(Formatting.None));
                     BeginCleanup();
                     return;
                 }
