@@ -5766,6 +5766,17 @@ function Assert-KmcChunk6aCombatMountEvidence {
         # is required there and must be absent in real time.
         $required += 'CM01-combat-mount-preparing-refused'
     }
+    elseif (-not $approachOnly) {
+        # The two remaining approach behaviours are proved in real time, where a native
+        # approach is a continuous multi-frame process that can be obstructed mid-flight and
+        # can have its target geometry changed under it. In turn-based combat the Horse's
+        # reposition and the rider's attempt would each spend that actor's Move for the round,
+        # and recovering one by forcing a turn boundary is prohibited outright. They are
+        # single ledger behaviours, so one PASS proves each; the narrow approach scenario
+        # deliberately stops before them.
+        $required += 'CM02-obstruction'
+        $required += 'CM02-geometry-change'
+    }
     $rowNames = @(@($Artifact.rows) | ForEach-Object { [string]$_.name })
     foreach ($name in $rowNames) {
         if ($name -cnotin (Get-KmcPhase3dHorseRuntimeRows)) {

@@ -726,6 +726,60 @@ Assert-Kmc ($moveReadinessText -match 'public static MountedNativeMoveReadiness 
     $chunk6aScenarioText -match 'observations\["chunk6aMoveRestorationWait"\] = chunk6aMoveRestorationWait;') `
     'a native Move the engine is still restoring is waited for and never written'
 
+# CM02-obstruction. "An obstruction or cancellation before commitment must terminate
+# truthfully with no transition and no cost." The cancellation is the ordinary native Stop
+# control, applied only while the approach is running and NOT yet acted; if the Move was
+# already committed the claim cannot be made truthfully, so that is reported rather than
+# relabelled as something weaker.
+Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-obstruction",' -and
+    $chunk6aScenarioText -match 'if \(!obstructionSlot\.IsStarted\)' -and
+    $chunk6aScenarioText -match 'if \(obstructionSlot\.IsActed\)' -and
+    $chunk6aScenarioText -match 'SelectionManager\.Instance\.Stop\(\);\s*\r?\n\s*chunk6aObstructionStopped = true;' -and
+    # A truthful terminal state: the command finished, never acted, and did not report success.
+    $chunk6aScenarioText -match 'chunk6aObstructionCommand\.IsFinished &&' -and
+    $chunk6aScenarioText -match '!chunk6aObstructionCommand\.IsActed &&' -and
+    $chunk6aScenarioText -match 'chunk6aObstructionCommand\.Result != UnitCommand\.ResultType\.Success;' -and
+    # No transition, measured as window deltas, and no residue left in flight.
+    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aObstructionLedgerBefore, "admittedMount", 0\)' -and
+    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aObstructionLedgerBefore, "acceptedMount", 0\)' -and
+    $chunk6aScenarioText -match 'var noResidue = !playerAction\.TransitionLedger\.HasVoluntaryTransitionInFlight &&' -and
+    # No cost: nothing may rise on either actor and no preparation may repeat.
+    $chunk6aScenarioText -match 'var noCost = Chunk6aUnchangedExcept\(obstructionRider, obstructionRiderAfter\) &&') `
+    'an obstruction before commitment terminates truthfully with no transition, no residue and no cost'
+
+# CM02-geometry-change. "The mount or target geometry changes during approach; the transition
+# revalidates at arrival", and "a post-commit geometry change may refuse delivery but must
+# retain the native cost." The change is the Horse's own player-created ground input, applied
+# only while the approach is running and uncommitted, and it can only ever WIDEN the gap --
+# moving the Horse toward the rider to manufacture adjacency is what the charter forbids.
+$chunk6aRowRequirementText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1')
+Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-geometry-change",' -and
+    $chunk6aScenarioText -match 'rider\.Position, horse\.Position, rider\.DistanceTo\(horse\) \+ extraMeters\);' -and
+    $chunk6aScenarioText -match 'ClickGroundHandler\.MoveSelectedUnitsToPoint\(destination, false\);' -and
+    $chunk6aScenarioText -match 'if \(!chunk6aGeometryChanged && changeSlot\.IsStarted && !changeSlot\.IsActed\)' -and
+    # The change must be real, by the Horse's own player command and by a measured distance.
+    $chunk6aScenarioText -match 'var geometryReallyChanged = horseMoved > Chunk6aStationaryToleranceMeters &&' -and
+    $chunk6aScenarioText -match 'chunk6aGeometryChangeCommand\.CreatedByPlayer;' -and
+    # Either lawful outcome is accepted, each held to its own condition.
+    $chunk6aScenarioText -match 'var acceptedLawfully = transitioned && arrivedInsideEnvelope &&' -and
+    $chunk6aScenarioText -match 'var refusedLawfully = !transitioned && noTransitionAtAll &&' -and
+    # And an observed native charge must still be draining on the engine's clock, which is
+    # the measurable form of retaining the cost.
+    $chunk6aScenarioText -match 'private static bool Chunk6aMoveCostRetained\(JObject peak, float currentCooldown, double nowSeconds\)' -and
+    $chunk6aScenarioText -match 'var floor = charged - \(float\)elapsed - 0\.25f;' -and
+    $chunk6aScenarioText -match 'geometryReallyChanged && costRetained && \(acceptedLawfully \|\| refusedLawfully\)' -and
+    # Neither new case may write a position: the geometry only ever changes through a native
+    # command, never through a transform or an assigned Position.
+    $chunk6aScenarioText -notmatch '\.Position\s*=[^=]' -and
+    $chunk6aScenarioText -notmatch 'transform\.position\s*=[^=]' -and
+    # Both rows are required of the real-time full scenario and of neither the turn-based
+    # scenario, where each actor's Move is spent for the round, nor the narrow approach
+    # instrument, which deliberately stops earlier.
+    $chunk6aRowRequirementText -match "\`$required \+= 'CM02-obstruction'" -and
+    $chunk6aRowRequirementText -match "\`$required \+= 'CM02-geometry-change'" -and
+    $chunk6aRowRequirementText -match 'elseif \(-not \$approachOnly\) \{') `
+    'a geometry change during approach revalidates at arrival and never refunds the committed native cost'
+
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
 $chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')
