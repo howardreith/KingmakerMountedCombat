@@ -238,6 +238,34 @@ namespace KingmakerMountedCombat.Integration
             return string.Join(" | ", parts);
         }
 
+        // Contexts whose ownership is unresolvable. A poisoned context is permanently
+        // terminal: no binding is admitted on it and no delivery resolves through it,
+        // whatever the Move slot later contains.
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<AbilityExecutionContext, string>
+            poisonedContexts = new System.Runtime.CompilerServices.ConditionalWeakTable<AbilityExecutionContext, string>();
+
+        internal long PoisonedExecutionContextCount { get; private set; }
+
+        private void PoisonExecutionContext(
+            AbilityExecutionContext context, NativeRelationshipShell first, NativeRelationshipShell second)
+        {
+            if (context == null) { return; }
+            string existing;
+            if (!poisonedContexts.TryGetValue(context, out existing))
+            {
+                poisonedContexts.Add(context,
+                    "conflict:" + (first?.ControlIdentity ?? "<none>") + "|" + (second?.ControlIdentity ?? "<none>"));
+                PoisonedExecutionContextCount++;
+            }
+            RetireShell(first, "context-conflict");
+            RetireShell(second, "context-conflict");
+            RecordShellLifecycle(NativeShellStage.ProcessBindingRefused, second?.ControlIdentity,
+                "context-conflict-poisoned",
+                "firstControl=" + (first?.ControlIdentity ?? "<none>") +
+                ";secondControl=" + (second?.ControlIdentity ?? "<none>") +
+                ";bothRetired=" + ((first == null || first.Retired) && (second == null || second.Retired)));
+        }
+
         // Permanent refusal. A retired shell can never be resolved again, so a stale or
         // rejected transition cannot be revived by a later binding.
         private void RetireShell(NativeRelationshipShell shell, string reason)
@@ -433,9 +461,21 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (!ReferenceEquals(bound, shell))
                 {
-                    RecordShellLifecycle(NativeShellStage.ProcessBindingRefused, shell.ControlIdentity,
-                        "context-already-bound-to-another-shell", "boundControl=" + (bound?.ControlIdentity ?? "<none>"));
+                    // Two different relationship shells claim one execution context. That
+                    // is unresolvable, so the context is POISONED rather than resolved in
+                    // favour of either: both shells are retired immediately and the
+                    // poisoned context makes every later Deliver refuse, including after
+                    // the Move slot has disappeared. Neither the first nor the second
+                    // binding is preferred, and there is no fall-through to a slot shell.
+                    PoisonExecutionContext(context, bound, shell);
                 }
+                return;
+            }
+            if (poisonedContexts.TryGetValue(context, out _))
+            {
+                RecordShellLifecycle(NativeShellStage.ProcessBindingRefused, shell.ControlIdentity,
+                    "context-already-poisoned", "no binding is admitted on a poisoned context");
+                RetireShell(shell, "poisoned-context");
                 return;
             }
             relationshipShellContexts.Add(context, shell);
@@ -480,11 +520,12 @@ namespace KingmakerMountedCombat.Integration
             NativeMountedControlKind kind, UnitEntityData caster, UnitEntityData target,
             AbilityExecutionContext context, out string refusal)
         {
-            refusal = null;
             // 1. The authoritative binding: the exact execution context this command
             //    established at its own OnAction boundary.
             NativeRelationshipShell contextShell = null;
-            if (context != null) { relationshipShellContexts.TryGetValue(context, out contextShell); }
+            string poison = null;
+            var contextPoisoned = context != null && poisonedContexts.TryGetValue(context, out poison);
+            if (context != null && !contextPoisoned) { relationshipShellContexts.TryGetValue(context, out contextShell); }
 
             // 2. The synchronous route, and ONLY that. A Move-slot command is an owner
             //    solely when its own execution process created THIS very context, which
@@ -498,32 +539,47 @@ namespace KingmakerMountedCombat.Integration
                 ReferenceEquals(slot.ExecutionProcess?.Context, context);
             if (slotOwnsThisContext) { relationshipShells.TryGetValue(slot, out slotShell); }
 
-            // 3. If both bindings exist they must name the same shell. Disagreement is
-            //    an explicit refusal, never a preference for one of them.
-            if (contextShell != null && slotShell != null && !ReferenceEquals(contextShell, slotShell))
+            // 3. One typed decision over the two bindings. NativeShellBindingPolicy owns
+            //    the ordering — poisoned first, then disagreement, then the authoritative
+            //    context, then the narrow synchronous slot — so every case is testable
+            //    offline rather than only readable here.
+            var outcome = NativeShellBindingPolicy.Resolve(
+                context != null,
+                contextPoisoned,
+                contextShell != null,
+                slot != null,
+                slotOwnsThisContext,
+                slotShell != null,
+                ReferenceEquals(contextShell, slotShell),
+                out refusal);
+            var ownership = NativeShellBindingPolicy.DescribeOwnership(outcome);
+
+            if (outcome == NativeShellBindingOutcome.PoisonedContext)
             {
-                refusal = "Two different mounted transitions claim this native execution.";
-                LastRelationshipShellRefusal = refusal;
-                RetireShell(contextShell, "binding-disagreement");
-                RetireShell(slotShell, "binding-disagreement");
-                RecordShellLifecycle(NativeShellStage.DeliverRefused, contextShell.ControlIdentity,
-                    "binding-disagreement", "slotControl=" + (slotShell.ControlIdentity ?? "<none>"));
+                LastRelationshipShellRefusal = refusal + " " + (poison ?? "<none>");
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, null, ownership, poison ?? "<none>");
                 return null;
             }
-
-            NativeRelationshipShell shell;
-            string ownership;
-            if (contextShell != null) { shell = contextShell; ownership = "execution-context"; }
-            else if (slotShell != null) { shell = slotShell; ownership = "synchronous-move-slot"; }
-            else
+            if (outcome == NativeShellBindingOutcome.Disagreement)
             {
-                refusal = "This mounted transition owns neither its native execution process nor its native Move command.";
+                LastRelationshipShellRefusal = refusal;
+                // Poison the context as well as retiring both shells, so this stays
+                // terminal after the Move slot disappears.
+                PoisonExecutionContext(context, contextShell, slotShell);
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, contextShell.ControlIdentity,
+                    ownership, "slotControl=" + (slotShell.ControlIdentity ?? "<none>"));
+                return null;
+            }
+            if (outcome == NativeShellBindingOutcome.NoExactOwnership)
+            {
                 LastRelationshipShellRefusal = refusal + " " + DescribeRelationshipShellState(caster);
-                RecordShellLifecycle(NativeShellStage.DeliverRefused, null, "no-exact-ownership",
+                RecordShellLifecycle(NativeShellStage.DeliverRefused, null, ownership,
                     "contextPresent=" + (context != null) +
                     ";slotOwnsThisContext=" + slotOwnsThisContext + ";" + DescribeRelationshipShellState(caster));
                 return null;
             }
+
+            var shell = outcome == NativeShellBindingOutcome.ExecutionContext ? contextShell : slotShell;
             // A shell that has already been refused for a permanent reason can never
             // become valid again, whichever binding later presents it.
             if (shell.Retired)
@@ -713,7 +769,17 @@ namespace KingmakerMountedCombat.Integration
                 return new NativeMountedControlAvailability(false, false, "Mounted control services are not active.");
             }
 
-            if (!settings.EnableUnsafeMovementExperiment)
+            // The escape hatch precedes the feature gate, through the same typed policy
+            // that leasing uses. Without this a mounted rider keeps a VISIBLE but
+            // DISABLED Dismount the moment the movement feature is switched off, which
+            // strands the pair just as surely as removing the fact would.
+            var escapeApplies = caster != null && NativeMountedControlPolicy.IsDismountEscape(
+                kind,
+                relationship.State == RelationshipState.Mounted,
+                relationship.State == RelationshipState.Faulted,
+                caster == relationship.Rider);
+
+            if (!escapeApplies && !settings.EnableUnsafeMovementExperiment)
             {
                 return new NativeMountedControlAvailability(
                     true,
@@ -792,6 +858,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 deliveringShell = ResolveDeliveringShell(kind, caster, target, context, out shellRefusal);
             }
+            // Ownership, kind, caster, target and generation are validated by now, so THIS
+            // shell has made its one delivery attempt whatever happens next. The terminal
+            // state is set in a finally, so a business refusal or an exception cannot
+            // leave a reusable shell behind. Native cost already committed by the command
+            // stands; nothing is refunded here.
+            var deliveryOutcome = "not-attempted";
             try
             {
                 switch (kind)
@@ -799,10 +871,12 @@ namespace KingmakerMountedCombat.Integration
                     case NativeMountedControlKind.MountCompanion:
                         accepted = deliveringShell != null &&
                             playerAction.TryExecuteNativeMount(caster, target, deliveringShell.ControlIdentity);
+                        deliveryOutcome = accepted ? "consumed-success" : "consumed-refused";
                         break;
                     case NativeMountedControlKind.Dismount:
                         accepted = deliveringShell != null &&
                             playerAction.TryExecuteNativeDismount(caster, deliveringShell.ControlIdentity);
+                        deliveryOutcome = accepted ? "consumed-success" : "consumed-refused";
                         break;
                     case NativeMountedControlKind.RiderPrimary:
                         accepted = combat.TryExecuteNativeAbility(
@@ -821,6 +895,7 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
+                deliveryOutcome = "consumed-exception:" + exception.GetType().FullName;
                 RecordActivation(
                     activation,
                     NativeMountedAbilityActivationPhase.DispatchCompleted,
@@ -831,18 +906,25 @@ namespace KingmakerMountedCombat.Integration
                 pendingActivation = null;
                 throw;
             }
+            finally
+            {
+                // One terminal delivery attempt per resolved shell, on every path out of
+                // the business dispatch: success, refusal, or exception.
+                if (deliveringShell != null && !deliveringShell.Consumed)
+                {
+                    deliveringShell.Consumed = true;
+                    if (!deliveryOutcome.StartsWith("consumed-success", StringComparison.Ordinal))
+                    {
+                        RetireShell(deliveringShell, deliveryOutcome);
+                    }
+                    RecordShellLifecycle(NativeShellStage.DeliverConsumed, deliveringShell.ControlIdentity,
+                        deliveryOutcome, "kind=" + deliveringShell.Kind + ";retired=" + deliveringShell.Retired);
+                }
+            }
 
             if (accepted)
             {
                 DispatchAcceptedCount++;
-                // Exactly-once: this exact shell can never deliver a second
-                // transition, whichever exact binding proved its ownership.
-                if (deliveringShell != null)
-                {
-                    deliveringShell.Consumed = true;
-                    RecordShellLifecycle(NativeShellStage.DeliverConsumed, deliveringShell.ControlIdentity,
-                        "consumed", "kind=" + deliveringShell.Kind);
-                }
             }
             else
             {

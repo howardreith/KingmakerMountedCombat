@@ -93,7 +93,9 @@ namespace KingmakerMountedCombat
                     dollRoomIk,
                     settings,
                     Main.InvokeRegisteredToggleForAutomation,
-                    DetachIntegrationForAutomation);
+                    DetachIntegrationForAutomation,
+                    () => unifiedTurn.ActivationIdentity != null,
+                    () => unifiedTurn.PartnerContext != null);
                 if (runtimeAutomation != null && !runtimeAutomation.IsManualReview)
                 {
                     movementTelemetry = new MovementTelemetryWriter(

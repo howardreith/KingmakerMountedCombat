@@ -49,9 +49,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly DiagnosticSettings diagnosticSettings;
         // No-save smoke scoping: applied once, with the shipped defaults it replaced
         // recorded so the evidence still carries them.
-        private bool noSaveSmokeScopeApplied;
-        private bool shippedMovementExperimentEnabled;
-        private bool shippedPairedActivationEnabled;
+        private readonly Func<bool> pairedActivationPresentProvider;
+        private readonly Func<bool> pairedPartnerContextPresentProvider;
+        private ModLoadSmokeObservation smokeObservation;
         private readonly Func<bool, bool> registeredToggle;
         private readonly Func<bool> detachIntegration;
         private readonly MountedRemovalPreparation removal;
@@ -94,6 +94,9 @@ namespace KingmakerMountedCombat.Diagnostics
         public string Scenario => request.Scenario;
 
         internal bool RequiresLegacyDiagnosticOverlay =>
+            // The mod-load smoke is observational and asserts that no overlay object
+            // exists, so it must never be the reason one is created.
+            request.Scenario != ModLoadSmokePolicy.ScenarioId &&
             request.Scenario != PersistenceIsolationBootstrap.Scenario &&
             request.Scenario != Phase3dHorseScenarioTranche.RealTimeScenario &&
             request.Scenario != Phase3dHorseScenarioTranche.Phase3gRealTimeScenario &&
@@ -150,10 +153,16 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle,
-            Func<bool> detachIntegration)
+            Func<bool> detachIntegration,
+            Func<bool> pairedActivationPresentProvider,
+            Func<bool> pairedPartnerContextPresentProvider)
         {
             this.logger = logger;
             this.request = request;
+            this.pairedActivationPresentProvider = pairedActivationPresentProvider ??
+                throw new ArgumentNullException(nameof(pairedActivationPresentProvider));
+            this.pairedPartnerContextPresentProvider = pairedPartnerContextPresentProvider ??
+                throw new ArgumentNullException(nameof(pairedPartnerContextPresentProvider));
             this.removal = removal ?? throw new ArgumentNullException(nameof(removal));
             this.detachIntegration = detachIntegration ?? throw new ArgumentNullException(nameof(detachIntegration));
             this.loadedModId = loadedModId;
@@ -208,7 +217,9 @@ namespace KingmakerMountedCombat.Diagnostics
             MountedDollRoomIkAdapter dollRoomIk,
             DiagnosticSettings diagnosticSettings,
             Func<bool, bool> registeredToggle,
-            Func<bool> detachIntegration)
+            Func<bool> detachIntegration,
+            Func<bool> pairedActivationPresentProvider,
+            Func<bool> pairedPartnerContextPresentProvider)
         {
             if (logger == null)
             {
@@ -276,7 +287,8 @@ namespace KingmakerMountedCombat.Diagnostics
             logger.Info("Runtime automation request accepted: " + request.RunId + " / " + request.Scenario);
             return new RuntimeAutomationHost(logger, request, loadedModId, relationshipStateProvider, movementExperimentProvider,
                 saveAuthorization, relationship, lifecycle, playerAction, combat, horseCompanion, nativeControls, persistence,
-                removal, animation, dollRoomIk, diagnosticSettings, registeredToggle, detachIntegration);
+                removal, animation, dollRoomIk, diagnosticSettings, registeredToggle, detachIntegration,
+                pairedActivationPresentProvider, pairedPartnerContextPresentProvider);
         }
 
         internal static void ObserveSaveRequest()
@@ -418,6 +430,34 @@ namespace KingmakerMountedCombat.Diagnostics
                     Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : new string('0', 64),
                     RelationshipState = "Unmounted",
                     MovementExperimentEnabled = false,
+                    // A bootstrap failure means the composition root never finished, so
+                    // there are no settings and no services to read. Every observational
+                    // field is therefore NOT OBSERVED rather than false: publishing false
+                    // here would claim defaults this run never looked at, and the
+                    // validator accepts nulls only on a FAIL result like this one.
+                    ExpectedModId = "KingmakerMountedCombat",
+                    ExpectedProductVersion = request.ProductVersion,
+                    GamePresent = Kingmaker.Game.Instance != null,
+                    ShippedMovementExperimentEnabled = null,
+                    ShippedPairedActivationEnabled = null,
+                    ShippedUnifiedMountedTurnEnabled = null,
+                    ShippedPairedCommandSchedulerEnabled = null,
+                    ShippedDiagnosticOverlayEnabled = null,
+                    SettingsMutatedByScenario = false,
+                    RelationshipTransitionInFlight = null,
+                    RegisteredRelationshipShellCount = null,
+                    RelationshipProcessBindingCount = null,
+                    PoisonedExecutionContextCount = null,
+                    NativeCastRequestCount = null,
+                    DispatchAcceptedCount = null,
+                    DispatchRejectedCount = null,
+                    PairedActivationPresent = null,
+                    PairedPartnerContextPresent = null,
+                    ManagedControlFactCount = null,
+                    DuplicateControlFactCount = null,
+                    ManagedHotbarSlotCount = null,
+                    OverlayObjectPresent = null,
+                    ControlServiceSerializationSuspended = null,
                     ProcessId = Process.GetCurrentProcess().Id,
                     CurrentGameMode = Kingmaker.Game.Instance == null ? "Unavailable" : Kingmaker.Game.Instance.CurrentMode.ToString(),
                     LoadedAreaPresent = Kingmaker.Game.Instance != null && Kingmaker.Game.Instance.CurrentlyLoadedArea != null,
@@ -485,70 +525,77 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
 
-                if (!string.Equals(request.Scenario, "mod-load-smoke", StringComparison.Ordinal))
+                if (!string.Equals(request.Scenario, ModLoadSmokePolicy.ScenarioId, StringComparison.Ordinal))
                 {
                     Complete("FAIL", new[] { "Schema-v1 diagnostic build implements only mod-load-smoke." });
                     return;
                 }
 
-                // A no-save smoke proves one thing: this exact DLL loads cleanly at
-                // the main menu and nothing gameplay-bearing is live. It exercises no
-                // experiment, so it scopes every experiment OFF for its own duration
-                // before asserting that none is active.
+                // A no-save smoke proves one thing: this exact DLL loads cleanly at the
+                // main menu and nothing gameplay-bearing is live. It is purely
+                // OBSERVATIONAL. The earlier version switched every experiment off for
+                // its own duration and then asserted they were off, which meant the run
+                // produced the state it reported; and because it wrote to
+                // DiagnosticSettings it could not honestly describe the product's real
+                // defaults. It now reads the live settings, publishes them verbatim, and
+                // asserts the absence of gameplay state directly.
                 //
-                // The shipped defaults are recorded first and published in the
-                // evidence, because the smoke must not hide them. The private-alpha
-                // mounted player action ships ENABLED, and that is a fact about the
-                // product rather than a safety failure at a menu with no area loaded;
-                // before this, the smoke read that default and failed, which is why no
-                // no-save smoke had been able to pass since the default was flipped.
-                if (!noSaveSmokeScopeApplied)
-                {
-                    noSaveSmokeScopeApplied = true;
-                    shippedMovementExperimentEnabled = diagnosticSettings.EnableUnsafeMovementExperiment;
-                    shippedPairedActivationEnabled = diagnosticSettings.EnablePairedActivation;
-                    diagnosticSettings.EnableUnsafeMovementExperiment = false;
-                    diagnosticSettings.EnablePairedActivation = false;
-                    diagnosticSettings.EnableUnifiedMountedTurn = false;
-                    diagnosticSettings.EnablePairedCommandScheduler = false;
-                    diagnosticSettings.EnableDiagnosticOverlay = false;
-                    logger.Info("No-save smoke scoped every experiment off; shipped defaults were " +
-                        "movementExperiment=" + shippedMovementExperimentEnabled +
-                        " pairedActivation=" + shippedPairedActivationEnabled + ".");
-                    // Assert on a later frame, so the providers observe the scoped state.
-                    return;
-                }
-
-                var safetyErrors = new List<string>();
-                if (diagnosticSettings.EnableUnsafeMovementExperiment ||
-                    diagnosticSettings.EnablePairedActivation ||
-                    diagnosticSettings.EnableUnifiedMountedTurn ||
-                    diagnosticSettings.EnablePairedCommandScheduler ||
-                    diagnosticSettings.EnableDiagnosticOverlay)
-                {
-                    safetyErrors.Add("No-save smoke could not scope every experiment off.");
-                }
-                var game = Kingmaker.Game.Instance;
-                if (game == null || game.CurrentlyLoadedArea != null)
-                {
-                    safetyErrors.Add("No-save smoke observed a loaded campaign area or missing game singleton.");
-                }
-                if (saveRequestCount != 0 || loadRequestCount != 0)
-                {
-                    safetyErrors.Add("No-save smoke observed a save/load request.");
-                }
-                if (!string.Equals(relationshipStateProvider(), "Unmounted", StringComparison.Ordinal) || movementExperimentProvider())
-                {
-                    safetyErrors.Add("No-save smoke observed mounted state or an enabled movement experiment.");
-                }
-
-                Complete(safetyErrors.Count == 0 ? "PASS" : "FAIL", safetyErrors);
+                // The private-alpha mounted movement feature ships ENABLED. That is a
+                // fact about the product, not a safety failure at a menu with no area
+                // loaded, so it is recorded rather than suppressed.
+                smokeObservation = ObserveModLoadSmoke();
+                var smokeErrors = ModLoadSmokePolicy.Validate(smokeObservation);
+                Complete(smokeErrors.Count == 0 ? "PASS" : "FAIL", smokeErrors);
             }
             catch (Exception exception)
             {
                 logger.Exception("Runtime automation", exception);
                 TryCompleteFailure(exception);
             }
+        }
+
+        // Reads only. Nothing here writes a setting, leases a fact, creates an overlay,
+        // enters an area, or requests a save; the snapshot the control service returns is
+        // itself a read-only capture.
+        private ModLoadSmokeObservation ObserveModLoadSmoke()
+        {
+            var game = Kingmaker.Game.Instance;
+            var controls = nativeControls.CaptureSnapshot();
+            return new ModLoadSmokeObservation
+            {
+                LoadedModId = loadedModId,
+                ExpectedModId = "KingmakerMountedCombat",
+                ProductVersion = BuildIdentity.ProductVersion,
+                ExpectedProductVersion = request.ProductVersion,
+                GamePresent = game != null,
+                LoadedAreaPresent = game != null && game.CurrentlyLoadedArea != null,
+                CurrentGameMode = game == null ? null : game.CurrentMode.ToString(),
+
+                ShippedMovementExperimentEnabled = diagnosticSettings.EnableUnsafeMovementExperiment,
+                ShippedPairedActivationEnabled = diagnosticSettings.EnablePairedActivation,
+                ShippedUnifiedMountedTurnEnabled = diagnosticSettings.EnableUnifiedMountedTurn,
+                ShippedPairedCommandSchedulerEnabled = diagnosticSettings.EnablePairedCommandScheduler,
+                ShippedDiagnosticOverlayEnabled = diagnosticSettings.EnableDiagnosticOverlay,
+                SettingsMutatedByScenario = false,
+
+                RelationshipState = relationshipStateProvider(),
+                SaveRequestCount = saveRequestCount,
+                LoadRequestCount = loadRequestCount,
+                RelationshipTransitionInFlight = nativeControls.HasUnsettledRelationshipTransition,
+                RegisteredRelationshipShellCount = nativeControls.NativeRelationshipShellCount,
+                RelationshipProcessBindingCount = nativeControls.NativeRelationshipProcessBindingCount,
+                PoisonedExecutionContextCount = nativeControls.PoisonedExecutionContextCount,
+                NativeCastRequestCount = controls.NativeCastRequestCount,
+                DispatchAcceptedCount = controls.DispatchAcceptedCount,
+                DispatchRejectedCount = controls.DispatchRejectedCount,
+                PairedActivationPresent = pairedActivationPresentProvider(),
+                PairedPartnerContextPresent = pairedPartnerContextPresentProvider(),
+                ManagedControlFactCount = controls.ExactFactCount,
+                DuplicateControlFactCount = controls.DuplicateFactCount,
+                ManagedHotbarSlotCount = controls.ManagedHotbarSlotCount,
+                OverlayObjectPresent = playerAction.OverlayPresent,
+                ControlServiceSerializationSuspended = controls.SerializationSuspended
+            };
         }
 
         private void UpdateSaveBackedScenario()
@@ -1077,7 +1124,10 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private RuntimeGameResult CreateNoSaveResult(string status, IReadOnlyList<string> errors)
         {
-
+            // The observation the decision was made from, so the evidence and the verdict
+            // can never describe different states. A failure reached before the scenario
+            // ran observes now rather than publishing defaults it never read.
+            var smoke = smokeObservation ?? ObserveModLoadSmoke();
             var modAssembly = typeof(Main).Assembly;
             var gameAssembly = typeof(Kingmaker.Game).Assembly;
             var ummAssembly = typeof(UnityModManager).Assembly;
@@ -1107,8 +1157,29 @@ namespace KingmakerMountedCombat.Diagnostics
                 Harmony12Sha256 = File.Exists(harmonyPath) ? ComputeSha256(harmonyPath) : null,
                 RelationshipState = relationshipStateProvider(),
                 MovementExperimentEnabled = movementExperimentProvider(),
-                ShippedMovementExperimentEnabled = shippedMovementExperimentEnabled,
-                ShippedPairedActivationEnabled = shippedPairedActivationEnabled,
+                ExpectedModId = smoke.ExpectedModId,
+                ExpectedProductVersion = smoke.ExpectedProductVersion,
+                GamePresent = smoke.GamePresent,
+                ShippedMovementExperimentEnabled = smoke.ShippedMovementExperimentEnabled,
+                ShippedPairedActivationEnabled = smoke.ShippedPairedActivationEnabled,
+                ShippedUnifiedMountedTurnEnabled = smoke.ShippedUnifiedMountedTurnEnabled,
+                ShippedPairedCommandSchedulerEnabled = smoke.ShippedPairedCommandSchedulerEnabled,
+                ShippedDiagnosticOverlayEnabled = smoke.ShippedDiagnosticOverlayEnabled,
+                SettingsMutatedByScenario = smoke.SettingsMutatedByScenario,
+                RelationshipTransitionInFlight = smoke.RelationshipTransitionInFlight,
+                RegisteredRelationshipShellCount = smoke.RegisteredRelationshipShellCount,
+                RelationshipProcessBindingCount = smoke.RelationshipProcessBindingCount,
+                PoisonedExecutionContextCount = smoke.PoisonedExecutionContextCount,
+                NativeCastRequestCount = smoke.NativeCastRequestCount,
+                DispatchAcceptedCount = smoke.DispatchAcceptedCount,
+                DispatchRejectedCount = smoke.DispatchRejectedCount,
+                PairedActivationPresent = smoke.PairedActivationPresent,
+                PairedPartnerContextPresent = smoke.PairedPartnerContextPresent,
+                ManagedControlFactCount = smoke.ManagedControlFactCount,
+                DuplicateControlFactCount = smoke.DuplicateControlFactCount,
+                ManagedHotbarSlotCount = smoke.ManagedHotbarSlotCount,
+                OverlayObjectPresent = smoke.OverlayObjectPresent,
+                ControlServiceSerializationSuspended = smoke.ControlServiceSerializationSuspended,
                 ProcessId = Process.GetCurrentProcess().Id,
                 CurrentGameMode = Kingmaker.Game.Instance == null ? null : Kingmaker.Game.Instance.CurrentMode.ToString(),
                 LoadedAreaPresent = Kingmaker.Game.Instance != null && Kingmaker.Game.Instance.CurrentlyLoadedArea != null,
@@ -1808,11 +1879,34 @@ namespace KingmakerMountedCombat.Diagnostics
             public string Harmony12Sha256 { get; set; }
             public string RelationshipState { get; set; }
             public bool MovementExperimentEnabled { get; set; }
-            // The defaults the loaded build shipped with, before the no-save smoke
-            // scoped every experiment off. Recorded so the smoke publishes the
-            // product's real defaults instead of hiding them behind its own scope.
-            public bool ShippedMovementExperimentEnabled { get; set; }
-            public bool ShippedPairedActivationEnabled { get; set; }
+            // The complete mod-load-smoke observation. The smoke changes nothing, so every
+            // field here is a fact read from live state and published verbatim; a null is
+            // "not observed" and is lawful only on a bootstrap failure, where the
+            // composition root never finished building. ModLoadSmokePolicy.PublishedFields
+            // pins this same set for the validator.
+            public string ExpectedModId { get; set; }
+            public string ExpectedProductVersion { get; set; }
+            public bool GamePresent { get; set; }
+            public bool? ShippedMovementExperimentEnabled { get; set; }
+            public bool? ShippedPairedActivationEnabled { get; set; }
+            public bool? ShippedUnifiedMountedTurnEnabled { get; set; }
+            public bool? ShippedPairedCommandSchedulerEnabled { get; set; }
+            public bool? ShippedDiagnosticOverlayEnabled { get; set; }
+            public bool SettingsMutatedByScenario { get; set; }
+            public bool? RelationshipTransitionInFlight { get; set; }
+            public long? RegisteredRelationshipShellCount { get; set; }
+            public long? RelationshipProcessBindingCount { get; set; }
+            public long? PoisonedExecutionContextCount { get; set; }
+            public long? NativeCastRequestCount { get; set; }
+            public long? DispatchAcceptedCount { get; set; }
+            public long? DispatchRejectedCount { get; set; }
+            public bool? PairedActivationPresent { get; set; }
+            public bool? PairedPartnerContextPresent { get; set; }
+            public long? ManagedControlFactCount { get; set; }
+            public long? DuplicateControlFactCount { get; set; }
+            public long? ManagedHotbarSlotCount { get; set; }
+            public bool? OverlayObjectPresent { get; set; }
+            public bool? ControlServiceSerializationSuspended { get; set; }
             public int ProcessId { get; set; }
             public string CurrentGameMode { get; set; }
             public bool LoadedAreaPresent { get; set; }

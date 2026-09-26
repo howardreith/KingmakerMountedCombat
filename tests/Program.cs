@@ -516,6 +516,8 @@ namespace KingmakerMountedCombat.Tests
             MountedRiderGroundingPolicyTests.Register(runner);
             MountedStabilizationPolicyTests.Register(runner);
             NativeMountedControlPolicyTests.Register(runner);
+            NativeShellBindingPolicyTests.Register(runner);
+            ModLoadSmokePolicyTests.Register(runner);
             UnifiedMountedTurnPolicyTests.Register(runner);
             PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);

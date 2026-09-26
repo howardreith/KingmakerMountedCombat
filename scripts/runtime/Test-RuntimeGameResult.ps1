@@ -228,10 +228,21 @@ $fingerprint = Read-KmcJson $FingerprintPath
 $schemaVersion = [int]$request.schemaVersion
 $commonRequired = @('schemaVersion','runId','scenario','status','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','startedAtUtc','completedAtUtc','loadedModId','gameVersion','gameAssemblySha256','gameAssemblyMvid','ummVersion','ummSha256','harmony12Version','harmony12Sha256','relationshipState','movementExperimentEnabled','processId','currentGameMode','loadedAreaPresent','saveRequestCount','loadRequestCount','frameCount','elapsedSeconds','errors')
 if ($schemaVersion -eq 1) {
-    # The no-save smoke scopes every experiment off for its own duration and
-    # publishes the defaults the loaded build shipped with, so those two
-    # observations are part of the v1 result's exact property set.
-    $v1Fields = @('shippedMovementExperimentEnabled','shippedPairedActivationEnabled')
+    # The no-save smoke is purely observational: it changes nothing and publishes the
+    # live state it read, including the defaults the loaded build shipped with. This
+    # list is the exact mirror of ModLoadSmokePolicy.PublishedFields, so a field cannot
+    # be added on the product side and forgotten here.
+    $v1Fields = @(
+        'expectedModId','expectedProductVersion','gamePresent',
+        'shippedMovementExperimentEnabled','shippedPairedActivationEnabled',
+        'shippedUnifiedMountedTurnEnabled','shippedPairedCommandSchedulerEnabled',
+        'shippedDiagnosticOverlayEnabled','settingsMutatedByScenario',
+        'relationshipTransitionInFlight','registeredRelationshipShellCount',
+        'relationshipProcessBindingCount','poisonedExecutionContextCount',
+        'nativeCastRequestCount','dispatchAcceptedCount','dispatchRejectedCount',
+        'pairedActivationPresent','pairedPartnerContextPresent',
+        'managedControlFactCount','duplicateControlFactCount','managedHotbarSlotCount',
+        'overlayObjectPresent','controlServiceSerializationSuspended')
     Assert-KmcExactProperties $game @($commonRequired + $v1Fields) 'runtime game result v1'
 }
 elseif ($schemaVersion -eq 2) {
@@ -269,15 +280,57 @@ if ([string]$game.status -ceq 'FAIL' -and @($game.errors).Count -eq 0) {
 if ($RequirePass -and [string]$game.status -cne 'PASS') { throw 'Runtime game result did not qualify as PASS.' }
 
 if ($schemaVersion -eq 1) {
-    if ([string]$game.relationshipState -cne 'Unmounted' -or $game.movementExperimentEnabled -ne $false -or
-        $game.loadedAreaPresent -ne $false -or [int]$game.saveRequestCount -ne 0 -or [int]$game.loadRequestCount -ne 0) { throw 'Runtime game-result safety state is not an unmounted no-save smoke PASS.' }
-    # The shipped defaults are observations, not a gate: either value is lawful and
-    # both must be recorded as booleans so the smoke cannot omit them.
-    if ($game.shippedMovementExperimentEnabled -isnot [bool] -or
-        $game.shippedPairedActivationEnabled -isnot [bool]) {
-        throw 'No-save smoke did not record the defaults the loaded build shipped with.'
+    if ([string]$game.scenario -cne 'mod-load-smoke') { throw 'Schema-v1 evidence names a scenario other than mod-load-smoke.' }
+    # Identity the observation itself carries, independent of the request echo above.
+    if ([string]$game.expectedModId -cne 'KingmakerMountedCombat' -or
+        [string]$game.loadedModId -cne [string]$game.expectedModId -or
+        [string]$game.expectedProductVersion -cne [string]$request.productVersion -or
+        [string]$game.productVersion -cne [string]$game.expectedProductVersion) {
+        throw 'Mod-load smoke evidence does not bind the exact mod id and product version it observed.'
     }
-    Write-Host 'TOTAL PASS=26 FAIL=0'
+    # The smoke changes nothing. This is asserted, not inferred from the absence of code.
+    if ($game.settingsMutatedByScenario -ne $false) { throw 'Mod-load smoke reported mutating a diagnostic setting.' }
+    # The shipped settings are published observations, not gates: either value is lawful.
+    # All five must be recorded as booleans on a PASS so the evidence cannot claim a
+    # default it never read, and the live movement-experiment reading must equal the
+    # shipped one -- an observational smoke has no scope of its own to diverge from.
+    $shippedFields = @('shippedMovementExperimentEnabled','shippedPairedActivationEnabled',
+        'shippedUnifiedMountedTurnEnabled','shippedPairedCommandSchedulerEnabled','shippedDiagnosticOverlayEnabled')
+    # Every forbidden active state, asserted directly rather than through a scoped proxy.
+    $absentFlags = @('loadedAreaPresent','relationshipTransitionInFlight','pairedActivationPresent',
+        'pairedPartnerContextPresent','overlayObjectPresent','controlServiceSerializationSuspended')
+    $zeroCounts = @('saveRequestCount','loadRequestCount','registeredRelationshipShellCount',
+        'relationshipProcessBindingCount','poisonedExecutionContextCount','nativeCastRequestCount',
+        'dispatchAcceptedCount','dispatchRejectedCount','managedControlFactCount',
+        'duplicateControlFactCount','managedHotbarSlotCount')
+    if ([string]$game.status -ceq 'PASS') {
+        if ($game.gamePresent -ne $true) { throw 'Mod-load smoke PASS observed no game singleton.' }
+        if ([string]$game.relationshipState -cne 'Unmounted') { throw 'Mod-load smoke PASS is not unmounted.' }
+        foreach ($name in $shippedFields) {
+            if ($game.$name -isnot [bool]) { throw "Mod-load smoke PASS did not record the shipped setting: $name" }
+        }
+        if ($game.movementExperimentEnabled -ne $game.shippedMovementExperimentEnabled) {
+            throw 'Mod-load smoke PASS reported a live movement-experiment state that differs from the shipped default it published.'
+        }
+        foreach ($name in $absentFlags) {
+            if ($game.$name -isnot [bool] -or $game.$name -ne $false) { throw "Mod-load smoke PASS observed active state: $name" }
+        }
+        foreach ($name in $zeroCounts) {
+            if (-not (Test-ExactJsonInteger $game.$name) -or [long]$game.$name -ne 0) { throw "Mod-load smoke PASS observed a non-zero count: $name" }
+        }
+    }
+    else {
+        # A bootstrap failure never finished building the composition root, so it has no
+        # settings and no services to read. Nulls are lawful there and nowhere else, and
+        # a recorded value must still be of the right type.
+        foreach ($name in ($shippedFields + $absentFlags)) {
+            if ($null -ne $game.$name -and $game.$name -isnot [bool]) { throw "Mod-load smoke FAIL recorded a non-boolean observation: $name" }
+        }
+        foreach ($name in $zeroCounts) {
+            if ($null -ne $game.$name -and -not (Test-ExactJsonInteger $game.$name)) { throw "Mod-load smoke FAIL recorded a non-integral count: $name" }
+        }
+    }
+    Write-Host 'TOTAL PASS=27 FAIL=0'
     return
 }
 

@@ -345,21 +345,59 @@ Assert-Kmc ($bindBody.Success -and
     $bindBody.Value -match '!ReferenceEquals\(bound, shell\)' -and
     $bindBody.Value -notmatch 'Cooldown\.|\.Prepare\(\)|ForceToEnd|JoinCombat|StartTurn') `
     'the relationship shell binds to its own command''s exact execution context at the OnAction boundary'
+# The binding ORDER and the refusal set are one typed policy, so every combination is
+# provable offline instead of only readable in the service.
+$bindingPolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\NativeShellBindingPolicy.cs')
+$bindingResolveBody = [Regex]::Match($bindingPolicyText, '(?s)public static NativeShellBindingOutcome Resolve\(.*?\n        \}')
+Assert-Kmc ($bindingResolveBody.Success -and
+    # Poisoned first, before the slot is even computed.
+    $bindingResolveBody.Value.IndexOf('contextPresent && contextPoisoned') -ge 0 -and
+    $bindingResolveBody.Value.IndexOf('contextPresent && contextPoisoned') -lt
+        $bindingResolveBody.Value.IndexOf('AdmitsSynchronousMoveSlot(') -and
+    # Then disagreement, and only then either binding.
+    $bindingResolveBody.Value.IndexOf('contextShellPresent && slotAdmitted && !bindingsAgree') -lt
+        $bindingResolveBody.Value.IndexOf('if (contextShellPresent)') -and
+    $bindingResolveBody.Value.IndexOf('if (contextShellPresent)') -lt
+        $bindingResolveBody.Value.IndexOf('if (slotAdmitted)') -and
+    # The slot is admitted ONLY when its own process created this exact context.
+    $bindingPolicyText -match 'return contextPresent && slotPresent && slotOwnsThisContext && slotShellPresent;' -and
+    # Only a disagreement poisons the execution; every other refusal rides on the shell.
+    $bindingPolicyText -match 'return outcome == NativeShellBindingOutcome\.Disagreement;' -and
+    $bindingPolicyText -match 'PoisonedContextRefusal =' -and
+    $bindingPolicyText -match 'DisagreementRefusal =\s*\r?\n?\s*"Two different mounted transitions claim this native execution\."' -and
+    $bindingPolicyText -match 'NoOwnershipRefusal =' -and
+    # A pure decision: it reaches no native state and performs no lookup of its own.
+    $bindingPolicyText -notmatch 'UnitEntityData|AbilityExecutionContext|relationshipShells|OrderBy|\.Last\(|FirstOrDefault\(') `
+    'the two-binding resolution order and its refusal set are one pure typed policy'
 Assert-Kmc ($resolveShellBody.Success -and
-    # The authoritative context binding.
-    $resolveShellBody.Value -match 'relationshipShellContexts\.TryGetValue\(context, out contextShell\)' -and
+    # The authoritative context binding, and it is never read from a poisoned context.
+    $resolveShellBody.Value -match 'if \(context != null && !contextPoisoned\) \{ relationshipShellContexts\.TryGetValue\(context, out contextShell\); \}' -and
     # The Move-slot route is admitted ONLY for synchronous delivery: that slot command's
     # own execution process must have created this very context.
     $resolveShellBody.Value -match 'ReferenceEquals\(slot\.ExecutionProcess\?\.Context, context\)' -and
     $resolveShellBody.Value -match 'if \(slotOwnsThisContext\) \{ relationshipShells\.TryGetValue\(slot, out slotShell\); \}' -and
-    # Disagreement between two present bindings is an explicit refusal, not a preference.
-    $resolveShellBody.Value -match 'contextShell != null && slotShell != null && !ReferenceEquals\(contextShell, slotShell\)' -and
-    $resolveShellBody.Value -match 'Two different mounted transitions claim this native execution\.' -and
+    # A poisoned context is detected FIRST, before the Move slot is consulted at all, so
+    # an unresolvable conflict can never be salvaged by the slot's later contents.
+    ($resolveShellBody.Value.IndexOf('poisonedContexts.TryGetValue(context, out poison)') -ge 0) -and
+    ($resolveShellBody.Value.IndexOf('poisonedContexts.TryGetValue(context, out poison)') -lt
+        $resolveShellBody.Value.IndexOf('GetCommand(UnitCommand.CommandType.Move)')) -and
+    # The service asks the typed policy for the decision and passes exactly the observed
+    # state -- it does not re-derive the ordering here.
+    $resolveShellBody.Value -match '(?s)var outcome = NativeShellBindingPolicy\.Resolve\(\s*\r?\n\s*context != null,\s*\r?\n\s*contextPoisoned,\s*\r?\n\s*contextShell != null,\s*\r?\n\s*slot != null,\s*\r?\n\s*slotOwnsThisContext,\s*\r?\n\s*slotShell != null,\s*\r?\n\s*ReferenceEquals\(contextShell, slotShell\),\s*\r?\n\s*out refusal\)' -and
+    # Each of the three refusal outcomes returns null, and disagreement also poisons the
+    # context so it stays terminal after the Move slot disappears.
+    $resolveShellBody.Value -match 'if \(outcome == NativeShellBindingOutcome\.PoisonedContext\)' -and
+    $resolveShellBody.Value -match 'if \(outcome == NativeShellBindingOutcome\.Disagreement\)' -and
+    $resolveShellBody.Value -match 'if \(outcome == NativeShellBindingOutcome\.NoExactOwnership\)' -and
+    $resolveShellBody.Value -match 'PoisonExecutionContext\(context, contextShell, slotShell\)' -and
+    ([Regex]::Matches($resolveShellBody.Value, 'NativeShellBindingOutcome\.Disagreement').Count -eq 1) -and
+    # The accepted shell comes from whichever binding the policy named, never from a third source.
+    $resolveShellBody.Value -match 'var shell = outcome == NativeShellBindingOutcome\.ExecutionContext \? contextShell : slotShell;' -and
     # A retired or consumed shell can never resolve again.
     $resolveShellBody.Value -match 'if \(shell\.Retired\)' -and
     $resolveShellBody.Value -match 'if \(shell\.Consumed\)' -and
-    # Every permanent refusal retires the shell.
-    ([Regex]::Matches($resolveShellBody.Value, 'RetireShell\(').Count -ge 7) -and
+    # Every permanent identity refusal retires the shell.
+    ([Regex]::Matches($resolveShellBody.Value, 'RetireShell\(').Count -ge 5) -and
     # No loose lookup of any kind. Comment lines are stripped first so the guard tests
     # the code rather than the prose that describes it.
     (($resolveShellBody.Value -split "`n" | Where-Object { $_ -notmatch '^\s*//' }) -join "`n") -notmatch
@@ -415,18 +453,65 @@ Assert-Kmc ($mountRiderBody.Success -and
     $mountRiderBody.Value -match '(?s)if \(inCombat\)[\s\S]{0,400}MountedAuthorityPolicy\.DescribeUnqualifiedCombatMount\([\s\S]{0,300}settings\.EnablePairedActivation' -and
     $mountRiderBody.Value -match 'if \(authorityRefusal != null\)' -and
     $mountRiderBody.Value.IndexOf('MountedAuthorityPolicy.DescribeUnqualifiedCombatMount') -lt
-        $mountRiderBody.Value.IndexOf('coordinator.Mount(runtime.CreateCandidate(), admission)')) `
-    'execution-time admission refuses an unqualified authority before any commitment'
+        $mountRiderBody.Value.IndexOf('coordinator.Mount(runtime.CreateCandidate(), admission)') -and
+    # This gate runs AFTER Kingmaker committed the Move, so it protects the relationship,
+    # never the cost. The refusal path must therefore refund, clear and zero nothing, and
+    # must not book a cleanup in order to undo the committed action.
+    $mountRiderBody.Value -notmatch 'Cooldown|Refund|RestoreAction|\.Prepare\(\)|ForceToEnd|RecordForcedDetach' -and
+    # The refusal returns a failed TransitionResult; it does not throw the cost away.
+    $mountRiderBody.Value -match 'if \(authorityRefusal != null\)[\s\S]{0,200}return Record\(new TransitionResult\(false,') `
+    'execution-time admission refuses an unqualified authority before the relationship forms and refunds nothing'
 
-# The Dismount escape hatch: a mounted or faulted rider is never stranded, and it comes
-# before every feature gate. Mount stays feature-gated.
+# The Dismount escape hatch: a mounted or faulted rider is never stranded, and the escape
+# precedes every feature gate on ALL FOUR surfaces -- leasing, availability, targeting and
+# delivery -- through ONE typed policy. Mount and the mounted attack controls stay gated.
 $leasePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\NativeMountedControl.cs')
+$escapePolicyBody = [Regex]::Match($leasePolicyText, '(?s)public static bool IsDismountEscape\(.*?\n        \}')
+Assert-Kmc ($escapePolicyBody.Success -and
+    $escapePolicyBody.Value -match 'return kind == NativeMountedControlKind\.Dismount &&\s*\r?\n\s*\(relationshipMounted \|\| relationshipFaulted\) && unitIsRider;' -and
+    ([Regex]::Matches($leasePolicyText, 'public static bool IsDismountEscape\(').Count -eq 1)) `
+    'the Dismount escape is exactly one typed policy over the mounted or faulted exact rider'
+
+# Surface 1 of 4 -- leasing. The escape is asked before the feature gate, and the old
+# inline copy of the predicate must be gone so there is only one decision to audit.
 $leaseBody = [Regex]::Match($leasePolicyText, '(?s)public static bool ShouldLease\(\s*\r?\n\s*NativeMountedControlKind kind,\s*\r?\n\s*bool featureEnabled,\s*\r?\n\s*bool unifiedMountedTurn,.*?\n        \}')
-$escapeIndex = $leaseBody.Value.IndexOf('kind == NativeMountedControlKind.Dismount &&')
-$featureGateIndex = $leaseBody.Value.IndexOf('if (!featureEnabled)')
-Assert-Kmc ($leaseBody.Success -and $escapeIndex -ge 0 -and $featureGateIndex -gt $escapeIndex -and
-    $leaseBody.Value -match '\(relationshipMounted \|\| relationshipFaulted\) && unitIsRider') `
+$leaseEscapeIndex = $leaseBody.Value.IndexOf('IsDismountEscape(kind, relationshipMounted, relationshipFaulted, unitIsRider)')
+$leaseGateIndex = $leaseBody.Value.IndexOf('if (!featureEnabled)')
+Assert-Kmc ($leaseBody.Success -and $leaseEscapeIndex -ge 0 -and $leaseGateIndex -gt $leaseEscapeIndex -and
+    $leaseBody.Value.IndexOf('(relationshipMounted || relationshipFaulted) && unitIsRider') -lt 0) `
     'a mounted or faulted rider keeps its native Dismount lease ahead of every feature gate'
+
+# Surface 2 of 4 -- availability. Without this the fact stays VISIBLE but DISABLED once
+# the movement feature is switched off, which strands the pair exactly as removing the
+# lease would. The gate itself must be conditioned on the escape, not merely preceded by it.
+$availabilityBody = [Regex]::Match($nativeControlsText, '(?s)internal NativeMountedControlAvailability Evaluate\(\s*\r?\n\s*NativeMountedControlKind kind,\s*\r?\n\s*UnitEntityData caster\).*?\n        \}\r?\n')
+$availabilityEscapeIndex = $availabilityBody.Value.IndexOf('NativeMountedControlPolicy.IsDismountEscape(')
+$availabilityGateIndex = $availabilityBody.Value.IndexOf('if (!escapeApplies && !settings.EnableUnsafeMovementExperiment)')
+Assert-Kmc ($availabilityBody.Success -and $availabilityEscapeIndex -ge 0 -and
+    $availabilityGateIndex -gt $availabilityEscapeIndex -and
+    $availabilityBody.Value -match 'relationship\.State == RelationshipState\.Mounted,\s*\r?\n\s*relationship\.State == RelationshipState\.Faulted,\s*\r?\n\s*caster == relationship\.Rider\)' -and
+    ([Regex]::Matches($availabilityBody.Value, 'if \(!settings\.EnableUnsafeMovementExperiment\)').Count -eq 0)) `
+    'availability consults the same escape before the movement-feature gate, so a live pair is never visible-but-disabled'
+
+# Surface 3 of 4 -- targeting inherits the one decision instead of re-deriving it.
+$canTargetBody = [Regex]::Match($nativeControlsText, '(?s)internal bool CanTarget\(.*?\n        \}\r?\n')
+Assert-Kmc ($canTargetBody.Success -and
+    $canTargetBody.Value -match 'if \(!Evaluate\(kind, caster\)\.IsEnabled\)' -and
+    $canTargetBody.Value.IndexOf('EnableUnsafeMovementExperiment') -lt 0 -and
+    $canTargetBody.Value -match 'case NativeMountedControlKind\.Dismount:\s*\r?\n?\s*return target == caster;') `
+    'targeting inherits the one escape decision through availability and never re-derives a feature gate'
+
+# Surface 4 of 4 -- delivery. TryExecuteNativeDismount admits through the shared evaluator,
+# whose Dismount branch must never consult FeatureEnabled: that branch is the live pair's
+# only lawful way to separate. The Mount branch keeps its gate.
+$dismountBranch = [Regex]::Match($evaluatorText, '(?s)var dismountReasons = new List<string>\(\);.*?MountedPlayerActionKind\.Dismount,\s*\r?\n\s*"Dismount",')
+$faultedBranch = [Regex]::Match($evaluatorText, '(?s)if \(context\.RelationshipState == RelationshipState\.Faulted\).*?"Clear mounted state",')
+Assert-Kmc ($dismountBranch.Success -and $faultedBranch.Success -and
+    $dismountBranch.Value.IndexOf('FeatureEnabled') -lt 0 -and
+    $faultedBranch.Value.IndexOf('FeatureEnabled') -lt 0 -and
+    $evaluatorText.IndexOf('if (!context.FeatureEnabled)') -gt $dismountBranch.Index -and
+    $playerActionText -match 'var availability = GetNativeDismountAvailability\(caster, true\);') `
+    'delivery admits Dismount through an evaluator branch that never consults the movement feature, while Mount stays gated'
 
 # R5: the save barrier queries the relationship transition state exactly instead of
 # the documentation asserting that command settlement alone is sufficient.
@@ -444,7 +529,7 @@ Assert-Kmc ($nativeControlsText -match 'private sealed class NativeRelationshipS
     $nativeControlsText -match 'shell\.GenerationAtInit != relationship\.MountedPairGeneration' -and
     $nativeControlsText -match 'deliveringShell != null &&\s*\r?\n?\s*playerAction\.TryExecuteNativeMount' -and
     $nativeControlsText -match 'deliveringShell != null &&\s*\r?\n?\s*playerAction\.TryExecuteNativeDismount') `
-    'a relationship delivery must own its native Move shell and its original relationship generation'
+    'a relationship delivery must own an exact resolved shell and its original relationship generation'
 
 # The Chunk 6A runtime scenario observes native accounting and must never create
 # it: no resource write, no preparation, no turn forcing except the accepted
@@ -503,6 +588,93 @@ Assert-Kmc ($chargePolicyText -match 'state == RelationshipState\.Mounted && bel
     $chargeServiceText -match 'internal bool AllowExecution\(' -and
     $chargeServiceText -notmatch 'MountedRelationshipAdmission|MidEncounterAdoption|transitionLedger') `
     'mounted Charge safety keeps every boundary and is unchanged by the combat Mount work'
+
+# The mod-load smoke is OBSERVATIONAL. It used to switch every experiment off for its
+# own duration and then assert they were off, so the run produced the state it reported
+# and could not describe the product's real defaults. These contracts hold the repair.
+$smokePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\ModLoadSmokeObservation.cs')
+$automationText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\RuntimeAutomationHost.cs')
+$observeBody = [Regex]::Match($automationText, '(?s)private ModLoadSmokeObservation ObserveModLoadSmoke\(\).*?\n        \}\r?\n')
+$noSaveResultBody = [Regex]::Match($automationText, '(?s)private RuntimeGameResult CreateNoSaveResult\(.*?\n        \}\r?\n')
+$smokeBranch = [Regex]::Match($automationText,
+    '(?s)if \(!string\.Equals\(request\.Scenario, ModLoadSmokePolicy\.ScenarioId.*?Complete\(smokeErrors\.Count == 0 \? "PASS" : "FAIL", smokeErrors\);')
+Assert-Kmc ($observeBody.Success -and
+    # It reads settings and never writes one, and it reaches no mutating seam.
+    $observeBody.Value -match 'ShippedMovementExperimentEnabled = diagnosticSettings\.EnableUnsafeMovementExperiment' -and
+    $observeBody.Value -match 'ShippedPairedActivationEnabled = diagnosticSettings\.EnablePairedActivation' -and
+    $observeBody.Value -match 'ShippedUnifiedMountedTurnEnabled = diagnosticSettings\.EnableUnifiedMountedTurn' -and
+    $observeBody.Value -match 'ShippedPairedCommandSchedulerEnabled = diagnosticSettings\.EnablePairedCommandScheduler' -and
+    $observeBody.Value -match 'ShippedDiagnosticOverlayEnabled = diagnosticSettings\.EnableDiagnosticOverlay' -and
+    $observeBody.Value -match 'SettingsMutatedByScenario = false' -and
+    $observeBody.Value -notmatch 'diagnosticSettings\.\w+ =' -and
+    $observeBody.Value -notmatch 'SetEnabled|SetOverlayEnabled|AddFact|RemoveFact|RequestSave|LoadGame|\.Prepare\(\)|Cooldown' -and
+    # The schema-v1 branch itself writes no setting and keeps no scope flag. Save-backed
+    # scenarios legitimately configure the architecture they exercise; the smoke does not,
+    # so the negative guard is scoped to the v1 path rather than to the whole host.
+    $smokeBranch.Success -and
+    $smokeBranch.Value -notmatch 'diagnosticSettings\.\w+ =' -and
+    $automationText -notmatch 'noSaveSmokeScopeApplied' -and
+    # The emitted v1 result is built from that one observation, not from a private scope.
+    $noSaveResultBody.Success -and
+    $noSaveResultBody.Value -notmatch 'diagnosticSettings\.\w+ =' -and
+    $noSaveResultBody.Value -match 'var smoke = smokeObservation \?\? ObserveModLoadSmoke\(\);' -and
+    # The verdict comes from the typed policy over that one observation.
+    $automationText -match 'smokeObservation = ObserveModLoadSmoke\(\);' -and
+    $automationText -match 'var smokeErrors = ModLoadSmokePolicy\.Validate\(smokeObservation\);' -and
+    $automationText -match 'Complete\(smokeErrors\.Count == 0 \? "PASS" : "FAIL", smokeErrors\);' -and
+    # The smoke asserts no overlay object, so it must never be the reason one is created.
+    $automationText -match 'request\.Scenario != ModLoadSmokePolicy\.ScenarioId &&' -and
+    ($automationText.IndexOf('request.Scenario != ModLoadSmokePolicy.ScenarioId &&') -lt
+        $automationText.IndexOf('request.Scenario != PersistenceIsolationBootstrap.Scenario &&'))) `
+    'the mod-load smoke observes live state, mutates no setting, and forces no legacy overlay'
+
+# The decision is pure and total: it reaches no game type and every forbidden state has
+# its own named refusal, so a missing observation can never read as a clean load.
+Assert-Kmc ($smokePolicyText -match 'public static IReadOnlyList<string> Validate\(ModLoadSmokeObservation observation\)' -and
+    # Pure: it imports no game or settings type and reads no live state of its own. The
+    # file's own namespace is excluded, since every KMC type lives under it.
+    (($smokePolicyText -split "`n" | Where-Object { $_ -notmatch '^namespace ' }) -join "`n") -notmatch
+        'using Kingmaker|UnitEntityData|Game\.Instance|DiagnosticSettings|UnitCommand' -and
+    $smokePolicyText -match 'if \(observation\.SettingsMutatedByScenario\)' -and
+    $smokePolicyText -match 'the smoke must only observe' -and
+    # A field that was never observed is a refusal, not a pass.
+    $smokePolicyText -match 'private static void RequireObserved\(' -and
+    $smokePolicyText -match 'private static void RequireAbsent\(' -and
+    $smokePolicyText -match 'private static void RequireZero\(' -and
+    $smokePolicyText -match 'did not observe whether ' -and
+    $smokePolicyText -match 'did not count the ' -and
+    $smokePolicyText -match 'did not record ') `
+    'the mod-load smoke decision is pure, and an unobserved field refuses instead of passing'
+
+# One field list, four consumers: the policy, the emitted v1 result, the bootstrap-failure
+# result and the validator. They are compared here so none can drift.
+$publishedBlock = [Regex]::Match($smokePolicyText, '(?s)public static readonly string\[\] PublishedFields =\s*\{(.*?)\};')
+$publishedFields = @([Regex]::Matches($publishedBlock.Groups[1].Value, '"([a-zA-Z0-9]+)"') |
+    ForEach-Object { $_.Groups[1].Value })
+$validatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1')
+$validatorBlock = [Regex]::Match($validatorText, "(?s)\`$v1Fields = @\((.*?)\)\r?\n")
+$validatorFields = @([Regex]::Matches($validatorBlock.Groups[1].Value, "'([a-zA-Z0-9]+)'") |
+    ForEach-Object { $_.Groups[1].Value })
+$resultBlock = [Regex]::Match($automationText, '(?s)private sealed class RuntimeGameResult\r?\n        \{(.*?)\n        \}')
+$noSaveBlock = [Regex]::Match($automationText, '(?s)private RuntimeGameResult CreateNoSaveResult\(.*?\n        \}\r?\n')
+$bootstrapBlock = [Regex]::Match($automationText, '(?s)var result = new RuntimeGameResult\r?\n                \{(.*?)\n                \};')
+$missingFromDto = @($publishedFields | Where-Object {
+    $resultBlock.Groups[1].Value -notmatch ('public [\w\?<>\[\]]+ ' + [Regex]::Escape(($_.Substring(0,1).ToUpperInvariant() + $_.Substring(1))) + ' \{ get; set; \}') })
+$missingFromEmit = @($publishedFields | Where-Object {
+    $noSaveBlock.Value -notmatch ([Regex]::Escape(($_.Substring(0,1).ToUpperInvariant() + $_.Substring(1))) + ' =') })
+$missingFromBootstrap = @($publishedFields | Where-Object {
+    $bootstrapBlock.Groups[1].Value -notmatch ([Regex]::Escape(($_.Substring(0,1).ToUpperInvariant() + $_.Substring(1))) + ' =') })
+Assert-Kmc ($publishedBlock.Success -and $validatorBlock.Success -and $resultBlock.Success -and
+    $noSaveBlock.Success -and $bootstrapBlock.Success -and
+    $publishedFields.Count -ge 23 -and
+    $null -eq (Compare-Object -ReferenceObject ($publishedFields | Sort-Object) -DifferenceObject ($validatorFields | Sort-Object)) -and
+    $missingFromDto.Count -eq 0 -and $missingFromEmit.Count -eq 0 -and $missingFromBootstrap.Count -eq 0 -and
+    # The bootstrap failure never built the composition root, so it publishes NOT
+    # OBSERVED rather than claiming defaults it never read.
+    $bootstrapBlock.Groups[1].Value -match 'ShippedMovementExperimentEnabled = null' -and
+    $bootstrapBlock.Groups[1].Value -match 'ShippedPairedActivationEnabled = null' -and
+    $bootstrapBlock.Groups[1].Value -notmatch 'Shipped\w+Enabled = false') `
+    'the mod-load smoke field set is identical across the policy, the emitted result, the bootstrap failure and the validator'
 
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"

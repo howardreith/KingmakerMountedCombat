@@ -5116,46 +5116,188 @@ try {
     $harmonyAssembly = @($fingerprint.kingmaker.files | Where-Object role -eq 'harmony')[0]
     $gameResultPath = Join-Path $testRoot 'runtime-game-result.json'
     $gameStarted = [DateTimeOffset]::UtcNow.AddSeconds(-2)
+    # The mod-load smoke is OBSERVATIONAL: it changes nothing and publishes the live
+    # state it read. The clean fixture therefore reports the product's real shipped
+    # default for the movement experiment (ENABLED) as both the live and the shipped
+    # value, and asserts the absence of gameplay state field by field.
     $gameResult = [ordered]@{
         schemaVersion=1; runId=$request.runId; scenario=$request.scenario; status='PASS'; branch=$request.branch; commit=$request.commit
         productVersion=$request.productVersion; dllSha256=$request.dllSha256; dllMvid=$request.dllMvid; transactionToken=$request.transactionToken
         startedAtUtc=$gameStarted.ToString('o'); completedAtUtc=[DateTimeOffset]::UtcNow.ToString('o'); loadedModId='KingmakerMountedCombat'
         gameVersion=[string]$fingerprint.kingmaker.displayVersion; gameAssemblySha256=[string]$gameAssembly.sha256; gameAssemblyMvid=[string]$gameAssembly.mvid
         ummVersion='0.28.2.0'; ummSha256=[string]$ummAssembly.sha256; harmony12Version='1.2.0.1'; harmony12Sha256=[string]$harmonyAssembly.sha256
-        relationshipState='Unmounted'; movementExperimentEnabled=$false; processId=$PID; currentGameMode='None'; loadedAreaPresent=$false
+        relationshipState='Unmounted'; movementExperimentEnabled=$true; processId=$PID; currentGameMode='None'; loadedAreaPresent=$false
+        expectedModId='KingmakerMountedCombat'; expectedProductVersion=$request.productVersion; gamePresent=$true
         shippedMovementExperimentEnabled=$true; shippedPairedActivationEnabled=$false
+        shippedUnifiedMountedTurnEnabled=$false; shippedPairedCommandSchedulerEnabled=$false
+        shippedDiagnosticOverlayEnabled=$false; settingsMutatedByScenario=$false
+        relationshipTransitionInFlight=$false; registeredRelationshipShellCount=0
+        relationshipProcessBindingCount=0; poisonedExecutionContextCount=0
+        nativeCastRequestCount=0; dispatchAcceptedCount=0; dispatchRejectedCount=0
+        pairedActivationPresent=$false; pairedPartnerContextPresent=$false
+        managedControlFactCount=0; duplicateControlFactCount=0; managedHotbarSlotCount=0
+        overlayObjectPresent=$false; controlServiceSerializationSuspended=$false
         saveRequestCount=0; loadRequestCount=0; frameCount=10; elapsedSeconds=1.0; errors=@()
     }
     Write-KmcJsonAtomic $gameResultPath $gameResult
-    Invoke-HarnessTest 'runtime game result accepts exact platform and no-save state' {
+    $invokeGameResult = {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1)
     }
-    # Regression for the latent defect a real run exposed: the no-save smoke must
-    # scope every experiment off and report movementExperimentEnabled false, while
-    # still publishing the default the build shipped with. A smoke that reports the
-    # shipped default as its live state is rejected, and one that omits either
-    # shipped observation is rejected too.
-    Invoke-HarnessTest 'runtime game result rejects a no-save smoke that left an experiment live' {
-        $gameResult.movementExperimentEnabled = $true
-        Write-KmcJsonAtomic $gameResultPath $gameResult
+    $assertGameResultRejected = {
+        param($because)
         $rejected = $false
-        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) }
-        catch { $rejected = $true }
-        if (-not $rejected) { throw 'A no-save smoke with a live movement experiment was accepted.' }
+        try { & $invokeGameResult | Out-Null } catch { $rejected = $true }
+        if (-not $rejected) { throw ('A mod-load smoke result was accepted despite ' + $because + '.') }
+    }
+    Invoke-HarnessTest 'runtime game result accepts exact platform and no-save state' {
+        & $invokeGameResult
+    }
+    # Regression for the latent defect a real run exposed, now inverted. The smoke used
+    # to force every experiment off and assert they were off, which meant the run
+    # produced its own result and could not describe the product's real defaults. It now
+    # publishes what it read, so a live reading that DIFFERS from the published shipped
+    # default is a false claim: an observational smoke has no scope of its own.
+    Invoke-HarnessTest 'runtime game result rejects a smoke whose live reading contradicts its shipped claim' {
         $gameResult.movementExperimentEnabled = $false
         Write-KmcJsonAtomic $gameResultPath $gameResult
-    }
-    Invoke-HarnessTest 'runtime game result rejects a no-save smoke that omits its shipped defaults' {
-        $withoutShipped = [ordered]@{}
-        foreach ($entry in $gameResult.GetEnumerator()) {
-            if ($entry.Key -cne 'shippedPairedActivationEnabled') { $withoutShipped[$entry.Key] = $entry.Value }
-        }
-        Write-KmcJsonAtomic $gameResultPath $withoutShipped
-        $rejected = $false
-        try { & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1) }
-        catch { $rejected = $true }
-        if (-not $rejected) { throw 'A no-save smoke without its shipped-default observations was accepted.' }
+        & $assertGameResultRejected 'a live movement-experiment reading that contradicts its published shipped default'
+        $gameResult.movementExperimentEnabled = $true
         Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    Invoke-HarnessTest 'runtime game result rejects a smoke that omits any observation field' {
+        foreach ($omitted in @('shippedPairedActivationEnabled','shippedDiagnosticOverlayEnabled',
+            'settingsMutatedByScenario','pairedPartnerContextPresent','managedHotbarSlotCount','expectedModId')) {
+            $without = [ordered]@{}
+            foreach ($entry in $gameResult.GetEnumerator()) {
+                if ($entry.Key -cne $omitted) { $without[$entry.Key] = $entry.Value }
+            }
+            Write-KmcJsonAtomic $gameResultPath $without
+            & $assertGameResultRejected ("the omitted observation " + $omitted)
+        }
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    Invoke-HarnessTest 'runtime game result rejects a smoke that invents an extra field' {
+        $extra = [ordered]@{}
+        foreach ($entry in $gameResult.GetEnumerator()) { $extra[$entry.Key] = $entry.Value }
+        $extra['scopedExperimentsOff'] = $true
+        Write-KmcJsonAtomic $gameResultPath $extra
+        & $assertGameResultRejected 'an invented extra observation field'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    Invoke-HarnessTest 'runtime game result rejects every forbidden active state in a smoke' {
+        foreach ($flag in @('loadedAreaPresent','relationshipTransitionInFlight','pairedActivationPresent',
+            'pairedPartnerContextPresent','overlayObjectPresent','controlServiceSerializationSuspended',
+            'settingsMutatedByScenario')) {
+            $gameResult[$flag] = $true
+            Write-KmcJsonAtomic $gameResultPath $gameResult
+            & $assertGameResultRejected ("the active state " + $flag)
+            $gameResult[$flag] = $false
+        }
+        foreach ($counter in @('saveRequestCount','loadRequestCount','registeredRelationshipShellCount',
+            'relationshipProcessBindingCount','poisonedExecutionContextCount','nativeCastRequestCount',
+            'dispatchAcceptedCount','dispatchRejectedCount','managedControlFactCount',
+            'duplicateControlFactCount','managedHotbarSlotCount')) {
+            $gameResult[$counter] = 1
+            Write-KmcJsonAtomic $gameResultPath $gameResult
+            & $assertGameResultRejected ("the non-zero counter " + $counter)
+            $gameResult[$counter] = 0
+        }
+        $gameResult.relationshipState = 'Mounted'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        & $assertGameResultRejected 'a mounted relationship'
+        $gameResult.relationshipState = 'Unmounted'
+        $gameResult.gamePresent = $false
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        & $assertGameResultRejected 'a missing game singleton'
+        $gameResult.gamePresent = $true
+        $gameResult.expectedModId = 'SomeOtherMod'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        & $assertGameResultRejected 'a mod identity other than the exact one'
+        $gameResult.expectedModId = 'KingmakerMountedCombat'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    # A bootstrap failure never finished building the composition root, so it has no
+    # settings and no services to read. NOT OBSERVED is lawful there and only there.
+    Invoke-HarnessTest 'runtime game result accepts unobserved fields only on a bootstrap FAIL' {
+        $bootstrap = [ordered]@{}
+        foreach ($entry in $gameResult.GetEnumerator()) { $bootstrap[$entry.Key] = $entry.Value }
+        $bootstrap.status = 'FAIL'
+        $bootstrap.errors = @('System.InvalidOperationException: synthetic bootstrap failure')
+        $bootstrap.frameCount = 0
+        $bootstrap.elapsedSeconds = 0.0
+        foreach ($name in @('shippedMovementExperimentEnabled','shippedPairedActivationEnabled',
+            'shippedUnifiedMountedTurnEnabled','shippedPairedCommandSchedulerEnabled',
+            'shippedDiagnosticOverlayEnabled','relationshipTransitionInFlight',
+            'registeredRelationshipShellCount','relationshipProcessBindingCount',
+            'poisonedExecutionContextCount','nativeCastRequestCount','dispatchAcceptedCount',
+            'dispatchRejectedCount','pairedActivationPresent','pairedPartnerContextPresent',
+            'managedControlFactCount','duplicateControlFactCount','managedHotbarSlotCount',
+            'overlayObjectPresent','controlServiceSerializationSuspended')) {
+            $bootstrap[$name] = $null
+        }
+        Write-KmcJsonAtomic $gameResultPath $bootstrap
+        & $invokeGameResult
+        # The same nulls on a PASS are not acceptable: a PASS must have observed everything.
+        $bootstrap.status = 'PASS'
+        $bootstrap.errors = @()
+        $bootstrap.frameCount = 10
+        $bootstrap.elapsedSeconds = 1.0
+        Write-KmcJsonAtomic $gameResultPath $bootstrap
+        & $assertGameResultRejected 'unobserved fields on a PASS'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    # The published JSON schema is the fourth consumer of the mod-load smoke field set,
+    # after the typed policy, the emitted result and the validator. It used to drift
+    # silently -- its v1 branch still pinned productVersion to the original feasibility
+    # build and required movementExperimentEnabled to be false -- so it is now compared
+    # against the other three rather than trusted as prose.
+    Invoke-HarnessTest 'the mod-load smoke schema, policy and validator describe one field set' {
+        $schema = Read-KmcJson (Join-Path $repoRoot 'schemas\runtime-game-result.schema.json')
+        $noSaveV1 = $schema.definitions.noSaveV1
+        $schemaProperties = @($noSaveV1.properties.PSObject.Properties.Name)
+        $schemaRequired = @($noSaveV1.required)
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject ($schemaRequired | Sort-Object))) {
+            throw 'The schema v1 branch declares a property it does not require, or requires one it does not declare.'
+        }
+        if ($noSaveV1.additionalProperties -ne $false) { throw 'The schema v1 branch admits additional properties.' }
+        # Every field the typed policy publishes must be in the schema.
+        $policySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\ModLoadSmokeObservation.cs'))
+        $policyBlock = [Regex]::Match($policySource, '(?s)public static readonly string\[\] PublishedFields =\s*\{(.*?)\};')
+        if (-not $policyBlock.Success) { throw 'The typed policy no longer publishes an explicit field set.' }
+        $policyFields = @([Regex]::Matches($policyBlock.Groups[1].Value, '"([a-zA-Z0-9]+)"') | ForEach-Object { $_.Groups[1].Value })
+        if ($policyFields.Count -lt 23) { throw 'The typed policy publishes fewer observation fields than the smoke records.' }
+        foreach ($field in $policyFields) {
+            if ($schemaProperties -notcontains $field) { throw "The schema v1 branch omits a published observation: $field" }
+        }
+        # And the validator's own v1 list must be exactly the schema's set minus the common fields.
+        $validatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
+        $validatorBlock = [Regex]::Match($validatorSource, "(?s)\`$v1Fields = @\((.*?)\)\r?\n")
+        if (-not $validatorBlock.Success) { throw 'The runtime game-result validator no longer declares an explicit v1 field list.' }
+        $validatorFields = @([Regex]::Matches($validatorBlock.Groups[1].Value, "'([a-zA-Z0-9]+)'") | ForEach-Object { $_.Groups[1].Value })
+        if ($null -ne (Compare-Object -ReferenceObject ($policyFields | Sort-Object) -DifferenceObject ($validatorFields | Sort-Object))) {
+            throw 'The validator v1 field list and the typed policy field set have drifted apart.'
+        }
+        $commonBlock = [Regex]::Match($validatorSource, "(?s)\`$commonRequired = @\((.*?)\)\r?\n")
+        $commonFields = @([Regex]::Matches($commonBlock.Groups[1].Value, "'([a-zA-Z0-9]+)'") | ForEach-Object { $_.Groups[1].Value })
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject (($commonFields + $validatorFields) | Sort-Object))) {
+            throw 'The schema v1 property set is not exactly the validator common set plus its v1 fields.'
+        }
+        # The stale absolutes are gone: a real result must be admissible.
+        $readConst = {
+            param($property)
+            $member = $property.PSObject.Properties['const']
+            if ($null -eq $member) { return $null }
+            return $member.Value
+        }
+        if ($false -eq (& $readConst $noSaveV1.properties.movementExperimentEnabled)) {
+            throw 'The schema still requires the mod-load smoke to report the movement experiment as disabled.'
+        }
+        if ([string](& $readConst $noSaveV1.properties.productVersion) -ceq '0.0.1-feasibility') {
+            throw 'The schema still pins the mod-load smoke to the original feasibility product version.'
+        }
+        if ($false -ne (& $readConst $noSaveV1.properties.settingsMutatedByScenario)) {
+            throw 'The schema does not forbid the mod-load smoke from mutating a setting.'
+        }
     }
     Invoke-HarnessTest 'runtime game result rejects platform mutation' {
         $gameResult.gameAssemblySha256 = ('00' * 32)
