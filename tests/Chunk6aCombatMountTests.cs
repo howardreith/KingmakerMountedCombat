@@ -30,6 +30,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("a dismount delivery rejects every wrong target identity", DismountTargetIdentityRejectsWrongConditions);
             runner.Run("the ledger's in-flight window is exactly admit to settle", LedgerInFlightWindowIsExact);
             runner.Run("combat Mount requires the qualified paired authority", CombatMountRequiresQualifiedAuthority);
+            runner.Run("an authority withdrawn after admission keeps the committed cost and forms no relationship", AuthorityWithdrawnAfterAdmissionKeepsTheCost);
             runner.Run("a mounted rider keeps its Dismount after the feature or policy is disabled", DismountSurvivesFeatureDisable);
             runner.Run("adoption refuses a used, split, suspended or repeated boundary", AdoptionRefusesUnusableBoundary);
             runner.Run("an adopted activation finalizes and begins the next round normally", AdoptedActivationFinalizes);
@@ -465,6 +466,98 @@ namespace KingmakerMountedCombat.Tests
                 "Mounting outside combat was gated on the paired authority.");
         }
 
+        // AUTHORITY TIMING. The qualified-authority decision is asked twice, at two very
+        // different moments, and only the first one can prevent a cost. Kingmaker owns
+        // the Move; KMC observes it and never rewrites it, so a late refusal is a spent
+        // Move with no mount -- not a free retry. Both halves are asserted here so the
+        // documented language cannot drift away from the behaviour.
+        private static void AuthorityWithdrawnAfterAdmissionKeepsTheCost()
+        {
+            var ledger = new MountedTransitionLedger();
+
+            // BEFORE. Unqualified at prediction: the ability is refused while the player
+            // is still looking at it, so Kingmaker builds no command. Nothing is admitted,
+            // nothing is committed, nothing changes.
+            var predicted = EligibleCombatContext();
+            predicted.InCombat = true;
+            predicted.CombatMountAuthorityQualified = false;
+            predicted.CombatMountAuthorityReason =
+                MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(false, false, false);
+            var prediction = MountedPlayerActionEvaluator.Evaluate(predicted);
+            TestRunner.True(!prediction.IsEnabled,
+                "An unqualified authority was predicted as an available combat Mount.");
+            TestRunner.True(prediction.Feedback.Contains("paired activation"),
+                "The prediction refusal did not name the authority obstacle: " + prediction.Feedback);
+            TestRunner.Equal(0L, ledger.AdmittedMountCount,
+                "A refusal at prediction admitted a transition.");
+            TestRunner.Equal(0L, ledger.RefusedVoluntaryCount,
+                "A refusal at prediction booked a voluntary transition it never made.");
+
+            // AFTER. Qualified at prediction, so Kingmaker created and committed the Move
+            // command; the settings then changed before delivery reached the relationship
+            // service. The committed record already exists at this point.
+            MountedTransitionRecord record;
+            string admissionRefusal;
+            TestRunner.True(ledger.TryAdmitVoluntary(
+                    MountedTransitionKind.VoluntaryMount, "native:1:mount",
+                    "rider-1", "mount-1", 7L, out record, out admissionRefusal),
+                "A lawful combat Mount admission was refused: " + admissionRefusal);
+            TestRunner.Equal(1L, ledger.AdmittedMountCount, "The committed transition was not recorded.");
+
+            var lateRefusal = MountedAuthorityPolicy.DescribeUnqualifiedCombatMount(true, true, false);
+            TestRunner.True(!MountedAuthorityPolicy.IsQualifiedForCombatMount(true, true, false) &&
+                lateRefusal != null && lateRefusal.Contains("unified mounted turn"),
+                "A retired authority switched on after admission was treated as qualified.");
+
+            // The execution gate refuses. The record settles as refused and STAYS on the
+            // ledger: the Move Kingmaker already charged is not unmade.
+            ledger.Settle(record, false);
+            TestRunner.True(record.Settled && !record.Accepted,
+                "A refused delivery left its record unsettled or accepted.");
+            TestRunner.Equal(1L, ledger.AdmittedMountCount,
+                "The late refusal erased the committed transition.");
+            TestRunner.Equal(0L, ledger.AcceptedMountCount,
+                "A refused transition was counted as an accepted mount.");
+            TestRunner.Equal(1L, ledger.RefusedVoluntaryCount,
+                "The late refusal was not booked as a refused voluntary transition.");
+            TestRunner.True(!ledger.HasVoluntaryTransitionInFlight,
+                "The refused transition stayed in flight.");
+            TestRunner.Equal(7L, record.GenerationBefore,
+                "The refused transition rewrote the relationship generation it observed.");
+            // No compensating cleanup is booked to undo a committed cost: forced detach is
+            // cleanup for a real pair, never a refund instrument.
+            TestRunner.Equal(0L, ledger.ForcedDetachCount,
+                "The late refusal booked a cleanup in order to undo a committed cost.");
+
+            // TERMINAL. That exact native control can never try again on a later frame.
+            MountedTransitionRecord replay;
+            string replayRefusal;
+            TestRunner.True(!ledger.TryAdmitVoluntary(
+                    MountedTransitionKind.VoluntaryMount, "native:1:mount",
+                    "rider-1", "mount-1", 7L, out replay, out replayRefusal),
+                "The refused native control identity was admitted a second time.");
+            TestRunner.True(replayRefusal != null && replayRefusal.Contains("already been delivered"),
+                "A replayed control identity was refused for the wrong reason: " + replayRefusal);
+            TestRunner.Equal(1L, ledger.DuplicateControlSuppressedCount,
+                "The replayed control identity was not recorded as a suppressed duplicate.");
+
+            // A NEW lawful control, once the authority is qualified again, is admitted
+            // normally: the refusal was terminal for that shell, not for the pair.
+            TestRunner.True(MountedAuthorityPolicy.IsQualifiedForCombatMount(true, false, false),
+                "The accepted architecture was reported as unqualified.");
+            MountedTransitionRecord fresh;
+            string freshRefusal;
+            TestRunner.True(ledger.TryAdmitVoluntary(
+                    MountedTransitionKind.VoluntaryMount, "native:2:mount",
+                    "rider-1", "mount-1", 7L, out fresh, out freshRefusal),
+                "A fresh lawful control was refused after an earlier terminal refusal: " + freshRefusal);
+            ledger.Settle(fresh, true);
+            TestRunner.Equal(1L, ledger.AcceptedMountCount,
+                "The fresh lawful transition was not accepted.");
+            TestRunner.Equal(2L, ledger.AdmittedMountCount,
+                "The ledger lost one of the two committed transitions.");
+        }
+
         // The escape hatch. A mounted or faulted rider must never be stranded when the
         // movement feature or the paired policy is switched off.
         private static void DismountSurvivesFeatureDisable()
@@ -504,6 +597,89 @@ namespace KingmakerMountedCombat.Tests
                 "A mounted rider with the feature disabled was not offered Dismount.");
             TestRunner.True(availability.IsVisible && availability.IsEnabled,
                 "Dismount was hidden or disabled for a mounted rider with the feature disabled: " + availability.Feedback);
+
+            // DELIVERY. The combat delivery path admits through this same branch with the
+            // native Move shell already committed, so a disabled feature must not refuse a
+            // rider who has genuinely paid.
+            var delivery = EligibleCombatContext();
+            delivery.RelationshipState = RelationshipState.Mounted;
+            delivery.FeatureEnabled = false;
+            delivery.InCombat = true;
+            delivery.CombatTurnEligible = true;
+            delivery.RiderHasMoveAction = false;
+            delivery.NativeMoveActionShellAdmitted = true;
+            var deliveryAvailability = MountedPlayerActionEvaluator.Evaluate(delivery);
+            TestRunner.True(deliveryAvailability.IsVisible && deliveryAvailability.IsEnabled,
+                "A committed native Move shell was refused Dismount delivery with the feature disabled: " +
+                deliveryAvailability.Feedback);
+
+            // COST. The escape defeats the feature gate and nothing else. Without a Move
+            // action and without a committed native shell the rider is still refused, and
+            // the reason names the resource -- never the feature. An escape that also
+            // waived the cost would be a free Dismount, which is a different defect.
+            var unpaid = EligibleCombatContext();
+            unpaid.RelationshipState = RelationshipState.Mounted;
+            unpaid.FeatureEnabled = false;
+            unpaid.InCombat = true;
+            unpaid.CombatTurnEligible = true;
+            unpaid.RiderHasMoveAction = false;
+            unpaid.NativeMoveActionShellAdmitted = false;
+            var unpaidAvailability = MountedPlayerActionEvaluator.Evaluate(unpaid);
+            TestRunner.True(unpaidAvailability.IsVisible && !unpaidAvailability.IsEnabled,
+                "The escape waived the rider's Move cost for Dismount.");
+            TestRunner.True(unpaidAvailability.Feedback.Contains("no Move action") &&
+                !unpaidAvailability.Feedback.Contains("private-alpha"),
+                "An unpaid combat Dismount blamed the feature instead of the missing Move action: " +
+                unpaidAvailability.Feedback);
+
+            // TURN. The escape likewise does not hand the rider a turn it does not own.
+            var wrongTurn = EligibleCombatContext();
+            wrongTurn.RelationshipState = RelationshipState.Mounted;
+            wrongTurn.FeatureEnabled = false;
+            wrongTurn.InCombat = true;
+            wrongTurn.CombatTurnEligible = false;
+            wrongTurn.CombatTurnIneligibilityReason = "Dismount belongs to the rider's acting turn.";
+            wrongTurn.RiderHasMoveAction = true;
+            var wrongTurnAvailability = MountedPlayerActionEvaluator.Evaluate(wrongTurn);
+            TestRunner.True(wrongTurnAvailability.IsVisible && !wrongTurnAvailability.IsEnabled &&
+                wrongTurnAvailability.Feedback.Contains("acting turn"),
+                "The escape granted a Dismount outside the rider's own turn: " + wrongTurnAvailability.Feedback);
+
+            // TRANSITION. A second Dismount is still refused while one is in flight.
+            var inFlight = EligibleCombatContext();
+            inFlight.RelationshipState = RelationshipState.Mounted;
+            inFlight.FeatureEnabled = false;
+            inFlight.RelationshipTransitionInFlight = true;
+            var inFlightAvailability = MountedPlayerActionEvaluator.Evaluate(inFlight);
+            TestRunner.True(inFlightAvailability.IsVisible && !inFlightAvailability.IsEnabled &&
+                inFlightAvailability.Feedback.Contains("already in flight"),
+                "The escape admitted a concurrent Dismount: " + inFlightAvailability.Feedback);
+
+            // TYPED POLICY. The one escape predicate is exact in its own right: only the
+            // Dismount kind, only a live or faulted relationship, only the exact rider.
+            TestRunner.True(NativeMountedControlPolicy.IsDismountEscape(
+                    NativeMountedControlKind.Dismount, true, false, true),
+                "The escape refused a mounted exact rider.");
+            TestRunner.True(NativeMountedControlPolicy.IsDismountEscape(
+                    NativeMountedControlKind.Dismount, false, true, true),
+                "The escape refused a faulted exact rider.");
+            TestRunner.True(!NativeMountedControlPolicy.IsDismountEscape(
+                    NativeMountedControlKind.Dismount, false, false, true),
+                "The escape admitted an unmounted rider.");
+            TestRunner.True(!NativeMountedControlPolicy.IsDismountEscape(
+                    NativeMountedControlKind.Dismount, true, false, false),
+                "The escape admitted a unit that is not the rider.");
+            foreach (var kind in new[]
+            {
+                NativeMountedControlKind.None,
+                NativeMountedControlKind.MountCompanion,
+                NativeMountedControlKind.RiderPrimary,
+                NativeMountedControlKind.MountPrimary
+            })
+            {
+                TestRunner.True(!NativeMountedControlPolicy.IsDismountEscape(kind, true, false, true),
+                    "The escape widened past Dismount to " + kind + ".");
+            }
         }
 
         private static MidEncounterAdoptionPlan Plan(MidEncounterAdoption disposition, long generation) =>

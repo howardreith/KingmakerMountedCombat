@@ -220,9 +220,11 @@ therefore adds one explicit typed adoption operation:
 4. When the disposition cannot be resolved unambiguously — the mount is outside
    the initiative order, shares the rider's slot, is surprised, is acting in a
    surprise round without proof it will act, or is not visible to the player —
-   **the transition is refused before any native commitment**, and availability
-   reports that exact reason so no Move shell is ever offered whose delivery
-   would have to guess. This is a deliberate, named boundary, not a gap.
+   **the transition is refused**, and availability reports that exact reason so
+   no Move shell is offered whose delivery would have to guess. Refusal at
+   *prediction* precedes native commitment and therefore costs nothing; refusal
+   at *delivery* does not, and the committed Move stands. This is a deliberate,
+   named boundary, not a gap. The next section states which gate runs when.
 5. The activation finalizes at the rider's native turn `End` exactly as an
    ordinary paired round does, and `PairedNativeReadiness` keeps the pair's
    next-round readiness at the greater of both actors' native readiness, so
@@ -231,6 +233,52 @@ therefore adds one explicit typed adoption operation:
 A voluntary combat Mount is also refused while a previously split activation
 still governs the pair's participation in the current round; it becomes
 available again once that release round has passed.
+
+### Authority timing: which gate runs when, and what each one can prevent
+
+A combat Mount passes two different gates at two different times, and they are
+not interchangeable. Saying so precisely matters because only one of them runs
+early enough to prevent a cost.
+
+`MountedAuthorityPolicy.IsQualifiedForCombatMount` is the qualified-authority
+decision: paired activation enabled, and **neither** retired mounted-turn
+authority live. It is asked twice.
+
+1. **At prediction, before Kingmaker creates anything.**
+   `MountedPlayerActionController` fills `CombatMountAuthorityQualified` and
+   `CombatMountAuthorityReason` from the live settings, and the evaluator refuses
+   an in-combat Mount whose authority is unqualified, naming the exact obstacle.
+   This runs while the player is looking at the ability, before any command
+   exists. The consequence is exact: **no native command is created, no Move is
+   charged, no relationship state changes, and no shell is registered.** An
+   unqualified authority observed here costs the player nothing.
+
+2. **At execution, inside `MountRiderOn`, after Kingmaker has already
+   committed.** By the time delivery reaches the relationship service the native
+   Move command has passed its own `IsActed` transition and `UpdateCooldowns`
+   has run, so the Move is spent. The authority is revalidated from live
+   settings anyway, because the player may have changed a setting between
+   prediction and delivery, and a refusal here returns a failed
+   `TransitionResult` before `coordinator.Mount`. The consequence is equally
+   exact and deliberately different: **the committed Move stands, the
+   relationship does not form, the shell becomes terminal, and KMC refunds
+   nothing.**
+
+This second gate is therefore *not* a protection against paying for a refused
+transition, and it is not described as one anywhere. It protects the
+*relationship* from forming under an authority that cannot govern it. Kingmaker's
+native Move shell is the sole cost owner; KMC observes that cost and never
+rewrites it, so the honest statement is that a late refusal is a spent Move with
+no mount, not a free retry. The same asymmetry governs the adoption disposition
+and the turn-eligibility gate: unresolvable at prediction is free, unresolvable
+at delivery is paid.
+
+Two behavioral regressions hold this contract. `combat Mount requires the
+qualified paired authority` proves the prediction gate refuses each unqualified
+combination and names its obstacle, and `an authority withdrawn after admission
+keeps the committed cost and forms no relationship` proves the execution gate
+refuses while leaving the ledger's committed record and the relationship
+generation untouched.
 
 ### Explicit admission, one transition ledger, exact shell binding
 
@@ -248,9 +296,12 @@ the same native control identity, and records forced detach as cleanup that
 books no voluntary cost and stays idempotent per relationship generation.
 
 Each native Mount/Dismount shell records its caster, target and relationship
-generation at its own `UnitUseAbility.Init` boundary. At delivery the control
-must still own the caster's native Move slot and still match that generation,
-so a stale shell cannot transition a relationship it never targeted.
+generation at its own `UnitUseAbility.Init` boundary. At delivery the shell must
+still be reachable through its own **execution-context** binding and must still
+match that generation, so a stale shell cannot transition a relationship it never
+targeted. Ownership is no longer decided by asking whether the control still
+occupies the caster's native Move slot: the installed IL proves that it usually
+does not by then, and the repair is described under *Deliver ownership* below.
 
 One hazard found and avoided: `UnitUseAbility.OnAction` hard-requires
 `AbilityData.IsAvailable`, and `TickCommandTurnBased` interrupts an *unstarted*
@@ -258,6 +309,63 @@ command whose `IsAvailableForCast` is false. A KMC availability provider must
 therefore stay true for its own running shell, so the in-flight gate is scoped to
 the ledger and is suppressed on the execution pass. Adding an "owns a live shell"
 gate to availability would have made every committed shell fail its own action.
+
+### Deliver ownership: proven from installed IL, repaired with an exact binding
+
+The first candidate resolved a delivering shell by looking in the caster's native
+Move slot at `Deliver` time. Read-only inspection of the installed
+`Assembly-CSharp.dll` (SHA-256 `3b6450ff…5afb`, MVID
+`07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`) shows why that cannot work:
+
+- `UnitCommands.Run` (`0x060026B3`) stores `m_Commands[cmd.Type] = cmd`
+  unconditionally, and `GetCommand(CommandType)` (`0x060026A9`) is a plain
+  `m_Commands[(int)type]` read. The slot is a single cell, not a history.
+- `UnitUseAbility.OnAction` (`0x06002737`) sets `ExecutionProcess` from
+  `RuleCastSpell.ExecutionProcess` at instructions [166–167] and then ends with
+  `get_ExecutionProcess` → `get_IsEngageUnit` → `brtrue` → `ldc.i4.0/ret`, else
+  `ldc.i4.3/ret`. For a relationship ability that engages no unit the return is
+  **terminal**.
+
+So the command completes and leaves the Move slot while its
+`AbilityExecutionProcess` goes on delivering on later frames. Move-slot
+rediscovery at `Deliver` is therefore unsound in general, and the first candidate
+had no reliable owner to consume.
+
+The repair binds the shell to the one thing that survives: the command's own
+`AbilityExecutionContext`. A postfix on that exact `OnAction` boundary records
+`command.ExecutionProcess?.Context` against the shell in a
+`ConditionalWeakTable`, and `NativeMountedAbilityLogic.Deliver` passes its own
+context into dispatch. `NativeShellBindingPolicy` then decides ownership as one
+pure typed decision, in a fixed order:
+
+1. A **poisoned** execution is permanently refused, before the Move slot is even
+   consulted, so an unresolvable conflict cannot be salvaged by whatever occupies
+   that slot afterwards.
+2. The **execution-context** binding is authoritative whenever it exists.
+3. The **Move slot** is admitted only when that slot command's own execution
+   process created *this very context* — exactly the case where delivery happened
+   synchronously inside `OnAction` before the postfix could bind. It is never a
+   recent-shell, last-shell, caster-only or generation-only lookup.
+4. If both bindings exist they must name the same shell. **Disagreement is an
+   explicit refusal** that poisons the execution and retires both shells, never a
+   preference for either.
+5. Anything else is an explicit refusal.
+
+Past that decision the shell is still checked for retirement, exactly-once
+consumption, kind, caster, target, Dismount target identity and relationship
+generation, and every permanent refusal retires it so a rejected shell can never
+become valid again. `TryDispatch` sets the terminal state in a `finally`, so one
+shell makes exactly one delivery attempt whether it succeeds, is refused, or
+throws — and a committed native cost is never refunded on any of those paths.
+Bindings are weakly held and refusals are recorded in a bounded 64-entry
+lifecycle ledger, so ordinary play cannot accumulate diagnostic state.
+
+The binding order and refusal set are proven offline by an exhaustive sweep over
+every combination of the decision's inputs, and the wiring is pinned by source
+contracts. **That is offline engineering, not native proof.** The deterministic
+blocker was established from installed IL and repaired in this implementation
+candidate; the repair passes the offline gates and awaits exact native evidence
+from a campaign run.
 
 ### Persistence: no schema change, and the barrier now queries the transition
 

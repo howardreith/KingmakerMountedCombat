@@ -144,6 +144,7 @@
     <Compile Include="Integration\PairedActivationTranspilers.cs" />
     <Compile Include="CompositionRoot.cs" />
     <Compile Include="Diagnostics\DiagnosticSettings.cs" />
+    <Compile Include="Diagnostics\ModLoadSmokeObservation.cs" />
     <Compile Include="Diagnostics\DiagnosticCombatTargetService.cs" />
     <Compile Include="Diagnostics\ExpectedAttackDispatchLedger.cs" />
     <Compile Include="Diagnostics\DiagnosticNonPairPartyAiLease.cs" />
@@ -267,6 +268,7 @@
     <Compile Include="Domain\DiagnosticTurnTraversalPolicy.cs" />
     <Compile Include="Domain\MountedPlayerAction.cs" />
     <Compile Include="Domain\NativeMountedControl.cs" />
+    <Compile Include="Domain\NativeShellBindingPolicy.cs" />
     <Compile Include="Domain\MountedPlayerActionFeedbackState.cs" />
     <Compile Include="Domain\MountedRelationshipCoordinator.cs" />
     <Compile Include="Domain\MovementTelemetry.cs" />

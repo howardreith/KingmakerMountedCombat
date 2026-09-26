@@ -78,6 +78,8 @@
     <Compile Include="MountedRiderGroundingPolicyTests.cs" />
     <Compile Include="MountedStabilizationPolicyTests.cs" />
     <Compile Include="NativeMountedControlPolicyTests.cs" />
+    <Compile Include="NativeShellBindingPolicyTests.cs" />
+    <Compile Include="ModLoadSmokePolicyTests.cs" />
     <Compile Include="UnifiedMountedTurnPolicyTests.cs" />
     <Compile Include="PairedCommandSchedulerTests.cs" />
     <Compile Include="MountedStockAttackPolicyTests.cs" />
@@ -99,6 +101,9 @@
     <Compile Include="TestRunner.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs">
       <Link>Shared\DiagnosticSettings.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ModLoadSmokeObservation.cs">
+      <Link>Shared\ModLoadSmokeObservation.cs</Link>
     </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RuntimeProtocol.cs">
       <Link>Shared\RuntimeProtocol.cs</Link>
@@ -183,6 +188,7 @@
     <Compile Include="..\src\KingmakerMountedCombat\Domain\DiagnosticCombatInitiativeObservation.cs"><Link>Shared\Domain\DiagnosticCombatInitiativeObservation.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerAction.cs"><Link>Shared\Domain\MountedPlayerAction.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\NativeMountedControl.cs"><Link>Shared\Domain\NativeMountedControl.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\NativeShellBindingPolicy.cs"><Link>Shared\Domain\NativeShellBindingPolicy.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedPlayerActionFeedbackState.cs"><Link>Shared\Domain\MountedPlayerActionFeedbackState.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRelationshipCoordinator.cs"><Link>Shared\Domain\MountedRelationshipCoordinator.cs</Link></Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MovementTelemetry.cs"><Link>Shared\Domain\MovementTelemetry.cs</Link></Compile>
