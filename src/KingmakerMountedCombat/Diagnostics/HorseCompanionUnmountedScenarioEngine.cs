@@ -1716,64 +1716,69 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // Everything the staged Mount preamble observed, in the order the native pipeline
-        // produced it. Fields are nullable where the stage could not be reached, so a
-        // stage that never ran can never read as a pass.
+        // produced it. Members are nullable where the stage could not be
+        // reached, so a stage that never ran can never read as a pass.
+        //
+        // They are PUBLIC AUTO-PROPERTIES deliberately. Newtonsoft serializes only public
+        // properties, so declaring these as fields published an empty observation object
+        // while the in-process assertions still passed -- the behaviour was proved and the
+        // evidence was blank. A source contract pins this shape.
         private sealed class NativeTargetClickCapture
         {
-            internal int ExactAbilityFactCount;
-            internal bool AbilityFactActive;
-            internal bool HandlerPresent;
-            internal bool TargetViewPresent;
-            internal bool HandlerHeldExactAbilityAfterSelect;
-            internal float Priority;
-            internal bool ResolvedTargetPresent;
-            internal bool ResolvedTargetIsExactClicked;
-            internal string ResolvedTargetId;
-            internal bool Clicked;
+            public int ExactAbilityFactCount { get; set; }
+            public bool AbilityFactActive { get; set; }
+            public bool HandlerPresent { get; set; }
+            public bool TargetViewPresent { get; set; }
+            public bool HandlerHeldExactAbilityAfterSelect { get; set; }
+            public float Priority { get; set; }
+            public bool ResolvedTargetPresent { get; set; }
+            public bool ResolvedTargetIsExactClicked { get; set; }
+            public string ResolvedTargetId { get; set; }
+            public bool Clicked { get; set; }
 
-            internal bool MoveSlotHoldsUseAbility;
-            internal bool CommandAbilityIsExactBlueprint;
-            internal bool CommandExecutorIsExactCaster;
-            internal bool CommandSpellCasterIsExecutor;
-            internal bool CommandTargetIsExactClicked;
-            internal int MatchingCommandCount;
-            internal bool CommandCreatedByPlayer;
-            internal bool CommandHasAiAction;
-            internal bool CommandStarted;
-            internal bool CommandFinished;
+            public bool MoveSlotHoldsUseAbility { get; set; }
+            public bool CommandAbilityIsExactBlueprint { get; set; }
+            public bool CommandExecutorIsExactCaster { get; set; }
+            public bool CommandSpellCasterIsExecutor { get; set; }
+            public bool CommandTargetIsExactClicked { get; set; }
+            public int MatchingCommandCount { get; set; }
+            public bool CommandCreatedByPlayer { get; set; }
+            public bool CommandHasAiAction { get; set; }
+            public bool CommandStarted { get; set; }
+            public bool CommandFinished { get; set; }
 
-            internal long ShellCountDelta;
-            internal bool ShellOwnsExactCommand;
-            internal bool ShellDescribed;
-            internal NativeMountedControlKind ShellKind;
-            internal string ShellCasterId;
-            internal string ShellTargetId;
-            internal long ShellGenerationAtInit;
-            internal bool ShellProcessBound;
-            internal long LiveGeneration;
+            public long ShellCountDelta { get; set; }
+            public bool ShellOwnsExactCommand { get; set; }
+            public bool ShellDescribed { get; set; }
+            public NativeMountedControlKind ShellKind { get; set; }
+            public string ShellCasterId { get; set; }
+            public string ShellTargetId { get; set; }
+            public long ShellGenerationAtInit { get; set; }
+            public bool ShellProcessBound { get; set; }
+            public long LiveGeneration { get; set; }
 
-            internal long CastRequestDelta;
-            internal long RefusalDelta;
-            internal long DispatchAcceptedDelta;
-            internal long DispatchRejectedDelta;
-            internal long TargetSelectionStartDelta;
-            internal long TargetSelectionEndDelta;
+            public long CastRequestDelta { get; set; }
+            public long RefusalDelta { get; set; }
+            public long DispatchAcceptedDelta { get; set; }
+            public long DispatchRejectedDelta { get; set; }
+            public long TargetSelectionStartDelta { get; set; }
+            public long TargetSelectionEndDelta { get; set; }
 
-            internal string RelationshipStateAfterClick;
-            internal long AdmittedMountDelta;
-            internal bool TransitionInFlightAfterClick;
+            public string RelationshipStateAfterClick { get; set; }
+            public long AdmittedMountDelta { get; set; }
+            public bool TransitionInFlightAfterClick { get; set; }
 
-            internal bool AbilitySelectedBeforeDrop;
-            internal bool AbilitySelectedAfterDrop;
-            internal bool SameCommandInstanceAcrossDrop;
-            internal bool ShellOwnsCommandAfterDrop;
-            internal bool ProcessPresentBeforeDrop;
-            internal bool ProcessPresentAfterDrop;
-            internal long ShellCountDeltaAcrossDrop;
-            internal long ProcessBindingDeltaAcrossDrop;
-            internal long CounterDeltaAcrossDrop;
-            internal string RelationshipStateAfterDrop;
-            internal long GenerationAfterDrop;
+            public bool AbilitySelectedBeforeDrop { get; set; }
+            public bool AbilitySelectedAfterDrop { get; set; }
+            public bool SameCommandInstanceAcrossDrop { get; set; }
+            public bool ShellOwnsCommandAfterDrop { get; set; }
+            public bool ProcessPresentBeforeDrop { get; set; }
+            public bool ProcessPresentAfterDrop { get; set; }
+            public long ShellCountDeltaAcrossDrop { get; set; }
+            public long ProcessBindingDeltaAcrossDrop { get; set; }
+            public long CounterDeltaAcrossDrop { get; set; }
+            public string RelationshipStateAfterDrop { get; set; }
+            public long GenerationAfterDrop { get; set; }
         }
 
         // Sixteen staged assertions over one native target click. Each stage names exactly
