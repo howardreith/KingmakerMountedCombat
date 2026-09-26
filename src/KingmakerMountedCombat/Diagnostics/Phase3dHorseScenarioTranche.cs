@@ -6020,6 +6020,12 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("combat", exception); }
             try { combatMountAdjacencyCommand?.Interrupt(); }
             catch (Exception exception) { AddCleanupError("combat Mount adjacency movement", exception); }
+            // The two Chunk 6A approach cases order the Horse away from the rider through its
+            // own ground input, so either order can still be in flight on an abort path.
+            try { chunk6aSeparationCommand?.Interrupt(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A approach separation movement", exception); }
+            try { chunk6aGeometryChangeCommand?.Interrupt(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A geometry-change movement", exception); }
             try { movementCommand?.Interrupt(); }
             catch (Exception exception) { AddCleanupError("movement", exception); }
             try { unmountedCommand?.Interrupt(); }
