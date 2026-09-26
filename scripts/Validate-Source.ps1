@@ -760,6 +760,48 @@ Assert-Kmc ($unmountedEngineText -match 'internal const string PreambleScenarioN
     $harnessText -match "'chunk6a-mount-preamble'") `
     'the narrow save-backed Mount preamble stops at the staged click and carries its own evidence kind'
 
+# The staged click capture must actually reach the evidence. Newtonsoft serializes only
+# PUBLIC PROPERTIES, so declaring these as fields published an empty observation object
+# while every in-process assertion still passed: the behaviour was proved and the
+# evidence was blank. A live run exposed that, and this contract keeps the shape.
+$captureClassBody = [Regex]::Match($unmountedEngineText,
+    '(?s)private sealed class NativeTargetClickCapture\r?\n        \{(.*?)\n        \}')
+$captureMembers = @([Regex]::Matches($captureClassBody.Groups[1].Value, '(?m)^\s*public [A-Za-z0-9<>?\[\]]+ [A-Za-z0-9]+ \{ get; set; \}$'))
+$captureBareFields = @([Regex]::Matches($captureClassBody.Groups[1].Value, '(?m)^\s*(?:internal|private|public|protected) [A-Za-z0-9<>?\[\]]+ [A-Za-z0-9]+;$'))
+Assert-Kmc ($captureClassBody.Success -and
+    $captureMembers.Count -ge 45 -and
+    $captureBareFields.Count -eq 0 -and
+    # It is serialized with the engine's own settings into the published observation.
+    $captureBody.Value -match 'observations\[observationName\] = JObject\.FromObject\(capture, JsonSerializer\.Create\(JsonSettings\)\)' -and
+    # And the narrow validator requires those very fields on a PASS, so an empty
+    # observation can never be accepted as evidence again.
+    $runtimeCommonText -match "foreach \(\`$field in @\('clicked','moveSlotHoldsUseAbility','abilitySelectedBeforeDrop'," -and
+    $runtimeCommonText -match 'PASS narrow Mount preamble click capture omits') `
+    'the staged click capture is published as public properties so the evidence is never blank'
+
+# One registry, once. The known-subscenario check demands EXACTLY one match, so a name
+# present in both the shared registry and a validator's own mission list is rejected at
+# the end of a completed live run -- which is the most expensive possible place to learn it.
+$resultValidatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1')
+$gameResultValidatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1')
+$sharedRowsBody = [Regex]::Match($runtimeCommonText, '(?s)function Get-KmcPhase3dHorseRuntimeRows \{.*?\n\}')
+$sharedRowNames = @([Regex]::Matches($sharedRowsBody.Value, "'([A-Za-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value })
+$duplicateRegistrations = @()
+foreach ($validatorText in @($resultValidatorText, $gameResultValidatorText)) {
+    $localBody = [Regex]::Match($validatorText, "(?s)\`$missionScenarios = @\((.*?)\)\r?\n")
+    $localNames = @([Regex]::Matches($localBody.Groups[1].Value, "'([A-Za-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value })
+    $duplicateRegistrations += @($localNames | Where-Object { $sharedRowNames -ccontains $_ })
+}
+Assert-Kmc ($sharedRowsBody.Success -and $sharedRowNames.Count -ge 20 -and
+    $duplicateRegistrations.Count -eq 0 -and
+    # The narrow preamble lives in the shared registry and only there.
+    ($sharedRowNames -ccontains 'chunk6a-mount-preamble') -and
+    $resultValidatorText -notmatch "'chunk6a-mount-preamble',\s*\r?\n?\s*'" -and
+    # And the exactly-once rule is still the rule, so this contract keeps meaning something.
+    $resultValidatorText -match "\`$missionScenarios \| Where-Object \{ \`$_ -ceq \[string\]\`$item\.name \}\)\.Count -ne 1" -and
+    $gameResultValidatorText -match "\`$missionScenarios \| Where-Object \{ \`$_ -ceq \[string\]\`$item\.name \}\)\.Count -ne 1") `
+    'every known subscenario name is registered exactly once across the shared registry and each validator'
+
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'
