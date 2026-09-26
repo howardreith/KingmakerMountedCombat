@@ -1727,6 +1727,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceFileName,
                 HorseCompanionUnmountedScenarioEngine.NativeControlsEvidenceKind);
+            // The narrow Mount preamble writes its own evidence kind, so it needs its own
+            // manifest record. Registering the leaf with the validators alone is not
+            // enough: an evidence file the producer never records is rejected as an
+            // unmanifested artifact after the run has already finished.
+            AddRuntimeArtifactIfPresent(
+                artifacts,
+                request.EvidenceRoot,
+                HorseCompanionUnmountedScenarioEngine.PreambleEvidenceFileName,
+                HorseCompanionUnmountedScenarioEngine.PreambleEvidenceKind);
             AddRuntimeArtifactIfPresent(
                 artifacts,
                 request.EvidenceRoot,

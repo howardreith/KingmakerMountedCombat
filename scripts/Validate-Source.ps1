@@ -802,6 +802,100 @@ Assert-Kmc ($sharedRowsBody.Success -and $sharedRowNames.Count -ge 20 -and
     $gameResultValidatorText -match "\`$missionScenarios \| Where-Object \{ \`$_ -ceq \[string\]\`$item\.name \}\)\.Count -ne 1") `
     'every known subscenario name is registered exactly once across the shared registry and each validator'
 
+
+# THE REGISTRATION CHAIN. A new scenario's evidence leaf has to be registered in five
+# places, and every one of them only complains AFTER a live run has finished: the
+# producer's artifact manifest, the known-leaf sweep, the orchestration kind mapping, and
+# both runtime-result allowlists. Three separate live runs were spent discovering that
+# one link at a time. This contract walks the chain offline instead.
+#
+# Constants are resolved per DECLARING TYPE, because several diagnostics classes each
+# declare their own EvidenceFileName and EvidenceKind; resolving by bare name silently
+# collapses them onto whichever file was read last.
+$diagnosticsFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics') -Filter '*.cs')
+$typeConstants = @{}
+foreach ($file in $diagnosticsFiles) {
+    $fileText = Get-Content -Raw -LiteralPath $file.FullName
+    $declaredTypes = @([Regex]::Matches($fileText, '(?:internal|public)(?: static| sealed| partial| abstract)* class ([A-Za-z0-9]+)') |
+        ForEach-Object { $_.Groups[1].Value })
+    $fileConstants = @{}
+    foreach ($constMatch in [Regex]::Matches($fileText, '(?:internal|public) const string ([A-Za-z0-9]+)\s*=\s*"([^"]+)";')) {
+        $fileConstants[$constMatch.Groups[1].Value] = $constMatch.Groups[2].Value
+    }
+    foreach ($typeName in $declaredTypes) {
+        if (-not $typeConstants.ContainsKey($typeName)) { $typeConstants[$typeName] = @{} }
+        foreach ($constName in $fileConstants.Keys) { $typeConstants[$typeName][$constName] = $fileConstants[$constName] }
+    }
+}
+$registeredPairs = @()
+$unresolvedRegistrations = @()
+foreach ($registration in [Regex]::Matches($automationText,
+    '(?s)AddRuntimeArtifactIfPresent\(\s*artifacts,\s*request\.EvidenceRoot,\s*([A-Za-z0-9]+)\.([A-Za-z0-9]+),\s*([A-Za-z0-9]+)\.([A-Za-z0-9]+)\);')) {
+    $leafType = $registration.Groups[1].Value; $leafName = $registration.Groups[2].Value
+    $kindType = $registration.Groups[3].Value; $kindName = $registration.Groups[4].Value
+    if ($typeConstants.ContainsKey($leafType) -and $typeConstants[$leafType].ContainsKey($leafName) -and
+        $typeConstants.ContainsKey($kindType) -and $typeConstants[$kindType].ContainsKey($kindName)) {
+        $registeredPairs += [pscustomobject]@{
+            leaf = $typeConstants[$leafType][$leafName]; kind = $typeConstants[$kindType][$kindName] }
+    }
+    else { $unresolvedRegistrations += ($leafType + '.' + $leafName + '/' + $kindType + '.' + $kindName) }
+}
+$knownLeafBlock = [Regex]::Match($runtimeCommonText, "(?s)foreach \(\`$leaf in @\((.*?)\)\) \{")
+$unregisteredLinks = @()
+foreach ($pair in $registeredPairs) {
+    $leafLiteral = "'" + $pair.leaf + "'"
+    $mappingLiteral = "(`$relative -ceq '" + $pair.leaf + "' -and `$kind -ceq '" + $pair.kind + "')"
+    $resultLiteral = "(`$relativePath -ceq '" + $pair.leaf + "' -and `$kind -ceq '" + $pair.kind + "')"
+    if ($knownLeafBlock.Groups[1].Value.IndexOf($leafLiteral, [StringComparison]::Ordinal) -lt 0) {
+        $unregisteredLinks += ($pair.leaf + ': known-leaf sweep')
+    }
+    if ($runtimeCommonText.IndexOf($mappingLiteral, [StringComparison]::Ordinal) -lt 0) {
+        $unregisteredLinks += ($pair.leaf + ': orchestration kind mapping')
+    }
+    if ($resultValidatorText.IndexOf($resultLiteral, [StringComparison]::Ordinal) -lt 0) {
+        $unregisteredLinks += ($pair.leaf + ': runtime-result allowlist')
+    }
+    if ($gameResultValidatorText.IndexOf($resultLiteral, [StringComparison]::Ordinal) -lt 0) {
+        $unregisteredLinks += ($pair.leaf + ': runtime-game-result allowlist')
+    }
+}
+Assert-Kmc ($knownLeafBlock.Success -and
+    $registeredPairs.Count -ge 5 -and
+    $unresolvedRegistrations.Count -eq 0 -and
+    $unregisteredLinks.Count -eq 0 -and
+    # The narrow preamble is the pair that exposed the gap, so it is named explicitly.
+    @($registeredPairs | Where-Object { $_.leaf -ceq 'chunk6a-mount-preamble.json' -and $_.kind -ceq 'chunk6a-mount-preamble' }).Count -eq 1) `
+    'every evidence leaf the mod manifests is known to the leaf sweep, the kind mapping and both runtime-result allowlists'
+# The reverse direction, which is the one that actually bit. A leaf the mod can WRITE but
+# never records in its own artifact manifest is rejected as an unmanifested artifact after
+# the run has already finished. Checking only producer-to-consumer misses it entirely,
+# because an unregistered leaf contributes no pair to check.
+#
+# Registration is recognised either way: the manifest method names some leaves by string
+# literal and others through a constant, so both spellings count.
+$manifestMethodBody = [Regex]::Match($automationText,
+    '(?s)private static string PublishRuntimeArtifactManifest\(RuntimeRequest request\).*?\n        \}\r?\n')
+$writableLeaves = @()
+foreach ($file in $diagnosticsFiles) {
+    $fileText = Get-Content -Raw -LiteralPath $file.FullName
+    foreach ($constMatch in [Regex]::Matches($fileText,
+        '(?:internal|public) const string ([A-Za-z0-9]*EvidenceFileName)\s*=\s*"([^"]+)";')) {
+        $writableLeaves += [pscustomobject]@{ name = $constMatch.Groups[1].Value; leaf = $constMatch.Groups[2].Value }
+    }
+}
+$unproducedLeaves = @($writableLeaves | Where-Object {
+    $manifestMethodBody.Value.IndexOf('"' + $_.leaf + '"', [StringComparison]::Ordinal) -lt 0 -and
+    $manifestMethodBody.Value.IndexOf('.' + $_.name, [StringComparison]::Ordinal) -lt 0
+})
+Assert-Kmc ($manifestMethodBody.Success -and
+    @($writableLeaves).Count -ge 8 -and
+    $unproducedLeaves.Count -eq 0 -and
+    @($writableLeaves | Where-Object { $_.leaf -ceq 'chunk6a-mount-preamble.json' }).Count -ge 1 -and
+    # The narrow preamble is registered through its constant, not a stray literal.
+    $manifestMethodBody.Value -match 'HorseCompanionUnmountedScenarioEngine\.PreambleEvidenceFileName' -and
+    $manifestMethodBody.Value -match 'HorseCompanionUnmountedScenarioEngine\.PreambleEvidenceKind') `
+    'every evidence leaf a scenario can write is recorded in the mod''s own artifact manifest'
+
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'
