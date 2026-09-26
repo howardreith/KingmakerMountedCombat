@@ -3673,7 +3673,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mount-approach',
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
@@ -3750,8 +3750,10 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-after-early-end',
         # This list is also the known-subscenario registry Test-RuntimeResult uses,
         # so a scenario's own name belongs here alongside the rows it emits.
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mount-approach',
         'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
+        'CM01-exploration-free', 'CM02-approach-arrival',
+        'CM02-geometry-change', 'CM02-obstruction',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
         'CM01-combat-mount-preparing-refused',
         'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
@@ -4965,7 +4967,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $kind = 'horse-companion-blueprint-registration'
     $isAudit = [string]$Request.scenario -cin @(
         $scenario,
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mount-approach',
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
@@ -5738,13 +5740,27 @@ function Assert-KmcChunk6aCombatMountEvidence {
     )
 
     $turnBased = [string]$Request.scenario -ceq 'chunk6a-combat-mount-tb'
-    $required = @(
-        'CM01-exploration-dismount-costs-nothing',
-        'CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-accepted',
-        'CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases',
-        'CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations',
-        'CM06-combat-mount-repeat-refused','CM05-combat-dismount-accepted',
-        'CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')
+    # The narrow non-adjacent approach scenario stops at CM02-approach-arrival, so it is
+    # required to prove exactly the approach and nothing beyond it. Requiring the full 6A
+    # row set of a scenario that deliberately stops early would make the narrow instrument
+    # unusable; admitting the full set as optional would make the full scenarios weaker.
+    $approachOnly = [string]$Request.scenario -ceq 'chunk6a-mount-approach'
+    $required = if ($approachOnly) {
+        @('CM01-exploration-dismount-costs-nothing','CM01-exploration-free',
+          'CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-accepted',
+          'CM02-approach-arrival',
+          'CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases',
+          'CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations')
+    }
+    else {
+        @('CM01-exploration-dismount-costs-nothing','CM01-exploration-free',
+          'CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-accepted',
+          'CM02-approach-arrival',
+          'CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases',
+          'CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations',
+          'CM06-combat-mount-repeat-refused','CM05-combat-dismount-accepted',
+          'CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')
+    }
     if ($turnBased) {
         # The Preparing boundary exists only in turn-based combat, so its proof row
         # is required there and must be absent in real time.
@@ -5879,7 +5895,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-approach',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
@@ -5919,8 +5935,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         [long]$artifact.schemaVersion
     } else { -1L }
     if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L) -or
-        ($phase3dSchemaVersion -eq 28L -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb') -and $phase3dSchemaVersion -ne 28L) -or
+        ($phase3dSchemaVersion -eq 28L -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach')) -or
+        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach') -and $phase3dSchemaVersion -ne 28L) -or
         ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
@@ -5943,7 +5959,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
-    if ($phase3dSchemaVersion -eq 28L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb')) {
+    if ($phase3dSchemaVersion -eq 28L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach')) {
         Assert-KmcChunk6aCombatMountEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {

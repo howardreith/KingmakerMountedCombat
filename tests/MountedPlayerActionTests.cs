@@ -105,9 +105,14 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(feedback.Contains("conflicting"), "Relationship-conflict reason missing.");
             TestRunner.True(feedback.Contains("Polymorphed"), "Polymorph reason missing.");
             TestRunner.True(feedback.Contains("loading"), "Lifecycle-boundary reason missing.");
-            TestRunner.True(feedback.Contains("adjacent") && feedback.Contains("current turn") &&
-                    feedback.Contains("no Move action"),
+            // Distance is DEFERRED to the native approach, so it is not a blocking reason.
+            // Every other combat gate still blocks admission outright.
+            TestRunner.True(feedback.Contains("current turn") && feedback.Contains("no Move action"),
                 "Combat Mount gate reasons missing.");
+            TestRunner.True(!feedback.Contains("approach"),
+                "Distance was reported as a blocking reason instead of a deferred one.");
+            TestRunner.True(string.Join(" ", result.TransitionDeferredReasons.ToArray()).Contains("approach"),
+                "Distance was not deferred to the native approach.");
             TestRunner.True(feedback.Contains("ordinary exploration"), "Game-mode reason missing.");
             TestRunner.True(feedback.Contains("views and stock movement agents"), "View/agent reason missing.");
             TestRunner.True(feedback.Contains("enabled before mounting"), "Stock-agent readiness reason missing.");
@@ -193,9 +198,13 @@ namespace KingmakerMountedCombat.Tests
             context.PairAdjacent = false;
             var result = MountedPlayerActionEvaluator.Evaluate(context);
             TestRunner.True(!result.IsEnabled, "Ineligible combat Mount was admitted.");
-            TestRunner.True(result.Feedback.Contains("adjacent"), "Combat adjacency reason missing.");
             TestRunner.True(result.Feedback.Contains("current turn"), "Combat turn reason missing.");
             TestRunner.True(result.Feedback.Contains("no Move action"), "Combat Move-action reason missing.");
+            // Distance is deferred, so it is reported as such rather than as a gate. It
+            // still keeps the TRANSITION closed.
+            TestRunner.True(!result.TransitionReady, "A non-adjacent pair was reported transition-ready.");
+            TestRunner.True(string.Join(" ", result.TransitionDeferredReasons.ToArray()).Contains("approach"),
+                "Combat adjacency was neither blocked nor deferred.");
         }
 
         private static void GatesCombatDismount()
@@ -250,9 +259,15 @@ namespace KingmakerMountedCombat.Tests
             mountContext.PairAdjacent = false;
             mountContext.CombatTurnEligible = false;
             var mount = MountedPlayerActionEvaluator.Evaluate(mountContext);
-            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("adjacent") &&
-                    mount.Feedback.Contains("current turn") && !mount.Feedback.Contains("no Move action"),
+            // The admitted shell suppresses only the stale Move-resource predicate. The
+            // turn gate still blocks admission, and distance still keeps the transition
+            // closed even though it no longer blocks the approach.
+            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("current turn") &&
+                    !mount.Feedback.Contains("no Move action"),
                 "Native Mount delivery bypassed a non-resource combat gate.");
+            TestRunner.True(!mount.TransitionReady &&
+                    string.Join(" ", mount.TransitionDeferredReasons.ToArray()).Contains("approach"),
+                "An admitted Move shell erased the deferred distance condition.");
 
             var dismountContext = EligibleContext();
             dismountContext.RelationshipState = RelationshipState.Mounted;

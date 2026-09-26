@@ -44,6 +44,10 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("the ledger retains a bounded history without evicting the in-flight record", LedgerRetentionIsBounded);
             runner.Run("the disposition table is total over the roster positions", DispositionTableIsTotal);
             runner.Run("a split adopted pair conserves debt and refuses further grants", AdoptedSplitConservesDebt);
+            runner.Run("a legal non-adjacent pair is admitted for native approach", NonAdjacentPairIsApproachAdmissible);
+            runner.Run("only distance is deferred; every other condition still refuses", OnlyDistanceIsDeferred);
+            runner.Run("the admission phase policy separates approach from transition", AdmissionPhasePolicyIsExact);
+            runner.Run("delivery revalidates the measured native envelope", DeliveryRevalidatesMeasuredEnvelope);
             runner.Run("combat Mount refusal feedback names its exact obstacle", CombatMountRefusalFeedback);
             runner.Run("combat Dismount gates combine without masking each other", CombatDismountGatesCombine);
             runner.Run("relationship cleanup stays idempotent after a voluntary combat mount", VoluntaryCombatCleanupIsIdempotent);
@@ -115,15 +119,206 @@ namespace KingmakerMountedCombat.Tests
                 "A split adopted pair adopted a second boundary.");
         }
 
+        // CM02-approach-arrival: "Mount from outside adjacency through legal native rider
+        // approach and legal arrival, with no teleport or manufactured endpoint."
+        //
+        // This was unreachable because prediction and target selection required adjacency,
+        // so Kingmaker's own Move-typed command -- the thing that closes the distance --
+        // was never created. Distance is now DEFERRED to that approach and revalidated at
+        // delivery. These tests prove the deferral admits the approach and weakens nothing
+        // else.
+        private static void NonAdjacentPairIsApproachAdmissible()
+        {
+            var outside = EligibleCombatContext();
+            outside.PairAdjacent = false;
+            var availability = MountedPlayerActionEvaluator.Evaluate(outside);
+            TestRunner.Equal(MountedPlayerActionKind.Mount, availability.Action,
+                "A legal non-adjacent pair was not offered Mount.");
+            TestRunner.True(availability.IsVisible,
+                "A legal non-adjacent pair was hidden.");
+            TestRunner.True(availability.IsEnabled,
+                "A legal non-adjacent pair was refused approach admission: " + availability.Feedback);
+            TestRunner.Equal(0, availability.UnavailableReasons.Count,
+                "Distance produced a blocking reason: " + availability.Feedback);
+            TestRunner.True(!availability.TransitionReady,
+                "A non-adjacent pair was admitted for the transition itself.");
+            TestRunner.Equal(1, availability.TransitionDeferredReasons.Count,
+                "Distance was not the single deferred condition.");
+
+            // Adjacency changes only the transition phase, never the approach phase.
+            var inside = EligibleCombatContext();
+            inside.PairAdjacent = true;
+            var adjacent = MountedPlayerActionEvaluator.Evaluate(inside);
+            TestRunner.True(adjacent.IsEnabled && adjacent.TransitionReady,
+                "An adjacent legal pair was not transition-ready.");
+            TestRunner.Equal(0, adjacent.TransitionDeferredReasons.Count,
+                "An adjacent pair still deferred a condition.");
+
+            // Outside combat there is no combat adjacency gate at all, so nothing is
+            // deferred there either.
+            var exploration = EligibleCombatContext();
+            exploration.InCombat = false;
+            exploration.PairAdjacent = false;
+            var explorationAvailability = MountedPlayerActionEvaluator.Evaluate(exploration);
+            TestRunner.True(explorationAvailability.IsEnabled && explorationAvailability.TransitionReady,
+                "Exploration Mount inherited a combat-only distance condition.");
+        }
+
+        // The deferral is exactly one condition wide. Every other gate must still refuse
+        // approach admission on its own, or "defer distance" would have become "waive
+        // everything mutable".
+        private static void OnlyDistanceIsDeferred()
+        {
+            var cases = new[]
+            {
+                new { name = "foreign or missing exact companion",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.ExactActiveOwnedSupportedMount = false) },
+                new { name = "changed ownership reciprocity",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.ExactlyOneRiderSelected = false) },
+                new { name = "unsupported rider size",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.RiderIsExactlyMedium = false) },
+                new { name = "unsupported body rig",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.RiderBodyProfileSupported = false) },
+                new { name = "mount not strictly larger",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.MountIsStrictlyLarger = false) },
+                new { name = "rider not alive and conscious",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.RiderIsAliveAndConscious = false) },
+                new { name = "mount not alive and conscious",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.MountIsAliveAndConscious = false) },
+                new { name = "rider not directly controllable in area",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.RiderIsDirectlyControllableAndInGame = false) },
+                new { name = "mount not directly controllable in area",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.MountIsDirectlyControllableAndInGame = false) },
+                new { name = "conflicting relationship",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.ConflictingMountedRelationship = true) },
+                new { name = "unsupported polymorph or size state",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.UnsupportedPolymorphOrSizeState = true) },
+                new { name = "loading, transition or cutscene",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.LoadingTransitionOrCutscene = true) },
+                new { name = "unsafe game mode",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.SafeGameMode = false) },
+                new { name = "missing views or stock agents",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.ViewsAndStockAgentsAvailable = false) },
+                new { name = "stock agents not ready",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.StockAgentsReady = false) },
+                new { name = "incompatible movement-agent override",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.AgentOverridesAvailable = false) },
+                new { name = "unqualified paired authority",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.CombatMountAuthorityQualified = false) },
+                new { name = "ambiguous mid-encounter adoption",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.PairedAdoptionAvailable = false) },
+                new { name = "ineligible rider turn",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.CombatTurnEligible = false) },
+                new { name = "no native Move resource",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.RiderHasMoveAction = false) },
+                new { name = "transition already in flight",
+                      apply = (Action<MountedPlayerActionContext>)(c => c.RelationshipTransitionInFlight = true) }
+            };
+
+            foreach (var testCase in cases)
+            {
+                // Each condition must refuse approach admission on its own, both while the
+                // pair is adjacent and while distance is already deferred, so no condition
+                // can hide behind the deferral.
+                foreach (var adjacent in new[] { true, false })
+                {
+                    var context = EligibleCombatContext();
+                    context.PairAdjacent = adjacent;
+                    testCase.apply(context);
+                    var result = MountedPlayerActionEvaluator.Evaluate(context);
+                    TestRunner.True(!result.IsEnabled,
+                        "Deferring distance admitted an approach despite " + testCase.name +
+                        " (adjacent=" + adjacent + ").");
+                    TestRunner.True(!result.TransitionReady,
+                        "Deferring distance admitted a transition despite " + testCase.name +
+                        " (adjacent=" + adjacent + ").");
+                }
+            }
+        }
+
+        // The typed phase policy itself: approach ignores deferred conditions, the
+        // transition does not, and only the transition requires adjacency.
+        private static void AdmissionPhasePolicyIsExact()
+        {
+            TestRunner.True(MountedAdmissionPolicy.Admits(MountedAdmissionPhase.Approach, 0, 1),
+                "The approach phase refused a deferred condition.");
+            TestRunner.True(MountedAdmissionPolicy.Admits(MountedAdmissionPhase.Approach, 0, 0),
+                "The approach phase refused a clean observation.");
+            TestRunner.True(!MountedAdmissionPolicy.Admits(MountedAdmissionPhase.Approach, 1, 0),
+                "The approach phase admitted a blocking reason.");
+            TestRunner.True(!MountedAdmissionPolicy.Admits(MountedAdmissionPhase.Transition, 0, 1),
+                "The transition phase admitted a deferred condition.");
+            TestRunner.True(MountedAdmissionPolicy.Admits(MountedAdmissionPhase.Transition, 0, 0),
+                "The transition phase refused a fully resolved observation.");
+            TestRunner.True(!MountedAdmissionPolicy.Admits(MountedAdmissionPhase.Transition, 2, 0),
+                "The transition phase admitted a blocking reason.");
+            TestRunner.True(!MountedAdmissionPolicy.RequiresAdjacency(MountedAdmissionPhase.Approach),
+                "The approach phase required adjacency.");
+            TestRunner.True(MountedAdmissionPolicy.RequiresAdjacency(MountedAdmissionPhase.Transition),
+                "The transition phase did not require adjacency.");
+            try
+            {
+                MountedAdmissionPolicy.Admits(MountedAdmissionPhase.Approach, -1, 0);
+                TestRunner.True(false, "A negative reason count was accepted.");
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+            }
+        }
+
+        // Delivery revalidates the envelope from measured geometry, and the envelope is the
+        // native one: corpulence sum plus the native reach, never widened.
+        private static void DeliveryRevalidatesMeasuredEnvelope()
+        {
+            const float riderCorpulence = 0.5f;
+            const float mountCorpulence = 1.1f;
+            var envelope = riderCorpulence + mountCorpulence +
+                CombatMountDismountPolicy.NativeAdjacentReachMeters;
+
+            TestRunner.True(!CombatMountDismountPolicy.IsAdjacent(envelope + 0.01f, riderCorpulence, mountCorpulence),
+                "Delivery accepted a pair outside the measured envelope.");
+            TestRunner.True(CombatMountDismountPolicy.IsAdjacent(envelope, riderCorpulence, mountCorpulence),
+                "Delivery refused a pair exactly on the envelope boundary.");
+            TestRunner.True(CombatMountDismountPolicy.IsAdjacent(envelope - 0.01f, riderCorpulence, mountCorpulence),
+                "Delivery refused a pair inside the measured envelope.");
+
+            // The approach stops just INSIDE that same envelope, and the clamp is
+            // downward only: a tighter native radius is never enlarged to reach.
+            float approach;
+            TestRunner.True(CombatMountDismountPolicy.TryGetMountApproachRadius(
+                    float.PositiveInfinity, riderCorpulence, mountCorpulence, out approach),
+                "An unlimited native range produced no approach radius.");
+            TestRunner.True(approach < envelope,
+                "The approach radius did not stop inside the transition envelope.");
+            TestRunner.True(CombatMountDismountPolicy.IsAdjacent(approach, riderCorpulence, mountCorpulence),
+                "An arrival at the approach radius would not satisfy delivery.");
+            float clamped;
+            TestRunner.True(CombatMountDismountPolicy.TryGetMountApproachRadius(
+                    0.4f, riderCorpulence, mountCorpulence, out clamped) && clamped == 0.4f,
+                "A tighter native radius was enlarged to reach the envelope.");
+        }
+
         private static void CombatMountRefusalFeedback()
         {
             // Each combat gate must surface its own obstacle, never a generic one.
             var noTurn = EligibleCombatContext();
             noTurn.CombatTurnEligible = false;
             TestRunner.True(Reasons(noTurn).Contains("current turn"), "The turn obstacle is not named.");
+            // Distance is the one deferred condition. It must be named as a deferred
+            // reason, and it must NOT appear as a blocking one: the native approach is
+            // what resolves it, so blocking the approach on it would be circular.
             var noAdjacency = EligibleCombatContext();
             noAdjacency.PairAdjacent = false;
-            TestRunner.True(Reasons(noAdjacency).Contains("adjacent"), "The adjacency obstacle is not named.");
+            var deferredAvailability = MountedPlayerActionEvaluator.Evaluate(noAdjacency);
+            TestRunner.True(deferredAvailability.IsEnabled,
+                "A legal non-adjacent pair was refused approach admission.");
+            TestRunner.True(!deferredAvailability.TransitionReady,
+                "A non-adjacent pair was reported transition-ready.");
+            TestRunner.True(
+                string.Join(" ", deferredAvailability.TransitionDeferredReasons).Contains("approach"),
+                "The deferred distance obstacle is not named.");
+            TestRunner.True(!Reasons(noAdjacency).Contains("must be adjacent"),
+                "Distance is still reported as a blocking obstacle.");
             var noMove = EligibleCombatContext();
             noMove.RiderHasMoveAction = false;
             TestRunner.True(Reasons(noMove).Contains("no Move action"), "The Move obstacle is not named.");

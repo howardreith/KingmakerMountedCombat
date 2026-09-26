@@ -192,7 +192,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 return new NativeMountedControlAvailability(true, false, "Select the exact prospective rider.");
             }
-            return new NativeMountedControlAvailability(true, availability.IsEnabled, availability.Feedback);
+            // Enabled on APPROACH admission, transition-ready only when nothing is deferred.
+            // Keeping these separate is what lets a legal non-adjacent pair be targeted so
+            // Kingmaker can perform its own approach.
+            return new NativeMountedControlAvailability(
+                true, availability.IsEnabled, availability.TransitionReady, availability.Feedback);
         }
 
         internal NativeMountedControlAvailability GetNativeDismountAvailability(
@@ -273,15 +277,21 @@ namespace KingmakerMountedCombat.Integration
             var mount = caster?.Descriptor?.Pet;
             var exactTarget = target != null && target == mount &&
                 mount.Descriptor?.Master.Value == caster && SupportedMountedProfiles.IsSupported(mount);
+            // DELIVERY-TIME admission. Approach admission deliberately let this command
+            // exist outside adjacency so Kingmaker's own Move could close the distance;
+            // the transition itself requires the envelope, measured from live state here.
+            // A refusal at this boundary is after native commitment and is never refunded.
             if (exactTarget && (caster.View == null || mount.View == null ||
                 !CombatMountDismountPolicy.IsAdjacent(caster.DistanceTo(mount), caster.View.Corpulence, mount.View.Corpulence)))
             {
                 feedbackState.SetOperationFeedback("Move next to your companion before mounting.");
                 return false;
             }
-            if (!availability.IsEnabled || !exactTarget)
+            // Every other deferred condition is enforced here too, so deferring distance
+            // can never become a general waiver: TransitionReady is the delivery phase.
+            if (!availability.IsTransitionReady || !exactTarget)
             {
-                var reason = !availability.IsEnabled
+                var reason = !availability.IsTransitionReady
                     ? availability.Reason
                     : DescribeNativeMountTargetRejection(caster, target, true);
                 feedbackState.SetOperationFeedback(reason);

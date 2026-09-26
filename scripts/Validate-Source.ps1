@@ -449,6 +449,64 @@ Assert-Kmc ($evaluatorText -match 'context\.InCombat && !context\.CombatMountAut
     $playerActionText -match 'context\.CombatMountAuthorityQualified = MountedAuthorityPolicy\.IsQualifiedForCombatMount\(\s*\r?\n?\s*settings\.EnablePairedActivation, settings\.EnableUnifiedMountedTurn, settings\.EnablePairedCommandScheduler\)' -and
     $playerActionText -match 'context\.CombatMountAuthorityReason = MountedAuthorityPolicy\.DescribeUnqualifiedCombatMount\(') `
     'prediction gates combat Mount on the qualified authority and names the exact obstacle'
+$executeMountBody = [Regex]::Match($playerActionText, '(?s)internal bool TryExecuteNativeMount\(UnitEntityData caster, UnitEntityData target, string controlIdentity\).*?\n        \}\r?\n')
+
+# ONE TYPED ADMISSION PHASE SPLIT. Requiring adjacency at prediction and target selection
+# is circular: Kingmaker's own Move-typed UnitUseAbility is what closes the distance, so
+# refusing to create that command because the distance is not yet closed means the engine
+# never approaches at all. That made CM02-approach-arrival unreachable. Distance is now
+# DEFERRED to the approach and revalidated at delivery; nothing else is relaxed.
+$admissionPhaseText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedAdmissionPhase.cs')
+$admitsBody = [Regex]::Match($admissionPhaseText, '(?s)public static bool Admits\(.*?\n        \}')
+Assert-Kmc ($admitsBody.Success -and
+    $admissionPhaseText -match 'public enum MountedAdmissionPhase' -and
+    $admissionPhaseText -match 'Approach,' -and $admissionPhaseText -match 'Transition' -and
+    # Approach ignores deferred conditions; the transition does not.
+    $admitsBody.Value -match 'if \(blockingReasonCount != 0\)\s*\r?\n\s*\{\s*\r?\n\s*return false;' -and
+    $admitsBody.Value -match 'return phase == MountedAdmissionPhase\.Approach \|\| transitionDeferredCount == 0;' -and
+    # Only the delivery boundary requires adjacency.
+    $admissionPhaseText -match 'return phase == MountedAdmissionPhase\.Transition;' -and
+    # The policy is pure: it reaches no engine type and no live state.
+    (($admissionPhaseText -split "`n" | Where-Object { $_ -notmatch '^namespace ' }) -join "`n") -notmatch
+        'using Kingmaker|UnitEntityData|Game\.Instance|UnitCommand') `
+    'one typed policy separates native-approach admission from relationship-transition admission'
+
+# Distance is the ONLY deferred condition, and it is deferred rather than dropped.
+$evaluateBody = [Regex]::Match($evaluatorText, '(?s)public static MountedPlayerActionAvailability Evaluate\(MountedPlayerActionContext context\).*?\n        \}\r?\n')
+Assert-Kmc ($evaluateBody.Success -and
+    # Exactly one deferred-bucket add in the whole evaluator, and it is the distance one.
+    ([Regex]::Matches($evaluateBody.Value, 'transitionDeferred\.Add\(').Count -eq 1) -and
+    $evaluateBody.Value -match 'if \(context\.InCombat && !context\.PairAdjacent\)\s*\r?\n\s*\{\s*\r?\n\s*transitionDeferred\.Add\(MountedAdmissionPolicy\.DescribeDeferredDistance\(mountName\)\);' -and
+    # Approach admission is computed through the typed policy, not by counting reasons here.
+    $evaluateBody.Value -match 'MountedAdmissionPolicy\.Admits\(\s*\r?\n?\s*MountedAdmissionPhase\.Approach, reasons\.Count, transitionDeferred\.Count\)' -and
+    # Non-adjacency must never be a blocking reason again.
+    $evaluatorText -notmatch 'reasons\.Add\("Rider and " \+ mountName \+ " must be adjacent' -and
+    # Every other combat gate still adds a BLOCKING reason.
+    $evaluateBody.Value -match 'if \(context\.InCombat && !context\.CombatMountAuthorityQualified\)' -and
+    $evaluateBody.Value -match 'if \(context\.InCombat && !context\.PairedAdoptionAvailable\)' -and
+    $evaluateBody.Value -match 'if \(context\.InCombat && !context\.CombatTurnEligible\)' -and
+    $evaluateBody.Value -match 'if \(context\.InCombat && !context\.RiderHasMoveAction &&' -and
+    # The transition phase is the conjunction, so deferring can never widen into a waiver.
+    $evaluatorText -match 'public bool TransitionReady => MountedAdmissionPolicy\.Admits\(\s*\r?\n?\s*MountedAdmissionPhase\.Transition, UnavailableReasons\.Count, TransitionDeferredReasons\.Count\) && IsEnabled;') `
+    'distance is the single deferred condition and every other gate still blocks approach admission'
+
+# Target selection admits on the APPROACH phase, delivery demands the TRANSITION phase and
+# revalidates the measured envelope from live geometry.
+Assert-Kmc ($playerActionText -match '(?s)internal bool CanNativeMountTarget\(UnitEntityData caster, UnitEntityData target\)\s*\r?\n\s*\{\s*\r?\n\s*if \(!GetNativeMountAvailability\(caster\)\.IsEnabled\)' -and
+    # Availability publishes both phases from the one evaluation.
+    $playerActionText -match 'return new NativeMountedControlAvailability\(\s*\r?\n\s*true, availability\.IsEnabled, availability\.TransitionReady, availability\.Feedback\);' -and
+    # Delivery: the live envelope check, then the transition phase.
+    $executeMountBody.Success -and
+    $executeMountBody.Value -match '!CombatMountDismountPolicy\.IsAdjacent\(caster\.DistanceTo\(mount\), caster\.View\.Corpulence, mount\.View\.Corpulence\)' -and
+    $executeMountBody.Value -match 'if \(!availability\.IsTransitionReady \|\| !exactTarget\)' -and
+    ($executeMountBody.Value.IndexOf('CombatMountDismountPolicy.IsAdjacent') -lt
+        $executeMountBody.Value.IndexOf('relationship.MountRiderOn')) -and
+    # The envelope is the native one. Nothing widens the reach or the approach radius.
+    $evaluatorText -match 'public const float NativeAdjacentReachMeters = 1\.5f;' -and
+    $evaluatorText -match 'radius = Math\.Min\(nativeRadius, riderCorpulence \+ mountCorpulence \+' -and
+    # And there is no second movement command or KMC movement engine for approach.
+    $executeMountBody.Value -notmatch 'new UnitMoveTo|Commands\.Run\(') `
+    'target selection admits the approach while delivery demands the transition phase and the measured envelope'
 Assert-Kmc ($mountRiderBody.Success -and
     $mountRiderBody.Value -match '(?s)if \(inCombat\)[\s\S]{0,400}MountedAuthorityPolicy\.DescribeUnqualifiedCombatMount\([\s\S]{0,300}settings\.EnablePairedActivation' -and
     $mountRiderBody.Value -match 'if \(authorityRefusal != null\)' -and

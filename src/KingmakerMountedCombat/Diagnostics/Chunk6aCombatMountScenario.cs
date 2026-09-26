@@ -4,7 +4,10 @@ using System.Linq;
 using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UI.Selection;
+using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using TurnBased.Controllers;
 using UnityEngine;
@@ -20,14 +23,24 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Chunk6aCombatMountRealTimeScenario = "chunk6a-combat-mount-rt";
         internal const string Chunk6aCombatMountTurnBasedScenario = "chunk6a-combat-mount-tb";
 
+        // The narrow real-time non-adjacent native-approach scenario. It shares every
+        // Chunk 6A stage up to and including CM02-approach-arrival and then stops, so a
+        // failure in the approach itself is attributable without paying for the whole
+        // suite. It emits the same tranche evidence kind, so it introduces no new leaf.
+        internal const string Chunk6aMountApproachScenario = "chunk6a-mount-approach";
+
         internal static bool IsChunk6aCombatMountScenario(string scenario) =>
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
-            string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal);
+            string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal);
 
         private bool IsChunk6aCombatMount => IsChunk6aCombatMountScenario(request.Scenario);
 
         private bool Chunk6aTurnBased =>
             string.Equals(request.Scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal);
+
+        private bool Chunk6aApproachOnly =>
+            string.Equals(request.Scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal);
 
         private int chunk6aStage;
         private int chunk6aDispatchesBefore;
@@ -46,6 +59,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private MidEncounterAdoption chunk6aDisposition = MidEncounterAdoption.Unavailable;
         private string chunk6aDispositionRefusal;
         private bool chunk6aPreparingObserved;
+        // Bounded geometry and command evidence, one sample per named boundary.
+        private readonly JArray chunk6aGeometry = new JArray();
+        private JObject chunk6aApproachStart;
+        private JObject chunk6aApproachClosed;
+
         private JObject chunk6aCompensationBefore;
         private int chunk6aCompensationDispatchesBefore;
         private long chunk6aCompensationGenerationBefore;
@@ -108,6 +126,111 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["timeToNextTurn"] = actor.GetTimeToNextTurn()
             };
         }
+
+        // Out of combat every action resource, the reaction allowance and initiative must
+        // read zero: Kingmaker charges nothing there, which is precisely the claim.
+        private static bool Chunk6aExplorationResourcesClear(JObject actor)
+        {
+            if (actor == null) { return false; }
+            foreach (var name in new[] { "standard", "move", "swift", "initiative", "attackOfOpportunity" })
+            {
+                var value = actor[name];
+                if (value == null || Math.Abs((float)value) > 0.0001f) { return false; }
+            }
+            return true;
+        }
+
+        // A Horse that walks into reach would satisfy adjacency while proving nothing about
+        // rider approach, so the Horse must be effectively stationary for
+        // CM02-approach-arrival to count. This is a measurement tolerance for idle drift and
+        // animation settle, not a licence to move it.
+        private const float Chunk6aStationaryToleranceMeters = 0.35f;
+
+        private static float Chunk6aPlanarDistance(JObject from, JObject to)
+        {
+            if (from == null || to == null) { return -1f; }
+            var dx = (float)to["x"] - (float)from["x"];
+            var dz = (float)to["z"] - (float)from["z"];
+            return (float)Math.Sqrt(dx * dx + dz * dz);
+        }
+
+        // Bounded geometry and command evidence for one boundary of the approach.
+        //
+        // CM02-approach-arrival asserts that Kingmaker's own rider approach closed the
+        // distance, so the claim is only checkable if the distance and the command that
+        // closed it were actually measured on both sides. This records the measurement
+        // itself -- positions, the native envelope derived from live corpulence, the
+        // IsAdjacent verdict, the exact Move-slot command and its lifecycle flags, and both
+        // actors' resource ledgers -- and it only READS. It writes no transform, creates no
+        // command, and never moves either actor.
+        private JObject CaptureChunk6aGeometry(string boundary)
+        {
+            var riderPosition = rider?.Position ?? Vector3.zero;
+            var horsePosition = horse?.Position ?? Vector3.zero;
+            var riderCorpulence = rider?.View == null ? -1f : rider.View.Corpulence;
+            var horseCorpulence = horse?.View == null ? -1f : horse.View.Corpulence;
+            var centerDistance = rider == null || horse == null ? -1f : rider.DistanceTo(horse);
+            var horizontal = new Vector2(riderPosition.x - horsePosition.x, riderPosition.z - horsePosition.z).magnitude;
+            var envelope = riderCorpulence < 0f || horseCorpulence < 0f
+                ? -1f
+                : riderCorpulence + horseCorpulence + CombatMountDismountPolicy.NativeAdjacentReachMeters;
+            float approachRadius;
+            var approachRadiusResolved = CombatMountDismountPolicy.TryGetMountApproachRadius(
+                float.PositiveInfinity, riderCorpulence, horseCorpulence, out approachRadius);
+            var slot = rider?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            var slotAbility = slot as UnitUseAbility;
+            var sample = new JObject
+            {
+                ["boundary"] = boundary,
+                ["frame"] = Time.frameCount,
+                ["seconds"] = clock.Elapsed.TotalSeconds,
+                ["riderPosition"] = new JObject { ["x"] = riderPosition.x, ["y"] = riderPosition.y, ["z"] = riderPosition.z },
+                ["horsePosition"] = new JObject { ["x"] = horsePosition.x, ["y"] = horsePosition.y, ["z"] = horsePosition.z },
+                ["riderCorpulence"] = riderCorpulence,
+                ["horseCorpulence"] = horseCorpulence,
+                ["centerDistance"] = centerDistance,
+                ["horizontalDistance"] = horizontal,
+                ["legalAdjacencyEnvelope"] = envelope,
+                ["isAdjacent"] = rider != null && horse != null && rider.View != null && horse.View != null &&
+                    CombatMountDismountPolicy.IsAdjacent(centerDistance, riderCorpulence, horseCorpulence),
+                ["approachRadiusResolved"] = approachRadiusResolved,
+                ["approachRadius"] = approachRadius,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["relationshipGeneration"] = relationship.MountedPairGeneration,
+                ["command"] = slot == null ? null : new JObject
+                {
+                    ["type"] = slot.Type.ToString(),
+                    ["typeName"] = slot.GetType().Name,
+                    ["isUseAbility"] = slotAbility != null,
+                    ["abilityGuid"] = slotAbility?.Spell?.Blueprint?.AssetGuid,
+                    ["executorId"] = slot.Executor?.UniqueId,
+                    ["targetId"] = slot.Target?.Unit?.UniqueId,
+                    ["createdByPlayer"] = slot.CreatedByPlayer,
+                    ["aiActionPresent"] = slot.AiAction != null,
+                    ["queued"] = rider?.Commands?.Queue?.Contains(slot) == true,
+                    ["started"] = slot.IsStarted,
+                    ["running"] = slot.IsRunning,
+                    ["finished"] = slot.IsFinished,
+                    ["acted"] = slot.IsActed,
+                    ["result"] = slot.Result.ToString(),
+                    ["unitEnoughClose"] = slot.IsUnitEnoughClose,
+                    ["shouldUnitApproach"] = slot.ShouldUnitApproach,
+                    ["approachRadius"] = slot.ApproachRadius,
+                    ["hasCooldown"] = rider?.CombatState?.HasCooldownForCommand(slot) == true,
+                    ["executionProcessPresent"] = slotAbility?.ExecutionProcess != null,
+                    ["executionProcessEnded"] = slotAbility?.ExecutionProcess?.IsEnded,
+                    ["executionContextPresent"] = slotAbility?.ExecutionProcess?.Context != null
+                },
+                ["shellState"] = nativeControls.DescribeRelationshipShellState(rider),
+                ["transitionLedger"] = playerAction.TransitionLedger.Describe(),
+                ["riderResources"] = Chunk6aCooldowns(rider),
+                ["horseResources"] = Chunk6aCooldowns(horse)
+            };
+            chunk6aGeometry.Add(sample);
+            observations["chunk6aGeometry"] = chunk6aGeometry;
+            return sample;
+        }
+
 
         private JObject CaptureChunk6aState(string kind)
         {
@@ -253,6 +376,64 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["before"] = chunk6aExplorationDismountBefore,
                             ["after"] = chunk6aExplorationDismountAfter
                         });
+
+                    // CM01-exploration-free: "The same native control outside combat
+                    // performs the transition and charges nothing."
+                    //
+                    // This aggregates the two exploration transitions the normal controls
+                    // actually performed: the Mount the parent flow drove through the stock
+                    // selected-ability path, and the Dismount this stage just drove through
+                    // the same path. It is stated only to the strength of what is measured
+                    // here -- the transition ledger's own accepted counts, the exact pair
+                    // identities, and every rider and Horse action resource across the
+                    // exploration window -- and nothing is inferred from the narrow preamble
+                    // scenario, which deliberately stops before any transition.
+                    var explorationLedger = playerAction.TransitionLedger;
+                    var explorationRiderBefore = (JObject)chunk6aExplorationDismountBefore["rider"];
+                    var explorationRiderAfter = (JObject)chunk6aExplorationDismountAfter["rider"];
+                    var explorationMountBefore = (JObject)chunk6aExplorationDismountBefore["mount"];
+                    var explorationMountAfter = (JObject)chunk6aExplorationDismountAfter["mount"];
+                    var oneMountOneDismount = explorationLedger.AcceptedMountCount == 1 &&
+                        explorationLedger.AcceptedDismountCount == 1 &&
+                        explorationLedger.AdmittedMountCount == 1 &&
+                        explorationLedger.AdmittedDismountCount == 1;
+                    var noDuplicateExploration = explorationLedger.DuplicateControlSuppressedCount == 0 &&
+                        explorationLedger.ConcurrentControlSuppressedCount == 0 &&
+                        explorationLedger.RefusedVoluntaryCount == 0 &&
+                        explorationLedger.ForcedDetachCount == 0;
+                    // Two accepted dispatches, one per transition, and no rejection.
+                    var twoDispatchesNoRejection = nativeControls.DispatchAcceptedCount == 2 &&
+                        nativeControls.DispatchRejectedCount == 0;
+                    var exactIdentities = relationship.State == RelationshipState.Unmounted &&
+                        (string)explorationRiderBefore["actor"] == rider.UniqueId &&
+                        (string)explorationMountBefore["actor"] == horse.UniqueId;
+                    // Outside an encounter Kingmaker's own UpdateCooldowns writes nothing, so
+                    // "charges nothing" is checkable directly: every action resource, the
+                    // reaction allowance and initiative are zero on both sides of the window.
+                    var chargedNothing = Chunk6aExplorationResourcesClear(explorationRiderBefore) &&
+                        Chunk6aExplorationResourcesClear(explorationRiderAfter) &&
+                        Chunk6aExplorationResourcesClear(explorationMountBefore) &&
+                        Chunk6aExplorationResourcesClear(explorationMountAfter);
+                    AddRow("CM01-exploration-free",
+                        oneMountOneDismount && noDuplicateExploration && twoDispatchesNoRejection &&
+                            exactIdentities && chargedNothing,
+                        "Outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, through two accepted dispatches with no rejection, no duplicate or concurrent suppression and no forced detach, and charged no Standard, Move, Swift, initiative or reaction resource on either actor.",
+                        new JObject
+                        {
+                            ["transitionLedger"] = explorationLedger.Describe(),
+                            ["acceptedMountCount"] = explorationLedger.AcceptedMountCount,
+                            ["acceptedDismountCount"] = explorationLedger.AcceptedDismountCount,
+                            ["dispatchAccepted"] = nativeControls.DispatchAcceptedCount,
+                            ["dispatchRejected"] = nativeControls.DispatchRejectedCount,
+                            ["oneMountOneDismount"] = oneMountOneDismount,
+                            ["noDuplicateExploration"] = noDuplicateExploration,
+                            ["exactIdentities"] = exactIdentities,
+                            ["chargedNothing"] = chargedNothing,
+                            ["riderId"] = rider.UniqueId,
+                            ["horseId"] = horse.UniqueId,
+                            ["before"] = chunk6aExplorationDismountBefore,
+                            ["after"] = chunk6aExplorationDismountAfter
+                        });
                 }
                 if (!PrepareUnmountedHorseAiIsolation())
                 {
@@ -331,17 +512,40 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 var availability = nativeControls.Evaluate(NativeMountedControlKind.MountCompanion, rider);
+                // Mount availability is the APPROACH phase. A legal pair outside adjacency
+                // must be admitted here so Kingmaker's own Move-typed command can close the
+                // distance; waiting for adjacency to appear by itself is what turned a
+                // mandatory product defect into a generic leaf deadline.
+                var firstReady = CaptureChunk6aGeometry("mount-availability");
+                observations["chunk6aMountAvailability"] = new JObject
+                {
+                    ["visible"] = availability.IsVisible,
+                    ["enabled"] = availability.IsEnabled,
+                    ["transitionReady"] = availability.IsTransitionReady,
+                    ["reason"] = availability.Reason,
+                    ["geometry"] = firstReady,
+                    ["state"] = CaptureChunk6aState("mount-availability")
+                };
                 if (!availability.IsEnabled)
                 {
-                    observations["chunk6aMountAvailability"] = new JObject
+                    // If distance is the only thing still refusing approach admission, the
+                    // phase split has regressed. Say so exactly and immediately rather than
+                    // burning the leaf deadline on a condition that can never resolve.
+                    if (availability.Reason != null &&
+                        (availability.Reason.IndexOf("adjacent", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                         availability.Reason.IndexOf("approach", StringComparison.OrdinalIgnoreCase) >= 0))
                     {
-                        ["visible"] = availability.IsVisible,
-                        ["enabled"] = availability.IsEnabled,
-                        ["reason"] = availability.Reason,
-                        ["state"] = CaptureChunk6aState("mount-availability-pending")
-                    };
+                        FailCurrent("CM02-approach-arrival",
+                            "Combat Mount refused APPROACH admission for distance alone: \"" + availability.Reason +
+                            "\". Kingmaker's own Move command is what closes the distance, so this refusal is circular " +
+                            "and makes CM02-approach-arrival unreachable. Measured geometry: " +
+                            firstReady.ToString(Formatting.None));
+                        BeginCleanup();
+                        return;
+                    }
                     return;
                 }
+                chunk6aApproachStart = firstReady;
                 chunk6aMountTurn = turn;
                 chunk6aMountRound = controller?.RoundNumber ?? -1;
                 string dispositionRefusal;
@@ -570,6 +774,21 @@ namespace KingmakerMountedCombat.Diagnostics
             // Stage 2: await the native command's own terminal state and delivery.
             if (chunk6aStage == 2)
             {
+                // Sample the approach while Kingmaker's own command still exists. The
+                // command leaves the Move slot before the relationship transition lands, so
+                // the acted/resource-commitment boundary can only be observed here; keeping
+                // the LAST such sample gives the geometry and command state at commitment.
+                var approachSlot = rider?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+                if (approachSlot != null &&
+                    ReferenceEquals(approachSlot.Spell?.Blueprint, nativeControls.MountAbility))
+                {
+                    var approachSample = CaptureChunk6aGeometry(
+                        approachSlot.IsActed ? "acted-resource-commitment" : "approach-start");
+                    if (approachSlot.IsActed || chunk6aApproachClosed == null)
+                    {
+                        chunk6aApproachClosed = approachSample;
+                    }
+                }
                 if (relationship.State == RelationshipState.Unmounted && Chunk6aIdle &&
                     nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore &&
                     nativeControls.DispatchRejectedCount > chunk6aRejectionsBefore)
@@ -652,6 +871,76 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["adoptionObservation"] = combat.LastPairedAdoptionObservation,
                         ["allocationTrace"] = allocationTrace.Capture()
                     });
+
+                // CM02-approach-arrival: "Mount from outside adjacency through legal native
+                // rider approach and legal arrival, with no teleport or manufactured
+                // endpoint." Every clause is checked against measured geometry rather than
+                // asserted, and the measurements come from the same boundaries the evidence
+                // publishes.
+                var arrival = CaptureChunk6aGeometry("transition-result");
+                var startDistance = (float)chunk6aApproachStart["centerDistance"];
+                var startEnvelope = (float)chunk6aApproachStart["legalAdjacencyEnvelope"];
+                var arrivalDistance = (float)arrival["centerDistance"];
+                var arrivalEnvelope = (float)arrival["legalAdjacencyEnvelope"];
+                var startedOutside = startEnvelope > 0f && startDistance > startEnvelope &&
+                    (bool)chunk6aApproachStart["isAdjacent"] == false;
+                var arrivedInside = arrivalEnvelope > 0f && arrivalDistance <= arrivalEnvelope &&
+                    (bool)arrival["isAdjacent"];
+                var riderDisplacement = Chunk6aPlanarDistance(
+                    (JObject)chunk6aApproachStart["riderPosition"], (JObject)arrival["riderPosition"]);
+                var horseDisplacement = Chunk6aPlanarDistance(
+                    (JObject)chunk6aApproachStart["horsePosition"], (JObject)arrival["horsePosition"]);
+                // The RIDER closes the distance. A Horse walking into reach would satisfy
+                // adjacency while proving nothing about rider approach, so it is refused as
+                // evidence: the Horse must be effectively stationary and the rider must have
+                // covered at least the distance the envelope required.
+                var riderClosedTheDistance = riderDisplacement >= startDistance - arrivalEnvelope - 0.5f &&
+                    riderDisplacement > horseDisplacement &&
+                    horseDisplacement <= Chunk6aStationaryToleranceMeters;
+                var approachCommand = (JObject)chunk6aApproachClosed?["command"];
+                var oneRiderOwnedApproach = approachCommand != null &&
+                    (bool)approachCommand["isUseAbility"] &&
+                    (string)approachCommand["executorId"] == rider.UniqueId &&
+                    (string)approachCommand["targetId"] == horse.UniqueId &&
+                    (string)approachCommand["type"] == UnitCommand.CommandType.Move.ToString() &&
+                    (string)approachCommand["abilityGuid"] == nativeControls.MountAbility.AssetGuid;
+                var actedOnce = approachCommand != null && (bool)approachCommand["acted"];
+                var noDuplicateRequest = playerAction.TransitionLedger.DuplicateControlSuppressedCount == 0 &&
+                    playerAction.TransitionLedger.AdmittedMountCount == 1 &&
+                    riderPrepareUnchanged;
+                AddRow("CM02-approach-arrival",
+                    startedOutside && arrivedInside && riderClosedTheDistance &&
+                        oneRiderOwnedApproach && actedOnce && oneDelivery && oneTransition &&
+                        moveCommitted && noDuplicateRequest,
+                    "Combat Mount was admitted at a measured distance outside the transition envelope, Kingmaker's own rider-owned native Move command closed the distance and arrived inside that envelope, and exactly one acted Move commitment, one shell delivery and one relationship transition followed with no Horse movement, no duplicate request and no repeated preparation.",
+                    new JObject
+                    {
+                        ["approachStart"] = chunk6aApproachStart,
+                        ["approachClosed"] = chunk6aApproachClosed,
+                        ["arrival"] = arrival,
+                        ["startDistance"] = startDistance,
+                        ["startEnvelope"] = startEnvelope,
+                        ["arrivalDistance"] = arrivalDistance,
+                        ["arrivalEnvelope"] = arrivalEnvelope,
+                        ["startedOutside"] = startedOutside,
+                        ["arrivedInside"] = arrivedInside,
+                        ["riderDisplacement"] = riderDisplacement,
+                        ["horseDisplacement"] = horseDisplacement,
+                        ["riderClosedTheDistance"] = riderClosedTheDistance,
+                        ["oneRiderOwnedApproach"] = oneRiderOwnedApproach,
+                        ["actedOnce"] = actedOnce,
+                        ["noDuplicateRequest"] = noDuplicateRequest,
+                        ["transitionLedger"] = playerAction.TransitionLedger.Describe()
+                    });
+
+                // The narrow approach scenario stops here. Its whole claim is the
+                // non-adjacent admission and the native approach that followed, so it
+                // finishes rather than continuing into the rest of the 6A ledger.
+                if (Chunk6aApproachOnly)
+                {
+                    BeginCleanup();
+                    return;
+                }
                 chunk6aStage = 3;
                 ResetLeafClock();
                 return;
