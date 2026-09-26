@@ -698,6 +698,34 @@ Assert-Kmc ($chunk6aScenarioText -match 'var actedObserved = chunk6aGeometry\.Of
     $chunk6aScenarioText -match '\["actedObserved"\] = actedObserved,') `
     'the acted Move commitment is observed from any sample of that exact command, not only the last'
 
+# 4. A native resource the engine is still RESTORING is waited for, never written. The
+# compensated adoption refusal one stage earlier performs a real native Mount whose delivery
+# is refused, and that refusal keeps its cost, so the attempt after it only becomes lawful
+# once Kingmaker drains the Move cooldown it charged. A run clicked combat Mount with 0.045s
+# of that cooldown left and was correctly refused with "The rider has no Move action
+# available to mount." Waiting for the engine is the whole of the repair; zeroing, clearing
+# or refunding the cooldown is exactly what the mounted-cost contract forbids.
+$moveReadinessText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedNativeMoveReadiness.cs')
+Assert-Kmc ($moveReadinessText -match 'public static MountedNativeMoveReadiness Decide\([^)]*bool hasMoveAction, float moveCooldownSeconds, bool turnBased\)' -and
+    # Turn-based play never waits: the cooldown is static between boundaries and forcing a
+    # turn boundary to recover a Move is prohibited outright.
+    $moveReadinessText -match 'if \(turnBased\)\s*\{\s*return MountedNativeMoveReadiness\.Unavailable;' -and
+    # Only a positive draining real-time cooldown counts as a restoration in progress, so a
+    # drained, negative or not-a-number reading refuses instead of waiting for ever.
+    $moveReadinessText -match 'return moveCooldownSeconds > 0f\s*\?\s*MountedNativeMoveReadiness\.RestoringOnNativeClock\s*:\s*MountedNativeMoveReadiness\.Unavailable;' -and
+    # The decision is pure: it reads no live state and touches no native resource.
+    $moveReadinessText -notmatch 'using Kingmaker\.' -and
+    $moveReadinessText -notmatch 'Game\.Instance|UnitEntityData|CombatState|\.MoveAction' -and
+    # The scenario consults it before the click, waits only while the engine is restoring,
+    # and reports the exact refusal when nothing will restore the resource.
+    $chunk6aScenarioText -match 'var moveReadiness = MountedNativeMoveReadinessPolicy\.Decide\(' -and
+    $chunk6aScenarioText -match 'if \(MountedNativeMoveReadinessPolicy\.ShouldWait\(moveReadiness\)\)' -and
+    $chunk6aScenarioText -match 'if \(moveReadiness == MountedNativeMoveReadiness\.Unavailable\)' -and
+    # And the observed wait is published, so the evidence shows the resource came back on
+    # Kingmaker's own clock rather than from anything the scenario did.
+    $chunk6aScenarioText -match 'observations\["chunk6aMoveRestorationWait"\] = chunk6aMoveRestorationWait;') `
+    'a native Move the engine is still restoring is waited for and never written'
+
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
 $chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')
