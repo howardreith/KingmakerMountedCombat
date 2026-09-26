@@ -806,6 +806,27 @@ Assert-Kmc ($chunk6aRowRequirementText -match '\$elapsedSeconds = \[double\]\$pa
     $chunk6aRowRequirementText -match 'Chunk 6A control changed \$actor initiative\.') `
     'the harness measures a refund against the real-time clock and a charge as a cooldown that rose'
 
+# The diagnostic encounter stays alive only while the bidirectional combat-memory lease keeps
+# refreshing, and the tick used to DISCARD that result. A run lost combat between the combat
+# Mount and the combat Dismount with nothing recording why; the Dismount then ran out of
+# combat, where Kingmaker correctly charges nothing, and the row failed on a derived
+# move-commitment clause instead of the real cause. Liveness is now observed, and the
+# encounter is a stated precondition of the combat Dismount.
+Assert-Kmc ($chunk6aTrancheText -match 'var combatMemoryRefreshed = targetService\?\.RefreshBidirectionalCombatMemoryLease\(\);' -and
+    $chunk6aTrancheText -match 'if \(IsChunk6aCombatMount\) \{ ObserveChunk6aEncounterLiveness\(combatMemoryRefreshed\); \}' -and
+    $chunk6aScenarioText -match 'private void ObserveChunk6aEncounterLiveness\(bool\? combatMemoryRefreshed\)' -and
+    # Bounded: the first lapse of each kind plus running counts, never a per-frame log.
+    $chunk6aScenarioText -match '\["firstRefreshFailure"\] = Chunk6aLivenessMark\(live\);' -and
+    $chunk6aScenarioText -match '\["firstCombatLoss"\] = Chunk6aLivenessMark\(false\);' -and
+    # The mark names which lease stopped validating, so the cause is attributable.
+    $chunk6aScenarioText -match '\["targetBrainLeaseReleased"\] = targetService\?\.TargetBrainLeaseReleased,' -and
+    $chunk6aScenarioText -match '\["targetSleeplessLeaseReleased"\] = targetService\?\.TargetSleeplessLeaseReleased,' -and
+    $chunk6aScenarioText -match '\["targetDurabilityLeaseReleased"\] = targetService\?\.TargetDurabilityLeaseReleased,' -and
+    # And a combat Dismount is only claimed while the encounter is actually live.
+    $chunk6aScenarioText -match 'if \(!rider\.IsInCombat \|\| !horse\.IsInCombat \|\| !Game\.Instance\.Player\.IsInCombat\)' -and
+    $chunk6aScenarioText -match 'The encounter ended before the combat Dismount became available') `
+    'the encounter liveness that keeps the diagnostic combat alive is observed, not assumed'
+
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
 $chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')

@@ -422,7 +422,11 @@ namespace KingmakerMountedCombat.Diagnostics
                             ? horseAttack.NativeSequenceStarted ? "-horse-strike-recovery" : "-horse-approach"
                             : "-rider") : null) : step.ToString());
                 targetService?.ObserveTargetLifeState();
-                targetService?.RefreshBidirectionalCombatMemoryLease();
+                // The refresh result used to be discarded. It is the only thing keeping the
+                // diagnostic encounter alive, and a Chunk 6A run lost combat mid-scenario with
+                // nothing recording why, so the outcome is now observed rather than assumed.
+                var combatMemoryRefreshed = targetService?.RefreshBidirectionalCombatMemoryLease();
+                if (IsChunk6aCombatMount) { ObserveChunk6aEncounterLiveness(combatMemoryRefreshed); }
                 var scenarioBudget = IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
