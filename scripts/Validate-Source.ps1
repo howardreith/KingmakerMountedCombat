@@ -636,6 +636,68 @@ Assert-Kmc ($chunk6aScenarioText -match 'private void Chunk6aDisposeAdoptionFaul
     (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs')) -match 'Chunk6aDisposeAdoptionFault\(\); \}') `
     'the Chunk 6A scenario arms the adoption fault exactly once and disarms it on every cleanup path'
 
+# THREE MEASUREMENT DEFECTS the first completed approach run exposed. None was a product
+# defect: the transition behaved correctly every time and the scenario's own expectations
+# were wrong. Each is pinned here so it cannot come back.
+$chunk6aScenarioText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCombatMountScenario.cs')
+
+# 1. Resource conservation is MODE AWARE. In turn-based a cooldown is static between
+# boundaries so exact equality is right; in real time cooldowns tick down continuously, and
+# a run measured a rider's Standard falling 4.447 -> 3.084 across one correct mount. A
+# CHARGE RAISES a cooldown, so the real-time invariant is "never increases". Reaction and
+# initiative counts do not tick and stay exact in both modes.
+$resourcesHeldBody = [Regex]::Match($chunk6aScenarioText,
+    '(?s)private static bool Chunk6aResourcesHeld\(.*?\n        \}')
+Assert-Kmc ($resourcesHeldBody.Success -and
+    $resourcesHeldBody.Value -match 'var exact = turnBased \|\| name == "reactions" \|\| name == "initiative";' -and
+    $resourcesHeldBody.Value -match 'if \(!JToken\.DeepEquals\(before\[name\], after\[name\]\)\) \{ return false; \}' -and
+    $resourcesHeldBody.Value -match 'if \(\(float\)after\[name\] > \(float\)before\[name\] \+ 0\.0001f\) \{ return false; \}' -and
+    # The older exact-equality helper now delegates, so no caller can bypass the mode.
+    $chunk6aScenarioText -match 'private bool Chunk6aUnchangedExcept\(JObject before, JObject after, params string\[\] allowedToRise\)\s*\r?\n\s*\{\s*\r?\n\s*return Chunk6aResourcesHeld\(before, after, Chunk6aTurnBased, allowedToRise\);' -and
+    # And conservation is still a real claim: the excepted resource is named explicitly at
+    # each call rather than the check being skipped.
+    $chunk6aScenarioText -match 'Chunk6aUnchangedExcept\(riderBefore, riderAfter, "move"\)') `
+    'native resource conservation is measured per mode: exact in turn-based, never-increasing in real time'
+
+# 2. Every transition ledger claim is a WINDOW DELTA. This scenario legitimately performs an
+# exploration Mount, an exploration Dismount and a compensation-refused Mount before the
+# combat Mount, so an absolute "acceptedMount == 1" describes an earlier design of the
+# scenario rather than what any one transition did.
+$absoluteLedgerClaims = @([Regex]::Matches($chunk6aScenarioText,
+    'TransitionLedger\.(?:Accepted|Admitted|ForcedDetach|RefusedVoluntary|DuplicateControlSuppressed|ConcurrentControlSuppressed)[A-Za-z]*Count == \d'))
+Assert-Kmc ($chunk6aScenarioText -match 'private JObject Chunk6aLedgerCounters\(\)' -and
+    $chunk6aScenarioText -match 'private bool Chunk6aLedgerDelta\(JObject before, string name, long expected\)' -and
+    $chunk6aScenarioText -match 'return \(long\)Chunk6aLedgerCounters\(\)\[name\] - \(long\)before\[name\] == expected;' -and
+    # Each measured window captures its own baseline.
+    $chunk6aScenarioText -match 'chunk6aExplorationLedgerBefore = Chunk6aLedgerCounters\(\);' -and
+    $chunk6aScenarioText -match 'chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);' -and
+    $chunk6aScenarioText -match 'chunk6aCompensationLedgerBefore = Chunk6aLedgerCounters\(\);' -and
+    $chunk6aScenarioText -match 'chunk6aRepeatLedgerBefore = Chunk6aLedgerCounters\(\);' -and
+    $chunk6aScenarioText -match 'chunk6aDismountLedgerBefore = Chunk6aLedgerCounters\(\);' -and
+    ([Regex]::Matches($chunk6aScenarioText, 'Chunk6aLedgerDelta\(').Count -ge 15) -and
+    # The combat mount window pins exactly one admitted and one accepted mount, no forced
+    # detach and no refusal of its own.
+    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aMountLedgerBefore, "acceptedMount", 1\)' -and
+    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aMountLedgerBefore, "forcedDetach", 0\)' -and
+    # The compensation window pins its refusal and its single cleanup detach.
+    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aCompensationLedgerBefore, "acceptedMount", 0\)' -and
+    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aCompensationLedgerBefore, "refusedVoluntary", 1\)' -and
+    # No absolute equality claim on a cumulative ledger counter survives anywhere, except the
+    # exploration Mount, which really did happen exactly once before its window opened.
+    ($absoluteLedgerClaims.Count -le 2)) `
+    'every transition ledger claim is measured as a window delta rather than a cumulative total'
+
+# 3. The acted transition is read from ANY sample of that command. The command leaves the
+# Move slot around the acted transition, so the last in-slot sample can legitimately still
+# read acted=false; taking it only from that sample failed a correct approach.
+Assert-Kmc ($chunk6aScenarioText -match 'var actedObserved = chunk6aGeometry\.OfType<JObject>\(\)\.Any\(sample =>' -and
+    $chunk6aScenarioText -match '\(string\)sampled\["abilityGuid"\] == nativeControls\.MountAbility\.AssetGuid &&' -and
+    $chunk6aScenarioText -match '\(string\)sampled\["executorId"\] == rider\.UniqueId &&' -and
+    $chunk6aScenarioText -match 'var actedOnce = actedObserved \|\| moveCommitted;' -and
+    # Both halves are published so the reader can see which one carried the claim.
+    $chunk6aScenarioText -match '\["actedObserved"\] = actedObserved,') `
+    'the acted Move commitment is observed from any sample of that exact command, not only the last'
+
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
 $chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')
