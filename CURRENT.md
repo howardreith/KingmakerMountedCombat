@@ -1,3 +1,13 @@
+# Chunk 6A - 2026-09-27T15:30:12.538Z
+
+**IN PROGRESS.** Published parent `747fd48d04e5a0bc0efeb242f4eb0332b94ec67f` preserved; preview.114 diagnostic setup correction pending. Preview.113 positive approach PASS 48/0, isolated compensation RT and TB each FAIL 43/2 before combat at the unnecessary separation Move. All three external restorations PASS. Four mandatory IDs qualified only on frozen preview.113; preview.114 has no native qualification yet.
+
+[Current evidence and next action](docs/CHUNK6A-COMBAT-MOUNT.md). Exact live state: lab `analysis-cache/chunk6a-causal/ACTIVE.json`. Next: complete offline umbrella, guarded publication, new immutable candidate/suite and fresh unchanged purity, then positive and isolated compensation. Preserve accepted causal structures and all failures. No 6B before all 87 rows on one candidate.
+
+---
+
+## Historical checkpoints
+
 ## 2026-09-27 - preview.112 diagnostic cleanup repair
 
 ## 2026-09-27 ? preview.112 native evidence and preview.113 assertion repair

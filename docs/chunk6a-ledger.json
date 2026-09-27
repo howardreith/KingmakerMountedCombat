@@ -1,34 +1,36 @@
-{
+﻿{
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-09-27T03:30:25.266Z",
+    "generatedAtUtc":  "2026-09-27T15:31:14.651Z",
     "payload":  {
-                    "version":  "0.1.0-chunk6a-preview.109",
-                    "commit":  "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+                    "version":  "0.1.0-chunk6a-preview.113",
+                    "commit":  "747fd48d04e5a0bc0efeb242f4eb0332b94ec67f",
                     "branch":  "codex/mounted-combat-phase3f-playable-core",
-                    "dllSha256":  "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
-                    "dllMvid":  "7c8a077d-210b-43d7-8822-5003248da0f8",
-                    "packageSha256":  "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
-                    "manifestSha256":  "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb",
-                    "packagePath":  "KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
-                    "suiteId":  "20260926-chunk6a-suite010",
-                    "suiteSha256":  "7232c68b52d87c857493c90427dd39dbba49c2a43a2c420623f21334178ca9c7"
+                    "dllSha256":  "b27e25430c88867c845aa3f89a925cea4d81723bf828122e2890f73e7faf7acc",
+                    "dllMvid":  "d5c9b744-dfd4-4937-bf57-705452a37376",
+                    "packageSha256":  "95ec7fe388eb354204ca922639526614006e5c5c74597a95e0225fe273328235",
+                    "manifestSha256":  "6c2f957b386f16289693f7eec675782d9fbcb5eb1b51b718e33b38f291d25c6f",
+                    "packagePath":  "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.113-chunk6a-clock-a-diagnostic.zip",
+                    "suiteId":  "20260927-chunk6a-clock-a",
+                    "suiteSha256":  "d4e79a23ab0a2337e1b1f7367d401fe06c22aeaa3ebe69b7f5ef123e49a7af97"
                 },
     "entries":  [
                     {
                         "id":  "CM01-horse-rt",
                         "family":  "CM01",
                         "claim":  "Legal voluntary combat Mount of the Horse pair in real time through the native Mount Companion control.",
-                        "scenario":  "",
-                        "runId":  "",
-                        "status":  "BLOCKED",
-                        "passCount":  0,
+                        "scenario":  "chunk6a-mount-approach",
+                        "runId":  "c6a-clock-a-approach",
+                        "status":  "PASS",
+                        "passCount":  48,
                         "failCount":  0,
                         "rows":  [
-
+                                     "CM01-combat-mount-accepted",
+                                     "CM03-combat-mount-conserves-debt",
+                                     "CM03-combat-mount-adoption-preparations"
                                  ],
-                        "evidenceLeaf":  "",
-                        "evidenceSha256":  "",
-                        "reason":  "CM01-horse-rt: exact native qualification on the repaired frozen candidate remains unobserved."
+                        "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                        "evidenceSha256":  "4ae37b114dd6c6bfc3c4fc2c253ad41f0b69dc350dfeb7dce56a6691d995b954",
+                        "reason":  "CM01-horse-rt: overall PASS on the exact preview.113 candidate and suite; exact native command windows and all restoration checks passed. Original historical failures remain immutable."
                     },
                     {
                         "id":  "CM01-horse-tb",
@@ -83,29 +85,17 @@
                         "family":  "CM01",
                         "claim":  "The same native control outside combat performs the transition and charges nothing.",
                         "scenario":  "chunk6a-mount-approach",
-                        "runId":  "c6a-approach-1",
-                        "status":  "FAIL",
-                        "passCount":  0,
-                        "failCount":  1,
+                        "runId":  "c6a-clock-a-approach",
+                        "status":  "PASS",
+                        "passCount":  48,
+                        "failCount":  0,
                         "rows":  [
                                      "CM01-exploration-free",
                                      "CM01-exploration-dismount-costs-nothing"
                                  ],
-                        "evidenceLeaf":  "runtime-game-result.json",
-                        "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
-                        "reason":  "CM01-exploration-free failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
-                        "failingRow":  "CM01-exploration-free",
-                        "failingAssertion":  "Outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, through two accepted dispatches with no rejection, no duplicate or concurrent suppression and no forced detach, and charged no Standard, Move, Swift, initiative or reaction resource on either actor.",
-                        "observedPayload":  {
-                                                "version":  "0.1.0-chunk6a-preview.109",
-                                                "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
-                                                "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
-                                                "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
-                                                "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
-                                                "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
-                                                "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
-                                            },
-                        "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
+                        "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                        "evidenceSha256":  "4ae37b114dd6c6bfc3c4fc2c253ad41f0b69dc350dfeb7dce56a6691d995b954",
+                        "reason":  "CM01-exploration-free: overall PASS on the exact preview.113 candidate and suite; exact native command windows and all restoration checks passed. Original historical failures remain immutable."
                     },
                     {
                         "id":  "CM01-combat-mount-preparing-refused",
@@ -128,28 +118,16 @@
                         "family":  "CM02",
                         "claim":  "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
                         "scenario":  "chunk6a-mount-approach",
-                        "runId":  "c6a-approach-1",
-                        "status":  "FAIL",
-                        "passCount":  0,
-                        "failCount":  1,
+                        "runId":  "c6a-clock-a-approach",
+                        "status":  "PASS",
+                        "passCount":  48,
+                        "failCount":  0,
                         "rows":  [
                                      "CM02-approach-arrival"
                                  ],
-                        "evidenceLeaf":  "runtime-game-result.json",
-                        "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
-                        "reason":  "CM02-approach-arrival failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
-                        "failingRow":  "CM02-approach-arrival",
-                        "failingAssertion":  "Combat Mount was admitted at a measured distance outside the transition envelope, Kingmaker\u0027s own rider-owned native Move command closed the distance and arrived inside that envelope, and exactly one acted Move commitment, one shell delivery and one relationship transition followed with no Horse movement, no duplicate request and no repeated preparation.",
-                        "observedPayload":  {
-                                                "version":  "0.1.0-chunk6a-preview.109",
-                                                "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
-                                                "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
-                                                "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
-                                                "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
-                                                "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
-                                                "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
-                                            },
-                        "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
+                        "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                        "evidenceSha256":  "4ae37b114dd6c6bfc3c4fc2c253ad41f0b69dc350dfeb7dce56a6691d995b954",
+                        "reason":  "CM02-approach-arrival: overall PASS on the exact preview.113 candidate and suite; exact native command windows and all restoration checks passed. Original historical failures remain immutable."
                     },
                     {
                         "id":  "CM02-geometry-change",
@@ -363,17 +341,17 @@
                         "id":  "CM02-target-selection-cancelled",
                         "family":  "CM02",
                         "claim":  "Cancelling target selection before commitment costs nothing and performs no transition.",
-                        "scenario":  "",
-                        "runId":  "",
-                        "status":  "BLOCKED",
-                        "passCount":  0,
+                        "scenario":  "chunk6a-mount-approach",
+                        "runId":  "c6a-clock-a-approach",
+                        "status":  "PASS",
+                        "passCount":  48,
                         "failCount":  0,
                         "rows":  [
-
+                                     "CM01-combat-mount-cancel-costs-nothing"
                                  ],
-                        "evidenceLeaf":  "",
-                        "evidenceSha256":  "",
-                        "reason":  "CM02-target-selection-cancelled: exact native qualification on the repaired frozen candidate remains unobserved."
+                        "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                        "evidenceSha256":  "4ae37b114dd6c6bfc3c4fc2c253ad41f0b69dc350dfeb7dce56a6691d995b954",
+                        "reason":  "CM02-target-selection-cancelled: overall PASS on the exact preview.113 candidate and suite; exact native command windows and all restoration checks passed. Original historical failures remain immutable."
                     },
                     {
                         "id":  "CM02-adoption-plan-invalidated",
@@ -1542,6 +1520,56 @@
                                                      },
                                  "reason":  "CM02-approach-arrival failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
                                  "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
+                             },
+                             {
+                                 "id":  "CM02-approach-arrival",
+                                 "family":  "CM02",
+                                 "claim":  "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
+                                 "scenario":  "chunk6a-adoption-compensation-rt",
+                                 "runId":  "c6a-clock-a-compensation-rt",
+                                 "status":  "FAIL",
+                                 "passCount":  0,
+                                 "failCount":  1,
+                                 "evidenceLeaf":  "runtime-game-result.json",
+                                 "evidenceSha256":  "ce9b44a5d8ff52f71241e431580f6b7a82bfe0545a20675fa6dab97bbb1f9c06",
+                                 "failingRow":  "CM02-approach-arrival",
+                                 "failingAssertion":  "Pre-encounter native separation did not succeed.",
+                                 "observedPayload":  {
+                                                         "version":  "0.1.0-chunk6a-preview.113",
+                                                         "commit":  "747fd48d04e5a0bc0efeb242f4eb0332b94ec67f",
+                                                         "dllSha256":  "b27e25430c88867c845aa3f89a925cea4d81723bf828122e2890f73e7faf7acc",
+                                                         "dllMvid":  "d5c9b744-dfd4-4937-bf57-705452a37376",
+                                                         "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.113-chunk6a-clock-a-diagnostic.zip",
+                                                         "packageSha256":  "95ec7fe388eb354204ca922639526614006e5c5c74597a95e0225fe273328235",
+                                                         "manifestSha256":  "6c2f957b386f16289693f7eec675782d9fbcb5eb1b51b718e33b38f291d25c6f"
+                                                     },
+                                 "reason":  "CM02-approach-arrival: this exact named row failed in the compensation setup, before a combat Mount request. Overall FAIL during pre-encounter Horse separation, before combat or injected-fault Mount. Native UnitMoveTo ended without Success; exact result/path failure detail was not exported by this setup branch. All external restoration checks PASS. No provisional PASS credited. Positive approach run remains independently valid.",
+                                 "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
+                             },
+                             {
+                                 "id":  "CM02-approach-arrival",
+                                 "family":  "CM02",
+                                 "claim":  "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
+                                 "scenario":  "chunk6a-adoption-compensation-tb",
+                                 "runId":  "c6a-clock-a-compensation-tb",
+                                 "status":  "FAIL",
+                                 "passCount":  0,
+                                 "failCount":  1,
+                                 "evidenceLeaf":  "runtime-game-result.json",
+                                 "evidenceSha256":  "3ac7888567a23f11e2f2dbe70d0ec567f6709566514c1e730e893be1a00c7090",
+                                 "failingRow":  "CM02-approach-arrival",
+                                 "failingAssertion":  "Pre-encounter native separation did not succeed.",
+                                 "observedPayload":  {
+                                                         "version":  "0.1.0-chunk6a-preview.113",
+                                                         "commit":  "747fd48d04e5a0bc0efeb242f4eb0332b94ec67f",
+                                                         "dllSha256":  "b27e25430c88867c845aa3f89a925cea4d81723bf828122e2890f73e7faf7acc",
+                                                         "dllMvid":  "d5c9b744-dfd4-4937-bf57-705452a37376",
+                                                         "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.113-chunk6a-clock-a-diagnostic.zip",
+                                                         "packageSha256":  "95ec7fe388eb354204ca922639526614006e5c5c74597a95e0225fe273328235",
+                                                         "manifestSha256":  "6c2f957b386f16289693f7eec675782d9fbcb5eb1b51b718e33b38f291d25c6f"
+                                                     },
+                                 "reason":  "CM02-approach-arrival: this exact named row failed in the compensation setup, before a combat Mount request. Overall FAIL during pre-encounter Horse separation, before combat or injected-fault Mount. Native UnitMoveTo ended without Success; exact result/path failure detail was not exported by this setup branch. All external restoration checks PASS. No provisional PASS credited. Positive approach run remains independently valid.",
+                                 "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
                              }
                          ],
     "rejectedQualificationClaims":  [
@@ -1671,5 +1699,213 @@
                                             "reason":  "The combined compensated/positive Mount flow and incomplete exploration windows do not satisfy the owner\u0027s causal qualification contract. Raw artifacts retain their original statuses."
                                         }
                                     ],
-    "candidateDisposition":  "SUPERSEDED: historical preview.109 packages are preserved and must not be launched for this repair. Awaiting a new clean-HEAD candidate."
+    "candidateDisposition":  "FROZEN - purity PASS; native positive pending",
+    "priorPayloads":  [
+                          {
+                              "version":  "0.1.0-chunk6a-preview.109",
+                              "commit":  "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+                              "branch":  "codex/mounted-combat-phase3f-playable-core",
+                              "dllSha256":  "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+                              "dllMvid":  "7c8a077d-210b-43d7-8822-5003248da0f8",
+                              "packageSha256":  "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
+                              "manifestSha256":  "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb",
+                              "packagePath":  "KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
+                              "suiteId":  "20260926-chunk6a-suite010",
+                              "suiteSha256":  "7232c68b52d87c857493c90427dd39dbba49c2a43a2c420623f21334178ca9c7"
+                          },
+                          {
+                              "version":  "0.1.0-chunk6a-preview.111",
+                              "commit":  "8823da8183f0bff98ecdfb917985b65f94032c39",
+                              "branch":  "codex/mounted-combat-phase3f-playable-core",
+                              "dllSha256":  "b717a0e7af14e91a8676c41990ee618b331a9fa938bde4b12193ac430be6831a",
+                              "dllMvid":  "53d72b8b-31ae-42db-a92f-84256ff6dae5",
+                              "packageSha256":  "d7ace093a9d1b796cdf34fc6c8c0695af4e5ee60e913fb22f6202a3f9421903c",
+                              "manifestSha256":  "2ca841e64d636c8476ecddc9d5dd94d3bef6868b1bcfd61d7a8816e061e2d257",
+                              "packagePath":  "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.111-chunk6a-reaction-a-diagnostic.zip",
+                              "suiteId":  "20260927-chunk6a-reaction-a",
+                              "suiteSha256":  "fa27ef62796e7c1274fad237aab7c95f35bdd0b4b197fb105a9609c729491f0c"
+                          },
+                          {
+                              "version":  "0.1.0-chunk6a-preview.112",
+                              "commit":  "275cbfeb8cdb1d1d269104cbf872c166be003f20",
+                              "branch":  "codex/mounted-combat-phase3f-playable-core",
+                              "dllSha256":  "4e7254591121ef2d9f76bc29b1639836fd44856746ffc5def79e652feb105b41",
+                              "dllMvid":  "0b86365d-ef85-4518-8de2-a23ccddf1a02",
+                              "packageSha256":  "8547605a404807a24b58eefe51d6da1768ba1aaa2368737b2fce4bace738e774",
+                              "manifestSha256":  "ce11991377ce8830ff03f221aa2b5ae16fed0ebf04255be3036bc4605823791e",
+                              "packagePath":  "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.112-chunk6a-cleanup-a-diagnostic.zip",
+                              "suiteId":  "20260927-chunk6a-cleanup-a",
+                              "suiteSha256":  "185072fdf6ce0f3b5a4caa2b1a2f29f18454a7d91d6d1e0bed120ebe309f051f"
+                          }
+                      ],
+    "note":  "All historical FAIL entries retain their observed payloads. No provisional row from any overall FAIL qualifies this candidate.",
+    "diagnosticFailures":  [
+                               {
+                                   "id":  "CM03-combat-mount-conserves-debt",
+                                   "family":  "CM03",
+                                   "scenario":  "chunk6a-mount-approach",
+                                   "runId":  "c6a-cleanup-a-approach",
+                                   "status":  "FAIL",
+                                   "passCount":  0,
+                                   "failCount":  1,
+                                   "evidenceLeaf":  "runtime-game-result.json",
+                                   "evidenceSha256":  "33acbde058d0d36fbd496559f2bdddd31d64600aba5fe8bd9ab43e891b70ee13",
+                                   "failingRow":  "CM03-combat-mount-conserves-debt",
+                                   "failingAssertion":  "The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.",
+                                   "observedPayload":  {
+                                                           "version":  "0.1.0-chunk6a-preview.112",
+                                                           "commit":  "275cbfeb8cdb1d1d269104cbf872c166be003f20",
+                                                           "dllSha256":  "4e7254591121ef2d9f76bc29b1639836fd44856746ffc5def79e652feb105b41",
+                                                           "dllMvid":  "0b86365d-ef85-4518-8de2-a23ccddf1a02",
+                                                           "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.112-chunk6a-cleanup-a-diagnostic.zip",
+                                                           "packageSha256":  "8547605a404807a24b58eefe51d6da1768ba1aaa2368737b2fce4bace738e774",
+                                                           "manifestSha256":  "ce11991377ce8830ff03f221aa2b5ae16fed0ebf04255be3036bc4605823791e"
+                                                       },
+                                   "reason":  "CM03-combat-mount-conserves-debt failed its exact recorded assertion. Overall FAIL. Exact observer hooks, identity, acted/cost, reaction resources and terminal evidence exported. CM03 legacy endpoint helper confuses initiative cooldown with discrete ordering and rejects observed native time decay. No provisional PASS updates qualification. Exact external restoration PASS.",
+                                   "retention":  "IMMUTABLE. Original overall FAIL and all original row assertions retained; no provisional PASS credited.",
+                                   "ledgerDisposition":  "Required native row failure retained without inventing a mandatory ledger ID. No overall-FAIL provisional PASS qualifies any entry."
+                               },
+                               {
+                                   "runId":  "c6a-clock-a-compensation-rt",
+                                   "scenario":  "chunk6a-adoption-compensation-rt",
+                                   "status":  "FAIL",
+                                   "observedPayload":  {
+                                                           "version":  "0.1.0-chunk6a-preview.113",
+                                                           "commit":  "747fd48d04e5a0bc0efeb242f4eb0332b94ec67f",
+                                                           "dllSha256":  "b27e25430c88867c845aa3f89a925cea4d81723bf828122e2890f73e7faf7acc",
+                                                           "dllMvid":  "d5c9b744-dfd4-4937-bf57-705452a37376",
+                                                           "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.113-chunk6a-clock-a-diagnostic.zip",
+                                                           "packageSha256":  "95ec7fe388eb354204ca922639526614006e5c5c74597a95e0225fe273328235",
+                                                           "manifestSha256":  "6c2f957b386f16289693f7eec675782d9fbcb5eb1b51b718e33b38f291d25c6f"
+                                                       },
+                                   "artifacts":  [
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-rt/horse-companion-blueprint-registration.json",
+                                                         "sha256":  "6e8af04d0860698d33b66af5253b304099c393be0fa93e5f2fe68b970df0e320"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-rt/orchestration.json",
+                                                         "sha256":  "dc834ca846dfa33750ad3a28ff63af983499f91302c2d749e149d38f80d0d0ec"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-rt/phase3d-horse-scenario-evidence.json",
+                                                         "sha256":  "3d777f1ccb4e1fe96a1c66cfa6687a0e4fba451db83ab14bb00bbaf49ba5aee4"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-rt/runtime-artifacts.json",
+                                                         "sha256":  "b2ec5ab9798480253d8019a6aefd0cad557949c661c73f01751ae93902a82b48"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-rt/runtime-game-result.json",
+                                                         "sha256":  "ce9b44a5d8ff52f71241e431580f6b7a82bfe0545a20675fa6dab97bbb1f9c06"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-rt/runtime-request.json",
+                                                         "sha256":  "52182114247268307490f81e59c9d870ae48f165ed0853337c3d77f4c913770a"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-rt/runtime-result.json",
+                                                         "sha256":  "d68688e97d6718770073eb2693d3eb603219977bd0c26393b2099a031f426d99"
+                                                     }
+                                                 ],
+                                   "failures":  [
+                                                    {
+                                                        "row":  "CM02-approach-arrival",
+                                                        "assertionFailCount":  1,
+                                                        "assertions":  [
+                                                                           "Pre-encounter native separation did not succeed."
+                                                                       ]
+                                                    },
+                                                    {
+                                                        "row":  "chunk6a-adoption-compensation-rt",
+                                                        "assertionFailCount":  1,
+                                                        "assertions":  [
+                                                                           "phase3d-tranche-0: CM02-approach-arrival: Pre-encounter native separation did not succeed."
+                                                                       ]
+                                                    }
+                                                ],
+                                   "qualificationAccepted":  false,
+                                   "reason":  "Overall FAIL during pre-encounter Horse separation, before combat or injected-fault Mount. Native UnitMoveTo ended without Success; exact result/path failure detail was not exported by this setup branch. All external restoration checks PASS. No provisional PASS credited. Positive approach run remains independently valid.",
+                                   "launcherExitCode":  1,
+                                   "restoration":  {
+                                                       "modsRestored":  true,
+                                                       "saveProtectionPassed":  true,
+                                                       "baselineImmutable":  true,
+                                                       "workingRestored":  true,
+                                                       "saveWriteAllowlistPassed":  true
+                                                   },
+                                   "completedAtUtc":  "2026-09-27T15:17:11.5677852+00:00"
+                               },
+                               {
+                                   "runId":  "c6a-clock-a-compensation-tb",
+                                   "scenario":  "chunk6a-adoption-compensation-tb",
+                                   "status":  "FAIL",
+                                   "observedPayload":  {
+                                                           "version":  "0.1.0-chunk6a-preview.113",
+                                                           "commit":  "747fd48d04e5a0bc0efeb242f4eb0332b94ec67f",
+                                                           "dllSha256":  "b27e25430c88867c845aa3f89a925cea4d81723bf828122e2890f73e7faf7acc",
+                                                           "dllMvid":  "d5c9b744-dfd4-4937-bf57-705452a37376",
+                                                           "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.113-chunk6a-clock-a-diagnostic.zip",
+                                                           "packageSha256":  "95ec7fe388eb354204ca922639526614006e5c5c74597a95e0225fe273328235",
+                                                           "manifestSha256":  "6c2f957b386f16289693f7eec675782d9fbcb5eb1b51b718e33b38f291d25c6f"
+                                                       },
+                                   "artifacts":  [
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-tb/horse-companion-blueprint-registration.json",
+                                                         "sha256":  "eb2f9960a179d906f1cc862b8ca1e86f4c73a9374fd0fa3fd535245052688c7e"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-tb/orchestration.json",
+                                                         "sha256":  "36c52eda7261f2accdfda740637ef73b1defdf5eb9dcba6845e14c1112fc37bd"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-tb/phase3d-horse-scenario-evidence.json",
+                                                         "sha256":  "42973fc7ac81af8e0652ce2f1a41e9b38c28d499c46f9050291c0c6d1f3e3073"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-tb/runtime-artifacts.json",
+                                                         "sha256":  "1deb0fb0d76314b04963fcc7cf8770a2ebe0ceeae08b80f0aa76c2970668542b"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-tb/runtime-game-result.json",
+                                                         "sha256":  "3ac7888567a23f11e2f2dbe70d0ec567f6709566514c1e730e893be1a00c7090"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-tb/runtime-request.json",
+                                                         "sha256":  "96063cbccfe267acccdf30d068373414e0ccb0312aee424458f0d40c5966fb46"
+                                                     },
+                                                     {
+                                                         "path":  "runtime-evidence/c6a-clock-a-compensation-tb/runtime-result.json",
+                                                         "sha256":  "d8f11dc0690acb1dc4f4811e96305fa445691b83e818695055c618407e197ba8"
+                                                     }
+                                                 ],
+                                   "failures":  [
+                                                    {
+                                                        "row":  "CM02-approach-arrival",
+                                                        "assertionFailCount":  1,
+                                                        "assertions":  [
+                                                                           "Pre-encounter native separation did not succeed."
+                                                                       ]
+                                                    },
+                                                    {
+                                                        "row":  "chunk6a-adoption-compensation-tb",
+                                                        "assertionFailCount":  1,
+                                                        "assertions":  [
+                                                                           "phase3d-tranche-0: CM02-approach-arrival: Pre-encounter native separation did not succeed."
+                                                                       ]
+                                                    }
+                                                ],
+                                   "qualificationAccepted":  false,
+                                   "reason":  "Overall FAIL during pre-encounter Horse separation, before combat or injected-fault Mount. Native UnitMoveTo ended without Success; exact result/path failure detail was not exported by this setup branch. All external restoration checks PASS. No provisional PASS credited. Positive approach run remains independently valid.",
+                                   "launcherExitCode":  1,
+                                   "restoration":  {
+                                                       "modsRestored":  true,
+                                                       "saveProtectionPassed":  true,
+                                                       "baselineImmutable":  true,
+                                                       "workingRestored":  true,
+                                                       "saveWriteAllowlistPassed":  true
+                                                   },
+                                   "completedAtUtc":  "2026-09-27T15:21:37.2412802+00:00"
+                               }
+                           ]
 }

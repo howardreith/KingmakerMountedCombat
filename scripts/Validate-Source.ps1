@@ -719,6 +719,20 @@ Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly 
     [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -notmatch 'chunk6aStage = 13') `
     'compensation and positive Mount use separate fresh scenario allocations'
 
+$setupGeometry = [Regex]::Match($chunk6aScenarioText, '(?s)if \(!Chunk6aCompensationOnly\)\s*\{(.*?)\n                \}\s*else\s*\{(.*?)\n                \}')
+Assert-Kmc ($setupGeometry.Success -and
+    $setupGeometry.Groups[1].Value -match 'Chunk6aSendHorseAway\(4f' -and
+    $setupGeometry.Groups[1].Value -match 'chunk6aSeparationCommand.Result != UnitCommand.ResultType.Success' -and
+    $setupGeometry.Groups[1].Value -match 'geometry\["isAdjacent"\]' -and
+    $setupGeometry.Groups[2].Value -match 'compensation-fresh-allocation-geometry' -and
+    $setupGeometry.Groups[2].Value -notmatch 'Chunk6aSendHorseAway|MoveSelectedUnits|TryNativeAbilityTargetClick' -and
+    $positiveFlow.Value -match 'chunk6aApproachStart\["isAdjacent"\]') `
+    'compensation keeps measured geometry without an unrelated separation Move while positive approach still requires non-adjacency'
+Assert-Kmc ($setupGeometry.Groups[1].Value -match 'CaptureOrdinaryCommand\(chunk6aSeparationCommand\)' -and
+    $setupGeometry.Groups[1].Value -match 'NativeGroundMovementObservation.Capture\(horse, chunk6aSeparationCommand\)' -and
+    $setupGeometry.Groups[1].Value -match 'separation.ToString\(Formatting.None\)') `
+    'pre-encounter separation failures retain exact command result destination geometry and native path observations'
+
 Assert-Kmc ($chunk6aScenarioText -match 'BeginChunk6aCommandWindow\(nativeControls.MountAbility.AssetGuid\)' -and
     $chunk6aScenarioText -match 'FinishChunk6aCommandWindow\("exploration-mount", false, 0, false\)' -and
     $chunk6aScenarioText -match 'FinishChunk6aCommandWindow\("exploration-dismount", false, 0, false\)' -and
