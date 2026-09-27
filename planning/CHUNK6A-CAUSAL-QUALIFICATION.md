@@ -39,3 +39,8 @@ Schema 30 retains the accepted command, selection and exploration structure. The
 ## 2026-09-27 - released diagnostic observer
 
 IN PROGRESS: c6a-reaction-a-approach on preview.111 reached cleanup, then its liveness sampler dereferenced the released allocation trace and prevented exact command evidence export. All external restoration PASS; no native qualification credited. Preserve its unchanged purity PASS and overall native FAIL. Preview.112 adds a cleanup guard and first-exception evidence, with source and compiled-entry regressions. Exact identities and assertions: [Chunk 6A report](../docs/CHUNK6A-COMBAT-MOUNT.md). Fresh immutable candidate/proof is required before another positive run; no inference of callback qualification from the UMM log.
+
+
+## 2026-09-27T18:50:25.941Z - geometry approach evidence
+
+Preview.115 positive/RT compensation/TB compensation all PASS with exact restoration;7/87 only on that payload. Preview.116 adds isolated chunk6a-geometry-change: native observed TickApproaching before IsActed, actual rider motion, separately declared exact Horse UnitMoveTo and pre-attachment Deliver geometry. Pinned RT UpdateCooldowns performs no writes for IgnoreCooldown; exact auxiliary callbacks must preserve every action/reaction/initiative field. The default positive contract still rejects auxiliary commands. No resource or position writes are introduced. Native qualification pending new immutable candidate/fresh proof; old Stop-based obstruction cannot qualify actual obstruction. See docs/CHUNK6A-COMBAT-MOUNT.md and lab NEXT-CASE-AUDIT.md for pinned method tokens and bounded findings.

@@ -118,6 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!Terminal || traceEnd >= 0 || !samples.Any(s => s.Boundary == "cost-after")) return;
             Observe("terminal", Command);
+            geometryGroundAtTerminal = CaptureGeometryGroundOrder();
             traceEnd = trace.EventCount;
         }
 
@@ -212,6 +213,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["samples"] = new JArray(samples.Select(s => s.Value.DeepClone())),
                 ["errors"] = errors.DeepClone(), ["traceComplete"] = trace.Complete
             };
+            if (geometryGroundOrder != null) completed["auxiliaryGroundOrder"] = DescribeGeometryGroundOrder();
             return (JObject)completed.DeepClone();
         }
 
@@ -220,10 +222,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var events = new JArray(trace.EventsSince(traceStart).Take(Math.Max(0, traceEnd - traceStart)));
             var pairEvents = events.OfType<JObject>().Where(e => (string)e["state"]?["actor"] == rider.UniqueId ||
                 (string)e["state"]?["actor"] == mount.UniqueId).ToArray();
-            var before = pairEvents.Where(e => (string)e["boundary"] == "cost-before").ToArray();
-            var after = pairEvents.Where(e => (string)e["boundary"] == "cost-after").ToArray();
-            var nestedBefore = pairEvents.Where(e => (string)e["boundary"] == "actor-cost-before").ToArray();
-            var nestedAfter = pairEvents.Where(e => (string)e["boundary"] == "actor-cost-after").ToArray();
+            var costEvents = pairEvents.Where(e => !IsGeometryGroundCost(e)).ToArray();
+            var auxiliary = EvaluateGeometryGroundCosts(events, inCombat, turnBased);
+            var before = costEvents.Where(e => (string)e["boundary"] == "cost-before").ToArray();
+            var after = costEvents.Where(e => (string)e["boundary"] == "cost-after").ToArray();
+            var nestedBefore = costEvents.Where(e => (string)e["boundary"] == "actor-cost-before").ToArray();
+            var nestedAfter = costEvents.Where(e => (string)e["boundary"] == "actor-cost-after").ToArray();
             Func<JObject, bool> exact = e => (int)e["command"] == Id(Command) &&
                 (string)e["commandActor"] == rider.UniqueId && (string)e["state"]["actor"] == rider.UniqueId &&
                 (string)e["actionType"] == "Move" &&
@@ -291,9 +295,10 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject
             {
                 ["reactionResources"] = reactions,
-                ["pass"] = (bool)reactions["pass"] && oneSequence && exactCost && lawfulPreparation && endpoints && trace.Complete,
+                ["pass"] = (bool)reactions["pass"] && oneSequence && exactCost && lawfulPreparation && endpoints && trace.Complete && (auxiliary == null || (bool)auxiliary["pass"]),
                 ["oneExactRiderMoveSequence"] = oneSequence, ["exactNativeCost"] = exactCost,
-                ["noOtherActorOrActionCostCallbacks"] = oneSequence,
+                ["noOtherActorOrActionCostCallbacks"] = oneSequence && (auxiliary == null || (int)auxiliary["beforeCount"] == 0),
+                ["auxiliaryGroundOrder"] = auxiliary,
                 ["riderPrepareDelta"] = riderPrepares, ["mountPrepareDelta"] = mountPrepares,
                 ["expectedMountPrepareDelta"] = expectedPartnerPreparations,
                 ["clearCount"] = clears.Length, ["lawfulPreparationOnly"] = lawfulPreparation,

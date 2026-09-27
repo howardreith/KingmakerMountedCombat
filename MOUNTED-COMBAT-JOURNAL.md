@@ -4613,3 +4613,15 @@ Published parent707d98302f13ba752fe517e49338cf71b1c5f1ae. Exact114 purityPASS re
 Published parent 707d983 preserved and actual remote equality rechecked. Preview.114 proof, positive48/0, RT46/0 and TB44/2 remain immutable with all five restorations PASS. No game process; actual Steam guard PASS on PID1920 with current-session offline/cloud evidence. Rejected the unpublished passive-wait proposal after pinned Tick06000C34 inspection. Final diagnostic uses native selected rider ground movement before Mount baseline, exact same turn/command/terminal/arrival and carried debt checks, no resource writes or deadline changes. Added external validator and negative tests; accepted identity/action/reaction command structures unchanged. Final build/full umbrella and candidate115 proof pending.
 
 Final preview.115 build and complete offline umbrella PASS (exit 0), 2026-09-27T17:13:30.187Z. Source109/0, causal114/0, all umbrella gates PASS. Log logs/c6a-rider-turn-offline-final.log SHA-256 372f3c2f41097714ec13c438461ad3976ce6d3866ba7d15822e408b108a45f49. DLL 7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740 / MVID 298ea405-3015-48bb-9ea8-f8d3ee68288f. Exact receipt in lab analysis-cache/chunk6a-causal/offline-receipt-preview115.json. No native115 qualification. Next coherent commit, guarded push, immutable chunk6a-rider-turn-a package/suite and fresh unchanged purity; then positive and isolated RT/TB.
+
+
+# Chunk 6A - 2026-09-27T18:50:25.941Z
+
+**IN PROGRESS.** Published44de499 preserved. Preview.115 positive48/0, compensationRT46/0 and compensationTB47/0 PASS; all exact causal/action/reaction windows and all external restorations PASS. Seven of87 mandatory rows qualified only on115. Preview.116 now implements the isolated exact geometry case with pre-acted approach and pre-attachment delivery, declaring only the exact native RT Horse ground order with independently checked no-write callbacks. No production resource writes. Build/source110/0 and focused149/0 PASS; final offline umbrella pending. New source supersedes115 for subsequent qualification; completed115 proof/results remain immutable. [Current report](docs/CHUNK6A-COMBAT-MOUNT.md). Live state: lab analysis-cache/chunk6a-causal/ACTIVE.json. Next final offline gates, guarded publication/new116 candidate/suite/fresh proof, positive/RT/TB then geometry, genuine obstruction and remaining matrix. No6B before87/87 on one candidate.
+
+---
+
+## Historical checkpoints
+
+
+Final preview.116 complete offline umbrella PASS, exit0, 2026-09-27T18:56:40.942Z. Source110/0, causal151/0; all umbrella gates PASS. Log logs/c6a-geometry-offline.log SHA-256 86702e1bb4df1aacdc2fa37651ef83e77817edf06faf0aa943374e581661bb6e. Built DLL d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8 / MVID d6568315-9f9b-44f4-80f4-4ca671b44b63. These are offline checks; new-candidate native qualification remains0/87. Next coherent commit, guarded publication, immutable package/suite and fresh unchanged purity, then positive/RT/TB/geometry in order.

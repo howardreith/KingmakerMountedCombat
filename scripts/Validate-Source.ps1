@@ -726,7 +726,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, t
     $positiveFlow.Value -match '(?s)if \(!EnsureChunk6aRiderSelection\("CM02-approach-arrival"\)\) return;.*?chunk6aPreMount = CaptureChunk6aState\("mount-before"\);.*?chunk6aApproachStart = CaptureChunk6aGeometry\("positive-pre-click"\);.*?chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);.*?chunk6aMountClicked = TryNativeAbilityTargetClick') `
     'positive Mount selects and verifies the exact single rider before resource ledger geometry baseline and native input'
 
-Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : 13;' -and
+Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : Chunk6aGeometryOnly \? 16 : 13;' -and
     $chunk6aScenarioText -match 'if \(!Chunk6aCompensationOnly\) throw' -and
     $positiveFlow.Value -match 'if \(Chunk6aCompensationOnly\) throw' -and
     [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -match 'chunk6aStage = 99;\s*BeginCleanup\(\)' -and
@@ -816,43 +816,36 @@ Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-obstruction",' -and
     $chunk6aScenarioText -match 'var noCost = Chunk6aUnchangedExcept\(obstructionRider, obstructionRiderAfter\) &&') `
     'an obstruction before commitment terminates truthfully with no transition, no residue and no cost'
 
-# CM02-geometry-change. "The mount or target geometry changes during approach; the transition
-# revalidates at arrival", and "a post-commit geometry change may refuse delivery but must
-# retain the native cost." The change is the Horse's own player-created ground input, applied
-# only while the approach is running and uncommitted, and it can only ever WIDEN the gap --
-# moving the Horse toward the rider to manufacture adjacency is what the charter forbids.
+# Geometry changes during a separately identified native Mount approach. Arrival
+# is observed before attachment; cooldown endpoints never replace exact acted/cost.
 $chunk6aRowRequirementText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1')
+$geometryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aGeometryChangeScenario.cs')
+$groundProofText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeRelationshipGroundOrder.cs')
 $chunk6aTrancheText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs')
-Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-geometry-change",' -and
+Assert-Kmc ($geometryText -match 'AddRow\("CM02-geometry-change",' -and
+    $geometryText -match 'command == null \|\| command.IsActed \|\| command.IsFinished' -and
+    $geometryText -match '!chunk6aCommandWindow.ApproachObserved \|\| !rider.View.AgentASP.IsReallyMoving \|\| riderDisplacement <= 0.25f' -and
+    $geometryText -match 'ReferenceEquals\(rider.Commands.Move, command\)' -and
+    $geometryText -match 'FinishChunk6aCommandWindow\("geometry-change-mount", true, 0, true\)' -and
+    $geometryText -match '\(string\)sample\["boundary"\] == "deliver"' -and
+    $geometryText -match 'horseDisplacement > Chunk6aStationaryToleranceMeters' -and
+    $geometryText -match 'oneRequest && \(accepted \|\| refused\)' -and
+    $geometryText -notmatch 'IsStarted|MoveCostRetained|MaxRiderMoveCooldown|\.Position\s*=[^=]|transform\.position\s*=[^=]' -and
+    $geometryText.IndexOf('EnsureChunk6aRiderSelection("CM02-geometry-change")') -lt $geometryText.IndexOf('CaptureChunk6aState("geometry-change-before")') -and
     $chunk6aScenarioText -match 'rider\.Position, horse\.Position, rider\.DistanceTo\(horse\) \+ extraMeters\);' -and
     $chunk6aScenarioText -match 'ClickGroundHandler\.MoveSelectedUnitsToPoint\(destination, false\);' -and
-    # An absent bounded walkable point is an exact reportable obstacle, not an opaque abort,
-    # and either Horse order can still be in flight when a run aborts.
-    $chunk6aScenarioText -match 'refusal = exception\.GetType\(\)\.Name \+ ": " \+ exception\.Message;' -and
-    $chunk6aTrancheText -match 'chunk6aSeparationCommand\?\.Interrupt\(\);' -and
-    $chunk6aTrancheText -match 'chunk6aGeometryChangeCommand\?\.Interrupt\(\);' -and
-    $chunk6aScenarioText -match 'if \(!chunk6aGeometryChanged && changeSlot\.IsStarted && !changeSlot\.IsActed\)' -and
-    # The change must be real, by the Horse's own player command and by a measured distance.
-    $chunk6aScenarioText -match 'var geometryReallyChanged = horseMoved > Chunk6aStationaryToleranceMeters &&' -and
-    $chunk6aScenarioText -match 'chunk6aGeometryChangeCommand\.CreatedByPlayer;' -and
-    # Either lawful outcome is accepted, each held to its own condition.
-    $chunk6aScenarioText -match 'var acceptedLawfully = transitioned && arrivedInsideEnvelope &&' -and
-    $chunk6aScenarioText -match 'var refusedLawfully = !transitioned && noTransitionAtAll &&' -and
-    # And an observed native charge must still be draining on the engine's clock, which is
-    # the measurable form of retaining the cost.
-    $chunk6aScenarioText -match 'private static bool Chunk6aMoveCostRetained\(JObject peak, float currentCooldown, double nowSeconds\)' -and
-    $chunk6aScenarioText -match 'var floor = charged - \(float\)elapsed - 0\.25f;' -and
-    $chunk6aScenarioText -match 'geometryReallyChanged && costRetained && \(acceptedLawfully \|\| refusedLawfully\)' -and
-    # Neither new case may write a position: the geometry only ever changes through a native
-    # command, never through a transform or an assigned Position.
-    $chunk6aScenarioText -notmatch '\.Position\s*=[^=]' -and
-    $chunk6aScenarioText -notmatch 'transform\.position\s*=[^=]' -and
-    # Both rows are required of the real-time full scenario and of neither the turn-based
-    # scenario, where each actor's Move is spent for the round, nor the narrow approach
-    # instrument, which deliberately stops earlier.
-    $chunk6aRowRequirementText -match "'CM02-obstruction','CM02-geometry-change'" -and
-    $chunk6aRowRequirementText -match 'if \(-not \$approachOnly\) \{') `
-    'a geometry change during approach revalidates at arrival and never refunds the committed native cost'
+    $chunk6aTrancheText -match 'chunk6aGeometryChangeCommand\?\.Interrupt\(\);') `
+    'geometry uses observed pre-acted native movement and pre-attachment delivery with its own exact command proof'
+Assert-Kmc ($groundProofText -match 'command.GetType\(\) != typeof\(UnitMoveTo\) \|\| command.Executor != mount' -and
+    $groundProofText -match '!command.CreatedByPlayer \|\| !command.IsIgnoreCooldown' -and
+    $groundProofText -match 'CombatController.IsInTurnBasedCombat\(\)' -and
+    $groundProofText -match 'JToken.DeepEquals\(before\[0\]\["state"\]\[field\], after\[0\]\["state"\]\[field\]\)' -and
+    $groundProofText -match '"reactionCooldown", "reactions", "reactionsPerRound"' -and
+    $chunk6aScenarioText -notmatch 'DeclareGeometryGroundOrder' -and
+    $chunk6aRowRequirementText -match 'Auxiliary ground order is forbidden in this relationship window' -and
+    $chunk6aRowRequirementText -match 'Geometry ground callback wrote' -and
+    $chunk6aRowRequirementText -match 'Geometry arrival is not the exact pre-attachment delivery sample') `
+    'only the geometry case declares one exact RT ground command and independently proves its callbacks write no resource'
 
 # The harness RE-DERIVES resource conservation, so it has to use the same mode-aware
 # instrument the scenario does. A run failed with "Chunk 6A control refunded rider standard
