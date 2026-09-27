@@ -125,3 +125,8 @@ The failed mandatory CM02-geometry-change assertion was: "The ground order misse
 Preview.117 makes that same accessor correction and records the exact trigger/slot before refusing. No production behavior or resource write changes. A detached pinned-native component reproduces the accessor behavior, and its compiled caller check fails116 then passes117 (6/0). This is an offline regression, not Unity qualification. The accepted selection, causal identity, exploration windows and action/reaction accounting structures remain intact.
 
 Kingmaker is closed; actual Steam guard passed client1920 with current-session offline/cloud evidence. Completed116 proof and all four native runs were rehashed and retained. Ledger116 records7PASS/1FAIL/79unqualified and seven retained mandatory failures; it qualifies only116. Source117 supersedes116 for further qualification and has0/87 native rows. Next full offline umbrella, guarded publication, immutable117 candidate/suite/fresh unchanged proof, then positive, isolated RT/TB and geometry before actual obstruction/fullRT/freshTB/remaining87. No6B before every mandatory6A row on one frozen candidate. No merge/release/tag/PR/permanent install/HUMAN PLAY inference. Final mission target remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING.
+
+
+## Chunk6A obstruction observation risk ? preview.118
+
+IN PROGRESS: pinned native movement failure targets the UnitMoveTo-only getter; Mount may not terminate after real path failure. No production change before native evidence. Distinguish absent hook delivery from a observed native failure leaving an exact pending command. Existing30s deadline, door/state restoration, candidate isolation and all guards remain.

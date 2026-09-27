@@ -436,7 +436,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
+                    if (!CaptureChunk6aObstructionDeadline())
+                        FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
 
@@ -658,9 +659,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     observations["firstRuntimeException"] = new JObject { ["exception"] = exception.ToString(),
                         ["step"] = step.ToString(), ["cleanupStarted"] = cleanupStarted, ["frame"] = frame,
-                        ["commandObserver"] = chunk6aCommandWindow?.Capture() };
+                        ["commandObserver"] = chunk6aCommandWindow?.Capture(), ["pathObserver"] = chunk6aPath?.Capture() };
                 }
-                FailCurrent("phase3d-horse-runtime-exception", exception.GetType().Name + ": " + exception.Message);
+                FailCurrent(Chunk6aObstructionActive ? "CM02-obstruction" : "phase3d-horse-runtime-exception", exception.GetType().Name + ": " + exception.Message);
                 BeginCleanup();
             }
         }
@@ -6024,6 +6025,8 @@ namespace KingmakerMountedCombat.Diagnostics
             // disarmed on every abort path so it can never outlive its own row.
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
+            try { CleanupChunk6aObstruction(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A obstruction fixture", exception); }
             try { Chunk6aDisposeAdoptionFault(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A adoption fault", exception); }
             try { pairedModeProbe?.Dispose(); pairedModeProbe = null; }
@@ -6159,10 +6162,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 AddCleanupError("cleanup poll", exception);
             }
 
+            var chunk6aDoorRestored = true;
+            try { chunk6aDoorRestored = RestoreChunk6aDoor(); }
+            catch (Exception exception) { chunk6aDoorRestored = false; AddCleanupError("Chunk 6A door restoration", exception); }
             var obstructionEncounterPending = IsChunk4Obstruction &&
                 (Game.Instance.Player.IsInCombat || Game.Instance.TurnBasedCombatController.Initialized ||
                  CombatController.IsInTurnBasedCombat());
-            if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored || obstructionEncounterPending ||
+            if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored || obstructionEncounterPending || !chunk6aDoorRestored ||
                 !unmountedHorseAiLeaseRestored || !combatMountRiderAiLeaseRestored ||
                 relationship.State != RelationshipState.Unmounted)
             {
@@ -6178,7 +6184,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["relationship"] = relationship.State.ToString(),
                     ["mountCommandsEmpty"] = horse.Commands.Empty, ["riderCommandsEmpty"] = rider.Commands.Empty,
                     ["mountControllable"] = horse.IsDirectlyControllable, ["riderControllable"] = rider.IsDirectlyControllable };
-                if ((IsPairedAllocation || IsChunk4NativeLife || IsChunk4Obstruction) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
+                if ((IsPairedAllocation || IsChunk4NativeLife || IsChunk4Obstruction || IsChunk6aCombatMount) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     cleanupError = true;
                     if (IsChunk4NativeLife)

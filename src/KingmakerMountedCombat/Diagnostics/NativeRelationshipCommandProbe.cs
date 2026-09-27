@@ -54,11 +54,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal NativeRelationshipCommandProbe(NativeMountedControlService controls,
             NativeActorAllocationTrace trace, UnitEntityData rider, UnitEntityData mount,
-            string ability, Func<JObject> state)
+            string ability, Func<JObject> state, bool unactedFailure = false)
         {
             if (active != null) throw new InvalidOperationException("A relationship command window is already active.");
             this.controls = controls; this.trace = trace; this.rider = rider; this.mount = mount;
-            this.ability = ability; this.state = state; traceStart = trace.EventCount;
+            this.ability = ability; this.state = state; this.unactedFailure = unactedFailure; traceStart = trace.EventCount;
             preClick = new JObject { ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                 ["frame"] = Time.frameCount, ["allocationSequence"] = trace.EventCount, ["state"] = state() };
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
@@ -72,6 +72,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(UnitCommand).GetMethods(Flags).Single(m => m.MetadataToken == 0x060027A6), "ApproachBefore", null);
                 Patch(typeof(UnitCommand).GetMethods(Flags).Single(m => m.MetadataToken == 0x060027A7), "TickBefore", "TickAfter");
                 Patch(typeof(AbilityExecutionProcess).GetMethod("Tick", Flags), null, "ProcessTickAfter");
+                if (unactedFailure) Patch(typeof(UnitCommand).GetMethods(Flags).Single(m => m.MetadataToken == 0x060027B2), null, "UnactedEndedAfter");
             }
             catch { Dispose(); throw; }
         }
@@ -139,6 +140,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (samples.Count >= 128) { errors.Add("Causal observation bound exceeded."); return; }
                 var observed = controls.CaptureRelationshipCommandIdentity(command);
                 if (identity == null && observed?.Complete == true) identity = observed;
+                if (unactedFailure && unactedIdentity == null && observed?.UnactedRequestComplete == true) unactedIdentity = observed;
                 if (deliveredContext != null && !ReferenceEquals(command?.ExecutionProcess?.Context, deliveredContext))
                     errors.Add("Deliver used a different execution context.");
                 var value = new JObject
@@ -322,7 +324,7 @@ namespace KingmakerMountedCombat.Diagnostics
             harmony.UnpatchAll(HarmonyId); if (ReferenceEquals(active, this)) active = null;
         }
 
-        private static class Hooks
+        private static partial class Hooks
         {
             internal static void InitAfter(UnitUseAbility command) { active?.Initialized(command); }
             internal static void BindAfter(UnitUseAbility command)

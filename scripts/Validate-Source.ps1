@@ -726,7 +726,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, t
     $positiveFlow.Value -match '(?s)if \(!EnsureChunk6aRiderSelection\("CM02-approach-arrival"\)\) return;.*?chunk6aPreMount = CaptureChunk6aState\("mount-before"\);.*?chunk6aApproachStart = CaptureChunk6aGeometry\("positive-pre-click"\);.*?chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);.*?chunk6aMountClicked = TryNativeAbilityTargetClick') `
     'positive Mount selects and verifies the exact single rider before resource ledger geometry baseline and native input'
 
-Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : Chunk6aGeometryOnly \? 16 : 13;' -and
+Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
     $chunk6aScenarioText -match 'if \(!Chunk6aCompensationOnly\) throw' -and
     $positiveFlow.Value -match 'if \(Chunk6aCompensationOnly\) throw' -and
     [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -match 'chunk6aStage = 99;\s*BeginCleanup\(\)' -and
@@ -795,26 +795,17 @@ Assert-Kmc ($moveReadinessText -match 'public static MountedNativeMoveReadiness 
     $chunk6aScenarioText -match 'observations\["chunk6aMoveRestorationWait"\] = chunk6aMoveRestorationWait;') `
     'a native Move the engine is still restoring is waited for and never written'
 
-# CM02-obstruction. "An obstruction or cancellation before commitment must terminate
-# truthfully with no transition and no cost." The cancellation is the ordinary native Stop
-# control, applied only while the approach is running and NOT yet acted; if the Move was
-# already committed the claim cannot be made truthfully, so that is reported rather than
-# relabelled as something weaker.
-Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-obstruction",' -and
-    $chunk6aScenarioText -match 'if \(!obstructionSlot\.IsStarted\)' -and
-    $chunk6aScenarioText -match 'if \(obstructionSlot\.IsActed\)' -and
-    $chunk6aScenarioText -match 'SelectionManager\.Instance\.Stop\(\);\s*\r?\n\s*chunk6aObstructionStopped = true;' -and
-    # A truthful terminal state: the command finished, never acted, and did not report success.
-    $chunk6aScenarioText -match 'chunk6aObstructionCommand\.IsFinished &&' -and
-    $chunk6aScenarioText -match '!chunk6aObstructionCommand\.IsActed &&' -and
-    $chunk6aScenarioText -match 'chunk6aObstructionCommand\.Result != UnitCommand\.ResultType\.Success;' -and
-    # No transition, measured as window deltas, and no residue left in flight.
-    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aObstructionLedgerBefore, "admittedMount", 0\)' -and
-    $chunk6aScenarioText -match 'Chunk6aLedgerDelta\(chunk6aObstructionLedgerBefore, "acceptedMount", 0\)' -and
-    $chunk6aScenarioText -match 'var noResidue = !playerAction\.TransitionLedger\.HasVoluntaryTransitionInFlight &&' -and
-    # No cost: nothing may rise on either actor and no preparation may repeat.
-    $chunk6aScenarioText -match 'var noCost = Chunk6aUnchangedExcept\(obstructionRider, obstructionRiderAfter\) &&') `
-    'an obstruction before commitment terminates truthfully with no transition, no residue and no cost'
+# Genuine obstruction is a separate negative contract. Stop cannot manufacture its terminal.
+$chunk6aObstruction = Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aObstructionScenario.cs')
+$chunk6aUnacted = Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeRelationshipUnactedEvidence.cs')
+Assert-Kmc ($chunk6aObstruction -match 'AddRow\("CM02-obstruction", pass' -and
+    $chunk6aObstruction -match 'chunk6aPath.FailureObserved' -and
+    $chunk6aObstruction -match 'Chunk6aDoorSettled\(false\)' -and
+    $chunk6aObstruction -notmatch 'SelectionManager.Instance.Stop' -and
+    $chunk6aUnacted -match '!Command.IsActed && Command.ExecutionProcess == null' -and
+    $chunk6aUnacted -match 'EvaluateReactionResources\(events, 0\)' -and
+    $chunk6aUnacted -match 'ledger.Properties\(\).All\(p => \(long\)p.Value == 0\)') `
+    'native obstruction requires path failure, exact unacted terminal, zero ledger/cost/preparation deltas and reaction proof'
 
 # Geometry changes during a separately identified native Mount approach. Arrival
 # is observed before attachment; cooldown endpoints never replace exact acted/cost.

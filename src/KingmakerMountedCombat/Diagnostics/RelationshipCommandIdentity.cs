@@ -26,6 +26,14 @@ namespace KingmakerMountedCombat.Diagnostics
             !string.IsNullOrEmpty(Control) && !string.IsNullOrEmpty(Caster) &&
             !string.IsNullOrEmpty(Target) && Action == "Move" && !string.IsNullOrEmpty(Ability);
 
+        internal bool UnactedRequestComplete => Command != null && Process == null && Context == null &&
+            !string.IsNullOrEmpty(Control) && !string.IsNullOrEmpty(Caster) &&
+            !string.IsNullOrEmpty(Target) && Action == "Move" && !string.IsNullOrEmpty(Ability);
+        internal bool MatchesUnacted(RelationshipCommandIdentity sample) => UnactedRequestComplete &&
+            sample?.UnactedRequestComplete == true && ReferenceEquals(Command, sample.Command) &&
+            Control == sample.Control && Caster == sample.Caster && Target == sample.Target &&
+            Generation == sample.Generation && Action == sample.Action && Ability == sample.Ability;
+
         internal bool Matches(RelationshipCommandIdentity sample, bool beforeProcess)
         {
             if (!Complete || sample == null || !ReferenceEquals(Command, sample.Command) ||
