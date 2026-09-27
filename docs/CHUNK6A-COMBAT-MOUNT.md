@@ -1,3 +1,25 @@
+# Chunk 6A rider-turn setup repair - 2026-09-27T16:49:58.738Z
+
+**IN PROGRESS.** Published parent 707d98302f13ba752fe517e49338cf71b1c5f1ae on codex/mounted-combat-phase3f-playable-core preserved. Preview.115 changes diagnostic TB setup only: retain the Preparing rider, issue one bounded ordinary native ground order, await its successful terminal and the same Acting turn, then capture the later Mount baseline with all setup debt carried in. Exact command/turn, arrival geometry, native events, preparation and relationship counters are independently validated. No native resource write or deadline extension. Accepted causal structures remain intact.
+
+## Exact preview.114 checkpoint
+
+- Fresh unchanged purity PASS, exit0, completed2026-09-27T16:35:36.624Z. LogSHA58f8be0bdb5f4ad0693fe22d458c3430fb55316fd3371a9aee8bc7e5b8dbf436. Exact receipt in lab analysis-cache/chunk6a-causal/purity-receipt-preview114.json; never rerun on resume.
+- c6a-compensation-setup-a-approach: overallPASS48/0; CM01-exploration-free and CM02-approach-arrival PASS; all three exact command/action/reaction windows PASS. Four mandatory IDs qualified only on114.
+- c6a-compensation-setup-a-rt: overallPASS46/0; both isolated compensation rows and all exact action/reaction windows PASS.
+- c6a-compensation-setup-a-tb: overallFAIL44/2. Exact row phase3d-horse-leaf-deadline, assertion: "Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls." No combat Mount click/window occurred. No provisional Preparing PASS is credited.
+- All three runs restored all five external checks exactly and Kingmaker is closed. Exact payloads, suite, artifact hashes and restoration receipts: lab checkpoint-preview114-after-compensation-tb.json and settled-c6a-compensation-setup-a-{approach,rt,tb}.json. Original TB failed rows/assertions are retained in [history](chunk6a-evidence-history.json); candidate-specific qualification is retained in [ledger](chunk6a-ledger.json).
+
+The first missing boundary is a diagnostic readiness error. Stage1 grouped "not the rider" with "rider not Acting" and passed both to TryEndPhase3gFixtureTurn. That helper explicitly permits Preparing turns. The exact trace records rider Prepare at frames1932/2600/3268 and End at2024/2692/3360, with no combat Mount cost or click. The initial passive-wait draft was rejected before publication or native use: pinned TurnController.Tick (06000C34) retains Preparing while an able actor has no commands. Its 108/0 source and umbrella PASS do not validate the final repair. The final setup uses the native ground-click path on the exact selected rider, a 0.6 m lateral destination preserving pair separation, existing 0.06 m arrival tolerance, and the unchanged 30-second bound. It records ordinary movement as setup, not a free action or Mount proof. The external validator binds its turn and carried Standard/Move/Swift debt to the later exact Mount proof, rejects extra preparation/relationship changes, and preserves independent action/reaction validation inside every relationship window. Final source109/0, causal114/0, build and full offline umbrella PASS.
+
+Next: finish offline gates, guarded publication, new immutable preview.115 package/suite and fresh unchanged purity proof; then positive, isolated RT and TB. Continue geometry-change and actual obstruction only after those gates. All87 mandatory6A rows must pass one candidate before6B; ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING remains the mission end state. No merge/tag/release/PR/permanent installation or HUMAN PLAY inference.
+
+Final preview.115 build and complete offline umbrella PASS (exit 0), 2026-09-27T17:13:30.187Z. Source109/0, causal114/0, all umbrella gates PASS. Log logs/c6a-rider-turn-offline-final.log SHA-256 372f3c2f41097714ec13c438461ad3976ce6d3866ba7d15822e408b108a45f49. DLL 7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740 / MVID 298ea405-3015-48bb-9ea8-f8d3ee68288f. Exact receipt in lab analysis-cache/chunk6a-causal/offline-receipt-preview115.json. No native115 qualification. Next coherent commit, guarded push, immutable chunk6a-rider-turn-a package/suite and fresh unchanged purity; then positive and isolated RT/TB.
+
+---
+
+## Historical checkpoints
+
 # Chunk 6A continuation - 2026-09-27T15:30:12.538Z
 
 **IN PROGRESS.** Branch `codex/mounted-combat-phase3f-playable-core`; published parent `747fd48d04e5a0bc0efeb242f4eb0332b94ec67f` preserved. Working source is preview.114, a diagnostic setup correction. Preview.113 is frozen historical evidence and is superseded for further qualification when this source is published.

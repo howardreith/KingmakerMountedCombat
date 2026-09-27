@@ -5920,6 +5920,67 @@ function Assert-KmcRelationshipCommandProof {
     Assert-KmcRelationshipReactionResources $Proof $PartnerPrepares
 }
 
+function Assert-KmcChunk6aNativeActingSetup {
+    param([AllowNull()]$Setup, [Parameter(Mandatory=$true)]$Proof)
+    if($null -eq $Setup -or $Setup.contract -cne 'native-rider-ground-order-before-mount-baseline') {
+        throw 'TB Mount omitted its native Acting setup.'
+    }
+    $before=$Setup.before; $after=$Setup.after; $rider=[string]$Proof.identity.casterId
+    if($Setup.beforeTurnObject -eq 0 -or $Setup.beforeTurnObject -ne $Setup.afterTurnObject -or
+        $Setup.sameNativeTurn -ne $true -or $before.currentTurnActor -cne $rider -or
+        $after.currentTurnActor -cne $rider -or $before.currentTurnStatus -cne 'Preparing' -or
+        $after.currentTurnStatus -cne 'Acting' -or $before.turnBased -ne $true -or $after.turnBased -ne $true) {
+        throw 'TB setup did not retain the exact rider Preparing-to-Acting turn.'
+    }
+    $admitted=$Setup.admittedCommand; $terminal=$Setup.terminalCommand
+    if($admitted.id -eq 0 -or $admitted.id -ne $terminal.id -or $Setup.createdByPlayer -ne $true -or
+        $admitted.type -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or $terminal.type -cne $admitted.type -or
+        $admitted.executor -cne $rider -or $terminal.executor -cne $rider -or
+        $terminal.finished -ne $true -or $terminal.result -cne 'Success') {
+        throw 'TB setup lost its exact successful native ground command.'
+    }
+    foreach($value in @($Setup.displacement,$Setup.residual,$Setup.placementTolerance)) {
+        if($null -eq $value -or [double]::IsNaN([double]$value) -or [double]::IsInfinity([double]$value)) {
+            throw 'TB setup omitted finite arrival geometry.'
+        }
+    }
+    if([Math]::Abs([double]$Setup.placementTolerance-0.06) -gt 0.000001 -or
+        [double]$Setup.displacement -le 0.1 -or [double]$Setup.residual -lt 0 -or
+        [double]$Setup.residual -gt [double]$Setup.placementTolerance) {throw 'TB setup did not reach its native ground destination.'}
+    if($before.relationshipState -cne 'Unmounted' -or $after.relationshipState -cne 'Unmounted' -or
+        $before.relationshipGeneration -ne $after.relationshipGeneration -or
+        $after.relationshipGeneration -ne $Proof.identity.generationAtInit) {throw 'TB setup changed relationship generation.'}
+    foreach($field in @('dispatchAccepted','dispatchRejected','relationshipShells','transitionLedger',
+        'acceptedMountCount','acceptedDismountCount','forcedDetachCount','adoptionCount')) {
+        if(($before.$field|ConvertTo-Json -Depth 30 -Compress) -cne ($after.$field|ConvertTo-Json -Depth 30 -Compress)) {
+            throw "TB setup changed relationship counter $field."
+        }
+    }
+    foreach($actor in @('rider','mount')) {
+        if($before.$actor.nativePrepareCount -ne $after.$actor.nativePrepareCount) {throw 'TB setup added native preparation.'}
+        foreach($field in @('standard','move','swift')) {
+            $b=[double]$before.$actor.$field; $a=[double]$after.$actor.$field
+            if(($actor -ceq 'rider' -and $field -ceq 'move' -and $a -lt $b-0.0001) -or
+                (($actor -cne 'rider' -or $field -cne 'move') -and [Math]::Abs($a-$b) -gt 0.0001)) {
+                throw "TB setup changed unrelated or refunded $actor $field debt."
+            }
+            if([Math]::Abs($a-[double]$Proof.preClick.state.$actor.$field) -gt 0.0001) {
+                throw "TB Mount did not carry setup $actor $field debt into its baseline."
+            }
+        }
+    }
+    $events=@($Setup.events)
+    if($Setup.traceComplete -ne $true -or $events.Count -eq 0) {throw 'TB setup omitted its complete native allocation trace.'}
+    $admissions=@($events|Where-Object { $_.boundary -ceq 'admission-after' -and $_.command -eq $admitted.id -and $_.commandActor -ceq $rider })
+    if($admissions.Count -ne 1) {throw 'TB setup has no exact native ground admission event.'}
+    foreach($event in $events) {
+        if($event.turn -ne $Setup.beforeTurnObject) {throw 'TB setup allocation trace changed native turn.'}
+        if($event.boundary -cmatch '^(prepare-|clear-|combat-clear-|turn-end-)') {throw 'TB setup trace contains preparation, clear or turn end.'}
+    }
+    $cost=@($Proof.resourceWindow.events|Where-Object boundary -CEQ 'cost-before')
+    if($cost.Count -ne 1 -or $cost[0].turn -ne $Setup.afterTurnObject) {throw 'TB Mount cost belongs to another native setup turn.'}
+}
+
 function Assert-KmcChunk6aCombatMountEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -5982,6 +6043,9 @@ function Assert-KmcChunk6aCombatMountEvidence {
         $prepares = if ($window -ceq 'positive-mount' -and
             [string]$observations.chunk6aAdoptionDisposition.disposition -ceq 'PreparePartnerThisRound') { 1 } else { 0 }
         Assert-KmcRelationshipCommandProof $found[0] $isCombat ($turnBased -and $isCombat) $prepares ($window -ceq 'positive-mount')
+        if($turnBased -and $window -cin @('positive-mount','compensation')) {
+            Assert-KmcChunk6aNativeActingSetup $observations.chunk6aNativeActingSetup $found[0]
+        }
     }
     if ($compensationOnly) {
         if (@($Artifact.rows | Where-Object { $_.name -cin @('CM01-combat-mount-accepted','CM02-approach-arrival') }).Count -ne 0) {

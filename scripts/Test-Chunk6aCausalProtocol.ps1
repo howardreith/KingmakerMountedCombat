@@ -109,6 +109,72 @@ Test-Case 'reject missing exploration Mount window' {$a=New-CompensationEnvelope
 Test-Case 'reject shared exploration Mount and Dismount evidence' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs[1]=$a.observations.chunk6aCommandProofs[0];Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'exactly one exploration-mount'}
 Test-Case 'reject mislabeled native ability window' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs[0].identity.abilityGuid='foreign';Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'wrong ability or target'}
 
+# A real ground order enters Acting on the SAME rider turn. Its existing Move
+# debt is carried into the separately validated Mount command window.
+function New-ActingSetupCase {
+    $p=New-CommandProof $true $true
+    foreach($event in $p.resourceWindow.events){Put-Value $event turn 501}
+    $before=@{currentTurnActor='rider';currentTurnStatus='Preparing';turnBased=$true;relationshipState='Unmounted';relationshipGeneration=4
+        dispatchAccepted=2;dispatchRejected=1;relationshipShells=2;transitionLedger='carried exploration counts'
+        acceptedMountCount=1;acceptedDismountCount=1;forcedDetachCount=0;adoptionCount=0
+        rider=@{standard=4.0;move=0.0;swift=3.0;nativePrepareCount=1};mount=@{standard=5.0;move=4.0;swift=3.0;nativePrepareCount=1}}
+    $after=Copy-Value $before;$after.currentTurnStatus='Acting';$after.rider.move=1.0
+    $command=@{id=401;type='Kingmaker.UnitLogic.Commands.UnitMoveTo';executor='rider';finished=$false;result='None'}
+    $terminal=Copy-Value $command;$terminal.finished=$true;$terminal.result='Success'
+    $setup=@{contract='native-rider-ground-order-before-mount-baseline';beforeTurnObject=501;afterTurnObject=501;sameNativeTurn=$true
+        before=$before;after=$after;admittedCommand=$command;terminalCommand=$terminal;createdByPlayer=$true
+        displacement=0.6;residual=0.01;placementTolerance=0.06;traceComplete=$true
+        events=@(@{boundary='admission-after';turn=501;command=401;commandActor='rider'})}
+    Copy-Value @{setup=$setup;proof=$p}
+}
+Test-Case 'native TB setup carries debt on the exact rider turn into a valid Mount proof' {
+    $c=New-ActingSetupCase
+    Assert-KmcRelationshipCommandProof $c.proof $true $true 0 $true
+    Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof
+}
+Test-Case 'reject missing TB native Acting setup' {$c=New-ActingSetupCase;Reject {Assert-KmcChunk6aNativeActingSetup $null $c.proof} 'omitted its native Acting setup'}
+Test-Case 'reject replacing the Preparing rider turn' {$c=New-ActingSetupCase;$c.setup.afterTurnObject=502;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'exact rider Preparing-to-Acting turn'}
+Test-Case 'reject a different native ground command terminal' {$c=New-ActingSetupCase;$c.setup.terminalCommand.id=402;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'exact successful native ground command'}
+Test-Case 'reject terminal ground failure' {$c=New-ActingSetupCase;$c.setup.terminalCommand.result='Fail';Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'exact successful native ground command'}
+Test-Case 'reject increased setup arrival tolerance' {$c=New-ActingSetupCase;$c.setup.placementTolerance=0.1;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'native ground destination'}
+Test-Case 'reject setup without real displacement' {$c=New-ActingSetupCase;$c.setup.displacement=0;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'native ground destination'}
+Test-Case 'reject setup relationship generation change' {$c=New-ActingSetupCase;$c.setup.after.relationshipGeneration=5;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'changed relationship generation'}
+Test-Case 'reject setup hidden relationship shell' {$c=New-ActingSetupCase;$c.setup.after.relationshipShells=3;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'relationship counter relationshipShells'}
+foreach($actor in @('rider','mount')) {
+    foreach($field in @('standard','swift')) {
+        Test-Case "reject setup $actor $field charge with valid Mount proof" {
+            $c=New-ActingSetupCase;$c.setup.after.$actor.$field++
+            Assert-KmcRelationshipCommandProof $c.proof $true $true 0 $true
+            Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} "unrelated or refunded $actor $field"
+        }
+    }
+}
+Test-Case 'reject setup mount Move charge' {$c=New-ActingSetupCase;$c.setup.after.mount.move++;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'unrelated or refunded mount move'}
+Test-Case 'reject clearing carried setup Move debt before Mount' {$c=New-ActingSetupCase;$c.setup.after.rider.move=2;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'carry setup rider move debt'}
+Test-Case 'reject rider preparation during setup' {$c=New-ActingSetupCase;$c.setup.after.rider.nativePrepareCount++;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'added native preparation'}
+Test-Case 'reject incomplete setup allocation trace' {$c=New-ActingSetupCase;$c.setup.traceComplete=$false;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'complete native allocation trace'}
+Test-Case 'reject ground command without its exact admission event' {$c=New-ActingSetupCase;$c.setup.events[0].command=402;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'exact native ground admission event'}
+Test-Case 'reject intermediate preparation despite identical endpoints' {$c=New-ActingSetupCase;$c.setup.events+=@{boundary='prepare-before';turn=501};Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'preparation, clear or turn end'}
+Test-Case 'reject intermediate turn replacement despite identical endpoints' {$c=New-ActingSetupCase;$c.setup.events[0].turn=502;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'trace changed native turn'}
+Test-Case 'reject Mount cost from a later native turn' {$c=New-ActingSetupCase;$c.proof.resourceWindow.events[0].turn=502;Reject {Assert-KmcChunk6aNativeActingSetup $c.setup $c.proof} 'another native setup turn'}
+
+function New-TbCompensationEnvelope {
+    $a=New-CompensationEnvelope;$c=New-ActingSetupCase
+    $c.proof.identity.abilityGuid='f053faad986631688defa003cd7bda0e'
+    foreach($sample in $c.proof.samples){$sample.identity.abilityGuid=$c.proof.identity.abilityGuid}
+    Put-Value $c.proof window 'compensation';$a.observations.chunk6aCommandProofs[2]=$c.proof
+    Put-Value $a.observations chunk6aNativeActingSetup $c.setup
+    $a.rows+=@{name='CM01-combat-mount-preparing-refused';status='PASS'}
+    return $a
+}
+Test-Case 'TB compensation envelope requires exact native setup and all command windows' {
+    Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) (New-TbCompensationEnvelope) 'PASS'
+}
+Test-Case 'TB envelope rejects omitted setup despite valid command windows' {
+    $a=New-TbCompensationEnvelope;$a.observations.chunk6aNativeActingSetup=$null
+    Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'} 'omitted its native Acting setup'
+}
+
 # Leave action endpoints, cost callbacks and causal identity valid; corrupt only reactions.
 foreach($mode in @('exploration','rt','tb')) {
     foreach($actor in @('rider','mount')) {

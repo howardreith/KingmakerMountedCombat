@@ -1,3 +1,13 @@
+# Chunk 6A - 2026-09-27T16:49:58.738Z
+
+**IN PROGRESS.** Published parent 707d98302f13ba752fe517e49338cf71b1c5f1ae preserved. Preview.114 positive PASS 48/0 and compensation RT PASS 46/0; compensation TB FAIL 44/2 before Mount because the diagnostic ended the Preparing rider. All restoration PASS. Preview.115 uses a bounded native rider ground order to enter Acting on the same turn, then carries its measured debt into the exact Mount baseline. No resource writes or deadline extension. The first passive-wait draft was rejected after pinned Tick inspection; its offline PASS is not final-source validation. Final build and full offline umbrella PASS; source109/0 and causal114/0. [Current report](docs/CHUNK6A-COMBAT-MOUNT.md); exact live state in lab analysis-cache/chunk6a-causal/ACTIVE.json. Next final offline gates, publication, new immutable candidate/suite/fresh proof, positive and both compensation modes. No 6B before 87/87 on one candidate.
+
+Final preview.115 build and complete offline umbrella PASS (exit 0), 2026-09-27T17:13:30.187Z. Source109/0, causal114/0, all umbrella gates PASS. Log logs/c6a-rider-turn-offline-final.log SHA-256 372f3c2f41097714ec13c438461ad3976ce6d3866ba7d15822e408b108a45f49. DLL 7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740 / MVID 298ea405-3015-48bb-9ea8-f8d3ee68288f. Exact receipt in lab analysis-cache/chunk6a-causal/offline-receipt-preview115.json. No native115 qualification. Next coherent commit, guarded push, immutable chunk6a-rider-turn-a package/suite and fresh unchanged purity; then positive and isolated RT/TB.
+
+---
+
+## Historical checkpoints
+
 # Chunk 6A - 2026-09-27T15:30:12.538Z
 
 **IN PROGRESS.** Published parent `747fd48d04e5a0bc0efeb242f4eb0332b94ec67f` preserved; preview.114 diagnostic setup correction pending. Preview.113 positive approach PASS 48/0, isolated compensation RT and TB each FAIL 43/2 before combat at the unnecessary separation Move. All three external restorations PASS. Four mandatory IDs qualified only on frozen preview.113; preview.114 has no native qualification yet.
