@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // failure in the approach itself is attributable without paying for the whole
         // suite. It emits the same tranche evidence kind, so it introduces no new leaf.
         internal const string Chunk6aMountApproachScenario = "chunk6a-mount-approach";
+        internal const string Chunk6aObstructionScenario = "chunk6a-obstruction";
         internal const string Chunk6aGeometryChangeScenario = "chunk6a-geometry-change";
         internal const string Chunk6aCompensationRealTimeScenario = "chunk6a-adoption-compensation-rt";
         internal const string Chunk6aCompensationTurnBasedScenario = "chunk6a-adoption-compensation-tb";
@@ -37,6 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aObstructionScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aGeometryChangeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCompensationRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
@@ -53,6 +55,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool Chunk6aApproachOnly =>
             string.Equals(request.Scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal);
+
+        private bool Chunk6aObstructionOnly => string.Equals(request.Scenario, Chunk6aObstructionScenario, StringComparison.Ordinal);
 
         private bool Chunk6aGeometryOnly => string.Equals(request.Scenario, Chunk6aGeometryChangeScenario, StringComparison.Ordinal);
 
@@ -77,20 +81,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // engine's own clock rather than from anything this scenario did.
         private JObject chunk6aMoveRestorationWait;
 
-        // CM02-obstruction and CM02-geometry-change. Both need the pair outside the
-        // adjacency envelope again, because the combat Dismount leaves the rider standing
-        // beside the Horse with no distance for a native approach to close. The Horse is
-        // sent AWAY through its own ordinary ground input: away can never manufacture
-        // adjacency, which is the thing the charter forbids, and it is the only lawful way
-        // back to the starting condition these two cases are about.
+        // Positive/geometry separation uses ordinary native Horse ground input.
+        // The real obstruction fixture is owned by Chunk6aDoorFixture.
         private Vector3 chunk6aSeparationDestination;
         private UnitMoveTo chunk6aSeparationCommand;
-        private JObject chunk6aObstructionBefore;
-        private JObject chunk6aObstructionLedgerBefore;
-        private JObject chunk6aObstructionStart;
-        private JObject chunk6aObstructionAtStop;
-        private UnitUseAbility chunk6aObstructionCommand;
-        private bool chunk6aObstructionStopped;
         private JObject chunk6aGeometryChangeBefore;
         private JObject chunk6aGeometryChangeLedgerBefore;
         private JObject chunk6aGeometryChangeStart;
@@ -714,7 +708,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aGeometryOnly ? 16 : 13;
+                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -1368,192 +1362,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            // Stage 6: restore measured non-adjacency for the two remaining approach cases.
-            // These run in real time only. In turn-based combat the Horse's reposition and
-            // the rider's attempt would each consume that actor's Move for the round, and
-            // recovering one by forcing a turn boundary is prohibited outright; the
-            // turn-based scenario proves the Preparing boundary instead, and the two
-            // approach behaviours are proved once, in the mode where a native approach is a
-            // continuous multi-frame process.
-            if (chunk6aStage == 6)
+            if (chunk6aStage == 6 || chunk6aStage >= 18 && chunk6aStage <= 21)
             {
-                if (Chunk6aTurnBased)
-                {
-                    chunk6aStage = 99;
-                    ResetLeafClock();
-                    BeginCleanup();
-                    return;
-                }
-                if (!Chunk6aIdle)
-                {
-                    return;
-                }
-                string separationRefusal;
-                chunk6aSeparationCommand = Chunk6aSendHorseAway(
-                    4.5f, out chunk6aSeparationDestination, out separationRefusal);
-                if (chunk6aSeparationCommand == null || chunk6aSeparationCommand.Executor != horse ||
-                    !chunk6aSeparationCommand.CreatedByPlayer)
-                {
-                    FailCurrent("CM02-obstruction",
-                        "Ordinary native Horse ground input did not admit one exact player-created Horse Move command, " +
-                        "so neither approach case could start from measured non-adjacency. obstacle=\"" +
-                        (separationRefusal ?? "no exact player-created Horse Move command appeared") + "\"");
-                    BeginCleanup();
-                    return;
-                }
-                observations["chunk6aApproachSeparation"] = new JObject
-                {
-                    ["destination"] = CapturePosition(chunk6aSeparationDestination),
-                    ["commandOwnerId"] = chunk6aSeparationCommand.Executor?.UniqueId,
-                    ["commandCreatedByPlayer"] = chunk6aSeparationCommand.CreatedByPlayer,
-                    ["geometry"] = CaptureChunk6aGeometry("approach-separation-start")
-                };
-                chunk6aStage = 7;
-                ResetLeafClock();
-                return;
-            }
-
-            // Stage 7: the obstruction case begins. The pair must be measurably outside the
-            // envelope and the rider must own the Move Kingmaker charged for the Dismount,
-            // which the engine restores on its own clock.
-            if (chunk6aStage == 7)
-            {
-                if (!Chunk6aIdle || chunk6aSeparationCommand == null || !chunk6aSeparationCommand.IsFinished)
-                {
-                    return;
-                }
-                var separated = CaptureChunk6aGeometry("approach-separation-settled");
-                if ((bool)separated["isAdjacent"])
-                {
-                    FailCurrent("CM02-obstruction",
-                        "The Horse's own native move left the pair inside the measured adjacency envelope, " +
-                        "so there was no distance for a native approach to close: " +
-                        separated.ToString(Formatting.None));
-                    BeginCleanup();
-                    return;
-                }
-                var obstructionAvailability = nativeControls.Evaluate(
-                    NativeMountedControlKind.MountCompanion, rider);
-                if (!obstructionAvailability.IsEnabled)
-                {
-                    // The combat Dismount charged the rider's Move. Availability reports that
-                    // exactly, and waiting for Kingmaker to drain the cooldown it set is the
-                    // only lawful way to reach a further attempt.
-                    return;
-                }
-                chunk6aObstructionBefore = CaptureChunk6aState("obstruction-before");
-                chunk6aObstructionLedgerBefore = Chunk6aLedgerCounters();
-                chunk6aObstructionStart = separated;
-                chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
-                chunk6aRejectionsBefore = (int)nativeControls.DispatchRejectedCount;
-                chunk6aGenerationBefore = relationship.MountedPairGeneration;
-                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                if (!TryNativeAbilityTargetClick(
-                        nativeControls.MountAbility, horse, "chunk6a-obstruction-click"))
-                {
-                    FailCurrent("CM02-obstruction",
-                        "Exact native combat Mount target click was not admitted for the obstruction case. " +
-                        "availabilityReason=\"" + obstructionAvailability.Reason +
-                        "\"; targetRejection=\"" +
-                        playerAction.DescribeNativeMountTargetRejection(rider, horse) +
-                        "\"; geometry=" + separated.ToString(Formatting.None));
-                    BeginCleanup();
-                    return;
-                }
-                chunk6aStage = 8;
-                ResetLeafClock();
-                return;
-            }
-
-            // Stage 8: obstruct the running approach BEFORE it commits, through the ordinary
-            // native Stop control, and then observe the command's own terminal state.
-            if (chunk6aStage == 8)
-            {
-                var obstructionSlot =
-                    rider?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
-                if (!chunk6aObstructionStopped)
-                {
-                    if (obstructionSlot == null ||
-                        !ReferenceEquals(obstructionSlot.Spell?.Blueprint, nativeControls.MountAbility))
-                    {
-                        return;
-                    }
-                    chunk6aObstructionCommand = obstructionSlot;
-                    if (obstructionSlot.IsActed)
-                    {
-                        // The claim is specifically about cancellation BEFORE commitment. If
-                        // the Move was already committed the claim cannot be made truthfully,
-                        // so it is reported rather than relabelled as something weaker.
-                        FailCurrent("CM02-obstruction",
-                            "The native Mount approach committed its Move before the obstruction could be applied, " +
-                            "so no pre-commitment cancellation was observed: " +
-                            CaptureChunk6aGeometry("obstruction-already-acted").ToString(Formatting.None));
-                        BeginCleanup();
-                        return;
-                    }
-                    if (!obstructionSlot.IsStarted)
-                    {
-                        return;
-                    }
-                    chunk6aObstructionAtStop = CaptureChunk6aGeometry("obstruction-at-stop");
-                    // The ordinary native Stop control, the same player input every other
-                    // cancellation case in this project uses. Nothing is written.
-                    SelectionManager.Instance.Stop();
-                    chunk6aObstructionStopped = true;
-                    return;
-                }
-                if (obstructionSlot != null || !Chunk6aIdle)
-                {
-                    return;
-                }
-                var obstructionAfterGeometry = CaptureChunk6aGeometry("obstruction-terminal");
-                var obstructionAfter = CaptureChunk6aState("obstruction-after");
-                var terminalTruthful = chunk6aObstructionCommand != null &&
-                    chunk6aObstructionCommand.IsFinished &&
-                    !chunk6aObstructionCommand.IsActed &&
-                    chunk6aObstructionCommand.Result != UnitCommand.ResultType.Success;
-                var noTransition = relationship.State == RelationshipState.Unmounted &&
-                    relationship.MountedPairGeneration == chunk6aGenerationBefore &&
-                    nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore &&
-                    Chunk6aLedgerDelta(chunk6aObstructionLedgerBefore, "admittedMount", 0) &&
-                    Chunk6aLedgerDelta(chunk6aObstructionLedgerBefore, "acceptedMount", 0) &&
-                    Chunk6aLedgerDelta(chunk6aObstructionLedgerBefore, "forcedDetach", 0);
-                // No residue: nothing is left in flight and the rider keeps no Move-slot
-                // command, so a later lawful attempt starts from a clean state.
-                var noResidue = !playerAction.TransitionLedger.HasVoluntaryTransitionInFlight &&
-                    rider.Commands.Empty && horse.Commands.Empty;
-                // No cost: a cancellation before commitment charges nothing, so in real time
-                // every cooldown may only continue draining and none may rise.
-                var obstructionRider = (JObject)chunk6aObstructionBefore["rider"];
-                var obstructionRiderAfter = (JObject)obstructionAfter["rider"];
-                var noCost = Chunk6aUnchangedExcept(obstructionRider, obstructionRiderAfter) &&
-                    Chunk6aUnchangedExcept(
-                        (JObject)chunk6aObstructionBefore["mount"], (JObject)obstructionAfter["mount"]) &&
-                    (int)obstructionRider["nativePrepareCount"] ==
-                        (int)obstructionRiderAfter["nativePrepareCount"];
-                AddRow("CM02-obstruction",
-                    terminalTruthful && noTransition && noResidue && noCost &&
-                        chunk6aObstructionAtStop != null &&
-                        (bool)chunk6aObstructionAtStop["isAdjacent"] == false,
-                    "A native Mount approach obstructed by the ordinary Stop control before commitment reached its own truthful terminal state, performed no relationship transition, left no residue in flight and charged nothing.",
-                    new JObject
-                    {
-                        ["start"] = chunk6aObstructionStart,
-                        ["atStop"] = chunk6aObstructionAtStop,
-                        ["terminal"] = obstructionAfterGeometry,
-                        ["commandFinished"] = chunk6aObstructionCommand?.IsFinished,
-                        ["commandActed"] = chunk6aObstructionCommand?.IsActed,
-                        ["commandResult"] = chunk6aObstructionCommand?.Result.ToString(),
-                        ["terminalTruthful"] = terminalTruthful,
-                        ["noTransition"] = noTransition,
-                        ["noResidue"] = noResidue,
-                        ["noCost"] = noCost,
-                        ["before"] = chunk6aObstructionBefore,
-                        ["after"] = obstructionAfter,
-                        ["transitionLedger"] = playerAction.TransitionLedger.Describe()
-                    });
-                chunk6aStage = 9;
-                ResetLeafClock();
+                TickChunk6aObstruction();
                 return;
             }
 

@@ -154,7 +154,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 observations["chunk6aRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
                 observations["chunk6aHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();
-                if (!Chunk6aCompensationOnly)
+                if (Chunk6aNeedsDoor)
+                {
+                    if (!TickChunk6aDoorSetup()) return;
+                }
+                else if (!Chunk6aCompensationOnly)
                 {
                     // Create non-adjacent geometry outside combat, before the fresh native
                     // encounter allocation. The rider has issued no combat Mount.

@@ -359,3 +359,10 @@ Preview.115 positive/RT compensation/TB compensation all PASS with exact restora
 ## 2026-09-27T20:24:29.262Z - native Move-slot observation
 
 Pinned Kingmaker Assembly-CSharp SHA-256 3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. UnitCommands.get_Move token0600269F returns UnitMoveTo only; GetCommand(CommandType) token060026A9 returns the base UnitCommand from m_Commands field04001A46. A relationship UnitUseAbility in the Move slot must be observed through GetCommand(Move). Detached accessor behavior plus compiled caller regression: scripts/Test-Chunk6aCommandSlot.ps1, red on116 and6/0 on117. Read-only metadata/IL facts in lab analysis-cache/chunk6a-causal/geometry-slot-native-contract.json; no proprietary implementation included. Geometry116 failure was instrumentation, not evidence of a failed gameplay Mount. Runtime requalification remains mandatory.
+
+
+## 2026-09-27T22:18:07.328Z ? CM02 native obstruction observation
+
+Exact Kingmaker Assembly-CSharp SHA3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb/MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Read-only signatures: UnitMovementAgent.PathTo(UnitCommand,Vector3,float,float,UnitMovementAgentBase)060018A3; OnPathComplete(Pathfinding.Path)060018B9; m_RequestedPath Pathfinding.Path0400118E; UnitEntityView.OnMovementInterrupted(Vector3)0600184F; OnPathNotFound()06001850; UnitCommand.OnEnded(bool)060027B2. StandardDoor playback fields m_Playable040012CE/m_Graph040012CD support bounded native readiness. No path pooling Claim/Release or gameplay writes in the observer.
+
+Local inspection: movement interruption addresses UnitCommands.Move (UnitMoveTo only); a relationship UnitUseAbility in Move may remain pending. Confidence: exact pinned inspection; native product outcome TODO. Wrapper signatures6PASS; PathTo wrapper deferred by desktop Unity ECall restriction. Native path-to-command matching, open-route control, actual failure, terminal and restoration must execute in Unity before acceptance.

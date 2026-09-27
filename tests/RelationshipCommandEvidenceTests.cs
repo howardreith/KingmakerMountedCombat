@@ -13,6 +13,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("resource windows distinguish RT decay from refund and extra charge", RealTimeDebt);
             runner.Run("TB resource windows reject both refunds and second charges", TurnBasedDebt);
             runner.Run("reaction events conserve discrete allowance and distinguish cooldowns from ordering", ReactionEvents);
+            runner.Run("unacted obstruction identity cannot qualify a positive process", UnactedIdentity);
             runner.Run("native Move callbacks exclude Standard Swift and exploration costs", CallbackOwnership);
         }
         private static RelationshipCommandIdentity Make(object command, object process, object context,
@@ -76,6 +77,16 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!spent.Matches(new NativeReactionResources(1, 0.25, 0, 12)), "reaction-only change rejected");
             TestRunner.True(!spent.Matches(new NativeReactionResources(0, 0, 0, 12)), "AoO-only refund rejected");
             TestRunner.True(!spent.Matches(new NativeReactionResources(0, 0.25, 0, 13)), "ordering cannot be relabeled as cooldown");
+        }
+        private static void UnactedIdentity()
+        {
+            var command = new object();
+            var request = Make(command, null, null);
+            TestRunner.True(request.UnactedRequestComplete && request.MatchesUnacted(Make(command, null, null)), "unacted command and shell are exact");
+            TestRunner.True(!request.Complete && !request.Matches(request, true), "process-free evidence cannot qualify the positive contract");
+            TestRunner.True(!request.MatchesUnacted(Make(new object(), null, null)), "second unacted command rejected");
+            TestRunner.True(!request.MatchesUnacted(Make(command, new object(), new object())), "acted process cannot qualify unacted failure");
+            TestRunner.True(!request.MatchesUnacted(Make(command, null, null, generation: 5)), "unacted generation mismatch rejected");
         }
         private static void CallbackOwnership()
         {

@@ -260,6 +260,39 @@ public static class KmcNativePatchProbe {
      throw new InvalidOperationException("Native physical movement observation contract changed.");
     Console.WriteLine("PASS native movement observation signature "+original.Name);
    }
+   var pathHooks=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeCommandPathProbe+Hooks",true);
+   var pathTokens=new[]{0x060018A3,0x060018B9,0x0600184F,0x06001850,0x060027B2,0x060027B2};
+   var pathNames=new[]{"PathTo","OnPathComplete","OnMovementInterrupted","OnPathNotFound","OnEnded","OnEnded"};
+   var pathBefore=new string[]{null,"CompleteBefore","InterruptedBefore","NotFoundBefore",null,null};
+   var pathAfter=new string[]{"PathAfter","CompleteAfter",null,null,"EndedAfter","UnactedEndedAfter"};
+   var requested=native.GetType("Kingmaker.View.UnitMovementAgent",true).GetField("m_RequestedPath",causalFlags);
+   if(requested.MetadataToken!=0x0400118E || requested.FieldType.FullName!="Pathfinding.Path") throw new InvalidOperationException("Requested path field changed.");
+   for(var i=0;i<pathTokens.Length;i++) {
+    var original=native.ManifestModule.ResolveMethod(pathTokens[i]);
+    if(original.Name!=pathNames[i]) throw new InvalidOperationException("Native path observer token changed.");
+    var owner=i==5?causal:pathHooks;
+    var before=pathBefore[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(pathBefore[i],causalFlags)});
+    var after=pathAfter[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(pathAfter[i],causalFlags)});
+    try {patch.Invoke(harmony,new object[]{original,before,after,null}); Console.WriteLine("PASS native obstruction observer wrapper "+pathNames[i]+" "+pathAfter[i]);}
+    catch(TargetInvocationException e) {
+     if(!(e.InnerException is System.Security.SecurityException) || e.InnerException.Message!="ECall methods must be packaged into a system module.") throw;
+     Console.WriteLine("DEFER - EVIDENCED: desktop CLR cannot construct Unity ECall wrapper "+pathNames[i]+"; native installation and callback still required.");
+    }
+   }
+   var pathProbe=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeCommandPathProbe",true);
+   try {
+    var disposable=(IDisposable)Activator.CreateInstance(pathProbe,BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{null},null);
+    disposable.Dispose();
+    Console.WriteLine("PASS actual native path observer constructor/disposal without actor execution");
+   } catch(TargetInvocationException e) {
+    var context=e.InnerException as InvalidOperationException;
+    if(context==null || context.Message.IndexOf("Kingmaker.View.UnitMovementAgent.PathTo token=060018A3; installed=[]",StringComparison.Ordinal)<0 ||
+       !(context.InnerException is System.Security.SecurityException)) throw;
+    Console.WriteLine("PASS actual constructor retains the first deferred PathTo wrapper and empty installed-hook receipt");
+   }
+   if(pathProbe.GetField("active",causalFlags).GetValue(null)!=null) throw new InvalidOperationException("Path observer constructor/disposal retained an active observer.");
+   Console.WriteLine("PASS path observer constructor/disposal releases its active observer");
+   Console.WriteLine("OBSTRUCTION OBSERVER SIGNATURE PASS=6 FAIL=0; native execution still required");
    // These bodies call Unity ECalls which cannot be JIT-constructed in this
    // isolated CLR. Actual patch installation is required in the native scenario.
    Console.WriteLine("MOVEMENT OBSERVER SIGNATURE PASS=2 FAIL=0; runtime construction still required");

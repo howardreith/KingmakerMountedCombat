@@ -1500,6 +1500,292 @@
       },
       "transactionRestoredAtUtc": "2026-09-27T20:10:53.3668983+00:00",
       "completedAtUtc": "2026-09-27T20:10:58.5011618+00:00"
+    },
+    {
+      "runId": "c6a-geometry-slot-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.117",
+        "commit": "a3b6061d95f912a195bcd94c5f4111316cb1bb5e",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.117-chunk6a-geometry-slot-a-diagnostic.zip",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-geometry-slot-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-geometry-slot-a.json",
+        "sha256": "fe9644165293dd421a9817baca5b55b80ce6319c78077349e359ec31d8194e90",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "31a00452a9eb99f0f7daf8cfc8a2282baa4f4144c71796013e39e2342d20e721"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-approach/orchestration.json",
+          "sha256": "ac915b8095750f046485850f653d188a37d6689952566b5182c38b7c68fd4b8b"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "220bf06ef00cf6c209ada2f4a95f0be8789f16c5b5dba7e51ebb544d304e6bda"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-approach/runtime-artifacts.json",
+          "sha256": "266eefa41b412e21e026337366fac2e3888dac526f0bd074e16fe9455a32a649"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-approach/runtime-game-result.json",
+          "sha256": "94f283ed14cfa312b99d383820a5d0b118515e38e67a5f4a197bc1f8b2095e53"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-approach/runtime-request.json",
+          "sha256": "1bdfbc3cd75983f687bff96bd933795191cd291d81f5b734f0acc0c0475511d9"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-approach/runtime-result.json",
+          "sha256": "b2f108d34fd5ee5b3972d05ab62df4a4122271d7b77c78aca2950cb662cd6e27"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Superseded by preview.118 obstruction instrumentation source; exact preview.117 results remain historical and are not credited to another candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T21:35:07.6100221+00:00",
+      "completedAtUtc": "2026-09-27T21:35:13.4962520+00:00",
+      "launcherExitCode": 0,
+      "acceptedMandatoryIds": [
+        "CM01-horse-rt",
+        "CM01-exploration-free",
+        "CM02-approach-arrival",
+        "CM02-target-selection-cancelled"
+      ]
+    },
+    {
+      "runId": "c6a-geometry-slot-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.117",
+        "commit": "a3b6061d95f912a195bcd94c5f4111316cb1bb5e",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.117-chunk6a-geometry-slot-a-diagnostic.zip",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-geometry-slot-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-geometry-slot-a.json",
+        "sha256": "fe9644165293dd421a9817baca5b55b80ce6319c78077349e359ec31d8194e90",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "ffe57cb3c3b73ae8cd7a072362d70c980e10177edf72520e664a7e7af8d3843d"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-rt/orchestration.json",
+          "sha256": "fc567f518e12708378a51833ac4da34feae79f51f824ed1583ceabd2c588907c"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "28a84aa82d8905d7705b5791f1fbae571e883e192583a92616eb76a3204a01cd"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-rt/runtime-artifacts.json",
+          "sha256": "a671400f9a87a50a05ed4d29bc983874908de001f10cc4fe6db75771b258978f"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-rt/runtime-game-result.json",
+          "sha256": "031aeb1533c6d38cc6e45c64b294cda905edc05c4efdb7632df2596a31c7e6bd"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-rt/runtime-request.json",
+          "sha256": "7a4bbe369e70ed762b3f191a4ac49737681752987fda088beaa30c3e28a44e0b"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-rt/runtime-result.json",
+          "sha256": "3fbe26ab18732b75169d54ef812711d647acb46431cd21d838e75662402cc40f"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Superseded by preview.118 obstruction instrumentation source; exact preview.117 results remain historical and are not credited to another candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T21:37:36.1426751+00:00",
+      "completedAtUtc": "2026-09-27T21:37:41.9712866+00:00",
+      "launcherExitCode": 0
+    },
+    {
+      "runId": "c6a-geometry-slot-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.117",
+        "commit": "a3b6061d95f912a195bcd94c5f4111316cb1bb5e",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.117-chunk6a-geometry-slot-a-diagnostic.zip",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-geometry-slot-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-geometry-slot-a.json",
+        "sha256": "fe9644165293dd421a9817baca5b55b80ce6319c78077349e359ec31d8194e90",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "e3f98d6a46ca897c5d10393f95b600c1a55b157731d0c7a2b198d6bccea2aee1"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-tb/orchestration.json",
+          "sha256": "087132e661c4a33643090a31483e4d2c5dd70293e042e62280db4136e22b42c6"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "1b70079adc6c87c164b1dfb01402c734f15ce549cf0fa8c4f708d750352cf263"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-tb/runtime-artifacts.json",
+          "sha256": "93de15a2acdf95738dcfec46bd0aa8595e0e96bdda4c499177dbb17e2212faf3"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-tb/runtime-game-result.json",
+          "sha256": "7ea5200115003674b272fb6cdc408ac053b436bbbc43b4728aa52f952a385529"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-tb/runtime-request.json",
+          "sha256": "01765e6a5f61ca0a29cf8e2bcd79f9f2446849a3a58a119c602760ba5eb19db9"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-tb/runtime-result.json",
+          "sha256": "e11c605ed5215f23a1550c1899c45d25a839fbaacf1c03a56da61ceb97ae022e"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Superseded by preview.118 obstruction instrumentation source; exact preview.117 results remain historical and are not credited to another candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T21:39:43.8886098+00:00",
+      "completedAtUtc": "2026-09-27T21:39:49.5113432+00:00",
+      "launcherExitCode": 0,
+      "acceptedMandatoryIds": [
+        "CM01-combat-mount-preparing-refused",
+        "CM02-adoption-plan-invalidated",
+        "CM02-adoption-compensation-releases"
+      ]
+    },
+    {
+      "runId": "c6a-geometry-slot-a-geometry",
+      "scenario": "chunk6a-geometry-change",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.117",
+        "commit": "a3b6061d95f912a195bcd94c5f4111316cb1bb5e",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.117-chunk6a-geometry-slot-a-diagnostic.zip",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-geometry-slot-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-geometry-slot-a.json",
+        "sha256": "fe9644165293dd421a9817baca5b55b80ce6319c78077349e359ec31d8194e90",
+        "packageSha256": "61820b0107afa69457c915ac16325cc20738e3d779bedc6c9341b292bee04faf",
+        "manifestSha256": "b88a987b441fcad01b2efd080e4856aba470a7d577f4be8080a7a37d05b4787f",
+        "dllSha256": "a1edad7b3067f4906d545f46f594617779b9a7c994ba96fb2279ff27e6058a99",
+        "dllMvid": "f2cc1bdd-46db-4bf9-aa99-a6869e68c504"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-geometry/horse-companion-blueprint-registration.json",
+          "sha256": "b2fba50b3656a436be6cb28bf4694fe26cfa5b4f346d1bd2bfc38269e5c31b34"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-geometry/orchestration.json",
+          "sha256": "f7f2552628e1b179a2876482425f2453d9ed005ebc8e634f6a568f3337ef3555"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-geometry/phase3d-horse-scenario-evidence.json",
+          "sha256": "166c5e9cc8357801f4523e3b72d998fa50cbfbd7719566c59d9f3ef9d5b06deb"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-geometry/runtime-artifacts.json",
+          "sha256": "a4c3cf57bcddfe63ba47a83f83de53a2d03db912bb9fa03b3b37edcb05d92a57"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-geometry/runtime-game-result.json",
+          "sha256": "f4c9125a918448af324258ffc10c9b5e9f788988b3e15fda4cb4849c9e65c008"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-geometry/runtime-request.json",
+          "sha256": "4e2880250f029031d2106659bfaddded5aea13194587ef2f2b475d32c306e43e"
+        },
+        {
+          "path": "runtime-evidence/c6a-geometry-slot-a-geometry/runtime-result.json",
+          "sha256": "46b1e8932521fa1f644e1a5bd19edebb54ee24ebce4720866c4ce5e91cbdd346"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Superseded by preview.118 obstruction instrumentation source; exact preview.117 results remain historical and are not credited to another candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T21:42:20.4512831+00:00",
+      "completedAtUtc": "2026-09-27T21:42:26.5312830+00:00",
+      "launcherExitCode": 0,
+      "acceptedMandatoryIds": [
+        "CM02-geometry-change"
+      ]
     }
   ]
 }
