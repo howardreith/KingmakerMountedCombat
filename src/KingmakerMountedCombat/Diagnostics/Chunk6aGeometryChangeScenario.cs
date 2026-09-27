@@ -53,21 +53,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 var riderDisplacement = Chunk6aPlanarDistance((JObject)chunk6aGeometryChangeStart["riderPosition"], CapturePosition(rider.Position));
                 if (!chunk6aCommandWindow.ApproachObserved || !rider.View.AgentASP.IsReallyMoving || riderDisplacement <= 0.25f) return;
                 chunk6aGeometryChangeAtChange = CaptureChunk6aGeometry("geometry-change-trigger");
-                if ((bool)chunk6aGeometryChangeAtChange["isAdjacent"] ||
-                    !ReferenceEquals(rider.Commands.Move, command))
-                {
-                    FailCurrent("CM02-geometry-change", "The ground order missed the exact uncommitted non-adjacent Mount approach.");
-                    BeginCleanup(); return;
-                }
+                // Commands.Move returns UnitMoveTo only; Mount is a UnitUseAbility in the Move slot.
+                var moveSlot = rider.Commands.GetCommand(UnitCommand.CommandType.Move);
                 chunk6aGeometryChangeEvidence["trigger"] = new JObject
                 {
                     ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                     ["approachObserved"] = chunk6aCommandWindow.ApproachObserved,
                     ["riderReallyMoving"] = rider.View.AgentASP.IsReallyMoving,
                     ["command"] = CaptureOrdinaryCommand(command),
-                    ["moveSlot"] = CaptureOrdinaryCommand(rider.Commands.Move),
+                    ["moveSlot"] = CaptureOrdinaryCommand(moveSlot),
                     ["geometry"] = chunk6aGeometryChangeAtChange, ["riderDisplacement"] = riderDisplacement
                 };
+                if ((bool)chunk6aGeometryChangeAtChange["isAdjacent"] || !ReferenceEquals(moveSlot, command))
+                {
+                    FailCurrent("CM02-geometry-change", "The ground order missed the exact uncommitted non-adjacent Mount approach.");
+                    BeginCleanup(); return;
+                }
                 string refusal;
                 chunk6aGeometryChangeCommand = Chunk6aSendHorseAway(3f, out chunk6aGeometryChangeDestination, out refusal);
                 if (chunk6aGeometryChangeCommand == null || !EnsureChunk6aRiderSelection("CM02-geometry-change"))
