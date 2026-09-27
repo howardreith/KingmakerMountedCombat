@@ -154,32 +154,50 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 observations["chunk6aRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
                 observations["chunk6aHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();
-                // Create non-adjacent geometry outside combat, before the fresh native
-                // encounter allocation. The rider has issued no combat Mount.
-                if (chunk6aSeparationCommand == null)
+                if (!Chunk6aCompensationOnly)
                 {
-                    string refusal;
-                    chunk6aSeparationCommand = Chunk6aSendHorseAway(4f, out chunk6aSeparationDestination, out refusal);
+                    // Create non-adjacent geometry outside combat, before the fresh native
+                    // encounter allocation. The rider has issued no combat Mount.
                     if (chunk6aSeparationCommand == null)
                     {
-                        FailCurrent("CM02-approach-arrival", "Pre-encounter separation failed: " + refusal);
-                        BeginCleanup();
+                        string refusal;
+                        chunk6aSeparationCommand = Chunk6aSendHorseAway(4f, out chunk6aSeparationDestination, out refusal);
+                        if (chunk6aSeparationCommand == null)
+                        {
+                            FailCurrent("CM02-approach-arrival", "Pre-encounter separation failed: " + refusal);
+                            BeginCleanup();
+                        }
+                        return;
                     }
-                    return;
+                    if (!chunk6aSeparationCommand.IsFinished) return;
+                    var separation = new JObject
+                    {
+                        ["command"] = CaptureOrdinaryCommand(chunk6aSeparationCommand),
+                        ["destination"] = CapturePosition(chunk6aSeparationDestination),
+                        ["geometry"] = CaptureChunk6aGeometry("pre-encounter-separation-terminal"),
+                        ["movement"] = NativeGroundMovementObservation.Capture(horse, chunk6aSeparationCommand)
+                    };
+                    observations["chunk6aPreEncounterSeparation"] = separation;
+                    if (chunk6aSeparationCommand.Result != UnitCommand.ResultType.Success)
+                    {
+                        FailCurrent("CM02-approach-arrival", "Pre-encounter native separation did not succeed: " + separation.ToString(Formatting.None));
+                        BeginCleanup(); return;
+                    }
+                    var geometry = CaptureChunk6aGeometry("pre-encounter-separated");
+                    if ((bool)geometry["isAdjacent"])
+                    {
+                        FailCurrent("CM02-approach-arrival", "Pre-encounter separation remained within the transition envelope.");
+                        BeginCleanup(); return;
+                    }
+                    chunk6aSeparationCommand = null;
                 }
-                if (!chunk6aSeparationCommand.IsFinished) return;
-                if (chunk6aSeparationCommand.Result != UnitCommand.ResultType.Success)
+                else
                 {
-                    FailCurrent("CM02-approach-arrival", "Pre-encounter native separation did not succeed.");
-                    BeginCleanup(); return;
+                    // Fault compensation needs a fresh native encounter, not an unrelated
+                    // long approach. Record the post-Dismount geometry without another Move.
+                    observations["chunk6aCompensationSetupGeometry"] =
+                        CaptureChunk6aGeometry("compensation-fresh-allocation-geometry");
                 }
-                var geometry = CaptureChunk6aGeometry("pre-encounter-separated");
-                if ((bool)geometry["isAdjacent"])
-                {
-                    FailCurrent("CM02-approach-arrival", "Pre-encounter separation remained within the transition envelope.");
-                    BeginCleanup(); return;
-                }
-                chunk6aSeparationCommand = null;
                 chunk6aExplorationStage = 5;
             }
             if (Chunk6aTurnBased)

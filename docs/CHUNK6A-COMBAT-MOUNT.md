@@ -1,3 +1,39 @@
+# Chunk 6A continuation - 2026-09-27T15:30:12.538Z
+
+**IN PROGRESS.** Branch `codex/mounted-combat-phase3f-playable-core`; published parent `747fd48d04e5a0bc0efeb242f4eb0332b94ec67f` preserved. Working source is preview.114, a diagnostic setup correction. Preview.113 is frozen historical evidence and is superseded for further qualification when this source is published.
+
+## Preview.113 native checkpoint
+
+The unchanged purity proof PASS (exit 0) is retained at lab `logs/c6a-clock-a-purity.log`, SHA-256 `4824222efb8570d07e5f449aa2779798b8e100568cca8a0960fc8b0f03e317f4`. It was reused for the three authorized runs. Actual Steam safety passed before each guarded launch.
+
+| Run | Result | Qualification |
+| --- | --- | --- |
+| c6a-clock-a-approach | PASS, 48 assertions / 0 failures | Exact separate exploration Mount/Dismount, one combat Mount with approach, acted/cost, shell/process/context, pre-attachment arrival and terminal evidence. |
+| c6a-clock-a-compensation-rt | FAIL, 43 / 2 | Setup failed before combat or injected-fault Mount. |
+| c6a-clock-a-compensation-tb | FAIL, 43 / 2 | Same setup boundary failed before combat or injected-fault Mount. |
+
+All three transactions restored Mods, protected saves, baseline, Working and save-write allowlist exactly; Kingmaker is closed. The positive run qualifies four mandatory IDs on preview.113 only: CM01-horse-rt, CM01-exploration-free, CM02-approach-arrival and CM02-target-selection-cancelled. [Exact ledger](chunk6a-ledger.json) retains that candidate and suite binding. No provisional PASS from either compensation failure is credited. This is 4/87 on the historical candidate, not 6A completion or qualification of preview.114.
+
+Positive evidence SHA-256: `4ae37b114dd6c6bfc3c4fc2c253ad41f0b69dc350dfeb7dce56a6691d995b954`. The exact payload, suite, three run hashes and restoration receipts are also retained in lab `analysis-cache/chunk6a-causal/checkpoint-preview113-after-compensation-tb.json`. All six observer hooks execute in Unity. The existing producer/external validator covers both actors' discrete reactions, attack-of-opportunity cooldown and distinct initiative order/cooldown with native event replay; reaction-only negative tests remain mandatory.
+
+## Compensation setup correction
+
+Both failed runs exported the exact row `CM02-approach-arrival` and assertion `Pre-encounter native separation did not succeed.`. The underlying setup UnitMoveTo finished without Success; its exact terminal result/path was not exported, so this is not attributed to a product Mount or an identified obstacle. Both original failures, including the aggregate scenario assertions and all payload/artifact hashes, remain in [immutable history](chunk6a-evidence-history.json).
+
+Compensation now records post-Dismount geometry and starts its own fresh combat allocation without the unrelated separation Move. Positive approach retains native separation, success and outside-envelope requirements. Its terminal separation evidence now includes command identity/result, requested destination, geometry and native path state. Accepted scenario separation, selection-before-baseline, exact identity and native resource proofs are unchanged. No production resource writes were added.
+
+Source regression rejected preview.113 (two precise failed contracts), then passed on the correction (107/0). Build PASS. Full offline result is recorded below before publication.
+
+## Next action
+
+Finish offline umbrella, publish through the guarded helper, build a new immutable preview.114 candidate and suite, obtain its fresh unchanged purity proof, then rerun positive approach and isolated compensation RT/TB. Continue geometry-change, genuine obstruction, full RT/fresh TB and all remaining mandatory rows. Every one of 87 mandatory 6A behaviors must PASS on one frozen candidate before 6B. Final target remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING. No merge, tag, release, PR, permanent installation or HUMAN PLAY inference.
+
+Complete offline umbrella PASS (exit 0), 2026-09-27T15:33:15.670Z: lab logs/c6a-compensation-setup-offline.log, SHA-256 b351ce74ae157401a48166bec0ab422d858a229a117fe136cc1180b55f1ecca1. Source107/0; components549/0; harness270/0; assembly627/0; causal91/0; immutable history127/0; compiled field5/0; patch construction30/0. Built DLL 6435a6de80bcff02ced6748235459984bddebddb9c519084f05efff3372ae901, MVID bc1215ec-2ec2-4324-b005-a72db305ed69. Ledger consistency87/0, with six original mandatory-row failures retained and four PASS bound only to preview.113. Next: guarded publication and new immutable preview.114 package/suite/fresh proof.
+
+---
+
+## Historical checkpoints
+
 ## 2026-09-27T12:31:45.354Z - preview.111 diagnostic cleanup failure; preview.112 repair in progress
 
 ## 2026-09-27 ? preview.112 native evidence and preview.113 assertion repair
