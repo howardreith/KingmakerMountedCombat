@@ -643,27 +643,33 @@ Assert-Kmc ($chunk6aScenarioText -match 'private void Chunk6aDisposeAdoptionFaul
 $chunk6aScenarioText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCombatMountScenario.cs')
 $chunk6aScenarioText += Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCausalEvidence.cs')
 
+# The committed command rows use the complete event-backed resource window. The old
+# endpoint helper treated the initiative timer as ordering and rejected lawful RT decay.
+Assert-Kmc ($chunk6aScenarioText -match 'var riderOtherResourcesHeld = \(bool\)compensationProof\["resourceWindow"\]\["pass"\];' -and
+    $chunk6aScenarioText -match 'var riderOtherResourcesHeld = \(bool\)mountProof\["resourceWindow"\]\["pass"\];' -and
+    $chunk6aScenarioText -match 'var mountResourcesHeld = \(bool\)mountProof\["resourceWindow"\]\["pass"\];') `
+    'committed Mount and compensation conservation use exact event-backed resources including native initiative decay'
+
 # 1. Resource conservation is MODE AWARE. In turn-based a cooldown is static between
 # boundaries so exact equality is right; in real time cooldowns tick down continuously, and
 # a run measured a rider's Standard falling 4.447 -> 3.084 across one correct mount. A
 # CHARGE RAISES a cooldown, so the real-time invariant is "never increases". Reaction and
-# initiative counts do not tick and stay exact in both modes.
+# initiative ordering stay exact; initiative cooldown is a separate native timer.
 $resourcesHeldBody = [Regex]::Match($chunk6aScenarioText,
     '(?s)private static bool Chunk6aResourcesHeld\(.*?\n        \}')
 Assert-Kmc ($resourcesHeldBody.Success -and
-    $resourcesHeldBody.Value -match 'var exact = turnBased \|\| name == "reactions" \|\| name == "initiative";' -and
+    $resourcesHeldBody.Value -match 'var exact = turnBased \|\| name == "reactions" \|\| name == "reactionsPerRound" \|\| name == "initiativeOrder";' -and
     $resourcesHeldBody.Value -match 'if \(!JToken\.DeepEquals\(before\[name\], after\[name\]\)\) \{ return false; \}' -and
     $resourcesHeldBody.Value -match 'if \(\(float\)after\[name\] > \(float\)before\[name\] \+ 0\.0001f\) \{ return false; \}' -and
     # The older exact-equality helper now delegates, so no caller can bypass the mode.
     $chunk6aScenarioText -match 'private bool Chunk6aUnchangedExcept\(JObject before, JObject after, params string\[\] allowedToRise\)\s*\r?\n\s*\{\s*\r?\n\s*return Chunk6aResourcesHeld\(before, after, Chunk6aTurnBased, allowedToRise\);' -and
-    # And conservation is still a real claim: the excepted resource is named explicitly at
-    # each call rather than the check being skipped.
-    $chunk6aScenarioText -match 'Chunk6aUnchangedExcept\(riderBefore, riderAfter, "move"\)') `
+    # Committed Mount/compensation rows additionally require the native event proof above.
+    $resourcesHeldBody.Value -match '"initiativeCooldown", "initiativeOrder", "reactionCooldown", "reactions", "reactionsPerRound"') `
     'native resource conservation is measured per mode: exact in turn-based, never-increasing in real time'
 
 # 2. Every transition ledger claim is a WINDOW DELTA. This scenario legitimately performs an
-# exploration Mount, an exploration Dismount and a compensation-refused Mount before the
-# combat Mount, so an absolute "acceptedMount == 1" describes an earlier design of the
+# exploration Mount and Dismount before exactly one combat request; compensation runs in
+# its own fresh allocation. An absolute "acceptedMount == 1" describes an earlier design of the
 # scenario rather than what any one transition did.
 $absoluteLedgerClaims = @([Regex]::Matches($chunk6aScenarioText,
     'TransitionLedger\.(?:Accepted|Admitted|ForcedDetach|RefusedVoluntary|DuplicateControlSuppressed|ConcurrentControlSuppressed)[A-Za-z]*Count == \d'))

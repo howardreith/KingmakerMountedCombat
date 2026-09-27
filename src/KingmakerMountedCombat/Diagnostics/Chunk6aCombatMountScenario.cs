@@ -512,17 +512,19 @@ namespace KingmakerMountedCombat.Diagnostics
         // one mount purely because time passed. Demanding equality there fails a correct
         // transition, so the real-time invariant is the one that actually expresses
         // conservation: a CHARGE RAISES a cooldown, therefore no unexcepted cooldown may
-        // INCREASE. Reaction and initiative counts do not tick and stay exact in both modes.
+        // INCREASE. Discrete reaction allowance and initiative ORDER stay exact here.
+        // This endpoint helper alone cannot certify a committed command; those rows use
+        // the exact native event proof, including lawful reaction and initiative decay.
         private static bool Chunk6aResourcesHeld(
             JObject before, JObject after, bool turnBased, params string[] allowedToRise)
         {
-            foreach (var name in new[] { "standard", "move", "swift", "initiative", "attackOfOpportunity", "reactions" })
+            foreach (var name in new[] { "standard", "move", "swift", "initiativeCooldown", "initiativeOrder", "reactionCooldown", "reactions", "reactionsPerRound" })
             {
                 if (allowedToRise.Contains(name, StringComparer.Ordinal))
                 {
                     continue;
                 }
-                var exact = turnBased || name == "reactions" || name == "initiative";
+                var exact = turnBased || name == "reactions" || name == "reactionsPerRound" || name == "initiativeOrder";
                 if (exact)
                 {
                     if (!JToken.DeepEquals(before[name], after[name])) { return false; }
@@ -814,7 +816,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Nothing else moved: the mount keeps every resource and the
                 // generation advanced exactly once and was never rewound.
                 var mountUntouched = (bool)compensationProof["resourceWindow"]["pass"];
-                var riderOtherResourcesHeld = Chunk6aUnchangedExcept(riderBefore, riderAfter, "move");
+                var riderOtherResourcesHeld = (bool)compensationProof["resourceWindow"]["pass"];
                 var generationAdvancedOnce =
                     relationship.MountedPairGeneration == chunk6aCompensationGenerationBefore + 1;
                 // Measured as the compensation window own delta: one mount admitted, none
@@ -1061,9 +1063,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 // The transition itself must not touch any other resource, and it
                 // must not repeat a native preparation for either actor.
-                var riderOtherResourcesHeld = Chunk6aUnchangedExcept(riderBefore, riderAfter, "move");
-                var mountResourcesHeld = chunk6aDisposition == MidEncounterAdoption.PreparePartnerThisRound ||
-                    Chunk6aUnchangedExcept(mountBefore, mountAfter);
+                var riderOtherResourcesHeld = (bool)mountProof["resourceWindow"]["pass"];
+                var mountResourcesHeld = (bool)mountProof["resourceWindow"]["pass"];
                 var riderPrepareUnchanged =
                     (int)riderBefore["nativePrepareCount"] == (int)riderAfter["nativePrepareCount"];
                 var expectedMountPrepareDelta =

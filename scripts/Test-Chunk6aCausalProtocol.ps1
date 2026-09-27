@@ -190,4 +190,25 @@ Test-Case 'reject fractional reaction allowance' {
     $p=New-CommandProof;$p.samples[-1].state.rider.reactions=1.1
     Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'Reaction discrete field'
 }
+# Replay the immutable native trace that exposed the legacy CM03 timer assertion.
+# This verifies instrumentation/validator behavior only; the original overall FAIL
+# and every original PASS/FAIL row stay unchanged and unqualified.
+$replayPath=Join-Path $PSScriptRoot '../../../runtime-evidence/c6a-cleanup-a-approach/phase3d-horse-scenario-evidence.json'
+if((Get-FileHash -Algorithm SHA256 -LiteralPath $replayPath).Hash.ToLowerInvariant() -cne 'e23573b6a1056c741c77c98fe0c3489828cb0f9e7b09e48df11ec1b6ba4fe015'){throw 'Immutable native clock regression trace changed.'}
+$replay=Get-Content -Raw -LiteralPath $replayPath|ConvertFrom-Json
+foreach($nativeProof in $replay.observations.chunk6aCommandProofs){
+    Test-Case "immutable Unity observer and resource replay $($nativeProof.window)" {
+        $combat=$nativeProof.window -ceq 'positive-mount'
+        Assert-KmcRelationshipCommandProof $nativeProof $combat $false 0 $combat
+    }
+}
+foreach($actor in @('rider','mount')){
+    foreach($change in @(@('reactions',0),@('reactions',2),@('reactionCooldown',1.0),@('initiativeOrder',99))){
+        Test-Case "native trace rejects isolated $actor $($change[0])=$($change[1])" {
+            $p=Copy-Value @($replay.observations.chunk6aCommandProofs|Where-Object window -CEQ 'positive-mount')[0]
+            $p.samples[-1].state.$actor.($change[0])=$change[1]
+            Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'reaction'
+        }
+    }
+}
 Write-Host "CHUNK6A CAUSAL PROTOCOL PASS=$script:passed FAIL=0 (synthetic validator tests; no runtime qualification)"

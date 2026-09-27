@@ -97,3 +97,7 @@ IN PROGRESS: preview.110 setup refused before observer construction; callbacks r
 ## 2026-09-27 - released diagnostic observer
 
 IN PROGRESS: c6a-reaction-a-approach on preview.111 reached cleanup, then its liveness sampler dereferenced the released allocation trace and prevented exact command evidence export. All external restoration PASS; no native qualification credited. Preserve its unchanged purity PASS and overall native FAIL. Preview.112 adds a cleanup guard and first-exception evidence, with source and compiled-entry regressions. Exact identities and assertions: [Chunk 6A report](../docs/CHUNK6A-COMBAT-MOUNT.md). Fresh immutable candidate/proof is required before another positive run; no inference of callback qualification from the UMM log.
+
+### 2026-09-27: initiative ordering versus native timer
+
+The preview.112 run proves the diagnostic wrappers execute, but its overall FAIL remains unqualified. The legacy conservation helper confused the float initiative cooldown with the discrete initiative order and rejected lawful observed RT decay. Preview.113 uses the accepted exact event-backed command proof for committed Mount/compensation and corrects field semantics in the remaining endpoint helper. Regression rejects the old compiled helper. No resource writes or threshold changes. Native qualification requires a new candidate and unchanged purity proof.

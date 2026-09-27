@@ -67,6 +67,26 @@ public static class KmcNativePatchProbe {
      liveness[7]!=1 || liveness[8]!=0x2a)
    throw new InvalidOperationException("Released Chunk 6A liveness observer does not return before native access.");
   Console.WriteLine("CHUNK6A RELEASED OBSERVER CONTRACT PASS=1 FAIL=0; exact compiled entry guard, no Unity invocation");
+  // Exercise the actual diagnostic endpoint helper with the timer decay that
+  // rejected c6a-cleanup-a-approach. Committed windows also require the separate
+  // complete native event proof, pinned by the source contract.
+  var jObject=json.GetType("Newtonsoft.Json.Linq.JObject",true);
+  var parse=jObject.GetMethod("Parse",new[]{typeof(string)});
+  var held=tranche.GetMethod("Chunk6aResourcesHeld",BindingFlags.NonPublic|BindingFlags.Static);
+  var baseline="{\"standard\":0,\"move\":0,\"swift\":0,\"initiative\":5.336399,\"initiativeCooldown\":5.336399,\"initiativeOrder\":2,\"reactionCooldown\":0,\"attackOfOpportunity\":0,\"reactions\":1,\"reactionsPerRound\":1}";
+  var decayed=baseline.Replace("5.336399","4.12132454");
+  var endpointChecks=0;
+  foreach(var probe in new[]{
+    new object[]{decayed,false,true},
+    new object[]{decayed,true,false},
+    new object[]{baseline.Replace("\"initiativeOrder\":2","\"initiativeOrder\":3"),false,false},
+    new object[]{baseline.Replace("\"reactions\":1","\"reactions\":0"),false,false},
+    new object[]{baseline.Replace("\"reactionCooldown\":0","\"reactionCooldown\":1"),false,false}}) {
+   var result=(bool)held.Invoke(null,new[]{parse.Invoke(null,new object[]{baseline}),parse.Invoke(null,new[]{probe[0]}),probe[1],new string[0]});
+   if(result!=(bool)probe[2]) throw new InvalidOperationException("Chunk 6A endpoint conflates initiative ordering/timer or overlooks reaction change; case="+endpointChecks);
+   endpointChecks++;
+  }
+  Console.WriteLine("CHUNK6A RESOURCE FIELD CONTRACT PASS="+endpointChecks+" FAIL=0; actual diagnostic helper");
   // Native movement deliberately ignores the command-slot cooldown. Its real
   // debit is made by the movement controller; this is not an attack exemption.
   var move=native.GetType("Kingmaker.UnitLogic.Commands.UnitMoveTo",true);
