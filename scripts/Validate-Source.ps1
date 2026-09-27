@@ -593,6 +593,7 @@ Assert-Kmc ($nativeControlsText -match 'private sealed class NativeRelationshipS
 # it: no resource write, no preparation, no turn forcing except the accepted
 # idle-fixture end-turn input, and no direct position or state assignment.
 $chunk6aScenarioText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCombatMountScenario.cs')
+$chunk6aScenarioText += Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCausalEvidence.cs')
 Assert-Kmc ($chunk6aScenarioText -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative|AttackOfOpportunity)\s*=' -and
     $chunk6aScenarioText -notmatch 'AttackOfOpportunityCount\s*=' -and
     $chunk6aScenarioText -notmatch '\.Prepare\(\)|OnNewRound|StartTurn\(|JoinCombat|ChooseNextUnit|SetIsActed|IgnoreCooldown' -and
@@ -640,6 +641,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'private void Chunk6aDisposeAdoptionFaul
 # defect: the transition behaved correctly every time and the scenario's own expectations
 # were wrong. Each is pinned here so it cannot come back.
 $chunk6aScenarioText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCombatMountScenario.cs')
+$chunk6aScenarioText += Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCausalEvidence.cs')
 
 # 1. Resource conservation is MODE AWARE. In turn-based a cooldown is static between
 # boundaries so exact equality is right; in real time cooldowns tick down continuously, and
@@ -687,20 +689,40 @@ Assert-Kmc ($chunk6aScenarioText -match 'private JObject Chunk6aLedgerCounters\(
     ($absoluteLedgerClaims.Count -le 2)) `
     'every transition ledger claim is measured as a window delta rather than a cumulative total'
 
-# 3. The acted transition is read from ANY sample of that command. The command leaves the
-# Move slot around the acted transition, so the last in-slot sample can legitimately still
-# read acted=false; taking it only from that sample failed a correct approach.
-Assert-Kmc ($chunk6aScenarioText -match 'var actedObserved = chunk6aGeometry\.OfType<JObject>\(\)\.Any\(sample =>' -and
-    $chunk6aScenarioText -match '\(string\)sampled\["abilityGuid"\] == nativeControls\.MountAbility\.AssetGuid &&' -and
-    $chunk6aScenarioText -match '\(string\)sampled\["executorId"\] == rider\.UniqueId &&' -and
-    $chunk6aScenarioText -match 'var actedOnce = actedObserved \|\| moveCommitted;' -and
-    # Both halves are published so the reader can see which one carried the claim.
-    $chunk6aScenarioText -match '\["actedObserved"\] = actedObserved,') `
-    'the acted Move commitment is observed from any sample of that exact command, not only the last'
+# The exact native Tick transition, never an endpoint surrogate, owns acted evidence.
+$causalProbeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeRelationshipCommandProbe.cs')
+Assert-Kmc ($chunk6aScenarioText -notmatch 'actedObserved\s*\|\|\s*moveCommitted' -and
+    $causalProbeText -match 'ReferenceEquals\(active.Command, __instance\) && !__state && __instance.IsActed' -and
+    $causalProbeText -match 'active.Observe\("acted", active.Command\)' -and
+    $causalProbeText -match 'identity.Matches\(sample.Identity, early\)' -and
+    $chunk6aScenarioText -match 'var actedObserved = \(bool\)mountProof\["exactActedObserved"\]' -and
+    $chunk6aScenarioText -match 'oneRiderOwnedApproach && actedObserved && sameCommand && oneDelivery') `
+    'one exact command owns approach, observed acted, native cost, process, delivery and terminal evidence'
+
+$positiveFlow = [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 13\)(.*?)if \(chunk6aStage == 2\)')
+Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, true, false\)' -and
+    $chunk6aScenarioText -match 'selectedUnits != null && selectedUnits.Count == 1 && selectedUnits\[0\] == rider' -and
+    $chunk6aScenarioText -match 'Exact rider selection failed before SetAbility or OnClick' -and
+    $positiveFlow.Value -match '(?s)if \(!EnsureChunk6aRiderSelection\("CM02-approach-arrival"\)\) return;.*?chunk6aPreMount = CaptureChunk6aState\("mount-before"\);.*?chunk6aApproachStart = CaptureChunk6aGeometry\("positive-pre-click"\);.*?chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);.*?chunk6aMountClicked = TryNativeAbilityTargetClick') `
+    'positive Mount selects and verifies the exact single rider before resource ledger geometry baseline and native input'
+
+Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : 13;' -and
+    $chunk6aScenarioText -match 'if \(!Chunk6aCompensationOnly\) throw' -and
+    $positiveFlow.Value -match 'if \(Chunk6aCompensationOnly\) throw' -and
+    [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -match 'chunk6aStage = 99;\s*BeginCleanup\(\)' -and
+    [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -notmatch 'chunk6aStage = 13') `
+    'compensation and positive Mount use separate fresh scenario allocations'
+
+Assert-Kmc ($chunk6aScenarioText -match 'BeginChunk6aCommandWindow\(nativeControls.MountAbility.AssetGuid\)' -and
+    $chunk6aScenarioText -match 'FinishChunk6aCommandWindow\("exploration-mount", false, 0, false\)' -and
+    $chunk6aScenarioText -match 'FinishChunk6aCommandWindow\("exploration-dismount", false, 0, false\)' -and
+    (Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionUnmountedScenarioEngine.cs')) -match '(?s)private void BeginMountedAlpha\(\).*?IsChunk6aCombatMountScenario\(request.Scenario\).*?BeginPhase3dTranche\(false\);\s*return;' -and
+    $chunk6aScenarioText -match 'carried counters are published independently') `
+    'exploration Mount and Dismount each own a pre-click to terminal callback window'
 
 # 4. A native resource the engine is still RESTORING is waited for, never written. The
-# compensated adoption refusal one stage earlier performs a real native Mount whose delivery
-# is refused, and that refusal keeps its cost, so the attempt after it only becomes lawful
+# fresh encounter may still be draining native resource debt from its own earlier setup.
+# A positive Mount is issued only after native readiness, and never after compensation; it becomes lawful
 # once Kingmaker drains the Move cooldown it charged. A run clicked combat Mount with 0.045s
 # of that cooldown left and was correctly refused with "The rider has no Move action
 # available to mount." Waiting for the engine is the whole of the repair; zeroing, clearing
@@ -781,9 +803,8 @@ Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-geometry-change",' -and
     # Both rows are required of the real-time full scenario and of neither the turn-based
     # scenario, where each actor's Move is spent for the round, nor the narrow approach
     # instrument, which deliberately stops earlier.
-    $chunk6aRowRequirementText -match "\`$required \+= 'CM02-obstruction'" -and
-    $chunk6aRowRequirementText -match "\`$required \+= 'CM02-geometry-change'" -and
-    $chunk6aRowRequirementText -match 'elseif \(-not \$approachOnly\) \{') `
+    $chunk6aRowRequirementText -match "'CM02-obstruction','CM02-geometry-change'" -and
+    $chunk6aRowRequirementText -match 'if \(-not \$approachOnly\) \{') `
     'a geometry change during approach revalidates at arrival and never refunds the committed native cost'
 
 # The harness RE-DERIVES resource conservation, so it has to use the same mode-aware
@@ -792,19 +813,13 @@ Assert-Kmc ($chunk6aScenarioText -match 'AddRow\("CM02-geometry-change",' -and
 # every cooldown against its own clock, and one correct combat Mount was measured taking the
 # rider's standard cooldown from 4.447 to 3.084. A refund is a fall FASTER than the clock,
 # and a charge is a cooldown that ROSE.
-Assert-Kmc ($chunk6aRowRequirementText -match '\$elapsedSeconds = \[double\]\$pair\[1\]\.seconds - \[double\]\$pair\[0\]\.seconds' -and
-    $chunk6aRowRequirementText -match '\$floor = if \(\$turnBased\) \{ \$was \} else \{ \$was - \$elapsedSeconds - 0\.25 \}' -and
-    $chunk6aRowRequirementText -match 'if \(\$now -lt \$floor\) \{' -and
-    # Every charged field goes through that one floor, so none can keep the old instrument.
-    "$chunk6aRowRequirementText" -match "foreach \(\`$field in @\('standard','swift','move'\)\) \{" -and
-    # Out-of-order samples would make the elapsed clock meaningless, so they fail closed.
-    $chunk6aRowRequirementText -match 'Chunk 6A transition samples are out of order on their own clock\.' -and
-    # "The mount was charged" means a cooldown that ROSE; exact equality is right only in
-    # turn-based combat, where nothing drains between boundaries.
-    $chunk6aRowRequirementText -match '\$charged = if \(\$turnBased\) \{ \$now -ne \$was \} else \{ \$now -gt \$was \+ 0\.0001 \}' -and
-    # Initiative does not tick, so it stays exact in both modes.
-    $chunk6aRowRequirementText -match 'Chunk 6A control changed \$actor initiative\.') `
-    'the harness measures a refund against the real-time clock and a charge as a cooldown that rose'
+Assert-Kmc ($chunk6aRowRequirementText -match 'function Assert-KmcRelationshipCommandProof' -and
+    $chunk6aRowRequirementText -match 'Native cost callback count is not one exact Move sequence' -and
+    $chunk6aRowRequirementText -match 'Mixed causal identity at' -and
+    $chunk6aRowRequirementText -match 'Native acted was not observed on this exact command' -and
+    $chunk6aRowRequirementText -match 'Unexpected preparation, cooldown clear or reset' -and
+    $chunk6aRowRequirementText -match 'Resource window refunded or added') `
+    'the harness rederives exact identity, native callback ownership and RT/TB resource windows'
 
 # The diagnostic encounter stays alive only while the bidirectional combat-memory lease keeps
 # refreshing, and the tick used to DISCARD that result. A run lost combat between the combat
@@ -1003,8 +1018,8 @@ Assert-Kmc ($unmountedEngineText -match 'internal const string PreambleScenarioN
     $runtimeProtocolText -match '"chunk6a-mount-preamble"' -and
     ([Regex]::Matches($runtimeProtocolText, '"chunk6a-mount-preamble"').Count -ge 2) -and
     $registrationPolicyText -match 'string\.Equals\(scenario, "chunk6a-mount-preamble", StringComparison\.Ordinal\)' -and
-    $runtimeCommonText -match 'function Assert-KmcMountPreambleEvidence \{' -and
-    $runtimeCommonText -match 'Assert-KmcMountPreambleEvidence -Request \$Request -Manifest \$manifestValue' -and
+    $chunk6aRowRequirementText -match 'function Assert-KmcMountPreambleEvidence \{' -and
+    $chunk6aRowRequirementText -match 'Assert-KmcMountPreambleEvidence -Request \$Request -Manifest \$manifestValue' -and
     ([Regex]::Matches($runtimeCommonText, "'chunk6a-mount-preamble'").Count -ge 5) -and
     $harnessText -match "'chunk6a-mount-preamble'") `
     'the narrow save-backed Mount preamble stops at the staged click and carries its own evidence kind'
@@ -1024,8 +1039,8 @@ Assert-Kmc ($captureClassBody.Success -and
     $captureBody.Value -match 'observations\[observationName\] = JObject\.FromObject\(capture, JsonSerializer\.Create\(JsonSettings\)\)' -and
     # And the narrow validator requires those very fields on a PASS, so an empty
     # observation can never be accepted as evidence again.
-    $runtimeCommonText -match "foreach \(\`$field in @\('clicked','moveSlotHoldsUseAbility','abilitySelectedBeforeDrop'," -and
-    $runtimeCommonText -match 'PASS narrow Mount preamble click capture omits') `
+    $chunk6aRowRequirementText -match "foreach \(\`$field in @\('clicked','moveSlotHoldsUseAbility','abilitySelectedBeforeDrop'," -and
+    $chunk6aRowRequirementText -match 'PASS narrow Mount preamble click capture omits') `
     'the staged click capture is published as public properties so the evidence is never blank'
 
 # One registry, once. The known-subscenario check demands EXACTLY one match, so a name

@@ -6,7 +6,23 @@ the acceptance ledger live here; the frozen product and action contract is
 the installed-assembly seam map is the Chunk 6A section at the top of
 [planning/ASSEMBLY-CONTRACT-MATRIX.md](../planning/ASSEMBLY-CONTRACT-MATRIX.md).
 
-## Status
+## Current causal qualification repair
+
+## 2026-09-27T03:42:13.876Z ? Chunk 6A causal repair checkpoint
+
+Status: IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core; intake HEAD 14966a7c65921797395ecbc4a5b7f9c0c631f991, preserving all legitimate descendants of the requested 0a92076. Own source/tests/records pending commit. Active source version 0.1.0-chunk6a-preview.110.
+
+Positive combat Mount now has one native request and no preceding compensation in its encounter. Compensation RT/TB are separate scenario transactions and terminate after their faulted transition. Each scenario owns separate exploration Mount and Dismount windows. Exact rider selection precedes the positive resource/ledger/geometry baseline and the selected-ability input; a refusal publishes selected IDs before any SetAbility/OnClick. Schema 29 records one immutable command/shell/process/context identity, the exact false-to-true acted boundary, native callback cost sequence, and native process terminal boundary. No endpoint can substitute for acted. RT uses native clock decay; TB debt is exact. Declared partner preparation is observed through both Prepare and Clear entry/exit, with no other cost or reset allowed. Every window publishes carried ledger counters and deltas.
+
+Focused verification: source 101 PASS / 0 FAIL; causal protocol 40 PASS / 0 FAIL; immutable evidence-history checks 81 PASS / 0 FAIL; ledger record checks 87 PASS / 0 FAIL. Detached observer signatures 6 PASS / 0 FAIL; four wrappers constructed. TryDispatch and TickApproaching wrapper construction is DEFER ? EVIDENCED: desktop CLR rejects Unity ECalls; actual installation and callbacks must be proved in Unity. This is not gameplay qualification.
+
+The first two complete-umbrella attempts stopped at one stale legacy source check (harness 269 PASS / 1 FAIL), now corrected to require the Chunk 6A-only unmounted handoff while retaining the older mounted setup. The actual failing source test passes in isolation. Complete offline umbrella PASS (exit 0): logs/c6a-causal-offline-3.log, SHA-256 e68db42a67b1fb7543b9c60d446d03bef38919065ade2b2ec19d07848d6c7150. Source 101/0, harness 270/0, assembly-backed 621/0, causal protocol 40/0, history 81/0, native patch construction 30/0 plus six observer signature contracts. Completion gate remains FAIL: 87/87 mandatory behaviors unqualified (log c6a-causal-completion-before-native.log). Earlier build/test logs remain intact. No native game launched by this takeover; no package staged or installation/save changed.
+
+History: chunk6a-evidence-history.json binds 15 original runs and 16 failed subscenario rows, including exact c6a-approach-1/-2 artifacts, payloads and assertions. Four previous qualification claims from c6a-approach-6 are retained but rejected under the owner's causal contract. Ledger now has 0 PASS / 3 historical FAIL / 84 BLOCKED; none of 87 mandatory behaviors is qualified on the repaired candidate. c6a-approach-1 establishes viable native approach only, not one request's complete positive behavior. All existing preview.109 packages are superseded for this repair and remain unchanged. No active project proof was identifiable at intake; the original proof receipt has not been located in the project evidence/log roots, so its outcome is not invented.
+
+Next command: make coherent commits and publish only through C:/Dev/KingmakerMountedCombatLab/codex-policy/Push-KingmakerMountedCombat.ps1, build a new uniquely qualified preview.110 package from clean HEAD, create a fresh guarded suite snapshot against actual preview.105, and run the unchanged full WhatIf purity proof. Only then run positive approach, isolated compensation RT/TB, geometry change, obstruction, full RT and fresh TB, then remaining 6A rows. No 6B until all mandatory 6A evidence is PASS on one frozen candidate.
+
+## Historical status at the earlier handoff
 
 **IMPLEMENTATION CANDIDATE — NATIVE QUALIFICATION BLOCKED. PARTIAL overall.** The
 acceptance ledger's completion gate does **not** pass. The mandatory list is **87

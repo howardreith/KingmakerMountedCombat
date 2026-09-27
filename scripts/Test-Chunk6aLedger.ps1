@@ -251,6 +251,9 @@ $requiredRetainedFailures=@(
     @{ id='CM01-exploration-free'; runId='c6a-mount-rt-1'; scenario='chunk6a-combat-mount-rt';
        commit='88328a31ff1636c68a65bdfb4bcffaf3072649a6'; qualifier='chunk6a-campaign-c' }
 )
+foreach($id in @('CM01-exploration-free','CM02-adoption-plan-invalidated','CM02-approach-arrival')) {
+    $requiredRetainedFailures += @{id=$id;runId='c6a-approach-1';scenario='chunk6a-mount-approach';commit='efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2';qualifier=''}
+}
 $retainedField=Get-Field $ledger 'retainedFailures'
 if($null-eq$retainedField){throw 'Chunk 6A ledger has no retainedFailures collection; a real failure must survive a later PASS.'}
 $retained=@($retainedField)

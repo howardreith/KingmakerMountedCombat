@@ -1650,6 +1650,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginMountedAlpha()
         {
+            if (Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario))
+            {
+                // Chunk 6A measures its own exploration Mount and Dismount windows.
+                BeginPhase3dTranche(false);
+                return;
+            }
             mountedAlphaStarted = true;
             settings.EnableUnsafeMovementExperiment = true;
             var selection = SelectionManager.Instance;
