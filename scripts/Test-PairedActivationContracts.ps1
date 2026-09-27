@@ -56,6 +56,17 @@ public static class KmcNativePatchProbe {
     throw new InvalidOperationException("Turn evidence changed the observed legacy configuration.");
   }
   Console.WriteLine("TURN PRINCIPAL EVIDENCE SERIALIZATION PASS=3 FAIL=0; original evidence builder, no game operation");
+  // The active sampler uses Unity ECalls, so inspect the compiled entry guard:
+  // cleanupStarted must return before any game or disposed-trace access.
+  var diagnosticFlags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+  var tranche=candidate.GetType("KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche",true);
+  var liveness=tranche.GetMethod("ObserveChunk6aEncounterLiveness",diagnosticFlags).GetMethodBody().GetILAsByteArray();
+  var cleanupToken=tranche.GetField("cleanupStarted",diagnosticFlags).MetadataToken;
+  if(liveness.Length<10 || liveness[0]!=0x02 || liveness[1]!=0x7b ||
+     BitConverter.ToInt32(liveness,2)!=cleanupToken || liveness[6]!=0x2c ||
+     liveness[7]!=1 || liveness[8]!=0x2a)
+   throw new InvalidOperationException("Released Chunk 6A liveness observer does not return before native access.");
+  Console.WriteLine("CHUNK6A RELEASED OBSERVER CONTRACT PASS=1 FAIL=0; exact compiled entry guard, no Unity invocation");
   // Native movement deliberately ignores the command-slot cooldown. Its real
   // debit is made by the movement controller; this is not an attack exemption.
   var move=native.GetType("Kingmaker.UnitLogic.Commands.UnitMoveTo",true);

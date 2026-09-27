@@ -175,10 +175,9 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         // The transition ledger as counters, so a window can be measured as a DELTA.
-        // Absolute counts are the wrong instrument here: this scenario legitimately performs
-        // an exploration Mount, an exploration Dismount and a compensation-refused Mount
-        // before the combat Mount, so "acceptedMount == 1" describes an earlier design of
-        // the scenario rather than what any one transition did. Deltas pin the window.
+        // Absolute counts include the separate exploration Mount and Dismount windows.
+        // Positive and compensation requests belong to separate fresh scenarios;
+        // neither may borrow the other request's counters. Deltas pin one exact window.
         private JObject Chunk6aLedgerCounters()
         {
             var ledger = playerAction.TransitionLedger;
@@ -229,6 +228,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // that stopped validating rather than leaving it to be guessed at.
         private void ObserveChunk6aEncounterLiveness(bool? combatMemoryRefreshed)
         {
+            // Cleanup has already archived and released allocationTrace. Its intentional
+            // encounter teardown is outside the measured command windows.
+            if (cleanupStarted) { return; }
             var live = rider != null && horse != null &&
                 rider.IsInCombat && horse.IsInCombat && Game.Instance.Player.IsInCombat;
             if (chunk6aEncounterLiveness == null)

@@ -660,6 +660,74 @@
       ],
       "qualificationAccepted": false,
       "reason": "Diagnostic fixture handoff refused before observer construction: a party member remained in combat. No mandatory positive behavior was reached. Exact restoration PASS. Reaction-resource proof gap still open."
+    },
+    {
+      "runId": "c6a-reaction-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.111",
+        "commit": "8823da8183f0bff98ecdfb917985b65f94032c39",
+        "dllSha256": "b717a0e7af14e91a8676c41990ee618b331a9fa938bde4b12193ac430be6831a",
+        "dllMvid": "53d72b8b-31ae-42db-a92f-84256ff6dae5",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.111-chunk6a-reaction-a-diagnostic.zip",
+        "packageSha256": "d7ace093a9d1b796cdf34fc6c8c0695af4e5ee60e913fb22f6202a3f9421903c",
+        "manifestSha256": "2ca841e64d636c8476ecddc9d5dd94d3bef6868b1bcfd61d7a8816e061e2d257"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-reaction-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "4edfb6fc30eeeb3f925b2bc16fc9a92f6ecb11a6ccef7f8e8c38e2820bfb717c"
+        },
+        {
+          "path": "runtime-evidence/c6a-reaction-a-approach/launcher-failure.json",
+          "sha256": "56b7606461d362c5c74395eaaa5816b41c1509cc46173f3e61223851570414e6"
+        },
+        {
+          "path": "runtime-evidence/c6a-reaction-a-approach/orchestration.json",
+          "sha256": "86331527717bd139418c8ad91e76f4aa9f288f48ccf25a80d093fa4cb7a6216d"
+        },
+        {
+          "path": "runtime-evidence/c6a-reaction-a-approach/runtime-artifacts.json",
+          "sha256": "56de067655c5d653177dcbf5b351b74f7cf3907792380ccfbc78eae2f39bbec6"
+        },
+        {
+          "path": "runtime-evidence/c6a-reaction-a-approach/runtime-game-result.json",
+          "sha256": "dad209ae9fbe8248a06c0fecc73186e097f53b6931e9331827979ef5f662d7de"
+        },
+        {
+          "path": "runtime-evidence/c6a-reaction-a-approach/runtime-request.json",
+          "sha256": "20dcc9f46d178606a4595480852f2f8945786615445eeed366971c1b1b80e898"
+        },
+        {
+          "path": "runtime-evidence/c6a-reaction-a-approach/runtime-result.json",
+          "sha256": "0e14688af8df8fa3e7c348d02351860dde3695ed132d2399bce30e4f62182aed"
+        }
+      ],
+      "failures": [
+        {
+          "row": "horse-companion-blueprint-registration",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Runtime automation exceeded the bounded 300-second in-process deadline.",
+            "Horse-companion engine was interrupted before completing its selected rows."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Overall FAIL: post-cleanup diagnostic liveness observation dereferences the released allocation trace; repeated exceptions prevented final command evidence export and reached the unchanged 300-second deadline. Log shows separate exploration Mount/Dismount and one positive combat Mount, but no provisional observation updates qualification. Exact external restoration PASS. No mandatory CM row was exported.",
+      "supplementalDiagnostics": [
+        {
+          "path": "analysis-cache/chunk6a-causal/c6a-reaction-a-approach-umm.log",
+          "sha256": "7dce104b39fe0d737536ba8788c0425b1103640c291477b443e9445df77468a0"
+        },
+        {
+          "path": "logs/c6a-reaction-a-approach-launch.log",
+          "sha256": "b50325f7368c1f7b6138f366dc330445b42e09d0183f3d4f6ee2af8a61b0911e"
+        }
+      ],
+      "launcherExitCode": 1,
+      "launcherFinalError": "Horse companion registration does not map to exactly one runtime subscenario."
     }
   ]
 }

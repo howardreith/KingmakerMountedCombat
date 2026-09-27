@@ -854,6 +854,9 @@ Assert-Kmc ($chunk6aTrancheText -match 'var combatMemoryRefreshed = targetServic
     $chunk6aScenarioText -match 'if \(!rider\.IsInCombat \|\| !horse\.IsInCombat \|\| !Game\.Instance\.Player\.IsInCombat\)' -and
     $chunk6aScenarioText -match 'The encounter ended before the combat Dismount became available') `
     'the encounter liveness that keeps the diagnostic combat alive is observed, not assumed'
+Assert-Kmc ($chunk6aScenarioText -match '(?s)private void ObserveChunk6aEncounterLiveness\(bool\? combatMemoryRefreshed\).*?if \(cleanupStarted\) \{ return; \}.*?var live =' -and
+    $chunk6aTrancheText -match '\["firstRuntimeException"\]' -and $chunk6aTrancheText -match 'exception.ToString\(\)') `
+    'released Chunk 6A observers stop before native access and preserve the first exception with its command evidence'
 
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
