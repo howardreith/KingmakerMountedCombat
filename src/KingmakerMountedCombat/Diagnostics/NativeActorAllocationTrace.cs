@@ -47,6 +47,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private string encounter;
         private int dropped;
         private int observationErrors;
+        internal bool ObserveReactionResources { get; set; }
         internal event Action<string, UnitEntityData, UnitCommand> BoundaryObserved;
         internal int EventCount => events.Count;
         internal JArray EventsSince(int offset) => new JArray(events.Skip(offset).Select(item => item.DeepClone()));
@@ -63,6 +64,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 Patch(typeof(TurnController), 0x06000C3C, "PrepareBefore", "PrepareAfter");
                 Patch(typeof(UnitCombatState.Cooldowns), 0x0600C3BE, "ClearBefore", "ClearAfter");
+                Patch(typeof(UnitCombatCooldownsController), 0x0600934A, "CooldownTickBefore", "CooldownTickAfter");
+                Patch(typeof(UnitCombatState), 0x060093A1, "OpportunityBefore", "OpportunityAfter");
                 Patch(typeof(UnitCombatState), 0x060093A4, "CombatClearBefore", "CombatClearAfter");
                 Patch(typeof(UnitCombatState), 0x0600939D, "RoundBefore", "RoundAfter");
                 Patch(typeof(TurnController), 0x06000C7F, "RoundHandlerBefore", "RoundHandlerAfter");
@@ -102,7 +105,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["pairedGrantIdentity"] = actor == rider || actor == mount ? combat.PairedActivationIdentity : null,
                 ["standard"] = cooldown.StandardAction, ["move"] = cooldown.MoveAction, ["swift"] = cooldown.SwiftAction,
                 ["initiativeCooldown"] = cooldown.Initiative, ["initiative"] = actor.CombatState.Initiative,
+                ["initiativeOrder"] = actor.CombatState.Initiative,
                 ["reactionCooldown"] = cooldown.AttackOfOpportunity, ["reactions"] = actor.CombatState.AttackOfOpportunityCount,
+                ["reactionsPerRound"] = actor.CombatState.AttackOfOpportunityPerRound,
+                ["waitingInitiative"] = actor.CombatState.IsWaitingInitiative,
                 ["disengageTargets"] = actor.CombatState.DisengageAttackTargets.Count,
                 ["prepared"] = actor.CombatState.Prepared, ["canAct"] = actor.CombatState.CanActInCombat,
                 ["confused"] = actor.Descriptor.State.HasCondition(UnitCondition.Confusion),
@@ -180,6 +186,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["activationIdentity"] = combat.PairedActivationIdentity,
                     ["boundary"] = boundary, ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                     ["simulatingClick"] = Kingmaker.Controllers.Clicks.PointerController.SimulatingClick,
+                    ["gameDeltaTime"] = Game.Instance.TimeController.GameDeltaTime,
+                    ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(),
+                    ["nativePassing"] = CombatController.IsPassing(),
+                    ["nativeSurprised"] = controller.IsSurprised(actor),
                     ["controller"] = Id(controller), ["round"] = controller.RoundNumber, ["roundStartTicks"] = controller.RoundStartTime.Ticks,
                     ["turn"] = Id(turn), ["preparingTurn"] = Id(preparing), ["currentActor"] = turn?.Unit?.UniqueId,
                     ["turnStatus"] = turn?.Status.ToString(), ["state"] = Snapshot(actor), ["detail"] = detail,
@@ -216,8 +226,18 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData CooldownOwner(UnitCombatState.Cooldowns value) =>
             value == rider.CombatState.Cooldown ? rider : value == mount.CombatState.Cooldown ? mount :
             preparing?.Unit.CombatState.Cooldown == value ? preparing.Unit : null;
+        private bool ObservesReactionActor(UnitEntityData actor) => ObserveReactionResources && (actor == rider || actor == mount);
         private static class Hooks
         {
+            internal static void CooldownTickBefore(UnitEntityData unit)
+            { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-before", unit); }
+            internal static void CooldownTickAfter(UnitEntityData unit)
+            { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-after", unit); }
+            internal static void OpportunityBefore(UnitCombatState __instance, bool simulate)
+            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-before", __instance.Unit, detail: "simulate=" + simulate); }
+            internal static void OpportunityAfter(UnitCombatState __instance, bool simulate, bool __result)
+            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-after", __instance.Unit, detail: "simulate=" + simulate + ";result=" + __result); }
+
             internal static void PhysicalTickBefore(UnitMovementAgent __instance, out UnitMovementAgent __state)
             {
                 __state = active?.physicalMovement;

@@ -5732,6 +5732,95 @@ function Assert-KmcUnmountedAttackControlRows {
 # Chunk 6A voluntary combat Mount/Dismount. The harness re-derives the rider's
 # native Move commitment and both actors' native preparation counts from the
 # recorded samples: the game may not assert its own accounting unchecked.
+function Assert-KmcRelationshipReactionResources {
+    param($Proof, [int]$PartnerPrepares)
+    if($Proof.resourceWindow.reactionResources.contract -cne 'native-time-and-declared-partner-preparation-only' -or
+        $Proof.resourceWindow.reactionResources.pass -ne $true){throw 'Reaction resource contract is missing or failed.'}
+    $sequence=[int]$Proof.preClick.allocationSequence
+    foreach($event in $Proof.resourceWindow.events){
+        if(-not(Test-KmcExactJsonInteger $event.sequence) -or [int]$event.sequence -ne ++$sequence){throw 'Reaction event sequence is missing, repeated or reordered.'}
+    }
+    if([int]$Proof.samples[-1].allocationSequence -ne $sequence){throw 'Reaction terminal sequence does not close the exact event window.'}
+    $previous=[int]$Proof.preClick.allocationSequence
+    foreach($sample in $Proof.samples){
+        if(-not(Test-KmcExactJsonInteger $sample.allocationSequence) -or [int]$sample.allocationSequence -lt $previous){throw 'Reaction command samples are reordered.'}
+        $previous=[int]$sample.allocationSequence
+    }
+    function Read-Reaction($state) {
+        foreach($field in @('reactions','reactionCooldown','initiativeCooldown','initiativeOrder','reactionsPerRound')) {
+            if($null -eq $state.$field){throw "Missing reaction field $field."}
+            $number=[double]$state.$field
+            if([double]::IsNaN($number) -or [double]::IsInfinity($number)){throw "Invalid reaction field $field."}
+        }
+        foreach($field in @('reactions','initiativeOrder','reactionsPerRound')) {
+            if(-not(Test-KmcExactJsonInteger $state.$field)){throw "Reaction discrete field $field is not an integer."}
+        }
+        @{allowance=[int]$state.reactions;cooldown=[double]$state.reactionCooldown;initiative=[double]$state.initiativeCooldown;order=[int]$state.initiativeOrder}
+    }
+    function Same-Reaction($a,$b) {
+        $null -ne $a -and $null -ne $b -and $a.allowance -eq $b.allowance -and $a.order -eq $b.order -and
+            [Math]::Abs($a.cooldown-$b.cooldown) -le 0.0001 -and [Math]::Abs($a.initiative-$b.initiative) -le 0.0001
+    }
+    foreach($actor in @('rider','mount')) {
+        $actorId=if($actor -ceq 'rider'){$Proof.identity.casterId}else{$Proof.mountId}
+        $baseline=$Proof.preClick.state.$actor;$current=Read-Reaction $baseline
+        $order=$current.order;$perRound=[int]$baseline.reactionsPerRound
+        $stack=New-Object System.Collections.Stack
+        $timeline=@()
+        foreach($event in @($Proof.resourceWindow.events|Where-Object { $_.state.actor -ceq $actorId })) {
+            $timeline+=@{sequence=[int]$event.sequence;rank=0;value=$event}
+        }
+        foreach($sample in $Proof.samples){$timeline+=@{sequence=[int]$sample.allocationSequence;rank=1;value=$sample}}
+        foreach($item in @($timeline|Sort-Object { $_.sequence },{ $_.rank })) {
+            $value=$item.value;$isEvent=$item.rank -eq 0
+            $state=if($isEvent){$value.state}else{$value.state.$actor}
+            $actual=Read-Reaction $state
+            if($item.sequence -lt $Proof.preClick.allocationSequence -or $item.sequence -gt $Proof.samples[-1].allocationSequence -or
+                $actual.order -ne $order -or [int]$state.reactionsPerRound -ne $perRound){throw "$actor reaction sequence, initiative ordering or per-round allowance changed."}
+            $boundary=if($isEvent){[string]$value.boundary}else{'sample'}
+            $kind=$boundary -creplace '-(before|after)$',''
+            $native=$kind -cin @('cooldown-tick','prepare','clear','opportunity')
+            if($native -and $boundary.EndsWith('-after')) {
+                $entry=if($stack.Count -gt 0){$stack.Pop()}else{$null}
+                if($null -eq $entry -or $entry.kind -cne $kind -or -not(Same-Reaction $actual $entry.expected)) {
+                    throw ("$actor reaction effect differs from the exact native $boundary event: expected="+(ConvertTo-Json $entry -Compress)+"; actual="+(ConvertTo-Json $actual -Compress))
+                }
+                $current=$actual;continue
+            }
+            if($stack.Count -eq 0 -and -not(Same-Reaction $actual $current)){throw "$actor reaction allowance or cooldown changed without an allowed native event at $boundary."}
+            if(-not $native){continue}
+            $expected=$actual.Clone()
+            if($kind -ceq 'cooldown-tick') {
+                $delta=[double]$value.gameDeltaTime
+                if([double]::IsNaN($delta) -or [double]::IsInfinity($delta) -or $delta -lt 0){throw 'Invalid native reaction tick delta.'}
+                if($value.nativeTurnBased -and $state.inCombat) {
+                    if($value.nativePassing) {
+                        if($expected.initiative -gt 0 -and -not $value.nativeSurprised){
+                            $used=[Math]::Min($delta,$expected.initiative);$expected.initiative-=$used;$delta-=$used
+                        }
+                        if($delta -gt 0){$expected.cooldown=[Math]::Max(0.0,$expected.cooldown-$delta)}
+                    }
+                } elseif(-not $value.nativeTurnBased -or $value.nativePassing) {
+                    if($state.waitingInitiative){$expected.initiative=[Math]::Max(0.0,$expected.initiative-$delta)}
+                    else {
+                        $expected.cooldown=[Math]::Max(0.0,$expected.cooldown-$delta)
+                        if($expected.cooldown -le 0 -and $perRound -gt 0 -and $expected.allowance -le $perRound){$expected.allowance=$perRound}
+                    }
+                }
+            } elseif($kind -ceq 'prepare') {
+                if($actor -cne 'mount' -or $PartnerPrepares -ne 1 -or $value.preparingTurn -eq 0){throw 'Undeclared reaction preparation.'}
+                $expected.cooldown=0.0;$expected.initiative=0.0
+                if($perRound -gt 0 -and $expected.allowance -le $perRound){$expected.allowance=$perRound}
+            } elseif($kind -ceq 'clear') {
+                if($actor -cne 'mount' -or $PartnerPrepares -ne 1 -or @($stack|Where-Object kind -CEQ 'prepare').Count -eq 0){throw 'Undeclared reaction cooldown clear.'}
+                $expected.cooldown=0.0;$expected.initiative=0.0
+            }
+            $stack.Push(@{kind=$kind;expected=$expected})
+        }
+        if($stack.Count -ne 0){throw "Missing native reaction callback end for $actor."}
+    }
+}
+
 function Assert-KmcRelationshipCommandProof {
     param($Proof, [bool]$InCombat, [bool]$TurnBased, [int]$PartnerPrepares, [bool]$RequireApproach)
     foreach ($flag in @('pass','identityComplete','sameCommandAtEveryBoundary','exactActedObserved','nativeTerminal','traceComplete')) {
@@ -5827,8 +5916,8 @@ function Assert-KmcRelationshipCommandProof {
             $now=[double]$terminal.state.$actor.$field
             if([Math]::Abs($now-$expected) -gt $tolerance){throw "Resource window refunded or added $actor $field debt."}
         }
-        if($terminal.state.$actor.initiative -ne $first.state.$actor.initiative){throw 'Relationship changed native initiative.'}
     }
+    Assert-KmcRelationshipReactionResources $Proof $PartnerPrepares
 }
 
 function Assert-KmcChunk6aCombatMountEvidence {
@@ -6036,9 +6125,9 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L) -or
-        ($phase3dSchemaVersion -eq 29L -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb') -and $phase3dSchemaVersion -ne 29L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L) -or
+        ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) -or
+        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb') -and $phase3dSchemaVersion -ne 30L) -or
         ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
@@ -6061,7 +6150,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
-    if ($phase3dSchemaVersion -eq 29L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) {
+    if ($phase3dSchemaVersion -eq 30L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mount-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) {
         Assert-KmcChunk6aCombatMountEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {

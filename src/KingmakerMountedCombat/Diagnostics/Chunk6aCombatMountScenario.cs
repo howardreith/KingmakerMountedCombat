@@ -159,7 +159,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["standard"] = cooldown?.StandardAction,
                 ["move"] = cooldown?.MoveAction,
                 ["swift"] = cooldown?.SwiftAction,
-                ["initiative"] = cooldown?.Initiative,
+                ["initiative"] = cooldown?.Initiative, // legacy cooldown alias; ordering is separate below
+                ["initiativeCooldown"] = cooldown?.Initiative,
+                ["initiativeOrder"] = actor.CombatState?.Initiative,
+                ["reactionCooldown"] = cooldown?.AttackOfOpportunity,
+                ["reactionsPerRound"] = actor.CombatState?.AttackOfOpportunityPerRound,
                 ["attackOfOpportunity"] = cooldown?.AttackOfOpportunity,
                 ["reactions"] = actor.CombatState?.AttackOfOpportunityCount,
                 ["hasMove"] = actor.HasMoveAction(),

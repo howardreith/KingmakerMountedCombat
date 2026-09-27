@@ -1593,6 +1593,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            // The child captures the entire disposable party as idle, not just the
+            // pair. Let the parent's native encounter settle before child construction.
+            if (Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario))
+            {
+                var partyState = new JArray(owner.Group.Select(member => new JObject {
+                    ["actor"] = member.UniqueId, ["inCombat"] = member.IsInCombat,
+                    ["commandsEmpty"] = member.Commands.Empty
+                }));
+                observations["chunk6aPartyHandoff"] = partyState;
+                if (Game.Instance.Player.IsInCombat || owner.Group.Any(member => member.IsInCombat))
+                {
+                    if (clock.Elapsed.TotalSeconds - mountedAlphaAdmissionStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds)
+                        return;
+                    Fail("target-selected-mount-admission-deadline",
+                        "Chunk 6A parent encounter did not settle to an idle party: " + partyState.ToString(Formatting.None));
+                    BeginCleanup(); return;
+                }
+            }
+
             var availability = playerAction.GetAvailability();
             if (availability.IsVisible && availability.IsEnabled &&
                 availability.Action == MountedPlayerActionKind.Mount)

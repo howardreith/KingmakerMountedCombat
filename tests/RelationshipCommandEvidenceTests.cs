@@ -12,6 +12,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("an unobserved acted boundary cannot be replaced by a charged endpoint", ActedIsMandatory);
             runner.Run("resource windows distinguish RT decay from refund and extra charge", RealTimeDebt);
             runner.Run("TB resource windows reject both refunds and second charges", TurnBasedDebt);
+            runner.Run("reaction events conserve discrete allowance and distinguish cooldowns from ordering", ReactionEvents);
             runner.Run("native Move callbacks exclude Standard Swift and exploration costs", CallbackOwnership);
         }
         private static RelationshipCommandIdentity Make(object command, object process, object context,
@@ -59,6 +60,22 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(NativeResourceWindowPolicy.EndpointConserved(3, 3, 10, true, 0.0001), "static TB debt retained");
             TestRunner.True(!NativeResourceWindowPolicy.EndpointConserved(3, 6, 10, true, 0.0001), "second cost rejected");
             TestRunner.True(!NativeResourceWindowPolicy.EndpointConserved(3, 0, 10, true, 0.0001), "refund rejected");
+        }
+        private static void ReactionEvents()
+        {
+            var spent = new NativeReactionResources(0, 0.25, 0, 12);
+            TestRunner.True(spent.Tick(0.25, false, true, false, false, false, 1).Matches(new NativeReactionResources(1, 0, 0, 12)), "RT expiry has one native refresh");
+            TestRunner.True(spent.Tick(0.25, true, true, true, false, false, 1).Matches(new NativeReactionResources(0, 0, 0, 12)), "TB passing does not replenish allowance");
+            TestRunner.True(spent.Tick(1, true, true, false, false, false, 1).Matches(spent), "active TB turn does not decay");
+            var waiting = new NativeReactionResources(0, 3, 1, 12);
+            TestRunner.True(waiting.Tick(0.25, false, true, false, false, true, 1).Matches(new NativeReactionResources(0, 3, 0.75, 12)), "RT waiting initiative delays AoO decay");
+            TestRunner.True(waiting.Tick(1.25, true, true, true, false, true, 1).Matches(new NativeReactionResources(0, 2.75, 0, 12)), "TB passing consumes initiative delay first");
+            TestRunner.True(waiting.Clear().Matches(new NativeReactionResources(0, 0, 0, 12)), "Clear preserves discrete allowance and ordering");
+            TestRunner.True(waiting.Prepare(1).Matches(new NativeReactionResources(1, 0, 0, 12)), "declared Prepare refreshes allowance");
+            TestRunner.True(new NativeReactionResources(2, 3, 1, 12).Prepare(1).Matches(new NativeReactionResources(2, 0, 0, 12)), "Prepare preserves above-normal allowance");
+            TestRunner.True(!spent.Matches(new NativeReactionResources(1, 0.25, 0, 12)), "reaction-only change rejected");
+            TestRunner.True(!spent.Matches(new NativeReactionResources(0, 0, 0, 12)), "AoO-only refund rejected");
+            TestRunner.True(!spent.Matches(new NativeReactionResources(0, 0.25, 0, 13)), "ordering cannot be relabeled as cooldown");
         }
         private static void CallbackOwnership()
         {

@@ -60,4 +60,47 @@ namespace KingmakerMountedCombat.Diagnostics
                 Math.Abs(afterSwift - beforeSwift) <= 0.0001;
         }
     }
+
+    // Pinned UnitCombatCooldownsController 0600934A/06009349 and Prepare 06000C3C.
+    // These are expected observations only; this type cannot write an engine resource.
+    internal sealed class NativeReactionResources
+    {
+        internal NativeReactionResources(int allowance, double cooldown, double initiativeCooldown, int initiativeOrder)
+        { Allowance = allowance; Cooldown = cooldown; InitiativeCooldown = initiativeCooldown; InitiativeOrder = initiativeOrder; }
+        internal int Allowance { get; }
+        internal double Cooldown { get; }
+        internal double InitiativeCooldown { get; }
+        internal int InitiativeOrder { get; }
+        internal bool Matches(NativeReactionResources other) => other != null && Allowance == other.Allowance &&
+            InitiativeOrder == other.InitiativeOrder && Math.Abs(Cooldown - other.Cooldown) <= 0.0001 &&
+            Math.Abs(InitiativeCooldown - other.InitiativeCooldown) <= 0.0001;
+        internal NativeReactionResources Clear() => new NativeReactionResources(Allowance, 0, 0, InitiativeOrder);
+        internal NativeReactionResources Prepare(int perRound) => new NativeReactionResources(
+            perRound > 0 && Allowance <= perRound ? perRound : Allowance, 0, 0, InitiativeOrder);
+        internal NativeReactionResources Tick(double delta, bool turnBased, bool inCombat,
+            bool passing, bool surprised, bool waitingInitiative, int perRound)
+        {
+            if (double.IsNaN(delta) || double.IsInfinity(delta) || delta < 0) return null;
+            var initiative = InitiativeCooldown;
+            var cooldown = Cooldown;
+            if (turnBased && inCombat)
+            {
+                if (!passing) return this;
+                if (initiative > 0 && !surprised)
+                {
+                    var consumed = Math.Min(delta, initiative);
+                    initiative -= consumed; delta -= consumed;
+                }
+                if (delta > 0) cooldown = Math.Max(0, cooldown - delta);
+                // Passing TB time does not replenish the discrete allowance.
+                return new NativeReactionResources(Allowance, cooldown, initiative, InitiativeOrder);
+            }
+            if (turnBased && !passing) return this;
+            if (waitingInitiative)
+                return new NativeReactionResources(Allowance, cooldown, Math.Max(0, initiative - delta), InitiativeOrder);
+            cooldown = Math.Max(0, cooldown - delta);
+            var allowance = cooldown <= 0 && perRound > 0 && Allowance <= perRound ? perRound : Allowance;
+            return new NativeReactionResources(allowance, cooldown, initiative, InitiativeOrder);
+        }
+    }
 }
