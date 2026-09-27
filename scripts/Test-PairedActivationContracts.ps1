@@ -155,6 +155,27 @@ public static class KmcNativePatchProbe {
    var adapterAfter=Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod("PairedConfusionAfter",BindingFlags.Static|BindingFlags.NonPublic)});
    patch.Invoke(harmony,new object[]{conditionAdapter.GetMethod("Prepare",BindingFlags.Static|BindingFlags.NonPublic),adapterBefore,adapterAfter,null});
    Console.WriteLine("CONDITION ADAPTER OBSERVER CONSTRUCTION PASS=1 FAIL=0; no actor or game method invoked");
+   var causal=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeRelationshipCommandProbe+Hooks",true);
+   var service=candidate.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
+   var causalFlags=BindingFlags.Static|BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+   var targets=new MethodBase[]{service.GetMethod("PrepareNativeMountApproach",causalFlags),service.GetMethod("BindNativeRelationshipProcess",causalFlags),
+    service.GetMethod("TryDispatch",causalFlags,null,new[]{candidate.GetType("KingmakerMountedCombat.Domain.NativeMountedControlKind",true),native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true),native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true),native.GetType("Kingmaker.UnitLogic.Abilities.AbilityExecutionContext",true)},null),
+    native.ManifestModule.ResolveMethod(0x060027A6),native.ManifestModule.ResolveMethod(0x060027A7),native.ManifestModule.ResolveMethod(0x06008FD6)};
+   var beforeNames=new string[]{null,null,"DeliverBefore","ApproachBefore","TickBefore",null};
+   var afterNames=new string[]{"InitAfter","BindAfter","DeliverAfter",null,"TickAfter","ProcessTickAfter"};
+   for(var i=0;i<targets.Length;i++) {
+    if(targets[i]==null)throw new InvalidOperationException("Missing exact causal observer boundary.");
+    var before=beforeNames[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{causal.GetMethod(beforeNames[i],causalFlags)});
+    var after=afterNames[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{causal.GetMethod(afterNames[i],causalFlags)});
+    Console.WriteLine("stage: causal observer "+targets[i].DeclaringType.FullName+"."+targets[i].Name);
+    try { patch.Invoke(harmony,new object[]{targets[i],before,after,null});
+     Console.WriteLine("PASS causal observer wrapper construction "+targets[i].Name);
+    } catch(TargetInvocationException e) {
+     if(!(e.InnerException is System.Security.SecurityException) || e.InnerException.Message!="ECall methods must be packaged into a system module.") throw;
+     Console.WriteLine("DEFER - EVIDENCED: desktop CLR cannot construct Unity ECall wrapper "+targets[i].Name+"; construction/delivery required in native runtime.");
+    }
+   }
+   Console.WriteLine("RELATIONSHIP CAUSAL OBSERVER SIGNATURE PASS=6 FAIL=0; native construction and callback delivery remain runtime gates");
    var removal=native.ManifestModule.ResolveMethod(0x06000BE6);
    if(removal.Name!="RemoveUnit" || removal.GetParameters().Length!=1 || removal.GetParameters()[0].Name!="unit" ||
       removal.GetParameters()[0].ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData" ||

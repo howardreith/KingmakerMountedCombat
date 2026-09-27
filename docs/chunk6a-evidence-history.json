@@ -1,0 +1,618 @@
+{
+  "schemaVersion": 1,
+  "auditBaseCommit": "14966a7c65921797395ecbc4a5b7f9c0c631f991",
+  "qualificationRule": "Only an overall PASS run satisfying the single-command contract may qualify a mandatory behavior. Earlier raw evidence remains immutable.",
+  "runs": [
+    {
+      "runId": "c6a-approach-1",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+        "dllSha256": "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+        "dllMvid": "522384f5-90d6-4bf2-9f60-972b23661379",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+        "packageSha256": "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+        "manifestSha256": "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-approach-1/runtime-result.json",
+          "sha256": "fb8005a17b52adb95f2cc2a3b0a8e64a266183d2e194c4785a88e5edf015c620"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-1/runtime-game-result.json",
+          "sha256": "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-1/runtime-request.json",
+          "sha256": "ce61588150b85b6df89406cbd8cd9a9f9c76f11a4ea3c3e1a044830f4b1dab8e"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-1/phase3d-horse-scenario-evidence.json",
+          "sha256": "0b6c1a573b5626f8f7dbeb3d20e6be48199f249e34b326e87b0243920decbf7e"
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM01-exploration-free",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, through two accepted dispatches with no rejection, no duplicate or concurrent suppression and no forced detach, and charged no Standard, Move, Swift, initiative or reaction resource on either actor."
+          ]
+        },
+        {
+          "row": "CM02-adoption-plan-invalidated",
+          "assertionFailCount": 1,
+          "assertions": [
+            "An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider's already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound."
+          ]
+        },
+        {
+          "row": "CM01-combat-mount-accepted",
+          "assertionFailCount": 1,
+          "assertions": [
+            "One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once."
+          ]
+        },
+        {
+          "row": "CM03-combat-mount-conserves-debt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "The combat Mount transition charged only the rider's native Move and left every other rider and mount resource, reaction allowance and initiative value exactly as it was."
+          ]
+        },
+        {
+          "row": "CM02-approach-arrival",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Combat Mount was admitted at a measured distance outside the transition envelope, Kingmaker's own rider-owned native Move command closed the distance and arrived inside that envelope, and exactly one acted Move commitment, one shell delivery and one relationship transition followed with no Horse movement, no duplicate request and no repeated preparation."
+          ]
+        },
+        {
+          "row": "chunk6a-mount-approach",
+          "assertionFailCount": 5,
+          "assertions": [
+            "phase3d-tranche-0: CM01-exploration-free: Outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, through two accepted dispatches with no rejection, no duplicate or concurrent suppression and no forced detach, and charged no Standard, Move, Swift, initiative or reaction resource on either actor.",
+            "phase3d-tranche-1: CM02-adoption-plan-invalidated: An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider's already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound.",
+            "phase3d-tranche-2: CM01-combat-mount-accepted: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.",
+            "phase3d-tranche-3: CM03-combat-mount-conserves-debt: The combat Mount transition charged only the rider's native Move and left every other rider and mount resource, reaction allowance and initiative value exactly as it was.",
+            "phase3d-tranche-4: CM02-approach-arrival: Combat Mount was admitted at a measured distance outside the transition envelope, Kingmaker's own rider-owned native Move command closed the distance and arrived inside that envelope, and exactly one acted Move commitment, one shell delivery and one relationship transition followed with no Horse movement, no duplicate request and no repeated preparation."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-approach-2",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "b782d6b2e03b6a29944af0769618ab1fde109c8d",
+        "dllSha256": "8915ee722f25d97bcbc4607d7dccc605c0da2ea12e81b0905c3b95400556e360",
+        "dllMvid": "d54ab362-4d75-43ef-8d0c-57c8828f8075",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-b-diagnostic.zip",
+        "packageSha256": "bf9822efacfd90e3bb69898fa0a3593f627cfe371c71e3cb2a1c969d66ef18b0",
+        "manifestSha256": "15dc1ec0f0be45a6b15e973fea2486b9d0385d8c3e8c995029fa134ed2463dc1"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-approach-2/runtime-result.json",
+          "sha256": "094837ff9d3574b4e1cf4087fbd454d047d939b9458e94e7cdd7af842fa9339b"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-2/runtime-game-result.json",
+          "sha256": "6a0b4b6e3990f5cd718044f5ff1f90fef9653ccbc117dabeead00eda6bbc7068"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-2/runtime-request.json",
+          "sha256": "93058d87ea70c22a45762da0d7fba057914da15bffa7dd6a19059d358b380a82"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-2/phase3d-horse-scenario-evidence.json",
+          "sha256": "80efa2c01f5a4d31918be1d124842ae092e3437bbd152cd5f6b7d34da5df02d5"
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM01-combat-mount-accepted",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Exact native combat Mount target click was not admitted."
+          ]
+        },
+        {
+          "row": "chunk6a-mount-approach",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM01-combat-mount-accepted: Exact native combat Mount target click was not admitted."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-approach-3",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "0a92076da39515b40203ff7b8f7dfc9ef311f5af",
+        "dllSha256": "8097861501d429a597780a67b5f44608884b33a75f48de26dff6cc17aca632ec",
+        "dllMvid": "364af3b2-348f-4d20-b041-bd06471b32cd",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-c-diagnostic.zip",
+        "packageSha256": "25102962822c4b5576fd8a4099b0ba4e6d99f4ad74a5ace188bf8502ea97c950",
+        "manifestSha256": "36a07beb7b723e218500c79acd6264f7b7da812327ab9a185676973138d9d2b1"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-approach-3/runtime-result.json",
+          "sha256": "81b0c74ea0d7d0b1640c14dfae067a2af46f188cb8f38a64ab4501b6e0bea0ec"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-3/runtime-game-result.json",
+          "sha256": "591fdafc61729d35d703b81e0a91ee9eb8dba873ffe5f1d35a80233af9daad3c"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-3/runtime-request.json",
+          "sha256": "cc2008aa1bc954bc98afed36061850544c4381a790f584a8641845832b64efd2"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-3/phase3d-horse-scenario-evidence.json",
+          "sha256": "cd7f27d7cc78469ea590fe4cc84434ef64b527dde79a6139406db13785a2eee7"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-approach-4",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "a7cdd145c1b1252ab38ec57772e4d92171eb6c6e",
+        "dllSha256": "8097861501d429a597780a67b5f44608884b33a75f48de26dff6cc17aca632ec",
+        "dllMvid": "364af3b2-348f-4d20-b041-bd06471b32cd",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-d-diagnostic.zip",
+        "packageSha256": "a32d531471d9c3e1fbe67c2e808f648bcab153224c6cb4a09c7ad5a0f6e1a60c",
+        "manifestSha256": "aa9e78353ff1c2c16c17c63df9ea7b8b82bd67c8bb5c717b44b15ef802139d69"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-approach-4/runtime-result.json",
+          "sha256": "a703d6224db72734f10dd05252d6b57d4aa8e3bc12acedb4f34c8b446d46119f"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-4/runtime-game-result.json",
+          "sha256": "1ca15b9aacba12ea5d67755fe99c844e0c301c2103a4559f6ce55c896ecf8c4c"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-4/runtime-request.json",
+          "sha256": "bc3fa433bf61c4ce50b469b3fb408eef9b68ccc0d9c678a64709ada0d77028b4"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-4/phase3d-horse-scenario-evidence.json",
+          "sha256": "04832e71d919036f1cebc49fd85f2f9c04263e8e086aae7dc25e6548af4ded64"
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM01-combat-mount-accepted",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Exact native combat Mount target click was not admitted. availabilityEnabled=False; transitionReady=False; availabilityReason=\"The rider has no Move action available to mount.\"; targetRejection=\"The rider has no Move action available to mount.\"; canTarget=False; selectedCount=1; selectedIsRider=True; geometry={\"boundary\":\"mount-click-refused\",\"frame\":3205,\"seconds\":17.4725553,\"riderPosition\":{\"x\":-5.74751139,\"y\":6.096037,\"z\":53.20926},\"horsePosition\":{\"x\":-2.32442927,\"y\":6.096037,\"z\":53.64123},\"riderCorpulence\":0.5,\"horseCorpulence\":0.9,\"centerDistance\":3.4502306,\"horizontalDistance\":3.4502306,\"legalAdjacencyEnvelope\":2.9,\"isAdjacent\":false,\"approachRadiusResolved\":true,\"approachRadius\":2.85,\"relationshipState\":\"Unmounted\",\"relationshipGeneration\":2,\"command\":null,\"shellState\":\"lastShellRefusal=not-observed;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;mountAbilityFactPresent=True;registeredShells=3;moveSlot=<none>;moveSlotIsUseAbility=False;moveSlotHasShell=False;moveSlotStarted=<none>;moveSlotFinished=<none>;moveSlotProcessPresent=False;processBindings=3;lastShellRegistration=control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;lifecycle={1:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=f053faad986631688defa003cd7bda0e;isMountBlueprint=True;isDismountBlueprint=False;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;targetView=True;targetIsCasterPet=True;targetMasterIsCaster=True;targetProfileSupported=True;targetIsCaster=False;generation=0 | 2:Registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=0;target=2f21434e-e976-40fa-ac31-8daea0d9cee6 | 3:ApproachClamped;control=<none>;predicate=approach-radius-clamped;radius=2.85 | 4:ProcessBound;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=0;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;commandFinished=False | 5:DeliverResolved;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=MountCompanion;generation=0 | 6:DeliverConsumed;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=MountCompanion;retired=False | 7:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=3af2b81f4d72bbb30501fa730fcdf36e;isMountBlueprint=False;isDismountBlueprint=True;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;targetView=True;targetIsCasterPet=False;targetMasterIsCaster=False;targetProfileSupported=False;targetIsCaster=True;generation=1 | 8:Registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7 | 9:ProcessBound;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=1;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;commandFinished=False | 10:DeliverResolved;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=Dismount;generation=1 | 11:DeliverConsumed;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=Dismount;retired=False | 12:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=f053faad986631688defa003cd7bda0e;isMountBlueprint=True;isDismountBlueprint=False;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;targetView=True;targetIsCasterPet=True;targetMasterIsCaster=True;targetProfileSupported=True;targetIsCaster=False;generation=1 | 13:Registered;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=2f21434e-e976-40fa-ac31-8daea0d9cee6 | 14:ApproachClamped;control=<none>;predicate=approach-radius-clamped;radius=2.85 | 15:ProcessBound;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=1;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;commandFinished=False | 16:DeliverResolved;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=MountCompanion;generation=1 | 17:DeliverConsumed;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-refused;kind=MountCompanion;retired=True}\",\"transitionLedger\":\"admittedMount=2;acceptedMount=1;admittedDismount=1;acceptedDismount=1;refusedVoluntary=1;forcedDetach=2;duplicateSuppressed=1;concurrentSuppressed=0;inFlight=<none>\",\"riderResources\":{\"actor\":\"d17c8fd0-6627-40c4-bf9a-024cf001c1f7\",\"standard\":4.45228148,\"move\":0.0445586443,\"swift\":0.0,\"initiative\":0.0,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":false,\"hasStandard\":false,\"prepared\":true,\"nativePrepareCount\":0,\"timeToNextTurn\":4.45228148},\"horseResources\":{\"actor\":\"2f21434e-e976-40fa-ac31-8daea0d9cee6\",\"standard\":0.0,\"move\":0.0,\"swift\":0.0,\"initiative\":0.0,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":true,\"hasStandard\":true,\"prepared\":true,\"nativePrepareCount\":0,\"timeToNextTurn\":0.0}}"
+          ]
+        },
+        {
+          "row": "chunk6a-mount-approach",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM01-combat-mount-accepted: Exact native combat Mount target click was not admitted. availabilityEnabled=False; transitionReady=False; availabilityReason=\"The rider has no Move action available to mount.\"; targetRejection=\"The rider has no Move action available to mount.\"; canTarget=False; selectedCount=1; selectedIsRider=True; geometry={\"boundary\":\"mount-click-refused\",\"frame\":3205,\"seconds\":17.4725553,\"riderPosition\":{\"x\":-5.74751139,\"y\":6.096037,\"z\":53.20926},\"horsePosition\":{\"x\":-2.32442927,\"y\":6.096037,\"z\":53.64123},\"riderCorpulence\":0.5,\"horseCorpulence\":0.9,\"centerDistance\":3.4502306,\"horizontalDistance\":3.4502306,\"legalAdjacencyEnvelope\":2.9,\"isAdjacent\":false,\"approachRadiusResolved\":true,\"approachRadius\":2.85,\"relationshipState\":\"Unmounted\",\"relationshipGeneration\":2,\"command\":null,\"shellState\":\"lastShellRefusal=not-observed;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;mountAbilityFactPresent=True;registeredShells=3;moveSlot=<none>;moveSlotIsUseAbility=False;moveSlotHasShell=False;moveSlotStarted=<none>;moveSlotFinished=<none>;moveSlotProcessPresent=False;processBindings=3;lastShellRegistration=control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;lifecycle={1:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=f053faad986631688defa003cd7bda0e;isMountBlueprint=True;isDismountBlueprint=False;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;targetView=True;targetIsCasterPet=True;targetMasterIsCaster=True;targetProfileSupported=True;targetIsCaster=False;generation=0 | 2:Registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=0;target=2f21434e-e976-40fa-ac31-8daea0d9cee6 | 3:ApproachClamped;control=<none>;predicate=approach-radius-clamped;radius=2.85 | 4:ProcessBound;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=0;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;commandFinished=False | 5:DeliverResolved;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=MountCompanion;generation=0 | 6:DeliverConsumed;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=MountCompanion;retired=False | 7:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=3af2b81f4d72bbb30501fa730fcdf36e;isMountBlueprint=False;isDismountBlueprint=True;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;targetView=True;targetIsCasterPet=False;targetMasterIsCaster=False;targetProfileSupported=False;targetIsCaster=True;generation=1 | 8:Registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7 | 9:ProcessBound;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=1;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;commandFinished=False | 10:DeliverResolved;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=Dismount;generation=1 | 11:DeliverConsumed;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=Dismount;retired=False | 12:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=f053faad986631688defa003cd7bda0e;isMountBlueprint=True;isDismountBlueprint=False;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;targetView=True;targetIsCasterPet=True;targetMasterIsCaster=True;targetProfileSupported=True;targetIsCaster=False;generation=1 | 13:Registered;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=2f21434e-e976-40fa-ac31-8daea0d9cee6 | 14:ApproachClamped;control=<none>;predicate=approach-radius-clamped;radius=2.85 | 15:ProcessBound;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=1;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=2f21434e-e976-40fa-ac31-8daea0d9cee6;commandFinished=False | 16:DeliverResolved;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=MountCompanion;generation=1 | 17:DeliverConsumed;control=shell:3:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-refused;kind=MountCompanion;retired=True}\",\"transitionLedger\":\"admittedMount=2;acceptedMount=1;admittedDismount=1;acceptedDismount=1;refusedVoluntary=1;forcedDetach=2;duplicateSuppressed=1;concurrentSuppressed=0;inFlight=<none>\",\"riderResources\":{\"actor\":\"d17c8fd0-6627-40c4-bf9a-024cf001c1f7\",\"standard\":4.45228148,\"move\":0.0445586443,\"swift\":0.0,\"initiative\":0.0,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":false,\"hasStandard\":false,\"prepared\":true,\"nativePrepareCount\":0,\"timeToNextTurn\":4.45228148},\"horseResources\":{\"actor\":\"2f21434e-e976-40fa-ac31-8daea0d9cee6\",\"standard\":0.0,\"move\":0.0,\"swift\":0.0,\"initiative\":0.0,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":true,\"hasStandard\":true,\"prepared\":true,\"nativePrepareCount\":0,\"timeToNextTurn\":0.0}}"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-approach-5",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "0ed4f42a85efcd39c927fa309b0a687cf47838bb",
+        "dllSha256": "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+        "dllMvid": "7c8a077d-210b-43d7-8822-5003248da0f8",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-g-diagnostic.zip",
+        "packageSha256": "53a21da435d74e1a6437cfd5d66bf88724efcbed4a0e33fefbe0d8288d481cc5",
+        "manifestSha256": "4bf9f1f17e2531249719f46cfae6facc2ef0257e2aeb616304d5e237e3282647"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-approach-5/runtime-result.json",
+          "sha256": "9b51bf290bf7a33948a9ff5a313bf7320149db397b86f9026e8cdc9af673dcbd"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-5/runtime-game-result.json",
+          "sha256": "5e35776ab111b1877739f4196c6e13772bf5bf3fc865a5d6ca15534116d3b45a"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-5/runtime-request.json",
+          "sha256": "2fdc31185ec253d1a614ff069cccfaa2de931ff1172bdbf4e6664e111d6c4430"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-5/phase3d-horse-scenario-evidence.json",
+          "sha256": "9e1bc369f9dde6dbabfada8648962f68c5ed8b77afb784c12d3f47e5acdef1ca"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-approach-6",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+        "dllSha256": "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+        "dllMvid": "7c8a077d-210b-43d7-8822-5003248da0f8",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
+        "packageSha256": "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
+        "manifestSha256": "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-approach-6/runtime-result.json",
+          "sha256": "11804f09d9f62b8c614ce5452bb10455b0d17dcae89e25be20af4401b49dad1d"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-6/runtime-game-result.json",
+          "sha256": "94ff6e2180e4348b67d41ed01626a93d307f402c4ca53c8a79430f2eb4287d40"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-6/runtime-request.json",
+          "sha256": "316f455a9c9eabee5b8571ad8c9080923ffe105b43012e1ffa022d75e8c05e21"
+        },
+        {
+          "path": "runtime-evidence/c6a-approach-6/phase3d-horse-scenario-evidence.json",
+          "sha256": "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Historical diagnostic success is superseded for qualification by the required single-command and exact-window contract."
+    },
+    {
+      "runId": "c6a-mount-rt-1",
+      "scenario": "chunk6a-combat-mount-rt",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.108",
+        "commit": "88328a31ff1636c68a65bdfb4bcffaf3072649a6",
+        "dllSha256": "6190c3540f70a8d288076a177913577d50107a5073b1a88357c63d1b6bd81f97",
+        "dllMvid": "88f43b5f-86cd-4d68-b1a7-58b217c4ae16",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.108-chunk6a-campaign-c-diagnostic.zip",
+        "packageSha256": "e4bbc5ce1172916075aa341339b7f2e91782c316a50b214818f2b2493bb9800e",
+        "manifestSha256": "2cd6af17780cbae9c5e20b6ae1572cb756f30e5766f8d12f0eb7993a21a053c8"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-mount-rt-1/runtime-result.json",
+          "sha256": "2683e35b375a1ad8a6457bc963e5656dfcac5470a6ef139223af2a6e5bd80ef5"
+        },
+        {
+          "path": "runtime-evidence/c6a-mount-rt-1/runtime-game-result.json",
+          "sha256": "9d53d1426a0d90f4ef15456851304eb783c7e1cac077ea9b4fffbd4c385323f6"
+        },
+        {
+          "path": "runtime-evidence/c6a-mount-rt-1/runtime-request.json",
+          "sha256": "4f0abae743ea99ad1f2710fecc144349aa4983164f4a5eb55869028e28f220b2"
+        }
+      ],
+      "failures": [
+        {
+          "row": "chunk6a-combat-mount-rt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "target-selected-mount-admission-deadline: Native Mount did not establish a mounted pair within 25 seconds; no attack cases were attempted. {\"mode\":\"Default\",\"paused\":false,\"gameDeltaTime\":0.0115569,\"ummOpened\":false,\"feedback\":\"Ready to mount.\",\"command\":null,\"started\":null,\"finished\":null,\"result\":null,\"enoughClose\":null,\"hasCooldown\":false}"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-mount-rt-2",
+      "scenario": "chunk6a-combat-mount-rt",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "9757f38555b69ca53501e7163d5764ae1a934fa5",
+        "dllSha256": "27ab2d7d8e5a3adf53ae91860fe3b93ce017f2d7ef244ebc41c85bd58cd36419",
+        "dllMvid": "accd0801-6d5d-4916-afe0-785b2c158097",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-preamble-c-diagnostic.zip",
+        "packageSha256": "e1453c63d927e1588cf2d3567920fc2f7d2805f4d454aad2a33b294eacd54412",
+        "manifestSha256": "0f1fdca683c420fda794ea4d6cada5337fc539d4a7348b9f7b4deba4ba80ef72"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-mount-rt-2/runtime-result.json",
+          "sha256": "ea022987596e301f086dcaae2f4ce3874d54823328d0e10c3b0375fac5d98042"
+        },
+        {
+          "path": "runtime-evidence/c6a-mount-rt-2/runtime-game-result.json",
+          "sha256": "7fd60ed7089bca4d242027dbaba63d81792b6c0a46cdc2ebf93b7bd3903be608"
+        },
+        {
+          "path": "runtime-evidence/c6a-mount-rt-2/runtime-request.json",
+          "sha256": "d8a592dd41d2ba43683b5d34eefa18219b4e2a69ea80c96d816a0401a8f66e53"
+        },
+        {
+          "path": "runtime-evidence/c6a-mount-rt-2/phase3d-horse-scenario-evidence.json",
+          "sha256": "2b31da9920e8634d4545af878e74342d7fa025960b023f298084244c1ac11823"
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-leaf-deadline",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        },
+        {
+          "row": "chunk6a-combat-mount-rt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-leaf-deadline: Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-preamble-1",
+      "scenario": "chunk6a-mount-preamble",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "d27f4d2e6b76b3d3d8643a90172c9a26a05c289f",
+        "dllSha256": "4c47d444949e0d75ef942b583f1f3464753042322918fc44c0635695133b2fba",
+        "dllMvid": "a2505c88-2d11-4dc5-9d45-7ed0dca36718",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-remediated-s4s5-diagnostic.zip",
+        "packageSha256": "efb20f1c4cb7f5ae2dd319cf1f9654f75c430147a50c06d97797d044b2bd1dfc",
+        "manifestSha256": "849a96736032faad4a5c33fe5a59b37d8d38e31a8527167066335a8973b1fb2f"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-preamble-1/runtime-result.json",
+          "sha256": "2c9e4ea7063cd92bd0ec2bf9f0d84cdfd7340a4f0365e9656babbe47b02a411c"
+        },
+        {
+          "path": "runtime-evidence/c6a-preamble-1/runtime-game-result.json",
+          "sha256": "feb9675d5a5fb914c8291e828b1dd9ccb5c3993170e10a9c4da5fad3ae2a721c"
+        },
+        {
+          "path": "runtime-evidence/c6a-preamble-1/runtime-request.json",
+          "sha256": "c379d6e4104dc0e01c0d513754a4ccd20fb667505a2c241cfc5d58e0713155aa"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-preamble-2",
+      "scenario": "chunk6a-mount-preamble",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "6b5cbcc40e756082c347924d3131f191a60c09d2",
+        "dllSha256": "436c46674e9972e9f720ff7763c3eec8c4f2a88494f7842faab8d2dc55a30513",
+        "dllMvid": "29980c4e-0bf1-4015-aafd-11d27df2fdbf",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-preamble-b-diagnostic.zip",
+        "packageSha256": "a471b66587a546696adbe87bb318f1dadb25cb50f41f886950c4fc0c40a0179f",
+        "manifestSha256": "afcaf7b01644885772d97ef19f224ed11b004a4b9b181605f34d7cd187b08dc7"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-preamble-2/runtime-result.json",
+          "sha256": "007147fe449da6b91785209de3bc0f757e8e6801720e673b837c9434bfd040fa"
+        },
+        {
+          "path": "runtime-evidence/c6a-preamble-2/runtime-game-result.json",
+          "sha256": "cfd74a40765524d5fdd518b6eb938caa10c74357c5a8af334470411a5973bc84"
+        },
+        {
+          "path": "runtime-evidence/c6a-preamble-2/runtime-request.json",
+          "sha256": "18e3d5f165c644f0969d6897d5bb81f9e509c857cb8bc6a4f932f3fd5adf087f"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-preamble-3",
+      "scenario": "chunk6a-mount-preamble",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "9757f38555b69ca53501e7163d5764ae1a934fa5",
+        "dllSha256": "27ab2d7d8e5a3adf53ae91860fe3b93ce017f2d7ef244ebc41c85bd58cd36419",
+        "dllMvid": "accd0801-6d5d-4916-afe0-785b2c158097",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-preamble-c-diagnostic.zip",
+        "packageSha256": "e1453c63d927e1588cf2d3567920fc2f7d2805f4d454aad2a33b294eacd54412",
+        "manifestSha256": "0f1fdca683c420fda794ea4d6cada5337fc539d4a7348b9f7b4deba4ba80ef72"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-preamble-3/runtime-result.json",
+          "sha256": "9b9efbf9a187e4e902dba6772b1b1cb6ee6e609e1797c83ece95704f0747878c"
+        },
+        {
+          "path": "runtime-evidence/c6a-preamble-3/runtime-game-result.json",
+          "sha256": "4d975b424a696f7677407b6942adfa9b15b2b16363a0c7ede00487ef7f7b0aa1"
+        },
+        {
+          "path": "runtime-evidence/c6a-preamble-3/runtime-request.json",
+          "sha256": "e337976057c41a4f114773e0e8b4b0839421b3a495007ae26c4e89e4a39adbc5"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Historical diagnostic success is superseded for qualification by the required single-command and exact-window contract."
+    },
+    {
+      "runId": "c6a-r2-smoke",
+      "scenario": "mod-load-smoke",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.108",
+        "commit": "951ab906f5e05959a1c257e451f5ce5e5ab2f974",
+        "dllSha256": "c11235ca026abf86e0ed2e32bb99d6eb3e81dc519b37c424f0519a014727a134",
+        "dllMvid": "15492f08-8aa8-46ec-9ceb-e0851575d848"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-r2-smoke/runtime-result.json",
+          "sha256": "91c0d41a0a248b112ed732728e59f385da2ef1ab0a1f37903ff4f751b77d1456"
+        },
+        {
+          "path": "runtime-evidence/c6a-r2-smoke/runtime-game-result.json",
+          "sha256": "772c7cb7f340b6b3125ea174defa1210022250f7291a96b1e9609024854ce1ed"
+        },
+        {
+          "path": "runtime-evidence/c6a-r2-smoke/runtime-request.json",
+          "sha256": "7a15e3c3f93cec46f9a453f2d4464bff9ebbfead1f0bc6982580df46932208f9"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-r3-smoke",
+      "scenario": "mod-load-smoke",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.108",
+        "commit": "88328a31ff1636c68a65bdfb4bcffaf3072649a6",
+        "dllSha256": "6190c3540f70a8d288076a177913577d50107a5073b1a88357c63d1b6bd81f97",
+        "dllMvid": "88f43b5f-86cd-4d68-b1a7-58b217c4ae16"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-r3-smoke/runtime-result.json",
+          "sha256": "d7e6960eed09c435a650b6b8d0b7221f553eb4f3997bd1c0d1c0e7d59f9dd208"
+        },
+        {
+          "path": "runtime-evidence/c6a-r3-smoke/runtime-game-result.json",
+          "sha256": "abb1f57122de4f09f061437f0fdb3544d77eb030adbc7a470fa0505d2f4f3e1f"
+        },
+        {
+          "path": "runtime-evidence/c6a-r3-smoke/runtime-request.json",
+          "sha256": "24541815d70bbd3eeb30dc7d4b5a2471ca4dcc61190e57f36da5f273ea930f1e"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Historical diagnostic success is superseded for qualification by the required single-command and exact-window contract."
+    },
+    {
+      "runId": "c6a-rt-1",
+      "scenario": "chunk6a-combat-mount-rt",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+        "dllSha256": "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+        "dllMvid": "7c8a077d-210b-43d7-8822-5003248da0f8",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
+        "packageSha256": "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
+        "manifestSha256": "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-rt-1/runtime-result.json",
+          "sha256": "be632855eb01d15b9fb04d067e5a06779cf6411e400a2f7fbe8999407f842689"
+        },
+        {
+          "path": "runtime-evidence/c6a-rt-1/runtime-game-result.json",
+          "sha256": "257c0999fe682c7562579e51186872034b5fa929b4ae0498f33560f21a37026f"
+        },
+        {
+          "path": "runtime-evidence/c6a-rt-1/runtime-request.json",
+          "sha256": "d0c88ff292f9c83f014cefecd1253b15a576201b60e6f70eb4181aaec33fbf94"
+        },
+        {
+          "path": "runtime-evidence/c6a-rt-1/phase3d-horse-scenario-evidence.json",
+          "sha256": "d0016fea3f109546cf70b06dac9b2397460ec392cb8c9bf7fad7d86e7a40d97d"
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM05-combat-dismount-accepted",
+          "assertionFailCount": 1,
+          "assertions": [
+            "One exact native voluntary combat Dismount delivery committed the rider's native Move exactly once and left two valid separate actors."
+          ]
+        },
+        {
+          "row": "phase3d-horse-leaf-deadline",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        },
+        {
+          "row": "chunk6a-combat-mount-rt",
+          "assertionFailCount": 2,
+          "assertions": [
+            "phase3d-tranche-0: CM05-combat-dismount-accepted: One exact native voluntary combat Dismount delivery committed the rider's native Move exactly once and left two valid separate actors.",
+            "phase3d-tranche-1: phase3d-horse-leaf-deadline: Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "An overall FAIL run contributes no PASS entries."
+    },
+    {
+      "runId": "c6a-s4s5-smoke",
+      "scenario": "mod-load-smoke",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.109",
+        "commit": "d27f4d2e6b76b3d3d8643a90172c9a26a05c289f",
+        "dllSha256": "4c47d444949e0d75ef942b583f1f3464753042322918fc44c0635695133b2fba",
+        "dllMvid": "a2505c88-2d11-4dc5-9d45-7ed0dca36718"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-s4s5-smoke/runtime-result.json",
+          "sha256": "a1b75671b8b1082df018bb32a68c928d19578c1e3c56d7f637956d1c339201c0"
+        },
+        {
+          "path": "runtime-evidence/c6a-s4s5-smoke/runtime-game-result.json",
+          "sha256": "b4d963213bca1acfea74b3953118f13db2f8d96949cc73b292256d1c9f0e959b"
+        },
+        {
+          "path": "runtime-evidence/c6a-s4s5-smoke/runtime-request.json",
+          "sha256": "a18319add27b8242f9b4df9006b13726be5d828460957fc68fe06c64655b3d99"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Historical diagnostic success is superseded for qualification by the required single-command and exact-window contract."
+    }
+  ]
+}

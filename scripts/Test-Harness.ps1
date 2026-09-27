@@ -12686,7 +12686,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6aCombatMount ? 28 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6aCombatMount ? 29 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
@@ -12698,7 +12698,8 @@ try {
             $preMountedRiderPrimaryIndex -gt $preMountedTrackerIndex -and
             $nativeValidMountIndex -ge 0 -and $parentAwaitMountedIndex -gt $nativeValidMountIndex -and
             $parentMountedTrancheIndex -gt $parentAwaitMountedIndex -and
-            -not $horseEngineSource.Contains('BeginPhase3dTranche(false);') -and
+            ([regex]::Matches($horseEngineSource, [regex]::Escape('BeginPhase3dTranche(false);')).Count -eq 1) -and
+            ($horseEngineSource -match '(?s)if \(Phase3dHorseScenarioTranche\.IsChunk6aCombatMountScenario\(request\.Scenario\)\)\s*\{\s*(?://[^\r\n]*\r?\n\s*)*BeginPhase3dTranche\(false\);\s*return;\s*\}') -and
             -not $turnBasedAdmissionBody.Contains('StartTurn(')) `
             'Phase 3E Horse TB diagnostic lost native pre-mount setup, reversible AI isolation, natural rider-turn admission, or retained stock Mount-shell observation'
         $traversalIndex = $phase3dHorseSource.IndexOf(

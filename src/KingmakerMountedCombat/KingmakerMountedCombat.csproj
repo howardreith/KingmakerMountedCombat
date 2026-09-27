@@ -247,6 +247,8 @@
     <Compile Include="Diagnostics\NativeAttackFixtureVariation.cs" />
     <Compile Include="Diagnostics\NativeAttackBonusEvidence.cs" />
     <Compile Include="Diagnostics\OrdinaryAttackControls.cs" />
+    <Compile Include="Diagnostics\RelationshipCommandIdentity.cs" />
+    <Compile Include="Diagnostics\NativeRelationshipCommandProbe.cs" />
     <Compile Include="Diagnostics\NativeActorAllocationTrace.cs" />
     <Compile Include="Diagnostics\NativeAllocationRoundFactLease.cs" />
     <Compile Include="Diagnostics\ActorAllocationCallbackEvidence.cs" />
@@ -331,6 +333,7 @@
     <Compile Include="Domain\MountedRangedRoutineCompletionPolicy.cs" />
     <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
     <Compile Include="Diagnostics\SustainedRoutineProgress.cs" />
+    <Compile Include="Diagnostics\Chunk6aCausalEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aCombatMountScenario.cs" />
     <Compile Include="Diagnostics\Chunk4PairedPlayScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeEffectInventory.cs" />

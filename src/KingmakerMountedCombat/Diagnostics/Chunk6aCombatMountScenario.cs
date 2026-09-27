@@ -29,16 +29,25 @@ namespace KingmakerMountedCombat.Diagnostics
         // failure in the approach itself is attributable without paying for the whole
         // suite. It emits the same tranche evidence kind, so it introduces no new leaf.
         internal const string Chunk6aMountApproachScenario = "chunk6a-mount-approach";
+        internal const string Chunk6aCompensationRealTimeScenario = "chunk6a-adoption-compensation-rt";
+        internal const string Chunk6aCompensationTurnBasedScenario = "chunk6a-adoption-compensation-tb";
 
         internal static bool IsChunk6aCombatMountScenario(string scenario) =>
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
-            string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal);
+            string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aCompensationRealTimeScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
 
         private bool IsChunk6aCombatMount => IsChunk6aCombatMountScenario(request.Scenario);
 
         private bool Chunk6aTurnBased =>
-            string.Equals(request.Scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal);
+            string.Equals(request.Scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
+            string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
+
+        private bool Chunk6aCompensationOnly =>
+            string.Equals(request.Scenario, Chunk6aCompensationRealTimeScenario, StringComparison.Ordinal) ||
+            string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
 
         private bool Chunk6aApproachOnly =>
             string.Equals(request.Scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal);
@@ -530,6 +539,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             var controller = game.TurnBasedCombatController;
             var turn = controller?.CurrentTurn;
+            if (chunk6aCommandWindow != null) observations["chunk6aLiveCommand"] = chunk6aCommandWindow.Capture();
             observations["chunk6aProgress"] = new JObject
             {
                 ["stage"] = chunk6aStage,
@@ -552,154 +562,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            // Stage 0: the parent flow hands over an adjacent mounted pair out of
-            // combat. Dismount through the same normal control first: outside an
-            // encounter Kingmaker's own UpdateCooldowns writes nothing, so this
-            // also proves the free exploration transition costs nothing.
+            // This scenario owns both exploration windows. The parent supplies an
+            // unmounted pair and cannot contribute unmeasured transition counters.
             if (chunk6aStage == 0)
             {
-                if (!Chunk6aIdle)
-                {
-                    return;
-                }
-                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                if (relationship.State == RelationshipState.Mounted)
-                {
-                    if (rider.IsInCombat || horse.IsInCombat || Game.Instance.Player.IsInCombat)
-                    {
-                        FailCurrent("CM01-combat-mount-setup",
-                            "Chunk 6A must establish its unmounted baseline before any encounter begins.");
-                        BeginCleanup();
-                        return;
-                    }
-                    if (chunk6aExplorationDismountBefore == null)
-                    {
-                        chunk6aExplorationDismountBefore = CaptureChunk6aState("exploration-dismount-before");
-                        chunk6aExplorationLedgerBefore = Chunk6aLedgerCounters();
-                        chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
-                        if (!TryNativeAbilityTargetClick(
-                                nativeControls.DismountAbility, rider, "chunk6a-exploration-dismount-click"))
-                        {
-                            FailCurrent("CM01-exploration-dismount-costs-nothing",
-                                "Exact native out-of-combat Dismount target click was not admitted.");
-                            BeginCleanup();
-                            return;
-                        }
-                    }
-                    return;
-                }
-                if (relationship.State != RelationshipState.Unmounted)
-                {
-                    return;
-                }
-                if (chunk6aExplorationDismountBefore != null && chunk6aExplorationDismountAfter == null)
-                {
-                    chunk6aExplorationDismountAfter = CaptureChunk6aState("exploration-dismount-after");
-                    var riderBefore = (JObject)chunk6aExplorationDismountBefore["rider"];
-                    var riderAfter = (JObject)chunk6aExplorationDismountAfter["rider"];
-                    AddRow("CM01-exploration-dismount-costs-nothing",
-                        nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore + 1 &&
-                            Chunk6aUnchangedExcept(riderBefore, riderAfter) &&
-                            Chunk6aUnchangedExcept(
-                                (JObject)chunk6aExplorationDismountBefore["mount"],
-                                (JObject)chunk6aExplorationDismountAfter["mount"]) &&
-                            playerAction.TransitionLedger.AcceptedDismountCount == 1,
-                        "The same native Dismount control outside combat performed one transition and charged nothing, because Kingmaker's own UpdateCooldowns writes no resource out of combat.",
-                        new JObject
-                        {
-                            ["before"] = chunk6aExplorationDismountBefore,
-                            ["after"] = chunk6aExplorationDismountAfter
-                        });
-
-                    // CM01-exploration-free: "The same native control outside combat
-                    // performs the transition and charges nothing."
-                    //
-                    // This aggregates the two exploration transitions the normal controls
-                    // actually performed: the Mount the parent flow drove through the stock
-                    // selected-ability path, and the Dismount this stage just drove through
-                    // the same path. It is stated only to the strength of what is measured
-                    // here -- the transition ledger's own accepted counts, the exact pair
-                    // identities, and every rider and Horse action resource across the
-                    // exploration window -- and nothing is inferred from the narrow preamble
-                    // scenario, which deliberately stops before any transition.
-                    var explorationLedger = playerAction.TransitionLedger;
-                    var explorationRiderBefore = (JObject)chunk6aExplorationDismountBefore["rider"];
-                    var explorationRiderAfter = (JObject)chunk6aExplorationDismountAfter["rider"];
-                    var explorationMountBefore = (JObject)chunk6aExplorationDismountBefore["mount"];
-                    var explorationMountAfter = (JObject)chunk6aExplorationDismountAfter["mount"];
-                    // The exploration Mount happened before this window opened, so its
-                    // "exactly one" is the absolute count; the Dismount is measured as the
-                    // delta this window produced.
-                    var oneMountOneDismount = explorationLedger.AcceptedMountCount == 1 &&
-                        explorationLedger.AdmittedMountCount == 1 &&
-                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "admittedDismount", 1) &&
-                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "acceptedDismount", 1);
-                    // No duplicate transition or shell delivery. A recorded SUPPRESSION is the
-                    // guard proving a duplicate did not happen, and a forced detach is cleanup
-                    // bookkeeping that books no cost, so neither is required to be zero
-                    // outright; what must hold is that this window added none of either, and
-                    // any count carried in from the parent mount sequence is published.
-                    var noDuplicateExploration =
-                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "refusedVoluntary", 0) &&
-                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "duplicateSuppressed", 0) &&
-                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "concurrentSuppressed", 0) &&
-                        Chunk6aLedgerDelta(chunk6aExplorationLedgerBefore, "forcedDetach", 0);
-                    // Two accepted dispatches, one per transition, and no rejection.
-                    var twoDispatchesNoRejection = nativeControls.DispatchAcceptedCount == 2 &&
-                        nativeControls.DispatchRejectedCount == 0;
-                    var exactIdentities = relationship.State == RelationshipState.Unmounted &&
-                        (string)explorationRiderBefore["actor"] == rider.UniqueId &&
-                        (string)explorationMountBefore["actor"] == horse.UniqueId;
-                    // Outside an encounter Kingmaker's own UpdateCooldowns writes nothing, so
-                    // "charges nothing" is checkable directly: every action resource, the
-                    // reaction allowance and initiative are zero on both sides of the window.
-                    var chargedNothing = Chunk6aExplorationResourcesClear(explorationRiderBefore) &&
-                        Chunk6aExplorationResourcesClear(explorationRiderAfter) &&
-                        Chunk6aExplorationResourcesClear(explorationMountBefore) &&
-                        Chunk6aExplorationResourcesClear(explorationMountAfter);
-                    AddRow("CM01-exploration-free",
-                        oneMountOneDismount && noDuplicateExploration && twoDispatchesNoRejection &&
-                            exactIdentities && chargedNothing,
-                        "Outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, through two accepted dispatches with no rejection, no duplicate or concurrent suppression and no forced detach, and charged no Standard, Move, Swift, initiative or reaction resource on either actor.",
-                        new JObject
-                        {
-                            ["transitionLedger"] = explorationLedger.Describe(),
-                            ["ledgerBeforeWindow"] = chunk6aExplorationLedgerBefore,
-                            ["ledgerAfterWindow"] = Chunk6aLedgerCounters(),
-                            ["acceptedMountCount"] = explorationLedger.AcceptedMountCount,
-                            ["acceptedDismountCount"] = explorationLedger.AcceptedDismountCount,
-                            ["dispatchAccepted"] = nativeControls.DispatchAcceptedCount,
-                            ["dispatchRejected"] = nativeControls.DispatchRejectedCount,
-                            ["oneMountOneDismount"] = oneMountOneDismount,
-                            ["noDuplicateExploration"] = noDuplicateExploration,
-                            ["exactIdentities"] = exactIdentities,
-                            ["chargedNothing"] = chargedNothing,
-                            ["riderId"] = rider.UniqueId,
-                            ["horseId"] = horse.UniqueId,
-                            ["before"] = chunk6aExplorationDismountBefore,
-                            ["after"] = chunk6aExplorationDismountAfter
-                        });
-                }
-                if (!PrepareUnmountedHorseAiIsolation())
-                {
-                    return;
-                }
-                if (Chunk6aTurnBased)
-                {
-                    if (turnBasedModeProbe == null)
-                    {
-                        turnBasedModeProbe = new NativeModeTransitionProbe(true);
-                    }
-                    if (!turnBasedModeProbe.TemporaryValueIsCurrent)
-                    {
-                        turnBasedModeProbe.DispatchTemporaryValueIfRequired();
-                        return;
-                    }
-                }
-                BeginTarget(6f, "chunk6a-combat-mount");
-                ruleProbe.Arm(target, false);
-                chunk6aStage = 1;
-                ResetLeafClock();
+                TickChunk6aExplorationAndSetup();
                 return;
             }
 
@@ -790,7 +657,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     }
                     return;
                 }
-                chunk6aApproachStart = firstReady;
+                // The positive geometry baseline is captured only after exact selection in Stage 13.
                 chunk6aMountTurn = turn;
                 chunk6aMountRound = controller?.RoundNumber ?? -1;
                 string dispositionRefusal;
@@ -799,7 +666,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 // CM02 negative control: exact native target selection started and
                 // cancelled before commitment must change nothing at all.
+                if (!EnsureChunk6aRiderSelection("CM01-combat-mount-cancel-costs-nothing")) return;
                 chunk6aCancelBefore = CaptureChunk6aState("mount-cancel-before");
+                var cancelTraceStart = allocationTrace.EventCount;
+                var cancelGeometry = CaptureChunk6aGeometry("cancel-before");
+                var cancelShells = nativeControls.NativeRelationshipShellCount;
                 var handler = game.SelectedAbilityHandler;
                 var data = rider.Descriptor.Abilities.GetAbility(nativeControls.MountAbility)?.Data;
                 if (handler == null || data == null)
@@ -812,8 +683,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 handler.SetAbility(data);
                 handler.DropAbility();
                 var cancelAfter = CaptureChunk6aState("mount-cancel-after");
+                var cancelGeometryAfter = CaptureChunk6aGeometry("cancel-after");
                 AddRow("CM01-combat-mount-cancel-costs-nothing",
                     relationship.State == RelationshipState.Unmounted &&
+                        rider.Commands.Empty && horse.Commands.Empty &&
+                        nativeControls.NativeRelationshipShellCount == cancelShells &&
+                        allocationTrace.EventCount == cancelTraceStart &&
+                        JToken.DeepEquals(cancelGeometry["riderPosition"], cancelGeometryAfter["riderPosition"]) &&
+                        JToken.DeepEquals(cancelGeometry["horsePosition"], cancelGeometryAfter["horsePosition"]) &&
                         (long)chunk6aCancelBefore["relationshipGeneration"] == (long)cancelAfter["relationshipGeneration"] &&
                         (long)chunk6aCancelBefore["dispatchAccepted"] == (long)cancelAfter["dispatchAccepted"] &&
                         Chunk6aUnchangedExcept((JObject)chunk6aCancelBefore["rider"], (JObject)cancelAfter["rider"]) &&
@@ -821,7 +698,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = 11;
+                chunk6aStage = Chunk6aCompensationOnly ? 11 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -839,15 +716,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
+                if (!Chunk6aCompensationOnly) throw new InvalidOperationException("Compensation requires a separate native allocation.");
+                if (!EnsureChunk6aRiderSelection("CM02-adoption-plan-invalidated")) return;
                 chunk6aCompensationBefore = CaptureChunk6aState("mount-compensation-before");
                 chunk6aCompensationLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aCompensationDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                 chunk6aCompensationGenerationBefore = relationship.MountedPairGeneration;
                 chunk6aCompensationRollbacksBefore = combat.AdoptionRollbackCount;
                 chunk6aCompensationAdoptionsBefore = combat.MidEncounterAdoptionCount;
+                BeginChunk6aCommandWindow(nativeControls.MountAbility.AssetGuid);
                 chunk6aAdoptionFault = combat.ArmMidEncounterAdoptionFault(rider, horse);
                 chunk6aCompensationClicked = TryNativeAbilityTargetClick(
                     nativeControls.MountAbility, horse, "chunk6a-combat-mount-compensation-click");
+                chunk6aCommandWindow.ClickCompleted(chunk6aCompensationClicked);
                 if (!chunk6aCompensationClicked)
                 {
                     FailCurrent("CM02-adoption-plan-invalidated",
@@ -894,7 +775,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     return;
                 }
+                if (chunk6aCommandWindow?.Terminal != true) return;
                 Chunk6aDisposeAdoptionFault();
+                var compensationProof = FinishChunk6aCommandWindow("compensation", true, 0, false);
                 var compensated = CaptureChunk6aState("mount-compensation-after");
                 var riderBefore = (JObject)chunk6aCompensationBefore["rider"];
                 var riderAfter = (JObject)compensated["rider"];
@@ -920,13 +803,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 var expectedMove = Chunk6aTurnBased
                     ? (float?)((float)riderBefore["move"] + 3f)
                     : null;
-                var moveStillCommitted = Chunk6aTurnBased
-                    ? Math.Abs((float)riderAfter["move"] - expectedMove.Value) <= 0.0001f
-                    : (float)riderAfter["move"] > 2.5f && (float)riderAfter["move"] <= 3.0001f;
+                var moveStillCommitted = (bool)compensationProof["pass"];
 
                 // Nothing else moved: the mount keeps every resource and the
                 // generation advanced exactly once and was never rewound.
-                var mountUntouched = Chunk6aUnchangedExcept(mountBefore, mountAfter);
+                var mountUntouched = (bool)compensationProof["resourceWindow"]["pass"];
                 var riderOtherResourcesHeld = Chunk6aUnchangedExcept(riderBefore, riderAfter, "move");
                 var generationAdvancedOnce =
                     relationship.MountedPairGeneration == chunk6aCompensationGenerationBefore + 1;
@@ -946,6 +827,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider's already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound.",
                     new JObject
                     {
+                        ["commandProof"] = compensationProof,
                         ["before"] = chunk6aCompensationBefore,
                         ["after"] = compensated,
                         ["noResidue"] = noResidue,
@@ -966,8 +848,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["allocationTrace"] = allocationTrace.Capture()
                     });
 
-                // A compensated attachment must not lock the pair out of a later
-                // lawful transition, which the rest of this scenario then performs.
+                // A compensated attachment releases its in-flight ownership. A later
+                // positive Mount belongs to a separate fresh scenario transaction.
                 AddRow("CM02-adoption-compensation-releases",
                     relationship.State == RelationshipState.Unmounted &&
                         !playerAction.HasVoluntaryTransitionInFlight &&
@@ -979,8 +861,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["inFlight"] = playerAction.HasVoluntaryTransitionInFlight,
                         ["activation"] = combat.PairedActivationIdentity
                     });
-                chunk6aStage = 13;
-                ResetLeafClock();
+                // Compensation ends its transaction. No positive Mount can inherit its
+                // movement, debt, generation, selection or native allocation.
+                chunk6aStage = 99;
+                BeginCleanup();
                 return;
             }
 
@@ -1048,7 +932,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 chunk6aMoveRestorationWait["resolvedReadiness"] = moveReadiness.ToString();
                 chunk6aMoveRestorationWait["resolvedCooldowns"] = readinessCooldowns;
+                if (Chunk6aCompensationOnly) throw new InvalidOperationException("Positive Mount cannot follow compensation.");
+                if (!EnsureChunk6aRiderSelection("CM02-approach-arrival")) return;
                 chunk6aPreMount = CaptureChunk6aState("mount-before");
+                chunk6aApproachStart = CaptureChunk6aGeometry("positive-pre-click");
+                if ((bool)chunk6aApproachStart["isAdjacent"])
+                {
+                    FailCurrent("CM02-approach-arrival", "Positive pre-click geometry is already inside the transition envelope.");
+                    BeginCleanup();
+                    return;
+                }
                 chunk6aMountLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                 chunk6aRejectionsBefore = (int)nativeControls.DispatchRejectedCount;
@@ -1060,15 +953,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderRosterIndex"] = chunk6aPreMount["riderRosterIndex"],
                     ["mountRosterIndex"] = chunk6aPreMount["mountRosterIndex"]
                 };
-                // Select the exact rider immediately before clicking, which is the player
-                // action this scenario simulates and what the availability contract requires.
-                // Earlier stages -- notably the compensated adoption refusal and its cleanup
-                // -- run many frames before this point and a run was observed reaching here
-                // with the selection no longer on the rider, which refuses target admission
-                // for a reason that has nothing to do with the transition under test.
-                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                BeginChunk6aCommandWindow(nativeControls.MountAbility.AssetGuid);
                 chunk6aMountClicked = TryNativeAbilityTargetClick(
                     nativeControls.MountAbility, horse, "chunk6a-combat-mount-click");
+                chunk6aCommandWindow.ClickCompleted(chunk6aMountClicked);
                 if (!chunk6aMountClicked)
                 {
                     // Name the exact obstacle. A refusal here reports whichever condition the
@@ -1126,10 +1014,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
-                if (relationship.State != RelationshipState.Mounted || !Chunk6aIdle)
+                if (relationship.State != RelationshipState.Mounted || !Chunk6aIdle ||
+                    chunk6aCommandWindow?.Terminal != true)
                 {
                     return;
                 }
+                var expectedMountPrepare = chunk6aDisposition == MidEncounterAdoption.PreparePartnerThisRound ? 1 : 0;
+                var mountProof = FinishChunk6aCommandWindow("positive-mount", true, expectedMountPrepare, true);
                 var after = CaptureChunk6aState("mount-after");
                 var riderBefore = (JObject)chunk6aPreMount["rider"];
                 var riderAfter = (JObject)after["rider"];
@@ -1138,9 +1029,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var expectedMove = Chunk6aTurnBased
                     ? (float?)((float)riderBefore["move"] + 3f)
                     : null;
-                var moveCommitted = Chunk6aTurnBased
-                    ? Math.Abs((float)riderAfter["move"] - expectedMove.Value) <= 0.0001f
-                    : (float)riderAfter["move"] > 2.5f && (float)riderAfter["move"] <= 3.0001f;
+                var moveCommitted = (bool)mountProof["resourceWindow"]["pass"];
                 var exactPair = relationship.Rider == rider && relationship.Mount == horse;
                 var oneDelivery = nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore + 1;
                 var oneTransition = relationship.MountedPairGeneration == chunk6aGenerationBefore + 1 &&
@@ -1149,11 +1038,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "forcedDetach", 0) &&
                     Chunk6aLedgerDelta(chunk6aMountLedgerBefore, "refusedVoluntary", 0);
                 AddRow("CM01-combat-mount-accepted",
-                    exactPair && oneDelivery && oneTransition && moveCommitted &&
+                    exactPair && oneDelivery && oneTransition && moveCommitted && (bool)mountProof["pass"] &&
                         relationship.Runtime.PoseConfigured && relationship.Runtime.PoseHealthy,
                     "One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.",
                     new JObject
                     {
+                        ["commandProof"] = mountProof,
                         ["before"] = chunk6aPreMount,
                         ["after"] = after,
                         ["expectedRiderMove"] = expectedMove,
@@ -1166,7 +1056,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 // The transition itself must not touch any other resource, and it
                 // must not repeat a native preparation for either actor.
                 var riderOtherResourcesHeld = Chunk6aUnchangedExcept(riderBefore, riderAfter, "move");
-                var mountResourcesHeld = Chunk6aUnchangedExcept(mountBefore, mountAfter);
+                var mountResourcesHeld = chunk6aDisposition == MidEncounterAdoption.PreparePartnerThisRound ||
+                    Chunk6aUnchangedExcept(mountBefore, mountAfter);
                 var riderPrepareUnchanged =
                     (int)riderBefore["nativePrepareCount"] == (int)riderAfter["nativePrepareCount"];
                 var expectedMountPrepareDelta =
@@ -1174,10 +1065,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 var mountPrepareDelta =
                     (int)mountAfter["nativePrepareCount"] - (int)mountBefore["nativePrepareCount"];
                 AddRow("CM03-combat-mount-conserves-debt",
-                    riderOtherResourcesHeld && mountResourcesHeld,
-                    "The combat Mount transition charged only the rider's native Move and left every other rider and mount resource, reaction allowance and initiative value exactly as it was.",
+                    riderOtherResourcesHeld && mountResourcesHeld && (bool)mountProof["resourceWindow"]["pass"],
+                    "The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.",
                     new JObject
                     {
+                        ["resourceWindow"] = mountProof["resourceWindow"].DeepClone(),
                         ["riderOtherResourcesHeld"] = riderOtherResourcesHeld,
                         ["mountResourcesHeld"] = mountResourcesHeld,
                         ["riderBefore"] = riderBefore, ["riderAfter"] = riderAfter,
@@ -1207,7 +1099,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 // endpoint." Every clause is checked against measured geometry rather than
                 // asserted, and the measurements come from the same boundaries the evidence
                 // publishes.
-                var arrival = CaptureChunk6aGeometry("transition-result");
+                if (!(bool)mountProof["pass"])
+                {
+                    AddRow("CM02-approach-arrival", false, "The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary.", mountProof);
+                    BeginCleanup(); return;
+                }
+                var terminalGeometry = CaptureChunk6aGeometry("transition-result");
+                // Arrival is measured at Deliver BEFORE attachment can move the rider view.
+                var arrival = mountProof["samples"].OfType<JObject>().Single(sample =>
+                    (string)sample["boundary"] == "deliver")["state"]["geometry"] as JObject;
                 var startDistance = (float)chunk6aApproachStart["centerDistance"];
                 var startEnvelope = (float)chunk6aApproachStart["legalAdjacencyEnvelope"];
                 var arrivalDistance = (float)arrival["centerDistance"];
@@ -1227,6 +1127,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 var riderClosedTheDistance = riderDisplacement >= startDistance - arrivalEnvelope - 0.5f &&
                     riderDisplacement > horseDisplacement &&
                     horseDisplacement <= Chunk6aStationaryToleranceMeters;
+                var approachBoundary = mountProof["samples"].OfType<JObject>().FirstOrDefault(sample =>
+                    (string)sample["boundary"] == "approach-start");
+                chunk6aApproachClosed = approachBoundary?["state"]?["geometry"] as JObject;
                 var approachCommand = (JObject)chunk6aApproachClosed?["command"];
                 var oneRiderOwnedApproach = approachCommand != null &&
                     (bool)approachCommand["isUseAbility"] &&
@@ -1234,20 +1137,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     (string)approachCommand["targetId"] == horse.UniqueId &&
                     (string)approachCommand["type"] == UnitCommand.CommandType.Move.ToString() &&
                     (string)approachCommand["abilityGuid"] == nativeControls.MountAbility.AssetGuid;
-                // The acted transition is what commits the Move, and the command leaves the
-                // Move slot around that moment, so the final in-slot sample can legitimately
-                // still read acted=false. It is therefore taken from whichever sample of THIS
-                // command observed it, falling back to the committed Move itself, rather than
-                // from the last sample alone.
-                var actedObserved = chunk6aGeometry.OfType<JObject>().Any(sample =>
-                {
-                    var sampled = sample["command"] as JObject;
-                    return sampled != null &&
-                        (string)sampled["abilityGuid"] == nativeControls.MountAbility.AssetGuid &&
-                        (string)sampled["executorId"] == rider.UniqueId &&
-                        sampled["acted"] != null && (bool)sampled["acted"];
-                });
-                var actedOnce = actedObserved || moveCommitted;
+                var actedObserved = (bool)mountProof["exactActedObserved"];
+                var sameCommand = (bool)mountProof["sameCommandAtEveryBoundary"];
                 // One request for this transition: the window admitted exactly one mount,
                 // suppressed no duplicate of its own, and repeated no preparation.
                 var noDuplicateRequest =
@@ -1256,7 +1147,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     riderPrepareUnchanged;
                 AddRow("CM02-approach-arrival",
                     startedOutside && arrivedInside && riderClosedTheDistance &&
-                        oneRiderOwnedApproach && actedOnce && oneDelivery && oneTransition &&
+                        oneRiderOwnedApproach && actedObserved && sameCommand && oneDelivery && oneTransition &&
                         moveCommitted && noDuplicateRequest,
                     "Combat Mount was admitted at a measured distance outside the transition envelope, Kingmaker's own rider-owned native Move command closed the distance and arrived inside that envelope, and exactly one acted Move commitment, one shell delivery and one relationship transition followed with no Horse movement, no duplicate request and no repeated preparation.",
                     new JObject
@@ -1264,6 +1155,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["approachStart"] = chunk6aApproachStart,
                         ["approachClosed"] = chunk6aApproachClosed,
                         ["arrival"] = arrival,
+                        ["terminalGeometry"] = terminalGeometry,
                         ["startDistance"] = startDistance,
                         ["startEnvelope"] = startEnvelope,
                         ["arrivalDistance"] = arrivalDistance,
@@ -1274,7 +1166,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["horseDisplacement"] = horseDisplacement,
                         ["riderClosedTheDistance"] = riderClosedTheDistance,
                         ["oneRiderOwnedApproach"] = oneRiderOwnedApproach,
-                        ["actedOnce"] = actedOnce,
+                        ["commandProof"] = mountProof,
                         ["actedObserved"] = actedObserved,
                         ["noDuplicateRequest"] = noDuplicateRequest,
                         ["transitionLedger"] = playerAction.TransitionLedger.Describe()
@@ -1372,11 +1264,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     };
                     return;
                 }
+                if (!EnsureChunk6aRiderSelection("CM05-combat-dismount-accepted")) return;
                 chunk6aPreDismount = CaptureChunk6aState("dismount-before");
+                BeginChunk6aCommandWindow(nativeControls.DismountAbility.AssetGuid);
                 chunk6aDismountLedgerBefore = Chunk6aLedgerCounters();
                 chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
                 chunk6aDismountClicked = TryNativeAbilityTargetClick(
                     nativeControls.DismountAbility, rider, "chunk6a-combat-dismount-click");
+                chunk6aCommandWindow.ClickCompleted(chunk6aDismountClicked);
                 if (!chunk6aDismountClicked)
                 {
                     FailCurrent("CM05-combat-dismount-accepted",
@@ -1392,22 +1287,22 @@ namespace KingmakerMountedCombat.Diagnostics
             // Stage 5: the Dismount's own terminal state, then its accounting.
             if (chunk6aStage == 5)
             {
-                if (relationship.State != RelationshipState.Unmounted || !Chunk6aIdle)
+                if (relationship.State != RelationshipState.Unmounted || !Chunk6aIdle ||
+                    chunk6aCommandWindow?.Terminal != true)
                 {
                     return;
                 }
+                var dismountProof = FinishChunk6aCommandWindow("combat-dismount", true, 0, false);
                 var after = CaptureChunk6aState("dismount-after");
                 var riderBefore = (JObject)chunk6aPreDismount["rider"];
                 var riderAfter = (JObject)after["rider"];
                 var mountBefore = (JObject)chunk6aPreDismount["mount"];
                 var mountAfter = (JObject)after["mount"];
                 var expectedMove = Chunk6aTurnBased ? (float?)((float)riderBefore["move"] + 3f) : null;
-                var moveCommitted = Chunk6aTurnBased
-                    ? Math.Abs((float)riderAfter["move"] - expectedMove.Value) <= 0.0001f
-                    : (float)riderAfter["move"] > 2.5f && (float)riderAfter["move"] <= 3.0001f;
+                var moveCommitted = (bool)dismountProof["resourceWindow"]["pass"];
                 var oneDelivery = nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore + 1;
                 AddRow("CM05-combat-dismount-accepted",
-                    oneDelivery && moveCommitted &&
+                    oneDelivery && moveCommitted && (bool)dismountProof["pass"] &&
                         Chunk6aLedgerDelta(chunk6aDismountLedgerBefore, "acceptedDismount", 1) &&
                         Chunk6aLedgerDelta(chunk6aDismountLedgerBefore, "forcedDetach", 0) &&
                         rider.IsInState && horse.IsInState &&
@@ -1415,20 +1310,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     "One exact native voluntary combat Dismount delivery committed the rider's native Move exactly once and left two valid separate actors.",
                     new JObject
                     {
+                        ["commandProof"] = dismountProof,
                         ["before"] = chunk6aPreDismount, ["after"] = after,
                         ["expectedRiderMove"] = expectedMove,
                         ["oneDelivery"] = oneDelivery, ["moveCommitted"] = moveCommitted,
                         ["voluntaryOnly"] = playerAction.TransitionLedger.Describe()
                     });
-                // Existing debt may only ever rise; nothing is refunded or refreshed.
-                var riderHeld = (float)riderAfter["standard"] >= (float)riderBefore["standard"] &&
-                    (float)riderAfter["move"] >= (float)riderBefore["move"] &&
-                    (float)riderAfter["swift"] >= (float)riderBefore["swift"] &&
-                    JToken.DeepEquals(riderBefore["initiative"], riderAfter["initiative"]);
-                var mountHeld = (float)mountAfter["standard"] >= (float)mountBefore["standard"] &&
-                    (float)mountAfter["move"] >= (float)mountBefore["move"] &&
-                    (float)mountAfter["swift"] >= (float)mountBefore["swift"] &&
-                    JToken.DeepEquals(mountBefore["initiative"], mountAfter["initiative"]);
+                var riderHeld = (bool)dismountProof["resourceWindow"]["pass"];
+                var mountHeld = riderHeld;
                 AddRow("CM05-combat-dismount-conserves-debt",
                     riderHeld && mountHeld &&
                         (int)riderBefore["nativePrepareCount"] == (int)riderAfter["nativePrepareCount"] &&
@@ -1436,6 +1325,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Voluntary combat Dismount refunded and refreshed nothing and repeated no native preparation for either actor.",
                     new JObject
                     {
+                        ["resourceWindow"] = dismountProof["resourceWindow"].DeepClone(),
                         ["riderHeld"] = riderHeld, ["mountHeld"] = mountHeld,
                         ["riderBefore"] = riderBefore, ["riderAfter"] = riderAfter,
                         ["mountBefore"] = mountBefore, ["mountAfter"] = mountAfter

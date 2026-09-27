@@ -187,6 +187,25 @@ namespace KingmakerMountedCombat.Integration
             relationshipShellContexts = new System.Runtime.CompilerServices.ConditionalWeakTable<AbilityExecutionContext, NativeRelationshipShell>();
         private long relationshipShellSequence;
 
+        // Read-only diagnostic projection; no lookup creates a shell or changes ownership.
+        internal RelationshipCommandIdentity CaptureRelationshipCommandIdentity(UnitUseAbility command)
+        {
+            NativeRelationshipShell shell;
+            if (command == null || !relationshipShells.TryGetValue(command, out shell)) return null;
+            return new RelationshipCommandIdentity(command, shell.ControlIdentity,
+                command.ExecutionProcess, command.ExecutionProcess?.Context, shell.CasterId,
+                shell.TargetId, shell.GenerationAtInit, command.Type.ToString(), command.Spell?.Blueprint?.AssetGuid);
+        }
+
+        internal bool HasExactRelationshipProcessBinding(UnitUseAbility command)
+        {
+            NativeRelationshipShell shell, bound;
+            var context = command?.ExecutionProcess?.Context;
+            return context != null && relationshipShells.TryGetValue(command, out shell) &&
+                relationshipShellContexts.TryGetValue(context, out bound) && ReferenceEquals(shell, bound) &&
+                shell.ProcessBound && !poisonedContexts.TryGetValue(context, out _);
+        }
+
         internal long NativeRelationshipShellCount { get; private set; }
 
         internal long NativeRelationshipProcessBindingCount { get; private set; }

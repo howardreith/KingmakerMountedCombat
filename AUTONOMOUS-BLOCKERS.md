@@ -1,3 +1,11 @@
+# Chunk 6A causal qualification repair ? IN PROGRESS
+
+As of 2026-09-27T03:42:13.876Z, intake HEAD 14966a7c65921797395ecbc4a5b7f9c0c631f991; preview.110 source pending commit. Current implementation and exact next command: [AUTONOMOUS-RESUME.md](AUTONOMOUS-RESUME.md). Qualification is 0/87: 3 historical failures remain FAIL and 84 behaviors remain unqualified. The four prior PASS claims are rejected; their evidence remains immutable. The complete offline umbrella passed with exit 0. Native execution awaits guarded publication, a new clean-HEAD package and fresh unchanged purity proof. Human preview.105 remains the restoration target.
+
+---
+
+## Historical records below (superseded for current status)
+
 # BLOCKED: Chunk 6A remediation complete offline, native qualification still unproven - 2026-09-26 UTC
 
 **Status: IMPLEMENTATION CANDIDATE - NATIVE QUALIFICATION BLOCKED. 0 of 87 mandatory behaviors PASS (0 PASS / 1 FAIL / 86 BLOCKED; completion fails 87/87).** Charter section 4 is complete and published; nothing native has been run since, so nothing that was BLOCKED has become PASS and `CM01-exploration-free` remains FAIL.

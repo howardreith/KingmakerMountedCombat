@@ -302,7 +302,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new InvalidOperationException("Loaded game, selection, and exact Horse pair bodies are required.");
             }
-            if (!pairAlreadyMounted)
+            if (!pairAlreadyMounted && !IsChunk6aCombatMount)
             {
                 throw new InvalidOperationException(
                     "Phase 3D Horse qualification requires the exact Horse pair already mounted through the parent native out-of-combat flow.");
@@ -5429,7 +5429,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
                     if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
-                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls && !IsChunk4Charge && !IsChunk4Play && !IsChunk4Core) ||
+                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls && !IsChunk4Charge && !IsChunk4Play && !IsChunk4Core && !IsChunk6aCombatMount) ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
@@ -5506,7 +5506,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsExactDiagnosticAiIsolationRelationship()
         {
             return relationship.State == RelationshipState.Unmounted ||
-                (IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsActorAllocation || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
+                (IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsActorAllocation || IsChunk6aCombatMount || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
         }
@@ -6016,6 +6016,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             // The Chunk 6A diagnostic adoption fault is scenario-owned and must be
             // disarmed on every abort path so it can never outlive its own row.
+            try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
+            catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
             try { Chunk6aDisposeAdoptionFault(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A adoption fault", exception); }
             try { pairedModeProbe?.Dispose(); pairedModeProbe = null; }
@@ -6270,7 +6272,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk6aCombatMount ? 28 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk6aCombatMount ? 29 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,

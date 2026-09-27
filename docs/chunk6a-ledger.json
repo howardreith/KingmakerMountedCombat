@@ -1,6 +1,6 @@
 {
     "schemaVersion":  1,
-    "generatedAtUtc":  "2026-09-26T18:47:42.5585830+00:00",
+    "generatedAtUtc":  "2026-09-27T03:30:25.266Z",
     "payload":  {
                     "version":  "0.1.0-chunk6a-preview.109",
                     "commit":  "7bf1a54f3cff28f1ecda0d97463abc439a288096",
@@ -28,7 +28,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM01-horse-rt: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM01-horse-tb",
@@ -44,7 +44,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM01-horse-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM01-mammoth-rt",
@@ -60,7 +60,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM01-mammoth-rt: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM01-mammoth-tb",
@@ -76,24 +76,36 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM01-mammoth-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM01-exploration-free",
                         "family":  "CM01",
                         "claim":  "The same native control outside combat performs the transition and charges nothing.",
                         "scenario":  "chunk6a-mount-approach",
-                        "runId":  "c6a-approach-6",
-                        "status":  "PASS",
-                        "passCount":  69,
-                        "failCount":  0,
+                        "runId":  "c6a-approach-1",
+                        "status":  "FAIL",
+                        "passCount":  0,
+                        "failCount":  1,
                         "rows":  [
                                      "CM01-exploration-free",
                                      "CM01-exploration-dismount-costs-nothing"
                                  ],
-                        "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
-                        "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
-                        "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach recorded exact PASS rows CM01-exploration-free and CM01-exploration-dismount-costs-nothing: outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, with two accepted dispatches, no dispatch rejection, no duplicate transition or shell delivery, and every action resource, reaction allowance and initiative value reading zero throughout. The earlier c6a-mount-rt-1 failure of this behavior is retained verbatim in retainedFailures and is not erased by this PASS."
+                        "evidenceLeaf":  "runtime-game-result.json",
+                        "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
+                        "reason":  "CM01-exploration-free failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
+                        "failingRow":  "CM01-exploration-free",
+                        "failingAssertion":  "Outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, through two accepted dispatches with no rejection, no duplicate or concurrent suppression and no forced detach, and charged no Standard, Move, Swift, initiative or reaction resource on either actor.",
+                        "observedPayload":  {
+                                                "version":  "0.1.0-chunk6a-preview.109",
+                                                "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+                                                "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+                                                "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
+                                                "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+                                                "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+                                                "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+                                            },
+                        "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
                     },
                     {
                         "id":  "CM01-combat-mount-preparing-refused",
@@ -109,23 +121,35 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM01-combat-mount-preparing-refused: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-approach-arrival",
                         "family":  "CM02",
                         "claim":  "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
                         "scenario":  "chunk6a-mount-approach",
-                        "runId":  "c6a-approach-6",
-                        "status":  "PASS",
-                        "passCount":  69,
-                        "failCount":  0,
+                        "runId":  "c6a-approach-1",
+                        "status":  "FAIL",
+                        "passCount":  0,
+                        "failCount":  1,
                         "rows":  [
                                      "CM02-approach-arrival"
                                  ],
-                        "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
-                        "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
-                        "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach admitted combat Mount at a measured 4.666 m against a 2.900 m transition envelope, Kingmaker own rider-owned native Move command closed the distance and arrived at 0.467 m inside that envelope, the rider covered 4.278 m while the Horse covered 0.000 m, and exactly one native Move commitment, one shell delivery and one relationship transition followed with no duplicate request and no repeated preparation. No teleport, transform write or manufactured endpoint was used. The acted flag itself was never caught by a geometry sample because the command leaves the Move slot at that transition; the commitment is carried by the observed Move charge and the allocation trace, and both halves are published on the row."
+                        "evidenceLeaf":  "runtime-game-result.json",
+                        "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
+                        "reason":  "CM02-approach-arrival failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
+                        "failingRow":  "CM02-approach-arrival",
+                        "failingAssertion":  "Combat Mount was admitted at a measured distance outside the transition envelope, Kingmaker\u0027s own rider-owned native Move command closed the distance and arrived inside that envelope, and exactly one acted Move commitment, one shell delivery and one relationship transition followed with no Horse movement, no duplicate request and no repeated preparation.",
+                        "observedPayload":  {
+                                                "version":  "0.1.0-chunk6a-preview.109",
+                                                "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+                                                "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+                                                "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
+                                                "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+                                                "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+                                                "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+                                            },
+                        "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
                     },
                     {
                         "id":  "CM02-geometry-change",
@@ -141,7 +165,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-geometry-change: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-obstruction",
@@ -157,7 +181,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-obstruction: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-wrong-creature-target",
@@ -173,7 +197,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-wrong-creature-target: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-foreign-companion",
@@ -189,7 +213,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-foreign-companion: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-ownership-change",
@@ -205,7 +229,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-ownership-change: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-size-form-change",
@@ -221,7 +245,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-size-form-change: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-lost-direct-control",
@@ -237,7 +261,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-lost-direct-control: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-left-area",
@@ -253,7 +277,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-left-area: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-view-agent-lost",
@@ -269,7 +293,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-view-agent-lost: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-loading-cutscene",
@@ -285,7 +309,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-loading-cutscene: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-rider-incapacitated",
@@ -301,7 +325,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-rider-incapacitated: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-mount-incapacitated",
@@ -317,7 +341,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-mount-incapacitated: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-generation-change",
@@ -333,7 +357,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-generation-change: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-target-selection-cancelled",
@@ -349,23 +373,35 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM02-target-selection-cancelled: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM02-adoption-plan-invalidated",
                         "family":  "CM02",
                         "claim":  "An encounter adoption refused after the relationship attached is compensated exactly: unmounted with no activation, partner-context or prepared-pair residue, no repeated preparation for either actor, no refund of the already-committed native Move, and a generation that advanced once and was never rewound.",
                         "scenario":  "chunk6a-mount-approach",
-                        "runId":  "c6a-approach-6",
-                        "status":  "PASS",
-                        "passCount":  69,
-                        "failCount":  0,
+                        "runId":  "c6a-approach-1",
+                        "status":  "FAIL",
+                        "passCount":  0,
+                        "failCount":  1,
                         "rows":  [
                                      "CM02-adoption-plan-invalidated"
                                  ],
-                        "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
-                        "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
-                        "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach invalidated the adoption plan between availability and delivery and compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound."
+                        "evidenceLeaf":  "runtime-game-result.json",
+                        "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
+                        "reason":  "CM02-adoption-plan-invalidated failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
+                        "failingRow":  "CM02-adoption-plan-invalidated",
+                        "failingAssertion":  "An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider\u0027s already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound.",
+                        "observedPayload":  {
+                                                "version":  "0.1.0-chunk6a-preview.109",
+                                                "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+                                                "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+                                                "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
+                                                "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+                                                "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+                                                "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+                                            },
+                        "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
                     },
                     {
                         "id":  "CM02-adoption-compensation-releases",
@@ -373,7 +409,7 @@
                         "claim":  "A compensated combat Mount leaves the pair free to attempt a later lawful transition.",
                         "scenario":  "chunk6a-mount-approach",
                         "runId":  "c6a-approach-6",
-                        "status":  "PASS",
+                        "status":  "BLOCKED",
                         "passCount":  69,
                         "failCount":  0,
                         "rows":  [
@@ -381,7 +417,7 @@
                                  ],
                         "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
                         "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
-                        "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach left the pair free to attempt a later lawful transition after a compensated combat Mount, and that later transition was then admitted and accepted in the same run."
+                        "reason":  "CM02-adoption-compensation-releases: prior qualification claim rejected; single-command fresh-allocation evidence is required. Historical claim preserved in rejectedQualificationClaims."
                     },
                     {
                         "id":  "CM03-rider-before-mount-slot",
@@ -397,7 +433,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-rider-before-mount-slot: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-mount-slot-before-rider",
@@ -413,7 +449,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-mount-slot-before-rider: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-mount-spent-move",
@@ -429,7 +465,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-mount-spent-move: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-mount-spent-standard",
@@ -445,7 +481,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-mount-spent-standard: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-mount-spent-all",
@@ -461,7 +497,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-mount-spent-all: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-rider-without-move",
@@ -477,7 +513,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-rider-without-move: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-rider-other-action",
@@ -493,7 +529,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-rider-other-action: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-early-end-turn",
@@ -509,7 +545,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-early-end-turn: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-next-round-activation",
@@ -525,7 +561,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-next-round-activation: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM03-unrelated-candidate-between",
@@ -541,7 +577,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM03-unrelated-candidate-between: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-stop-during-approach",
@@ -557,7 +593,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-stop-during-approach: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-command-replacement",
@@ -573,7 +609,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-command-replacement: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-turn-end",
@@ -589,7 +625,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-turn-end: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-combat-end",
@@ -605,7 +641,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-combat-end: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-mode-exit",
@@ -621,7 +657,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-mode-exit: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-area-session-transition",
@@ -637,7 +673,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-area-session-transition: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-disable-unload",
@@ -653,7 +689,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-disable-unload: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-rider-death",
@@ -669,7 +705,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-rider-death: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-mount-death",
@@ -685,7 +721,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-mount-death: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM04-injected-exception",
@@ -701,7 +737,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM04-injected-exception: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-rt",
@@ -717,7 +753,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-rt: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-tb",
@@ -733,7 +769,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-after-rider-expenditure",
@@ -749,7 +785,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-after-rider-expenditure: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-after-mount-expenditure",
@@ -765,7 +801,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-after-mount-expenditure: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-immediately-after-mount",
@@ -781,7 +817,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-immediately-after-mount: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-repeated-input",
@@ -797,7 +833,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-repeated-input: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-forced-detach",
@@ -813,7 +849,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-forced-detach: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM05-dismount-survives-feature-policy-disable",
@@ -829,7 +865,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM05-dismount-survives-feature-policy-disable: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-hotbar-path",
@@ -845,7 +881,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-hotbar-path: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-pointer-target",
@@ -861,7 +897,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-pointer-target: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-paused-queue",
@@ -877,7 +913,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-paused-queue: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-repeated-request",
@@ -893,7 +929,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-repeated-request: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-mount-selected",
@@ -909,7 +945,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-mount-selected: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-multiple-selection",
@@ -925,7 +961,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-multiple-selection: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-unrelated-actor",
@@ -941,7 +977,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-unrelated-actor: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-ai-auto-use",
@@ -957,7 +993,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-ai-auto-use: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-unmounted-ordinary",
@@ -973,7 +1009,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-unmounted-ordinary: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM06-combat-mount-requires-qualified-paired-policy",
@@ -989,7 +1025,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM06-combat-mount-requires-qualified-paired-policy: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-mount-save-rt",
@@ -1005,7 +1041,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-mount-save-rt: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-mount-load-rt",
@@ -1021,7 +1057,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-mount-load-rt: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-mount-save-tb",
@@ -1037,7 +1073,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-mount-save-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-mount-load-tb",
@@ -1053,7 +1089,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-mount-load-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-dismount-save",
@@ -1069,7 +1105,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-dismount-save: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-dismount-load",
@@ -1085,7 +1121,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-dismount-load: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-cold-load",
@@ -1101,7 +1137,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-cold-load: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-save-slot-routes",
@@ -1117,7 +1153,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-save-slot-routes: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-unsettled-save-deferred",
@@ -1133,7 +1169,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-unsettled-save-deferred: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-area-reload",
@@ -1149,7 +1185,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-area-reload: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM07-schema-unchanged",
@@ -1165,7 +1201,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM07-schema-unchanged: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-mounted-charge-rejected-rt",
@@ -1181,7 +1217,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-mounted-charge-rejected-rt: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-mounted-charge-rejected-tb",
@@ -1197,7 +1233,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-mounted-charge-rejected-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-unmounted-charge",
@@ -1213,7 +1249,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-unmounted-charge: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-ordinary-attack-controls-tb",
@@ -1229,7 +1265,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-ordinary-attack-controls-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-chunk4-sustained-tb",
@@ -1245,7 +1281,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-chunk4-sustained-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-mounted-mammoth-primary-hit-tb",
@@ -1261,7 +1297,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-mounted-mammoth-primary-hit-tb: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-sustained-rt",
@@ -1277,7 +1313,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-sustained-rt: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-incoming-targeting",
@@ -1293,7 +1329,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-incoming-targeting: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-rider-death-cleanup",
@@ -1309,7 +1345,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-rider-death-cleanup: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-mount-death-cleanup",
@@ -1325,7 +1361,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-mount-death-cleanup: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-horse-smoke",
@@ -1341,7 +1377,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-horse-smoke: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-mammoth-smoke",
@@ -1357,7 +1393,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-mammoth-smoke: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-persistence-suite",
@@ -1373,7 +1409,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-persistence-suite: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-area-restoration",
@@ -1389,7 +1425,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-area-restoration: exact native qualification on the repaired frozen candidate remains unobserved."
                     },
                     {
                         "id":  "CM08-disable-removal-readiness",
@@ -1405,7 +1441,7 @@
                                  ],
                         "evidenceLeaf":  "",
                         "evidenceSha256":  "",
-                        "reason":  "BLOCKED: no native evidence exists for this behavior on the frozen payload. The narrow real-time non-adjacent approach scenario now passes end to end, but the full chunk6a-combat-mount-rt run failed at the combat Dismount because the encounter ended before the rider native Move cooldown drained, so every case after it is unobserved, and chunk6a-combat-mount-tb has not been attempted."
+                        "reason":  "CM08-disable-removal-readiness: exact native qualification on the repaired frozen candidate remains unobserved."
                     }
                 ],
     "retainedFailures":  [
@@ -1431,6 +1467,209 @@
                                                      },
                                  "reason":  "CM01-exploration-free FAIL. The exact mandatory behavior of this id - the same native control outside combat performing the transition and charging nothing - was exercised by run c6a-mount-rt-1 (chunk6a-combat-mount-rt) and failed: the native out-of-combat Mount control did not establish a mounted relationship within its bounded 25-second deadline. The failing row chunk6a-combat-mount-rt records 29 assertion passes and this one failure; the run produced 43 assertion passes overall with horse-companion-blueprint-registration PASS, and restored all external state. A deterministic blocker is established from installed IL - UnitUseAbility.OnAction (0x06002737) sets ExecutionProcess from RuleCastSpell and returns a terminal result unless AbilityExecutionProcess.IsEngageUnit (0x06008FD4), so the command completes and UnitCommands nulls m_Commands[Move] while the process delivers on later frames, which is why ResolveDeliveringShell could not rediscover the shell through the caster\u0027s current Move slot at Deliver - and it is repaired in the implementation candidate by binding the shell to the exact AbilityExecutionContext at the OnAction boundary and consuming that exact binding in Deliver. The repair passes offline gates and awaits exact native proof; it is NOT natively proven.",
                                  "retention":  "IMMUTABLE. This failure was really observed on the payload named above and is retained forever. When a later candidate passes this same behavior, the live entry flips to PASS on that new frozen payload and this record stays exactly as it is: a PASS on a newer payload never unmakes a FAIL on an older one, and this record is what keeps the history from being overwritten by the repair."
+                             },
+                             {
+                                 "id":  "CM01-exploration-free",
+                                 "family":  "CM01",
+                                 "claim":  "The same native control outside combat performs the transition and charges nothing.",
+                                 "scenario":  "chunk6a-mount-approach",
+                                 "runId":  "c6a-approach-1",
+                                 "status":  "FAIL",
+                                 "passCount":  0,
+                                 "failCount":  1,
+                                 "evidenceLeaf":  "runtime-game-result.json",
+                                 "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
+                                 "failingRow":  "CM01-exploration-free",
+                                 "failingAssertion":  "Outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, through two accepted dispatches with no rejection, no duplicate or concurrent suppression and no forced detach, and charged no Standard, Move, Swift, initiative or reaction resource on either actor.",
+                                 "observedPayload":  {
+                                                         "version":  "0.1.0-chunk6a-preview.109",
+                                                         "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+                                                         "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+                                                         "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
+                                                         "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+                                                         "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+                                                         "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+                                                     },
+                                 "reason":  "CM01-exploration-free failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
+                                 "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
+                             },
+                             {
+                                 "id":  "CM02-adoption-plan-invalidated",
+                                 "family":  "CM02",
+                                 "claim":  "An encounter adoption refused after the relationship attached is compensated exactly: unmounted with no activation, partner-context or prepared-pair residue, no repeated preparation for either actor, no refund of the already-committed native Move, and a generation that advanced once and was never rewound.",
+                                 "scenario":  "chunk6a-mount-approach",
+                                 "runId":  "c6a-approach-1",
+                                 "status":  "FAIL",
+                                 "passCount":  0,
+                                 "failCount":  1,
+                                 "evidenceLeaf":  "runtime-game-result.json",
+                                 "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
+                                 "failingRow":  "CM02-adoption-plan-invalidated",
+                                 "failingAssertion":  "An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider\u0027s already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound.",
+                                 "observedPayload":  {
+                                                         "version":  "0.1.0-chunk6a-preview.109",
+                                                         "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+                                                         "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+                                                         "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
+                                                         "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+                                                         "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+                                                         "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+                                                     },
+                                 "reason":  "CM02-adoption-plan-invalidated failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
+                                 "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
+                             },
+                             {
+                                 "id":  "CM02-approach-arrival",
+                                 "family":  "CM02",
+                                 "claim":  "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
+                                 "scenario":  "chunk6a-mount-approach",
+                                 "runId":  "c6a-approach-1",
+                                 "status":  "FAIL",
+                                 "passCount":  0,
+                                 "failCount":  1,
+                                 "evidenceLeaf":  "runtime-game-result.json",
+                                 "evidenceSha256":  "24a13f37a260c484e3517c6b42c9bbaefdbe65dbbb5c20cd4765d52f89b7010f",
+                                 "failingRow":  "CM02-approach-arrival",
+                                 "failingAssertion":  "Combat Mount was admitted at a measured distance outside the transition envelope, Kingmaker\u0027s own rider-owned native Move command closed the distance and arrived inside that envelope, and exactly one acted Move commitment, one shell delivery and one relationship transition followed with no Horse movement, no duplicate request and no repeated preparation.",
+                                 "observedPayload":  {
+                                                         "version":  "0.1.0-chunk6a-preview.109",
+                                                         "commit":  "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+                                                         "dllSha256":  "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+                                                         "dllMvid":  "522384f5-90d6-4bf2-9f60-972b23661379",
+                                                         "packagePath":  "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+                                                         "packageSha256":  "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+                                                         "manifestSha256":  "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+                                                     },
+                                 "reason":  "CM02-approach-arrival failed its exact recorded assertion in c6a-approach-1. No provisional PASS from this failed run qualifies another behavior.",
+                                 "retention":  "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
                              }
-                         ]
+                         ],
+    "rejectedQualificationClaims":  [
+                                        {
+                                            "entry":  {
+                                                          "id":  "CM01-exploration-free",
+                                                          "family":  "CM01",
+                                                          "claim":  "The same native control outside combat performs the transition and charges nothing.",
+                                                          "scenario":  "chunk6a-mount-approach",
+                                                          "runId":  "c6a-approach-6",
+                                                          "status":  "PASS",
+                                                          "passCount":  69,
+                                                          "failCount":  0,
+                                                          "rows":  [
+                                                                       "CM01-exploration-free",
+                                                                       "CM01-exploration-dismount-costs-nothing"
+                                                                   ],
+                                                          "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                                                          "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
+                                                          "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach recorded exact PASS rows CM01-exploration-free and CM01-exploration-dismount-costs-nothing: outside combat the same normal native controls performed exactly one accepted Mount and one accepted Dismount for the exact rider and Horse, with two accepted dispatches, no dispatch rejection, no duplicate transition or shell delivery, and every action resource, reaction allowance and initiative value reading zero throughout. The earlier c6a-mount-rt-1 failure of this behavior is retained verbatim in retainedFailures and is not erased by this PASS."
+                                                      },
+                                            "payload":  {
+                                                            "version":  "0.1.0-chunk6a-preview.109",
+                                                            "commit":  "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+                                                            "branch":  "codex/mounted-combat-phase3f-playable-core",
+                                                            "dllSha256":  "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+                                                            "dllMvid":  "7c8a077d-210b-43d7-8822-5003248da0f8",
+                                                            "packageSha256":  "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
+                                                            "manifestSha256":  "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb",
+                                                            "packagePath":  "KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
+                                                            "suiteId":  "20260926-chunk6a-suite010",
+                                                            "suiteSha256":  "7232c68b52d87c857493c90427dd39dbba49c2a43a2c420623f21334178ca9c7"
+                                                        },
+                                            "reason":  "The combined compensated/positive Mount flow and incomplete exploration windows do not satisfy the owner\u0027s causal qualification contract. Raw artifacts retain their original statuses."
+                                        },
+                                        {
+                                            "entry":  {
+                                                          "id":  "CM02-approach-arrival",
+                                                          "family":  "CM02",
+                                                          "claim":  "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
+                                                          "scenario":  "chunk6a-mount-approach",
+                                                          "runId":  "c6a-approach-6",
+                                                          "status":  "PASS",
+                                                          "passCount":  69,
+                                                          "failCount":  0,
+                                                          "rows":  [
+                                                                       "CM02-approach-arrival"
+                                                                   ],
+                                                          "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                                                          "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
+                                                          "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach admitted combat Mount at a measured 4.666 m against a 2.900 m transition envelope, Kingmaker own rider-owned native Move command closed the distance and arrived at 0.467 m inside that envelope, the rider covered 4.278 m while the Horse covered 0.000 m, and exactly one native Move commitment, one shell delivery and one relationship transition followed with no duplicate request and no repeated preparation. No teleport, transform write or manufactured endpoint was used. The acted flag itself was never caught by a geometry sample because the command leaves the Move slot at that transition; the commitment is carried by the observed Move charge and the allocation trace, and both halves are published on the row."
+                                                      },
+                                            "payload":  {
+                                                            "version":  "0.1.0-chunk6a-preview.109",
+                                                            "commit":  "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+                                                            "branch":  "codex/mounted-combat-phase3f-playable-core",
+                                                            "dllSha256":  "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+                                                            "dllMvid":  "7c8a077d-210b-43d7-8822-5003248da0f8",
+                                                            "packageSha256":  "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
+                                                            "manifestSha256":  "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb",
+                                                            "packagePath":  "KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
+                                                            "suiteId":  "20260926-chunk6a-suite010",
+                                                            "suiteSha256":  "7232c68b52d87c857493c90427dd39dbba49c2a43a2c420623f21334178ca9c7"
+                                                        },
+                                            "reason":  "The combined compensated/positive Mount flow and incomplete exploration windows do not satisfy the owner\u0027s causal qualification contract. Raw artifacts retain their original statuses."
+                                        },
+                                        {
+                                            "entry":  {
+                                                          "id":  "CM02-adoption-plan-invalidated",
+                                                          "family":  "CM02",
+                                                          "claim":  "An encounter adoption refused after the relationship attached is compensated exactly: unmounted with no activation, partner-context or prepared-pair residue, no repeated preparation for either actor, no refund of the already-committed native Move, and a generation that advanced once and was never rewound.",
+                                                          "scenario":  "chunk6a-mount-approach",
+                                                          "runId":  "c6a-approach-6",
+                                                          "status":  "PASS",
+                                                          "passCount":  69,
+                                                          "failCount":  0,
+                                                          "rows":  [
+                                                                       "CM02-adoption-plan-invalidated"
+                                                                   ],
+                                                          "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                                                          "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
+                                                          "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach invalidated the adoption plan between availability and delivery and compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound."
+                                                      },
+                                            "payload":  {
+                                                            "version":  "0.1.0-chunk6a-preview.109",
+                                                            "commit":  "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+                                                            "branch":  "codex/mounted-combat-phase3f-playable-core",
+                                                            "dllSha256":  "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+                                                            "dllMvid":  "7c8a077d-210b-43d7-8822-5003248da0f8",
+                                                            "packageSha256":  "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
+                                                            "manifestSha256":  "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb",
+                                                            "packagePath":  "KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
+                                                            "suiteId":  "20260926-chunk6a-suite010",
+                                                            "suiteSha256":  "7232c68b52d87c857493c90427dd39dbba49c2a43a2c420623f21334178ca9c7"
+                                                        },
+                                            "reason":  "The combined compensated/positive Mount flow and incomplete exploration windows do not satisfy the owner\u0027s causal qualification contract. Raw artifacts retain their original statuses."
+                                        },
+                                        {
+                                            "entry":  {
+                                                          "id":  "CM02-adoption-compensation-releases",
+                                                          "family":  "CM02",
+                                                          "claim":  "A compensated combat Mount leaves the pair free to attempt a later lawful transition.",
+                                                          "scenario":  "chunk6a-mount-approach",
+                                                          "runId":  "c6a-approach-6",
+                                                          "status":  "PASS",
+                                                          "passCount":  69,
+                                                          "failCount":  0,
+                                                          "rows":  [
+                                                                       "CM02-adoption-compensation-releases"
+                                                                   ],
+                                                          "evidenceLeaf":  "phase3d-horse-scenario-evidence.json",
+                                                          "evidenceSha256":  "d167a055229db8c8f8570c9e83323649876602fe77bd37fe19c84022d5eab81b",
+                                                          "reason":  "PASS on the frozen payload. Accepted run c6a-approach-6 of chunk6a-mount-approach left the pair free to attempt a later lawful transition after a compensated combat Mount, and that later transition was then admitted and accepted in the same run."
+                                                      },
+                                            "payload":  {
+                                                            "version":  "0.1.0-chunk6a-preview.109",
+                                                            "commit":  "7bf1a54f3cff28f1ecda0d97463abc439a288096",
+                                                            "branch":  "codex/mounted-combat-phase3f-playable-core",
+                                                            "dllSha256":  "0e0b4a5ee88ce5176b027414068a833a0da7186d8d8bbbd09c3bf0b07e762d1e",
+                                                            "dllMvid":  "7c8a077d-210b-43d7-8822-5003248da0f8",
+                                                            "packageSha256":  "2dabce921167cfaf298e84537402d9113ef2d8ed9dc2a24272ef86acee800e0c",
+                                                            "manifestSha256":  "abf8b7e1a50b6c348a2bb2585343852930eb4ff1fa904e8dabf56b3c3be165bb",
+                                                            "packagePath":  "KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-h-diagnostic.zip",
+                                                            "suiteId":  "20260926-chunk6a-suite010",
+                                                            "suiteSha256":  "7232c68b52d87c857493c90427dd39dbba49c2a43a2c420623f21334178ca9c7"
+                                                        },
+                                            "reason":  "The combined compensated/positive Mount flow and incomplete exploration windows do not satisfy the owner\u0027s causal qualification contract. Raw artifacts retain their original statuses."
+                                        }
+                                    ],
+    "candidateDisposition":  "SUPERSEDED: historical preview.109 packages are preserved and must not be launched for this repair. Awaiting a new clean-HEAD candidate."
 }

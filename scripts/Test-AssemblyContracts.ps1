@@ -54,6 +54,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD1,'get_IsEnded'),
         @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD3,'get_Context'),
         @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD4,'get_IsEngageUnit'),
+        @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD6,'Tick'),
         @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x04001C65,'Ability'),
         @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x06002B6D,'get_AbilityBlueprint'),
         @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x06002B80,'get_Caster'),

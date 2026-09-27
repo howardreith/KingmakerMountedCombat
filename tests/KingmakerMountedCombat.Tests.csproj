@@ -33,6 +33,8 @@
     <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RelationshipCommandIdentity.cs"><Link>Shared\Diagnostics\RelationshipCommandIdentity.cs</Link></Compile>
+    <Compile Include="RelationshipCommandEvidenceTests.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\BuildIdentity.cs">
       <Link>Shared\BuildIdentity.cs</Link>

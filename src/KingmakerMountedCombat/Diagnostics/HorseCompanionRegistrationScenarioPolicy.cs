@@ -16,6 +16,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-mount-preamble", StringComparison.Ordinal) ||
                 // The narrow real-time non-adjacent native-approach scenario.
                 string.Equals(scenario, "chunk6a-mount-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-adoption-compensation-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-adoption-compensation-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-companion-unmounted-suite", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-mounted-alpha-suite", StringComparison.Ordinal) ||

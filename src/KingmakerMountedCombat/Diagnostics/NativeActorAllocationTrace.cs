@@ -47,6 +47,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private string encounter;
         private int dropped;
         private int observationErrors;
+        internal event Action<string, UnitEntityData, UnitCommand> BoundaryObserved;
+        internal int EventCount => events.Count;
+        internal JArray EventsSince(int offset) => new JArray(events.Skip(offset).Select(item => item.DeepClone()));
+        internal bool Complete => dropped == 0 && observationErrors == 0;
 
         internal NativeActorAllocationTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
         {
@@ -93,6 +97,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var nativeTurn = turn?.Unit == actor ? turn : combat.PairedPartnerContext?.Unit == actor ? combat.PairedPartnerContext : null;
             return new JObject {
                 ["actor"] = actor.UniqueId, ["actorObject"] = Id(actor), ["grantSequence"] = GrantCount(actor),
+                ["inCombat"] = actor.IsInCombat,
                 ["grantSequenceKind"] = "observed-native-Prepare-entries",
                 ["pairedGrantIdentity"] = actor == rider || actor == mount ? combat.PairedActivationIdentity : null,
                 ["standard"] = cooldown.StandardAction, ["move"] = cooldown.MoveAction, ["swift"] = cooldown.SwiftAction,
@@ -180,6 +185,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["turnStatus"] = turn?.Status.ToString(), ["state"] = Snapshot(actor), ["detail"] = detail,
                     ["callbackObject"] = Id(callback),
                     ["command"] = Id(command), ["commandType"] = command?.GetType().FullName,
+                    ["actionType"] = command?.Type.ToString(), ["timeSinceStart"] = command?.TimeSinceStart,
                     ["commandActor"] = command?.Executor?.UniqueId, ["started"] = command?.IsStarted,
                     ["acted"] = command?.IsActed, ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
                     ["ignoreCooldown"] = command?.IsIgnoreCooldown,
@@ -188,6 +194,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ? (bool?)command.ShouldUnitApproach : null,
                     ["feedback"] = combat.LastFeedback
                 });
+                BoundaryObserved?.Invoke(boundary, actor, command);
             }
             catch (Exception exception) { observationErrors++; events.Add(new JObject { ["boundary"] = boundary, ["observationError"] = exception.ToString() }); }
         }
@@ -206,6 +213,9 @@ namespace KingmakerMountedCombat.Diagnostics
             harmony.Patch(method, before, after);
         }
         private UnitEntityData Owner(UnitCommands commands) => commands == rider.Commands ? rider : commands == mount.Commands ? mount : null;
+        private UnitEntityData CooldownOwner(UnitCombatState.Cooldowns value) =>
+            value == rider.CombatState.Cooldown ? rider : value == mount.CombatState.Cooldown ? mount :
+            preparing?.Unit.CombatState.Cooldown == value ? preparing.Unit : null;
         private static class Hooks
         {
             internal static void PhysicalTickBefore(UnitMovementAgent __instance, out UnitMovementAgent __state)
@@ -237,8 +247,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             internal static void PrepareBefore(TurnController __instance) { if (active == null) return; active.preparing = __instance; active.grants[__instance.Unit] = active.GrantCount(__instance.Unit) + 1; active.Record("prepare-before", __instance.Unit); }
             internal static void PrepareAfter(TurnController __instance) { active?.Record("prepare-after", __instance.Unit); if (active != null) active.preparing = null; }
-            internal static void ClearBefore(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-before", active.preparing.Unit); }
-            internal static void ClearAfter(UnitCombatState.Cooldowns __instance) { if (active?.preparing?.Unit.CombatState.Cooldown == __instance) active.Record("clear-after", active.preparing.Unit); }
+            internal static void ClearBefore(UnitCombatState.Cooldowns __instance) { if (active != null) active.Record("clear-before", active.CooldownOwner(__instance)); }
+            internal static void ClearAfter(UnitCombatState.Cooldowns __instance) { if (active != null) active.Record("clear-after", active.CooldownOwner(__instance)); }
             internal static void CombatClearBefore(UnitCombatState __instance) { active?.Record("combat-clear-before", __instance.Unit); }
             internal static void CombatClearAfter(UnitCombatState __instance) { active?.Record("combat-clear-after", __instance.Unit); }
             internal static void RoundBefore(UnitCombatState __instance) { active?.Record("round-state-before", __instance.Unit); }
