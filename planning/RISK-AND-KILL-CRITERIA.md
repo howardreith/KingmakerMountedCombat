@@ -92,3 +92,8 @@ IN PROGRESS: a combined compensated/positive Mount was mistaken for single-reque
 ## 2026-09-27 ? reaction proof and observer evidence
 
 IN PROGRESS: preview.110 setup refused before observer construction; callbacks remain unproven. Preview.111 observes reaction allowance, AoO and initiative cooldowns separately; native runtime verification remains mandatory. A missing callback is instrumentation failure. No source-level test, expired cooldown or provisional row qualifies the positive command. Exact restoration of the bounded preview.110 run PASS; all87 mandatory6A behaviors remain open.
+
+
+## 2026-09-27 - released diagnostic observer
+
+IN PROGRESS: c6a-reaction-a-approach on preview.111 reached cleanup, then its liveness sampler dereferenced the released allocation trace and prevented exact command evidence export. All external restoration PASS; no native qualification credited. Preserve its unchanged purity PASS and overall native FAIL. Preview.112 adds a cleanup guard and first-exception evidence, with source and compiled-entry regressions. Exact identities and assertions: [Chunk 6A report](../docs/CHUNK6A-COMBAT-MOUNT.md). Fresh immutable candidate/proof is required before another positive run; no inference of callback qualification from the UMM log.

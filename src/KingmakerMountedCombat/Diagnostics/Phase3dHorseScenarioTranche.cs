@@ -654,6 +654,12 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception)
             {
                 logger.Exception("Phase 3D Horse tranche", exception);
+                if (observations["firstRuntimeException"] == null)
+                {
+                    observations["firstRuntimeException"] = new JObject { ["exception"] = exception.ToString(),
+                        ["step"] = step.ToString(), ["cleanupStarted"] = cleanupStarted, ["frame"] = frame,
+                        ["commandObserver"] = chunk6aCommandWindow?.Capture() };
+                }
                 FailCurrent("phase3d-horse-runtime-exception", exception.GetType().Name + ": " + exception.Message);
                 BeginCleanup();
             }

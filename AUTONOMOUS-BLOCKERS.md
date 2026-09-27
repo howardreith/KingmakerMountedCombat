@@ -1,3 +1,15 @@
+## 2026-09-27 - preview.112 diagnostic cleanup repair
+
+Status: IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core; published parent8823da8183f0bff98ecdfb917985b65f94032c39 preserved. Own preview.112 source/tests/records pending. The accepted scenario, selection, command identity and resource structures remain unchanged.
+
+Preview.111 unchanged purity PASS is preserved. Native c6a-reaction-a-approach FAILed at its300-second deadline after a post-cleanup diagnostic sampled a released allocation trace. All external restoration checks PASS; installed preview.105 and game closure verified. No mandatory CM row was exported and no qualification is credited (0/87). The source now stops that observer when cleanup starts and retains first-exception details. Source104/0, history97/0 and compiled early-return regression PASS; complete offline umbrella PASS (exact receipt below).
+
+Exact payloads, assertions, hashes, restoration and diagnosis: [Chunk 6A report](docs/CHUNK6A-COMBAT-MOUNT.md) and docs/chunk6a-evidence-history.json. Live continuation: C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6a-causal/ACTIVE.json. Next: guarded publication, new immutable package/suite/ledger and fresh unchanged proof, then isolated positive approach. No6B before all87 mandatory6A rows on one frozen candidate; no merge/tag/release/PR/permanent install or HUMAN PLAY inference.
+
+Complete offline umbrella PASS, exit0, 2026-09-27T12:40:03.309Z: logs/c6a-cleanup-offline.log, SHA256 642c52f7809b4ceaa9a05756a9452a41e4215331d157fedd1c054644f114a75a. Source104/0; components549/0; harness270/0; assembly627/0; causal80/0; immutable history97/0; cleanup compiled-entry1/0; native patch construction30/0. Built DLL4e7254591121ef2d9f76bc29b1639836fd44856746ffc5def79e652feb105b41, MVID0b86365d-ef85-4518-8de2-a23ccddf1a02. These are offline gates; native qualification remains0/87. Next: guarded publication, immutable preview.112/chunk6a-cleanup-a package, fresh exact suite/ledger and unchanged purity proof, then isolated positive approach.
+
+---
+
 # Chunk 6A reaction proof ? IN PROGRESS
 
 Final offline umbrella PASS (exit0), 2026-09-27T11:15:59.551Z: logs/c6a-reaction-offline-final.log, SHA-256 b779f2f8d3515ba33106dd93e89e7a51d50c2f4e64034c0a9696bc3ef26b92b5. Source103/0, components549/0, harness270/0, assembly627/0, causal protocol80/0, evidence history88/0; two reaction observer wrappers constructed. Built DLL b717a0e7af14e91a8676c41990ee618b331a9fa938bde4b12193ac430be6831a, MVID53d72b8b-31ae-42db-a92f-84256ff6dae5. Final source validation103/0 and ledger record consistency87/0. These are offline gates; native qualification remains0/87. Next: guarded publication, immutable preview.111/chunk6a-reaction-a package, fresh exact suite/ledger and unchanged purity proof, then positive approach.
