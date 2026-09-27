@@ -557,6 +557,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["disposition"] = chunk6aDisposition.ToString(),
                 ["relationshipState"] = relationship.State.ToString(),
                 ["turnActor"] = turn?.Unit?.UniqueId,
+                ["turnStatus"] = turn?.Status.ToString(),
+                ["riderTurnIsCurrent"] = turn?.Unit == rider,
+                ["round"] = controller?.RoundNumber,
+                ["frame"] = Time.frameCount,
                 ["feedback"] = playerAction.LastFeedback
             };
             if (turn != null && chunk6aVisitedTurns.Add(turn) && turn.Unit == horse &&
@@ -594,8 +598,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     // R3 proof: while the rider's own turn is still Preparing, the
                     // transition must be refused, and refused with the reason that
                     // names the preparing boundary rather than a generic one. The
-                    // native turn reaches Acting on its own, so this observation is
-                    // taken in passing and nothing is forced.
+                    // native turn reaches Acting after a real ground order below;
+                    // this observation precedes that separately measured setup.
                     if (turn?.Unit == rider && turn.Status == TurnController.TurnStatus.Preparing &&
                         !chunk6aPreparingObserved)
                     {
@@ -621,11 +625,12 @@ namespace KingmakerMountedCombat.Diagnostics
                             });
                         return;
                     }
-                    if (turn?.Unit != rider || !turn.IsActing)
+                    if (turn?.Unit != rider)
                     {
                         TryEndPhase3gFixtureTurn(turn);
                         return;
                     }
+                    if (!PrepareChunk6aNativeActingTurn(turn)) return;
                 }
                 if (!Chunk6aIdle)
                 {

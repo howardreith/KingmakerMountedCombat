@@ -1,3 +1,7 @@
+## Chunk 6A current risk - 2026-09-27T16:51:16.485Z
+
+IN PROGRESS. Preview.114 positive approach and isolated RT compensation pass with exact action/reaction proofs. Isolated TB compensation failed before Mount because the diagnostic treated a Preparing rider as a fixture turn to end; native trace shows three such rider turns ending. Preview.115 preserves that rider turn and uses a separately measured ordinary native ground order to enter Acting within the unchanged 30-second bound. Pure waiting was rejected from pinned Tick inspection; native setup debt is carried into Mount, never reset. This remains a setup repair awaiting native qualification, not a product resource defect. Exact historical failure and restoration remain retained. [Current report](../docs/CHUNK6A-COMBAT-MOUNT.md).
+
 ## Chunk 6A current risk - 2026-09-27T15:30:12.538Z
 
 IN PROGRESS. Positive single-request approach now passes on preview.113 with observed native action/reaction accounting. Both compensation scenarios failed an unrelated setup Move before combat. Their command terminal/path detail is absent, so root cause of that movement is unresolved; no product compensation failure is inferred. Preview.114 isolates compensation setup and exports richer positive separation diagnostics. All87 rows remain required on one frozen candidate; a new candidate invalidates carryover qualification. [Evidence](../docs/CHUNK6A-COMBAT-MOUNT.md).

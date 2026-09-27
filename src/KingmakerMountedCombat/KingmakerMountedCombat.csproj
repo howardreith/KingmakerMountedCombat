@@ -335,6 +335,7 @@
     <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
     <Compile Include="Diagnostics\SustainedRoutineProgress.cs" />
     <Compile Include="Diagnostics\Chunk6aCausalEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk6aTurnSetup.cs" />
     <Compile Include="Diagnostics\Chunk6aCombatMountScenario.cs" />
     <Compile Include="Diagnostics\Chunk4PairedPlayScenario.cs" />
     <Compile Include="Diagnostics\Chunk4NativeEffectInventory.cs" />

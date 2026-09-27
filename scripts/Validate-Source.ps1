@@ -705,6 +705,20 @@ Assert-Kmc ($chunk6aScenarioText -notmatch 'actedObserved\s*\|\|\s*moveCommitted
     $chunk6aScenarioText -match 'oneRiderOwnedApproach && actedObserved && sameCommand && oneDelivery') `
     'one exact command owns approach, observed acted, native cost, process, delivery and terminal evidence'
 
+$mountTurnWait = [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 1\)(.*?)var availability = nativeControls.Evaluate')
+Assert-Kmc ($mountTurnWait.Value -match 'if \(turn\?\.Unit != rider\)\s*\{\s*TryEndPhase3gFixtureTurn\(turn\);\s*return;\s*\}\s*if \(!PrepareChunk6aNativeActingTurn\(turn\)\) return;' -and
+    $mountTurnWait.Value -notmatch 'turn\?\.Unit != rider \|\| !turn.IsActing') `
+    'Chunk 6A preserves the exact rider Preparing turn and ends only other fixture actors while waiting for Acting'
+
+$actingSetupText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aTurnSetup.cs')
+Assert-Kmc ($actingSetupText -match 'EnsureChunk6aRiderSelection' -and
+    $actingSetupText -match '(?s)CaptureChunk6aState\("native-acting-setup-before"\).*?ClickGroundHandler.MoveSelectedUnitsToPoint.*?chunk6aActingSetupCommand = rider.Commands.Move as UnitMoveTo' -and
+    $actingSetupText -match 'ReferenceEquals\(turn, chunk6aActingSetupTurn\)' -and
+    $actingSetupText -match 'allocationTrace.EventsSince\(chunk6aActingSetupTraceStart\)' -and
+    $actingSetupText -match 'chunk6aActingSetupCommand.Result != UnitCommand.ResultType.Success \|\| !turn.IsActing' -and
+    $actingSetupText -notmatch 'ForceToEnd|Cooldown.*=|\.Status\s*=|\.Prepare\(|\.Clear\(|\.Position\s*=') `
+    'native ground setup reaches Acting on the same rider turn and publishes actual carried debt without resource or turn writes'
+
 $positiveFlow = [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 13\)(.*?)if \(chunk6aStage == 2\)')
 Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, true, false\)' -and
     $chunk6aScenarioText -match 'selectedUnits != null && selectedUnits.Count == 1 && selectedUnits\[0\] == rider' -and
