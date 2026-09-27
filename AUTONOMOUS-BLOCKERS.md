@@ -1,3 +1,14 @@
+# Chunk 6A - 2026-09-27T18:50:25.941Z
+
+**IN PROGRESS.** Published44de499 preserved. Preview.115 positive48/0, compensationRT46/0 and compensationTB47/0 PASS; all exact causal/action/reaction windows and all external restorations PASS. Seven of87 mandatory rows qualified only on115. Preview.116 now implements the isolated exact geometry case with pre-acted approach and pre-attachment delivery, declaring only the exact native RT Horse ground order with independently checked no-write callbacks. No production resource writes. Build/source110/0 and focused149/0 PASS; final offline umbrella PASS. New source supersedes115 for subsequent qualification; completed115 proof/results remain immutable. [Current report](docs/CHUNK6A-COMBAT-MOUNT.md). Live state: lab analysis-cache/chunk6a-causal/ACTIVE.json. Next final offline gates, guarded publication/new116 candidate/suite/fresh proof, positive/RT/TB then geometry, genuine obstruction and remaining matrix. No6B before87/87 on one candidate.
+
+Final preview.116 complete offline umbrella PASS, exit0, 2026-09-27T18:56:40.942Z. Source110/0, causal151/0; all umbrella gates PASS. Log logs/c6a-geometry-offline.log SHA-256 86702e1bb4df1aacdc2fa37651ef83e77817edf06faf0aa943374e581661bb6e. Built DLL d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8 / MVID d6568315-9f9b-44f4-80f4-4ca671b44b63. These are offline checks; new-candidate native qualification remains0/87. Next coherent commit, guarded publication, immutable package/suite and fresh unchanged purity, then positive/RT/TB/geometry in order.
+
+
+---
+
+## Historical checkpoints
+
 # Chunk 6A - 2026-09-27T16:49:58.738Z
 
 **IN PROGRESS.** Published parent 707d98302f13ba752fe517e49338cf71b1c5f1ae preserved. Preview.114 positive PASS 48/0 and compensation RT PASS 46/0; compensation TB FAIL 44/2 before Mount because the diagnostic ended the Preparing rider. All restoration PASS. Preview.115 uses a bounded native rider ground order to enter Acting on the same turn, then carries its measured debt into the exact Mount baseline. No resource writes or deadline extension. The first passive-wait draft was rejected after pinned Tick inspection; its offline PASS is not final-source validation. Final build and full offline umbrella PASS; source109/0 and causal114/0. [Current report](docs/CHUNK6A-COMBAT-MOUNT.md); exact live state in lab analysis-cache/chunk6a-causal/ACTIVE.json. Next final offline gates, publication, new immutable candidate/suite/fresh proof, positive and both compensation modes. No 6B before 87/87 on one candidate.

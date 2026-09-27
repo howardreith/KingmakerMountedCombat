@@ -109,3 +109,8 @@ IN PROGRESS: c6a-reaction-a-approach on preview.111 reached cleanup, then its li
 ### 2026-09-27: initiative ordering versus native timer
 
 The preview.112 run proves the diagnostic wrappers execute, but its overall FAIL remains unqualified. The legacy conservation helper confused the float initiative cooldown with the discrete initiative order and rejected lawful observed RT decay. Preview.113 uses the accepted exact event-backed command proof for committed Mount/compensation and corrects field semantics in the remaining endpoint helper. Regression rejects the old compiled helper. No resource writes or threshold changes. Native qualification requires a new candidate and unchanged purity proof.
+
+
+## 2026-09-27T18:50:25.941Z - geometry approach evidence
+
+Preview.115 positive/RT compensation/TB compensation all PASS with exact restoration;7/87 only on that payload. Preview.116 adds isolated chunk6a-geometry-change: native observed TickApproaching before IsActed, actual rider motion, separately declared exact Horse UnitMoveTo and pre-attachment Deliver geometry. Pinned RT UpdateCooldowns performs no writes for IgnoreCooldown; exact auxiliary callbacks must preserve every action/reaction/initiative field. The default positive contract still rejects auxiliary commands. No resource or position writes are introduced. Native qualification pending new immutable candidate/fresh proof; old Stop-based obstruction cannot qualify actual obstruction. See docs/CHUNK6A-COMBAT-MOUNT.md and lab NEXT-CASE-AUDIT.md for pinned method tokens and bounded findings.

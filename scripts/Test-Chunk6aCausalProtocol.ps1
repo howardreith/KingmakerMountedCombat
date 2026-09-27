@@ -277,4 +277,5 @@ foreach($actor in @('rider','mount')){
         }
     }
 }
+. (Join-Path $PSScriptRoot 'Test-Chunk6aGeometryProtocol.ps1')
 Write-Host "CHUNK6A CAUSAL PROTOCOL PASS=$script:passed FAIL=0 (synthetic validator tests; no runtime qualification)"

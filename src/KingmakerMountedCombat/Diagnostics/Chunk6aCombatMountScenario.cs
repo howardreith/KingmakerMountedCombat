@@ -29,6 +29,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // failure in the approach itself is attributable without paying for the whole
         // suite. It emits the same tranche evidence kind, so it introduces no new leaf.
         internal const string Chunk6aMountApproachScenario = "chunk6a-mount-approach";
+        internal const string Chunk6aGeometryChangeScenario = "chunk6a-geometry-change";
         internal const string Chunk6aCompensationRealTimeScenario = "chunk6a-adoption-compensation-rt";
         internal const string Chunk6aCompensationTurnBasedScenario = "chunk6a-adoption-compensation-tb";
 
@@ -36,6 +37,7 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aGeometryChangeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCompensationRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
 
@@ -51,6 +53,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool Chunk6aApproachOnly =>
             string.Equals(request.Scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal);
+
+        private bool Chunk6aGeometryOnly => string.Equals(request.Scenario, Chunk6aGeometryChangeScenario, StringComparison.Ordinal);
 
         private int chunk6aStage;
         private int chunk6aDispatchesBefore;
@@ -94,7 +98,6 @@ namespace KingmakerMountedCombat.Diagnostics
         private Vector3 chunk6aGeometryChangeDestination;
         private UnitMoveTo chunk6aGeometryChangeCommand;
         private bool chunk6aGeometryChanged;
-        private float chunk6aGeometryChangeMaxRiderMoveCooldown;
         private JObject chunk6aEncounterLiveness;
         private bool chunk6aPreparingObserved;
         // Bounded geometry and command evidence, one sample per named boundary.
@@ -711,7 +714,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aCompensationOnly ? 11 : 13;
+                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aGeometryOnly ? 16 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -878,6 +881,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 // movement, debt, generation, selection or native allocation.
                 chunk6aStage = 99;
                 BeginCleanup();
+                return;
+            }
+
+            if (chunk6aStage == 16 || chunk6aStage == 17)
+            {
+                TickChunk6aGeometryChange();
                 return;
             }
 
@@ -1548,169 +1557,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            // Stage 9: the geometry-change case begins from whatever separation the cancelled
-            // approach left, which is re-measured rather than assumed.
+            // The full RT case enters the same exact geometry instrument after its
+            // preceding case settles; the isolated case enters it from fresh setup.
             if (chunk6aStage == 9)
             {
-                if (!Chunk6aIdle)
-                {
-                    return;
-                }
-                var changeStart = CaptureChunk6aGeometry("geometry-change-start");
-                if ((bool)changeStart["isAdjacent"])
-                {
-                    FailCurrent("CM02-geometry-change",
-                        "The cancelled approach left the pair inside the measured adjacency envelope, " +
-                        "so no approach remained for a mid-flight geometry change to affect: " +
-                        changeStart.ToString(Formatting.None));
-                    BeginCleanup();
-                    return;
-                }
-                var changeAvailability = nativeControls.Evaluate(
-                    NativeMountedControlKind.MountCompanion, rider);
-                if (!changeAvailability.IsEnabled)
-                {
-                    return;
-                }
-                chunk6aGeometryChangeBefore = CaptureChunk6aState("geometry-change-before");
-                chunk6aGeometryChangeLedgerBefore = Chunk6aLedgerCounters();
-                chunk6aGeometryChangeStart = changeStart;
-                chunk6aDispatchesBefore = (int)nativeControls.DispatchAcceptedCount;
-                chunk6aGenerationBefore = relationship.MountedPairGeneration;
-                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                if (!TryNativeAbilityTargetClick(
-                        nativeControls.MountAbility, horse, "chunk6a-geometry-change-click"))
-                {
-                    FailCurrent("CM02-geometry-change",
-                        "Exact native combat Mount target click was not admitted for the geometry-change case. " +
-                        "availabilityReason=\"" + changeAvailability.Reason +
-                        "\"; geometry=" + changeStart.ToString(Formatting.None));
-                    BeginCleanup();
-                    return;
-                }
-                chunk6aStage = 10;
+                chunk6aStage = 16;
                 ResetLeafClock();
-                return;
-            }
-
-            // Stage 10: change the target geometry while the approach is still running and
-            // still uncommitted, then let Kingmaker resolve it however it lawfully does.
-            if (chunk6aStage == 10)
-            {
-                var changeSlot =
-                    rider?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
-                if (changeSlot != null &&
-                    ReferenceEquals(changeSlot.Spell?.Blueprint, nativeControls.MountAbility))
-                {
-                    CaptureChunk6aGeometry(changeSlot.IsActed
-                        ? "geometry-change-acted"
-                        : "geometry-change-approach");
-                    if (!chunk6aGeometryChanged && changeSlot.IsStarted && !changeSlot.IsActed)
-                    {
-                        string changeRefusal;
-                        chunk6aGeometryChangeCommand = Chunk6aSendHorseAway(
-                            3.0f, out chunk6aGeometryChangeDestination, out changeRefusal);
-                        SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                        chunk6aGeometryChanged = true;
-                        chunk6aGeometryChangeAtChange = CaptureChunk6aGeometry("geometry-change-applied");
-                        observations["chunk6aGeometryChangeOrder"] = new JObject
-                        {
-                            ["destination"] = CapturePosition(chunk6aGeometryChangeDestination),
-                            ["refusal"] = changeRefusal,
-                            ["commandOwnerId"] = chunk6aGeometryChangeCommand?.Executor?.UniqueId,
-                            ["commandCreatedByPlayer"] =
-                                chunk6aGeometryChangeCommand != null && chunk6aGeometryChangeCommand.CreatedByPlayer
-                        };
-                    }
-                    return;
-                }
-                if (!chunk6aGeometryChanged)
-                {
-                    FailCurrent("CM02-geometry-change",
-                        "The native Mount approach left the Move slot before a mid-flight geometry change could be " +
-                        "applied, so the revalidation this row is about was never exercised: " +
-                        CaptureChunk6aGeometry("geometry-change-missed").ToString(Formatting.None));
-                    BeginCleanup();
-                    return;
-                }
-                if (!Chunk6aIdle)
-                {
-                    return;
-                }
-                var changeArrival = CaptureChunk6aGeometry("geometry-change-arrival");
-                var changeAfter = CaptureChunk6aState("geometry-change-after");
-                var changeStartFrame = (int)chunk6aGeometryChangeStart["frame"];
-                var changePeak = Chunk6aPeakRiderMoveCooldownSince(changeStartFrame);
-                chunk6aGeometryChangeMaxRiderMoveCooldown = (float)changePeak["cooldown"];
-                // The geometry must genuinely have changed, by the Horse's own player-created
-                // native Move and by a measurable distance. Otherwise this row proves nothing.
-                var horseMoved = Chunk6aPlanarDistance(
-                    (JObject)chunk6aGeometryChangeStart["horsePosition"],
-                    (JObject)changeArrival["horsePosition"]);
-                var geometryReallyChanged = horseMoved > Chunk6aStationaryToleranceMeters &&
-                    chunk6aGeometryChangeCommand != null &&
-                    chunk6aGeometryChangeCommand.Executor == horse &&
-                    chunk6aGeometryChangeCommand.CreatedByPlayer;
-                var transitioned = relationship.State == RelationshipState.Mounted;
-                var arrivedInsideEnvelope = (bool)changeArrival["isAdjacent"];
-                var oneAcceptedTransition =
-                    relationship.MountedPairGeneration == chunk6aGenerationBefore + 1 &&
-                    nativeControls.DispatchAcceptedCount == chunk6aDispatchesBefore + 1 &&
-                    Chunk6aLedgerDelta(chunk6aGeometryChangeLedgerBefore, "acceptedMount", 1);
-                var noTransitionAtAll =
-                    relationship.MountedPairGeneration == chunk6aGenerationBefore &&
-                    Chunk6aLedgerDelta(chunk6aGeometryChangeLedgerBefore, "acceptedMount", 0);
-                // A native commitment is observed as a Move cooldown the engine RAISED. When
-                // delivery is refused after that commitment the cost must still be there:
-                // that is the whole of "may refuse delivery but must retain the native cost",
-                // and it is why a refusal is only accepted alongside an observed charge.
-                var nativeCostObserved = chunk6aGeometryChangeMaxRiderMoveCooldown > 2.5f;
-                // Whatever the outcome, an observed native charge must still be draining on
-                // the engine's clock at the terminal boundary: that is the measurable form of
-                // "must retain the native cost", and it is what a refund would break.
-                var costRetained = Chunk6aMoveCostRetained(
-                    changePeak,
-                    (float)((JObject)changeAfter["rider"])["move"],
-                    (double)changeArrival["seconds"]);
-                // Either lawful outcome is accepted, and each is held to its own condition:
-                // an accepted transition must have arrived inside the measured envelope, and a
-                // refusal must have left no transition while keeping the committed cost.
-                var acceptedLawfully = transitioned && arrivedInsideEnvelope &&
-                    oneAcceptedTransition && nativeCostObserved;
-                var refusedLawfully = !transitioned && noTransitionAtAll &&
-                    Chunk6aLedgerDelta(chunk6aGeometryChangeLedgerBefore, "forcedDetach", 0) &&
-                    !playerAction.TransitionLedger.HasVoluntaryTransitionInFlight;
-                AddRow("CM02-geometry-change",
-                    geometryReallyChanged && costRetained && (acceptedLawfully || refusedLawfully) &&
-                        (int)((JObject)chunk6aGeometryChangeBefore["rider"])["nativePrepareCount"] ==
-                            (int)((JObject)changeAfter["rider"])["nativePrepareCount"],
-                    "The Horse's own native move changed the target geometry while the rider's approach was still running and uncommitted, and the transition revalidated at arrival: it was accepted only inside the measured adjacency envelope, and a refusal produced no transition while the native Move Kingmaker had already committed stayed spent.",
-                    new JObject
-                    {
-                        ["start"] = chunk6aGeometryChangeStart,
-                        ["atChange"] = chunk6aGeometryChangeAtChange,
-                        ["arrival"] = changeArrival,
-                        ["horseDisplacement"] = horseMoved,
-                        ["geometryReallyChanged"] = geometryReallyChanged,
-                        ["transitioned"] = transitioned,
-                        ["arrivedInsideEnvelope"] = arrivedInsideEnvelope,
-                        ["oneAcceptedTransition"] = oneAcceptedTransition,
-                        ["noTransitionAtAll"] = noTransitionAtAll,
-                        ["peakRiderMoveCooldown"] = changePeak,
-                        ["maxRiderMoveCooldownObserved"] = chunk6aGeometryChangeMaxRiderMoveCooldown,
-                        ["nativeCostObserved"] = nativeCostObserved,
-                        ["costRetained"] = costRetained,
-                        ["acceptedLawfully"] = acceptedLawfully,
-                        ["refusedLawfully"] = refusedLawfully,
-                        ["feedback"] = playerAction.LastFeedback,
-                        ["before"] = chunk6aGeometryChangeBefore,
-                        ["after"] = changeAfter,
-                        ["transitionLedger"] = playerAction.TransitionLedger.Describe()
-                    });
-                chunk6aStage = 99;
-                ResetLeafClock();
-                BeginCleanup();
-                return;
+                TickChunk6aGeometryChange();
             }
         }
     }

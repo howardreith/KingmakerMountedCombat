@@ -1016,6 +1016,207 @@
       "transactionRestoredAtUtc": "2026-09-27T16:44:37.2963862+00:00",
       "completedAtUtc": "2026-09-27T16:44:42.3461925+00:00",
       "launcherExitCode": 1
+    },
+    {
+      "runId": "c6a-rider-turn-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.115",
+        "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+        "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+        "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
+        "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+        "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-rider-turn-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-rider-turn-a.json",
+        "sha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e",
+        "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+        "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
+        "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+        "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "263f11bcfdade90e9bdcf4690e2994cd40aa6d8123f500741824215041e27a0b"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-approach/orchestration.json",
+          "sha256": "89c61b5d16c95ede1d23a9ce0bdcfcd976c06254676e76bb3548c0d18966f4e7"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-approach/runtime-artifacts.json",
+          "sha256": "139008e2968c15addec3d1c6fe32d4c70e28e28a853555dea984023c0dcdeea0"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-approach/runtime-game-result.json",
+          "sha256": "ccc9d82d2524542d71fc227b28c5f8d633a06a550acb1ec83d33df093d79e1be"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-approach/runtime-request.json",
+          "sha256": "ea31df152aa2a0f00b186c2923e8c2fc9d5b3c2aa79320cb763ef3f62d408fd7"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-approach/runtime-result.json",
+          "sha256": "1ff9969fefa6c65392ef14ae4f6b877153c9aa1ab43ebdbdb2c47573b133b298"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Preserved exact overall PASS on superseded preview.115; its candidate-specific ledger remains historical and does not qualify preview.116.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T18:19:10.7676034+00:00",
+      "completedAtUtc": "2026-09-27T18:19:16.4098340+00:00"
+    },
+    {
+      "runId": "c6a-rider-turn-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.115",
+        "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+        "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+        "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
+        "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+        "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-rider-turn-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-rider-turn-a.json",
+        "sha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e",
+        "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+        "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
+        "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+        "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "827244e1e7c340b8ee7c2c0b6ea55d0cc41cfb81c52cee3d7d2fc898be1a0962"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-rt/orchestration.json",
+          "sha256": "0b6ff0ae498291f25c805e7a0d3d59a2577ad10b8df385717890bec8777afe58"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "6956f28233026c091bbda06c12389941c8a699365db261933746d39e149f939a"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-rt/runtime-artifacts.json",
+          "sha256": "8fcf2b0798cfc83a9bcab604375ff850c2513a9ec3183ed0149a988f32f8f0f5"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-rt/runtime-game-result.json",
+          "sha256": "38af1e771c19e308a629b84d387c98c23a8698b1dd0bb303daeae64f79e4bbed"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-rt/runtime-request.json",
+          "sha256": "c026a9b43a05c07e9a633838a2803bbd4ad088f0c1f758d63c94138b645b4523"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-rt/runtime-result.json",
+          "sha256": "4c96cc88b1e14f86ce2faad7dcca3d26c5995ea9111da2d8f9f5a6140a95c68a"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Preserved exact overall PASS on superseded preview.115; its candidate-specific ledger remains historical and does not qualify preview.116.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T18:22:01.0220064+00:00",
+      "completedAtUtc": "2026-09-27T18:22:06.6680088+00:00"
+    },
+    {
+      "runId": "c6a-rider-turn-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.115",
+        "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+        "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+        "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
+        "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+        "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-rider-turn-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-rider-turn-a.json",
+        "sha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e",
+        "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+        "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
+        "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+        "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "9627a79e3ae6acbbd86de5045f7e3b4758486fc62e28f2fb465c33c78e5b27de"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-tb/orchestration.json",
+          "sha256": "0472b35d35d5bde33c7f19a43fbe593a7f41cb36f930f8f9befc0b1ca29dcd8d"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-tb/runtime-artifacts.json",
+          "sha256": "dda0ad87d61c2762ceb9fa4dfba248fb06a4e77d3dcc242f758ba15faaaa5885"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-tb/runtime-game-result.json",
+          "sha256": "371605179c551ac071283dbac314be38021f5f042d7956f7263ec4b6ebe63a3f"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-tb/runtime-request.json",
+          "sha256": "19ad1e3ec6282ca2b70d630030a679829df324b0861eb94fe960b40b696ac572"
+        },
+        {
+          "path": "runtime-evidence/c6a-rider-turn-a-tb/runtime-result.json",
+          "sha256": "f11a7a16bc971be4ae9d200b4a49cf645978eaa7fd01480aa04afef6293c8bd6"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Preserved exact overall PASS on superseded preview.115; its candidate-specific ledger remains historical and does not qualify preview.116.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T18:24:57.8698646+00:00",
+      "completedAtUtc": "2026-09-27T18:25:03.5435189+00:00"
     }
   ]
 }

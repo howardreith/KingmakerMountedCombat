@@ -1,3 +1,34 @@
+# Chunk 6A geometry case - 2026-09-27T18:50:25.941Z
+
+**IN PROGRESS.** Published parent `44de49923146a4164974c09f0d3e1759f920238c` on `codex/mounted-combat-phase3f-playable-core` is preserved. Preview.115 passed the positive approach (48/0), isolated RT compensation (46/0), and isolated TB compensation (47/0). All three runs passed their exact command/action/reaction windows, six installed observer hooks, and all five external restoration checks. Kingmaker is closed. Seven of 87 mandatory rows qualified only on preview.115; no 6B gate is satisfied.
+
+## Frozen preview.115 receipts
+
+- Package SHA-256: `95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18`. Manifest: `b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0`.
+- DLL: `7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740`; MVID: `298ea405-3015-48bb-9ea8-f8d3ee68288f`.
+- Suite `20260927-chunk6a-rider-turn-a`, SHA-256 `6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e`.
+- Unchanged purity PASS, exit0, completed2026-09-27T18:16:59.070Z. Log SHA-256 `89bc823e7f561df9e7f066fbd139b1a5559427e2b9f0f73c729973dd2f15787d`. This completed proof is retained and must not be rerun on resume.
+- Positive `c6a-rider-turn-a-approach` evidence SHA-256 `6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30`. RT `c6a-rider-turn-a-rt`: `6956f28233026c091bbda06c12389941c8a699365db261933746d39e149f939a`. TB `c6a-rider-turn-a-tb`: `e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1`.
+
+TB now measures native ground command -1752364544 entering Acting on the same turn705096064, displacement0.5999952m/residual0.000007688768m. Its carried Move0.189276218 equals the later Mount baseline; exact Mount -694820608 adds3 to3.18927622 and retains that debt. The prior readiness failure was diagnostic setup; no production resource write was needed.
+
+## Preview.116 source in progress
+
+The isolated `chunk6a-geometry-change` scenario starts with separate exploration windows and fresh combat allocation. After exact selection and its own non-adjacent baseline, one native Mount must actually approach unacted in the Move slot. A separately identified native Horse ground order widens the gap. Delivery-prefix geometry proves target displacement before attachment, followed by either one lawful transition or an exact refusal retaining the native cost. Command, shell, process, context, terminal and reaction proof remain the accepted structures. Normal positive and compensation windows forbid this auxiliary declaration.
+
+Pinned native RT UnitMoveTo ignores cooldown writes; the geometry-only declaration checks the exact command's native admission and zero or one no-write callback sequence, including Standard/Move/Swift, reaction allowance/AoO cooldown and initiative fields. It never filters away an undeclared cost or permits a resource write. The external validator rederives the declaration, pre-acted trigger, geometry, ledger deltas and terminal branch. The old post-attachment/peak-cooldown geometry assertion was removed.
+
+Build/source110/0 and focused causal149/0 PASS before the final two admission/zero-callback regressions. Complete offline umbrella PASS; final causal151/0. Changed source supersedes115 for subsequent qualification;115 results remain immutable historical evidence, never attached to116. Next complete offline gates, coherent guarded publication, new immutable116 package/suite, fresh unchanged purity, then requalify positive and isolated RT/TB before geometry. Actual obstruction remains unqualified; the legacy Stop case is insufficient. Then fullRT/freshTB and all remaining rows, followed only by the phase-gated charter. No merge/tag/release/PR/permanent installation/HUMAN PLAY acceptance.
+
+Exact live receipt and next command: lab `analysis-cache/chunk6a-causal/ACTIVE.json`. Original artifacts/assertions remain in [history](chunk6a-evidence-history.json); the [ledger](chunk6a-ledger.json) records preview.115 only. Mission end state remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING.
+
+Final preview.116 complete offline umbrella PASS, exit0, 2026-09-27T18:56:40.942Z. Source110/0, causal151/0; all umbrella gates PASS. Log logs/c6a-geometry-offline.log SHA-256 86702e1bb4df1aacdc2fa37651ef83e77817edf06faf0aa943374e581661bb6e. Built DLL d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8 / MVID d6568315-9f9b-44f4-80f4-4ca671b44b63. These are offline checks; new-candidate native qualification remains0/87. Next coherent commit, guarded publication, immutable package/suite and fresh unchanged purity, then positive/RT/TB/geometry in order.
+
+
+---
+
+## Historical checkpoints
+
 # Chunk 6A rider-turn setup repair - 2026-09-27T16:49:58.738Z
 
 **IN PROGRESS.** Published parent 707d98302f13ba752fe517e49338cf71b1c5f1ae on codex/mounted-combat-phase3f-playable-core preserved. Preview.115 changes diagnostic TB setup only: retain the Preparing rider, issue one bounded ordinary native ground order, await its successful terminal and the same Acting turn, then capture the later Mount baseline with all setup debt carried in. Exact command/turn, arrival geometry, native events, preparation and relationship counters are independently validated. No native resource write or deadline extension. Accepted causal structures remain intact.
