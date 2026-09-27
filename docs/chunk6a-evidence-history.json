@@ -728,6 +728,69 @@
       ],
       "launcherExitCode": 1,
       "launcherFinalError": "Horse companion registration does not map to exactly one runtime subscenario."
+    },
+    {
+      "runId": "c6a-cleanup-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.112",
+        "commit": "275cbfeb8cdb1d1d269104cbf872c166be003f20",
+        "dllSha256": "4e7254591121ef2d9f76bc29b1639836fd44856746ffc5def79e652feb105b41",
+        "dllMvid": "0b86365d-ef85-4518-8de2-a23ccddf1a02",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.112-chunk6a-cleanup-a-diagnostic.zip",
+        "packageSha256": "8547605a404807a24b58eefe51d6da1768ba1aaa2368737b2fce4bace738e774",
+        "manifestSha256": "ce11991377ce8830ff03f221aa2b5ae16fed0ebf04255be3036bc4605823791e"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-cleanup-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "4c11514179c2d0963b321e894d3984a1205e58e5ba4d25770a4574235496bd56"
+        },
+        {
+          "path": "runtime-evidence/c6a-cleanup-a-approach/orchestration.json",
+          "sha256": "53ca640a5c14844f052537abdc81adfddb094bcf77176148e780fc365b393d0d"
+        },
+        {
+          "path": "runtime-evidence/c6a-cleanup-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "e23573b6a1056c741c77c98fe0c3489828cb0f9e7b09e48df11ec1b6ba4fe015"
+        },
+        {
+          "path": "runtime-evidence/c6a-cleanup-a-approach/runtime-artifacts.json",
+          "sha256": "5f62150b683697002556a1a72500ec60354da27055355da049cda9d191293eb3"
+        },
+        {
+          "path": "runtime-evidence/c6a-cleanup-a-approach/runtime-game-result.json",
+          "sha256": "33acbde058d0d36fbd496559f2bdddd31d64600aba5fe8bd9ab43e891b70ee13"
+        },
+        {
+          "path": "runtime-evidence/c6a-cleanup-a-approach/runtime-request.json",
+          "sha256": "97f65d995e81f4284e6d35b1495c9ea2c6a44ed7300a70c7f36ec5069a265ccd"
+        },
+        {
+          "path": "runtime-evidence/c6a-cleanup-a-approach/runtime-result.json",
+          "sha256": "6b31e8f83c8dfe36df9e59fd9216dbee91938bd3f8c7476050878fe40f647d3d"
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM03-combat-mount-conserves-debt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation."
+          ]
+        },
+        {
+          "row": "chunk6a-mount-approach",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM03-combat-mount-conserves-debt: The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Overall FAIL. Exact observer hooks, identity, acted/cost, reaction resources and terminal evidence exported. CM03 legacy endpoint helper confuses initiative cooldown with discrete ordering and rejects observed native time decay. No provisional PASS updates qualification. Exact external restoration PASS.",
+      "launcherExitCode": 1
     }
   ]
 }
