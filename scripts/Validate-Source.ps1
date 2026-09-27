@@ -720,6 +720,19 @@ Assert-Kmc ($chunk6aScenarioText -match 'BeginChunk6aCommandWindow\(nativeContro
     $chunk6aScenarioText -match 'carried counters are published independently') `
     'exploration Mount and Dismount each own a pre-click to terminal callback window'
 
+$handoffText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/HorseCompanionUnmountedScenarioEngine.cs')
+$admissionBody = [Regex]::Match($handoffText, '(?s)private void AwaitMountedAlphaAdmission\(\)(.*?)private void BeginMountedAlpha\(\)')
+Assert-Kmc ($admissionBody.Value -match 'owner.Group.Any\(member => member.IsInCombat\)' -and
+    $admissionBody.Value -match '(?s)chunk6aPartyHandoff.*?MountedAlphaAdmissionTimeoutSeconds.*?BeginCleanup\(\); return;.*?BeginMountedAlpha\(\)') `
+    'Chunk 6A waits for the whole native party to leave combat before child observer construction'
+$reactionEvidenceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeRelationshipReactionEvidence.cs')
+Assert-Kmc ($causalProbeText -match 'EvaluateReactionResources\(events, expectedPartnerPreparations\)' -and
+    $causalProbeText -match '\(bool\)reactions\["pass"\] && oneSequence' -and
+    $reactionEvidenceText -match 'native-time-and-declared-partner-preparation-only' -and
+    $reactionEvidenceText -match 'actual.InitiativeOrder != initiative' -and
+    $reactionEvidenceText -match 'actual.Tick\(') `
+    'resourceWindow PASS requires both actors reaction allowance and cooldown proof with separate initiative ordering'
+
 # 4. A native resource the engine is still RESTORING is waited for, never written. The
 # fresh encounter may still be draining native resource debt from its own earlier setup.
 # A positive Mount is issued only after native readiness, and never after compensation; it becomes lawful

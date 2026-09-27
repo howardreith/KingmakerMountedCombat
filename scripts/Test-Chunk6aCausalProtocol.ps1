@@ -11,10 +11,11 @@ function Reject([scriptblock]$body,[string]$reason){
     try{& $body}catch{if($_.Exception.Message -notlike ('*'+$reason+'*')){throw};$caught=$true}
     if(-not $caught){throw "Validator accepted corrupt evidence: $reason"}
 }
+function Put-Value($object,$name,$value){if($object -is [System.Collections.IDictionary]){$object[$name]=$value}else{$object|Add-Member -NotePropertyName $name -NotePropertyValue $value -Force}}
 function New-CommandProof([bool]$combat=$true,[bool]$tb=$false,[int]$partner=0){
     $identity=@{commandObject=101;controlIdentity='shell-1';processObject=201;contextObject=301
         casterId='rider';targetId='mount';generationAtInit=4;commandType='Move';abilityGuid='mount-guid'}
-    $state=@{generation=4;selectedIds=@('rider');rider=@{standard=4.0;move=1.0;swift=3.0;initiative=0};mount=@{standard=5.0;move=4.0;swift=3.0;initiative=0}}
+    $state=@{generation=4;selectedIds=@('rider');rider=@{standard=4.0;move=1.0;swift=3.0;initiative=0;initiativeCooldown=0.0;initiativeOrder=12;reactionCooldown=0.0;reactions=1;reactionsPerRound=1};mount=@{standard=5.0;move=4.0;swift=3.0;initiative=0;initiativeCooldown=0.0;initiativeOrder=12;reactionCooldown=0.0;reactions=1;reactionsPerRound=1}}
     $pre=@{gameTicks=1000000000;state=$state}
     $before=@{boundary='cost-before';command=101;commandActor='rider';actionType='Move';acted=$true;timeSinceStart=0.25;gameTicks=1010000000
         state=@{actor='rider';inCombat=$combat;standard=4.0;move=1.0;swift=3.0}}
@@ -42,9 +43,18 @@ function New-CommandProof([bool]$combat=$true,[bool]$tb=$false,[int]$partner=0){
         }
         foreach($field in @('standard','move','swift')){$end.mount.$field=0.0}
     }
+    $sequence=0
+    foreach($event in $events){
+        $sequence++;Put-Value $event sequence $sequence
+        foreach($field in @('initiativeCooldown','initiativeOrder','reactionCooldown','reactions','reactionsPerRound')){
+            Put-Value $event.state $field $state[$event.state.actor][$field]
+        }
+    }
+    $pre['allocationSequence']=0
+    foreach($sample in $samples){$sample['allocationSequence']=if($sample.boundary -ceq 'terminal'){$sequence}else{0}}
     Copy-Value @{pass=$true;identityComplete=$true;sameCommandAtEveryBoundary=$true;exactActedObserved=$true
         nativeTerminal=$true;traceComplete=$true;initCount=1;errors=@();nativeResult='Success';identity=$identity;mountId='mount'
-        preClick=$pre;samples=$samples;resourceWindow=@{inCombat=$combat;turnBased=$tb;events=$events}}
+        preClick=$pre;samples=$samples;resourceWindow=@{reactionResources=@{contract='native-time-and-declared-partner-preparation-only';pass=$true};inCombat=$combat;turnBased=$tb;events=$events}}
 }
 Test-Case 'one RT command with normal decay' {Assert-KmcRelationshipCommandProof (New-CommandProof) $true $false 0 $true}
 Test-Case 'one TB command with exact endpoints' {Assert-KmcRelationshipCommandProof (New-CommandProof $true $true) $true $true 0 $true}
@@ -98,4 +108,86 @@ Test-Case 'reject positive Mount in compensation allocation' {$a=New-Compensatio
 Test-Case 'reject missing exploration Mount window' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs=@($a.observations.chunk6aCommandProofs|Where-Object window -CNE 'exploration-mount');Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'window count differs'}
 Test-Case 'reject shared exploration Mount and Dismount evidence' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs[1]=$a.observations.chunk6aCommandProofs[0];Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'exactly one exploration-mount'}
 Test-Case 'reject mislabeled native ability window' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs[0].identity.abilityGuid='foreign';Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'wrong ability or target'}
+
+# Leave action endpoints, cost callbacks and causal identity valid; corrupt only reactions.
+foreach($mode in @('exploration','rt','tb')) {
+    foreach($actor in @('rider','mount')) {
+        foreach($change in @(@('reactions',0),@('reactions',2),@('reactionCooldown',1.0),@('initiativeCooldown',1.0),@('initiativeOrder',13))) {
+            Test-Case "reject $mode $actor reaction-only $($change[0])=$($change[1])" {
+                $combat=$mode -cne 'exploration';$tb=$mode -ceq 'tb';$p=New-CommandProof $combat $tb
+                $p.samples[-1].state.$actor.($change[0])=$change[1]
+                Reject {Assert-KmcRelationshipCommandProof $p $combat $tb 0 $false} 'reaction'
+            }
+        }
+    }
+}
+function Set-ReactionBaseline($p,$actor,$field,$value) {
+    $p.preClick.state.$actor.$field=$value
+    foreach($sample in $p.samples){$sample.state.$actor.$field=$value}
+    foreach($event in $p.resourceWindow.events){if($event.state.actor -ceq $actor){$event.state.$field=$value}}
+}
+function Add-ReactionTick($p,$actor,[double]$delta,[bool]$tb=$false,[bool]$passing=$false,[bool]$waiting=$false) {
+    $n=@($p.resourceWindow.events).Count
+    $before=@{boundary='cooldown-tick-before';sequence=($n+1);gameTicks=1020000000;gameDeltaTime=$delta;nativeTurnBased=$tb;nativePassing=$passing;nativeSurprised=$false;state=(Copy-Value $p.preClick.state.$actor)}
+    $before.state|Add-Member -NotePropertyName actor -NotePropertyValue $actor
+    $before.state|Add-Member -NotePropertyName inCombat -NotePropertyValue $p.resourceWindow.inCombat
+    $before.state|Add-Member -NotePropertyName waitingInitiative -NotePropertyValue $waiting
+    $after=Copy-Value $before;$after.boundary='cooldown-tick-after';$after.sequence=$n+2
+    $p.resourceWindow.events+=@($before,$after);$p.samples[-1].allocationSequence=$n+2
+}
+Test-Case 'observed RT timer expiry lawfully refreshes discrete reactions' {
+    $p=New-CommandProof;Set-ReactionBaseline $p rider reactions 0;Set-ReactionBaseline $p rider reactionCooldown 0.25
+    Add-ReactionTick $p rider 0.25
+    $p.resourceWindow.events[-1].state.reactions=1;$p.resourceWindow.events[-1].state.reactionCooldown=0
+    $p.samples[-1].state.rider.reactions=1;$p.samples[-1].state.rider.reactionCooldown=0
+    Assert-KmcRelationshipCommandProof $p $true $false 0 $true
+}
+Test-Case 'reject reaction refresh without the exact native tick' {
+    $p=New-CommandProof;Set-ReactionBaseline $p rider reactions 0
+    $p.samples[-1].state.rider.reactions=1
+    Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'reaction allowance'
+}
+Test-Case 'reject AoO refund below permitted native decay' {
+    $p=New-CommandProof;Set-ReactionBaseline $p mount reactionCooldown 3.0
+    Add-ReactionTick $p mount 0.25;$p.resourceWindow.events[-1].state.reactionCooldown=0;$p.samples[-1].state.mount.reactionCooldown=0
+    Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'reaction effect'
+}
+Test-Case 'observed initiative cooldown decay preserves initiative ordering' {
+    $p=New-CommandProof;Set-ReactionBaseline $p rider initiativeCooldown 1.0
+    Add-ReactionTick $p rider 0.25 $false $false $true
+    $p.resourceWindow.events[-1].state.initiativeCooldown=0.75;$p.samples[-1].state.rider.initiativeCooldown=0.75
+    Assert-KmcRelationshipCommandProof $p $true $false 0 $true
+}
+Test-Case 'TB passing cooldown expiry does not refresh reactions' {
+    $p=New-CommandProof $true $true;Set-ReactionBaseline $p rider reactions 0;Set-ReactionBaseline $p rider reactionCooldown 0.25
+    Add-ReactionTick $p rider 0.25 $true $true
+    $p.resourceWindow.events[-1].state.reactionCooldown=0;$p.samples[-1].state.rider.reactionCooldown=0
+    Assert-KmcRelationshipCommandProof $p $true $true 0 $true
+    $p.resourceWindow.events[-1].state.reactions=1;$p.samples[-1].state.rider.reactions=1
+    Reject {Assert-KmcRelationshipCommandProof $p $true $true 0 $true} 'reaction effect'
+}
+Test-Case 'reject a missing native reaction callback end' {
+    $p=New-CommandProof;Add-ReactionTick $p rider 0.25
+    $p.resourceWindow.events=@($p.resourceWindow.events|Where-Object boundary -CNE 'cooldown-tick-after')
+    Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'Reaction terminal sequence'
+}
+Test-Case 'reject consumed then restored reactions during delivery' {
+    $p=New-CommandProof;$p.samples[8].state.rider.reactions=0
+    Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'reaction allowance'
+}
+Test-Case 'declared partner preparation restores spent allowance only once' {
+    $p=New-CommandProof $true $true 1;Set-ReactionBaseline $p mount reactions 0
+    $p.resourceWindow.events[-1].state.reactions=1;$p.samples[-1].state.mount.reactions=1
+    Assert-KmcRelationshipCommandProof $p $true $true 1 $true
+    $p.resourceWindow.events[-1].state.reactions=2;$p.samples[-1].state.mount.reactions=2
+    Reject {Assert-KmcRelationshipCommandProof $p $true $true 1 $true} 'reaction effect'
+}
+Test-Case 'reject reordered native reaction event evidence' {
+    $p=New-CommandProof;$p.resourceWindow.events[0].sequence=2
+    Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'Reaction event sequence'
+}
+Test-Case 'reject fractional reaction allowance' {
+    $p=New-CommandProof;$p.samples[-1].state.rider.reactions=1.1
+    Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true} 'Reaction discrete field'
+}
 Write-Host "CHUNK6A CAUSAL PROTOCOL PASS=$script:passed FAIL=0 (synthetic validator tests; no runtime qualification)"

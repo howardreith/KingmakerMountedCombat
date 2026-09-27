@@ -88,3 +88,7 @@ Chunk4 2026-09-09 IN PROGRESS: K proves cached sight and command visibility diff
 ### Chunk 6A evidence risk ? 2026-09-27T03:42:13.876Z
 
 IN PROGRESS: a combined compensated/positive Mount was mistaken for single-request approach evidence. Separate native encounter allocations and exact object identities now prevent that merge. The frozen ledger accepts no provisional rows from overall FAIL runs. Native callback observation, exact per-window debt, and both exploration windows must pass before any qualifying PASS. Desktop construction of Unity ECall-dependent observer wrappers cannot prove native callback order. All historical evidence remains bound by hashes.
+
+## 2026-09-27 ? reaction proof and observer evidence
+
+IN PROGRESS: preview.110 setup refused before observer construction; callbacks remain unproven. Preview.111 observes reaction allowance, AoO and initiative cooldowns separately; native runtime verification remains mandatory. A missing callback is instrumentation failure. No source-level test, expired cooldown or provisional row qualifies the positive command. Exact restoration of the bounded preview.110 run PASS; all87 mandatory6A behaviors remain open.

@@ -21,7 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
     // One disposable observer per measured window. Strong references live only for the
     // window, so a completed command remains observable after leaving its native slot.
     // Every patch is observational and is removed in Dispose, including constructor failure.
-    internal sealed class NativeRelationshipCommandProbe : IDisposable
+    internal sealed partial class NativeRelationshipCommandProbe : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Diagnostics.RelationshipCommand";
         private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
@@ -36,6 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JObject preClick;
         private readonly List<Sample> samples = new List<Sample>();
         private readonly JArray errors = new JArray();
+        private readonly JArray installedHooks = new JArray();
         private RelationshipCommandIdentity identity;
         private int initCount;
         private int traceEnd = -1;
@@ -59,9 +60,10 @@ namespace KingmakerMountedCombat.Diagnostics
             this.controls = controls; this.trace = trace; this.rider = rider; this.mount = mount;
             this.ability = ability; this.state = state; traceStart = trace.EventCount;
             preClick = new JObject { ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
-                ["frame"] = Time.frameCount, ["state"] = state() };
+                ["frame"] = Time.frameCount, ["allocationSequence"] = trace.EventCount, ["state"] = state() };
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
             trace.BoundaryObserved += OnAllocationBoundary;
+            trace.ObserveReactionResources = true;
             try
             {
                 Patch(typeof(NativeMountedControlService).GetMethod("PrepareNativeMountApproach", Flags), null, "InitAfter");
@@ -77,9 +79,20 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Patch(MethodInfo method, string before, string after)
         {
             if (method == null) throw new MissingMethodException("Exact relationship observation boundary missing.");
-            harmony.Patch(method,
-                before == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(before, Flags)) { prioritiy = Priority.First },
-                after == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(after, Flags)) { prioritiy = Priority.Last });
+            try
+            {
+                harmony.Patch(method,
+                    before == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(before, Flags)) { prioritiy = Priority.First },
+                    after == null ? null : new HarmonyMethod(typeof(Hooks).GetMethod(after, Flags)) { prioritiy = Priority.Last });
+                installedHooks.Add(new JObject { ["method"] = method.DeclaringType.FullName + "." + method.Name,
+                    ["token"] = method.MetadataToken.ToString("X8"), ["moduleMvid"] = method.Module.ModuleVersionId.ToString(),
+                    ["prefix"] = before, ["postfix"] = after });
+            }
+            catch (Exception exception)
+            {
+                throw new InvalidOperationException("Relationship instrumentation wrapper failed at " +
+                    method.DeclaringType.FullName + "." + method.Name + "; installed=" + installedHooks, exception);
+            }
         }
 
         internal void ClickCompleted(bool admitted)
@@ -131,7 +144,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     ["boundary"] = boundary, ["frame"] = Time.frameCount,
                     ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
-                    ["identity"] = Describe(observed), ["acted"] = command?.IsActed,
+                    ["allocationSequence"] = trace.EventCount, ["identity"] = Describe(observed), ["acted"] = command?.IsActed,
                     ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
                     ["processEnded"] = command?.ExecutionProcess?.IsEnded,
                     ["nativeProcessBinding"] = controls.HasExactRelationshipProcessBinding(command),
@@ -162,7 +175,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 (string)preClick["state"]["selectedIds"][0] == rider.UniqueId &&
                 (long)preClick["state"]["generation"] == identity.Generation;
             foreach (var name in new[] { "init", "click-admission", "move-slot-installation", "acted", "cost-before", "cost-after", "process-binding", "deliver", "relationship-transition", "terminal" })
-                causal &= samples.Count(s => s.Boundary == name) == 1;
+            {
+                var count = samples.Count(s => s.Boundary == name);
+                causal &= count == 1;
+                if (count != 1) errors.Add("Instrumentation boundary " + name + " expected once; observed=" + count + ".");
+            }
             if (requireApproach) causal &= samples.Count(s => s.Boundary == "approach-start") == 1;
             foreach (var sample in samples)
             {
@@ -184,6 +201,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ledgerDelta[item.Name] = (long)samples.Last().Value["state"]["ledger"][item.Name] - (long)item.Value;
             completed = new JObject
             {
+                ["observerHooks"] = installedHooks.DeepClone(),
                 ["preClick"] = preClick.DeepClone(), ["ledgerDelta"] = ledgerDelta,
                 ["mountId"] = mount.UniqueId, ["identity"] = Describe(identity), ["identityComplete"] = identity?.Complete == true,
                 ["initCount"] = initCount, ["sameCommandAtEveryBoundary"] = causal,
@@ -269,9 +287,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     (double)before[0]["state"]["move"], age, turnBased || !inCombat,
                     turnBased || !inCombat ? 0.0001 : 0.05);
             }
+            var reactions = EvaluateReactionResources(events, expectedPartnerPreparations);
             return new JObject
             {
-                ["pass"] = oneSequence && exactCost && lawfulPreparation && endpoints && trace.Complete,
+                ["reactionResources"] = reactions,
+                ["pass"] = (bool)reactions["pass"] && oneSequence && exactCost && lawfulPreparation && endpoints && trace.Complete,
                 ["oneExactRiderMoveSequence"] = oneSequence, ["exactNativeCost"] = exactCost,
                 ["noOtherActorOrActionCostCallbacks"] = oneSequence,
                 ["riderPrepareDelta"] = riderPrepares, ["mountPrepareDelta"] = mountPrepares,
@@ -284,6 +304,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal JObject Capture() => new JObject
         {
+            ["observerHooks"] = installedHooks.DeepClone(),
             ["identity"] = Describe(identity), ["initCount"] = initCount,
             ["terminal"] = Terminal, ["errors"] = errors.DeepClone(),
             ["samples"] = new JArray(samples.Select(s => s.Value.DeepClone()))
@@ -292,7 +313,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
-            disposed = true; trace.BoundaryObserved -= OnAllocationBoundary;
+            disposed = true; trace.ObserveReactionResources = false; trace.BoundaryObserved -= OnAllocationBoundary;
             harmony.UnpatchAll(HarmonyId); if (ReferenceEquals(active, this)) active = null;
         }
 

@@ -1,3 +1,17 @@
+# Chunk 6A reaction proof ? IN PROGRESS
+
+Final offline umbrella PASS (exit0), 2026-09-27T11:15:59.551Z: logs/c6a-reaction-offline-final.log, SHA-256 b779f2f8d3515ba33106dd93e89e7a51d50c2f4e64034c0a9696bc3ef26b92b5. Source103/0, components549/0, harness270/0, assembly627/0, causal protocol80/0, evidence history88/0; two reaction observer wrappers constructed. Built DLL b717a0e7af14e91a8676c41990ee618b331a9fa938bde4b12193ac430be6831a, MVID53d72b8b-31ae-42db-a92f-84256ff6dae5. Final source validation103/0 and ledger record consistency87/0. These are offline gates; native qualification remains0/87. Next: guarded publication, immutable preview.111/chunk6a-reaction-a package, fresh exact suite/ledger and unchanged purity proof, then positive approach.
+
+Preserved published parent f05a26521273298f20057a805cd2651d10ae1bf9; preview.111 source/schema30 pending commit. Preview.110's verified purity proof was reused for c6a-causal-a-approach. That run FAILed at the idle-party handoff before observer construction; every restoration gate PASS. The exact failure is retained in docs/chunk6a-evidence-history.json.
+
+Current source repairs the bounded handoff and adds event-backed reaction accounting for both actors without changing the accepted command flow or adding resource writes. Native observer callbacks and all87 mandatory6A rows remain unqualified. Authoritative report: [docs/CHUNK6A-COMBAT-MOUNT.md](docs/CHUNK6A-COMBAT-MOUNT.md). Live package/proof/run receipts and exact next command: C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6a-causal/AUTONOMOUS-RESUME.md.
+
+Next: final offline umbrella, guarded publication, new immutable candidate/suite/ledger and fresh unchanged proof, then isolated positive approach. No6B until all87 mandatory6A rows pass one frozen candidate. No release/merge/tag/PR/permanent install or HUMAN PLAY inference.
+
+---
+
+## Historical records
+
 # Chunk 6A causal qualification repair ? IN PROGRESS
 
 As of 2026-09-27T03:42:13.876Z, intake HEAD 14966a7c65921797395ecbc4a5b7f9c0c631f991; preview.110 source pending commit. Current implementation and exact next command: [AUTONOMOUS-RESUME.md](AUTONOMOUS-RESUME.md). Qualification is 0/87: 3 historical failures remain FAIL and 84 behaviors remain unqualified. The four prior PASS claims are rejected; their evidence remains immutable. The complete offline umbrella passed with exit 0. Native execution awaits guarded publication, a new clean-HEAD package and fresh unchanged purity proof. Human preview.105 remains the restoration target.

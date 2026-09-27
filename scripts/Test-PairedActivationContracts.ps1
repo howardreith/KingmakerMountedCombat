@@ -176,6 +176,16 @@ public static class KmcNativePatchProbe {
     }
    }
    Console.WriteLine("RELATIONSHIP CAUSAL OBSERVER SIGNATURE PASS=6 FAIL=0; native construction and callback delivery remain runtime gates");
+   foreach(var token in new[]{0x0600934A,0x060093A1}) {
+    var resourceTarget=native.ManifestModule.ResolveMethod(token);
+    var beforeName=token==0x0600934A?"CooldownTickBefore":"OpportunityBefore";
+    var afterName=token==0x0600934A?"CooldownTickAfter":"OpportunityAfter";
+    var before=Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod(beforeName,causalFlags)});
+    var after=Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod(afterName,causalFlags)});
+    patch.Invoke(harmony,new object[]{resourceTarget,before,after,null});
+    Console.WriteLine("PASS reaction observer wrapper construction "+resourceTarget.Name);
+   }
+   Console.WriteLine("REACTION OBSERVER CONSTRUCTION PASS=2 FAIL=0; callbacks still require Unity execution");
    var removal=native.ManifestModule.ResolveMethod(0x06000BE6);
    if(removal.Name!="RemoveUnit" || removal.GetParameters().Length!=1 || removal.GetParameters()[0].Name!="unit" ||
       removal.GetParameters()[0].ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData" ||

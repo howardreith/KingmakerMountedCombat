@@ -32,6 +32,17 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
     return $false
 }
 if($Target-eq'Kingmaker'){
+    foreach($expected in @(
+        @('Kingmaker.Controllers.Combat.UnitCombatCooldownsController',0x0600934A,'TickOnUnit'),
+        @('Kingmaker.Controllers.Combat.UnitCombatCooldownsController',0x06009349,'TickOnUnitTurnBased'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x06009378,'set_AttackOfOpportunityCount'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x06009379,'get_Initiative'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3B4,'get_Initiative'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3BD,'set_AttackOfOpportunity')
+    )){
+        $method=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($method.Count -eq 1 -and $method[0].Name -ceq $expected[2]) ('reaction resource signature '+$expected[0]+'.'+$expected[2])
+    }
     # Read-only steering observations for the mounted/unmounted arrival comparison.
     foreach($expected in @(
         @('Kingmaker.View.UnitMovementAgent',0x04001193,'m_NextPointIndex','System.Int32',$false),

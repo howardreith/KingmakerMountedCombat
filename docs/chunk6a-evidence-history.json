@@ -613,6 +613,53 @@
       "failures": [],
       "qualificationAccepted": false,
       "reason": "Historical diagnostic success is superseded for qualification by the required single-command and exact-window contract."
+    },
+    {
+      "runId": "c6a-causal-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.110",
+        "commit": "f05a26521273298f20057a805cd2651d10ae1bf9",
+        "dllSha256": "28b8a35dbec92c002c8079447a0c4e249f97084055a0f64b240952046e96f83e",
+        "dllMvid": "5fc4677b-d684-4f40-8759-8fb7702fcda1",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.110-chunk6a-causal-a-diagnostic.zip",
+        "packageSha256": "c79184764be7e12f8c672ed65491168d1e5e2d6524a00c30a734e0f4cf17df93",
+        "manifestSha256": "d2cdb6a0b5daf2db3e4574ed633f61b857f41db06b193cc9a59627a2cadc661e"
+      },
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-causal-a-approach/runtime-result.json",
+          "sha256": "fc427eb836573cb4ef407789359a60655033a128d01877fb03f38d5dadeb7bd5"
+        },
+        {
+          "path": "runtime-evidence/c6a-causal-a-approach/runtime-game-result.json",
+          "sha256": "5804decfb39fda1860e82303547aec3b199912ef6a8965321271f023f9e3d00d"
+        },
+        {
+          "path": "runtime-evidence/c6a-causal-a-approach/runtime-request.json",
+          "sha256": "f94d9b74bbef829a6de57dc9ce11548a8588ef5cba7a2a1f71da854a0b2d2ca5"
+        },
+        {
+          "path": "runtime-evidence/c6a-causal-a-approach/orchestration.json",
+          "sha256": "abc5d26873ae4a4622e01b918c038bc27407a8e19fbe30a3d5d833e1fbf6a3c1"
+        },
+        {
+          "path": "runtime-evidence/c6a-causal-a-approach/runtime-artifacts.json",
+          "sha256": "9ff12cca222edd673b34a88ba3c9f847f1661efb4093bfee8973daffc07fc070"
+        }
+      ],
+      "failures": [
+        {
+          "row": "chunk6a-mount-approach",
+          "assertionFailCount": 1,
+          "assertions": [
+            "runtime-exception: InvalidOperationException: Diagnostic fixture requires an idle party before encounter setup."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Diagnostic fixture handoff refused before observer construction: a party member remained in combat. No mandatory positive behavior was reached. Exact restoration PASS. Reaction-resource proof gap still open."
     }
   ]
 }

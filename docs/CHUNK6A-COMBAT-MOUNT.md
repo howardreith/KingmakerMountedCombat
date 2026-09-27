@@ -1,3 +1,23 @@
+## 2026-09-27T11:09:59.792Z ? preview.111 reaction-proof and fixture-handoff repair
+
+Final offline umbrella PASS (exit0), 2026-09-27T11:15:59.551Z: logs/c6a-reaction-offline-final.log, SHA-256 b779f2f8d3515ba33106dd93e89e7a51d50c2f4e64034c0a9696bc3ef26b92b5. Source103/0, components549/0, harness270/0, assembly627/0, causal protocol80/0, evidence history88/0; two reaction observer wrappers constructed. Built DLL b717a0e7af14e91a8676c41990ee618b331a9fa938bde4b12193ac430be6831a, MVID53d72b8b-31ae-42db-a92f-84256ff6dae5. Final source validation103/0 and ledger record consistency87/0. These are offline gates; native qualification remains0/87. Next: guarded publication, immutable preview.111/chunk6a-reaction-a package, fresh exact suite/ledger and unchanged purity proof, then positive approach.
+
+Status: IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core; preserved published parent f05a26521273298f20057a805cd2651d10ae1bf9, local and remote equal at intake. Source changes pending commit; preview.111/schema30. Current live continuation: C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6a-causal/ACTIVE.json and AUTONOMOUS-RESUME.md.
+
+Reconciled preview.110 package c79184764be7e12f8c672ed65491168d1e5e2d6524a00c30a734e0f4cf17df93, DLL 28b8a35dbec92c002c8079447a0c4e249f97084055a0f64b240952046e96f83e, MVID 5fc4677b-d684-4f40-8759-8fb7702fcda1, suite 20260926-chunk6a-causal-a. Its completed unchanged purity proof was verified and reused, not rerun; log SHA-256 eecfc1a1cd4e5da32687858dd8a9431f093f3ae6409f1fdb8ca2878f33c53fbd remains exact. The actual Steam guard now PASS: client1920, current session began 2026-09-27T10:45:18.2578304Z, offline10:45:24, cloud10:45:27, pinned installation unchanged.
+
+Bounded native run c6a-causal-a-approach on preview.110 FAIL: "runtime-exception: InvalidOperationException: Diagnostic fixture requires an idle party before encounter setup." It failed before observer construction, so TryDispatch/TickApproaching installation or callback delivery remain unobserved; no product failure or positive approach qualification is inferred. All restoration flags PASS: Mods, baseline immutability, Working, protected saves and write allowlist. Orchestration ended restored at 2026-09-27T10:52:38.2123633Z. Full exact payload/artifact hashes and original assertion text are appended to docs/chunk6a-evidence-history.json. Historical failures and rejected mixed-command claims remain intact.
+
+The parent now waits within the existing admission bound for every party member to leave native combat before creating the child; it publishes exact party state on refusal. The idle-party guard is unchanged. The resource proof now distinguishes both actors' discrete reaction allowance, AoO cooldown, initiative cooldown and initiative ordering. Exact native tick/Prepare/Clear events support permitted changes; no resource writes were added. See the pinned semantics in planning/ASSEMBLY-CONTRACT-MATRIX.md. Both command windows and source separation accepted by review remain intact. Observer installation receipts and explicit missing-boundary diagnostics distinguish instrumentation failure.
+
+Focused causal protocol PASS78/0, including reaction-only negative cases; initial compile PASS. Complete offline umbrella is in progress in logs/c6a-reaction-offline-1.log; the small observer receipt change made after that build requires a final rebuild and full umbrella before packaging. Preview.110 is superseded by these source/harness changes; its receipts and raw run remain preserved. No PASS ledger entry is accepted. All87 mandatory6A behaviors remain unqualified on the next candidate.
+
+Next: finish focused/native-wrapper regressions and final offline umbrella; guarded publication; new immutable preview.111 package, exact suite and campaign ledger; fresh unchanged purity proof; then isolated positive approach. Verify observer installation and first missing boundary before any product repair. Only an overall PASS with exact CM01-exploration-free and CM02-approach-arrival permits isolated compensation RT/TB, geometry/obstruction, full RT/freshTB and remaining6A. Do not begin6B until all87 rows pass one frozen candidate. Final mission target remains ENGINEERING COMPLETE ? OWNER ACCEPTANCE PENDING; no merge/tag/release/PR/permanent install or HUMAN PLAY inference.
+
+---
+
+## Historical records
+
 # Chunk 6A: legal combat Mount/Dismount
 
 Single active report for the owner's Chunk 6A mission. Status, identities and
