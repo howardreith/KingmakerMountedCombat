@@ -825,7 +825,11 @@ $chunk6aTrancheText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\Ki
 Assert-Kmc ($geometryText -match 'AddRow\("CM02-geometry-change",' -and
     $geometryText -match 'command == null \|\| command.IsActed \|\| command.IsFinished' -and
     $geometryText -match '!chunk6aCommandWindow.ApproachObserved \|\| !rider.View.AgentASP.IsReallyMoving \|\| riderDisplacement <= 0.25f' -and
-    $geometryText -match 'ReferenceEquals\(rider.Commands.Move, command\)' -and
+    $geometryText -match 'rider.Commands.GetCommand\(UnitCommand.CommandType.Move\)' -and
+    $geometryText -match 'ReferenceEquals\(moveSlot, command\)' -and
+    $geometryText -match 'CaptureOrdinaryCommand\(moveSlot\)' -and
+    $geometryText -notmatch 'rider.Commands.Move' -and
+    $geometryText.IndexOf('chunk6aGeometryChangeEvidence["trigger"]') -lt $geometryText.IndexOf('!ReferenceEquals(moveSlot, command)') -and
     $geometryText -match 'FinishChunk6aCommandWindow\("geometry-change-mount", true, 0, true\)' -and
     $geometryText -match '\(string\)sample\["boundary"\] == "deliver"' -and
     $geometryText -match 'horseDisplacement > Chunk6aStationaryToleranceMeters' -and

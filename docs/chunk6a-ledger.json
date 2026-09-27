@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-09-27T18:26:21.412Z",
+  "generatedAtUtc": "2026-09-27T20:15:04.888Z",
   "payload": {
-    "version": "0.1.0-chunk6a-preview.115",
-    "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+    "version": "0.1.0-chunk6a-preview.116",
+    "commit": "0a70c9ef0ba01bcabbc669449cdc00ace693d08d",
     "branch": "codex/mounted-combat-phase3f-playable-core",
-    "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
-    "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
-    "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
-    "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
-    "packagePath": "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
-    "suiteId": "20260927-chunk6a-rider-turn-a",
-    "suiteSha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e"
+    "dllSha256": "d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8",
+    "dllMvid": "d6568315-9f9b-44f4-80f4-4ca671b44b63",
+    "packageSha256": "7f6f65fc499a6a3feeea4977a95423cae8f1b20544e8600e3a3b42bda51921ea",
+    "manifestSha256": "e945955ee9ec76ff1481c30742d9ec6b7d74971f14c3bc8826065abe8d50d6de",
+    "packagePath": "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.116-chunk6a-geometry-a-diagnostic.zip",
+    "suiteId": "20260927-chunk6a-geometry-a",
+    "suiteSha256": "a6c5540eab01e81f19ac5d78825aaeba15cb7a596fbdf458cb8e82482a84544e"
   },
   "entries": [
     {
@@ -19,7 +19,7 @@
       "family": "CM01",
       "claim": "Legal voluntary combat Mount of the Horse pair in real time through the native Mount Companion control.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-rider-turn-a-approach",
+      "runId": "c6a-geometry-a-approach",
       "status": "PASS",
       "passCount": 48,
       "failCount": 0,
@@ -29,8 +29,8 @@
         "CM03-combat-mount-adoption-preparations"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
-      "reason": "CM01-horse-rt: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+      "evidenceSha256": "f85081c6fd02bfa269f394f6e9ddb98ba76cf0cae60a84d56766de805b3addac",
+      "reason": "CM01-horse-rt: exact overall PASS on preview.116 and bound suite; native command/action/reaction evidence and all restoration passed."
     },
     {
       "id": "CM01-horse-tb",
@@ -44,7 +44,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM01-horse-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM01-horse-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM01-mammoth-rt",
@@ -58,7 +58,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM01-mammoth-rt: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM01-mammoth-rt: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM01-mammoth-tb",
@@ -72,14 +72,14 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM01-mammoth-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM01-mammoth-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM01-exploration-free",
       "family": "CM01",
       "claim": "The same native control outside combat performs the transition and charges nothing.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-rider-turn-a-approach",
+      "runId": "c6a-geometry-a-approach",
       "status": "PASS",
       "passCount": 48,
       "failCount": 0,
@@ -88,15 +88,15 @@
         "CM01-exploration-dismount-costs-nothing"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
-      "reason": "CM01-exploration-free: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+      "evidenceSha256": "f85081c6fd02bfa269f394f6e9ddb98ba76cf0cae60a84d56766de805b3addac",
+      "reason": "CM01-exploration-free: exact overall PASS on preview.116 and bound suite; native command/action/reaction evidence and all restoration passed."
     },
     {
       "id": "CM01-combat-mount-preparing-refused",
       "family": "CM01",
       "claim": "While the rider's own native turn is still Preparing, combat Mount is refused with the reason that names the preparing boundary, and sampling it charges nothing.",
       "scenario": "chunk6a-adoption-compensation-tb",
-      "runId": "c6a-rider-turn-a-tb",
+      "runId": "c6a-geometry-a-tb",
       "status": "PASS",
       "passCount": 47,
       "failCount": 0,
@@ -104,15 +104,15 @@
         "CM01-combat-mount-preparing-refused"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1",
-      "reason": "CM01-combat-mount-preparing-refused: exact overall TB PASS47/0 on preview.115, same native setup turn and carried debt, all external restoration checks PASS; both compensation modes passed independently on this candidate/suite. Historical failures remain retained."
+      "evidenceSha256": "604051224af18d24826dfa31b62fdadeccf4a5619ebac3b54f332eeccbc6da0d",
+      "reason": "CM01-combat-mount-preparing-refused: exact preview.116 TB overall PASS, exact action/reaction/identity/terminal evidence and all restoration PASS; isolated RT compensation also passed on the same payload and suite."
     },
     {
       "id": "CM02-approach-arrival",
       "family": "CM02",
       "claim": "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-rider-turn-a-approach",
+      "runId": "c6a-geometry-a-approach",
       "status": "PASS",
       "passCount": 48,
       "failCount": 0,
@@ -120,22 +120,34 @@
         "CM02-approach-arrival"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
-      "reason": "CM02-approach-arrival: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+      "evidenceSha256": "f85081c6fd02bfa269f394f6e9ddb98ba76cf0cae60a84d56766de805b3addac",
+      "reason": "CM02-approach-arrival: exact overall PASS on preview.116 and bound suite; native command/action/reaction evidence and all restoration passed."
     },
     {
       "id": "CM02-geometry-change",
       "family": "CM02",
       "claim": "The mount or target geometry changes during approach; the transition revalidates at arrival.",
-      "scenario": "",
-      "runId": "",
-      "status": "BLOCKED",
+      "scenario": "chunk6a-geometry-change",
+      "runId": "c6a-geometry-a-geometry",
+      "status": "FAIL",
       "passCount": 0,
-      "failCount": 0,
+      "failCount": 1,
       "rows": [],
-      "evidenceLeaf": "",
-      "evidenceSha256": "",
-      "reason": "CM02-geometry-change: exact native qualification on the repaired frozen candidate remains unobserved."
+      "evidenceLeaf": "runtime-game-result.json",
+      "evidenceSha256": "a317a2b46c21d72956f32173ba126e52a937361850543cecba73b01dd9aa59d2",
+      "reason": "CM02-geometry-change: diagnostic Move-slot accessor rejected the real unacted UnitUseAbility before the auxiliary ground command. Pinned UnitCommands.Move returns UnitMoveTo only; GetCommand(Move) exposes the exact native command. All five restoration checks PASS. No provisional PASS credited.",
+      "failingRow": "CM02-geometry-change",
+      "failingAssertion": "The ground order missed the exact uncommitted non-adjacent Mount approach.",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.116",
+        "commit": "0a70c9ef0ba01bcabbc669449cdc00ace693d08d",
+        "dllSha256": "d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8",
+        "dllMvid": "d6568315-9f9b-44f4-80f4-4ca671b44b63",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.116-chunk6a-geometry-a-diagnostic.zip",
+        "packageSha256": "7f6f65fc499a6a3feeea4977a95423cae8f1b20544e8600e3a3b42bda51921ea",
+        "manifestSha256": "e945955ee9ec76ff1481c30742d9ec6b7d74971f14c3bc8826065abe8d50d6de"
+      },
+      "retention": "IMMUTABLE. Original run bytes, payload and exact failing assertion survive every future repair."
     },
     {
       "id": "CM02-obstruction",
@@ -149,7 +161,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-obstruction: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-obstruction: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-wrong-creature-target",
@@ -163,7 +175,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-wrong-creature-target: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-wrong-creature-target: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-foreign-companion",
@@ -177,7 +189,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-foreign-companion: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-foreign-companion: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-ownership-change",
@@ -191,7 +203,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-ownership-change: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-ownership-change: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-size-form-change",
@@ -205,7 +217,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-size-form-change: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-size-form-change: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-lost-direct-control",
@@ -219,7 +231,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-lost-direct-control: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-lost-direct-control: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-left-area",
@@ -233,7 +245,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-left-area: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-left-area: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-view-agent-lost",
@@ -247,7 +259,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-view-agent-lost: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-view-agent-lost: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-loading-cutscene",
@@ -261,7 +273,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-loading-cutscene: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-loading-cutscene: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-rider-incapacitated",
@@ -275,7 +287,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-rider-incapacitated: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-rider-incapacitated: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-mount-incapacitated",
@@ -289,7 +301,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-mount-incapacitated: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-mount-incapacitated: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-generation-change",
@@ -303,14 +315,14 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM02-generation-change: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM02-generation-change: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM02-target-selection-cancelled",
       "family": "CM02",
       "claim": "Cancelling target selection before commitment costs nothing and performs no transition.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-rider-turn-a-approach",
+      "runId": "c6a-geometry-a-approach",
       "status": "PASS",
       "passCount": 48,
       "failCount": 0,
@@ -318,15 +330,15 @@
         "CM01-combat-mount-cancel-costs-nothing"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
-      "reason": "CM02-target-selection-cancelled: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+      "evidenceSha256": "f85081c6fd02bfa269f394f6e9ddb98ba76cf0cae60a84d56766de805b3addac",
+      "reason": "CM02-target-selection-cancelled: exact overall PASS on preview.116 and bound suite; native command/action/reaction evidence and all restoration passed."
     },
     {
       "id": "CM02-adoption-plan-invalidated",
       "family": "CM02",
       "claim": "An encounter adoption refused after the relationship attached is compensated exactly: unmounted with no activation, partner-context or prepared-pair residue, no repeated preparation for either actor, no refund of the already-committed native Move, and a generation that advanced once and was never rewound.",
       "scenario": "chunk6a-adoption-compensation-tb",
-      "runId": "c6a-rider-turn-a-tb",
+      "runId": "c6a-geometry-a-tb",
       "status": "PASS",
       "passCount": 47,
       "failCount": 0,
@@ -334,8 +346,8 @@
         "CM02-adoption-plan-invalidated"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1",
-      "reason": "CM02-adoption-plan-invalidated: exact overall TB PASS47/0 on preview.115, same native setup turn and carried debt, all external restoration checks PASS; both compensation modes passed independently on this candidate/suite. Historical failures remain retained.",
+      "evidenceSha256": "604051224af18d24826dfa31b62fdadeccf4a5619ebac3b54f332eeccbc6da0d",
+      "reason": "CM02-adoption-plan-invalidated: exact preview.116 TB overall PASS, exact action/reaction/identity/terminal evidence and all restoration PASS; isolated RT compensation also passed on the same payload and suite.",
       "failingRow": "CM02-adoption-plan-invalidated",
       "failingAssertion": "An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider's already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound.",
       "observedPayload": {
@@ -348,48 +360,49 @@
         "manifestSha256": "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
       },
       "retention": "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair.",
-      "additionalNativeEvidence": {
-        "runId": "c6a-rider-turn-a-rt",
-        "scenario": "chunk6a-adoption-compensation-rt",
-        "passCount": 46,
-        "failCount": 0,
-        "evidenceSha256": "6956f28233026c091bbda06c12389941c8a699365db261933746d39e149f939a",
-        "rows": [
-          "CM02-adoption-plan-invalidated"
-        ],
-        "observedPayload": {
-          "version": "0.1.0-chunk6a-preview.115",
-          "commit": "44de49923146a4164974c09f0d3e1759f920238c",
-          "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
-          "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
-          "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
-          "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
-          "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0"
-        },
-        "suite": {
-          "suiteId": "20260927-chunk6a-rider-turn-a",
-          "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-rider-turn-a.json",
-          "sha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e",
-          "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
-          "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
-          "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
-          "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f"
-        },
-        "restoration": {
-          "modsRestored": true,
-          "saveProtectionPassed": true,
-          "baselineImmutable": true,
-          "workingRestored": true,
-          "saveWriteAllowlistPassed": true
+      "additionalNativeEvidence": [
+        {
+          "runId": "c6a-geometry-a-rt",
+          "scenario": "chunk6a-adoption-compensation-rt",
+          "status": "PASS",
+          "observedPayload": {
+            "version": "0.1.0-chunk6a-preview.116",
+            "commit": "0a70c9ef0ba01bcabbc669449cdc00ace693d08d",
+            "dllSha256": "d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8",
+            "dllMvid": "d6568315-9f9b-44f4-80f4-4ca671b44b63",
+            "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.116-chunk6a-geometry-a-diagnostic.zip",
+            "packageSha256": "7f6f65fc499a6a3feeea4977a95423cae8f1b20544e8600e3a3b42bda51921ea",
+            "manifestSha256": "e945955ee9ec76ff1481c30742d9ec6b7d74971f14c3bc8826065abe8d50d6de"
+          },
+          "suite": {
+            "suiteId": "20260927-chunk6a-geometry-a",
+            "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-geometry-a.json",
+            "sha256": "a6c5540eab01e81f19ac5d78825aaeba15cb7a596fbdf458cb8e82482a84544e",
+            "packageSha256": "7f6f65fc499a6a3feeea4977a95423cae8f1b20544e8600e3a3b42bda51921ea",
+            "manifestSha256": "e945955ee9ec76ff1481c30742d9ec6b7d74971f14c3bc8826065abe8d50d6de",
+            "dllSha256": "d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8",
+            "dllMvid": "d6568315-9f9b-44f4-80f4-4ca671b44b63"
+          },
+          "artifact": {
+            "path": "runtime-evidence/c6a-geometry-a-rt/phase3d-horse-scenario-evidence.json",
+            "sha256": "5950b198af1035dfe12a16723f94b54241afc032e35452022cd89bf67d43be2d"
+          },
+          "restoration": {
+            "modsRestored": true,
+            "saveProtectionPassed": true,
+            "baselineImmutable": true,
+            "workingRestored": true,
+            "saveWriteAllowlistPassed": true
+          }
         }
-      }
+      ]
     },
     {
       "id": "CM02-adoption-compensation-releases",
       "family": "CM02",
       "claim": "A compensated combat Mount leaves the pair free to attempt a later lawful transition.",
       "scenario": "chunk6a-adoption-compensation-tb",
-      "runId": "c6a-rider-turn-a-tb",
+      "runId": "c6a-geometry-a-tb",
       "status": "PASS",
       "passCount": 47,
       "failCount": 0,
@@ -397,43 +410,44 @@
         "CM02-adoption-compensation-releases"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1",
-      "reason": "CM02-adoption-compensation-releases: exact overall TB PASS47/0 on preview.115, same native setup turn and carried debt, all external restoration checks PASS; both compensation modes passed independently on this candidate/suite. Historical failures remain retained.",
-      "additionalNativeEvidence": {
-        "runId": "c6a-rider-turn-a-rt",
-        "scenario": "chunk6a-adoption-compensation-rt",
-        "passCount": 46,
-        "failCount": 0,
-        "evidenceSha256": "6956f28233026c091bbda06c12389941c8a699365db261933746d39e149f939a",
-        "rows": [
-          "CM02-adoption-compensation-releases"
-        ],
-        "observedPayload": {
-          "version": "0.1.0-chunk6a-preview.115",
-          "commit": "44de49923146a4164974c09f0d3e1759f920238c",
-          "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
-          "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
-          "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
-          "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
-          "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0"
-        },
-        "suite": {
-          "suiteId": "20260927-chunk6a-rider-turn-a",
-          "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-rider-turn-a.json",
-          "sha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e",
-          "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
-          "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
-          "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
-          "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f"
-        },
-        "restoration": {
-          "modsRestored": true,
-          "saveProtectionPassed": true,
-          "baselineImmutable": true,
-          "workingRestored": true,
-          "saveWriteAllowlistPassed": true
+      "evidenceSha256": "604051224af18d24826dfa31b62fdadeccf4a5619ebac3b54f332eeccbc6da0d",
+      "reason": "CM02-adoption-compensation-releases: exact preview.116 TB overall PASS, exact action/reaction/identity/terminal evidence and all restoration PASS; isolated RT compensation also passed on the same payload and suite.",
+      "additionalNativeEvidence": [
+        {
+          "runId": "c6a-geometry-a-rt",
+          "scenario": "chunk6a-adoption-compensation-rt",
+          "status": "PASS",
+          "observedPayload": {
+            "version": "0.1.0-chunk6a-preview.116",
+            "commit": "0a70c9ef0ba01bcabbc669449cdc00ace693d08d",
+            "dllSha256": "d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8",
+            "dllMvid": "d6568315-9f9b-44f4-80f4-4ca671b44b63",
+            "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.116-chunk6a-geometry-a-diagnostic.zip",
+            "packageSha256": "7f6f65fc499a6a3feeea4977a95423cae8f1b20544e8600e3a3b42bda51921ea",
+            "manifestSha256": "e945955ee9ec76ff1481c30742d9ec6b7d74971f14c3bc8826065abe8d50d6de"
+          },
+          "suite": {
+            "suiteId": "20260927-chunk6a-geometry-a",
+            "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-geometry-a.json",
+            "sha256": "a6c5540eab01e81f19ac5d78825aaeba15cb7a596fbdf458cb8e82482a84544e",
+            "packageSha256": "7f6f65fc499a6a3feeea4977a95423cae8f1b20544e8600e3a3b42bda51921ea",
+            "manifestSha256": "e945955ee9ec76ff1481c30742d9ec6b7d74971f14c3bc8826065abe8d50d6de",
+            "dllSha256": "d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8",
+            "dllMvid": "d6568315-9f9b-44f4-80f4-4ca671b44b63"
+          },
+          "artifact": {
+            "path": "runtime-evidence/c6a-geometry-a-rt/phase3d-horse-scenario-evidence.json",
+            "sha256": "5950b198af1035dfe12a16723f94b54241afc032e35452022cd89bf67d43be2d"
+          },
+          "restoration": {
+            "modsRestored": true,
+            "saveProtectionPassed": true,
+            "baselineImmutable": true,
+            "workingRestored": true,
+            "saveWriteAllowlistPassed": true
+          }
         }
-      }
+      ]
     },
     {
       "id": "CM03-rider-before-mount-slot",
@@ -447,7 +461,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-rider-before-mount-slot: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-rider-before-mount-slot: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-mount-slot-before-rider",
@@ -461,7 +475,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-mount-slot-before-rider: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-mount-slot-before-rider: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-mount-spent-move",
@@ -475,7 +489,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-mount-spent-move: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-mount-spent-move: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-mount-spent-standard",
@@ -489,7 +503,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-mount-spent-standard: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-mount-spent-standard: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-mount-spent-all",
@@ -503,7 +517,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-mount-spent-all: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-mount-spent-all: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-rider-without-move",
@@ -517,7 +531,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-rider-without-move: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-rider-without-move: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-rider-other-action",
@@ -531,7 +545,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-rider-other-action: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-rider-other-action: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-early-end-turn",
@@ -545,7 +559,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-early-end-turn: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-early-end-turn: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-next-round-activation",
@@ -559,7 +573,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-next-round-activation: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-next-round-activation: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM03-unrelated-candidate-between",
@@ -573,7 +587,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM03-unrelated-candidate-between: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM03-unrelated-candidate-between: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-stop-during-approach",
@@ -587,7 +601,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-stop-during-approach: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-stop-during-approach: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-command-replacement",
@@ -601,7 +615,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-command-replacement: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-command-replacement: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-turn-end",
@@ -615,7 +629,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-turn-end: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-turn-end: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-combat-end",
@@ -629,7 +643,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-combat-end: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-combat-end: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-mode-exit",
@@ -643,7 +657,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-mode-exit: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-mode-exit: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-area-session-transition",
@@ -657,7 +671,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-area-session-transition: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-area-session-transition: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-disable-unload",
@@ -671,7 +685,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-disable-unload: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-disable-unload: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-rider-death",
@@ -685,7 +699,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-rider-death: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-rider-death: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-mount-death",
@@ -699,7 +713,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-mount-death: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-mount-death: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM04-injected-exception",
@@ -713,7 +727,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM04-injected-exception: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM04-injected-exception: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-rt",
@@ -727,7 +741,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-rt: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-rt: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-tb",
@@ -741,7 +755,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-after-rider-expenditure",
@@ -755,7 +769,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-after-rider-expenditure: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-after-rider-expenditure: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-after-mount-expenditure",
@@ -769,7 +783,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-after-mount-expenditure: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-after-mount-expenditure: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-immediately-after-mount",
@@ -783,7 +797,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-immediately-after-mount: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-immediately-after-mount: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-repeated-input",
@@ -797,7 +811,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-repeated-input: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-repeated-input: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-forced-detach",
@@ -811,7 +825,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-forced-detach: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-forced-detach: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM05-dismount-survives-feature-policy-disable",
@@ -825,7 +839,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM05-dismount-survives-feature-policy-disable: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM05-dismount-survives-feature-policy-disable: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-hotbar-path",
@@ -839,7 +853,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-hotbar-path: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-hotbar-path: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-pointer-target",
@@ -853,7 +867,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-pointer-target: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-pointer-target: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-paused-queue",
@@ -867,7 +881,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-paused-queue: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-paused-queue: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-repeated-request",
@@ -881,7 +895,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-repeated-request: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-repeated-request: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-mount-selected",
@@ -895,7 +909,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-mount-selected: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-mount-selected: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-multiple-selection",
@@ -909,7 +923,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-multiple-selection: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-multiple-selection: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-unrelated-actor",
@@ -923,7 +937,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-unrelated-actor: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-unrelated-actor: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-ai-auto-use",
@@ -937,7 +951,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-ai-auto-use: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-ai-auto-use: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-unmounted-ordinary",
@@ -951,7 +965,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-unmounted-ordinary: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-unmounted-ordinary: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM06-combat-mount-requires-qualified-paired-policy",
@@ -965,7 +979,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM06-combat-mount-requires-qualified-paired-policy: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM06-combat-mount-requires-qualified-paired-policy: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-mount-save-rt",
@@ -979,7 +993,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-mount-save-rt: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-mount-save-rt: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-mount-load-rt",
@@ -993,7 +1007,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-mount-load-rt: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-mount-load-rt: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-mount-save-tb",
@@ -1007,7 +1021,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-mount-save-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-mount-save-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-mount-load-tb",
@@ -1021,7 +1035,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-mount-load-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-mount-load-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-dismount-save",
@@ -1035,7 +1049,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-dismount-save: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-dismount-save: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-dismount-load",
@@ -1049,7 +1063,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-dismount-load: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-dismount-load: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-cold-load",
@@ -1063,7 +1077,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-cold-load: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-cold-load: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-save-slot-routes",
@@ -1077,7 +1091,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-save-slot-routes: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-save-slot-routes: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-unsettled-save-deferred",
@@ -1091,7 +1105,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-unsettled-save-deferred: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-unsettled-save-deferred: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-area-reload",
@@ -1105,7 +1119,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-area-reload: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-area-reload: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM07-schema-unchanged",
@@ -1119,7 +1133,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM07-schema-unchanged: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM07-schema-unchanged: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-mounted-charge-rejected-rt",
@@ -1133,7 +1147,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-mounted-charge-rejected-rt: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-mounted-charge-rejected-rt: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-mounted-charge-rejected-tb",
@@ -1147,7 +1161,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-mounted-charge-rejected-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-mounted-charge-rejected-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-unmounted-charge",
@@ -1161,7 +1175,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-unmounted-charge: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-unmounted-charge: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-ordinary-attack-controls-tb",
@@ -1175,7 +1189,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-ordinary-attack-controls-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-ordinary-attack-controls-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-chunk4-sustained-tb",
@@ -1189,7 +1203,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-chunk4-sustained-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-chunk4-sustained-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-mounted-mammoth-primary-hit-tb",
@@ -1203,7 +1217,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-mounted-mammoth-primary-hit-tb: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-mounted-mammoth-primary-hit-tb: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-sustained-rt",
@@ -1217,7 +1231,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-sustained-rt: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-sustained-rt: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-incoming-targeting",
@@ -1231,7 +1245,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-incoming-targeting: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-incoming-targeting: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-rider-death-cleanup",
@@ -1245,7 +1259,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-rider-death-cleanup: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-rider-death-cleanup: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-mount-death-cleanup",
@@ -1259,7 +1273,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-mount-death-cleanup: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-mount-death-cleanup: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-horse-smoke",
@@ -1273,7 +1287,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-horse-smoke: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-horse-smoke: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-mammoth-smoke",
@@ -1287,7 +1301,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-mammoth-smoke: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-mammoth-smoke: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-persistence-suite",
@@ -1301,7 +1315,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-persistence-suite: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-persistence-suite: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-area-restoration",
@@ -1315,7 +1329,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-area-restoration: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-area-restoration: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     },
     {
       "id": "CM08-disable-removal-readiness",
@@ -1329,7 +1343,7 @@
       "rows": [],
       "evidenceLeaf": "",
       "evidenceSha256": "",
-      "reason": "CM08-disable-removal-readiness: exact native qualification on the repaired frozen candidate remains unobserved."
+      "reason": "CM08-disable-removal-readiness: native qualification on exact preview.116 and its suite remains unobserved; prior payload PASS retained separately."
     }
   ],
   "retainedFailures": [
@@ -1480,6 +1494,32 @@
       },
       "reason": "CM02-approach-arrival: this exact named row failed in the compensation setup, before a combat Mount request. Overall FAIL during pre-encounter Horse separation, before combat or injected-fault Mount. Native UnitMoveTo ended without Success; exact result/path failure detail was not exported by this setup branch. All external restoration checks PASS. No provisional PASS credited. Positive approach run remains independently valid.",
       "retention": "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair."
+    },
+    {
+      "id": "CM02-geometry-change",
+      "family": "CM02",
+      "claim": "The mount or target geometry changes during approach; the transition revalidates at arrival.",
+      "scenario": "chunk6a-geometry-change",
+      "runId": "c6a-geometry-a-geometry",
+      "status": "FAIL",
+      "passCount": 0,
+      "failCount": 1,
+      "rows": [],
+      "evidenceLeaf": "runtime-game-result.json",
+      "evidenceSha256": "a317a2b46c21d72956f32173ba126e52a937361850543cecba73b01dd9aa59d2",
+      "reason": "CM02-geometry-change: diagnostic Move-slot accessor rejected the real unacted UnitUseAbility before the auxiliary ground command. Pinned UnitCommands.Move returns UnitMoveTo only; GetCommand(Move) exposes the exact native command. All five restoration checks PASS. No provisional PASS credited.",
+      "failingRow": "CM02-geometry-change",
+      "failingAssertion": "The ground order missed the exact uncommitted non-adjacent Mount approach.",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.116",
+        "commit": "0a70c9ef0ba01bcabbc669449cdc00ace693d08d",
+        "dllSha256": "d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8",
+        "dllMvid": "d6568315-9f9b-44f4-80f4-4ca671b44b63",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.116-chunk6a-geometry-a-diagnostic.zip",
+        "packageSha256": "7f6f65fc499a6a3feeea4977a95423cae8f1b20544e8600e3a3b42bda51921ea",
+        "manifestSha256": "e945955ee9ec76ff1481c30742d9ec6b7d74971f14c3bc8826065abe8d50d6de"
+      },
+      "retention": "IMMUTABLE. Original run bytes, payload and exact failing assertion survive every future repair."
     }
   ],
   "rejectedQualificationClaims": [
@@ -1609,7 +1649,7 @@
       "reason": "The combined compensated/positive Mount flow and incomplete exploration windows do not satisfy the owner's causal qualification contract. Raw artifacts retain their original statuses."
     }
   ],
-  "candidateDisposition": "Superseded for subsequent qualification by preview.116 geometry instrumentation; these seven PASS entries remain bound only to frozen preview.115 and its suite.",
+  "candidateDisposition": "Preview.116 positive48/0, RT46/0, TB47/0 PASS; geometry FAIL44/2 at diagnostic typed Move accessor. 7PASS/1FAIL/79BLOCKED. Superseded for new source qualification by117.",
   "priorPayloads": [
     {
       "version": "0.1.0-chunk6a-preview.109",
@@ -1670,9 +1710,21 @@
       "packagePath": "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.114-chunk6a-compensation-setup-a-diagnostic.zip",
       "suiteId": "20260927-chunk6a-compensation-setup-a",
       "suiteSha256": "a19e57dc4e1dcf9bfb1c978448cb2076ba6a53f845697d2cf113c92b317d9c9f"
+    },
+    {
+      "version": "0.1.0-chunk6a-preview.115",
+      "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+      "branch": "codex/mounted-combat-phase3f-playable-core",
+      "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+      "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
+      "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+      "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
+      "packagePath": "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
+      "suiteId": "20260927-chunk6a-rider-turn-a",
+      "suiteSha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e"
     }
   ],
-  "note": "No preview.116 payload or native qualification exists yet. Preserve all historical failures. New candidate and suite receive a fresh empty qualification ledger.",
+  "note": "0/87 mandatory PASS on116; previous exact candidate results and every retained failure remain historical.",
   "diagnosticFailures": [
     {
       "id": "CM03-combat-mount-conserves-debt",
@@ -2066,6 +2118,219 @@
           "evidenceLeaf": "",
           "evidenceSha256": "",
           "reason": "CM02-target-selection-cancelled: native qualification on the new preview.115 candidate and exact suite remains unobserved; prior candidate PASS retained separately."
+        }
+      ]
+    },
+    {
+      "payload": {
+        "version": "0.1.0-chunk6a-preview.115",
+        "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+        "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
+        "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+        "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
+        "packagePath": "C:/Dev/KingmakerMountedCombatLab/artifacts/KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
+        "suiteId": "20260927-chunk6a-rider-turn-a",
+        "suiteSha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e"
+      },
+      "entries": [
+        {
+          "id": "CM01-horse-rt",
+          "family": "CM01",
+          "claim": "Legal voluntary combat Mount of the Horse pair in real time through the native Mount Companion control.",
+          "scenario": "chunk6a-mount-approach",
+          "runId": "c6a-rider-turn-a-approach",
+          "status": "PASS",
+          "passCount": 48,
+          "failCount": 0,
+          "rows": [
+            "CM01-combat-mount-accepted",
+            "CM03-combat-mount-conserves-debt",
+            "CM03-combat-mount-adoption-preparations"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
+          "reason": "CM01-horse-rt: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+        },
+        {
+          "id": "CM01-exploration-free",
+          "family": "CM01",
+          "claim": "The same native control outside combat performs the transition and charges nothing.",
+          "scenario": "chunk6a-mount-approach",
+          "runId": "c6a-rider-turn-a-approach",
+          "status": "PASS",
+          "passCount": 48,
+          "failCount": 0,
+          "rows": [
+            "CM01-exploration-free",
+            "CM01-exploration-dismount-costs-nothing"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
+          "reason": "CM01-exploration-free: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+        },
+        {
+          "id": "CM01-combat-mount-preparing-refused",
+          "family": "CM01",
+          "claim": "While the rider's own native turn is still Preparing, combat Mount is refused with the reason that names the preparing boundary, and sampling it charges nothing.",
+          "scenario": "chunk6a-adoption-compensation-tb",
+          "runId": "c6a-rider-turn-a-tb",
+          "status": "PASS",
+          "passCount": 47,
+          "failCount": 0,
+          "rows": [
+            "CM01-combat-mount-preparing-refused"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "evidenceSha256": "e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1",
+          "reason": "CM01-combat-mount-preparing-refused: exact overall TB PASS47/0 on preview.115, same native setup turn and carried debt, all external restoration checks PASS; both compensation modes passed independently on this candidate/suite. Historical failures remain retained."
+        },
+        {
+          "id": "CM02-approach-arrival",
+          "family": "CM02",
+          "claim": "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
+          "scenario": "chunk6a-mount-approach",
+          "runId": "c6a-rider-turn-a-approach",
+          "status": "PASS",
+          "passCount": 48,
+          "failCount": 0,
+          "rows": [
+            "CM02-approach-arrival"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
+          "reason": "CM02-approach-arrival: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+        },
+        {
+          "id": "CM02-target-selection-cancelled",
+          "family": "CM02",
+          "claim": "Cancelling target selection before commitment costs nothing and performs no transition.",
+          "scenario": "chunk6a-mount-approach",
+          "runId": "c6a-rider-turn-a-approach",
+          "status": "PASS",
+          "passCount": 48,
+          "failCount": 0,
+          "rows": [
+            "CM01-combat-mount-cancel-costs-nothing"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "evidenceSha256": "6cad2da207b5180a69e84f365568715ddd50730b9a77818a91e330f10eb09b30",
+          "reason": "CM02-target-selection-cancelled: exact overall PASS on preview.115 and its bound suite; native command/action/reaction evidence and all external restoration checks passed. Historical failures remain retained."
+        },
+        {
+          "id": "CM02-adoption-plan-invalidated",
+          "family": "CM02",
+          "claim": "An encounter adoption refused after the relationship attached is compensated exactly: unmounted with no activation, partner-context or prepared-pair residue, no repeated preparation for either actor, no refund of the already-committed native Move, and a generation that advanced once and was never rewound.",
+          "scenario": "chunk6a-adoption-compensation-tb",
+          "runId": "c6a-rider-turn-a-tb",
+          "status": "PASS",
+          "passCount": 47,
+          "failCount": 0,
+          "rows": [
+            "CM02-adoption-plan-invalidated"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "evidenceSha256": "e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1",
+          "reason": "CM02-adoption-plan-invalidated: exact overall TB PASS47/0 on preview.115, same native setup turn and carried debt, all external restoration checks PASS; both compensation modes passed independently on this candidate/suite. Historical failures remain retained.",
+          "failingRow": "CM02-adoption-plan-invalidated",
+          "failingAssertion": "An encounter adoption refused after the relationship attached was compensated exactly: the relationship returned to unmounted with no activation, partner context or prepared-pair residue, neither actor was prepared again, the rider's already-committed native Move was not refunded, the mount kept every resource, and the relationship generation advanced once and was never rewound.",
+          "observedPayload": {
+            "version": "0.1.0-chunk6a-preview.109",
+            "commit": "efd24ec70df1b1b382d2f3c9ce66c62c18cd0fc2",
+            "dllSha256": "f2534601e6f1880aa2b2cfa4282f3bc72e2fcd943651e00638c15dd8c0efd43c",
+            "dllMvid": "522384f5-90d6-4bf2-9f60-972b23661379",
+            "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.109-chunk6a-approach-a-diagnostic.zip",
+            "packageSha256": "489759b44b7bab92c91946e7ba2448e7a7e2599a06be99f1978035b2af76cab6",
+            "manifestSha256": "91ceba4eb1418ffa5b2e8cd5e4ed578c8497005faeaf586a2e17aae552bf6ae0"
+          },
+          "retention": "IMMUTABLE. Original run bytes and this failing assertion remain historical evidence after any future repair.",
+          "additionalNativeEvidence": {
+            "runId": "c6a-rider-turn-a-rt",
+            "scenario": "chunk6a-adoption-compensation-rt",
+            "passCount": 46,
+            "failCount": 0,
+            "evidenceSha256": "6956f28233026c091bbda06c12389941c8a699365db261933746d39e149f939a",
+            "rows": [
+              "CM02-adoption-plan-invalidated"
+            ],
+            "observedPayload": {
+              "version": "0.1.0-chunk6a-preview.115",
+              "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+              "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+              "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
+              "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
+              "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+              "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0"
+            },
+            "suite": {
+              "suiteId": "20260927-chunk6a-rider-turn-a",
+              "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-rider-turn-a.json",
+              "sha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e",
+              "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+              "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
+              "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+              "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f"
+            },
+            "restoration": {
+              "modsRestored": true,
+              "saveProtectionPassed": true,
+              "baselineImmutable": true,
+              "workingRestored": true,
+              "saveWriteAllowlistPassed": true
+            }
+          }
+        },
+        {
+          "id": "CM02-adoption-compensation-releases",
+          "family": "CM02",
+          "claim": "A compensated combat Mount leaves the pair free to attempt a later lawful transition.",
+          "scenario": "chunk6a-adoption-compensation-tb",
+          "runId": "c6a-rider-turn-a-tb",
+          "status": "PASS",
+          "passCount": 47,
+          "failCount": 0,
+          "rows": [
+            "CM02-adoption-compensation-releases"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "evidenceSha256": "e5a141a291aa8ea07c67c93d3e145412ba744df8f8dfe745da6a2175e1fc75c1",
+          "reason": "CM02-adoption-compensation-releases: exact overall TB PASS47/0 on preview.115, same native setup turn and carried debt, all external restoration checks PASS; both compensation modes passed independently on this candidate/suite. Historical failures remain retained.",
+          "additionalNativeEvidence": {
+            "runId": "c6a-rider-turn-a-rt",
+            "scenario": "chunk6a-adoption-compensation-rt",
+            "passCount": 46,
+            "failCount": 0,
+            "evidenceSha256": "6956f28233026c091bbda06c12389941c8a699365db261933746d39e149f939a",
+            "rows": [
+              "CM02-adoption-compensation-releases"
+            ],
+            "observedPayload": {
+              "version": "0.1.0-chunk6a-preview.115",
+              "commit": "44de49923146a4164974c09f0d3e1759f920238c",
+              "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+              "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f",
+              "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.115-chunk6a-rider-turn-a-diagnostic.zip",
+              "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+              "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0"
+            },
+            "suite": {
+              "suiteId": "20260927-chunk6a-rider-turn-a",
+              "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-rider-turn-a.json",
+              "sha256": "6098cfe115fb39df57ae2641cc6bac477f095fa3af8cae7303de2e5aee04c58e",
+              "packageSha256": "95b8cf9d1d54bb412b8bd38dcf1eac09cad00e623e7cbeb544a90c471ab6bc18",
+              "manifestSha256": "b3b11c1fde2003a05a089028a1c216dca0142914d00f64358210527f2d959cd0",
+              "dllSha256": "7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740",
+              "dllMvid": "298ea405-3015-48bb-9ea8-f8d3ee68288f"
+            },
+            "restoration": {
+              "modsRestored": true,
+              "saveProtectionPassed": true,
+              "baselineImmutable": true,
+              "workingRestored": true,
+              "saveWriteAllowlistPassed": true
+            }
+          }
         }
       ]
     }
