@@ -3443,6 +3443,504 @@
       },
       "transactionRestoredAtUtc": "2026-09-28T04:54:44.5921365+00:00",
       "completedAtUtc": "2026-09-28T04:54:49.7708156+00:00"
+    },
+    {
+      "runId": "c6a-fixtures-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.122",
+        "commit": "b31ec93ad11365b375ae7d4dc59948fd4f1a6574",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.122-chunk6a-fixtures-a-diagnostic.zip",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-fixtures-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-fixtures-a.json",
+        "sha256": "575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "efa79800e0c28c32fc508635dd4e73767c9ddee72d45741b5ef1b67db0b41657"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-approach/orchestration.json",
+          "sha256": "3a623ccba0f7fb334604ec7ce9dcfe70990076c79735b8fd3d76111f0f4c22f8"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "facd216693efe50087957c6b56177a5077a8612e6eb7ba009971f500650d4338"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-approach/runtime-artifacts.json",
+          "sha256": "b1137276e2ab03ade26f0c410ac4fd60fb266398c61a00bffacf74cb6754df9a"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-approach/runtime-game-result.json",
+          "sha256": "0e044db06bbb64b15d606bd621f528432449f33ee3b03bc76881c6f49923e2ee"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-approach/runtime-request.json",
+          "sha256": "19a9a3d6d1eb3b8f2cf169188aba9941a117a4c32b496ec27e4adb835b94cb27"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-approach/runtime-result.json",
+          "sha256": "cc33adc197397aa3db3630eb6884c711c974cc4b5541c56e648b92bc7a9c6efb"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Original122 settled result retained exactly; source123 requires a new candidate and proof and cannot inherit this qualification.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T07:02:32.9285842+00:00",
+      "completedAtUtc": "2026-09-28T07:02:38.1995642+00:00"
+    },
+    {
+      "runId": "c6a-fixtures-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.122",
+        "commit": "b31ec93ad11365b375ae7d4dc59948fd4f1a6574",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.122-chunk6a-fixtures-a-diagnostic.zip",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-fixtures-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-fixtures-a.json",
+        "sha256": "575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "fd762d5c2184fae488a392ef02ddccf4f2790e1bbbfc22f3a5bcf5f61ccc47f1"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-rt/orchestration.json",
+          "sha256": "8e52aa20644f56e5eb9aeab4e3110b63694141c543f974810be19470445aa21c"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "2bf02c439324bfc4b5bf16ecc0caea5511220f5728be63b578448b98bb76ac99"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-rt/runtime-artifacts.json",
+          "sha256": "412266b6a10047ad197fd23db373984290621e4055f4eb81937932834a4cd536"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-rt/runtime-game-result.json",
+          "sha256": "b0957d3b0cff40d4a295668ed40976004700e46ff9f4eaf55372b72c4ae246ec"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-rt/runtime-request.json",
+          "sha256": "207d0baaff7940be0634216f09d92b8121f6f82b1c1bf6afb73b12e6873de469"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-rt/runtime-result.json",
+          "sha256": "7cdf91cd7ccdb3d808d893ccd6fe30140ef5c979ee37e7fc23528e1aabe1b31e"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Original122 settled result retained exactly; source123 requires a new candidate and proof and cannot inherit this qualification.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T07:06:08.2331227+00:00",
+      "completedAtUtc": "2026-09-28T07:06:13.5937962+00:00"
+    },
+    {
+      "runId": "c6a-fixtures-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.122",
+        "commit": "b31ec93ad11365b375ae7d4dc59948fd4f1a6574",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.122-chunk6a-fixtures-a-diagnostic.zip",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-fixtures-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-fixtures-a.json",
+        "sha256": "575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "beaca9edb3dd2bfe5400f890eddc3f9273e0468a3ce0e3d106bd102a20007bec"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-tb/orchestration.json",
+          "sha256": "7bd11a0ff682fcfb3ed8a1092541a36a9dd930a396bb0a80eeb70aec20c515ae"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "fd68e3a076be1101e7c8566f99af3f260bfe15de683d2c131df54b9da352ac4a"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-tb/runtime-artifacts.json",
+          "sha256": "6cf859cbc97c3c2f621a6a3f7eb77be465d6c1d633b84208e13f9f37cdf4e885"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-tb/runtime-game-result.json",
+          "sha256": "beea82e057d5b76a96bb16ffde2223ce9ce0a26e4dd0ed3916541c6290eea558"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-tb/runtime-request.json",
+          "sha256": "467d973eb7b5f7cfc6ed7b459655e279dc5ba98b3990bd49a96acdc56c5616f6"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-tb/runtime-result.json",
+          "sha256": "b1797ca7f3b318f4202568089775794a4c4a2dcd274caac4f753746c5a8e8c1a"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Original122 settled result retained exactly; source123 requires a new candidate and proof and cannot inherit this qualification.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T07:09:00.6538029+00:00",
+      "completedAtUtc": "2026-09-28T07:09:05.9849487+00:00"
+    },
+    {
+      "runId": "c6a-fixtures-a-geometry",
+      "scenario": "chunk6a-geometry-change",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.122",
+        "commit": "b31ec93ad11365b375ae7d4dc59948fd4f1a6574",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.122-chunk6a-fixtures-a-diagnostic.zip",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-fixtures-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-fixtures-a.json",
+        "sha256": "575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-geometry/horse-companion-blueprint-registration.json",
+          "sha256": "b713a6e00aed7e2757b6bfcdeea45befff7cd14147611eda16ae8bef6d03aa25"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-geometry/orchestration.json",
+          "sha256": "b95f67dcd21120ae097b58382227c2dffe54e6e78570612d094297309c1529a7"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-geometry/phase3d-horse-scenario-evidence.json",
+          "sha256": "0ac460e9e9a95925448fc129e381c006a33ed29ee9f168664beb126395c6f25f"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-geometry/runtime-artifacts.json",
+          "sha256": "cd87dcdd5e98d8b1e133dadea9f034a39700f20fc460510391c3d9176c807ba6"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-geometry/runtime-game-result.json",
+          "sha256": "922e3daecedc034df04b5945a7457562501beb168bd5bd08cc4f53c1a9bdd397"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-geometry/runtime-request.json",
+          "sha256": "5f81852d815f33294bfc84d383fac000b5acfa245365c61d9f0437a0dd001f89"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-geometry/runtime-result.json",
+          "sha256": "7ca3a08bfe897020f02f5cff3ab1eaf9de8a59a77ef7442c868d3dbe1a10d6e7"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Original122 settled result retained exactly; source123 requires a new candidate and proof and cannot inherit this qualification.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T07:11:56.2243900+00:00",
+      "completedAtUtc": "2026-09-28T07:12:01.7250229+00:00"
+    },
+    {
+      "runId": "c6a-fixtures-a-obstruction",
+      "scenario": "chunk6a-obstruction",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.122",
+        "commit": "b31ec93ad11365b375ae7d4dc59948fd4f1a6574",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.122-chunk6a-fixtures-a-diagnostic.zip",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-fixtures-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-fixtures-a.json",
+        "sha256": "575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-obstruction/horse-companion-blueprint-registration.json",
+          "sha256": "d5ce12402cb39880d39f84175b4eb2afcd856880b943a02cb742b71d4676dfae"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-obstruction/orchestration.json",
+          "sha256": "1ce9bc03dd1cff32707050e3e2c04bc4fd090d59a6ccd4fc56c16a17aa69cf21"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-obstruction/phase3d-horse-scenario-evidence.json",
+          "sha256": "68931742ef484d6ba7efb25577d7a1176264d2cdb3ea728de8c322371592e16d"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-obstruction/runtime-artifacts.json",
+          "sha256": "6e11e8a60c6e5b2c97df1eac0635bd274feac868913f39baf3889041da5e8ff1"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-obstruction/runtime-game-result.json",
+          "sha256": "c9317e3d738d2f1892861bf9cf366a0cb77b65b3e86acf9a16d05c32fbcddd5e"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-obstruction/runtime-request.json",
+          "sha256": "eceef4b11f139d2cb6edde48bb8266beba3736884aa4f6f83ced6bbbc9042682"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-obstruction/runtime-result.json",
+          "sha256": "d8b6226e5c191fe3cf234e8b66452c29b875978c9cbabaaa5c75d750c89c1cdd"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Original122 settled result retained exactly; source123 requires a new candidate and proof and cannot inherit this qualification.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T07:14:58.5481456+00:00",
+      "completedAtUtc": "2026-09-28T07:15:03.8309551+00:00"
+    },
+    {
+      "runId": "c6a-fixtures-a-full-rt",
+      "scenario": "chunk6a-combat-mount-rt",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.122",
+        "commit": "b31ec93ad11365b375ae7d4dc59948fd4f1a6574",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.122-chunk6a-fixtures-a-diagnostic.zip",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-fixtures-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-fixtures-a.json",
+        "sha256": "575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466"
+      },
+      "assertionPassCount": 52,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-rt/horse-companion-blueprint-registration.json",
+          "sha256": "5ef9268f2901252e6007a4457d36df359cf82bd89b912a26ec924dc99e302493"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-rt/orchestration.json",
+          "sha256": "75d63508d6c981d0400586d38021b9a2f5cb45c5f49021d44912b678f86a6a13"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "1482d9b541ba66d6030ede37d83db4f8690cd6c8df721760860e88dcbc8815e8"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-rt/runtime-artifacts.json",
+          "sha256": "7b5683a64422500a2f4659ad5a585d683219294d32bd657303ada891ebb884c7"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-rt/runtime-game-result.json",
+          "sha256": "2f8aa00aad87bc279ad67c997e897bec75d5ee3de2c71fe36e8549c604a5bc08"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-rt/runtime-request.json",
+          "sha256": "1cdefb80519d43d17836baa37b06c604dc1806cd5ce76ffea2eeae70a0289a02"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-rt/runtime-result.json",
+          "sha256": "2b02886e9a9293878922492d7dd6112530eb775e790969a6e1155e4102899cbd"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Original122 settled result retained exactly; source123 requires a new candidate and proof and cannot inherit this qualification.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T07:18:00.0689865+00:00",
+      "completedAtUtc": "2026-09-28T07:18:05.6343578+00:00"
+    },
+    {
+      "runId": "c6a-fixtures-a-full-tb",
+      "scenario": "chunk6a-combat-mount-tb",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.122",
+        "commit": "b31ec93ad11365b375ae7d4dc59948fd4f1a6574",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.122-chunk6a-fixtures-a-diagnostic.zip",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-fixtures-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-fixtures-a.json",
+        "sha256": "575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12",
+        "manifestSha256": "10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e",
+        "dllSha256": "598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa",
+        "dllMvid": "44829661-73db-41b4-9c60-c51d5d37f466"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-tb/horse-companion-blueprint-registration.json",
+          "sha256": "249a3674ce8b464abd285126808ca7b9858cc40bee32a87fd3a6778c914d8063"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-tb/orchestration.json",
+          "sha256": "7832c953a19c72b9138d8137c71a070b777782fe0bcec7695945a48f300df54a"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "ec64524e01f852f7b4be7194e4d4acbfc4ce6b26e62a70041feb32edc9444e5e"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-tb/runtime-artifacts.json",
+          "sha256": "daea8530097d0367fb8fc01a292323caf2ce0b17be1455d520ddc140e5f8e4bf"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-tb/runtime-game-result.json",
+          "sha256": "0d76978fae8dac1a86d3bf09b7356a5c80f1e2687812d1166c5b7c6c59b37cb5"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-tb/runtime-request.json",
+          "sha256": "e19f5e87796678c81dbed53c2e17775092a00a44a2d310de1fd8ec93acc87b97"
+        },
+        {
+          "path": "runtime-evidence/c6a-fixtures-a-full-tb/runtime-result.json",
+          "sha256": "1698b877a6cd98ec83802b90a19a2a757aca934e8e4f5a528c8d6e0c00c92cdd"
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-leaf-deadline",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        },
+        {
+          "row": "chunk6a-combat-mount-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-leaf-deadline: Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Original122 settled result retained exactly; source123 requires a new candidate and proof and cannot inherit this qualification.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T07:21:48.1806268+00:00",
+      "completedAtUtc": "2026-09-28T07:21:53.7394994+00:00"
     }
   ]
 }

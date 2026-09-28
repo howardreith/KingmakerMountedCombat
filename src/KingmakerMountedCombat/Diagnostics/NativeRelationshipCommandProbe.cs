@@ -198,7 +198,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var cost = samples.FindIndex(s => s.Boundary == "cost-before");
             var delivery = samples.FindIndex(s => s.Boundary == "deliver");
             causal &= acted >= 0 && cost > acted && delivery > cost;
-            var resource = EvaluateResources(inCombat, turnBased, expectedPartnerPreparations);
+            var resource = EvaluateResources(inCombat, turnBased, expectedPartnerPreparations, requireApproach);
             var ledgerDelta = new JObject();
             foreach (var item in ((JObject)preClick["state"]["ledger"]).Properties())
                 ledgerDelta[item.Name] = (long)samples.Last().Value["state"]["ledger"][item.Name] - (long)item.Value;
@@ -219,7 +219,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return (JObject)completed.DeepClone();
         }
 
-        private JObject EvaluateResources(bool inCombat, bool turnBased, int expectedPartnerPreparations)
+        private JObject EvaluateResources(bool inCombat, bool turnBased, int expectedPartnerPreparations, bool requireApproach)
         {
             var events = new JArray(trace.EventsSince(traceStart).Take(Math.Max(0, traceEnd - traceStart)));
             var pairEvents = events.OfType<JObject>().Where(e => (string)e["state"]?["actor"] == rider.UniqueId ||
@@ -247,6 +247,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         (double)b["state"]["standard"], (double)a["state"]["standard"],
                         (double)b["state"]["swift"], (double)a["state"]["swift"]);
             }
+            var movement = NativeApproachMovementEvidence.Evaluate(events, preClick, before.Length == 1 ? before[0] : null,
+                Id(Command), rider.UniqueId, ability, inCombat, turnBased, requireApproach, trace.ObserverHooks);
             var riderPrepares = pairEvents.Count(e => (string)e["boundary"] == "prepare-before" && (string)e["state"]["actor"] == rider.UniqueId);
             var mountPrepares = pairEvents.Count(e => (string)e["boundary"] == "prepare-before" && (string)e["state"]["actor"] == mount.UniqueId);
             var clears = pairEvents.Where(e => (string)e["boundary"] == "clear-before").ToArray();
@@ -286,7 +288,8 @@ namespace KingmakerMountedCombat.Diagnostics
                             turnBased || !inCombat ? 0.0001 : 0.05);
                     }
             }
-            if (endpoints && before.Length == 1)
+            if (endpoints && inCombat && turnBased && ability == "f053faad986631688defa003cd7bda0e") endpoints &= (bool)movement["pass"];
+            else if (endpoints && before.Length == 1)
             {
                 var age = ((long)before[0]["gameTicks"] - (long)preClick["gameTicks"]) / (double)TimeSpan.TicksPerSecond;
                 endpoints &= NativeResourceWindowPolicy.EndpointConserved((double)preClick["state"]["rider"]["move"],
@@ -296,8 +299,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var reactions = EvaluateReactionResources(events, expectedPartnerPreparations);
             return new JObject
             {
-                ["reactionResources"] = reactions,
-                ["pass"] = (bool)reactions["pass"] && oneSequence && exactCost && lawfulPreparation && endpoints && trace.Complete && (auxiliary == null || (bool)auxiliary["pass"]),
+                ["reactionResources"] = reactions, ["nativeApproachMovement"] = movement,
+                ["pass"] = (bool)movement["pass"] && (bool)reactions["pass"] && oneSequence && exactCost && lawfulPreparation && endpoints && trace.Complete && (auxiliary == null || (bool)auxiliary["pass"]),
                 ["oneExactRiderMoveSequence"] = oneSequence, ["exactNativeCost"] = exactCost,
                 ["noOtherActorOrActionCostCallbacks"] = oneSequence && (auxiliary == null || (int)auxiliary["beforeCount"] == 0),
                 ["auxiliaryGroundOrder"] = auxiliary,

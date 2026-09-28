@@ -932,6 +932,23 @@ Assert-Kmc ($chunk6aScenarioText -match '(?s)private void ObserveChunk6aEncounte
     $chunk6aTrancheText -match '\["firstRuntimeException"\]' -and $chunk6aTrancheText -match 'exception.ToString\(\)') `
     'released Chunk 6A observers stop before native access and preserve the first exception with its command evidence'
 
+$approachPathText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeMountApproachPathProbe.cs')
+$approachMovementText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeApproachMovementTrace.cs')
+Assert-Kmc ($approachPathText -match 'ReferenceEquals\(__instance,p.command\)' -and
+    $approachPathText -match 'unitView!=p.rider.View' -and
+    $approachPathText -match 'var copy=points==null\?null:points.ToArray\(\)' -and
+    $approachPathText -match '\["path"\]=consumed\?SnapshotConsumedPath\(path\):null' -and
+    $approachPathText -notmatch '\.(?:ForcedPath|Path|NextApproachTime|Position)\s*=[^=]|\.ClearPath\(|\.FollowPrecomputedPath\(|\.PathTo\(|UpdateCooldowns|Cooldowns.Clear') 'TB Mount path observation binds exact command and native receivers, copies consumed geometry and performs no native path or resource write'
+Assert-Kmc ($approachMovementText -match 'out ApproachMovementCall __state' -and
+    $approachMovementText -match 'ReferenceEquals\(__instance, __state.Turn\)' -and
+    $approachMovementText -match 'RecordApproachMovement\("approach-movement-after", __state, deltaTime\)' -and
+    $approachMovementText -notmatch '(?:deltaTime|\.TimeMoved|\.MoveAction|\.StandardAction|\.SwiftAction)\s*=[^=]|UpdateCooldowns|Cooldowns.Clear|\.Prepare\(' -and
+    $chunk6aRowRequirementText -match 'Assert-KmcNativeMovementEvidence' -and
+    $chunk6aRowRequirementText -match 'Assert-KmcNativeMountApproachPath') 'TB approach debt is explained by exact native ref-delta callbacks and independently replayed without writes'
+Assert-Kmc ($chunk6aScenarioText -match '(?s)chunk6aApproachPath.CaptureBeforeClick\(\);.*?BeginChunk6aCommandWindow\(nativeControls.MountAbility.AssetGuid\).*?chunk6aMountClicked = TryNativeAbilityTargetClick\(.*?chunk6aApproachPath.Bind\(lastNativeAbilityShell\)' -and
+    $chunk6aTrancheText -match '\["approachPathObserver"\] = chunk6aApproachPath\?\.Capture\(\)' -and
+    $chunk6aTrancheText -match '(?s)private void BestEffortCleanup\(\).*?chunk6aApproachPath.Capture\(\).*?chunk6aApproachPath\?\.Dispose\(\).*?chunk6aCommandWindow\?\.Dispose\(\)') 'positive TB records pre-click preview and binds its admitted command, preserving observation before exception and cleanup'
+
 # Charge safety must remain exactly as accepted.
 $chargeServiceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeSafetyService.cs')
 $chargePolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs')

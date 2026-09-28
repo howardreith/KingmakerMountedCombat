@@ -254,6 +254,9 @@
     <Compile Include="Diagnostics\NativeRelationshipCommandProbe.cs" />
     <Compile Include="Diagnostics\NativeRelationshipGroundOrder.cs" />
     <Compile Include="Diagnostics\NativeActorAllocationTrace.cs" />
+    <Compile Include="Diagnostics\NativeApproachMovementTrace.cs" />
+    <Compile Include="Diagnostics\NativeApproachMovementEvidence.cs" />
+    <Compile Include="Diagnostics\NativeMountApproachPathProbe.cs" />
     <Compile Include="Diagnostics\NativeAllocationRoundFactLease.cs" />
     <Compile Include="Diagnostics\ActorAllocationCallbackEvidence.cs" />
     <Compile Include="Diagnostics\ActorAllocationScenarios.cs" />

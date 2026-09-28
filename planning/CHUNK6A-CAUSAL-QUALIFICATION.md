@@ -87,3 +87,26 @@ Pinned Kingmaker Assembly-CSharp SHA2563b6450ffec440e296e586f71c711b195aed144b28
 ## 2026-09-28T03:23:07.787Z - obstruction envelope and external result facets
 
 Preview120 directly observed NativeMountedControlService's exact unacted interruption callback in Unity: command381715712, same shell, nativeInterrupt/OnEnded at frame1946, zero cost/transition and preserved action/reaction window. Overall qualification nevertheless FAIL: Assert-KmcChunk6aObstruction used corpulence +1.0 instead of the frozen CombatMountDismountPolicy.NativeAdjacentReachMeters1.5. Source121 fixes only the validator formula; real Horse corpulence0.9 plus rider0.5 must derive2.9. Source114/0 and causal216/0 regressions retain the same tolerances and closed-door observations; the historical parser replay never changes120's overallFAIL. Exact original artifacts and both native/external result facets are retained in docs/chunk6a-evidence-history.json. New121 requires fulloffline/newcandidate/newproof/nativequalification.
+
+
+## 2026-09-28T07:59:05.791Z - exact TB approach observation (preview.123)
+
+Pinned Kingmaker Assembly-CSharp SHA256 3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Local bounded inspection only; no proprietary source copied into Git.
+
+| Native boundary | Observation / confidence |
+
+| --- | --- |
+
+| UnitCommand.TickApproaching 060027A6 | TB first uses ForcedPath or CurrentPathForUnit for the executor view. The preview branch copies vectorPath into a caller-owned ForcedPath, then calls FollowPrecomputedPath with ApproachRadius. A distant endpoint is logged but still consumed. Exact local body; actual123 callback pending. |
+
+| PathVisualizer.CurrentPathForUnit 0600700F | Returns the current actor preview when view ownership matches; does not validate this command target. Exact local body. This permits the stale-preview hypothesis but does not prove122 consumed it. |
+
+| UnitMovementAgent.FollowPrecomputedPath 060018B6 | Synchronous caller-owned consumed-path boundary; immutable copied points and exact agent ownership may be observed safely. Desktop wrapper PASS; Unity execution pending. |
+
+| UnitMovementAgent.PathTo 060018A3 | Direct request branch records only receiver, command and destination; worker-owned requested path points remain unread. Desktop wrapper DEFER - EVIDENCED (Unity ECall); Unity execution pending. |
+
+| TurnController.TickMovement 06000C37 | Native accepted ref delta changes TimeMoved and MoveAction. Capture prefix/postfix, exact turn/slot/command and all action/reaction fields; independent replay requires continuity to acted cost. Desktop wrapper PASS; native123 execution pending. |
+
+Normal UI IgnoreClick validates current prediction/point. The diagnostic selected-ability path currently calls SetAbility then OnClick without hover/prediction settling. Do not clear, force or write a path based on this hypothesis. Source123 observes first; retain122 failure and unchanged30s deadline.
+
+Positive TB path evidence requires exact native getter and consumed or requested path callbacks for the one admitted unacted Mount. Capture before click, bind the actual Move command, retain failure evidence before cleanup, then unpatch. Preparation, reactions and the exactly-once acted Move cost keep their existing stricter event contracts.

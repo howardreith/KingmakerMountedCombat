@@ -147,3 +147,8 @@ Preview120 directly observed NativeMountedControlService's exact unacted interru
 ## 2026-09-28T05:16:45.475Z - Chunk6A fixture qualification risk
 
 IN PROGRESS: a native setup failure must not be credited as product failure or repaired by relaxing native interaction policy, resource assertions or geometry thresholds. Preview121 exposed a combat-forbidden door close and an unobserved bounded TB projection failure. Source122 isolates the door case through a mandatory composite campaign and records native candidate rejection for the unchanged TB bounds. Actual runtime verification and all87mandatory rows remain required; neither source checks nor historical isolated PASS establish engineering completion.
+
+
+## 2026-09-28T07:59:05.791Z - preview.122 native campaign and preview.123 observation
+
+IN PROGRESS: the exact TB Mount may consume a UI path prepared for another destination. Preview122 did not observe consumed ownership, so cause remains unproven. Preview123 observes native getter/consumption/request and accepted movement deltas without changing gameplay. Missing callbacks are instrumentation failures; no resource reset, path override, threshold or deadline weakening is permitted. All87 mandatory6A rows must pass one frozen candidate before6B.

@@ -1,4 +1,6 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'NativeApproachMovementEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeMountApproachPathEvidence.ps1')
 
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -5965,7 +5967,19 @@ function Assert-KmcRelationshipCommandProof {
     $tolerance=if($TurnBased -or -not $InCombat){0.0001}else{0.05}
     $beforeAge=([long]$b.gameTicks-[long]$first.gameTicks)/10000000.0
     $beforeExpected=if($TurnBased -or -not $InCombat){[double]$first.state.rider.move}else{[Math]::Max(0.0,[double]$first.state.rider.move-$beforeAge)}
-    if($beforeAge -lt 0 -or [Math]::Abs([double]$b.state.move-$beforeExpected) -gt $tolerance){throw 'Move debt changed before the exact acted cost callback.'}
+    $movement=if($resource -is [System.Collections.IDictionary]){$resource['nativeApproachMovement']}elseif($resource.PSObject.Properties['nativeApproachMovement']){$resource.nativeApproachMovement}else{$null}
+    $nativeMountApproach=$InCombat -and $TurnBased -and $identity.abilityGuid -ceq 'f053faad986631688defa003cd7bda0e'
+    $hasMovementEvents=@($resource.events|Where-Object boundary -CLike 'approach-movement-*').Count -gt 0
+    if($nativeMountApproach -and ($RequireApproach -or $hasMovementEvents) -and $null -eq $movement){throw 'Missing exact native TB approach movement proof.'}
+    if($nativeMountApproach -and $RequireApproach){
+        $pathProof=if($Proof -is [System.Collections.IDictionary]){$Proof['nativeApproachPath']}elseif($Proof.PSObject.Properties['nativeApproachPath']){$Proof.nativeApproachPath}else{$null}
+        Assert-KmcNativeMountApproachPath $pathProof $Proof
+    }
+    if($null -ne $movement){
+        if($movement.contract -cne 'normal-native-tb-mount-approach' -or $movement.pass -ne $true -or @($movement.errors).Count -ne 0){throw 'Native approach movement proof is incomplete.'}
+        Assert-KmcNativeMovementEvidence $resource.events $first $b $identity $identity.abilityGuid $InCombat $TurnBased $RequireApproach $movement.observerHooks
+    }
+    if($beforeAge -lt 0 -or ((-not $nativeMountApproach -or $null -eq $movement) -and [Math]::Abs([double]$b.state.move-$beforeExpected) -gt $tolerance)){throw 'Move debt changed before the exact acted cost callback.'}
     $elapsed=([long]$terminal.gameTicks-[long]$first.gameTicks)/10000000.0
     if($elapsed -lt 0){throw 'Resource window native clock reversed.'}
     foreach($actor in @('rider','mount')) {

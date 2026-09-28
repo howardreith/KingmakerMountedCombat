@@ -659,7 +659,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     observations["firstRuntimeException"] = new JObject { ["exception"] = exception.ToString(),
                         ["step"] = step.ToString(), ["cleanupStarted"] = cleanupStarted, ["frame"] = frame,
-                        ["commandObserver"] = chunk6aCommandWindow?.Capture(), ["pathObserver"] = chunk6aPath?.Capture() };
+                        ["commandObserver"] = chunk6aCommandWindow?.Capture(), ["pathObserver"] = chunk6aPath?.Capture(),
+                        ["approachPathObserver"] = chunk6aApproachPath?.Capture() };
                 }
                 FailCurrent(Chunk6aObstructionActive ? "CM02-obstruction" : "phase3d-horse-runtime-exception", exception.GetType().Name + ": " + exception.Message);
                 BeginCleanup();
@@ -6023,6 +6024,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             // The Chunk 6A diagnostic adoption fault is scenario-owned and must be
             // disarmed on every abort path so it can never outlive its own row.
+            try
+            {
+                if (chunk6aApproachPath != null) observations["chunk6aApproachPath"] = chunk6aApproachPath.Capture();
+                chunk6aApproachPath?.Dispose(); chunk6aApproachPath = null;
+            }
+            catch (Exception exception) { errors.Add("Chunk 6A approach path observer cleanup: " + exception.Message); }
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
             try { CleanupChunk6aObstruction(); }

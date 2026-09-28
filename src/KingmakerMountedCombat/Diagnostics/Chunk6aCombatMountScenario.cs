@@ -152,6 +152,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject Chunk6aCooldowns(UnitEntityData actor)
         {
             var cooldown = actor.CombatState?.Cooldown;
+            var currentTurn = Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            var nativeTurn = currentTurn?.Unit == actor ? currentTurn : combat.PairedPartnerContext?.Unit == actor ? combat.PairedPartnerContext : null;
             return new JObject
             {
                 ["actor"] = actor.UniqueId,
@@ -169,6 +171,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["hasStandard"] = actor.HasStandardAction(),
                 ["prepared"] = actor.CombatState?.Prepared,
                 ["nativePrepareCount"] = allocationTrace.GrantCount(actor),
+                ["nativeTurnObject"] = nativeTurn == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(nativeTurn),
+                ["timeMoved"] = nativeTurn?.TimeMoved,
+                ["timeForced"] = nativeTurn?.TimeMovedInForceMode,
+                ["timeStepped"] = nativeTurn?.TimeMovedByFiveFootStep,
                 ["timeToNextTurn"] = actor.GetTimeToNextTurn()
             };
         }
@@ -546,6 +552,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var controller = game.TurnBasedCombatController;
             var turn = controller?.CurrentTurn;
             if (chunk6aCommandWindow != null) observations["chunk6aLiveCommand"] = chunk6aCommandWindow.Capture();
+            if (chunk6aApproachPath != null) observations["chunk6aApproachPath"] = chunk6aApproachPath.Capture();
             observations["chunk6aProgress"] = new JObject
             {
                 ["stage"] = chunk6aStage,
@@ -970,10 +977,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderRosterIndex"] = chunk6aPreMount["riderRosterIndex"],
                     ["mountRosterIndex"] = chunk6aPreMount["mountRosterIndex"]
                 };
+                if (Chunk6aTurnBased)
+                {
+                    chunk6aApproachPath = new NativeMountApproachPathProbe(rider, horse);
+                    chunk6aApproachPath.CaptureBeforeClick();
+                }
                 BeginChunk6aCommandWindow(nativeControls.MountAbility.AssetGuid);
                 chunk6aMountClicked = TryNativeAbilityTargetClick(
                     nativeControls.MountAbility, horse, "chunk6a-combat-mount-click");
                 chunk6aCommandWindow.ClickCompleted(chunk6aMountClicked);
+                if (chunk6aMountClicked && chunk6aApproachPath != null) chunk6aApproachPath.Bind(lastNativeAbilityShell);
                 if (!chunk6aMountClicked)
                 {
                     // Name the exact obstacle. A refusal here reports whichever condition the

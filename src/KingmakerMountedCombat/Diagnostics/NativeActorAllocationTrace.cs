@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     // Scoped observation only. Installed by the guarded disposable fixture, with
     // rollback on a missing exact hook. Never changes a native argument or result.
-    internal sealed class NativeActorAllocationTrace : IDisposable
+    internal sealed partial class NativeActorAllocationTrace : IDisposable
     {
         private const string HarmonyId = "KingmakerMountedCombat.Diagnostics.ActorAllocation";
         private const BindingFlags Flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
@@ -37,6 +37,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData mount;
         private readonly MountedCombatController combat;
         private readonly JArray events = new JArray();
+        private readonly JArray installedHooks = new JArray();
+        internal JArray ObserverHooks => (JArray)installedHooks.DeepClone();
         private readonly Dictionary<UnitEntityData, int> grants = new Dictionary<UnitEntityData, int>();
         private readonly Dictionary<UnitEntityData, float> movedTime = new Dictionary<UnitEntityData, float>();
         private readonly Dictionary<UnitEntityData, float> requestedTime = new Dictionary<UnitEntityData, float>();
@@ -62,6 +64,7 @@ namespace KingmakerMountedCombat.Diagnostics
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
             try
             {
+                Patch(typeof(TurnController), 0x06000C37, "ApproachMovementBefore", "ApproachMovementAfter");
                 Patch(typeof(TurnController), 0x06000C3C, "PrepareBefore", "PrepareAfter");
                 Patch(typeof(UnitCombatState.Cooldowns), 0x0600C3BE, "ClearBefore", "ClearAfter");
                 Patch(typeof(UnitCombatCooldownsController), 0x0600934A, "CooldownTickBefore", "CooldownTickAfter");
@@ -90,7 +93,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal void BeginEncounter(string id) { encounter = id; Record("encounter-setup", rider); }
-        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors };
+        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors, ["observerHooks"] = installedHooks.DeepClone() };
         internal int GrantCount(UnitEntityData actor) => grants.ContainsKey(actor) ? grants[actor] : 0;
         internal JObject Snapshot(UnitEntityData actor)
         {
@@ -221,13 +224,15 @@ namespace KingmakerMountedCombat.Diagnostics
             var before = new HarmonyMethod(typeof(Hooks).GetMethod(prefix, Flags)) { prioritiy = prefix == "RoundBefore" ? Priority.Last : Priority.First };
             var after = new HarmonyMethod(typeof(Hooks).GetMethod(postfix, Flags)) { prioritiy = Priority.Last };
             harmony.Patch(method, before, after);
+            installedHooks.Add(new JObject { ["method"] = method.DeclaringType.FullName + "." + method.Name, ["token"] = token.ToString("X8"),
+                ["moduleMvid"] = method.Module.ModuleVersionId.ToString(), ["prefix"] = prefix, ["postfix"] = postfix });
         }
         private UnitEntityData Owner(UnitCommands commands) => commands == rider.Commands ? rider : commands == mount.Commands ? mount : null;
         private UnitEntityData CooldownOwner(UnitCombatState.Cooldowns value) =>
             value == rider.CombatState.Cooldown ? rider : value == mount.CombatState.Cooldown ? mount :
             preparing?.Unit.CombatState.Cooldown == value ? preparing.Unit : null;
         private bool ObservesReactionActor(UnitEntityData actor) => ObserveReactionResources && (actor == rider || actor == mount);
-        private static class Hooks
+        private static partial class Hooks
         {
             internal static void CooldownTickBefore(UnitEntityData unit)
             { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-before", unit); }
