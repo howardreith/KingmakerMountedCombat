@@ -161,7 +161,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk6aExplorationStage == 4)
             {
-                if (!EnsureChunk6aRiderSelection("CM01-combat-mount-setup")) return;
+                if (!Chunk6aTurnBased && !EnsureChunk6aRiderSelection("CM01-combat-mount-setup")) return;
                 if (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 observations["chunk6aRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
                 observations["chunk6aHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();

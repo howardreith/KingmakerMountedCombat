@@ -8,6 +8,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk6aPausedQueueEvidence.ps1')
 . (Join-Path $PSScriptRoot 'RefusedMountCaseEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aPreCombatPositioningEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativePassiveResourceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativePreCombatGroundEvidence.ps1')
 
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -6311,6 +6313,10 @@ function Assert-KmcChunk6aCombatMountEvidence {
     # Archives through124 predate prediction instrumentation; never attach these
     # historical claims to125+ or synthesize observations into an archived artifact.
     $version=if($Artifact -is [System.Collections.IDictionary]){$Artifact['productVersion']}elseif($Artifact.PSObject.Properties['productVersion']){$Artifact.productVersion}else{$null}
+    # Archives through125 predate the exact ground resource/joint-plan evidence.
+    # Current and unknown identities must emit it; supplied new blocks always validate.
+    $requiresGroundEvidence=$true
+    if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 125){$requiresGroundEvidence=$false}
     $requiresPredictionEvidence=$true
     if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 124){$requiresPredictionEvidence=$false}
 
@@ -6402,6 +6408,9 @@ function Assert-KmcChunk6aCombatMountEvidence {
         if($turnBased -and $window -cin @('positive-mount','compensation')) {
             Assert-KmcChunk6aNativeActingSetup $observations.chunk6aNativeActingSetup $found[0]
             Assert-KmcChunk6aPreCombatPositioning $observations.chunk6aPreCombatPositioning $found[0]
+            if($requiresGroundEvidence -or $observations.chunk6aPreCombatPositioning.PSObject.Properties['plan']){
+                Assert-KmcChunk6aGroundSetupEnvelope $observations $found[0]
+            }
         }
     }
     if ($refusalOnly) {

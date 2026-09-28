@@ -6022,6 +6022,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            try { CleanupChunk6aPreCombatPositioning(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A pre-combat ground fixture", exception); }
             try { CleanupChunk6aNativePointer(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A native pointer input", exception); }
             try { CleanupChunk6aHotbar(); }

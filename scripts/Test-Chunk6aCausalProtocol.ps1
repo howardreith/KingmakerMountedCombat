@@ -4,6 +4,7 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'Test-Chunk6aPreCombatPositioning.ps1') -FunctionsOnly
+. (Join-Path $PSScriptRoot 'Test-NativeGroundTransaction.ps1') -TransactionFunctionsOnly
 $script:passed=0
 function Copy-Value($value){$value|ConvertTo-Json -Depth 80 -Compress|ConvertFrom-Json}
 function Test-Case([string]$name,[scriptblock]$body){& $body;$script:passed++;Write-Host "PASS $name"}
@@ -195,9 +196,33 @@ function New-TbCompensationEnvelope {
     foreach($sample in $c.proof.samples){$sample.identity.abilityGuid=$c.proof.identity.abilityGuid}
     Put-Value $c.proof window 'compensation';$a.observations.chunk6aCommandProofs[2]=$c.proof
     Put-Value $a.observations chunk6aNativeActingSetup $c.setup
-    Put-Value $a.observations chunk6aPreCombatPositioning (New-KmcPositioningFixture $c.proof)
+    $ground=New-GroundTransaction
+    foreach($boundary in @('before','after')){$ground.$boundary.generation=$c.proof.identity.generationAtInit}
+    Put-Value $ground pass $true
+    $foot=$ground.plan.candidates[$ground.plan.selectedIndex].footprint
+    foreach($navigation in @('originNavigation','terminalNavigation')){Put-Value $ground.$navigation footprint $foot;Put-Value $ground.$navigation actingClearance $foot}
+    Put-Value $a.observations chunk6aPreCombatPositioning $ground
+    Put-Value $a.observations actorAllocationTrace ([pscustomobject]@{events=$ground.resourceWindow.events;observerHooks=$ground.resourceWindow.observerHooks;dropped=0;observationErrors=0})
     $a.rows+=@{name='CM01-combat-mount-preparing-refused';status='PASS'}
     return $a
+}
+foreach($version in @('0.1.0-chunk6a-preview.124','0.1.0-chunk6a-preview.125')){
+ Test-Case ('historical TB setup retains its original proof schema '+$version){
+  $a=New-TbCompensationEnvelope;Put-Value $a productVersion $version
+  $a.observations.chunk6aPreCombatPositioning=New-KmcPositioningFixture $a.observations.chunk6aCommandProofs[2]
+  Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'
+ }
+}
+foreach($version in @('0.1.0-chunk6a-preview.126','0.1.0-chunk6a-preview.127','invalid','')){
+ Test-Case ('current TB setup requires exact ground resource schema '+$version){
+  $a=New-TbCompensationEnvelope;Put-Value $a productVersion $version
+  $a.observations.chunk6aPreCombatPositioning=New-KmcPositioningFixture $a.observations.chunk6aCommandProofs[2]
+  Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'} 'omitted the bounded native ground/resource proof'
+ }
+}
+Test-Case 'historical envelope validates any supplied new ground proof'{
+ $a=New-TbCompensationEnvelope;Put-Value $a productVersion '0.1.0-chunk6a-preview.125';$a.observations.chunk6aPreCombatPositioning.resourceWindow.after.rider.reactions++
+ Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'} 'Passive resource'
 }
 Test-Case 'TB compensation envelope requires exact native setup and all command windows' {
     Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) (New-TbCompensationEnvelope) 'PASS'
