@@ -1,3 +1,7 @@
+## 2026-09-28T15:50:48.005Z - closed125 evidence and next diagnostic source
+
+Preserved published026d2c2 and acceptedf05a265 ancestry. Reconciled package/DLL/MVID/suite/purity and16 restored transactions; imported exact native history and21 retained failures. Frozenledger17PASS/2FAIL/68unqualified. Source126 adds explicit paused observation ordering; no production movement/resource writes. Focused build/source126,paused238,envelope18 PASS before version bump. Full gates and new-candidate native qualification pending. Detailed causal findings and identities: [active report](docs/CHUNK6A-COMBAT-MOUNT.md).
+
 
 ## 2026-09-28T13:14:29.965Z — complete preview125 offline gate PASS
 

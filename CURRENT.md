@@ -1,3 +1,7 @@
+## 2026-09-28T15:50:48.005Z - source126 IN PROGRESS
+
+Published parent026d2c265c86252b2d7ad977f8bdd324041806a3 is preserved. Preview125 campaign closed with14PASS/2FAIL and16 exact restorations; its frozen ledger is17/87 mandatoryPASS. Its package/proof are immutable and superseded by current diagnostic source edits. Source126 has no package or native qualification. [Active report](docs/CHUNK6A-COMBAT-MOUNT.md) holds exact identities, failures and next gates. No6B or owner acceptance inferred.
+
 
 ## 2026-09-28T13:14:29.965Z — complete preview125 offline gate PASS
 
