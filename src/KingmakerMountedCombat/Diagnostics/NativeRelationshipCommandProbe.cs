@@ -155,7 +155,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
                     ["processEnded"] = command?.ExecutionProcess?.IsEnded,
                     ["nativeProcessBinding"] = controls.HasExactRelationshipProcessBinding(command),
-                    ["deliveryContext"] = Id(deliveredContext), ["state"] = state()
+                    ["deliveryContext"] = Id(deliveredContext), ["state"] = state(),
+                    ["nativeAllocation"] = boundary == "terminal" ? new JObject {
+                        ["rider"] = trace.Snapshot(rider), ["mount"] = trace.Snapshot(mount) } : null
                 };
                 samples.Add(new Sample { Boundary = boundary, Identity = observed, Value = value });
             }

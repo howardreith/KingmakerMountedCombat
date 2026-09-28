@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Chunk6aCompensationTurnBasedScenario = "chunk6a-adoption-compensation-tb";
 
         internal static bool IsChunk6aCombatMountScenario(string scenario) =>
+            IsChunk6aDismountEscapeScenario(scenario) || IsChunk6aMountOrderScenario(scenario) ||
             IsChunk6aRefusedScenario(scenario) ||
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
@@ -50,7 +51,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool IsChunk6aCombatMount => IsChunk6aCombatMountScenario(request.Scenario);
 
-        private bool Chunk6aTurnBased =>
+        private bool Chunk6aTurnBased => Chunk6aMountOrderOnly ||
             request.Scenario == Chunk6aMammothScenarioEngine.TurnBasedScenario ||
             string.Equals(request.Scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
@@ -555,6 +556,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void TickChunk6aCombatMount()
         {
+            ObserveChunk6aMountOrderTurn();
             var game = Game.Instance;
             var controller = game.TurnBasedCombatController;
             var turn = controller?.CurrentTurn;
@@ -893,6 +895,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (chunk6aStage == 27 || chunk6aStage == 28) { TickChunk6aDismountEscape(); return; }
+            if (chunk6aStage == 29 || chunk6aStage == 30) { TickChunk6aMountOrderCompletion(); return; }
             if (chunk6aStage == 24) { TickChunk6aRefusedMount(); return; }
             if (chunk6aStage == 22 || chunk6aStage == 23) { TickChunk6aStopApproach(); return; }
             if (chunk6aStage == 16 || chunk6aStage == 17)
@@ -1190,6 +1194,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
+                if (Chunk6aDismountEscapeOnly) { BeginChunk6aDismountEscape(mountProof); return; }
+                if (Chunk6aMountOrderOnly) { FinishChunk6aMountOrder(mountProof); return; }
                 chunk6aStage = 3;
                 ResetLeafClock();
                 return;

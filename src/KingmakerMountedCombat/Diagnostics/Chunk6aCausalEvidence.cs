@@ -228,6 +228,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(true);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
             }
+            PrepareChunk6aMountOrderFixture();
             BeginTarget(6f, "chunk6a-combat-mount");
             ruleProbe.Arm(target, false);
             chunk6aStage = 1;

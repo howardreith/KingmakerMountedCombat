@@ -22,6 +22,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-refused-foreign-selection", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-mount-approach", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-stop-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-allocation-rider-first-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-allocation-mount-first-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-feature-disabled-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-policy-disabled-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-hotbar-approach", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-obstruction", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-geometry-change", StringComparison.Ordinal) ||
