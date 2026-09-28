@@ -349,6 +349,15 @@
     <Compile Include="Diagnostics\NativeMountActionBarUiLease.cs" />
     <Compile Include="Diagnostics\Chunk6aMammothScenarioEngine.cs" />
     <Compile Include="Diagnostics\Chunk6aPausedQueueScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6aRefusedMountScenario.cs" />
+    <Compile Include="Diagnostics\NativeRefusedMountInputProbe.cs" />
+    <Compile Include="Diagnostics\NativeRefusedMountEvidence.cs" />
+    <Compile Include="Diagnostics\NativeRefusedMountCaseEvidence.cs" />
+    <Compile Include="Diagnostics\NativeMountPointerInput.cs" />
+    <Compile Include="Diagnostics\NativeRelationshipPredictionProbe.cs" />
+    <Compile Include="Diagnostics\NativePredictionCommandEvidence.cs" />
+    <Compile Include="Diagnostics\NativeMountPointerEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk6aNativePointerScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aTurnSetup.cs" />
     <Compile Include="Diagnostics\Chunk6aPreCombatPositioning.cs" />
     <Compile Include="Diagnostics\NativeCommandPathProbe.cs" />

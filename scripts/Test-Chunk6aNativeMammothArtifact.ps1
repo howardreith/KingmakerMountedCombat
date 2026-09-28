@@ -3,6 +3,7 @@ $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $labRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '../..'))
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Test-Chunk6aSyntheticPrediction.ps1')
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aNativeMammothEvidence.ps1')
 $tokens=$null;$parseErrors=$null
@@ -15,7 +16,7 @@ foreach($name in @('Get-KmcPhase3dHorseRuntimeRows','Assert-KmcChunk6aCombatMoun
 function Copy-Draft($v){$v|ConvertTo-Json -Depth 100|ConvertFrom-Json}
 $original=(Join-Path $labRoot 'runtime-evidence/c6a-fixtures-a-approach/phase3d-horse-scenario-evidence.json')
 $originalHash=Get-KmcSha256 $original
-$child=Read-KmcJson $original;$child.scenario='chunk6a-mammoth-mount-rt'
+$child=Read-KmcJson $original;Add-KmcSyntheticPredictionFields $child;$child.scenario='chunk6a-mammoth-mount-rt'
 $proof=@($child.observations.chunk6aCommandProofs|Where-Object window -CEQ 'positive-mount')[0]
 $pair=[pscustomobject]@{riderId=$proof.identity.casterId;mountId=$proof.identity.targetId;riderObject=101;mountObject=102;mountBlueprint='e7aa96d15a45238438ae4cfb476f6bb9';petObject=102;petId=$proof.identity.targetId;masterObject=101;masterId=$proof.identity.casterId;riderInState=$true;mountInState=$true;riderIsPartyMember=$true;samePlayerPartyGroup=$true}
 $root=Join-Path (Join-Path $labRoot 'analysis-cache/chunk6a-causal') ('synthetic-artifacts-'+[Guid]::NewGuid().ToString('N'));[IO.Directory]::CreateDirectory($root)|Out-Null

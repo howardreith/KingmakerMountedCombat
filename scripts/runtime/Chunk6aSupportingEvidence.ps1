@@ -141,6 +141,9 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM04-stop-during-approach'=@('chunk6a-stop-approach','CM04-stop-during-approach')
         'CM06-hotbar-path'=@('chunk6a-hotbar-approach','CM06-hotbar-path')
         'CM06-paused-queue'=@('chunk6a-paused-queue','CM06-paused-queue')
+        'CM02-wrong-creature-target'=@('chunk6a-refused-wrong-creature-target','CM02-wrong-creature-target')
+        'CM06-mount-selected'=@('chunk6a-refused-mount-selected','CM06-mount-selected')
+        'CM06-multiple-selection'=@('chunk6a-refused-multiple-selection','CM06-multiple-selection')
     }
     if(-not $requirements.ContainsKey($Id)){return $false}
     $required=$requirements[$Id]

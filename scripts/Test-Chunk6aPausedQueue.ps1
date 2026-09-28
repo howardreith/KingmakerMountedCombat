@@ -13,7 +13,7 @@ function Copy-Paused($v){$v|ConvertTo-Json -Depth 50|ConvertFrom-Json}
 $resource=[pscustomobject]@{standard=0.0;move=0.0;swift=0.0;reactions=1;reactionCooldown=0.0;initiativeCooldown=0.0;initiativeOrder=7;reactionsPerRound=1;nativePrepareCount=1}
 $position=[pscustomobject]@{x=1.0;y=2.0;z=3.0}
 $identity=[pscustomobject]@{commandObject=101;controlIdentity='shell:3:mount:rider';casterId='rider';targetId='mount';generationAtInit=1;commandType='Move';abilityGuid='f053faad986631688defa003cd7bda0e';processObject=0;contextObject=0}
-$sample=[pscustomobject]@{frame=100;gameTicks=1000000L;paused=$true;turnBased=$false;allocationSequence=10;traceComplete=$true;inMoveSlot=$true;createdByPlayer=$true;started=$false;acted=$false;finished=$false;
+$sample=[pscustomobject]@{frame=100;gameTicks=1000000L;paused=$true;turnBased=$false;allocationSequence=10;traceComplete=$true;inMoveSlot=$true;createdByPlayer=$false;started=$false;acted=$false;finished=$false;
  state=[pscustomobject]@{rider=$resource;mount=(Copy-Paused $resource);selectedIds=@('rider');ledger=[pscustomobject]@{forcedDetach=1;duplicateSuppressed=1;acceptedMount=1};relationshipState='Unmounted';generation=1;geometry=[pscustomobject]@{riderPosition=$position;horsePosition=(Copy-Paused $position)}}}
 foreach($p in $identity.PSObject.Properties){$sample|Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.Value}
 $samples=@(for($i=0;$i -lt 11;$i++){$s=Copy-Paused $sample;$s.frame+=$i;$s})
@@ -32,8 +32,8 @@ function Check-Paused($h,$p,[bool]$expected){
 }
 function Reject-Paused([scriptblock]$mutate){$h=Copy-Paused $hold;$p=Copy-Paused $proof;& $mutate $h $p;Check-Paused $h $p $false}
 Check-Paused $hold $proof $true
-foreach($flag in @('paused','traceComplete','inMoveSlot','createdByPlayer')){Reject-Paused {param($h,$p)$h.samples[5].$flag=$false}}
-foreach($flag in @('turnBased','started','acted','finished')){Reject-Paused {param($h,$p)$h.samples[5].$flag=$true}}
+foreach($flag in @('paused','traceComplete','inMoveSlot')){Reject-Paused {param($h,$p)$h.samples[5].$flag=$false}}
+foreach($flag in @('turnBased','started','acted','finished','createdByPlayer')){Reject-Paused {param($h,$p)$h.samples[5].$flag=$true}}
 foreach($field in @('commandObject','processObject','contextObject','generationAtInit','gameTicks')){Reject-Paused {param($h,$p)$h.samples[5].$field++}}
 foreach($field in @('controlIdentity','casterId','targetId','commandType','abilityGuid')){Reject-Paused {param($h,$p)$h.samples[5].$field='foreign'}}
 foreach($actor in @('rider','mount')){foreach($field in @('standard','move','swift','reactions','reactionCooldown','initiativeCooldown','initiativeOrder','reactionsPerRound','nativePrepareCount')){

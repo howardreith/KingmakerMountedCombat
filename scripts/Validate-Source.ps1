@@ -594,6 +594,7 @@ Assert-Kmc ($nativeControlsText -match 'private sealed class NativeRelationshipS
 # idle-fixture end-turn input, and no direct position or state assignment.
 $chunk6aScenarioText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCombatMountScenario.cs')
 $chunk6aScenarioText += Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCausalEvidence.cs')
+$chunk6aScenarioText += Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aNativePointerScenario.cs')
 Assert-Kmc ($chunk6aScenarioText -notmatch 'Cooldown\.(MoveAction|StandardAction|SwiftAction|Initiative|AttackOfOpportunity)\s*=' -and
     $chunk6aScenarioText -notmatch 'AttackOfOpportunityCount\s*=' -and
     $chunk6aScenarioText -notmatch '\.Prepare\(\)|OnNewRound|StartTurn\(|JoinCombat|ChooseNextUnit|SetIsActed|IgnoreCooldown' -and
@@ -642,6 +643,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'private void Chunk6aDisposeAdoptionFaul
 # were wrong. Each is pinned here so it cannot come back.
 $chunk6aScenarioText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCombatMountScenario.cs')
 $chunk6aScenarioText += Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aCausalEvidence.cs')
+$chunk6aScenarioText += Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aNativePointerScenario.cs')
 
 # The committed command rows use the complete event-backed resource window. The old
 # endpoint helper treated the initiative timer as ordering and rejected lawful RT decay.
@@ -749,7 +751,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, t
     $positiveFlow.Value -match '(?s)if \(!EnsureChunk6aRiderSelection\("CM02-approach-arrival"\)\) return;.*?chunk6aPreMount = CaptureChunk6aState\("mount-before"\);.*?chunk6aApproachStart = CaptureChunk6aGeometry\("positive-pre-click"\);.*?chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);.*?chunk6aMountClicked = Chunk6aHotbarOnly \? InvokeChunk6aHotbar\(\) : TryNativeAbilityTargetClick') `
     'positive Mount selects and verifies the exact single rider before resource ledger geometry baseline and native input'
 
-Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : Chunk6aStopOnly \? 22 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
+Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : Chunk6aRefusedOnly \? 24 : Chunk6aStopOnly \? 22 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
     $chunk6aScenarioText -match 'if \(!Chunk6aCompensationOnly\) throw' -and
     $positiveFlow.Value -match 'if \(Chunk6aCompensationOnly\) throw' -and
     [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -match 'chunk6aStage = 99;\s*BeginCleanup\(\)' -and
@@ -945,9 +947,31 @@ Assert-Kmc ($approachMovementText -match 'out ApproachMovementCall __state' -and
     $approachMovementText -notmatch '(?:deltaTime|\.TimeMoved|\.MoveAction|\.StandardAction|\.SwiftAction)\s*=[^=]|UpdateCooldowns|Cooldowns.Clear|\.Prepare\(' -and
     $chunk6aRowRequirementText -match 'Assert-KmcNativeMovementEvidence' -and
     $chunk6aRowRequirementText -match 'Assert-KmcNativeMountApproachPath') 'TB approach debt is explained by exact native ref-delta callbacks and independently replayed without writes'
-Assert-Kmc ($chunk6aScenarioText -match '(?s)chunk6aApproachPath.CaptureBeforeClick\(\);.*?BeginChunk6aCommandWindow\(nativeControls.MountAbility.AssetGuid\).*?chunk6aMountClicked = Chunk6aHotbarOnly \? InvokeChunk6aHotbar\(\) : TryNativeAbilityTargetClick\(.*?chunk6aApproachPath.Bind\(lastNativeAbilityShell\)' -and
+$pointerScenarioText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aNativePointerScenario.cs')
+$pointerInputText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeMountPointerInput.cs')
+Assert-Kmc ($positiveFlow.Value -match '(?s)CaptureChunk6aState.*?BeginChunk6aCommandWindow\(nativeControls.MountAbility.AssetGuid\).*?if \(Chunk6aTurnBased\) \{ BeginChunk6aNativePointer\(\); return; \}' -and
+    $pointerScenarioText -match '(?s)PollReady\(\).*?if \(!ready\) return;.*?chunk6aApproachPath.CaptureBeforeClick\(\);.*?chunk6aPointerInput.Click\(\).*?CompleteChunk6aPositiveClick\(\);' -and
+    $pointerScenarioText -match '(?s)private void CompleteChunk6aPositiveClick\(\).*?ClickCompleted\(chunk6aMountClicked\).*?chunk6aApproachPath.Bind\(lastNativeAbilityShell\)' -and
     $chunk6aTrancheText -match '\["approachPathObserver"\] = chunk6aApproachPath\?\.Capture\(\)' -and
     $chunk6aTrancheText -match '(?s)private void BestEffortCleanup\(\).*?chunk6aApproachPath.Capture\(\).*?chunk6aApproachPath\?\.Dispose\(\).*?chunk6aCommandWindow\?\.Dispose\(\)') 'positive TB records pre-click preview and binds its admitted command, preserving observation before exception and cleanup'
+
+Assert-Kmc ($pointerInputText -match 'selected.Count != 1 \|\| selected\[0\] != rider' -and
+    $pointerInputText -match '(?s)AssertContext\(\);.*?Record\("before-set-ability", null\);.*?handler.SetAbility\(ability\)' -and
+    $pointerInputText -match '(?s)turn.OnHoverObjectChanged\(null, target.View.gameObject\);.*?Predictions.Invoke\(turn, null\);.*?var ignored = turn.IgnoreClick\(\);' -and
+    $pointerInputText -match 'disposed \|\| clicked \|\| !ready' -and
+    $pointerInputText -match 'handler.OnClick\(target.View.gameObject, target.Position, 0, false, false\)' -and
+    $pointerInputText -notmatch '\.(?:Position|ForcedPath|Path|NextApproachTime|IsActed)\s*=[^=]|ClearPath\(|FollowPrecomputedPath\(|PathTo\(|Cooldowns.Clear|UpdateCooldowns' -and
+    $pointerScenarioText -match 'finally \{ CleanupChunk6aNativePointer\(\); \}' -and
+    $chunk6aTrancheText -match '(?s)private void BestEffortCleanup\(\).*?CleanupChunk6aNativePointer\(\)') 'TB native pointer verifies exact selection, waits for native prediction admission, clicks once and restores its lease without resource or path writes'
+$predictionProbeText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeRelationshipPredictionProbe.cs')
+Assert-Kmc ($causalProbeText -match '(?s)if \(Kingmaker.Controllers.Clicks.PointerController.SimulatingClick\).*?RecordPredictionCommand\(command\); return;.*?initCount\+\+' -and
+    $predictionProbeText -match 'NativePredictionCommandEvidence.AssertComplete' -and
+    $chunk6aRowRequirementText -match 'Assert-KmcNativePredictionCommands' -and
+    $chunk6aRowRequirementText -match 'Assert-KmcNativeMountPointer' -and
+    $chunk6aRowRequirementText.Contains('Assert-KmcRelationshipCommandProof $found[0] $isCombat ($turnBased -and $isCombat) $prepares ($window -ceq ''positive-mount'') 0 $requiresPredictionEvidence') -and
+    $chunk6aRowRequirementText.Contains('$requiresPredictionEvidence=$true') -and
+    $chunk6aRowRequirementText.Contains('[long]$Matches[1] -le 124') -and
+    $causalProbeText -match 'var events = new JArray\(trace.EventsSince\(traceStart\)') 'native prediction has explicit separate identities while current envelopes require their proof and retain every resource event'
 
 # Additional isolated input fixtures preserve the accepted positive command window.
 $positioningText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aPreCombatPositioning.cs')
@@ -970,7 +994,8 @@ Assert-Kmc ($stopInputText -match '0x060000B9' -and $stopInputText -match '0x060
     $stopScenarioText -match 'moved <= 0.25f' -and $stopScenarioText -match 'UnitCommand.ResultType.Interrupt' -and
     $stopScenarioText -notmatch 'Cooldown.*=|\.Prepare\(|\.IsActed\s*=') 'Stop observes the exact pending approached Mount through native input and OnEnded without manufacturing acted state or cost'
 $pausedText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aPausedQueueScenario.cs')
-Assert-Kmc ($positiveFlow.Value -match '(?s)EnsureChunk6aRiderSelection.*?PrepareChunk6aPausedQueue.*?CaptureChunk6aState.*?BeginChunk6aPausedHold' -and
+Assert-Kmc ($positiveFlow.Value -match '(?s)EnsureChunk6aRiderSelection.*?PrepareChunk6aPausedQueue.*?CaptureChunk6aState.*?CompleteChunk6aPositiveClick' -and
+    $pointerScenarioText -match '(?s)private void CompleteChunk6aPositiveClick\(\).*?ClickCompleted.*?if \(!chunk6aMountClicked\).*?BeginChunk6aPausedHold\(\);' -and
     $pausedText -match 'chunk6aPausedSamples.Count < 11' -and $pausedText -match 'NativePausedMountEvidence.AssertComplete' -and
     $pausedText -notmatch 'Cooldown.*=|\.Prepare\(|\.Position\s*=') 'paused Mount retains one exact command across ten held frame boundaries before its single native release'
 $mammothRunnerText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aMammothScenarioEngine.cs')

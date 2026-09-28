@@ -3,6 +3,7 @@ $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $labRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '../..'))
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Test-Chunk6aSyntheticPrediction.ps1')
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aPausedQueueEvidence.ps1')
 $tokens=$null;$parseErrors=$null
@@ -15,10 +16,10 @@ foreach($name in @('Get-KmcPhase3dHorseRuntimeRows','Assert-KmcChunk6aCombatMoun
 function Copy-PausedEnvelope($v){$v|ConvertTo-Json -Depth 100|ConvertFrom-Json}
 $original=(Join-Path $labRoot 'runtime-evidence/c6a-fixtures-a-approach/phase3d-horse-scenario-evidence.json')
 $originalHash=Get-KmcSha256 $original
-$envelope=Read-KmcJson $original;$envelope.scenario='chunk6a-paused-queue'
+$envelope=Read-KmcJson $original;Add-KmcSyntheticPredictionFields $envelope;$envelope.scenario='chunk6a-paused-queue'
 $proof=@($envelope.observations.chunk6aCommandProofs|Where-Object window -CEQ 'positive-mount')[0]
 $admission=@($proof.samples|Where-Object boundary -CEQ 'click-admission')[0]
-$sample=[pscustomobject]@{frame=$admission.frame;gameTicks=$admission.gameTicks;paused=$true;turnBased=$false;allocationSequence=$admission.allocationSequence;traceComplete=$true;inMoveSlot=$true;createdByPlayer=$true;started=$false;acted=$false;finished=$false;state=(Copy-PausedEnvelope $admission.state)}
+$sample=[pscustomobject]@{frame=$admission.frame;gameTicks=$admission.gameTicks;paused=$true;turnBased=$false;allocationSequence=$admission.allocationSequence;traceComplete=$true;inMoveSlot=$true;createdByPlayer=$false;started=$false;acted=$false;finished=$false;state=(Copy-PausedEnvelope $admission.state)}
 foreach($p in $admission.identity.PSObject.Properties){$sample|Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.Value}
 foreach($s in $proof.samples){if($s.boundary -cnotin @('init','click-admission','move-slot-installation')){$s.frame+=11}}
 foreach($e in $proof.resourceWindow.events){if($e.sequence -gt $sample.allocationSequence){$e.frame+=11}}

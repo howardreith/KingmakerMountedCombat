@@ -123,5 +123,8 @@ Test-Case 'preview120 immutable native evidence passes the corrected parser only
     $artifact=Get-Content -Raw $artifactPath|ConvertFrom-Json
     $result=Get-Content -Raw $resultPath|ConvertFrom-Json
     if($result.status -cne 'FAIL' -or $artifact.status -cne 'PASS') {throw 'Original external/native result facets changed.'}
-    Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-obstruction'}) $artifact 'PASS'
+    # This immutable pre-125 artifact predates prediction instrumentation. Replay its
+    # original resource/obstruction contracts without claiming the current envelope.
+    foreach($proof in $artifact.observations.chunk6aCommandProofs){Assert-KmcRelationshipCommandProof $proof $false $false 0 $false}
+    Assert-KmcChunk6aObstruction $artifact.observations.chunk6aObstruction $artifact.observations.chunk6aDoorFixture
 }

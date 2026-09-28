@@ -60,6 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!Chunk6aPausedQueueOnly || chunk6aPausedReleased) return false;
             var sample = CaptureChunk6aPausedSample();
+            observations["chunk6aPausedCurrent"] = sample.DeepClone();
             NativePausedMountEvidence.AssertHeld(chunk6aPausedBefore, sample);
             if ((int)sample["frame"] <= (int)((JObject)chunk6aPausedSamples.Last)["frame"]) return true;
             chunk6aPausedSamples.Add(sample);
@@ -90,6 +91,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static void AssertHeld(JObject first, JObject sample)
         {
             if(first == null || sample == null) throw new InvalidOperationException("Paused Mount observation missing.");
+            // Pinned selected-ability commands leave CreatedByPlayer false. Native code
+            // reads that field only for movement acceleration; the exact callback and
+            // command identity establish input provenance. Never manufacture the flag.
             foreach(var s in new[]{first,sample})
             {
                 if((bool?)s["paused"]!=true || (bool?)s["turnBased"]!=false || (bool?)s["traceComplete"]!=true ||
@@ -97,7 +101,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     string.IsNullOrEmpty((string)s["casterId"]) || string.IsNullOrEmpty((string)s["targetId"]) ||
                     (string)s["commandType"]!="Move" || (string)s["abilityGuid"]!="f053faad986631688defa003cd7bda0e" ||
                     (int?)s["processObject"]!=0 || (int?)s["contextObject"]!=0 || (bool?)s["inMoveSlot"]!=true ||
-                    (bool?)s["createdByPlayer"]!=true || (bool?)s["started"]!=false || (bool?)s["acted"]!=false || (bool?)s["finished"]!=false)
+                    (bool?)s["createdByPlayer"]!=false || (bool?)s["started"]!=false || (bool?)s["acted"]!=false || (bool?)s["finished"]!=false)
                     throw new InvalidOperationException("Paused Mount started, acted, left its exact slot, or lost its observed identity.");
                 if((string)s["state"]?["relationshipState"]!="Unmounted" || (long?)s["state"]?["generation"]!=(long?)s["generationAtInit"] ||
                     !(s["state"]?["selectedIds"] is JArray selected) || selected.Count!=1 || (string)selected[0]!=(string)s["casterId"])

@@ -70,6 +70,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["pass"] = noCost && endpoints && (bool)reactions["pass"] && trace.Complete },
                 ["samples"] = new JArray(samples.Select(s => s.Value.DeepClone())), ["errors"] = errors.DeepClone(),
                 ["traceComplete"] = trace.Complete, ["pass"] = causal && noCost && endpoints && (bool)reactions["pass"] && errors.Count == 0 && trace.Complete };
+            CompletePredictionEvidence(completed);
             return (JObject)completed.DeepClone();
         }
         private static partial class Hooks

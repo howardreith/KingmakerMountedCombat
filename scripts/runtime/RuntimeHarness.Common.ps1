@@ -1,10 +1,12 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'NativeApproachMovementEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativeMountApproachPathEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeMountPointerEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aStopEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aHotbarEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aNativeMammothEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aPausedQueueEvidence.ps1')
+. (Join-Path $PSScriptRoot 'RefusedMountCaseEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aPreCombatPositioningEvidence.ps1')
 
 function Get-KmcRepositoryRoot {
@@ -3680,7 +3682,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
@@ -3757,9 +3759,9 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-after-early-end',
         # This list is also the known-subscenario registry Test-RuntimeResult uses,
         # so a scenario's own name belongs here alongside the rows it emits.
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
-        'CM01-native-mammoth-fixture','CM01-native-mammoth-continuity','CM01-native-mammoth-child-cleanup','CM01-native-mammoth-restoration','CM01-native-mammoth-artifact','CM01-native-mammoth-interrupted','CM06-paused-queue','CM01-exploration-free', 'CM02-approach-arrival',
+        'CM01-native-mammoth-fixture','CM01-native-mammoth-continuity','CM01-native-mammoth-child-cleanup','CM01-native-mammoth-restoration','CM01-native-mammoth-artifact','CM01-native-mammoth-interrupted','CM06-paused-queue','CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM01-exploration-free', 'CM02-approach-arrival',
         'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM06-hotbar-path',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
         'CM01-combat-mount-preparing-refused',
@@ -4974,7 +4976,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $kind = 'horse-companion-blueprint-registration'
     $isAudit = [string]$Request.scenario -cin @(
         $scenario,
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
@@ -5892,7 +5894,7 @@ function Assert-KmcRelationshipGeometryGroundOrder {
 }
 
 function Assert-KmcRelationshipCommandProof {
-    param($Proof, [bool]$InCombat, [bool]$TurnBased, [int]$PartnerPrepares, [bool]$RequireApproach, [long]$ExpectedAuxiliaryGroundCommand=0)
+    param($Proof, [bool]$InCombat, [bool]$TurnBased, [int]$PartnerPrepares, [bool]$RequireApproach, [long]$ExpectedAuxiliaryGroundCommand=0, [bool]$RequirePredictionEvidence=$false)
     foreach ($flag in @('pass','identityComplete','sameCommandAtEveryBoundary','exactActedObserved','nativeTerminal','traceComplete')) {
         if ($Proof.$flag -isnot [bool] -or -not $Proof.$flag) { throw "Causal command proof lacks true $flag." }
     }
@@ -5933,6 +5935,13 @@ function Assert-KmcRelationshipCommandProof {
         [Array]::IndexOf($names,'cost-after') -ge [Array]::IndexOf($names,'deliver')) { throw 'Causal commitment/delivery order differs.' }
     $terminal=@($samples|Where-Object boundary -CEQ 'terminal')[0]
     if ($terminal.finished -ne $true -or $terminal.processEnded -ne $true -or [string]$terminal.result -cne 'Success') { throw 'Command/process terminal state is unproved.' }
+    # Archived pre-125 traces remain resource-replay fixtures. Current scenario envelopes
+    # require this new evidence explicitly; no new PASS may omit it.
+    $prediction=if($Proof -is [System.Collections.IDictionary]){$Proof['predictionCommands']}elseif($Proof.PSObject.Properties['predictionCommands']){$Proof.predictionCommands}else{$null}
+    if($RequirePredictionEvidence -or $null -ne $prediction){
+        Assert-KmcNativePredictionCommands $prediction $Proof
+        if($prediction.pass -ne $true){throw 'Native prediction producer refused its evidence.'}
+    }
     $resource=$Proof.resourceWindow
     if ($resource.inCombat -ne $InCombat -or $resource.turnBased -ne $TurnBased) { throw 'Resource window mode differs.' }
     $events=@($resource.events|Where-Object { [string]$_.state.actor -cin @([string]$identity.casterId,[string]$Proof.mountId) })
@@ -5979,6 +5988,7 @@ function Assert-KmcRelationshipCommandProof {
     if($nativeMountApproach -and $RequireApproach){
         $pathProof=if($Proof -is [System.Collections.IDictionary]){$Proof['nativeApproachPath']}elseif($Proof.PSObject.Properties['nativeApproachPath']){$Proof.nativeApproachPath}else{$null}
         Assert-KmcNativeMountApproachPath $pathProof $Proof
+        Assert-KmcNativeMountPointer $Proof.nativePointerInput $Proof
     }
     if($null -ne $movement){
         if($movement.contract -cne 'normal-native-tb-mount-approach' -or $movement.pass -ne $true -or @($movement.errors).Count -ne 0){throw 'Native approach movement proof is incomplete.'}
@@ -6297,7 +6307,16 @@ function Assert-KmcChunk6aCombatMountEvidence {
         [AllowNull()][string]$Status
     )
 
+    # Exact request/package identity is enforced by the enclosing artifact validator.
+    # Archives through124 predate prediction instrumentation; never attach these
+    # historical claims to125+ or synthesize observations into an archived artifact.
+    $version=if($Artifact -is [System.Collections.IDictionary]){$Artifact['productVersion']}elseif($Artifact.PSObject.Properties['productVersion']){$Artifact.productVersion}else{$null}
+    $requiresPredictionEvidence=$true
+    if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 124){$requiresPredictionEvidence=$false}
+
     $turnBased = [string]$Request.scenario -cin @('chunk6a-combat-mount-tb','chunk6a-adoption-compensation-tb','chunk6a-mammoth-mount-tb')
+    $refusalOnly = [string]$Request.scenario -cin @('chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection')
+    $refusalRow = if($refusalOnly){if([string]$Request.scenario -ceq 'chunk6a-refused-wrong-creature-target'){'CM02-wrong-creature-target'}else{'CM06-'+([string]$Request.scenario).Substring('chunk6a-refused-'.Length)}}else{''}
     $hotbarOnly = [string]$Request.scenario -ceq 'chunk6a-hotbar-approach'
     $approachOnly = [string]$Request.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-hotbar-approach')
     $pausedOnly = [string]$Request.scenario -ceq 'chunk6a-paused-queue'
@@ -6308,6 +6327,8 @@ function Assert-KmcChunk6aCombatMountEvidence {
     $required = @('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing')
     if ($compensationOnly) {
         $required += @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')
+    } elseif ($refusalOnly) {
+        $required += $refusalRow
     } elseif ($stopOnly) {
         $required += 'CM04-stop-during-approach'
     } elseif ($obstructionOnly) {
@@ -6346,14 +6367,14 @@ function Assert-KmcChunk6aCombatMountEvidence {
             throw "PASS Chunk 6A combat-mount evidence requires exactly one PASS row named $name."
         }
     }
-    if (-not ($approachOnly -or $compensationOnly -or $geometryOnly -or $obstructionOnly -or $stopOnly)) {
+    if (-not ($approachOnly -or $compensationOnly -or $geometryOnly -or $obstructionOnly -or $stopOnly -or $refusalOnly)) {
         Assert-KmcChunk6aFullTransaction $Artifact
     }
     $proofs = @($observations.chunk6aCommandProofs)
     $windows = @('exploration-mount','exploration-dismount')
     if ($compensationOnly) { $windows += 'compensation' }
     elseif ($geometryOnly) { $windows += 'geometry-change-mount' }
-    elseif ($obstructionOnly -or $stopOnly) { } # Each negative command has its own strict process-free proof.
+    elseif ($obstructionOnly -or $stopOnly -or $refusalOnly) { } # Each negative command has its own strict process-free proof.
     else {
         $windows += 'positive-mount'
         if (-not $approachOnly) {
@@ -6373,15 +6394,24 @@ function Assert-KmcChunk6aCombatMountEvidence {
         $prepares = if ($window -ceq 'positive-mount' -and
             [string]$observations.chunk6aAdoptionDisposition.disposition -ceq 'PreparePartnerThisRound') { 1 } else { 0 }
         if ($window -ceq 'geometry-change-mount') {
-            Assert-KmcRelationshipCommandProof $found[0] $true $false 0 $true ([long]$observations.chunk6aGeometryChange.auxiliaryCommandId)
+            Assert-KmcRelationshipCommandProof $found[0] $true $false 0 $true ([long]$observations.chunk6aGeometryChange.auxiliaryCommandId) $requiresPredictionEvidence
             Assert-KmcChunk6aGeometryChange $observations.chunk6aGeometryChange $found[0]
         } else {
-            Assert-KmcRelationshipCommandProof $found[0] $isCombat ($turnBased -and $isCombat) $prepares ($window -ceq 'positive-mount')
+            Assert-KmcRelationshipCommandProof $found[0] $isCombat ($turnBased -and $isCombat) $prepares ($window -ceq 'positive-mount') 0 $requiresPredictionEvidence
         }
         if($turnBased -and $window -cin @('positive-mount','compensation')) {
             Assert-KmcChunk6aNativeActingSetup $observations.chunk6aNativeActingSetup $found[0]
             Assert-KmcChunk6aPreCombatPositioning $observations.chunk6aPreCombatPositioning $found[0]
         }
+    }
+    if ($refusalOnly) {
+        $refusal=$observations.chunk6aRefusedMount
+        if($refusal.scenario -cne [string]$Request.scenario -or $refusal.row -cne $refusalRow){throw 'Refusal case does not match this request.'}
+        $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
+        if($otherClaims.Count -ne 0){throw 'An isolated refusal cannot credit another combat scenario.'}
+        Assert-KmcRefusalCase $refusal
+        Assert-KmcRefusalExploration $refusal $proofs
+        return
     }
     if ($hotbarOnly) {
         $mountProof=@($proofs|Where-Object window -CEQ 'positive-mount')[0]
@@ -6513,7 +6543,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
@@ -6553,8 +6583,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         [long]$artifact.schemaVersion
     } else { -1L }
     if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L) -or
-        ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb') -and $phase3dSchemaVersion -ne 30L) -or
+        ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) -or
+        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb') -and $phase3dSchemaVersion -ne 30L) -or
         ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
@@ -6577,7 +6607,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
-    if ($phase3dSchemaVersion -eq 30L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) {
+    if ($phase3dSchemaVersion -eq 30L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) {
         Assert-KmcChunk6aCombatMountEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
