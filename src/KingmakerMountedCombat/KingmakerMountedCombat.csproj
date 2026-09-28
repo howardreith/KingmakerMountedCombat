@@ -314,6 +314,7 @@
     <Compile Include="Integration\NativeMountedAbilityLogic.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
+    <Compile Include="Integration\NativeMountedApproachInterruption.cs" />
     <Compile Include="Integration\MountedRiderPoseAdapter.cs" />
     <Compile Include="Integration\RiderMovementAgent.cs" />
     <Compile Include="Logging\IModLogger.cs" />

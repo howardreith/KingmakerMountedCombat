@@ -90,6 +90,8 @@ namespace KingmakerMountedCombat.Integration
                     nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
                 PatchExact(typeof(UnitUseAbility), "OnAction", 0x06002737, Type.EmptyTypes, null, nameof(PatchMethods.NativeAbilityActionPostfix));
+                PatchExact(typeof(UnitEntityView), "OnMovementInterrupted", 0x0600184F, new[] { typeof(UnityEngine.Vector3) },
+                    nameof(PatchMethods.NativeMountMovementInterruptedPrefix), nameof(PatchMethods.NativeMountMovementInterruptedPostfix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsSuitableForAutoUse", 0x06002B30,
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
@@ -433,6 +435,16 @@ namespace KingmakerMountedCombat.Integration
             internal static void NativeAbilityActionPostfix(UnitUseAbility __instance)
             {
                 PatchBridge.NativeControls?.BindNativeRelationshipProcess(__instance);
+            }
+
+            internal static void NativeMountMovementInterruptedPrefix(UnitEntityView __instance, out UnitUseAbility __state)
+            {
+                __state = PatchBridge.NativeControls?.CaptureNativeMountApproachInterruption(__instance);
+            }
+
+            internal static void NativeMountMovementInterruptedPostfix(UnitEntityView __instance, UnitUseAbility __state)
+            {
+                PatchBridge.NativeControls?.CompleteNativeMountApproachInterruption(__instance, __state);
             }
 
             internal static void RelationshipControlAutoUsePostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)

@@ -250,3 +250,8 @@ No mounted Charge, no mounted casting or item changes, no staged moving
 actions, no Mounted Combat feat, no second rules preset, no revival of either
 legacy turn authority, no new persistence schema, no main merge, no release, no
 permanent installation.
+
+
+## 2026-09-28T01:48:01.223Z - exact native unacted Mount interruption
+
+Pinned Kingmaker Assembly-CSharp SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb / MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. OnMovementInterrupted(0x0600184F) uses the UnitMoveTo-only Move getter0x0600269F; GetCommand(CommandType)0x060026A9 observes the base slot. Native Interrupt0x060027AC owns ResultInterrupt and calls OnEnded0x060027B2, which owns completion; neither charges or marks acted. Preview119 c6a-path-snapshot-a-obstruction directly observed the exact unacted UnitUseAbility left pending after this callback. Source120 adds prefix capture/postfix same-command revalidation and shell retirement before native Interrupt, with no resource writes. Detached ownership negatives24/0, native assembly629/0 and wrapper constructionPASS; actual new callback execution remains a Unity gate. Full cause, original assertion and artifact hashes: docs/CHUNK6A-COMBAT-MOUNT.md and docs/chunk6a-evidence-history.json. Observation caps, deadlines and qualification assertions unchanged.

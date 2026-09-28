@@ -831,6 +831,16 @@ Assert-Kmc ($geometryText -match 'AddRow\("CM02-geometry-change",' -and
     $chunk6aScenarioText -match 'ClickGroundHandler\.MoveSelectedUnitsToPoint\(destination, false\);' -and
     $chunk6aTrancheText -match 'chunk6aGeometryChangeCommand\?\.Interrupt\(\);') `
     'geometry uses observed pre-acted native movement and pre-attachment delivery with its own exact command proof'
+$mountInterruptionText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Integration/NativeMountedApproachInterruption.cs')
+Assert-Kmc ($mountInterruptionText -match 'actor.Commands.GetCommand\(UnitCommand.CommandType.Move\)' -and
+    $mountInterruptionText -match 'PointerController.SimulatingClick' -and
+    $mountInterruptionText -match 'shell.Kind != NativeMountedControlKind.MountCompanion' -and
+    $mountInterruptionText -match 'command.IsStarted \|\| command.IsActed \|\| command.IsFinished \|\| command.ExecutionProcess != null' -and
+    $mountInterruptionText -match 'ReferenceEquals\(command, CaptureNativeMountApproachInterruption\(view\)\)' -and
+    $mountInterruptionText.IndexOf('RetireShell(shell, "native-movement-interrupted")') -lt $mountInterruptionText.IndexOf('command.Interrupt();') -and
+    $mountInterruptionText -notmatch 'ForceFinish|UpdateCooldowns|Cooldowns.Clear|\.(?:IsActed|IsFinished|Result)\s*=[^=]|\.Position\s*=[^=]' -and
+    $patchText -match 'nameof\(PatchMethods.NativeMountMovementInterruptedPrefix\), nameof\(PatchMethods.NativeMountMovementInterruptedPostfix\)') `
+    'native movement interruption retires only the exact captured unacted Mount and delegates terminal state to native Interrupt'
 $groundSetupText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aGroundSetup.cs')
 $pathContentsText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeCommandPathProbe.cs')
 Assert-Kmc ($groundSetupText -match 'NativeGroundFixturePolicy.IsClear' -and

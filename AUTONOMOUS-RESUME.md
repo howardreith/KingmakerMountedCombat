@@ -1,3 +1,11 @@
+## 2026-09-28T01:48:01.223Z - preview.120 interruption repair
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserved published parent aba6b3bf1ae15a678397ee58ee51ca07d8bd3f57. Preview119 proof and five native runs are retained exactly; never restart its completed proof. Its ledger is8 PASS /1 FAIL /78 unqualified with ten retained mandatory failures. CM02-obstruction directly observed a native interruption leaving the exact unacted Mount pending. Source120 fixes only the native handler's UnitMoveTo-only accessor gap by retiring the exact captured Mount shell and calling native Interrupt. No resource writes. Focused build/source113/0, command ownership24/0, assembly629/0, wrapper1/0 PASS; Unity execution still required. Source120 has0/87 native qualification.
+
+Exact payloads, failed assertion, cause and restoration records: [Chunk6A report](docs/CHUNK6A-COMBAT-MOUNT.md), [history](docs/chunk6a-evidence-history.json), and lab analysis-cache/chunk6a-causal/ACTIVE.json. Next complete offline umbrella, guarded publication, new immutable120/suite/fresh proof, then positive, isolatedRT/TB, geometry, obstruction, fullRT/freshTB and remaining87. No6B before all87 pass one frozen candidate. Mission remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING. No active runtime/proof; Kingmaker closed, actual Steam guardPASS. No merge/release/tag/PR/permanent installation/HUMAN PLAY inference.
+
+---
+
 ## 2026-09-27T23:57:09.604Z - preview.119 path observation and fixture repair
 
 IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core, published parent4322f7f89a84027a80320ab1d53411468a62e60a preserved. Preview118 completed its unchanged purity proof (exit0, raw log SHA2566561d40dde73bead1a9e8ef292a0a312a13d1459fbdb5cf9c14d8201c5114933); never rerun it. Candidate package1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991, DLL39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a/MVID44696e8f-fa25-4ee3-a77e-d682a094874a, suite20260927-chunk6a-obstruction-a/SHA2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89.
@@ -35,3 +43,5 @@ Preview119 ledger follow-up: the complete draft umbrella passed, then explicit r
 
 
 Final119 complete offline umbrella PASS exit0 2026-09-28T00:09:02.753Z. Source112/0, components551/0, harness270/0, causal211/0, history271/0, assembly627/0, slot6/0, field5/0, patch30/0, path contents5/0, literal assertion7/0, ledger consistency87/0 (not completion). LogSHA 3ffe6e17cf9dafeb4e121e9a58b844f845806d6ba7101d1fbc63ee6428934bf8; DLL 46c1e2ea6305124f5ecceb4182fd1e8bc70959d883f2eac84b81f4ba76df5e28/MVID69d74125-af4b-4794-b351-9cf2b96130fd. Native119 qualification0/87. Next coherent guarded publication, immutable119 candidate/suite and fresh unchanged purity proof. Completed118 proof never rerun.
+
+Final120 complete offline umbrella PASS exit0 2026-09-28T01:53:14.312Z; source113/0, components551/0, harness270/0, causal211/0, history313/0, assembly629/0, command ownership24/0, new wrapper1/0, patch construction30/0; all gates PASS. Log SHA256 9bad662e7339e3059f2cac4b886cdb00735bb12fc39532b6804130cb490d51dd; DLL b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f / MVID 73c58b67-f639-4ae3-bf8f-727bba15d096. Ledger87/0 is record consistency for historical119 only, not completion. Native120 qualification0/87. Next guarded publication, new immutable120 package/suite/fresh proof, then required native order. Completed119 proof and five runs retained, never rerun proof.
