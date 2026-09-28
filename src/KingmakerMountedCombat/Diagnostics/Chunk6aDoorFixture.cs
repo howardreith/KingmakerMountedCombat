@@ -28,7 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitMoveTo chunk6aDoorGround;
         private NativeCommandPathProbe chunk6aPath;
         private JObject chunk6aDoorEvidence;
-        private bool Chunk6aNeedsDoor => Chunk6aObstructionOnly || request.Scenario == Chunk6aCombatMountRealTimeScenario;
+        private bool Chunk6aNeedsDoor => Chunk6aObstructionOnly;
         private static float DoorDistance(Vector3 a, Vector3 b) { a.y = b.y = 0; return Vector3.Distance(a, b); }
 
         private JObject CaptureChunk6aDoor()

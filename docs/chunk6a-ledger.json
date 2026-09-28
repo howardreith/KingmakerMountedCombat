@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "generatedAtUtc": "2026-09-28T03:15:35.023Z",
+  "generatedAtUtc": "2026-09-28T05:01:00.650Z",
   "payload": {
-    "version": "0.1.0-chunk6a-preview.120",
-    "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
+    "version": "0.1.0-chunk6a-preview.121",
+    "commit": "df849fa5913009508f3afb211db46dd46f280a5c",
     "branch": "codex/mounted-combat-phase3f-playable-core",
-    "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
-    "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
-    "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
-    "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace",
-    "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
-    "suiteId": "20260928-chunk6a-interruption-a",
-    "suiteSha256": "4463cc991345932c1f5345dcdca8c688b6e63b17039fd26a29943375fe9ea6c3"
+    "dllSha256": "9f4b53eef34dc356b0d33ddb8e1b18c3e2b22c4896639045bc4db1004d504d22",
+    "dllMvid": "86ce6557-9a69-48ed-9b07-85ace91d6423",
+    "packageSha256": "192bf8fcde7b71c7f7cd34000f6c68b6b40359548c4e7c782d68f446eb59efa0",
+    "manifestSha256": "df6d68c0f4612e4787afa805f44f42ff71ea20c5f1820b965e638f445e250dcd",
+    "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.121-chunk6a-envelope-a-diagnostic.zip",
+    "suiteId": "20260928-chunk6a-envelope-a",
+    "suiteSha256": "fca161df75e62e7c319e46a6d5776674ebb1b4702d88f07252026c4624e45b83"
   },
   "entries": [
     {
@@ -19,9 +19,9 @@
       "family": "CM01",
       "claim": "Legal voluntary combat Mount of the Horse pair in real time through the native Mount Companion control.",
       "status": "PASS",
-      "reason": "CM01-horse-rt: overall PASS on exact120 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
+      "reason": "CM01-horse-rt: overall PASS on exact121 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-interruption-a-approach",
+      "runId": "c6a-envelope-a-approach",
       "passCount": 48,
       "failCount": 0,
       "rows": [
@@ -30,690 +30,923 @@
         "CM03-combat-mount-adoption-preparations"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "cb49e4c1caeae23feecb7ad2b0cc85af43ee2f6c8938388e99541f5bb1ce1961"
+      "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-approach",
+        "scenario": "chunk6a-mount-approach",
+        "passCount": 48,
+        "failCount": 0,
+        "rows": [
+          "CM01-combat-mount-accepted",
+          "CM03-combat-mount-conserves-debt",
+          "CM03-combat-mount-adoption-preparations"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "01a03a6ffd9799ea22a75def194ba12a5cfd058b0a2ceabd376233724ce1a047",
+        "gameResultSha256": "10711b246508748864b17998ffaea5461e4d55f893047772e8055d81b89e3a20",
+        "requestSha256": "db00f2eb84352210eff80c741f3a3a3772b9d2d203b1b934492fe2cab8b188de",
+        "orchestrationSha256": "7e1c4c6411d863d83fe19b4b6b76087092310d64fe20129f1f3d91999742628e",
+        "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+        "transactionSha256": "f22618e915533f1c73075009b4b67ea10c855966242e848f5ce9fe82c23b2d6d"
+      }
     },
     {
       "id": "CM01-horse-tb",
       "family": "CM01",
       "claim": "Legal voluntary combat Mount of the Horse pair in turn-based combat on the exact rider-led current turn.",
-      "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "status": "FAIL",
+      "reason": "CM01-horse-tb: Fresh full TB fixture failed its native Preparing-to-Acting ground destination search before a combat Mount click; no provisional PASS from this overall FAIL is credited.",
+      "scenario": "chunk6a-combat-mount-tb",
+      "runId": "c6a-envelope-a-full-tb",
+      "passCount": 44,
+      "failCount": 2,
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.121",
+        "commit": "df849fa5913009508f3afb211db46dd46f280a5c",
+        "dllSha256": "9f4b53eef34dc356b0d33ddb8e1b18c3e2b22c4896639045bc4db1004d504d22",
+        "dllMvid": "86ce6557-9a69-48ed-9b07-85ace91d6423",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.121-chunk6a-envelope-a-diagnostic.zip",
+        "packageSha256": "192bf8fcde7b71c7f7cd34000f6c68b6b40359548c4e7c782d68f446eb59efa0",
+        "manifestSha256": "df6d68c0f4612e4787afa805f44f42ff71ea20c5f1820b965e638f445e250dcd"
+      },
+      "evidenceLeaf": "runtime-game-result.json",
+      "evidenceSha256": "61f8437beb24cda081067404f0beb8ecc7b1bc07765f55479763c4f6fd2ed760",
+      "failingRow": "phase3d-horse-runtime-exception",
+      "failingAssertion": "InvalidOperationException: No bounded walkable Phase 3D point satisfied the requested distance.",
+      "retention": "Original failure retained immutably with its exact payload and assertion; later results cannot rewrite it."
     },
     {
       "id": "CM01-mammoth-rt",
       "family": "CM01",
       "claim": "The same real-time combat Mount for the Mammoth supported profile.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM01-mammoth-tb",
       "family": "CM01",
       "claim": "The same turn-based combat Mount for the Mammoth supported profile.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM01-exploration-free",
       "family": "CM01",
       "claim": "The same native control outside combat performs the transition and charges nothing.",
       "status": "PASS",
-      "reason": "CM01-exploration-free: overall PASS on exact120 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
+      "reason": "CM01-exploration-free: overall PASS on exact121 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-interruption-a-approach",
+      "runId": "c6a-envelope-a-approach",
       "passCount": 48,
       "failCount": 0,
       "rows": [
         "CM01-exploration-free"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "cb49e4c1caeae23feecb7ad2b0cc85af43ee2f6c8938388e99541f5bb1ce1961"
+      "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-approach",
+        "scenario": "chunk6a-mount-approach",
+        "passCount": 48,
+        "failCount": 0,
+        "rows": [
+          "CM01-exploration-free"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "01a03a6ffd9799ea22a75def194ba12a5cfd058b0a2ceabd376233724ce1a047",
+        "gameResultSha256": "10711b246508748864b17998ffaea5461e4d55f893047772e8055d81b89e3a20",
+        "requestSha256": "db00f2eb84352210eff80c741f3a3a3772b9d2d203b1b934492fe2cab8b188de",
+        "orchestrationSha256": "7e1c4c6411d863d83fe19b4b6b76087092310d64fe20129f1f3d91999742628e",
+        "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+        "transactionSha256": "f22618e915533f1c73075009b4b67ea10c855966242e848f5ce9fe82c23b2d6d"
+      }
     },
     {
       "id": "CM01-combat-mount-preparing-refused",
       "family": "CM01",
       "claim": "While the rider's own native turn is still Preparing, combat Mount is refused with the reason that names the preparing boundary, and sampling it charges nothing.",
       "status": "PASS",
-      "reason": "CM01-combat-mount-preparing-refused: exact120 TB overallPASS with action/reaction proof and five restoration checks; separate exact120 RT compensation overallPASS also retained as c6a-interruption-a-rt.",
+      "reason": "CM01-combat-mount-preparing-refused: exact121 TB overallPASS with exact action/reaction windows and five restoration checks; independent same-candidate RT compensation overallPASS also retained as c6a-envelope-a-rt.",
       "scenario": "chunk6a-adoption-compensation-tb",
-      "runId": "c6a-interruption-a-tb",
+      "runId": "c6a-envelope-a-tb",
       "passCount": 47,
       "failCount": 0,
       "rows": [
         "CM01-combat-mount-preparing-refused"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "1533b16ec4b3d4929fb14fb40b017a9fd3d886e4e73afebde5c46cb274a16ec1"
+      "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-tb",
+        "scenario": "chunk6a-adoption-compensation-tb",
+        "passCount": 47,
+        "failCount": 0,
+        "rows": [
+          "CM01-combat-mount-preparing-refused"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "a38189ab708945c79fd423c49421b4acc164ce0a9a4521c5c0fabb8e5b1008c1",
+        "gameResultSha256": "b1ae37100af8988cbd7bdf5b47c7400f6c928a1c4f77b339b50c43f018640d57",
+        "requestSha256": "84f435b52a016e055307d92440456066b0ddeec23b085545787fdbe9af621510",
+        "orchestrationSha256": "cff17e130a112c053301b3ab8c4f4d85d26d21c6fde1332115b40aa8d3cef7bb",
+        "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+        "transactionSha256": "745adcdca37780a628db08c12424e752f08bc61c979f403607bf1c147e8f1730"
+      }
     },
     {
       "id": "CM02-approach-arrival",
       "family": "CM02",
       "claim": "Mount from outside adjacency: legal native rider approach and legal arrival, no teleport or manufactured endpoint.",
       "status": "PASS",
-      "reason": "CM02-approach-arrival: overall PASS on exact120 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
+      "reason": "CM02-approach-arrival: overall PASS on exact121 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-interruption-a-approach",
+      "runId": "c6a-envelope-a-approach",
       "passCount": 48,
       "failCount": 0,
       "rows": [
         "CM02-approach-arrival"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "cb49e4c1caeae23feecb7ad2b0cc85af43ee2f6c8938388e99541f5bb1ce1961"
+      "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-approach",
+        "scenario": "chunk6a-mount-approach",
+        "passCount": 48,
+        "failCount": 0,
+        "rows": [
+          "CM02-approach-arrival"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "01a03a6ffd9799ea22a75def194ba12a5cfd058b0a2ceabd376233724ce1a047",
+        "gameResultSha256": "10711b246508748864b17998ffaea5461e4d55f893047772e8055d81b89e3a20",
+        "requestSha256": "db00f2eb84352210eff80c741f3a3a3772b9d2d203b1b934492fe2cab8b188de",
+        "orchestrationSha256": "7e1c4c6411d863d83fe19b4b6b76087092310d64fe20129f1f3d91999742628e",
+        "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+        "transactionSha256": "f22618e915533f1c73075009b4b67ea10c855966242e848f5ce9fe82c23b2d6d"
+      }
     },
     {
       "id": "CM02-geometry-change",
       "family": "CM02",
       "claim": "The mount or target geometry changes during approach; the transition revalidates at arrival.",
       "status": "PASS",
-      "reason": "CM02-geometry-change: overall PASS on exact120 and bound suite; target movement, command identity, delivery geometry, action/reaction proof and all five restoration checks passed.",
+      "reason": "CM02-geometry-change: exact121 overallPASS, one exact approached Mount with declared native target motion, pre-attachment arrival and action/reaction proof; all five restoration checks PASS.",
       "scenario": "chunk6a-geometry-change",
-      "runId": "c6a-interruption-a-geometry",
+      "runId": "c6a-envelope-a-geometry",
       "passCount": 45,
       "failCount": 0,
       "rows": [
         "CM02-geometry-change"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "474dd44123e755552047dda9e934a4151eaa6a60791ecf3d083c02fe68532f1f"
+      "evidenceSha256": "855458148aeb05351b682c02be4d655ddafe29f6a8b313ef6e85d346e977768f",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-geometry",
+        "scenario": "chunk6a-geometry-change",
+        "passCount": 45,
+        "failCount": 0,
+        "rows": [
+          "CM02-geometry-change"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "1f625a39cf668ed2142c192e7a188ba048a99c502cc56a7ce0bed8623dfd758c",
+        "gameResultSha256": "0570fc07f0e00952bf7177c39ff8960ec3e8db011f64bfa46cdbf327b4b2b0a8",
+        "requestSha256": "81f4bb59c041b1b46cf2dbb10cbaaada3078f746e6a5a34e11e7437a563d3530",
+        "orchestrationSha256": "3214f38c4772b856ca209977bf9e4fdc31d19e76bfeef9cf7d443da557182627",
+        "evidenceSha256": "855458148aeb05351b682c02be4d655ddafe29f6a8b313ef6e85d346e977768f",
+        "transactionSha256": "a42421c185bb27f23121f5cd68978f4bb40823267cc5e92950a7ecace9c68606"
+      }
     },
     {
       "id": "CM02-obstruction",
       "family": "CM02",
       "claim": "Obstruction or path failure reaches a truthful native terminal state with no transition and no residue.",
       "status": "FAIL",
-      "reason": "CM02-obstruction: External validator rederived the transition envelope with +1.0 instead of the frozen native +1.5 constant (2.4m instead of measured2.9m). Native command381715712 ended Interrupt unacted at frame1946 and its exact action/reaction proof passed, but overall result remains FAIL; no provisional PASS credited.",
-      "scenario": "chunk6a-obstruction",
-      "runId": "c6a-interruption-a-obstruction",
-      "passCount": 0,
-      "failCount": 1,
-      "evidenceLeaf": "runtime-result.json",
-      "evidenceSha256": "95a90d72e2aba03aa6a61a438a3b9263f76ba8fe4d801d606cf4915912f2e2bd",
-      "failingRow": "chunk6a-obstruction",
-      "failingAssertion": "Obstruction did not begin outside the measured transition envelope with a continuously observed closed door.",
+      "reason": "CM02-obstruction: full RT case could not admit its native door-close setup after combat Dismount. Original isolated obstruction PASS remains retained; no provisional PASS from this overall FAIL is credited.",
+      "scenario": "chunk6a-combat-mount-rt",
+      "runId": "c6a-envelope-a-full-rt",
+      "passCount": 52,
+      "failCount": 2,
       "observedPayload": {
-        "version": "0.1.0-chunk6a-preview.120",
-        "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
-        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
-        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
-        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
-        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
-        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace"
+        "version": "0.1.0-chunk6a-preview.121",
+        "commit": "df849fa5913009508f3afb211db46dd46f280a5c",
+        "dllSha256": "9f4b53eef34dc356b0d33ddb8e1b18c3e2b22c4896639045bc4db1004d504d22",
+        "dllMvid": "86ce6557-9a69-48ed-9b07-85ace91d6423",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.121-chunk6a-envelope-a-diagnostic.zip",
+        "packageSha256": "192bf8fcde7b71c7f7cd34000f6c68b6b40359548c4e7c782d68f446eb59efa0",
+        "manifestSha256": "df6d68c0f4612e4787afa805f44f42ff71ea20c5f1820b965e638f445e250dcd"
       },
-      "retention": "Original external failing row and assertion retained verbatim, alongside the unchanged native PASS facet."
+      "evidenceLeaf": "runtime-game-result.json",
+      "evidenceSha256": "89e210c6cf700ab907ecdb296528fe43dce081dec6568b0d136b7c503f3e8863",
+      "failingRow": "CM02-obstruction",
+      "failingAssertion": "InvalidOperationException: Prepared native door cannot admit its ordinary close interaction."
     },
     {
       "id": "CM02-wrong-creature-target",
       "family": "CM02",
       "claim": "A wrong creature target is refused with an exact reason and performs no transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-foreign-companion",
       "family": "CM02",
       "claim": "A foreign companion is refused; nearby creatures are never inferred.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-ownership-change",
       "family": "CM02",
       "claim": "An ownership or pet-relationship change before delivery refuses the transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-size-form-change",
       "family": "CM02",
       "claim": "A rider or mount size, form or body-support change before delivery refuses the transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-lost-direct-control",
       "family": "CM02",
       "claim": "Lost direct control before delivery refuses the transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-left-area",
       "family": "CM02",
       "claim": "An actor leaving the area before delivery refuses the transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-view-agent-lost",
       "family": "CM02",
       "claim": "A disappeared or unavailable view or movement agent refuses the transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-loading-cutscene",
       "family": "CM02",
       "claim": "A loading, cutscene or game-mode transition refuses the transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-rider-incapacitated",
       "family": "CM02",
       "claim": "Rider death or incapacitation before delivery refuses the transition and leaves no residue.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-mount-incapacitated",
       "family": "CM02",
       "claim": "Mount death or incapacitation before delivery refuses the transition and leaves no residue.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-generation-change",
       "family": "CM02",
       "claim": "A relationship generation change before delivery refuses the stale shell.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM02-target-selection-cancelled",
       "family": "CM02",
       "claim": "Cancelling target selection before commitment costs nothing and performs no transition.",
       "status": "PASS",
-      "reason": "CM02-target-selection-cancelled: overall PASS on exact120 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
+      "reason": "CM02-target-selection-cancelled: overall PASS on exact121 and bound suite; exact command/action/reaction proof and all five restoration checks passed.",
       "scenario": "chunk6a-mount-approach",
-      "runId": "c6a-interruption-a-approach",
+      "runId": "c6a-envelope-a-approach",
       "passCount": 48,
       "failCount": 0,
       "rows": [
         "CM01-combat-mount-cancel-costs-nothing"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "cb49e4c1caeae23feecb7ad2b0cc85af43ee2f6c8938388e99541f5bb1ce1961"
+      "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-approach",
+        "scenario": "chunk6a-mount-approach",
+        "passCount": 48,
+        "failCount": 0,
+        "rows": [
+          "CM01-combat-mount-cancel-costs-nothing"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "01a03a6ffd9799ea22a75def194ba12a5cfd058b0a2ceabd376233724ce1a047",
+        "gameResultSha256": "10711b246508748864b17998ffaea5461e4d55f893047772e8055d81b89e3a20",
+        "requestSha256": "db00f2eb84352210eff80c741f3a3a3772b9d2d203b1b934492fe2cab8b188de",
+        "orchestrationSha256": "7e1c4c6411d863d83fe19b4b6b76087092310d64fe20129f1f3d91999742628e",
+        "evidenceSha256": "ff912315fa7555b4b25ff0c8d671a0fb7610248132ba82c55f42da562799c658",
+        "transactionSha256": "f22618e915533f1c73075009b4b67ea10c855966242e848f5ce9fe82c23b2d6d"
+      }
     },
     {
       "id": "CM02-adoption-plan-invalidated",
       "family": "CM02",
       "claim": "An encounter adoption refused after the relationship attached is compensated exactly: unmounted with no activation, partner-context or prepared-pair residue, no repeated preparation for either actor, no refund of the already-committed native Move, and a generation that advanced once and was never rewound.",
       "status": "PASS",
-      "reason": "CM02-adoption-plan-invalidated: exact120 TB overallPASS with action/reaction proof and five restoration checks; separate exact120 RT compensation overallPASS also retained as c6a-interruption-a-rt.",
+      "reason": "CM02-adoption-plan-invalidated: exact121 TB overallPASS with exact action/reaction windows and five restoration checks; independent same-candidate RT compensation overallPASS also retained as c6a-envelope-a-rt.",
       "scenario": "chunk6a-adoption-compensation-tb",
-      "runId": "c6a-interruption-a-tb",
+      "runId": "c6a-envelope-a-tb",
       "passCount": 47,
       "failCount": 0,
       "rows": [
         "CM02-adoption-plan-invalidated"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "1533b16ec4b3d4929fb14fb40b017a9fd3d886e4e73afebde5c46cb274a16ec1"
+      "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-tb",
+        "scenario": "chunk6a-adoption-compensation-tb",
+        "passCount": 47,
+        "failCount": 0,
+        "rows": [
+          "CM02-adoption-plan-invalidated"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "a38189ab708945c79fd423c49421b4acc164ce0a9a4521c5c0fabb8e5b1008c1",
+        "gameResultSha256": "b1ae37100af8988cbd7bdf5b47c7400f6c928a1c4f77b339b50c43f018640d57",
+        "requestSha256": "84f435b52a016e055307d92440456066b0ddeec23b085545787fdbe9af621510",
+        "orchestrationSha256": "cff17e130a112c053301b3ab8c4f4d85d26d21c6fde1332115b40aa8d3cef7bb",
+        "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+        "transactionSha256": "745adcdca37780a628db08c12424e752f08bc61c979f403607bf1c147e8f1730"
+      },
+      "supportingRuns": [
+        {
+          "role": "compensation-rt",
+          "runId": "c6a-envelope-a-rt",
+          "scenario": "chunk6a-adoption-compensation-rt",
+          "passCount": 46,
+          "failCount": 0,
+          "rows": [
+            "CM02-adoption-plan-invalidated",
+            "CM02-adoption-compensation-releases"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "resultSha256": "775921427fa9a5f2483aece1a18b99c4d6c2070d33248d262fb10f72766ee080",
+          "gameResultSha256": "a20d52366b461fe1cab87d829cbf414455d47a890dc0b3feb15386d353e78f69",
+          "requestSha256": "3a38ec1d09114e46d9d11281c49b1173acca3d5da9f360e21ad591ea6cbc0a8b",
+          "orchestrationSha256": "cb66ae22f21e965f07689b74d5d09eb7822aa1032261d48929de2286aa733ca8",
+          "evidenceSha256": "d77329400983163a24f8da53ebe4eb1cba8b3baec0b8cf1475e8c05a26f577c0",
+          "transactionSha256": "f5a499d148f67ce4cd39e74bbd8cd0681971a0d94dcedda39cc24b4e3509669a"
+        },
+        {
+          "role": "compensation-tb",
+          "runId": "c6a-envelope-a-tb",
+          "scenario": "chunk6a-adoption-compensation-tb",
+          "passCount": 47,
+          "failCount": 0,
+          "rows": [
+            "CM02-adoption-plan-invalidated",
+            "CM02-adoption-compensation-releases",
+            "CM01-combat-mount-preparing-refused"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "resultSha256": "a38189ab708945c79fd423c49421b4acc164ce0a9a4521c5c0fabb8e5b1008c1",
+          "gameResultSha256": "b1ae37100af8988cbd7bdf5b47c7400f6c928a1c4f77b339b50c43f018640d57",
+          "requestSha256": "84f435b52a016e055307d92440456066b0ddeec23b085545787fdbe9af621510",
+          "orchestrationSha256": "cff17e130a112c053301b3ab8c4f4d85d26d21c6fde1332115b40aa8d3cef7bb",
+          "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+          "transactionSha256": "745adcdca37780a628db08c12424e752f08bc61c979f403607bf1c147e8f1730"
+        }
+      ]
     },
     {
       "id": "CM02-adoption-compensation-releases",
       "family": "CM02",
       "claim": "A compensated combat Mount leaves the pair free to attempt a later lawful transition.",
       "status": "PASS",
-      "reason": "CM02-adoption-compensation-releases: exact120 TB overallPASS with action/reaction proof and five restoration checks; separate exact120 RT compensation overallPASS also retained as c6a-interruption-a-rt.",
+      "reason": "CM02-adoption-compensation-releases: exact121 TB overallPASS with exact action/reaction windows and five restoration checks; independent same-candidate RT compensation overallPASS also retained as c6a-envelope-a-rt.",
       "scenario": "chunk6a-adoption-compensation-tb",
-      "runId": "c6a-interruption-a-tb",
+      "runId": "c6a-envelope-a-tb",
       "passCount": 47,
       "failCount": 0,
       "rows": [
         "CM02-adoption-compensation-releases"
       ],
       "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
-      "evidenceSha256": "1533b16ec4b3d4929fb14fb40b017a9fd3d886e4e73afebde5c46cb274a16ec1"
+      "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+      "evidenceBinding": {
+        "role": "primary",
+        "runId": "c6a-envelope-a-tb",
+        "scenario": "chunk6a-adoption-compensation-tb",
+        "passCount": 47,
+        "failCount": 0,
+        "rows": [
+          "CM02-adoption-compensation-releases"
+        ],
+        "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+        "resultSha256": "a38189ab708945c79fd423c49421b4acc164ce0a9a4521c5c0fabb8e5b1008c1",
+        "gameResultSha256": "b1ae37100af8988cbd7bdf5b47c7400f6c928a1c4f77b339b50c43f018640d57",
+        "requestSha256": "84f435b52a016e055307d92440456066b0ddeec23b085545787fdbe9af621510",
+        "orchestrationSha256": "cff17e130a112c053301b3ab8c4f4d85d26d21c6fde1332115b40aa8d3cef7bb",
+        "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+        "transactionSha256": "745adcdca37780a628db08c12424e752f08bc61c979f403607bf1c147e8f1730"
+      },
+      "supportingRuns": [
+        {
+          "role": "compensation-rt",
+          "runId": "c6a-envelope-a-rt",
+          "scenario": "chunk6a-adoption-compensation-rt",
+          "passCount": 46,
+          "failCount": 0,
+          "rows": [
+            "CM02-adoption-plan-invalidated",
+            "CM02-adoption-compensation-releases"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "resultSha256": "775921427fa9a5f2483aece1a18b99c4d6c2070d33248d262fb10f72766ee080",
+          "gameResultSha256": "a20d52366b461fe1cab87d829cbf414455d47a890dc0b3feb15386d353e78f69",
+          "requestSha256": "3a38ec1d09114e46d9d11281c49b1173acca3d5da9f360e21ad591ea6cbc0a8b",
+          "orchestrationSha256": "cb66ae22f21e965f07689b74d5d09eb7822aa1032261d48929de2286aa733ca8",
+          "evidenceSha256": "d77329400983163a24f8da53ebe4eb1cba8b3baec0b8cf1475e8c05a26f577c0",
+          "transactionSha256": "f5a499d148f67ce4cd39e74bbd8cd0681971a0d94dcedda39cc24b4e3509669a"
+        },
+        {
+          "role": "compensation-tb",
+          "runId": "c6a-envelope-a-tb",
+          "scenario": "chunk6a-adoption-compensation-tb",
+          "passCount": 47,
+          "failCount": 0,
+          "rows": [
+            "CM02-adoption-plan-invalidated",
+            "CM02-adoption-compensation-releases",
+            "CM01-combat-mount-preparing-refused"
+          ],
+          "evidenceLeaf": "phase3d-horse-scenario-evidence.json",
+          "resultSha256": "a38189ab708945c79fd423c49421b4acc164ce0a9a4521c5c0fabb8e5b1008c1",
+          "gameResultSha256": "b1ae37100af8988cbd7bdf5b47c7400f6c928a1c4f77b339b50c43f018640d57",
+          "requestSha256": "84f435b52a016e055307d92440456066b0ddeec23b085545787fdbe9af621510",
+          "orchestrationSha256": "cff17e130a112c053301b3ab8c4f4d85d26d21c6fde1332115b40aa8d3cef7bb",
+          "evidenceSha256": "0aa56c45ba2ba9e1a838f02cbe39ad9c202ad54c331ddae4f480668389a8007c",
+          "transactionSha256": "745adcdca37780a628db08c12424e752f08bc61c979f403607bf1c147e8f1730"
+        }
+      ]
     },
     {
       "id": "CM03-rider-before-mount-slot",
       "family": "CM03",
       "claim": "The rider's turn occurs before the mount's ordinary native slot: one lawful mount participation in the transition round.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-mount-slot-before-rider",
       "family": "CM03",
       "claim": "The mount's ordinary native slot occurred before the rider's turn: its participation stands and is not repeated.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-mount-spent-move",
       "family": "CM03",
       "claim": "The mount has already spent Move; no refresh and no fresh allocation.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-mount-spent-standard",
       "family": "CM03",
       "claim": "The mount has already spent Standard; no refresh and no fresh allocation.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-mount-spent-all",
       "family": "CM03",
       "claim": "The mount has spent all participation; adoption grants nothing.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-rider-without-move",
       "family": "CM03",
       "claim": "A rider with no Move action cannot mount and is refused before commitment.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-rider-other-action",
       "family": "CM03",
       "claim": "A rider that spent another action but retains a legal Move may mount, paying only that Move.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-early-end-turn",
       "family": "CM03",
       "claim": "Early End Turn immediately after a successful Mount conserves participation and creates no extra turn.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-next-round-activation",
       "family": "CM03",
       "claim": "The next native round begins an ordinary paired activation with no inherited adoption bookkeeping.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM03-unrelated-candidate-between",
       "family": "CM03",
       "claim": "An unrelated actor candidate between rider and mount keeps native, deterministic selection.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-stop-during-approach",
       "family": "CM04",
       "claim": "Stop or Hold during approach ends the command truthfully with no cost and no transition.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-command-replacement",
       "family": "CM04",
       "claim": "Replacement by another player command leaves no duplicate transition and no residue.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-turn-end",
       "family": "CM04",
       "claim": "Turn end or forfeit during the sequence leaves valid actors and no residue.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-combat-end",
       "family": "CM04",
       "claim": "Combat end during the sequence cleans up exactly once.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-mode-exit",
       "family": "CM04",
       "claim": "Native mode exit forfeits the pair exactly once with no duplicate cost.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-area-session-transition",
       "family": "CM04",
       "claim": "An area or session transition attempt during the sequence cleans up exactly once.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-disable-unload",
       "family": "CM04",
       "claim": "Feature disable or unload refuses or cleans up with no residue.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-rider-death",
       "family": "CM04",
       "claim": "Rider death during the sequence is forced detach: no voluntary cost, one cleanup.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-mount-death",
       "family": "CM04",
       "claim": "Mount death during the sequence is forced detach: no voluntary cost, one cleanup.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM04-injected-exception",
       "family": "CM04",
       "claim": "An exact injected exception at an owned boundary fails closed with no residue.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-rt",
       "family": "CM05",
       "claim": "Voluntary real-time combat Dismount costs the rider one native Move exactly once.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-tb",
       "family": "CM05",
       "claim": "Voluntary turn-based combat Dismount costs the rider one native Move exactly once.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-after-rider-expenditure",
       "family": "CM05",
       "claim": "Dismount after rider movement or action expenditure conserves that debt.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-after-mount-expenditure",
       "family": "CM05",
       "claim": "Dismount after mount expenditure conserves that debt.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-immediately-after-mount",
       "family": "CM05",
       "claim": "Dismount immediately after a legal combat Mount pays its own Move and creates no duplicate turn.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-repeated-input",
       "family": "CM05",
       "claim": "Repeated Dismount input or cancel creates no second transition or cost.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-forced-detach",
       "family": "CM05",
       "claim": "Forced detach through death, invalid pair or lifecycle cleanup creates no voluntary Move cost.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM05-dismount-survives-feature-policy-disable",
       "family": "CM05",
       "claim": "A mounted or faulted rider keeps a leased, executable native Dismount even after the movement feature or the paired policy is disabled, so a pair can always be released.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-hotbar-path",
       "family": "CM06",
       "claim": "The normal hotbar or action-bar path reaches the control without the diagnostic overlay.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-pointer-target",
       "family": "CM06",
       "claim": "Ordinary pointer target selection reaches the control.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-paused-queue",
       "family": "CM06",
       "claim": "A real-time paused queue holds the control and executes exactly once on unpause.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-repeated-request",
       "family": "CM06",
       "claim": "A repeated request while one is pending or started produces one owned request and no duplicate.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-mount-selected",
       "family": "CM06",
       "claim": "With the mount selected instead of the rider the control is refused with an exact reason.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-multiple-selection",
       "family": "CM06",
       "claim": "Multiple or foreign selection is refused with an exact reason.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-unrelated-actor",
       "family": "CM06",
       "claim": "An unrelated actor with a similar ability surface passes through untouched.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-ai-auto-use",
       "family": "CM06",
       "claim": "AI or auto-use control never activates the relationship controls.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-unmounted-ordinary",
       "family": "CM06",
       "claim": "Unmounted ordinary movement and commands are unaffected.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM06-combat-mount-requires-qualified-paired-policy",
       "family": "CM06",
       "claim": "Combat Mount is refused unless EnablePairedActivation is true and both retired turn authorities are false, in prediction and at execution-time admission alike.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-mount-save-rt",
       "family": "CM07",
       "claim": "A settled real-time combat Mount saves its exact pair, debt and participation.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-mount-load-rt",
       "family": "CM07",
       "claim": "That real-time archive restores once with no replayed Mount, preparation or cost.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-mount-save-tb",
       "family": "CM07",
       "claim": "A settled turn-based combat Mount saves at a supported committed boundary.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-mount-load-tb",
       "family": "CM07",
       "claim": "That turn-based archive restores once with no replayed Mount, preparation or cost.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-dismount-save",
       "family": "CM07",
       "claim": "A settled combat Dismount saves two separate valid actors.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-dismount-load",
       "family": "CM07",
       "claim": "That archive restores separate valid actors without resurrecting the relationship.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-cold-load",
       "family": "CM07",
       "claim": "A cold process load of a combat-mounted archive restores once and plays.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-save-slot-routes",
       "family": "CM07",
       "claim": "The representative quick, auto and manual save routes are unaffected.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-unsettled-save-deferred",
       "family": "CM07",
       "claim": "A save requested during target selection, approach or an unsettled transition is truthfully deferred or settled before capture.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-area-reload",
       "family": "CM07",
       "claim": "Area reload or supported lifecycle cleanup after a combat-mounted save behaves exactly once.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM07-schema-unchanged",
       "family": "CM07",
       "claim": "The accepted KMC save schema is unchanged by Chunk 6A, and no supplemental transition state is persisted.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-mounted-charge-rejected-rt",
       "family": "CM08",
       "claim": "Mounted Charge remains rejected in real time at availability, click, target, admission and execution.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-mounted-charge-rejected-tb",
       "family": "CM08",
       "claim": "Mounted Charge remains rejected in turn-based combat at every boundary.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-unmounted-charge",
       "family": "CM08",
       "claim": "Ordinary unmounted native Charge passes through untouched.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-ordinary-attack-controls-tb",
       "family": "CM08",
       "claim": "The accepted ordinary-attack-controls-tb baseline is unchanged on this payload.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-chunk4-sustained-tb",
       "family": "CM08",
       "claim": "The accepted chunk4-sustained-tb baseline is unchanged on this payload.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-mounted-mammoth-primary-hit-tb",
       "family": "CM08",
       "claim": "The accepted mounted-mammoth-primary-hit-tb baseline is unchanged on this payload.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-sustained-rt",
       "family": "CM08",
       "claim": "Sustained real-time attacks and repeated-click cadence are unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-incoming-targeting",
       "family": "CM08",
       "claim": "Incoming targeting and area effects are unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-rider-death-cleanup",
       "family": "CM08",
       "claim": "Native rider death cleanup is unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-mount-death-cleanup",
       "family": "CM08",
       "claim": "Native mount death cleanup is unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-horse-smoke",
       "family": "CM08",
       "claim": "The Horse profile smoke set is unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-mammoth-smoke",
       "family": "CM08",
       "claim": "The Mammoth profile smoke set is unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-persistence-suite",
       "family": "CM08",
       "claim": "Representative manual, quick and auto persistence plus cold load are unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-area-restoration",
       "family": "CM08",
       "claim": "Relevant area restoration is unchanged.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     },
     {
       "id": "CM08-disable-removal-readiness",
       "family": "CM08",
       "claim": "Supported disable, removal and no-DLL readiness checks are unaffected by any new saved state.",
       "status": "BLOCKED",
-      "reason": "Native qualification TODO on new frozen preview.120; no prior-candidate PASS is transferred."
+      "reason": "Native qualification TODO on frozen preview.121; no prior-candidate PASS is transferred."
     }
   ],
   "retainedFailures": [
@@ -990,6 +1223,56 @@
         "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace"
       },
       "retention": "Original external failing row and assertion retained verbatim, alongside the unchanged native PASS facet."
+    },
+    {
+      "id": "CM02-obstruction",
+      "family": "CM02",
+      "claim": "Obstruction or path failure reaches a truthful native terminal state with no transition and no residue.",
+      "status": "FAIL",
+      "reason": "CM02-obstruction: full RT case could not admit its native door-close setup after combat Dismount. Original isolated obstruction PASS remains retained; no provisional PASS from this overall FAIL is credited.",
+      "scenario": "chunk6a-combat-mount-rt",
+      "runId": "c6a-envelope-a-full-rt",
+      "passCount": 52,
+      "failCount": 2,
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.121",
+        "commit": "df849fa5913009508f3afb211db46dd46f280a5c",
+        "dllSha256": "9f4b53eef34dc356b0d33ddb8e1b18c3e2b22c4896639045bc4db1004d504d22",
+        "dllMvid": "86ce6557-9a69-48ed-9b07-85ace91d6423",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.121-chunk6a-envelope-a-diagnostic.zip",
+        "packageSha256": "192bf8fcde7b71c7f7cd34000f6c68b6b40359548c4e7c782d68f446eb59efa0",
+        "manifestSha256": "df6d68c0f4612e4787afa805f44f42ff71ea20c5f1820b965e638f445e250dcd"
+      },
+      "evidenceLeaf": "runtime-game-result.json",
+      "evidenceSha256": "89e210c6cf700ab907ecdb296528fe43dce081dec6568b0d136b7c503f3e8863",
+      "failingRow": "CM02-obstruction",
+      "failingAssertion": "InvalidOperationException: Prepared native door cannot admit its ordinary close interaction.",
+      "retention": "Original failure retained immutably with its exact payload and assertion; later results cannot rewrite it."
+    },
+    {
+      "id": "CM01-horse-tb",
+      "family": "CM01",
+      "claim": "Legal voluntary combat Mount of the Horse pair in turn-based combat on the exact rider-led current turn.",
+      "status": "FAIL",
+      "reason": "CM01-horse-tb: Fresh full TB fixture failed its native Preparing-to-Acting ground destination search before a combat Mount click; no provisional PASS from this overall FAIL is credited.",
+      "scenario": "chunk6a-combat-mount-tb",
+      "runId": "c6a-envelope-a-full-tb",
+      "passCount": 44,
+      "failCount": 2,
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.121",
+        "commit": "df849fa5913009508f3afb211db46dd46f280a5c",
+        "dllSha256": "9f4b53eef34dc356b0d33ddb8e1b18c3e2b22c4896639045bc4db1004d504d22",
+        "dllMvid": "86ce6557-9a69-48ed-9b07-85ace91d6423",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.121-chunk6a-envelope-a-diagnostic.zip",
+        "packageSha256": "192bf8fcde7b71c7f7cd34000f6c68b6b40359548c4e7c782d68f446eb59efa0",
+        "manifestSha256": "df6d68c0f4612e4787afa805f44f42ff71ea20c5f1820b965e638f445e250dcd"
+      },
+      "evidenceLeaf": "runtime-game-result.json",
+      "evidenceSha256": "61f8437beb24cda081067404f0beb8ecc7b1bc07765f55479763c4f6fd2ed760",
+      "failingRow": "phase3d-horse-runtime-exception",
+      "failingAssertion": "InvalidOperationException: No bounded walkable Phase 3D point satisfied the requested distance.",
+      "retention": "Original failure retained immutably with its exact payload and assertion; later results cannot rewrite it."
     }
   ],
   "rejectedQualificationClaims": [
@@ -1119,7 +1402,7 @@
       "reason": "The combined compensated/positive Mount flow and incomplete exploration windows do not satisfy the owner's causal qualification contract. Raw artifacts retain their original statuses."
     }
   ],
-  "candidateDisposition": "Preview120 native campaign: 8 PASS /1 FAIL /78 unqualified; external obstruction envelope defect requires a new candidate.",
+  "candidateDisposition": "Superseded for source122; original121 qualification and failure facts remain bound.",
   "priorPayloads": [
     {
       "version": "0.1.0-chunk6a-preview.109",
@@ -1242,7 +1525,7 @@
       "suiteSha256": "b05fb2fcc0a6d4a1d630ea3a1bddaa6f2a897d9e2c58e8a4d5631af54a7d9019"
     }
   ],
-  "note": "Four overall PASS runs qualify their explicit120 rows. Obstruction native45/0 is provisional because external overallFAIL0/1. All eleven retained failures remain immutable.",
+  "note": "Historical frozen121 campaign: five isolated PASS, fullRT52/2 and fullTB44/2 FAIL, every run restored. Thirteen failures retained. Source122 supersedes121 for future qualification; no PASS transfers.",
   "diagnosticFailures": [
     {
       "id": "CM03-combat-mount-conserves-debt",
@@ -4223,5 +4506,17 @@
       "unqualified": 78,
       "qualificationTransferred": false
     }
-  ]
+  ],
+  "priorPayload": {
+    "version": "0.1.0-chunk6a-preview.120",
+    "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
+    "branch": "codex/mounted-combat-phase3f-playable-core",
+    "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+    "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
+    "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+    "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace",
+    "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
+    "suiteId": "20260928-chunk6a-interruption-a",
+    "suiteSha256": "4463cc991345932c1f5345dcdca8c688b6e63b17039fd26a29943375fe9ea6c3"
+  }
 }

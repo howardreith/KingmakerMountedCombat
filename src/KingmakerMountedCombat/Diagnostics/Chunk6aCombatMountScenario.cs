@@ -137,6 +137,8 @@ namespace KingmakerMountedCombat.Diagnostics
             allocationTrace = new NativeActorAllocationTrace(rider, horse, combat);
             allocationTrace.BeginEncounter(request.Scenario);
             observations["chunk6aCombatMount"] = chunk6aSamples;
+            if (request.Scenario == Chunk6aCombatMountRealTimeScenario || request.Scenario == Chunk6aCombatMountTurnBasedScenario)
+                observations["chunk6aFullTransactionContract"] = "one-positive-mount-and-dismount-with-separate-campaign-support";
             step = Phase3dHorseStep.Phase3gControls;
             ResetLeafClock();
         }
@@ -1356,25 +1358,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["round"] = controller?.RoundNumber,
                         ["visitedTurns"] = chunk6aVisitedTurns.Count
                     });
-                chunk6aStage = 6;
-                ResetLeafClock();
+                // Geometry and obstruction are mandatory separate fresh transactions.
+                // The external campaign gate binds them to this exact candidate and suite.
+                chunk6aStage = 99;
+                BeginCleanup();
                 return;
             }
 
-            if (chunk6aStage == 6 || chunk6aStage >= 18 && chunk6aStage <= 21)
+            if (chunk6aStage >= 18 && chunk6aStage <= 21)
             {
                 TickChunk6aObstruction();
                 return;
             }
 
-            // The full RT case enters the same exact geometry instrument after its
-            // preceding case settles; the isolated case enters it from fresh setup.
-            if (chunk6aStage == 9)
-            {
-                chunk6aStage = 16;
-                ResetLeafClock();
-                TickChunk6aGeometryChange();
-            }
         }
     }
 }

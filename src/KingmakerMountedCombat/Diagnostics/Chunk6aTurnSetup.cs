@@ -1,5 +1,7 @@
 using System;
 using System.Runtime.CompilerServices;
+using System.Linq;
+using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -21,6 +23,51 @@ namespace KingmakerMountedCombat.Diagnostics
         private int chunk6aActingSetupTraceStart;
         private bool chunk6aActingSetupComplete;
 
+        // Generate points from the measured pair geometry, then query native navigation.
+        // Every rejected proposal is retained even if no ground command can be admitted.
+        private Vector3 FindChunk6aActingDestination()
+        {
+            if (AstarPath.active == null) throw new InvalidOperationException("Active native navigation graph is unavailable.");
+            var origin = rider.Position; var targetPosition = horse.Position;
+            var separation = HorizontalDistance(origin, targetPosition);
+            var candidates = new JArray();
+            observations["chunk6aActingDestinationSearch"] = new JObject
+            {
+                ["contract"] = "bounded-pair-relative-native-ground-search",
+                ["origin"] = CapturePosition(origin), ["target"] = CapturePosition(targetPosition),
+                ["initialSeparation"] = separation, ["requestedTravel"] = 0.6f,
+                ["travelTolerance"] = 0.15f, ["maximumSeparationIncrease"] = 0.15f,
+                ["routeTolerance"] = MountedCombatSpatialPolicy.DiagnosticPlacementTolerance,
+                ["candidates"] = candidates
+            };
+            foreach (var proposal in NativeGroundFixturePolicy.ActingProposals(
+                new PoseVector3(origin.x, origin.y, origin.z), new PoseVector3(targetPosition.x, targetPosition.y, targetPosition.z)))
+            {
+                var requested = new Vector3(proposal.X, proposal.Y, proposal.Z);
+                var nearest = AstarPath.active.GetNearest(requested); var point = nearest.clampedPosition;
+                var candidate = new JObject { ["requested"] = CapturePosition(requested), ["point"] = CapturePosition(point),
+                    ["walkable"] = nearest.node != null && nearest.node.Walkable, ["eligible"] = false };
+                candidates.Add(candidate);
+                if (nearest.node == null || !nearest.node.Walkable) continue;
+                var routeEnd = ObstacleAnalyzer.TraceAlongNavmesh(origin, point);
+                var routeResidual = HorizontalDistance(routeEnd, point);
+                var footprint = NativeGroundMovementObservation.CaptureFootprint(rider, point);
+                var residuals = ((JArray)footprint["probes"]).Select(probe => (float)probe["residual"]).ToArray();
+                var footprintResidual = residuals.Any(value => float.IsNaN(value) || float.IsInfinity(value)) ? float.NaN : residuals.Max();
+                var blockers = Game.Instance.State.Units.Where(unit => unit != rider && unit.IsInState && unit.View != null &&
+                    HorizontalDistance(point, unit.Position) < rider.View.Corpulence + unit.View.Corpulence + 0.05f)
+                    .Select(unit => unit.UniqueId).ToArray();
+                var travel = HorizontalDistance(origin, point); var proposedSeparation = HorizontalDistance(point, targetPosition);
+                var eligible = NativeGroundFixturePolicy.IsActingStep(separation, proposedSeparation, travel,
+                    routeResidual, footprintResidual, blockers.Length != 0);
+                candidate["travel"] = travel; candidate["separation"] = proposedSeparation;
+                candidate["routeEnd"] = CapturePosition(routeEnd); candidate["routeResidual"] = routeResidual;
+                candidate["footprint"] = footprint; candidate["blockers"] = new JArray(blockers); candidate["eligible"] = eligible;
+                if (eligible) return point;
+            }
+            throw new InvalidOperationException("No bounded pair-relative native Acting setup point satisfied unchanged travel/separation and clear footprint constraints.");
+        }
+
         // Native Preparing persists while an able player unit is idle. A real, short
         // ground order enters Acting; its debt is carried into the later Mount baseline.
         private bool PrepareChunk6aNativeActingTurn(TurnController turn)
@@ -31,12 +78,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turn.Status != TurnController.TurnStatus.Preparing) return turn.IsActing;
                 if (!Chunk6aIdle || !EnsureChunk6aRiderSelection("phase3d-horse-runtime-exception")) return false;
                 chunk6aActingSetupOrigin = rider.Position;
-                var separation = HorizontalDistance(rider.Position, horse.Position);
-                chunk6aActingSetupDestination = FindWalkablePoint(rider.Position, 0.6f, 0.15f, point =>
-                    HorizontalDistance(point, horse.Position) >= separation &&
-                    HorizontalDistance(point, horse.Position) <= separation + 0.15f &&
-                    HorizontalDistance(ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, point), point) <=
-                        MountedCombatSpatialPolicy.DiagnosticPlacementTolerance);
+                chunk6aActingSetupDestination = FindChunk6aActingDestination();
                 chunk6aActingSetupTurn = turn;
                 chunk6aActingSetupTraceStart = allocationTrace.EventCount;
                 chunk6aActingSetup = new JObject

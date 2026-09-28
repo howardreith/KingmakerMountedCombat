@@ -1,4 +1,6 @@
 using System;
+using System.Linq;
+using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Diagnostics;
 
 namespace KingmakerMountedCombat.Tests
@@ -15,6 +17,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("reaction events conserve discrete allowance and distinguish cooldowns from ordering", ReactionEvents);
             runner.Run("unacted obstruction identity cannot qualify a positive process", UnactedIdentity);
             runner.Run("native Move callbacks exclude Standard Swift and exploration costs", CallbackOwnership);
+            runner.Run("native TB setup proposals preserve measured separation at arbitrary orientation", ActingFixture);
             runner.Run("native ground fixtures require the full footprint and reachable endpoint", GroundFixture);
         }
         private static RelationshipCommandIdentity Make(object command, object process, object context,
@@ -89,6 +92,35 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!request.MatchesUnacted(Make(command, new object(), new object())), "acted process cannot qualify unacted failure");
             TestRunner.True(!request.MatchesUnacted(Make(command, null, null, generation: 5)), "unacted generation mismatch rejected");
         }
+        private static void ActingFixture()
+        {
+            // Captured full-TB121 geometry, plus its rotations and the adjacent compensation case.
+            foreach (var separation in new[] { 1.12, 2.45, 6.411576 })
+                for (var angle = 0; angle < 360; angle += 11)
+                {
+                    var radians = angle * Math.PI / 180;
+                    var mount = new PoseVector3(3.71811056f, 6.096037f, 51.4622421f);
+                    var rider = mount + new PoseVector3((float)(Math.Cos(radians) * separation), 0,
+                        (float)(Math.Sin(radians) * separation));
+                    var actualSeparation = (rider - mount).Magnitude;
+                    var points = NativeGroundFixturePolicy.ActingProposals(rider, mount).ToArray();
+                    TestRunner.Equal(18, points.Length, "bounded proposals cover both sides of the annulus");
+                    foreach (var point in points)
+                        TestRunner.True(NativeGroundFixturePolicy.IsActingStep(actualSeparation, (point - mount).Magnitude,
+                            (point - rider).Magnitude, 0, 0, false), "each unobstructed proposal satisfies unchanged bounds");
+                }
+            TestRunner.Equal(0, NativeGroundFixturePolicy.ActingProposals(new PoseVector3(float.NaN, 0, 0),
+                new PoseVector3(0, 0, 0)).Count(), "invalid geometry admits nothing");
+            foreach (var bad in new[] {
+                new[] { 6.4, 0.6, 0.0, 0.0 }, new[] { 6.7, 0.6, 0.0, 0.0 },
+                new[] { 6.55, 0.4, 0.0, 0.0 }, new[] { 6.55, 0.8, 0.0, 0.0 },
+                new[] { 6.55, 0.6, 0.1, 0.0 }, new[] { 6.55, 0.6, 0.0, 0.1 },
+                new[] { 6.55, 0.6, double.NaN, 0.0 } })
+                TestRunner.True(!NativeGroundFixturePolicy.IsActingStep(6.5, bad[0], bad[1], bad[2], bad[3], false),
+                    "projection, route or footprint failure remains refused");
+            TestRunner.True(!NativeGroundFixturePolicy.IsActingStep(6.5, 6.55, 0.6, 0, 0, true), "occupied point refused");
+        }
+
         private static void GroundFixture()
         {
             TestRunner.True(NativeGroundFixturePolicy.IsClear(6, 6, 4, 0, 0, false), "clear full-footprint endpoint admitted");

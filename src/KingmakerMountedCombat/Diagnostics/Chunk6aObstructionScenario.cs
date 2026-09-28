@@ -8,26 +8,15 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         private bool Chunk6aObstructionActive => IsChunk6aCombatMount && Chunk6aNeedsDoor &&
-            (chunk6aStage == 0 && chunk6aExplorationStage >= 4 || chunk6aStage == 6 || chunk6aStage >= 18 && chunk6aStage <= 21);
+            (chunk6aStage == 0 && chunk6aExplorationStage >= 4 || chunk6aStage >= 18 && chunk6aStage <= 21);
         private JObject chunk6aObstructionEvidence;
         private UnitCommand chunk6aBlockedCommand;
         private int chunk6aClosedDoorObservations;
         private void TickChunk6aObstruction()
         {
-            if (chunk6aStage == 6)
-            {
-                if (Chunk6aTurnBased) { chunk6aStage = 99; BeginCleanup(); return; }
-                if (!Chunk6aIdle) return;
-                chunk6aDoorGround = Chunk6aDoorMove(rider, chunk6aDoorNear);
-                chunk6aStage = 18; ResetLeafClock(); return;
-            }
+            if (!Chunk6aObstructionOnly) throw new InvalidOperationException("Obstruction requires its own fresh native transaction.");
             if (chunk6aStage == 18)
             {
-                if (!Chunk6aObstructionOnly)
-                {
-                    if (!FinishChunk6aDoorMove("combatRiderNearArrival", rider, chunk6aDoorNear, false)) return;
-                    CloseChunk6aDoor();
-                }
                 chunk6aStage = 19; ResetLeafClock(); return;
             }
             if (chunk6aStage == 19)
@@ -66,8 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aStage == 21)
             {
                 if (!RestoreChunk6aDoor()) return;
-                if (Chunk6aObstructionOnly) { chunk6aStage = 99; BeginCleanup(); return; }
-                chunk6aStage = 16; ResetLeafClock(); TickChunk6aGeometryChange();
+                chunk6aStage = 99; BeginCleanup(); return;
             }
         }
         private void FinishChunk6aObstruction(string failure)

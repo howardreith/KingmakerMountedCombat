@@ -1,3 +1,38 @@
+## 2026-09-28T05:23:06.885Z - Complete preview.122 offline gate
+
+PASS: source116/0, components552/0, harness270/0, causal220/0, supporting52/0, history422/0, assembly629/0, command ownership24/0, compiled fields5/0, interruption wrapper1/0, path snapshot5/0, patch construction30/0. Umbrella57557 exited0. Raw logSHA 187c13300a504b8b7a245d2cf8f2f94579bbe05f4812fd9c511fd9f50113c848; DLL 598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa / MVID 44829661-73db-41b4-9c60-c51d5d37f466. Historical ledger consistency87/0 verifies1218PASS/2FAIL/77unqualified with13retained failures; it is not completion. Source122 has0native qualification. Next guarded publication, new immutable122/suite/fresh unchanged proof, then required native sequence and remaining87. Completed121 proof and seven restored results retained; never rerun121proof. No game/proofactive.
+
+## 2026-09-28T05:16:45.475Z - Frozen121 results and source122 continuation
+
+Frozen121 source df849fa5913009508f3afb211db46dd46f280a5c; package192bf8fcde7b71c7f7cd34000f6c68b6b40359548c4e7c782d68f446eb59efa0; manifestdf6d68c0f4612e4787afa805f44f42ff71ea20c5f1820b965e638f445e250dcd; DLL9f4b53eef34dc356b0d33ddb8e1b18c3e2b22c4896639045bc4db1004d504d22 / MVID86ce6557-9a69-48ed-9b07-85ace91d6423. Suite20260928-chunk6a-envelope-a / fca161df75e62e7c319e46a6d5776674ebb1b4702d88f07252026c4624e45b83. Completed purity51712 exit0, logSHAcbfb21a6317f336e9e222809e30c9eccb38cc27b9f420aefc154e54a0e0d680d. Package, packaged DLL/MVID, suite, receipt and all seven run artifacts reverified; actual HEAD/remote equality and accepted ancestry checked. Steam guard client1920 passed current-session offline/cloud evidence; Kingmaker closed.
+
+| Exact121 run | Native and overall result | Restoration |
+| --- | --- | --- |
+| c6a-envelope-a-approach | PASS48/0 | 5/5 PASS |
+| c6a-envelope-a-rt | PASS46/0 | 5/5 PASS |
+| c6a-envelope-a-tb | PASS47/0 | 5/5 PASS |
+| c6a-envelope-a-geometry | PASS45/0 | 5/5 PASS |
+| c6a-envelope-a-obstruction | PASS45/0 | 5/5 PASS |
+| c6a-envelope-a-full-rt | FAIL52/2 | 5/5 PASS |
+| c6a-envelope-a-full-tb | FAIL44/2 | 5/5 PASS |
+
+The isolated positive command -889843968 approached6.25880432m to2.83356285m before attachment (envelope2.9), acted/paid once, delivered through process-544429312/context1679390720 and ended nativeSuccess. Its independent exploration Mount/Dismount and combat Mount windows all passed exact action/reaction replay and six observer hooks. Isolated obstruction command586569472 ended nativeInterrupt unacted at frame2303 after104closed observations, with zero process/context, costs/preparation/transition and no residue. Exact artifact hashes for every case are in chunk6a-evidence-history.json. These are121 facts only.
+
+FullRT mandatory CM02-obstruction failed with exact assertion: "InvalidOperationException: Prepared native door cannot admit its ordinary close interaction." runtime-game-result SHA89e210c6cf700ab907ecdb296528fe43dce081dec6568b0d136b7c503f3e8863. The four provisional command windows passed but receive no qualification credit. Read-only pinned InteractionComponent.CanInteract checks Enabled and rejects NotInCombat interactions while Player.IsInCombat; StandardDoor inherits that policy. Source122 confines the obstruction fixture to its fresh scenario with the close before encounter creation. The full-case contract explicitly excludes inline compensation/geometry/obstruction and stops after one combat Mount/Dismount. The ledger requires the fixed same-candidate/suite positive, RT compensation, TB compensation, geometry, obstruction and fullRT sequence (plus fresh fullTB for TB credit); removing the impossible inline close cannot remove the mandatory evidence.
+
+FullTB mandatory context CM01-horse-tb failed before any combat Mount request. Exact original row phase3d-horse-runtime-exception: "InvalidOperationException: No bounded walkable Phase 3D point satisfied the requested distance." runtime-game-result SHA61f8437beb24cda081067404f0beb8ecc7b1bc07765f55479763c4f6fd2ed760. Stack: FindWalkablePoint -> PrepareChunk6aNativeActingTurn. Exact selection was established. The old32world-angle candidates were not recorded, so the first rejection is not known. New pair-relative proposals cover both sides of the unchanged short-step/separation bounds and retain native rejection observations; they still require a real successful native ground command on the same rider turn. Component regressions include captured6.411576m separation, adjacent variants, rotations and route/footprint/occupancy negatives. This is a source diagnostic repair requiring fresh native proof, not an inferred product/resource failure.
+
+## 2026-09-28T05:16:45.475Z - preview.122 fixture and campaign evidence repair
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserving published parent df849fa5913009508f3afb211db46dd46f280a5c and accepted f05a265 ancestry. Preview.121's completed purity and all seven native results are immutable; never rerun its completed proof. Its five isolated cases PASS, full RT FAIL52/2 and fresh TB FAIL44/2; every run restored all five external checks. Historical ledger: 8 PASS / 2 FAIL / 77 unqualified, thirteen retained failures. Source122 has no native qualification.
+
+The full RT fixture tried a native door close during combat; the pinned interaction policy refused it. Full native Mount/Dismount now ends after its own measured transitions. Geometry and obstruction remain mandatory fresh transactions, enforced by a fixed ordered campaign gate before CM05 RT/TB or Horse TB ledger credit. This gate binds exact package/manifest/suite, native and overall results, all five restoration flags, transaction/inventory continuity and original artifact hashes. It rejects omitted roles, shared runs, wrong payload/suite, failed runs and changed restoration. The standalone obstruction's native door policy remains intact.
+
+Full TB failed before a combat Mount click because its short native setup destination search exhausted its candidates. The old artifact did not record rejected candidates, so their exact navigation failure is unknown. Source122 generates bounded steps relative to measured pair geometry, retains the original travel/separation/arrival bounds, checks the native route, rider footprint and actor clearance, and records each rejected proposal before admission. The live repair remains unproven. Native command, acted, cost, reaction and selection logic is unchanged.
+
+Focused build/source116/0, components552/0, causal220/0 and history422/0 PASS. Expanded supporting-run regressions and complete offline umbrella pending. No game or proof active. Next finish focused gates, complete offline, guarded publication, immutable122 package/suite/fresh proof, then positive, isolated compensation RT/TB, geometry, obstruction, full RT/fresh TB and remaining87. No6B before every mandatory6A row passes one frozen candidate. Mission target remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge, tag, PR, release, permanent installation or inferred HUMAN PLAY acceptance.
+
+---
 
 ## 2026-09-28T03:30:11.990Z - Complete preview.121 offline gate
 

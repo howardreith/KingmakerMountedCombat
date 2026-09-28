@@ -250,3 +250,7 @@ Preview118: positive48/0, compensationRT46/0 andTB47/0 PASS/restored. Geometry43
 ## 2026-09-28T03:23:07.787Z - obstruction envelope and external result facets
 
 Preview120 directly observed NativeMountedControlService's exact unacted interruption callback in Unity: command381715712, same shell, nativeInterrupt/OnEnded at frame1946, zero cost/transition and preserved action/reaction window. Overall qualification nevertheless FAIL: Assert-KmcChunk6aObstruction used corpulence +1.0 instead of the frozen CombatMountDismountPolicy.NativeAdjacentReachMeters1.5. Source121 fixes only the validator formula; real Horse corpulence0.9 plus rider0.5 must derive2.9. Source114/0 and causal216/0 regressions retain the same tolerances and closed-door observations; the historical parser replay never changes120's overallFAIL. Exact original artifacts and both native/external result facets are retained in docs/chunk6a-evidence-history.json. New121 requires fulloffline/newcandidate/newproof/nativequalification.
+
+## 2026-09-28T05:16:45.475Z - Chunk6A full-case transaction boundary
+
+Preview121 isolated positive/compensationRT/TB/geometry/obstruction PASS; fullRT FAIL52/2 at forbidden combat door interaction, fullTB FAIL44/2 at setup destination search. All restored. Source122 fullRT/TB contain one positive combatMount and oneDismount; independent mandatory geometry/obstruction remain fixed ordered supporting roles on the same payload/suite. No87-row completion or6B entry; original full-case failures remain bound.

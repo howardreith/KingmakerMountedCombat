@@ -1,0 +1,132 @@
+# Fixed same-candidate supporting-run contract for Chunk 6A qualification.
+# Original KMC ledger validation; reads only project-owned settled evidence.
+Set-StrictMode -Version Latest
+function Get-KmcBoundJson([string]$Path,[string]$ExpectedSha256) {
+    if($ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Evidence requires an exact SHA-256.' }
+    $actual=(Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+    if($actual -cne $ExpectedSha256) { throw "Bound evidence bytes differ: $Path" }
+    Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+}
+function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
+    $run=[string]$Binding.runId
+    if($run -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid supporting run ID.' }
+    if([string]$Binding.evidenceLeaf -cnotmatch '^[A-Za-z0-9._-]+\.json$') { throw 'Evidence must name one JSON leaf.' }
+    $root=Join-Path $LabRoot ('runtime-evidence/'+$run)
+    $result=Get-KmcBoundJson (Join-Path $root 'runtime-result.json') $Binding.resultSha256
+    $game=Get-KmcBoundJson (Join-Path $root 'runtime-game-result.json') $Binding.gameResultSha256
+    $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $Binding.requestSha256
+    $orchestration=Get-KmcBoundJson (Join-Path $root 'orchestration.json') $Binding.orchestrationSha256
+    $transaction=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-state/run-transactions/'+$run+'.json')) $Binding.transactionSha256
+    $artifact=Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256
+    foreach($item in @($result,$game,$request)) {
+        if([string]$item.runId -cne $run -or [string]$item.scenario -cne [string]$Binding.scenario) { throw 'Supporting run or scenario differs.' }
+        if([string]$item.commit -cne [string]$Payload.commit -or [string]$item.branch -cne [string]$Payload.branch -or
+           [string]$item.productVersion -cne [string]$Payload.version -or [string]$item.dllSha256 -cne [string]$Payload.dllSha256 -or
+           [string]$item.dllMvid -cne [string]$Payload.dllMvid) { throw 'Supporting run executed another payload.' }
+        if([string]$item.transactionToken -cne [string]$transaction.token) { throw 'Supporting transaction token differs.' }
+    }
+    foreach($item in @($result,$game)) {
+        if([string]$item.status -cne 'PASS' -or [int]$item.assertionFailCount -ne 0 -or [int]$item.assertionPassCount -lt 1 -or
+           [int]$item.assertionPassCount -ne [int]$Binding.passCount -or [int]$Binding.failCount -ne 0 -or @($item.errors).Count -ne 0) {
+            throw 'Supporting native or overall run is not an exact PASS.'
+        }
+    }
+    if([string]$result.gameResultSha256 -cne [string]$Binding.gameResultSha256) { throw 'Overall result does not bind the native result.' }
+    if([string]$request.qualificationSuite.suiteId -cne [string]$Payload.suiteId -or
+       [string]$request.qualificationSuite.snapshotSha256 -cne [string]$Payload.suiteSha256 -or
+       [string]$transaction.qualificationSuiteId -cne [string]$Payload.suiteId -or
+       [string]$transaction.qualificationSuiteSnapshotSha256 -cne [string]$Payload.suiteSha256) { throw 'Supporting run used another qualification suite.' }
+    if([string]$orchestration.runId -cne $run -or [string]$orchestration.scenario -cne [string]$Binding.scenario -or
+       [string]$orchestration.status -cne 'PASS' -or [string]$orchestration.stage -cne 'restored' -or
+       [string]$transaction.runId -cne $run -or [string]$transaction.phase -cne 'restored') { throw 'Supporting transaction is not settled and restored.' }
+    foreach($field in @('modsRestored','saveProtectionPassed','baselineImmutable','workingRestored','saveWriteAllowlistPassed')) {
+        if($result.$field -ne $true -or $transaction.$field -ne $true) { throw "Supporting restoration failed: $field" }
+    }
+    if(@($transaction.restorationErrors).Count -ne 0 -or
+       [string]$transaction.modsDigestBefore -cne [string]$transaction.restoredModsDigest -or
+       [string]$transaction.saveInventoryDigestBefore -cne [string]$transaction.restoredSaveInventoryDigest) { throw 'Supporting restoration inventory differs.' }
+    foreach($field in @('runId','scenario','commit','branch','productVersion','dllSha256','dllMvid')) {
+        if([string]$artifact.$field -cne [string]$game.$field) { throw 'Supporting artifact payload or run differs.' }
+    }
+    if($artifact.status -cne 'PASS' -or @($artifact.errors).Count -ne 0) { throw 'Supporting artifact is not PASS.' }
+    $rows=@($Binding.rows)
+    if($rows.Count -lt 1 -or @($rows | Select-Object -Unique).Count -ne $rows.Count) { throw 'Supporting rows must be nonempty and unique.' }
+    foreach($rowName in $rows) {
+        $matched=@($artifact.rows | Where-Object { [string]$_.name -ceq [string]$rowName })
+        if($matched.Count -ne 1 -or [string]$matched[0].status -cne 'PASS') { throw "Supporting artifact lacks exact PASS row: $rowName" }
+    }
+}
+function Assert-KmcCompositeRuns($Payload,$Bindings,$RequiredRoles,[string]$LabRoot) {
+    # RequiredRoles is owned by the fixed mandatory claim contract, not supplied by a ledger entry.
+    $items=@($Bindings);$roles=@($RequiredRoles)
+    if($roles.Count -lt 2 -or @($roles | ForEach-Object { [string]$_.name } | Select-Object -Unique).Count -ne $roles.Count -or $items.Count -ne $roles.Count) { throw 'Composite evidence lacks required roles.' }
+    $runIds=@($items | ForEach-Object { [string]$_.runId })
+    if(@($runIds | Select-Object -Unique).Count -ne $items.Count) { throw 'Composite roles require separate native transactions.' }
+    foreach($role in $roles) {
+        $matches=@($items | Where-Object { [string]$_.role -ceq [string]$role.name })
+        if($matches.Count -ne 1) { throw "Composite evidence needs exactly one $role run." }
+        if([string]$matches[0].scenario -cne [string]$role.scenario) { throw 'Supporting role requires its declared scenario.' }
+        foreach($requiredRow in @($role.rows)) {
+            if(@($matches[0].rows) -cnotcontains [string]$requiredRow) { throw 'Supporting role omits a required row.' }
+        }
+        Assert-KmcSupportingRun $Payload $matches[0] $LabRoot
+    }
+    Assert-KmcCompositeRunOrder $items $roles $LabRoot
+}
+
+function Get-KmcChunk6aCampaignRoles([bool]$IncludeTurnBased) {
+    @(
+        @{name='positive';scenario='chunk6a-mount-approach';rows=@('CM01-exploration-free','CM02-approach-arrival')}
+        @{name='compensation-rt';scenario='chunk6a-adoption-compensation-rt';rows=@('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')}
+        @{name='compensation-tb';scenario='chunk6a-adoption-compensation-tb';rows=@('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases','CM01-combat-mount-preparing-refused')}
+        @{name='geometry';scenario='chunk6a-geometry-change';rows=@('CM02-geometry-change')}
+        @{name='obstruction';scenario='chunk6a-obstruction';rows=@('CM02-obstruction')}
+        @{name='full-rt';scenario='chunk6a-combat-mount-rt';rows=@('CM01-combat-mount-accepted','CM02-approach-arrival','CM05-combat-dismount-accepted','CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')}
+    )
+    if($IncludeTurnBased) {
+        @{name='full-tb';scenario='chunk6a-combat-mount-tb';rows=@('CM01-combat-mount-accepted','CM01-combat-mount-preparing-refused','CM02-approach-arrival','CM05-combat-dismount-accepted','CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')}
+    }
+}
+function Assert-KmcChunk6aCampaign($Payload,$Bindings,[bool]$IncludeTurnBased,[string]$LabRoot) {
+    $roles=@(Get-KmcChunk6aCampaignRoles $IncludeTurnBased)
+    Assert-KmcCompositeRuns $Payload $Bindings $roles $LabRoot
+}
+function Assert-KmcCompositeRunOrder($Bindings,$roles,[string]$LabRoot) {
+    $previousEnd=[DateTimeOffset]::MinValue
+    foreach($role in $roles) {
+        $binding=@($Bindings|Where-Object role -CEQ $role.name)[0]
+        $transaction=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-state/run-transactions/'+$binding.runId+'.json')) $binding.transactionSha256
+        $start=[DateTimeOffset]$transaction.preparedAtUtc
+        $end=[DateTimeOffset]$transaction.restoredAtUtc
+        if($start -le $previousEnd -or $end -le $start) { throw 'Campaign roles did not run in order as separate restored transactions.' }
+        $previousEnd=$end
+    }
+}
+
+function Assert-KmcChunk6aFrozenPayload($Payload,[string]$LabRoot) {
+    if([string]$Payload.suiteId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid qualification suite ID.' }
+    $suite=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-state/qualification-suite-snapshots/'+$Payload.suiteId+'.json')) $Payload.suiteSha256
+    if((Get-FileHash -LiteralPath $Payload.packagePath -Algorithm SHA256).Hash.ToLowerInvariant() -cne $Payload.packageSha256) { throw 'Frozen package bytes differ.' }
+    $manifest=Get-KmcBoundJson ($Payload.packagePath+'.manifest.json') $Payload.manifestSha256
+    if($manifest.worktreeClean -ne $true -or $manifest.qualificationEligible -ne $true) { throw 'Frozen package is not qualification eligible.' }
+    foreach($field in @('commit','branch','version','dllSha256','dllMvid','packageSha256')) {
+        if([string]$manifest.$field -cne [string]$Payload.$field) { throw 'Frozen manifest payload differs.' }
+    }
+    if($suite.suiteId -cne $Payload.suiteId -or $suite.repository.commit -cne $Payload.commit -or
+        $suite.repository.branch -cne $Payload.branch -or $suite.package.sha256 -cne $Payload.packageSha256 -or
+        $suite.package.manifestSha256 -cne $Payload.manifestSha256 -or $suite.package.productVersion -cne $Payload.version -or
+        $suite.package.dllSha256 -cne $Payload.dllSha256 -or $suite.package.dllMvid -cne $Payload.dllMvid) { throw 'Frozen suite payload differs.' }
+}
+function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[string]$LabRoot) {
+    if($RunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid supporting run ID.' }
+    $root=Join-Path $LabRoot ('runtime-evidence/'+$RunId)
+    $result=Get-Content -Raw (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
+    $binding=[ordered]@{role=$Role;runId=$RunId;scenario=$result.scenario;passCount=$result.assertionPassCount;failCount=$result.assertionFailCount;
+        rows=$Rows;evidenceLeaf='phase3d-horse-scenario-evidence.json'}
+    foreach($pair in @(@('resultSha256','runtime-result.json'),@('gameResultSha256','runtime-game-result.json'),
+        @('requestSha256','runtime-request.json'),@('orchestrationSha256','orchestration.json'),@('evidenceSha256','phase3d-horse-scenario-evidence.json'))) {
+        $binding[$pair[0]]=(Get-FileHash -LiteralPath (Join-Path $root $pair[1]) -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    $binding['transactionSha256']=(Get-FileHash -LiteralPath (Join-Path $LabRoot ('runtime-state/run-transactions/'+$RunId+'.json')) -Algorithm SHA256).Hash.ToLowerInvariant()
+    [pscustomobject]$binding
+}

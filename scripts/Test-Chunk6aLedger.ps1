@@ -77,6 +77,8 @@ $mandatory=@(
 $ledger=Get-Content -Raw -LiteralPath $LedgerPath -Encoding UTF8|ConvertFrom-Json
 if([int]$ledger.schemaVersion-ne1){throw 'Unknown Chunk 6A ledger schema.'}
 $payload=$ledger.payload
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1')
+Assert-KmcChunk6aFrozenPayload $payload $LabRoot
 foreach($name in @('version','commit','branch','dllSha256','dllMvid','packageSha256','manifestSha256','suiteId','suiteSha256')){
     if([string]::IsNullOrEmpty([string](Get-Field $payload $name))){throw "Chunk 6A ledger payload lacks $name."}
 }
@@ -109,6 +111,26 @@ foreach($entry in $ledger.entries){
     $id=[string]$entry.id
     switch -CaseSensitive ([string]$entry.status){
         'PASS' {
+            # Bind all five restoration checks, native/overall results, transaction and suite.
+            $binding=Get-Field $entry 'evidenceBinding'
+            if($null -eq $binding) { throw "Chunk 6A PASS entry $id lacks its complete evidence binding." }
+            if($binding.runId -cne $entry.runId -or $binding.scenario -cne $entry.scenario -or
+                $binding.evidenceSha256 -cne $entry.evidenceSha256 -or
+                (ConvertTo-Json @($binding.rows) -Compress) -cne (ConvertTo-Json @($entry.rows) -Compress)) { throw 'Primary evidence binding differs from the claimed entry.' }
+            Assert-KmcSupportingRun $payload $binding $LabRoot
+            if($id -cin @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')) {
+                $roles=@(Get-KmcChunk6aCampaignRoles $false|Where-Object name -CLike 'compensation-*')
+                Assert-KmcCompositeRuns $payload (Get-Field $entry 'supportingRuns') $roles $LabRoot
+            }
+            if($id -cin @('CM05-rt','CM05-tb','CM01-horse-tb')) {
+                $tb=$id -cne 'CM05-rt'
+                $support=Get-Field $entry 'supportingRuns'
+                Assert-KmcChunk6aCampaign $payload $support $tb $LabRoot
+                $primaryRole=if($tb){'full-tb'}else{'full-rt'}
+                if(@($support|Where-Object { $_.role -ceq $primaryRole -and $_.runId -ceq $entry.runId }).Count -ne 1) {
+                    throw 'Full-case qualification does not bind its own campaign role.'
+                }
+            }
             $run=[string](Get-Field $entry 'runId')
             if([string]::IsNullOrEmpty($run)){throw "Chunk 6A PASS entry $id names no run."}
             $root=Join-Path $LabRoot ('runtime-evidence/'+$run)
