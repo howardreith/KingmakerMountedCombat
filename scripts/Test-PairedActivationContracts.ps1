@@ -284,6 +284,25 @@ public static class KmcNativePatchProbe {
      Console.WriteLine("DEFER - EVIDENCED: desktop CLR cannot construct Unity ECall wrapper "+pathNames[i]+"; native installation and callback still required.");
     }
    }
+   var approachHooks=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeMountApproachPathProbe+Hooks",true);
+   var approachTokens=new[]{0x060027A6,0x0600700F,0x060018B6,0x060018A3,0x06000C37};
+   var approachNames=new[]{"TickApproaching","CurrentPathForUnit","FollowPrecomputedPath","PathTo","TickMovement"};
+   var approachBefore=new string[]{"ApproachBefore",null,"PrecomputedBefore","RequestedBefore","ApproachMovementBefore"};
+   var approachAfter=new string[]{"ApproachAfter","PreviewAfter","PrecomputedAfter",null,"ApproachMovementAfter"};
+   var approachConstructed=0;var approachDeferred=0;
+   for(var i=0;i<approachTokens.Length;i++) {
+    var original=native.ManifestModule.ResolveMethod(approachTokens[i]);
+    if(original.Name!=approachNames[i]) throw new InvalidOperationException("Native consumed-path/movement observer token changed.");
+    var owner=i==4?observer:approachHooks;
+    var before=approachBefore[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(approachBefore[i],causalFlags)});
+    var after=approachAfter[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(approachAfter[i],causalFlags)});
+    try {patch.Invoke(harmony,new object[]{original,before,after,null}); approachConstructed++;Console.WriteLine("PASS native Mount consumed-path/movement wrapper "+approachNames[i]);}
+    catch(TargetInvocationException e) {
+     if(!(e.InnerException is System.Security.SecurityException) || e.InnerException.Message!="ECall methods must be packaged into a system module.") throw;
+     approachDeferred++;Console.WriteLine("DEFER - EVIDENCED: desktop CLR cannot construct Unity ECall wrapper "+approachNames[i]+"; native installation and callback still required.");
+    }
+   }
+   Console.WriteLine("MOUNT CONSUMED PATH/MOVEMENT WRAPPERS PASS="+approachConstructed+" FAIL=0 DEFER="+approachDeferred+"; no native gameplay execution");
    var pathProbe=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeCommandPathProbe",true);
    var contentsMethod=pathProbe.GetMethod("CapturePathContents",causalFlags);
    if(contentsMethod==null) throw new InvalidOperationException("Path contents boundary contract is missing.");
@@ -305,6 +324,26 @@ public static class KmcNativePatchProbe {
    points.Clear(); points.Add(Activator.CreateInstance(vectorType,new object[]{9f,8f,7f}));
    if((string)serialize.Invoke(null,new[]{completed})!=completedText) throw new InvalidOperationException("Native pool reuse mutated the completed snapshot.");
    Console.WriteLine("PATH CONTENTS BOUNDARY PASS=5 FAIL=0; request contents absent, completed snapshot immutable");
+   var consumedProbe=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeMountApproachPathProbe",true);
+   var snapshotMethod=consumedProbe.GetMethod("SnapshotConsumedPath",causalFlags);
+   if(snapshotMethod==null)throw new InvalidOperationException("Consumed path snapshot seam absent.");
+   points.Clear();points.Add(Activator.CreateInstance(vectorType,new object[]{1f,2f,3f}));
+   points.Add(Activator.CreateInstance(vectorType,new object[]{4f,8f,7f}));
+   var snapshot=snapshotMethod.Invoke(null,new object[]{samplePath});
+   var snapshotText=(string)serialize.Invoke(null,new[]{snapshot});
+   if(snapshotText.IndexOf("\"horizontalLength\":5.0",StringComparison.Ordinal)<0 ||
+      snapshotText.IndexOf("\"points\":[{\"x\":1.0,\"y\":2.0,\"z\":3.0},{\"x\":4.0,\"y\":8.0,\"z\":7.0}]",StringComparison.Ordinal)<0)
+    throw new InvalidOperationException("Consumed path snapshot lost exact points or horizontal length.");
+   points.Clear();points.Add(Activator.CreateInstance(vectorType,new object[]{900f,800f,700f}));
+   if((string)serialize.Invoke(null,new[]{snapshot})!=snapshotText)throw new InvalidOperationException("Pooled native path reuse mutated consumed snapshot.");
+   requested.FieldType.GetField("vectorPath").SetValue(samplePath,null);
+   var missingPoints=(string)serialize.Invoke(null,new[]{snapshotMethod.Invoke(null,new object[]{samplePath})});
+   if(missingPoints.IndexOf("\"points\":null",StringComparison.Ordinal)<0 || missingPoints.IndexOf("\"horizontalLength\":null",StringComparison.Ordinal)<0)
+    throw new InvalidOperationException("Missing native points became invented geometry.");
+   var missingPath=(string)serialize.Invoke(null,new[]{snapshotMethod.Invoke(null,new object[]{null})});
+   if(missingPath!="{\"pathObject\":0,\"pathType\":null,\"pathState\":null,\"pathError\":null,\"points\":null,\"horizontalLength\":null}")
+    throw new InvalidOperationException("Missing native preview became invented path.");
+   Console.WriteLine("CONSUMED PATH SNAPSHOT PASS=4 FAIL=0; exact completed geometry, immutable copy, null points and null path");
 
    try {
     var disposable=(IDisposable)Activator.CreateInstance(pathProbe,BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{null},null);

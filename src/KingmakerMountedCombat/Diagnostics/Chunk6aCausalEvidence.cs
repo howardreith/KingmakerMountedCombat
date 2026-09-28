@@ -13,6 +13,7 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         private NativeRelationshipCommandProbe chunk6aCommandWindow;
+        private NativeMountApproachPathProbe chunk6aApproachPath;
         private readonly JArray chunk6aCommandProofs = new JArray();
         private int chunk6aExplorationStage;
         private JObject chunk6aExplorationMountBefore, chunk6aExplorationMountAfter;
@@ -59,6 +60,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var proof = chunk6aCommandWindow.Finish(inCombat, Chunk6aTurnBased && inCombat, partnerPrepares, requireApproach);
             proof["window"] = name;
+            if (chunk6aApproachPath != null && name == "positive-mount")
+            {
+                var path = chunk6aApproachPath.Capture();
+                proof["nativeApproachPath"] = path;
+                proof["pass"] = (bool)proof["pass"] && (bool)path["complete"];
+                observations["chunk6aApproachPath"] = path.DeepClone();
+                chunk6aApproachPath.Dispose(); chunk6aApproachPath = null;
+            }
             chunk6aCommandProofs.Add(proof.DeepClone());
             observations["chunk6aCommandProofs"] = chunk6aCommandProofs;
             chunk6aCommandWindow.Dispose();

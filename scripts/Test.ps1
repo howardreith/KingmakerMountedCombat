@@ -59,6 +59,10 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-Chunk6aCausalProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeApproachMovement.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& (Join-Path $PSScriptRoot 'Test-NativeMountApproachPath.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aCommandSlot.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-ActorAllocationProtocol.ps1')
