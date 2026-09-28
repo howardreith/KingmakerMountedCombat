@@ -124,3 +124,33 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 # Native injections are constructed in a separate process and always unpatched.
 & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-PairedActivationContracts.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeAllocationContinuation.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeMountOrder.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeTerminalBridge.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeDismountEscape.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aEscapeEnvelope.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aOrderEnvelope.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeTurnCompletionWrappers.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeOrderFixtureAdmission.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aAdditionalRegistration.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeOrderObserverMembers.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

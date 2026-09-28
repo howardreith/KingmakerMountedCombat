@@ -362,6 +362,16 @@
     <Compile Include="Diagnostics\NativePassiveResourceEvidence.cs" />
     <Compile Include="Diagnostics\NativeOutsideCombatGroundProbe.cs" />
     <Compile Include="Diagnostics\NativePreCombatGroundPlan.cs" />
+    <Compile Include="Diagnostics\NativeTurnCompletionProbe.cs" />
+    <Compile Include="Diagnostics\NativeTurnCompletionEvidence.cs" />
+    <Compile Include="Diagnostics\NativeAllocationContinuationEvidence.cs" />
+    <Compile Include="Diagnostics\NativeMountOrderEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk6aMountOrderScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6aDismountEscapeScenario.cs" />
+    <Compile Include="Diagnostics\NativeDismountEscapeEvidence.cs" />
+    <Compile Include="Diagnostics\NativePassiveResourceProbe.cs" />
+    <Compile Include="Diagnostics\NativeTerminalBridgeEvidence.cs" />
+    <Compile Include="Diagnostics\NativeRelationshipTerminalBridge.cs" />
     <Compile Include="Diagnostics\NativePreCombatGroundEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aPreCombatPositioning.cs" />
     <Compile Include="Diagnostics\NativeCommandPathProbe.cs" />

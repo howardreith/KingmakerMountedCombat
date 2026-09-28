@@ -140,6 +140,8 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM01-mammoth-tb'=@('chunk6a-mammoth-mount-tb','CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')
         'CM04-stop-during-approach'=@('chunk6a-stop-approach','CM04-stop-during-approach')
         'CM06-hotbar-path'=@('chunk6a-hotbar-approach','CM06-hotbar-path')
+        'CM03-rider-before-mount-slot'=@('chunk6a-allocation-rider-first-tb','CM03-rider-before-mount-slot','CM03-next-round-activation')
+        'CM03-mount-slot-before-rider'=@('chunk6a-allocation-mount-first-tb','CM03-mount-slot-before-rider','CM03-next-round-activation')
         'CM06-paused-queue'=@('chunk6a-paused-queue','CM06-paused-queue')
         'CM02-wrong-creature-target'=@('chunk6a-refused-wrong-creature-target','CM02-wrong-creature-target')
         'CM06-mount-selected'=@('chunk6a-refused-mount-selected','CM06-mount-selected')
@@ -170,4 +172,41 @@ function Assert-KmcBoundMammothProfile($Binding,$Request,[string]$Root) {
     $manifest=Get-KmcBoundJson (Join-Path $Root 'runtime-artifacts.json') $Binding.artifactManifestSha256
     $null=Get-KmcBoundJson (Join-Path $Root 'chunk6a-native-mammoth-profile.json') $Binding.profileSha256
     Assert-KmcNativeMammothArtifact $Request $manifest 'PASS'
+}
+
+# Each combined claim requires two independent restored transactions on the frozen payload.
+function Get-KmcChunk6aAdditionalRoles([string]$Id) {
+ if($Id -ceq 'CM03-next-round-activation') {
+  foreach($order in @('rider-first','mount-first')) {
+   [pscustomobject]@{name=$order;scenario=('chunk6a-allocation-'+$order+'-tb');rows=@('CM03-next-round-activation',$(if($order-ceq'rider-first'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}))}
+  }
+ } elseif($Id -ceq 'CM05-dismount-survives-feature-policy-disable') {
+  foreach($case in @('feature','policy')) {[pscustomobject]@{name=$case;scenario=('chunk6a-dismount-'+$case+'-disabled-rt');rows=@($Id)}}
+ }
+}
+function Assert-KmcChunk6aAdditionalBindings([string]$Id,$Primary,$Bindings) {
+ $roles=@(Get-KmcChunk6aAdditionalRoles $Id);if($roles.Count-eq0){return}
+ $items=@($Bindings)
+ if($items.Count-ne2-or@($items|ForEach-Object runId|Select-Object -Unique).Count-ne2){throw 'Additional qualification needs two fresh native allocations'}
+ foreach($role in $roles){
+  $found=@($items|Where-Object role -CEQ $role.name)
+  if($found.Count-ne1-or$found[0].scenario-cne$role.scenario){throw 'Additional qualification role/scenario differs'}
+  foreach($row in $role.rows){if(@($found[0].rows|Where-Object {$_-ceq$row}).Count-ne1){throw 'Additional qualification exact row missing'}}
+ }
+ $primaryRun=@($items|Where-Object runId -CEQ $Primary.runId)
+ if($primaryRun.Count-ne1-or$primaryRun[0].scenario-cne$Primary.scenario-or$primaryRun[0].evidenceSha256-cne$Primary.evidenceSha256){throw 'Additional primary does not bind its supporting transaction'}
+ if(@($Primary.rows|Where-Object {$_-ceq$Id}).Count-ne1){throw 'Additional primary omits its exact claim row'}
+}
+function Assert-KmcChunk6aAdditionalQualification([string]$Id,$Payload,$Primary,$Bindings,[string]$LabRoot) {
+ $roles=@(Get-KmcChunk6aAdditionalRoles $Id);if($roles.Count-eq0){return}
+ Assert-KmcChunk6aAdditionalBindings $Id $Primary $Bindings
+ Assert-KmcCompositeRuns $Payload $Bindings $roles $LabRoot
+ . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+ foreach($binding in $Bindings){
+  $root=Join-Path $LabRoot ('runtime-evidence/'+$binding.runId)
+  $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $binding.requestSha256
+  $artifact=Get-KmcBoundJson (Join-Path $root $binding.evidenceLeaf) $binding.evidenceSha256
+  if([IO.Path]::GetFullPath($root).TrimEnd('\')-cne[IO.Path]::GetFullPath($request.evidenceRoot).TrimEnd('\')){throw 'Additional evidence root differs'}
+  Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS'
+ }
 }

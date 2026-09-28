@@ -268,3 +268,5 @@ IN PROGRESS. Frozen124 historical12PASS/3FAIL/72unqualified, nineteen original f
 ## 2026-09-28T16:38:34.003Z — bounded ground fixture source checkpoint
 
 Chunk6A TB pre-combat positioning now has a bounded joint-plan fallback and two separately measured ordinary native ground windows. Offline contracts PASS; native126 remains TODO. Original125 HorseTB failure remains FAIL and unqualified. No geometry, arrival, deadline, resource or restoration threshold changed. See docs/CHUNK6A-COMBAT-MOUNT.md for exact source/build/gates.
+
+Source126 registers chunk6a-allocation-rider-first-tb and chunk6a-allocation-mount-first-tb for their exact CM03 order rows and combined next-round activation; chunk6a-dismount-feature-disabled-rt and chunk6a-dismount-policy-disabled-rt jointly qualify CM05-dismount-survives-feature-policy-disable only after both overall PASS on the same frozen payload/suite. All four are TODO for native execution. No historical result is transferred.

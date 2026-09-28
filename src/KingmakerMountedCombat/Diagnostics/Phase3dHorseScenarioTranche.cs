@@ -6038,6 +6038,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { errors.Add("Chunk 6A approach path observer cleanup: " + exception.Message); }
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
+            try { CleanupChunk6aDismountEscape(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A Dismount escape settings", exception); }
             try { CleanupChunk6aRefusalInput(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A refusal observer", exception); }
             try { CleanupChunk6aStopInput(); }
@@ -6134,6 +6136,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 4 native character window", exception); }
             try { CleanupChunk4HorseCamera(); }
             catch (Exception exception) { AddCleanupError("Chunk 4 Horse camera", exception); }
+            try { RestoreChunk6aMountOrderFixture(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A pre-encounter initiative inputs", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
             try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
