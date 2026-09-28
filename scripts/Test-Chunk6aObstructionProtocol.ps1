@@ -22,7 +22,7 @@ function New-PathProof([long]$command=101,[string]$actor='rider',[bool]$failure=
         $end=$name -ceq 'command-ended'
         $events+=@{boundary=$name;sequence=(++$seq);gameTicks=$(if($end){1020000000}else{1000000000});frame=10;commandObject=$command;actorId=$actor
             pathObject=900;requestSequence=1;acted=($end -and -not $failure);finished=$end;result=$(if($end){if($failure){'Interrupt'}else{'Success'}}else{'None'})
-            points=@(@{x=-3.5;y=0;z=0},@{x=3.5;y=0;z=0})}
+            pathError=$null;pathState=$null;points=$(if($name -ceq 'path-request'){$null}else{@(@{x=-3.5;y=0;z=0},@{x=3.5;y=0;z=0})})}
     }
     Copy-Value @{complete=$true;errors=@();commandObject=$command;actorId=$actor;observerHooks=$hooks;events=$events}
 }
@@ -87,3 +87,10 @@ function New-ObstructionEnvelope {
 Test-Case 'isolated obstruction envelope retains two independent exploration windows' {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-obstruction'}) (New-ObstructionEnvelope) 'PASS'}
 Test-Case 'isolated obstruction rejects carried positive Mount' {$a=New-ObstructionEnvelope;$a.rows+=@{name='CM02-approach-arrival';status='PASS'};Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-obstruction'}) $a 'PASS'} 'cannot contain a positive Mount'}
 Test-Case 'isolated obstruction rejects compensation in the same allocation' {$a=New-ObstructionEnvelope;$a.rows+=@{name='CM02-adoption-plan-invalidated';status='PASS'};Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-obstruction'}) $a 'PASS'} 'cannot inherit compensation'}
+
+foreach($field in @('points','pathError','pathState')) {
+    Test-Case "obstruction rejects worker-owned request $field" {
+        $c=New-ObstructionCase;$c.case.path.events[1].$field=$(if($field -ceq 'points'){@(@{x=0;y=0;z=0})}elseif($field -ceq 'pathError'){$false}else{'Complete'})
+        Reject {Assert-Obstruction $c} 'worker-owned'
+    }
+}

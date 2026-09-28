@@ -827,10 +827,23 @@ Assert-Kmc ($geometryText -match 'AddRow\("CM02-geometry-change",' -and
     $geometryText -match 'oneRequest && \(accepted \|\| refused\)' -and
     $geometryText -notmatch 'IsStarted|MoveCostRetained|MaxRiderMoveCooldown|\.Position\s*=[^=]|transform\.position\s*=[^=]' -and
     $geometryText.IndexOf('EnsureChunk6aRiderSelection("CM02-geometry-change")') -lt $geometryText.IndexOf('CaptureChunk6aState("geometry-change-before")') -and
-    $chunk6aScenarioText -match 'rider\.Position, horse\.Position, rider\.DistanceTo\(horse\) \+ extraMeters\);' -and
+    $chunk6aScenarioText -match 'destination = FindChunk6aGroundDestination\(extraMeters\)' -and
     $chunk6aScenarioText -match 'ClickGroundHandler\.MoveSelectedUnitsToPoint\(destination, false\);' -and
     $chunk6aTrancheText -match 'chunk6aGeometryChangeCommand\?\.Interrupt\(\);') `
     'geometry uses observed pre-acted native movement and pre-attachment delivery with its own exact command proof'
+$groundSetupText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aGroundSetup.cs')
+$pathContentsText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeCommandPathProbe.cs')
+Assert-Kmc ($groundSetupText -match 'NativeGroundFixturePolicy.IsClear' -and
+    $groundSetupText -match 'CaptureFootprint\(horse, point\)' -and
+    $groundSetupText -match 'ObstacleAnalyzer.TraceAlongNavmesh\(origin, point\)' -and
+    $groundSetupText -match 'unit != horse && unit.IsInState' -and
+    $groundSetupText -match 'index < 24' -and
+    $groundSetupText -notmatch '\.Position\s*=[^=]|transform\.position\s*=[^=]|UpdateCooldowns|Cooldowns.Clear') 'Chunk 6A ground setup selects a bounded clear route and full footprint without actor writes'
+Assert-Kmc ($pathContentsText -match 'var contents = CapturePathContents\(path, boundary\)' -and
+    $pathContentsText -match 'var ready = boundary == "path-complete-before"' -and
+    $pathContentsText -match '!ready \|\| path\?\.vectorPath == null' -and
+    $pathContentsText -match '\["points"\] = contents\["points"\]') 'native path requests capture identity only until the completion callback owns stable contents'
+
 Assert-Kmc ($groundProofText -match 'command.GetType\(\) != typeof\(UnitMoveTo\) \|\| command.Executor != mount' -and
     $groundProofText -match '!command.CreatedByPlayer \|\| !command.IsIgnoreCooldown' -and
     $groundProofText -match 'CombatController.IsInTurnBasedCombat\(\)' -and

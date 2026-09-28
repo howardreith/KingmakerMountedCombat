@@ -1786,6 +1786,371 @@
       "acceptedMandatoryIds": [
         "CM02-geometry-change"
       ]
+    },
+    {
+      "runId": "c6a-obstruction-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.118",
+        "commit": "4322f7f89a84027a80320ab1d53411468a62e60a",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.118-chunk6a-obstruction-a-diagnostic.zip",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-obstruction-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-obstruction-a.json",
+        "sha256": "2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "f72dc95c68a6b76d3a76859f9dfd5c621e82a755fe473344861b2b471786f9df"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-approach/orchestration.json",
+          "sha256": "4fba59028c94f34aa3af1e15877536d1d0d151cb19d0bd63afb1d280b85a001e"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "2452fdc9c794367ba425a9688208ccd9c8a6fdab610e962b99d13bdd076020b3"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-approach/runtime-artifacts.json",
+          "sha256": "0490afad592a4aacb7149c47a24c9673fc618a6ef9245cac4265542651e9e5d0"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-approach/runtime-game-result.json",
+          "sha256": "da7cdbb829b7d349037aeec993a636234fa473c2662f1c37e77fee857f52ac6c"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-approach/runtime-request.json",
+          "sha256": "49ab4fd1c399f324e044615e2d0d7949f3ace69bc0c45d0acd766e52ef679980"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-approach/runtime-result.json",
+          "sha256": "f7324deb35877f716d5f267c8055578ac0376c2d5c0c708b6b822239184cf291"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Preview118 exact result retained after diagnostic source119 change. No result qualifies a different payload; failed assertions remain verbatim.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T23:35:24.6613779+00:00",
+      "completedAtUtc": "2026-09-27T23:35:29.8028563+00:00"
+    },
+    {
+      "runId": "c6a-obstruction-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.118",
+        "commit": "4322f7f89a84027a80320ab1d53411468a62e60a",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.118-chunk6a-obstruction-a-diagnostic.zip",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-obstruction-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-obstruction-a.json",
+        "sha256": "2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "56cf5cdbc02468d9ddd20799202337b3aa04001cd58fe3327d70ff313c2df91c"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-rt/orchestration.json",
+          "sha256": "81607a3a825da930274e2d0f20bc1b007b234028616c56ac1922fb7cad4dc8d0"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "80e6bd8fae8fb79f45ae9c90dd3659b561f99c3b88dcd6f7f80668d37f87c300"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-rt/runtime-artifacts.json",
+          "sha256": "a3d9917bc65b8fe35cc757b94ec86c33247a7eafb9e4b2075ee02791d231b3e1"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-rt/runtime-game-result.json",
+          "sha256": "d073365da824d89229097815dc6f80ea3d9ee7040d36f55dc14d063aa6c4834d"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-rt/runtime-request.json",
+          "sha256": "9180f6f025b40a38f09cc061264e15b0941aa3ba5b0569466925d7bd3a4b0dee"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-rt/runtime-result.json",
+          "sha256": "f062aeabafa2bf823154feae8faedb3d1fd7ba4582617b99d7a72081943490cf"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Preview118 exact result retained after diagnostic source119 change. No result qualifies a different payload; failed assertions remain verbatim.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T23:37:59.4688267+00:00",
+      "completedAtUtc": "2026-09-27T23:38:04.6054212+00:00"
+    },
+    {
+      "runId": "c6a-obstruction-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.118",
+        "commit": "4322f7f89a84027a80320ab1d53411468a62e60a",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.118-chunk6a-obstruction-a-diagnostic.zip",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-obstruction-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-obstruction-a.json",
+        "sha256": "2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "047a238e4932b668ba246c9faa1140b70ae43ea06c60bc0899cbd44eedb8d26a"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-tb/orchestration.json",
+          "sha256": "8441448b0883e977eddb61f4f81bed839b72fbdcdd843d5decb519abeb83d84e"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "f6051b2c3386f4623984c2e08e2ef9157fb920a5c26627cf7452ad3acc972c97"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-tb/runtime-artifacts.json",
+          "sha256": "6edcb802c81cfdb3211f762e19f8d75e0eb5e08252f541ebfd5dc053b91a15c1"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-tb/runtime-game-result.json",
+          "sha256": "97fc1b5c650d4a93d900567ad6dba250572f431be9bed0b0eb4f680e4c0f338f"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-tb/runtime-request.json",
+          "sha256": "bf87b9a8bda6420717ed4096251b443533ee65a9692ff63e801c1b2c3d4d3084"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-tb/runtime-result.json",
+          "sha256": "fbd8b81330a8432b889aba6929ef7a1f48634e47d571c87e06c175e0b060c5a2"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Preview118 exact result retained after diagnostic source119 change. No result qualifies a different payload; failed assertions remain verbatim.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T23:40:15.0588823+00:00",
+      "completedAtUtc": "2026-09-27T23:40:20.1490583+00:00"
+    },
+    {
+      "runId": "c6a-obstruction-a-geometry",
+      "scenario": "chunk6a-geometry-change",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.118",
+        "commit": "4322f7f89a84027a80320ab1d53411468a62e60a",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.118-chunk6a-obstruction-a-diagnostic.zip",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-obstruction-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-obstruction-a.json",
+        "sha256": "2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a"
+      },
+      "assertionPassCount": 43,
+      "assertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-geometry/horse-companion-blueprint-registration.json",
+          "sha256": "1d4b66c4416cfda9cb96ffd4f274cee357dbc555f2ccbbc7be6d69a7416eb521"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-geometry/orchestration.json",
+          "sha256": "857f0009ce26e7d3518d1e5a0f7624b76962b50e45e4d287921013a5b488c223"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-geometry/phase3d-horse-scenario-evidence.json",
+          "sha256": "d3bf19159d8fddbd4314a1507f5e0300f457a0e1d44228033d1282059e41af65"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-geometry/runtime-artifacts.json",
+          "sha256": "8984f20d137aa91440a485ee5e4286503eab83e437a1708f08dc510579cf695f"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-geometry/runtime-game-result.json",
+          "sha256": "8f0204a00754d1b347406d108fbb4fec3aa72ee7d0193e040cf2c3874f30c909"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-geometry/runtime-request.json",
+          "sha256": "86ed59e9bc06051755456647a921e4f7070b920870152f8f269094c7d3d6ac38"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-geometry/runtime-result.json",
+          "sha256": "153afc9cbd60d6e251dfdd9be45e233cdbc1d3f1e170eed8671939f39ed5c916"
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM02-approach-arrival",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Pre-encounter native separation did not succeed: {\"command\":{\"id\":486617088,\"type\":\"Kingmaker.UnitLogic.Commands.UnitMoveTo\",\"executor\":\"d6b283e0-32ef-4c34-80ab-4db49d5889e8\",\"started\":false,\"acted\":false,\"finished\":true,\"result\":\"Interrupt\"},\"destination\":{\"x\":-0.901887,\"y\":6.52700043,\"z\":49.7754974},\"geometry\":{\"boundary\":\"pre-encounter-separation-terminal\",\"frame\":1635,\"seconds\":5.126226,\"riderPosition\":{\"x\":-2.0,\"y\":6.058932,\"z\":56.1070023},\"horsePosition\":{\"x\":-0.3733095,\"y\":6.096037,\"z\":49.9353828},\"riderCorpulence\":0.5,\"horseCorpulence\":0.9,\"centerDistance\":6.382398,\"horizontalDistance\":6.382398,\"legalAdjacencyEnvelope\":2.9,\"isAdjacent\":false,\"approachRadiusResolved\":true,\"approachRadius\":2.85,\"relationshipState\":\"Unmounted\",\"relationshipGeneration\":1,\"command\":null,\"shellState\":\"lastShellRefusal=not-observed;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;mountAbilityFactPresent=True;registeredShells=2;moveSlot=<none>;moveSlotIsUseAbility=False;moveSlotHasShell=False;moveSlotStarted=<none>;moveSlotFinished=<none>;moveSlotProcessPresent=False;processBindings=2;lastShellRegistration=control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;lifecycle={1:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=f053faad986631688defa003cd7bda0e;isMountBlueprint=True;isDismountBlueprint=False;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=d6b283e0-32ef-4c34-80ab-4db49d5889e8;targetView=True;targetIsCasterPet=True;targetMasterIsCaster=True;targetProfileSupported=True;targetIsCaster=False;generation=0 | 2:Registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=0;target=d6b283e0-32ef-4c34-80ab-4db49d5889e8 | 3:ApproachClamped;control=<none>;predicate=approach-radius-clamped;radius=2.85 | 4:ProcessBound;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=0;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=d6b283e0-32ef-4c34-80ab-4db49d5889e8;commandFinished=False | 5:DeliverResolved;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=MountCompanion;generation=0 | 6:DeliverConsumed;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=MountCompanion;retired=False | 7:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=3af2b81f4d72bbb30501fa730fcdf36e;isMountBlueprint=False;isDismountBlueprint=True;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;targetView=True;targetIsCasterPet=False;targetMasterIsCaster=False;targetProfileSupported=False;targetIsCaster=True;generation=1 | 8:Registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7 | 9:ProcessBound;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=1;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;commandFinished=False | 10:DeliverResolved;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=Dismount;generation=1 | 11:DeliverConsumed;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=Dismount;retired=False}\",\"transitionLedger\":\"admittedMount=1;acceptedMount=1;admittedDismount=1;acceptedDismount=1;refusedVoluntary=0;forcedDetach=1;duplicateSuppressed=1;concurrentSuppressed=0;inFlight=<none>\",\"riderResources\":{\"actor\":\"d17c8fd0-6627-40c4-bf9a-024cf001c1f7\",\"standard\":0.0,\"move\":0.0,\"swift\":0.0,\"initiative\":0.0,\"initiativeCooldown\":0.0,\"initiativeOrder\":0,\"reactionCooldown\":0.0,\"reactionsPerRound\":1,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":true,\"hasStandard\":true,\"prepared\":false,\"nativePrepareCount\":0,\"timeToNextTurn\":0.0},\"horseResources\":{\"actor\":\"d6b283e0-32ef-4c34-80ab-4db49d5889e8\",\"standard\":0.0,\"move\":0.0,\"swift\":0.0,\"initiative\":0.0,\"initiativeCooldown\":0.0,\"initiativeOrder\":0,\"reactionCooldown\":0.0,\"reactionsPerRound\":1,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":true,\"hasStandard\":true,\"prepared\":false,\"nativePrepareCount\":0,\"timeToNextTurn\":0.0}},\"movement\":{\"pathPoints\":0,\"path\":[],\"pathEnd\":null,\"viewPosition\":[-0.3733095,6.096037,49.9353828],\"dataPosition\":[-0.3733095,6.096037,49.9353828],\"targetDistance\":0.526910067,\"pathEndDistance\":null,\"targetToPathEnd\":null,\"corpulence\":0.9,\"avoidanceDisabled\":false,\"approachRadius\":0.3,\"maxApproachRadius\":1000000.0,\"reallyMoving\":false,\"wantsToMove\":false,\"nextIndex\":0,\"nextWaypoint\":[-0.8934996,49.8515053],\"waypointPlaneDot\":null,\"firstTick\":false,\"roaming\":false,\"nextVelocity\":[-1.07566047,0.0,-1.33236],\"moveDirection\":[-0.6281686,-0.778077245],\"stuckTime\":0.0,\"sharedHasNavmeshObstacles\":true,\"sharedDirectionBlockedByStatic\":false}}"
+          ]
+        },
+        {
+          "row": "chunk6a-geometry-change",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM02-approach-arrival: Pre-encounter native separation did not succeed: {\"command\":{\"id\":486617088,\"type\":\"Kingmaker.UnitLogic.Commands.UnitMoveTo\",\"executor\":\"d6b283e0-32ef-4c34-80ab-4db49d5889e8\",\"started\":false,\"acted\":false,\"finished\":true,\"result\":\"Interrupt\"},\"destination\":{\"x\":-0.901887,\"y\":6.52700043,\"z\":49.7754974},\"geometry\":{\"boundary\":\"pre-encounter-separation-terminal\",\"frame\":1635,\"seconds\":5.126226,\"riderPosition\":{\"x\":-2.0,\"y\":6.058932,\"z\":56.1070023},\"horsePosition\":{\"x\":-0.3733095,\"y\":6.096037,\"z\":49.9353828},\"riderCorpulence\":0.5,\"horseCorpulence\":0.9,\"centerDistance\":6.382398,\"horizontalDistance\":6.382398,\"legalAdjacencyEnvelope\":2.9,\"isAdjacent\":false,\"approachRadiusResolved\":true,\"approachRadius\":2.85,\"relationshipState\":\"Unmounted\",\"relationshipGeneration\":1,\"command\":null,\"shellState\":\"lastShellRefusal=not-observed;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;mountAbilityFactPresent=True;registeredShells=2;moveSlot=<none>;moveSlotIsUseAbility=False;moveSlotHasShell=False;moveSlotStarted=<none>;moveSlotFinished=<none>;moveSlotProcessPresent=False;processBindings=2;lastShellRegistration=control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;lifecycle={1:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=f053faad986631688defa003cd7bda0e;isMountBlueprint=True;isDismountBlueprint=False;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=d6b283e0-32ef-4c34-80ab-4db49d5889e8;targetView=True;targetIsCasterPet=True;targetMasterIsCaster=True;targetProfileSupported=True;targetIsCaster=False;generation=0 | 2:Registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=0;target=d6b283e0-32ef-4c34-80ab-4db49d5889e8 | 3:ApproachClamped;control=<none>;predicate=approach-radius-clamped;radius=2.85 | 4:ProcessBound;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=0;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=d6b283e0-32ef-4c34-80ab-4db49d5889e8;commandFinished=False | 5:DeliverResolved;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=MountCompanion;generation=0 | 6:DeliverConsumed;control=shell:1:mount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=MountCompanion;retired=False | 7:InitObserved;control=<none>;predicate=relationship-blueprint;disposed=False;serviceEnabled=True;serviceRegistered=True;serializationSuspended=False;commandPresent=True;commandStarted=False;commandFinished=False;blueprint=3af2b81f4d72bbb30501fa730fcdf36e;isMountBlueprint=False;isDismountBlueprint=True;executor=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;spellCaster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;executorIsSpellCaster=True;casterView=True;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;targetView=True;targetIsCasterPet=False;targetMasterIsCaster=False;targetProfileSupported=False;targetIsCaster=True;generation=1 | 8:Registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=registered;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;generationAtInit=1;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7 | 9:ProcessBound;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=bound-to-execution-context;generationAtInit=1;caster=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;target=d17c8fd0-6627-40c4-bf9a-024cf001c1f7;commandFinished=False | 10:DeliverResolved;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=resolved;ownership=execution-context;processBound=True;kind=Dismount;generation=1 | 11:DeliverConsumed;control=shell:2:dismount:d17c8fd0-6627-40c4-bf9a-024cf001c1f7;predicate=consumed-success;kind=Dismount;retired=False}\",\"transitionLedger\":\"admittedMount=1;acceptedMount=1;admittedDismount=1;acceptedDismount=1;refusedVoluntary=0;forcedDetach=1;duplicateSuppressed=1;concurrentSuppressed=0;inFlight=<none>\",\"riderResources\":{\"actor\":\"d17c8fd0-6627-40c4-bf9a-024cf001c1f7\",\"standard\":0.0,\"move\":0.0,\"swift\":0.0,\"initiative\":0.0,\"initiativeCooldown\":0.0,\"initiativeOrder\":0,\"reactionCooldown\":0.0,\"reactionsPerRound\":1,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":true,\"hasStandard\":true,\"prepared\":false,\"nativePrepareCount\":0,\"timeToNextTurn\":0.0},\"horseResources\":{\"actor\":\"d6b283e0-32ef-4c34-80ab-4db49d5889e8\",\"standard\":0.0,\"move\":0.0,\"swift\":0.0,\"initiative\":0.0,\"initiativeCooldown\":0.0,\"initiativeOrder\":0,\"reactionCooldown\":0.0,\"reactionsPerRound\":1,\"attackOfOpportunity\":0.0,\"reactions\":1,\"hasMove\":true,\"hasStandard\":true,\"prepared\":false,\"nativePrepareCount\":0,\"timeToNextTurn\":0.0}},\"movement\":{\"pathPoints\":0,\"path\":[],\"pathEnd\":null,\"viewPosition\":[-0.3733095,6.096037,49.9353828],\"dataPosition\":[-0.3733095,6.096037,49.9353828],\"targetDistance\":0.526910067,\"pathEndDistance\":null,\"targetToPathEnd\":null,\"corpulence\":0.9,\"avoidanceDisabled\":false,\"approachRadius\":0.3,\"maxApproachRadius\":1000000.0,\"reallyMoving\":false,\"wantsToMove\":false,\"nextIndex\":0,\"nextWaypoint\":[-0.8934996,49.8515053],\"waypointPlaneDot\":null,\"firstTick\":false,\"roaming\":false,\"nextVelocity\":[-1.07566047,0.0,-1.33236],\"moveDirection\":[-0.6281686,-0.778077245],\"stuckTime\":0.0,\"sharedHasNavmeshObstacles\":true,\"sharedDirectionBlockedByStatic\":false}}"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Preview118 exact result retained after diagnostic source119 change. No result qualifies a different payload; failed assertions remain verbatim.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T23:42:42.5316295+00:00",
+      "completedAtUtc": "2026-09-27T23:42:47.6892637+00:00"
+    },
+    {
+      "runId": "c6a-obstruction-a-obstruction",
+      "scenario": "chunk6a-obstruction",
+      "status": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.118",
+        "commit": "4322f7f89a84027a80320ab1d53411468a62e60a",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.118-chunk6a-obstruction-a-diagnostic.zip",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41"
+      },
+      "suite": {
+        "suiteId": "20260927-chunk6a-obstruction-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260927-chunk6a-obstruction-a.json",
+        "sha256": "2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89",
+        "packageSha256": "1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991",
+        "manifestSha256": "eddf4f012bc8625e2dd9b1a6ba201616b05b4764a030691057bb9a75e8af0e41",
+        "dllSha256": "39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a",
+        "dllMvid": "44696e8f-fa25-4ee3-a77e-d682a094874a"
+      },
+      "assertionPassCount": 43,
+      "assertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-obstruction/horse-companion-blueprint-registration.json",
+          "sha256": "e80102a1034a7da6bc6a8e17745f7d071323b71b41e679a8c0e5b6e149c6d683"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-obstruction/orchestration.json",
+          "sha256": "66c765a94423d506455ab36b002494696d2dc432e53f92b8b36f645173763591"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-obstruction/phase3d-horse-scenario-evidence.json",
+          "sha256": "057ed32b1307ae8a772296d0e20043a4ad149e949850ccff12963f37b22ea995"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-obstruction/runtime-artifacts.json",
+          "sha256": "184b9a98cbbba6fe1fd3608e8e57af9177db6ff790b73b5b97f5d6a500e54bf3"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-obstruction/runtime-game-result.json",
+          "sha256": "d5562910f8a03af5d627cc9a60eff44015c0e860180d7481ed8db96c4aeb5d51"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-obstruction/runtime-request.json",
+          "sha256": "530c00dabc018bbddd232397a5c1427dcb5bde05f1a0297f86bc01f1f94608f8"
+        },
+        {
+          "path": "runtime-evidence/c6a-obstruction-a-obstruction/runtime-result.json",
+          "sha256": "7213a14e11f0cfc4a9223c11f5f7264bae9df86cac91269a60659486a6d48e3e"
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM02-obstruction",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Native door setup did not prove terminal arrival and its required open-door crossing: riderNearArrival"
+          ]
+        },
+        {
+          "row": "chunk6a-obstruction",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM02-obstruction: InvalidOperationException: Native door setup did not prove terminal arrival and its required open-door crossing: riderNearArrival"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Preview118 exact result retained after diagnostic source119 change. No result qualifies a different payload; failed assertions remain verbatim.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-27T23:46:08.3323422+00:00",
+      "completedAtUtc": "2026-09-27T23:46:13.4589869+00:00"
     }
   ]
 }

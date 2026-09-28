@@ -242,3 +242,6 @@ Kingmaker is closed; actual Steam guard passed client1920 with current-session o
 ## Chunk6A obstruction preview.118
 
 `chunk6a-obstruction`: separate measured exploration Mount/Dismount, native open-door crossing control, native closed-door readiness, fresh RT allocation, one unacted Mount negative window. No Stop until sealed failed evidence/cleanup. Full `chunk6a-combat-mount-rt` retains this same real obstruction and subsequent geometry case. Native qualification TODO; a pending command at unchanged30s is FAIL and retained, not converted to a synthetic terminal.
+
+
+Preview118: positive48/0, compensationRT46/0 andTB47/0 PASS/restored. Geometry43/2 FAIL in pre-combat ground setup; independent obstruction43/2 FAIL in path-request instrumentation before blocked Mount. All restored.119 adds stable path snapshot boundary and full-footprint setup; mandatory native order must rerun on its own frozen candidate after fresh proof.

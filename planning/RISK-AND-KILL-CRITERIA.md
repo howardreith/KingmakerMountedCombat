@@ -130,3 +130,6 @@ Kingmaker is closed; actual Steam guard passed client1920 with current-session o
 ## Chunk6A obstruction observation risk ? preview.118
 
 IN PROGRESS: pinned native movement failure targets the UnitMoveTo-only getter; Mount may not terminate after real path failure. No production change before native evidence. Distinguish absent hook delivery from a observed native failure leaving an exact pending command. Existing30s deadline, door/state restoration, candidate isolation and all guards remain.
+
+
+Preview119: worker-owned/pool-reused path contents cannot be sampled at request time. Completed snapshot immutability is tested. Pre-encounter separation must reach a full-footprint endpoint with nativeSuccess; an outside-envelope interrupted setup is still FAIL.118 geometry and obstruction failures remain exact;119 runtime gates pending.

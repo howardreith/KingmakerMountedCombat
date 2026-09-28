@@ -6185,6 +6185,7 @@ function Assert-KmcChunk6aPathEvidence {
         $previous=[long]$event.gameTicks
         if($event.boundary -ceq 'path-request') {
             if($event.pathObject -eq 0 -or $event.requestSequence -le 0 -or $requests.ContainsKey([int]$event.requestSequence)) {throw 'Native path request identity is missing or repeated.'}
+            if($null -ne $event.points -or $null -ne $event.pathError -or $null -ne $event.pathState) {throw 'In-flight native path contents are worker-owned and cannot be evidence.'}
             $requests[[int]$event.requestSequence]=$event
         } elseif($event.boundary -cin @('path-complete-before','path-complete-after','path-not-found','movement-interrupted')) {
             $request=$requests[[int]$event.requestSequence]

@@ -34,6 +34,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RelationshipCommandIdentity.cs"><Link>Shared\Diagnostics\RelationshipCommandIdentity.cs</Link></Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\NativeGroundFixturePolicy.cs"><Link>Shared\Diagnostics\NativeGroundFixturePolicy.cs</Link></Compile>
     <Compile Include="RelationshipCommandEvidenceTests.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\BuildIdentity.cs">

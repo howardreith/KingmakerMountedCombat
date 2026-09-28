@@ -248,6 +248,8 @@
     <Compile Include="Diagnostics\NativeAttackBonusEvidence.cs" />
     <Compile Include="Diagnostics\OrdinaryAttackControls.cs" />
     <Compile Include="Diagnostics\RelationshipCommandIdentity.cs" />
+    <Compile Include="Diagnostics\NativeGroundFixturePolicy.cs" />
+    <Compile Include="Diagnostics\Chunk6aGroundSetup.cs" />
     <Compile Include="Diagnostics\NativeRelationshipReactionEvidence.cs" />
     <Compile Include="Diagnostics\NativeRelationshipCommandProbe.cs" />
     <Compile Include="Diagnostics\NativeRelationshipGroundOrder.cs" />

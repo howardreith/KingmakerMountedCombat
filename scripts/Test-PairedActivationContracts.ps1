@@ -280,6 +280,27 @@ public static class KmcNativePatchProbe {
     }
    }
    var pathProbe=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeCommandPathProbe",true);
+   var contentsMethod=pathProbe.GetMethod("CapturePathContents",causalFlags);
+   if(contentsMethod==null) throw new InvalidOperationException("Path contents boundary contract is missing.");
+   var pathType=requested.FieldType.Assembly.GetType("Pathfinding.ABPath",true);
+   var samplePath=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(pathType);
+   var vectorType=native.GetType("Kingmaker.View.UnitMovementAgent",true).GetMethod("PathTo").GetParameters()[1].ParameterType;
+   var points=(System.Collections.IList)Activator.CreateInstance(typeof(System.Collections.Generic.List<>).MakeGenericType(vectorType));
+   points.Add(Activator.CreateInstance(vectorType,new object[]{1f,2f,3f}));
+   requested.FieldType.GetField("vectorPath").SetValue(samplePath,points);
+   foreach(var boundary in new[]{"path-request","command-bound","command-ended","unknown"}) {
+    var captured=contentsMethod.Invoke(null,new object[]{samplePath,boundary});
+    var encoded=(string)serialize.Invoke(null,new[]{captured});
+    if(encoded!="{\"pathError\":null,\"pathState\":null,\"points\":null}")
+     throw new InvalidOperationException("Worker-owned path contents exposed at "+boundary);
+   }
+   var completed=contentsMethod.Invoke(null,new object[]{samplePath,"path-complete-before"});
+   var completedText=(string)serialize.Invoke(null,new[]{completed});
+   if(completedText.IndexOf("\"points\":[",StringComparison.Ordinal)<0) throw new InvalidOperationException("Completed path points absent.");
+   points.Clear(); points.Add(Activator.CreateInstance(vectorType,new object[]{9f,8f,7f}));
+   if((string)serialize.Invoke(null,new[]{completed})!=completedText) throw new InvalidOperationException("Native pool reuse mutated the completed snapshot.");
+   Console.WriteLine("PATH CONTENTS BOUNDARY PASS=5 FAIL=0; request contents absent, completed snapshot immutable");
+
    try {
     var disposable=(IDisposable)Activator.CreateInstance(pathProbe,BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{null},null);
     disposable.Dispose();
