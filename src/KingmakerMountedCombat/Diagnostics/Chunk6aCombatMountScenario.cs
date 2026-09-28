@@ -37,7 +37,11 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool IsChunk6aCombatMountScenario(string scenario) =>
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
+            Chunk6aMammothScenarioEngine.SupportsScenario(scenario) ||
+            string.Equals(scenario, Chunk6aHotbarScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aStopApproachScenario, StringComparison.Ordinal) ||
+            scenario == Chunk6aPausedQueueScenario ||
             string.Equals(scenario, Chunk6aObstructionScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aGeometryChangeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCompensationRealTimeScenario, StringComparison.Ordinal) ||
@@ -46,6 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsChunk6aCombatMount => IsChunk6aCombatMountScenario(request.Scenario);
 
         private bool Chunk6aTurnBased =>
+            request.Scenario == Chunk6aMammothScenarioEngine.TurnBasedScenario ||
             string.Equals(request.Scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
 
@@ -54,7 +59,8 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
 
         private bool Chunk6aApproachOnly =>
-            string.Equals(request.Scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal);
+            Chunk6aMammothScenarioEngine.SupportsScenario(request.Scenario) ||
+            Chunk6aHotbarOnly || string.Equals(request.Scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) || Chunk6aPausedQueueOnly;
 
         private bool Chunk6aObstructionOnly => string.Equals(request.Scenario, Chunk6aObstructionScenario, StringComparison.Ordinal);
 
@@ -716,7 +722,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
+                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aStopOnly ? 22 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -886,6 +892,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (chunk6aStage == 22 || chunk6aStage == 23) { TickChunk6aStopApproach(); return; }
             if (chunk6aStage == 16 || chunk6aStage == 17)
             {
                 TickChunk6aGeometryChange();
@@ -902,20 +909,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Chunk6aTurnBased && (turn?.Unit != rider || !turn.IsActing))
                 {
                     FailCurrent("CM01-combat-mount-accepted",
-                        "The rider's acting turn was lost during the compensation regression.");
+                        "The rider's acting turn was lost before the positive Mount request.");
                     BeginCleanup();
                     return;
                 }
-                // The rider must own its native Move before this request is lawful at all.
-                // The compensated adoption refusal one stage earlier performed a REAL native
-                // Mount whose delivery was refused, and the charter keeps that cost: after
-                // native commitment a stale-state delivery refusal receives no refund. In
-                // real time Kingmaker then drains the Move cooldown it charged, so the only
-                // lawful route to a second attempt is to WAIT for the engine to restore the
-                // resource. A run reached this point with 0.045s of that cooldown left,
-                // clicked, and was correctly refused with "The rider has no Move action
-                // available to mount." -- the product was right and the scenario was early.
-                // Nothing here writes, clears or refunds the cooldown; it is only read.
+                // Admission reads actual native Move readiness. Native RT cooldown
+                // decay may be awaited; this fresh allocation has no compensation.
                 var readinessCooldowns = Chunk6aCooldowns(rider);
                 var moveReadiness = MountedNativeMoveReadinessPolicy.Decide(
                     readinessCooldowns["hasMove"] != null && (bool)readinessCooldowns["hasMove"],
@@ -958,6 +957,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6aMoveRestorationWait["resolvedCooldowns"] = readinessCooldowns;
                 if (Chunk6aCompensationOnly) throw new InvalidOperationException("Positive Mount cannot follow compensation.");
                 if (!EnsureChunk6aRiderSelection("CM02-approach-arrival")) return;
+                if (!PrepareChunk6aHotbar()) return;
+                PrepareChunk6aPausedQueue();
                 chunk6aPreMount = CaptureChunk6aState("mount-before");
                 chunk6aApproachStart = CaptureChunk6aGeometry("positive-pre-click");
                 if ((bool)chunk6aApproachStart["isAdjacent"])
@@ -983,7 +984,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     chunk6aApproachPath.CaptureBeforeClick();
                 }
                 BeginChunk6aCommandWindow(nativeControls.MountAbility.AssetGuid);
-                chunk6aMountClicked = TryNativeAbilityTargetClick(
+                chunk6aMountClicked = Chunk6aHotbarOnly ? InvokeChunk6aHotbar() : TryNativeAbilityTargetClick(
                     nativeControls.MountAbility, horse, "chunk6a-combat-mount-click");
                 chunk6aCommandWindow.ClickCompleted(chunk6aMountClicked);
                 if (chunk6aMountClicked && chunk6aApproachPath != null) chunk6aApproachPath.Bind(lastNativeAbilityShell);
@@ -1012,6 +1013,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
+                BeginChunk6aPausedHold();
                 chunk6aStage = 2;
                 ResetLeafClock();
                 return;
@@ -1020,6 +1022,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // Stage 2: await the native command's own terminal state and delivery.
             if (chunk6aStage == 2)
             {
+                if (TickChunk6aPausedHold()) return;
                 // Sample the approach while Kingmaker's own command still exists. The
                 // command leaves the Move slot before the relationship transition lands, so
                 // the acted/resource-commitment boundary can only be observed here; keeping
@@ -1051,6 +1054,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 var expectedMountPrepare = chunk6aDisposition == MidEncounterAdoption.PreparePartnerThisRound ? 1 : 0;
                 var mountProof = FinishChunk6aCommandWindow("positive-mount", true, expectedMountPrepare, true);
+                FinishChunk6aHotbar(mountProof);
+                FinishChunk6aPausedQueue(mountProof);
                 var after = CaptureChunk6aState("mount-after");
                 var riderBefore = (JObject)chunk6aPreMount["rider"];
                 var riderAfter = (JObject)after["rider"];

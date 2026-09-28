@@ -163,6 +163,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 observations["chunk6aRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
                 observations["chunk6aHorseAiIsolation"] = CaptureUnmountedHorseAiIsolation();
+                if (Chunk6aTurnBased && !TickChunk6aPreCombatPositioning()) return;
                 if (Chunk6aNeedsDoor)
                 {
                     if (!TickChunk6aDoorSetup()) return;

@@ -254,3 +254,7 @@ Preview120 directly observed NativeMountedControlService's exact unacted interru
 ## 2026-09-28T05:16:45.475Z - Chunk6A full-case transaction boundary
 
 Preview121 isolated positive/compensationRT/TB/geometry/obstruction PASS; fullRT FAIL52/2 at forbidden combat door interaction, fullTB FAIL44/2 at setup destination search. All restored. Source122 fullRT/TB contain one positive combatMount and oneDismount; independent mandatory geometry/obstruction remain fixed ordered supporting roles on the same payload/suite. No87-row completion or6B entry; original full-case failures remain bound.
+
+## 2026-09-28T10:09:32.703Z — Chunk6A124 continuation
+
+IN PROGRESS. Frozen123 has6/87 mandatory PASS, two retained TB setup FAILs and16 historical failures; all external restoration passed. Source124 adds bounded native pre-combat positioning/origin observations and isolated Stop/hotbar/paused/native-Mammoth cases. No new native qualification. The122 TB consumed-path cause remains unobserved; no production path/resource/deadline repair is claimed. See CURRENT.md, docs/CHUNK6A-COMBAT-MOUNT.md and original history hashes. Next complete offline umbrella, guarded publication, immutable124/suite/fresh proof, then required native order. No6B or owner acceptance inference.

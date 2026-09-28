@@ -128,5 +128,43 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
         $binding[$pair[0]]=(Get-FileHash -LiteralPath (Join-Path $root $pair[1]) -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     $binding['transactionSha256']=(Get-FileHash -LiteralPath (Join-Path $LabRoot ('runtime-state/run-transactions/'+$RunId+'.json')) -Algorithm SHA256).Hash.ToLowerInvariant()
+    if($result.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb')) {
+        $binding['artifactManifestSha256']=(Get-FileHash -LiteralPath (Join-Path $root 'runtime-artifacts.json')).Hash.ToLowerInvariant()
+        $binding['profileSha256']=(Get-FileHash -LiteralPath (Join-Path $root 'chunk6a-native-mammoth-profile.json')).Hash.ToLowerInvariant()
+    }
     [pscustomobject]$binding
+}
+function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
+    $requirements=@{
+        'CM01-mammoth-rt'=@('chunk6a-mammoth-mount-rt','CM01-combat-mount-accepted','CM02-approach-arrival')
+        'CM01-mammoth-tb'=@('chunk6a-mammoth-mount-tb','CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')
+        'CM04-stop-during-approach'=@('chunk6a-stop-approach','CM04-stop-during-approach')
+        'CM06-hotbar-path'=@('chunk6a-hotbar-approach','CM06-hotbar-path')
+        'CM06-paused-queue'=@('chunk6a-paused-queue','CM06-paused-queue')
+    }
+    if(-not $requirements.ContainsKey($Id)){return $false}
+    $required=$requirements[$Id]
+    if($Binding.scenario -cne $required[0]){throw 'Isolated qualification requires its exact native scenario.'}
+    foreach($row in @($required|Select-Object -Skip 1)) {
+        if(@($Binding.rows|Where-Object {$_ -ceq $row}).Count -ne 1){throw 'Isolated qualification omitted its mandatory native row.'}
+    }
+    return $true
+}
+function Assert-KmcIsolatedQualification([string]$Id,$Binding,[string]$LabRoot) {
+    if(-not (Assert-KmcIsolatedScenarioRows $Id $Binding)){return}
+    . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+    $root=Join-Path $LabRoot ('runtime-evidence/'+$Binding.runId)
+    $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $Binding.requestSha256
+    $artifact=Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256
+    if([IO.Path]::GetFullPath($root).TrimEnd('\') -cne [IO.Path]::GetFullPath($request.evidenceRoot).TrimEnd('\')){throw 'Isolated qualification evidence root differs.'}
+    Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS'
+    if($Id -cin @('CM01-mammoth-rt','CM01-mammoth-tb')) {
+        Assert-KmcBoundMammothProfile $Binding $request $root
+    }
+}
+
+function Assert-KmcBoundMammothProfile($Binding,$Request,[string]$Root) {
+    $manifest=Get-KmcBoundJson (Join-Path $Root 'runtime-artifacts.json') $Binding.artifactManifestSha256
+    $null=Get-KmcBoundJson (Join-Path $Root 'chunk6a-native-mammoth-profile.json') $Binding.profileSha256
+    Assert-KmcNativeMammothArtifact $Request $manifest 'PASS'
 }

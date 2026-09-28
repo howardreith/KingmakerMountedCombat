@@ -342,7 +342,15 @@
     <Compile Include="Diagnostics\Chunk4SustainedScenario.cs" />
     <Compile Include="Diagnostics\SustainedRoutineProgress.cs" />
     <Compile Include="Diagnostics\Chunk6aCausalEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk6aStopApproachScenario.cs" />
+    <Compile Include="Diagnostics\NativeMountStopInputProbe.cs" />
+    <Compile Include="Diagnostics\Chunk6aHotbarScenario.cs" />
+    <Compile Include="Diagnostics\NativeMountActionBarProbe.cs" />
+    <Compile Include="Diagnostics\NativeMountActionBarUiLease.cs" />
+    <Compile Include="Diagnostics\Chunk6aMammothScenarioEngine.cs" />
+    <Compile Include="Diagnostics\Chunk6aPausedQueueScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aTurnSetup.cs" />
+    <Compile Include="Diagnostics\Chunk6aPreCombatPositioning.cs" />
     <Compile Include="Diagnostics\NativeCommandPathProbe.cs" />
     <Compile Include="Diagnostics\NativeRelationshipUnactedEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aDoorFixture.cs" />

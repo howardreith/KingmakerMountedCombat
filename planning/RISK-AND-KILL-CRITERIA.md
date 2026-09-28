@@ -152,3 +152,7 @@ IN PROGRESS: a native setup failure must not be credited as product failure or r
 ## 2026-09-28T07:59:05.791Z - preview.122 native campaign and preview.123 observation
 
 IN PROGRESS: the exact TB Mount may consume a UI path prepared for another destination. Preview122 did not observe consumed ownership, so cause remains unproven. Preview123 observes native getter/consumption/request and accepted movement deltas without changing gameplay. Missing callbacks are instrumentation failures; no resource reset, path override, threshold or deadline weakening is permitted. All87 mandatory6A rows must pass one frozen candidate before6B.
+
+## 2026-09-28T10:09:32.703Z — Chunk6A124 continuation
+
+IN PROGRESS. Frozen123 has6/87 mandatory PASS, two retained TB setup FAILs and16 historical failures; all external restoration passed. Source124 adds bounded native pre-combat positioning/origin observations and isolated Stop/hotbar/paused/native-Mammoth cases. No new native qualification. The122 TB consumed-path cause remains unobserved; no production path/resource/deadline repair is claimed. See CURRENT.md, docs/CHUNK6A-COMBAT-MOUNT.md and original history hashes. Next complete offline umbrella, guarded publication, immutable124/suite/fresh proof, then required native order. No6B or owner acceptance inference.

@@ -18,9 +18,10 @@ namespace KingmakerMountedCombat.Diagnostics
             Observe("unacted-terminal", Command);
             traceEnd = trace.EventCount;
         }
-        internal JObject FinishUnacted()
+        internal JObject FinishUnacted(string contract = "unacted-native-obstruction-no-cost-or-transition")
         {
-            if (!unactedFailure) throw new InvalidOperationException("A positive window cannot use the unacted obstruction contract.");
+            if (!unactedFailure) throw new InvalidOperationException("A positive window cannot use an unacted contract.");
+            if (contract != "unacted-native-obstruction-no-cost-or-transition" && contract != "unacted-native-stop-no-cost-or-transition") throw new InvalidOperationException("Undeclared unacted native contract.");
             if (completed != null) return (JObject)completed.DeepClone();
             if (traceEnd < 0)
             {
@@ -59,7 +60,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     endpoints &= NativeResourceWindowPolicy.EndpointConserved((double)preClick["state"][actor][field],
                         (double)last["state"][actor][field], elapsed, false, 0.05);
             var reactions = EvaluateReactionResources(events, 0);
-            completed = new JObject { ["contract"] = "unacted-native-obstruction-no-cost-or-transition",
+            completed = new JObject { ["contract"] = contract,
                 ["observerHooks"] = installedHooks.DeepClone(), ["preClick"] = preClick.DeepClone(),
                 ["identity"] = Describe(unactedIdentity), ["mountId"] = mount.UniqueId, ["initCount"] = initCount,
                 ["sameCommandAtEveryBoundary"] = causal, ["nativeTerminal"] = UnactedTerminal,

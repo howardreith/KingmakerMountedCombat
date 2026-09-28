@@ -3,6 +3,7 @@ param()
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'Test-Chunk6aPreCombatPositioning.ps1') -FunctionsOnly
 $script:passed=0
 function Copy-Value($value){$value|ConvertTo-Json -Depth 80 -Compress|ConvertFrom-Json}
 function Test-Case([string]$name,[scriptblock]$body){& $body;$script:passed++;Write-Host "PASS $name"}
@@ -177,6 +178,7 @@ function New-TbCompensationEnvelope {
     foreach($sample in $c.proof.samples){$sample.identity.abilityGuid=$c.proof.identity.abilityGuid}
     Put-Value $c.proof window 'compensation';$a.observations.chunk6aCommandProofs[2]=$c.proof
     Put-Value $a.observations chunk6aNativeActingSetup $c.setup
+    Put-Value $a.observations chunk6aPreCombatPositioning (New-KmcPositioningFixture $c.proof)
     $a.rows+=@{name='CM01-combat-mount-preparing-refused';status='PASS'}
     return $a
 }
