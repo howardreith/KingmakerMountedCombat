@@ -10072,6 +10072,7 @@ try {
         $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
         $runtimeGameResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
         $runtimeResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1'))
+        $runtimeManifestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeArtifactManifestEvidence.ps1'))
         $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
@@ -10156,8 +10157,9 @@ try {
             $horseScenarioSource.Contains('? PreambleEvidenceFileName') -and
             $runtimeLauncherSource.Contains("'chunk6a-mount-preamble'") -and
             $runtimeRequestValidatorSource.Contains("'chunk6a-mount-preamble'") -and
-            $runtimeGameResultValidatorSource.Contains('($relativePath -ceq ''chunk6a-mount-preamble.json'' -and $kind -ceq ''chunk6a-mount-preamble'')') -and
-            $runtimeResultValidatorSource.Contains('($relativePath -ceq ''chunk6a-mount-preamble.json'' -and $kind -ceq ''chunk6a-mount-preamble'')') -and
+            $runtimeManifestValidatorSource.Contains('($relativePath -ceq ''chunk6a-mount-preamble.json'' -and $kind -ceq ''chunk6a-mount-preamble'')') -and
+            $runtimeGameResultValidatorSource.Contains('Assert-KmcReadOnlyArtifactManifest $request $game.evidenceManifestSha256 -GameResult') -and
+            $runtimeResultValidatorSource.Contains('Assert-KmcReadOnlyArtifactManifest $request $result.evidenceManifestSha256') -and
             $horseScenarioSource.Contains('"legacy-overlay-default-hidden"') -and
             $horseScenarioSource.Contains('"legacy-overlay-debug-fallback"') -and
             $horseScenarioSource.Contains('DollRoomSimpleAvatarField.MetadataToken == 0x04002F58') -and
@@ -10166,8 +10168,7 @@ try {
             $runtimeRequestValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeGameResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
-            $runtimeGameResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')') -and
-            $runtimeResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')')) `
+            $runtimeManifestValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')')) `
             'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded overlay/DollRoom observation, changes historical schema-v4 output, or is missing from an independent runtime/artifact allowlist'
     }
 

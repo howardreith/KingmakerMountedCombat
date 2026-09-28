@@ -751,7 +751,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, t
     $positiveFlow.Value -match '(?s)if \(!EnsureChunk6aRiderSelection\("CM02-approach-arrival"\)\) return;.*?chunk6aPreMount = CaptureChunk6aState\("mount-before"\);.*?chunk6aApproachStart = CaptureChunk6aGeometry\("positive-pre-click"\);.*?chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);.*?chunk6aMountClicked = Chunk6aHotbarOnly \? InvokeChunk6aHotbar\(\) : TryNativeAbilityTargetClick') `
     'positive Mount selects and verifies the exact single rider before resource ledger geometry baseline and native input'
 
-Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aCompensationOnly \? 11 : Chunk6aRefusedOnly \? 24 : Chunk6aStopOnly \? 22 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
+Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount \? 31 : Chunk6aCompensationOnly \? 11 : Chunk6aRefusedOnly \? 24 : Chunk6aStopOnly \? 22 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
     $chunk6aScenarioText -match 'if \(!Chunk6aCompensationOnly\) throw' -and
     $positiveFlow.Value -match 'if \(Chunk6aCompensationOnly\) throw' -and
     [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -match 'chunk6aStage = 99;\s*BeginCleanup\(\)' -and
@@ -1212,6 +1212,12 @@ Assert-Kmc ($captureClassBody.Success -and
 # the end of a completed live run -- which is the most expensive possible place to learn it.
 $resultValidatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1')
 $gameResultValidatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1')
+$sharedManifestValidatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\RuntimeArtifactManifestEvidence.ps1')
+$sharedManifestImported = $runtimeCommonText.Contains('. (Join-Path $PSScriptRoot ''RuntimeArtifactManifestEvidence.ps1'')')
+$resultManifestBound = $sharedManifestImported -and $resultValidatorText.Contains('. (Join-Path $PSScriptRoot ''RuntimeHarness.Common.ps1'')') -and $resultValidatorText.Contains('Assert-KmcReadOnlyArtifactManifest $request $result.evidenceManifestSha256')
+$gameManifestBound = $sharedManifestImported -and $gameResultValidatorText.Contains('. (Join-Path $PSScriptRoot ''RuntimeHarness.Common.ps1'')') -and $gameResultValidatorText.Contains('Assert-KmcReadOnlyArtifactManifest $request $game.evidenceManifestSha256 -GameResult')
+Assert-Kmc ($resultManifestBound -and $gameManifestBound -and $sharedManifestValidatorText.Contains('function Assert-KmcReadOnlyArtifactManifest') -and $resultValidatorText -notmatch 'function Assert-RuntimeArtifactManifest' -and $gameResultValidatorText -notmatch 'function Assert-RuntimeArtifactManifest') 'both runtime result gates call the same exact read-only manifest validator with the appropriate native/result context'
+
 $sharedRowsBody = [Regex]::Match($runtimeCommonText, '(?s)function Get-KmcPhase3dHorseRuntimeRows \{.*?\n\}')
 $sharedRowNames = @([Regex]::Matches($sharedRowsBody.Value, "'([A-Za-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value })
 $duplicateRegistrations = @()
@@ -1280,10 +1286,10 @@ foreach ($pair in $registeredPairs) {
     if ($runtimeCommonText.IndexOf($mappingLiteral, [StringComparison]::Ordinal) -lt 0) {
         $unregisteredLinks += ($pair.leaf + ': orchestration kind mapping')
     }
-    if ($resultValidatorText.IndexOf($resultLiteral, [StringComparison]::Ordinal) -lt 0) {
+    if (-not $resultManifestBound -or $sharedManifestValidatorText.IndexOf($resultLiteral, [StringComparison]::Ordinal) -lt 0) {
         $unregisteredLinks += ($pair.leaf + ': runtime-result allowlist')
     }
-    if ($gameResultValidatorText.IndexOf($resultLiteral, [StringComparison]::Ordinal) -lt 0) {
+    if (-not $gameManifestBound -or $sharedManifestValidatorText.IndexOf($resultLiteral, [StringComparison]::Ordinal) -lt 0) {
         $unregisteredLinks += ($pair.leaf + ': runtime-game-result allowlist')
     }
 }

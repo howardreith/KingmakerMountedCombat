@@ -11,6 +11,8 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'NativePassiveResourceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativePreCombatGroundEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aAdditionalEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeAutoUseCaseEvidence.ps1')
+. (Join-Path $PSScriptRoot 'RuntimeArtifactManifestEvidence.ps1')
 
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -3685,7 +3687,7 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
@@ -3762,10 +3764,10 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-after-early-end',
         # This list is also the known-subscenario registry Test-RuntimeResult uses,
         # so a scenario's own name belongs here alongside the rows it emits.
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
         'CM01-native-mammoth-fixture','CM01-native-mammoth-continuity','CM01-native-mammoth-child-cleanup','CM01-native-mammoth-restoration','CM01-native-mammoth-artifact','CM01-native-mammoth-interrupted','CM06-paused-queue','CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM01-exploration-free', 'CM02-approach-arrival',
-        'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM06-hotbar-path', 'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-next-round-activation','CM05-dismount-survives-feature-policy-disable',
+        'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM06-hotbar-path', 'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-next-round-activation','CM05-dismount-survives-feature-policy-disable','CM06-ai-auto-use',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
         'CM01-combat-mount-preparing-refused',
         'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
@@ -4979,7 +4981,7 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $kind = 'horse-companion-blueprint-registration'
     $isAudit = [string]$Request.scenario -cin @(
         $scenario,
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
@@ -6321,13 +6323,15 @@ function Assert-KmcChunk6aCombatMountEvidence {
     $requiresPredictionEvidence=$true
     if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 124){$requiresPredictionEvidence=$false}
 
+    $autoUseOnly = [string]$Request.scenario -cin @('chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt')
+    $autoUseMountOnly = [string]$Request.scenario -ceq 'chunk6a-auto-use-mount-rt'
     $orderOnly = [string]$Request.scenario -cin @('chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb')
     $escapeOnly = [string]$Request.scenario -cin @('chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt')
     $turnBased = $orderOnly -or [string]$Request.scenario -cin @('chunk6a-combat-mount-tb','chunk6a-adoption-compensation-tb','chunk6a-mammoth-mount-tb')
     $refusalOnly = [string]$Request.scenario -cin @('chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection')
     $refusalRow = if($refusalOnly){if([string]$Request.scenario -ceq 'chunk6a-refused-wrong-creature-target'){'CM02-wrong-creature-target'}else{'CM06-'+([string]$Request.scenario).Substring('chunk6a-refused-'.Length)}}else{''}
     $hotbarOnly = [string]$Request.scenario -ceq 'chunk6a-hotbar-approach'
-    $approachOnly = $orderOnly -or $escapeOnly -or [string]$Request.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-hotbar-approach')
+    $approachOnly = $autoUseOnly -or $orderOnly -or $escapeOnly -or [string]$Request.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-hotbar-approach')
     $pausedOnly = [string]$Request.scenario -ceq 'chunk6a-paused-queue'
     $geometryOnly = [string]$Request.scenario -ceq 'chunk6a-geometry-change'
     $stopOnly = [string]$Request.scenario -ceq 'chunk6a-stop-approach'
@@ -6336,6 +6340,8 @@ function Assert-KmcChunk6aCombatMountEvidence {
     $required = @('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing')
     if ($compensationOnly) {
         $required += @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')
+    } elseif ($autoUseMountOnly) {
+        $required += 'CM06-ai-auto-use'
     } elseif ($refusalOnly) {
         $required += $refusalRow
     } elseif ($stopOnly) {
@@ -6358,6 +6364,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
     if ($hotbarOnly) { $required += 'CM06-hotbar-path' }
     if ($orderOnly) { $required += @($(if($Request.scenario -ceq 'chunk6a-allocation-rider-first-tb'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}),'CM03-next-round-activation') }
     if ($escapeOnly) { $required += 'CM05-dismount-survives-feature-policy-disable' }
+    if ($autoUseOnly -and -not $autoUseMountOnly) { $required += 'CM06-ai-auto-use' }
     $rowNames = @(@($Artifact.rows) | ForEach-Object { [string]$_.name })
     foreach ($name in $rowNames) {
         if ($name -cnotin (Get-KmcPhase3dHorseRuntimeRows)) {
@@ -6385,7 +6392,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
     $windows = @('exploration-mount','exploration-dismount')
     if ($compensationOnly) { $windows += 'compensation' }
     elseif ($geometryOnly) { $windows += 'geometry-change-mount' }
-    elseif ($obstructionOnly -or $stopOnly -or $refusalOnly) { } # Each negative command has its own strict process-free proof.
+    elseif ($autoUseMountOnly -or $obstructionOnly -or $stopOnly -or $refusalOnly) { } # Each negative command has its own strict process-free proof.
     else {
         $windows += 'positive-mount'
         if (-not $approachOnly) {
@@ -6418,6 +6425,12 @@ function Assert-KmcChunk6aCombatMountEvidence {
                 Assert-KmcChunk6aGroundSetupEnvelope $observations $found[0]
             }
         }
+    }
+    if ($autoUseOnly) {
+        Assert-KmcAutoUseEnvelope $Request $Artifact
+        $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
+        if($otherClaims.Count-ne0){throw 'Auto-use case cannot credit another combat allocation.'}
+        if($autoUseMountOnly){return}
     }
     if ($orderOnly) { Assert-KmcMountOrderEnvelope $Request $Artifact }
     if ($escapeOnly) { Assert-KmcDismountEscapeEnvelope $Request $Artifact }
@@ -6560,7 +6573,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
-        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
@@ -6600,8 +6613,8 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         [long]$artifact.schemaVersion
     } else { -1L }
     if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L) -or
-        ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb') -and $phase3dSchemaVersion -ne 30L) -or
+        ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) -or
+        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb') -and $phase3dSchemaVersion -ne 30L) -or
         ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
@@ -6624,7 +6637,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
-    if ($phase3dSchemaVersion -eq 30L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) {
+    if ($phase3dSchemaVersion -eq 30L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) {
         Assert-KmcChunk6aCombatMountEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {

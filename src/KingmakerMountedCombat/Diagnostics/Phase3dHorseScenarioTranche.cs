@@ -6038,6 +6038,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { errors.Add("Chunk 6A approach path observer cleanup: " + exception.Message); }
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
+            try { CleanupChunk6aAutoUse(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A auto-use observer/UI/pause", exception); }
             try { CleanupChunk6aDismountEscape(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A Dismount escape settings", exception); }
             try { CleanupChunk6aRefusalInput(); }

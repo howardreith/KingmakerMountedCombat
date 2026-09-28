@@ -6753,6 +6753,378 @@
       "qualificationAccepted": false,
       "interpretation": "Superseded126 evidence retained with original native result and exact payload. Its PASS does not qualify127. The TB fixture failed before adoption with a missing native cooldown eligibility observation.",
       "settledReceiptSha256": "331aeae2abe23b868272253d440463e0f411e4ec6dc0e173d1097fdcdb496136"
+    },
+    {
+      "runId": "c6a-skip-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.127",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "c47bfbc9b6edba1c2fb97c6cfa77e1eccf49f68b",
+        "dllSha256": "a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3",
+        "dllMvid": "4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.127-chunk6a-skip-a-diagnostic.zip",
+        "packageSha256": "77e3a990975afd44eb1bcdc8b3db9d684e3814d0ef8879b5c86bcde61c49bdf6",
+        "manifestSha256": "b972f1eaa3f366675f45eec21b1f7e066d722d392cb20ea2129c1d5350b46879"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-skip-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-skip-a.json",
+        "sha256": "425bf7c3e0c6a24cd1340e0ba57c5976ed6f0d0a9266093a93229e236a1fa451",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "77e3a990975afd44eb1bcdc8b3db9d684e3814d0ef8879b5c86bcde61c49bdf6",
+        "manifestSha256": "b972f1eaa3f366675f45eec21b1f7e066d722d392cb20ea2129c1d5350b46879",
+        "dllSha256": "a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3",
+        "dllMvid": "4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 48,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "10e550d7e5675e155f78807e7a96ac6c7144f77da45d0aaf69f701ac6dd5bc58",
+          "length": 7395
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/orchestration.json",
+          "sha256": "cd7f039f9530c44510d88ddbe87d812a16104e652815fb5b9ff77859d111ed81",
+          "length": 1189
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "572d9b7f1a71ac667d2e340825295f5640baf9527e4a1200ec827460a3f0281e",
+          "length": 16324763
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/runtime-artifacts.json",
+          "sha256": "be89d1ef9ca23a33fcbcc3fbf39245075fbf52e27d5408c005f6a6c749f62b30",
+          "length": 2413
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/runtime-game-result.json",
+          "sha256": "e183247ab67d973f411797e79afe18c668e20812e788701323cf0640ba2f86f9",
+          "length": 4584
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/runtime-request.json",
+          "sha256": "92404333f6f2da011af5427f278daa136b3875af1e0d4bdbf751e7e55a794794",
+          "length": 2817
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/runtime-result.json",
+          "sha256": "321987f1f99a25cd64b956c0ea193d3660825b0eba9610501a8aea45064ea69c",
+          "length": 7187
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-001.png",
+          "sha256": "be1217981aee983af2cdd1bc7cb8ed565cf85d788bbe785418f777fb96368360",
+          "length": 1313092
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-002.png",
+          "sha256": "3ae0cb04bfddba2976481f50160e07660f2446de123e974c391d98249aafddce",
+          "length": 1312578
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-003.png",
+          "sha256": "e82d8d9b411ae65f36aafa604cc2c75ffdb5e1c4f88c694dc7ffcf9bad533059",
+          "length": 1313724
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-004.png",
+          "sha256": "7d4708766edd31d782f03e389ae820e92569bfe8671839930db31896a7ce1f24",
+          "length": 1315094
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-005.png",
+          "sha256": "02462d06e875431f5e63874433ec0495888c1e8ceb255c0a64227b2302dc1b82",
+          "length": 1313638
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-006.png",
+          "sha256": "ea93bbd4e3fc42096c991d775f59e545f6b9eae2ba92e533bb0c9e5b5eff5501",
+          "length": 1314620
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-007.png",
+          "sha256": "07461e34500db0ef54f77e1e20de6b528f0962931a22c9bf750922e1bc9612d9",
+          "length": 1313864
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-approach/movement-visuals/horse-motion-008.png",
+          "sha256": "0761a5181cded3fd293ba9b79c6b9298fd9fbe2fabed5718a8408b37d69305b4",
+          "length": 1311964
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Superseded127 results retained unchanged. PASS applies only to that exact payload and suite. TB failed before combat allocation/adoption in the ground evidence validator; direct live pathState token had String type with null value. Native ground Success and action/reaction conservation do not erase the overall FAIL.",
+      "settledReceiptSha256": "4f7071921eacde8a2dfddab23fb69b3ce7800b9f6569cf7d92a671aa964b71b7"
+    },
+    {
+      "runId": "c6a-skip-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.127",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "c47bfbc9b6edba1c2fb97c6cfa77e1eccf49f68b",
+        "dllSha256": "a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3",
+        "dllMvid": "4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.127-chunk6a-skip-a-diagnostic.zip",
+        "packageSha256": "77e3a990975afd44eb1bcdc8b3db9d684e3814d0ef8879b5c86bcde61c49bdf6",
+        "manifestSha256": "b972f1eaa3f366675f45eec21b1f7e066d722d392cb20ea2129c1d5350b46879"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-skip-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-skip-a.json",
+        "sha256": "425bf7c3e0c6a24cd1340e0ba57c5976ed6f0d0a9266093a93229e236a1fa451",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "77e3a990975afd44eb1bcdc8b3db9d684e3814d0ef8879b5c86bcde61c49bdf6",
+        "manifestSha256": "b972f1eaa3f366675f45eec21b1f7e066d722d392cb20ea2129c1d5350b46879",
+        "dllSha256": "a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3",
+        "dllMvid": "4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 46,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "652296dbcb01228a590989c77434561375ce9a50e37c64297f071203a4c3cd8f",
+          "length": 7399
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/orchestration.json",
+          "sha256": "98c60827b9c4511215e7c4fe3fdf9aea45d3dfecd9f1884041a5bbbd8f818675",
+          "length": 1187
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "d7c1fb305fdd6ec9d5420395f05d5e7ccd3e24e895ce1b1bb42f9ead72cc0386",
+          "length": 24732032
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/runtime-artifacts.json",
+          "sha256": "895bfbee698513249bd1b37a86c94da70a4ec5715fc2d121474ceec2ac5e0954",
+          "length": 2417
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/runtime-game-result.json",
+          "sha256": "e87f6576bf4238f2a82abc14f3742cd5cc24d68eadfe3c60dd668eef9d56deef",
+          "length": 4267
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/runtime-request.json",
+          "sha256": "3729ded7df75780b7f9222df6551aa57d4a98f56b8f27ac397820e05b9c3725b",
+          "length": 2815
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/runtime-result.json",
+          "sha256": "ca69b302a59336c5be51eabe9bd830cb1c4f8d705288502a6a1ebcaa1cfbd4b4",
+          "length": 6354
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "dc35812c93c65f1e4b383b32f13768c97216b0be47cab73f29c4c27a3ffdcbbd",
+          "length": 1317426
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "eded3e335abf37e98c146d74b846eed9241b893cf575d6990bb70d6308c6fa81",
+          "length": 1316830
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "1ade8013a7d73eaebcb0e34f1964231b6920714c5b3282eac21f5620d6fbec13",
+          "length": 1316579
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "4bcb06e0d8a6bbbbfdc9879bc3743f99f777a3c5780f3d4bc8bad6f02a9bd5ed",
+          "length": 1317742
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "6ae831aee0d9904ed9ae8dfcf04effbac8334b2c11d8fae36d11588b331ecc20",
+          "length": 1317797
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "1fdbf61e81d1c4d5011b8b9d2ab27653c9a41586a0ff1863c1b6168afcef08c0",
+          "length": 1317478
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "0e8a6b0cb288b52653a14b68b83f5e089fc3ea23a3f7ed79587584e3481c7815",
+          "length": 1318963
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "2b4982b820c25abc432f33e43d496075d51e2800b59e7ac7bc33aab705249d55",
+          "length": 1316879
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Superseded127 results retained unchanged. PASS applies only to that exact payload and suite. TB failed before combat allocation/adoption in the ground evidence validator; direct live pathState token had String type with null value. Native ground Success and action/reaction conservation do not erase the overall FAIL.",
+      "settledReceiptSha256": "8c70dad631a1cc8372802db4cea7141d547edfed3457da0196b9ceb0c06d64ba"
+    },
+    {
+      "runId": "c6a-skip-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.127",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "c47bfbc9b6edba1c2fb97c6cfa77e1eccf49f68b",
+        "dllSha256": "a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3",
+        "dllMvid": "4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.127-chunk6a-skip-a-diagnostic.zip",
+        "packageSha256": "77e3a990975afd44eb1bcdc8b3db9d684e3814d0ef8879b5c86bcde61c49bdf6",
+        "manifestSha256": "b972f1eaa3f366675f45eec21b1f7e066d722d392cb20ea2129c1d5350b46879"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-skip-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-skip-a.json",
+        "sha256": "425bf7c3e0c6a24cd1340e0ba57c5976ed6f0d0a9266093a93229e236a1fa451",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "77e3a990975afd44eb1bcdc8b3db9d684e3814d0ef8879b5c86bcde61c49bdf6",
+        "manifestSha256": "b972f1eaa3f366675f45eec21b1f7e066d722d392cb20ea2129c1d5350b46879",
+        "dllSha256": "a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3",
+        "dllMvid": "4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa"
+      },
+      "assertionPassCount": 43,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 43,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "b8f2dd83c6f774d9441b24f3f83b7572363a0761af4ed995c296c7ce7a61910b",
+          "length": 7399
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/orchestration.json",
+          "sha256": "1a6c76e1ca64497146b595da4aaa7706abeb36b99bc763281b2016695c5be7d8",
+          "length": 1187
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "baf6d2d1661f8c68fb442b1f1677dea9f67de4b09ce2c1905955274995acb384",
+          "length": 4431747
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/runtime-artifacts.json",
+          "sha256": "302f17bc5ef0c7cf1082a009dca29389526ee52cfedbe4208b33610918ad272e",
+          "length": 2416
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/runtime-game-result.json",
+          "sha256": "8863856759cd45d851fb8631144a89565036189e491748c30875b6f4f6d547b9",
+          "length": 4521
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/runtime-request.json",
+          "sha256": "7d5085018030b7a5a6b7095bd765accc150fefc756b902dc9294e5ad911c87f2",
+          "length": 2815
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/runtime-result.json",
+          "sha256": "95584539219ba622e982cc056845fa5257ac6cc209211c4dd22114064eda336d",
+          "length": 6187
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "e1bc9042437c8bcb5d4bfc04b203c44a722ddebb33961336733a39dbc4cfa493",
+          "length": 1317633
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "d4cda11ec15c8f8a971fea82dabb23087747bc20b7df7fde4eb3f2e29d7bde1c",
+          "length": 1317398
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "5574041643b8892c8dfff941ecddb217d31c2ad2070f7c60027299479695e6aa",
+          "length": 1316942
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "f45c96173a32b4e447e8b6f537c85a6207609420e6e5dd67ecce63a655eb3d17",
+          "length": 1316969
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "8a599add7fbf5c2f97ad751b8486e40fd6265d34db9f3460df8e38b79aeca1ec",
+          "length": 1317184
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "e1b59da8c3e45b2d1489bcfedd9874542621f3a84cfae5f51c41097af2727321",
+          "length": 1317496
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "ae2b4bcc13e63c8b158d8fbc695eee6441b1d669a1fef5a49070ffbb1716fc26",
+          "length": 1316442
+        },
+        {
+          "path": "runtime-evidence/c6a-skip-a-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "2b521a26ff8833c87b6c91a7fc29b1f6672cef2a481c2f4a38c75fe99f4759f4",
+          "length": 1318573
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Native ground plan: in-flight path content read"
+          ]
+        },
+        {
+          "row": "chunk6a-adoption-compensation-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Native ground plan: in-flight path content read"
+          ]
+        }
+      ],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Superseded127 results retained unchanged. PASS applies only to that exact payload and suite. TB failed before combat allocation/adoption in the ground evidence validator; direct live pathState token had String type with null value. Native ground Success and action/reaction conservation do not erase the overall FAIL.",
+      "settledReceiptSha256": "6bb3391820302d4028b4fb07c3232cd7d578d85af9fe41d03b573df176218aa5"
     }
   ]
 }
