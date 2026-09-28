@@ -168,7 +168,21 @@
       ],
       "failures": [],
       "qualificationAccepted": false,
-      "reason": "An overall FAIL run contributes no PASS entries."
+      "reason": "An overall FAIL run contributes no PASS entries.",
+      "nativeStatus": "PASS",
+      "nativeAssertionPassCount": 69,
+      "nativeAssertionFailCount": 0,
+      "externalAssertionPassCount": 0,
+      "externalAssertionFailCount": 1,
+      "externalFailures": [
+        {
+          "row": "chunk6a-mount-approach",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Chunk 6A evidence needs exactly one dismount-before sample; found 0."
+          ]
+        }
+      ]
     },
     {
       "runId": "c6a-approach-4",
@@ -253,7 +267,21 @@
       ],
       "failures": [],
       "qualificationAccepted": false,
-      "reason": "An overall FAIL run contributes no PASS entries."
+      "reason": "An overall FAIL run contributes no PASS entries.",
+      "nativeStatus": "PASS",
+      "nativeAssertionPassCount": 69,
+      "nativeAssertionFailCount": 0,
+      "externalAssertionPassCount": 0,
+      "externalAssertionFailCount": 1,
+      "externalFailures": [
+        {
+          "row": "chunk6a-mount-approach",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Chunk 6A control refunded rider standard debt."
+          ]
+        }
+      ]
     },
     {
       "runId": "c6a-approach-6",
@@ -408,7 +436,21 @@
       ],
       "failures": [],
       "qualificationAccepted": false,
-      "reason": "An overall FAIL run contributes no PASS entries."
+      "reason": "An overall FAIL run contributes no PASS entries.",
+      "nativeStatus": "PASS",
+      "nativeAssertionPassCount": 53,
+      "nativeAssertionFailCount": 0,
+      "externalAssertionPassCount": 0,
+      "externalAssertionFailCount": 1,
+      "externalFailures": [
+        {
+          "row": "chunk6a-mount-preamble",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Runtime game-result contains an unknown subscenario: chunk6a-mount-preamble"
+          ]
+        }
+      ]
     },
     {
       "runId": "c6a-preamble-2",
@@ -439,7 +481,21 @@
       ],
       "failures": [],
       "qualificationAccepted": false,
-      "reason": "An overall FAIL run contributes no PASS entries."
+      "reason": "An overall FAIL run contributes no PASS entries.",
+      "nativeStatus": "PASS",
+      "nativeAssertionPassCount": 53,
+      "nativeAssertionFailCount": 0,
+      "externalAssertionPassCount": 0,
+      "externalAssertionFailCount": 1,
+      "externalFailures": [
+        {
+          "row": "chunk6a-mount-preamble",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Known runtime artifact exists without a manifest record: chunk6a-mount-preamble.json"
+          ]
+        }
+      ]
     },
     {
       "runId": "c6a-preamble-3",
@@ -2511,6 +2567,369 @@
       },
       "transactionRestoredAtUtc": "2026-09-28T01:30:49.2049695+00:00",
       "completedAtUtc": "2026-09-28T01:30:54.5189107+00:00"
+    },
+    {
+      "runId": "c6a-interruption-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.120",
+        "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-interruption-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-interruption-a.json",
+        "sha256": "4463cc991345932c1f5345dcdca8c688b6e63b17039fd26a29943375fe9ea6c3",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-interruption-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "475c857d439f09cca50c9dfeeada15d1325f295a4d9d9f6ec21a046b56656427"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-approach/orchestration.json",
+          "sha256": "68105e94566eabe8bbc33a65eb17a211e25301cf1d78167c59bf8f4e16e181da"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "cb49e4c1caeae23feecb7ad2b0cc85af43ee2f6c8938388e99541f5bb1ce1961"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-approach/runtime-artifacts.json",
+          "sha256": "f824717ea5b1b20ca0de4056dca5a2376ac9f47015ca738ac5d3fabcd4738290"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-approach/runtime-game-result.json",
+          "sha256": "15904b9ea7212390ef515b332f04b89e4e6296976866e8fb7d098584e21ae730"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-approach/runtime-request.json",
+          "sha256": "b33681d6827df7cf0565f1e134db31411b39f2d028e6997bdf0c9d01e5a6b92f"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-approach/runtime-result.json",
+          "sha256": "92efd60690812bb173a70e15d966a8610bf88b8079fad0af2614d4e4499461f8"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Qualification is evaluated separately after exact scenario and external evidence validation; this recorder only preserves the settled run. Preserved after source121 validator correction; no result qualifies a different candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T03:00:01.0662065+00:00",
+      "completedAtUtc": "2026-09-28T03:00:06.2473619+00:00"
+    },
+    {
+      "runId": "c6a-interruption-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.120",
+        "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-interruption-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-interruption-a.json",
+        "sha256": "4463cc991345932c1f5345dcdca8c688b6e63b17039fd26a29943375fe9ea6c3",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-interruption-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "5aae3af2ddcbc2f9e7ac9ff5a29ca16e877ecbff0349b3d07fcf3ad5bc67e5d5"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-rt/orchestration.json",
+          "sha256": "1b6efdbd7a7b9e3f7d89bd00f0fd225791a94b40dab402ef4b127b4cd852354f"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "8865b44cd5d7c1f90f07c66e0cf663003de468c50b806e249db6085afb570bce"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-rt/runtime-artifacts.json",
+          "sha256": "dbf9fa90ec6abbd2f9796ea253f72dad5adbf63616fe173624ef80a2c8e1a5d1"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-rt/runtime-game-result.json",
+          "sha256": "a1c2a17c3f28827f1031548325e38f83ab8314382e15c8bc107da11213f1beea"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-rt/runtime-request.json",
+          "sha256": "21f71d0fe1d2e9f1f36c1b5c4df03d6219dbd338238fa6056caae3beca184512"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-rt/runtime-result.json",
+          "sha256": "4d1262be2eec6b7e49cfc0291b8cb8120785a9fe4e7f890a353865721df43910"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Qualification is evaluated separately after exact scenario and external evidence validation; this recorder only preserves the settled run. Preserved after source121 validator correction; no result qualifies a different candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T03:03:28.2978901+00:00",
+      "completedAtUtc": "2026-09-28T03:03:33.4716943+00:00"
+    },
+    {
+      "runId": "c6a-interruption-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.120",
+        "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-interruption-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-interruption-a.json",
+        "sha256": "4463cc991345932c1f5345dcdca8c688b6e63b17039fd26a29943375fe9ea6c3",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-interruption-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "540840e30a2cfbec4c8a376ade1a5210e086a927ffd2452be3ba3ae94a34d01a"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-tb/orchestration.json",
+          "sha256": "220cd019aed57487b0b474af3fcd7cbfb0e5f42037b375ae92bebd31b821e385"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "1533b16ec4b3d4929fb14fb40b017a9fd3d886e4e73afebde5c46cb274a16ec1"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-tb/runtime-artifacts.json",
+          "sha256": "95f1658ef6ba21bdbb6ae977e7f34d2ef094443e3a713e597fcba6c7cc5826dc"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-tb/runtime-game-result.json",
+          "sha256": "551197f5a32887117dc10144f86550a963b5f43d96a4cb3dfb856fb71bad82d6"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-tb/runtime-request.json",
+          "sha256": "3c98eadc7a9870ecb03411d51e36f60899bb198771660db7d5ec76133faa1fd3"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-tb/runtime-result.json",
+          "sha256": "a4a4be4a55d3658d91bdf741f790b78c94fe4297f0a52ee0bc54c530bb6dea2a"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Qualification is evaluated separately after exact scenario and external evidence validation; this recorder only preserves the settled run. Preserved after source121 validator correction; no result qualifies a different candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T03:06:00.2002573+00:00",
+      "completedAtUtc": "2026-09-28T03:06:05.3374932+00:00"
+    },
+    {
+      "runId": "c6a-interruption-a-geometry",
+      "scenario": "chunk6a-geometry-change",
+      "status": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.120",
+        "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-interruption-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-interruption-a.json",
+        "sha256": "4463cc991345932c1f5345dcdca8c688b6e63b17039fd26a29943375fe9ea6c3",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-interruption-a-geometry/horse-companion-blueprint-registration.json",
+          "sha256": "033aad94a45d5c51904864180141704e37e57b7159dc2ed0c65fbb2b9d3456ee"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-geometry/orchestration.json",
+          "sha256": "b90e880d93f670a0d77a43f86cbfde39a7e1fb2f2a0450ec02070ff2685bb6a4"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-geometry/phase3d-horse-scenario-evidence.json",
+          "sha256": "474dd44123e755552047dda9e934a4151eaa6a60791ecf3d083c02fe68532f1f"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-geometry/runtime-artifacts.json",
+          "sha256": "c5e737726208bd7cf504595e0e4ca6f4554fd272ec530b4abcf98965157d459b"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-geometry/runtime-game-result.json",
+          "sha256": "6ff02cd4928d2a43da4515a26ddc81dddafa50c0abbf8a7cd7ecbe4c6f847113"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-geometry/runtime-request.json",
+          "sha256": "e896d26382a32ed2b9fa474d13e42479df00d7b9b622896ea563ca7d1d519456"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-geometry/runtime-result.json",
+          "sha256": "bedd86f18eb3cc762e772f11bae6c6e121ae04f55d9a5b978d36fde421468beb"
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Qualification is evaluated separately after exact scenario and external evidence validation; this recorder only preserves the settled run. Preserved after source121 validator correction; no result qualifies a different candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T03:08:34.6210227+00:00",
+      "completedAtUtc": "2026-09-28T03:08:39.7990727+00:00"
+    },
+    {
+      "runId": "c6a-interruption-a-obstruction",
+      "scenario": "chunk6a-obstruction",
+      "status": "FAIL",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.120",
+        "commit": "31ed92abadd1491b9aa177eacd43a5dea4a08550",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.120-chunk6a-interruption-a-diagnostic.zip",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-interruption-a",
+        "path": "C:/Dev/KingmakerMountedCombatLab/runtime-state/qualification-suite-snapshots/20260928-chunk6a-interruption-a.json",
+        "sha256": "4463cc991345932c1f5345dcdca8c688b6e63b17039fd26a29943375fe9ea6c3",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "c4103d002cdf5f2edd2d5312b819fe5e880f8cc6487b5ca2512e2c815c31e11e",
+        "manifestSha256": "78045251bf8348b05c90ea31978f8d95d0c3ae145658943f0b5a7e5d8b6a6ace",
+        "dllSha256": "b201c76027c84de870cfb2948b5ebde22112f1a021d192733638cd5a75e2439f",
+        "dllMvid": "73c58b67-f639-4ae3-bf8f-727bba15d096"
+      },
+      "assertionPassCount": 0,
+      "assertionFailCount": 1,
+      "nativeAssertionPassCount": 45,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/horse-companion-blueprint-registration.json",
+          "sha256": "39f81de7d4b5b7e3d4b1e2a311fbd1a907cc396ab874732b429668b0b28635be"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/launcher-failure.json",
+          "sha256": "07f39738735eae9ee0861be2bdf949a684104e9f011f76cc8ec6cd3fe09ead3d"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/orchestration.json",
+          "sha256": "fe6c63a2c7163ff2ec9f8ae1d0b1d2359cc8654cbee83dff892795013c53fe34"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/phase3d-horse-scenario-evidence.json",
+          "sha256": "2142e6ea9ed302d394f53f3ab9d62ec17e6e9023d338f61a1ddc7a5731cddbdb"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/runtime-artifacts.json",
+          "sha256": "c9406220d478cdcd31acc922f2cb3747a26f9f7315e928986626cc3385b6f396"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/runtime-game-result.json",
+          "sha256": "1a69e0fe6043ff672c3da7ffa42198815c38f63ad1622dc00b533538c5cb280a"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/runtime-request.json",
+          "sha256": "1f69b4765d7f178ab9bcd9f4c2077d7e483c479e50439566d6cf99cf417e243c"
+        },
+        {
+          "path": "runtime-evidence/c6a-interruption-a-obstruction/runtime-result.json",
+          "sha256": "95a90d72e2aba03aa6a61a438a3b9263f76ba8fe4d801d606cf4915912f2e2bd"
+        }
+      ],
+      "failures": [],
+      "externalFailures": [
+        {
+          "row": "chunk6a-obstruction",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Obstruction did not begin outside the measured transition envelope with a continuously observed closed door."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Overall external validation FAIL despite in-game PASS. Both original facets and the first external failing assertion remain immutable; no provisional row is credited. Preserved after source121 validator correction; no result qualifies a different candidate.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-28T03:11:16.8444499+00:00",
+      "completedAtUtc": "2026-09-28T03:11:22.0813730+00:00",
+      "externalAssertionPassCount": 0,
+      "externalAssertionFailCount": 1
     }
   ]
 }

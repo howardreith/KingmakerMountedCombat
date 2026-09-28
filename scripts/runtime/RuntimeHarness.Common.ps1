@@ -6254,7 +6254,7 @@ function Assert-KmcChunk6aObstruction {
         if($null -eq $value -or [double]::IsNaN([double]$value) -or [double]::IsInfinity([double]$value) -or [double]$value -lt 0) {throw 'Obstruction geometry lacks finite measurements.'}
     }
     $g=$Case.start;$dx=[double]$g.riderPosition.x-[double]$g.horsePosition.x;$dz=[double]$g.riderPosition.z-[double]$g.horsePosition.z
-    $horizontal=[Math]::Sqrt($dx*$dx+$dz*$dz);$envelope=[double]$g.riderCorpulence+[double]$g.horseCorpulence+1.0
+    $horizontal=[Math]::Sqrt($dx*$dx+$dz*$dz);$envelope=[double]$g.riderCorpulence+[double]$g.horseCorpulence+1.5
     if($g.isAdjacent -ne $false -or $g.centerDistance -le $envelope -or $horizontal -le $envelope -or
         [Math]::Abs($horizontal-[double]$g.horizontalDistance) -gt 0.001 -or [Math]::Abs($envelope-[double]$g.legalAdjacencyEnvelope) -gt 0.0001 -or
         $Case.closedDoorObservations -lt 1) {throw 'Obstruction did not begin outside the measured transition envelope with a continuously observed closed door.'}
