@@ -126,6 +126,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private void Initialized(UnitUseAbility command)
         {
             if (command?.Executor != rider || command.Spell?.Blueprint?.AssetGuid != ability) return;
+            if (Kingmaker.Controllers.Clicks.PointerController.SimulatingClick)
+            { RecordPredictionCommand(command); return; }
             initCount++;
             if (Command == null) Command = command;
             else if (!ReferenceEquals(Command, command)) errors.Add("More than one command entered the measured window.");
@@ -147,7 +149,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     ["boundary"] = boundary, ["frame"] = Time.frameCount,
                     ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
-                    ["allocationSequence"] = trace.EventCount, ["identity"] = Describe(observed), ["acted"] = command?.IsActed,
+                    ["allocationSequence"] = trace.EventCount, ["simulatingClick"] = Kingmaker.Controllers.Clicks.PointerController.SimulatingClick, ["identity"] = Describe(observed), ["acted"] = command?.IsActed,
                     ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
                     ["processEnded"] = command?.ExecutionProcess?.IsEnded,
                     ["nativeProcessBinding"] = controls.HasExactRelationshipProcessBinding(command),
@@ -215,6 +217,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["samples"] = new JArray(samples.Select(s => s.Value.DeepClone())),
                 ["errors"] = errors.DeepClone(), ["traceComplete"] = trace.Complete
             };
+            CompletePredictionEvidence(completed);
             if (geometryGroundOrder != null) completed["auxiliaryGroundOrder"] = DescribeGeometryGroundOrder();
             return (JObject)completed.DeepClone();
         }
@@ -315,6 +318,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal JObject Capture() => new JObject
         {
             ["observerHooks"] = installedHooks.DeepClone(),
+            ["predictionCommands"] = CapturePredictionCommands(),
             ["identity"] = Describe(identity), ["initCount"] = initCount,
             ["terminal"] = Terminal, ["errors"] = errors.DeepClone(),
             ["samples"] = new JArray(samples.Select(s => s.Value.DeepClone()))

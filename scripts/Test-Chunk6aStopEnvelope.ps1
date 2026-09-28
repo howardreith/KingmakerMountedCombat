@@ -4,6 +4,7 @@ $labRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '../..'))
 # Synthetic envelope regression. Never launches the game or changes original evidence.
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Test-Chunk6aSyntheticPrediction.ps1')
 . (Join-Path $PSScriptRoot 'Test-Chunk6aStopEvidence.ps1')
 $tokens=$null;$parseErrors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1'),[ref]$tokens,[ref]$parseErrors)
@@ -14,6 +15,7 @@ foreach($name in @('Get-KmcPhase3dHorseRuntimeRows','Assert-KmcChunk6aCombatMoun
     . ([scriptblock]::Create($definitions[0].Extent.Text))
 }
 $envelope=Get-Content -Raw $original|ConvertFrom-Json
+Add-KmcSyntheticPredictionFields $envelope
 $envelope.scenario='chunk6a-stop-approach'
 $envelope.rows=@($envelope.rows|Where-Object name -CNE 'CM02-obstruction')+@([pscustomobject]@{name='CM04-stop-during-approach';status='PASS'})
 $envelope.observations.PSObject.Properties.Remove('chunk6aObstruction')

@@ -6022,6 +6022,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            try { CleanupChunk6aNativePointer(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A native pointer input", exception); }
             try { CleanupChunk6aHotbar(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A hotbar input/UI lease", exception); }
             // The Chunk 6A diagnostic adoption fault is scenario-owned and must be
@@ -6034,6 +6036,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { errors.Add("Chunk 6A approach path observer cleanup: " + exception.Message); }
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
+            try { CleanupChunk6aRefusalInput(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A refusal observer", exception); }
             try { CleanupChunk6aStopInput(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A Stop input observer", exception); }
             try { CleanupChunk6aObstruction(); }

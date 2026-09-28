@@ -6,7 +6,7 @@ function Assert-KmcPausedHeld($First,$Sample) {
   if($s.paused -ne $true -or $s.turnBased -ne $false -or $s.traceComplete -ne $true -or $null -eq $s.commandObject -or $s.commandObject -eq 0 -or
     [string]::IsNullOrEmpty($s.controlIdentity) -or [string]::IsNullOrEmpty($s.casterId) -or [string]::IsNullOrEmpty($s.targetId) -or
     $s.commandType -cne 'Move' -or $s.abilityGuid -cne 'f053faad986631688defa003cd7bda0e' -or $s.processObject -ne 0 -or $s.contextObject -ne 0 -or
-    $s.inMoveSlot -ne $true -or $s.createdByPlayer -ne $true -or $s.started -ne $false -or $s.acted -ne $false -or $s.finished -ne $false){throw 'Paused command was not exactly held before native execution'}
+    $s.inMoveSlot -ne $true -or $s.createdByPlayer -ne $false -or $s.started -ne $false -or $s.acted -ne $false -or $s.finished -ne $false){throw 'Paused command was not exactly held before native execution'}
   if($s.state.relationshipState -cne 'Unmounted' -or $s.state.generation -ne $s.generationAtInit -or @($s.state.selectedIds).Count -ne 1 -or
     $s.state.selectedIds[0] -cne $s.casterId){throw 'Paused relationship or selection differs'}
  }

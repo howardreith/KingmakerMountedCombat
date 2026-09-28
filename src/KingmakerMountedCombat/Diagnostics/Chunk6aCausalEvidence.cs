@@ -64,6 +64,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var path = chunk6aApproachPath.Capture();
                 proof["nativeApproachPath"] = path;
+                proof["nativePointerInput"] = observations["chunk6aNativePointerInput"]?.DeepClone();
+                NativeMountPointerEvidence.AssertComplete((JObject)proof["nativePointerInput"], proof);
                 proof["pass"] = (bool)proof["pass"] && (bool)path["complete"];
                 observations["chunk6aApproachPath"] = path.DeepClone();
                 chunk6aApproachPath.Dispose(); chunk6aApproachPath = null;
@@ -168,6 +170,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (!TickChunk6aDoorSetup()) return;
                 }
+                else if (Chunk6aRefusedOnly)
+                { observations["chunk6aRefusalSetupGeometry"] = CaptureChunk6aGeometry("refusal-fresh-allocation-geometry"); }
                 else if (!Chunk6aCompensationOnly)
                 {
                     // Create non-adjacent geometry outside combat, before the fresh native

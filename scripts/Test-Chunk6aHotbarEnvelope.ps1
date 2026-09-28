@@ -4,6 +4,7 @@ $labRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '../..'))
 # Lab-only future hotbar dispatch proof; original frozen122 artifact is an immutable shape fixture.
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Test-Chunk6aSyntheticPrediction.ps1')
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aHotbarEvidence.ps1')
 $tokens=$null;$parseErrors=$null
@@ -18,6 +19,7 @@ function Copy-Hotbar($v){$v|ConvertTo-Json -Depth 100|ConvertFrom-Json}
 $original=(Join-Path $labRoot 'runtime-evidence/c6a-fixtures-a-approach/phase3d-horse-scenario-evidence.json')
 $originalHash=(Get-FileHash $original).Hash
 $envelope=Get-Content -Raw $original|ConvertFrom-Json
+Add-KmcSyntheticPredictionFields $envelope
 $envelope.scenario='chunk6a-hotbar-approach'
 $proof=@($envelope.observations.chunk6aCommandProofs|Where-Object window -CEQ 'positive-mount')[0]
 $admission=@($proof.samples|Where-Object boundary -CEQ 'click-admission')[0]

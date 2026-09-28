@@ -30,7 +30,7 @@ function New-CommandProof([bool]$combat=$true,[bool]$tb=$false,[int]$partner=0){
     foreach($name in @('init','click-admission','move-slot-installation','approach-start','process-binding','acted','cost-before','cost-after','deliver','relationship-transition','terminal')){
         $id=Copy-Value $identity
         if($name -cin @('init','click-admission','move-slot-installation','approach-start')){$id.processObject=0;$id.contextObject=0}
-        $samples+=@{boundary=$name;identity=$id;acted=($name -cin @('acted','cost-before','cost-after','deliver','relationship-transition','terminal'))
+        $samples+=@{boundary=$name;identity=$id;simulatingClick=$false;acted=($name -cin @('acted','cost-before','cost-after','deliver','relationship-transition','terminal'))
             nativeProcessBinding=($name -ceq 'process-binding');deliveryContext=$(if($name -ceq 'deliver'){301}else{0})
             gameTicks=$(if($name -ceq 'terminal'){1020000000}else{1000000000});state=$(if($name -ceq 'terminal'){$end}else{$state})
             finished=($name -ceq 'terminal');processEnded=($name -ceq 'terminal');result='Success'}
@@ -55,8 +55,13 @@ function New-CommandProof([bool]$combat=$true,[bool]$tb=$false,[int]$partner=0){
     foreach($sample in $samples){$sample['allocationSequence']=if($sample.boundary -ceq 'terminal'){$sequence}else{0}}
     Copy-Value @{pass=$true;identityComplete=$true;sameCommandAtEveryBoundary=$true;exactActedObserved=$true
         nativeTerminal=$true;traceComplete=$true;initCount=1;errors=@();nativeResult='Success';identity=$identity;mountId='mount'
+        predictionCommands=@{contract='native-speculative-init-separated-from-one-committed-request';pass=$true;commands=@()}
         preClick=$pre;samples=$samples;resourceWindow=@{reactionResources=@{contract='native-time-and-declared-partner-preparation-only';pass=$true};inCombat=$combat;turnBased=$tb;events=$events}}
 }
+Test-Case 'current command requires prediction instrumentation even when empty' {Assert-KmcRelationshipCommandProof (New-CommandProof) $true $false 0 $true 0 $true}
+Test-Case 'current command rejects missing prediction instrumentation' {$p=New-CommandProof;$p.predictionCommands=$null;Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true 0 $true} 'Missing bounded native prediction'}
+Test-Case 'current command rejects refused producer prediction evidence' {$p=New-CommandProof;$p.predictionCommands.pass=$false;Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true 0 $true} 'Native prediction producer refused'}
+Test-Case 'simulated command cannot own actual acted evidence' {$p=New-CommandProof;$p.samples[5].simulatingClick=$true;Reject {Assert-KmcRelationshipCommandProof $p $true $false 0 $true 0 $true} 'Committed observation was native speculation'}
 Test-Case 'one RT command with normal decay' {Assert-KmcRelationshipCommandProof (New-CommandProof) $true $false 0 $true}
 Test-Case 'one TB command with exact endpoints' {Assert-KmcRelationshipCommandProof (New-CommandProof $true $true) $true $true 0 $true}
 Test-Case 'one declared pending-partner grant' {Assert-KmcRelationshipCommandProof (New-CommandProof $true $true 1) $true $true 1 $true}
@@ -104,6 +109,18 @@ function New-CompensationEnvelope {
         observations=@{chunk6aCombatMount=@();chunk6aCommandProofs=$proofs;phase3fActualConfiguration=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}}}
 }
 $request=[pscustomobject]@{scenario='chunk6a-adoption-compensation-rt'}
+Test-Case 'archived124 envelope replays original proof without fabricating prediction observations' {
+    $a=New-CompensationEnvelope;Put-Value $a productVersion '0.1.0-chunk6a-preview.124'
+    foreach($p in $a.observations.chunk6aCommandProofs){$p.PSObject.Properties.Remove('predictionCommands');foreach($sample in $p.samples){$sample.PSObject.Properties.Remove('simulatingClick')}}
+    Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'
+}
+foreach($version in @('0.1.0-chunk6a-preview.125','0.1.0-chunk6a-preview.126','invalid','')){
+    Test-Case ('current envelope refuses missing prediction for '+$version) {
+        $a=New-CompensationEnvelope;Put-Value $a productVersion $version
+        foreach($p in $a.observations.chunk6aCommandProofs){$p.PSObject.Properties.Remove('predictionCommands')}
+        Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'Missing bounded native prediction'
+    }
+}
 Test-Case 'isolated compensation envelope requires all three exact windows' {Assert-KmcChunk6aCombatMountEvidence $request (New-CompensationEnvelope) 'PASS'}
 Test-Case 'reject positive Mount in compensation allocation' {$a=New-CompensationEnvelope;$a.rows+=@{name='CM02-approach-arrival';status='PASS'};Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'cannot contain a positive Mount'}
 Test-Case 'reject missing exploration Mount window' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs=@($a.observations.chunk6aCommandProofs|Where-Object window -CNE 'exploration-mount');Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'window count differs'}

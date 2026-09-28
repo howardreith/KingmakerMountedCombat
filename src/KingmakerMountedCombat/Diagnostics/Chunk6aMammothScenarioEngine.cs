@@ -74,8 +74,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 if(!SamePair(before,before))throw new InvalidOperationException("Native Mammoth pair observation is incomplete or not reciprocal.");
                 if(relationship.State!=RelationshipState.Unmounted || game.Player.IsInCombat || rider.Group.Any(x=>x.IsInCombat || !x.Commands.Empty))
                     throw new InvalidOperationException("Native Mammoth handoff requires an unmounted, idle, outside-combat original party.");
+                evidence["preset"] = new JObject {
+                    ["movementEnabled"] = settings.EnableUnsafeMovementExperiment,
+                    ["pairedEnabled"] = settings.EnablePairedActivation,
+                    ["legacyUnified"] = settings.EnableUnifiedMountedTurn,
+                    ["legacyScheduler"] = settings.EnablePairedCommandScheduler,
+                    ["diagnosticOverlayEnabled"] = settings.EnableDiagnosticOverlay,
+                    ["overlayPresent"] = playerAction.OverlayPresent,
+                    ["overlayObjectCount"] = MountedPlayerActionController.CountOverlayObjects()
+                };
                 if(settings.EnableUnifiedMountedTurn || settings.EnablePairedCommandScheduler || settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
-                    throw new InvalidOperationException("Native Mammoth qualification requires the existing single paired authority preset.");
+                    throw new InvalidOperationException("Native Mammoth qualification requires the existing single paired authority preset: " + evidence["preset"].ToString(Formatting.None));
                 if(!combat.TryConfigurePairedActivation(true))throw new InvalidOperationException("Accepted paired authority could not be established.");
                 ummLease=MovementScreenshotCaptureCoordinator.AcquireClosedUmmLease();
                 selection.SelectUnit(rider.View,true,true,false);

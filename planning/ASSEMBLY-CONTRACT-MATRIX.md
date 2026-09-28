@@ -423,3 +423,9 @@ Pinned Kingmaker Assembly-CSharp SHA2563b6450ffec440e296e586f71c711b195aed144b28
 | FreePlaceSelector.RelaxPoints overloads | 06001787 / 06001788 | Native placement depends on live actor obstacles; origin navigation must be observed before attributing TB fixture failures. |
 
 New TB staging uses the existing pinned native ground input/path observation seams before encounter creation. The later0.6m Acting-step annulus, reach and native costs are unchanged. No proprietary decompiled text is committed.
+
+## 2026-09-28T12:18:55.417Z — selected-ability diagnostic input semantics
+
+Pinned Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Read-only inventories in lab selected-ability-prediction-contract.txt and created-by-player-field-refs.txt. IgnoreClick06000C2F validates current native preview; UpdateActionPredictions06000C6E uses native temporary commands and pointer simulation. Hover06000C74/cursor06000C75, SimulateClick060093C7 and native selected-ability SetAbility060093F8/OnClick060093F6 are the diagnostic seams. CreatedByPlayer04001A72 has six native stores in movement/interaction inputs, none in selected-ability creation, and one read in CanAccelerate060027B7. Original metadata assertions are tested; no proprietary decompilation is committed. Native runtime callback/prediction correction remains pending.
+
+2026-09-28T12:51:01.359Z Source125: pinned native pointer/prediction tokens retained in selected-ability-prediction-contract.txt; SetHighlighted changes prediction only for changed hover, native CalculatePathForCommand awaits the engine path. Diagnostic input calls these native boundaries; no path assignment or resource write. Native speculative Init is separately observed, never accepted as the one actual command. Pointer/external shared182-0, Unity execution pending.

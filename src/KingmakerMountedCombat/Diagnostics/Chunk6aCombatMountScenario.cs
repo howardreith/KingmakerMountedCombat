@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Chunk6aCompensationTurnBasedScenario = "chunk6a-adoption-compensation-tb";
 
         internal static bool IsChunk6aCombatMountScenario(string scenario) =>
+            IsChunk6aRefusedScenario(scenario) ||
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             Chunk6aMammothScenarioEngine.SupportsScenario(scenario) ||
@@ -722,7 +723,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aStopOnly ? 22 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
+                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -892,6 +893,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (chunk6aStage == 24) { TickChunk6aRefusedMount(); return; }
             if (chunk6aStage == 22 || chunk6aStage == 23) { TickChunk6aStopApproach(); return; }
             if (chunk6aStage == 16 || chunk6aStage == 17)
             {
@@ -981,43 +983,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Chunk6aTurnBased)
                 {
                     chunk6aApproachPath = new NativeMountApproachPathProbe(rider, horse);
-                    chunk6aApproachPath.CaptureBeforeClick();
+                    // Capture only after the native target preview passes IgnoreClick.
                 }
                 BeginChunk6aCommandWindow(nativeControls.MountAbility.AssetGuid);
+                if (Chunk6aTurnBased) { BeginChunk6aNativePointer(); return; }
                 chunk6aMountClicked = Chunk6aHotbarOnly ? InvokeChunk6aHotbar() : TryNativeAbilityTargetClick(
                     nativeControls.MountAbility, horse, "chunk6a-combat-mount-click");
-                chunk6aCommandWindow.ClickCompleted(chunk6aMountClicked);
-                if (chunk6aMountClicked && chunk6aApproachPath != null) chunk6aApproachPath.Bind(lastNativeAbilityShell);
-                if (!chunk6aMountClicked)
-                {
-                    // Name the exact obstacle. A refusal here reports whichever condition the
-                    // availability and target contracts actually rejected, plus the live
-                    // selection and measured geometry, instead of a generic message that
-                    // leaves the next reader to guess.
-                    var refusedAvailability = nativeControls.Evaluate(
-                        NativeMountedControlKind.MountCompanion, rider);
-                    var refusedSelection = SelectionManager.Instance?.SelectedUnits;
-                    FailCurrent("CM01-combat-mount-accepted",
-                        "Exact native combat Mount target click was not admitted. " +
-                        "availabilityEnabled=" + refusedAvailability.IsEnabled +
-                        "; transitionReady=" + refusedAvailability.IsTransitionReady +
-                        "; availabilityReason=\"" + refusedAvailability.Reason + "\"" +
-                        "; targetRejection=\"" +
-                        playerAction.DescribeNativeMountTargetRejection(rider, horse) + "\"" +
-                        "; canTarget=" + nativeControls.CanTarget(
-                            NativeMountedControlKind.MountCompanion, rider, horse) +
-                        "; selectedCount=" + (refusedSelection?.Count ?? -1) +
-                        "; selectedIsRider=" + (refusedSelection != null && refusedSelection.Count == 1 &&
-                            refusedSelection[0] == rider) +
-                        "; geometry=" + CaptureChunk6aGeometry("mount-click-refused").ToString(Formatting.None));
-                    BeginCleanup();
-                    return;
-                }
-                BeginChunk6aPausedHold();
-                chunk6aStage = 2;
-                ResetLeafClock();
+                CompleteChunk6aPositiveClick();
                 return;
             }
+
+            if (chunk6aStage == 26) { TickChunk6aNativePointer(); return; }
 
             // Stage 2: await the native command's own terminal state and delivery.
             if (chunk6aStage == 2)
