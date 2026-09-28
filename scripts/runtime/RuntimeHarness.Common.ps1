@@ -6260,6 +6260,17 @@ function Assert-KmcChunk6aObstruction {
         $Case.closedDoorObservations -lt 1) {throw 'Obstruction did not begin outside the measured transition envelope with a continuously observed closed door.'}
 }
 
+function Assert-KmcChunk6aFullTransaction($Artifact) {
+    if(@($Artifact.observations.PSObject.Properties.Name) -cnotcontains 'chunk6aFullTransactionContract' -or
+        $Artifact.observations.chunk6aFullTransactionContract -cne 'one-positive-mount-and-dismount-with-separate-campaign-support') {
+        throw 'Full Chunk 6A case lacks its isolated transaction contract.'
+    }
+    if(@($Artifact.rows|Where-Object { $_.name -cin @('CM02-obstruction','CM02-geometry-change','CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases') }).Count -ne 0 -or
+        @($Artifact.observations.PSObject.Properties.Name|Where-Object { $_ -cin @('chunk6aDoorFixture','chunk6aObstruction','chunk6aGeometryChange') }).Count -ne 0) {
+        throw 'Full Chunk 6A case inherited another scenario allocation.'
+    }
+}
+
 function Assert-KmcChunk6aCombatMountEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -6285,7 +6296,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
         if (-not $approachOnly) {
             $required += @('CM06-combat-mount-repeat-refused','CM05-combat-dismount-accepted',
                 'CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')
-            if (-not $turnBased) { $required += @('CM02-obstruction','CM02-geometry-change') }
+            # Fresh geometry/obstruction transactions are bound by the fixed campaign gate.
         }
     }
     if ($turnBased) { $required += 'CM01-combat-mount-preparing-refused' }
@@ -6309,6 +6320,9 @@ function Assert-KmcChunk6aCombatMountEvidence {
             throw "PASS Chunk 6A combat-mount evidence requires exactly one PASS row named $name."
         }
     }
+    if (-not ($approachOnly -or $compensationOnly -or $geometryOnly -or $obstructionOnly)) {
+        Assert-KmcChunk6aFullTransaction $Artifact
+    }
     $proofs = @($observations.chunk6aCommandProofs)
     $windows = @('exploration-mount','exploration-dismount')
     if ($compensationOnly) { $windows += 'compensation' }
@@ -6318,7 +6332,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
         $windows += 'positive-mount'
         if (-not $approachOnly) {
             $windows += 'combat-dismount'
-            if (-not $turnBased) { $windows += 'geometry-change-mount' }
+
         }
     }
     if ($proofs.Count -ne $windows.Count) { throw 'Chunk 6A command window count differs from its declared scenario.' }
@@ -6351,7 +6365,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
     if (@($Artifact.rows | Where-Object { $_.name -cin @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases') }).Count -ne 0) {
         throw 'A positive allocation cannot inherit compensation.'
     }
-    if ($obstructionOnly -or [string]$Request.scenario -ceq 'chunk6a-combat-mount-rt') {
+    if ($obstructionOnly) {
         Assert-KmcChunk6aObstruction $observations.chunk6aObstruction $observations.chunk6aDoorFixture
     }
     if ($geometryOnly -or $obstructionOnly) {

@@ -109,6 +109,19 @@ Test-Case 'reject missing exploration Mount window' {$a=New-CompensationEnvelope
 Test-Case 'reject shared exploration Mount and Dismount evidence' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs[1]=$a.observations.chunk6aCommandProofs[0];Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'exactly one exploration-mount'}
 Test-Case 'reject mislabeled native ability window' {$a=New-CompensationEnvelope;$a.observations.chunk6aCommandProofs[0].identity.abilityGuid='foreign';Reject {Assert-KmcChunk6aCombatMountEvidence $request $a 'PASS'} 'wrong ability or target'}
 
+Test-Case 'full native case declares one Mount/Dismount transaction with mandatory separate campaign support' {
+    $a=Copy-Value @{observations=@{chunk6aFullTransactionContract='one-positive-mount-and-dismount-with-separate-campaign-support'};rows=@()}
+    Assert-KmcChunk6aFullTransaction $a
+    $a.observations.chunk6aFullTransactionContract='historical inline door'
+    Reject {Assert-KmcChunk6aFullTransaction $a} 'isolated transaction contract'
+}
+foreach($row in @('CM02-obstruction','CM02-geometry-change','CM02-adoption-plan-invalidated')) {
+    Test-Case "full native case rejects inherited $row even when marked PASS" {
+        $a=Copy-Value @{observations=@{chunk6aFullTransactionContract='one-positive-mount-and-dismount-with-separate-campaign-support'};rows=@(@{name=$row;status='PASS'})}
+        Reject {Assert-KmcChunk6aFullTransaction $a} 'another scenario allocation'
+    }
+}
+
 # A real ground order enters Acting on the SAME rider turn. Its existing Move
 # debt is carried into the separately validated Mount command window.
 function New-ActingSetupCase {

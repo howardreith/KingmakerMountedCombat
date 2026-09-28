@@ -719,6 +719,29 @@ Assert-Kmc ($actingSetupText -match 'EnsureChunk6aRiderSelection' -and
     $actingSetupText -notmatch 'ForceToEnd|Cooldown.*=|\.Status\s*=|\.Prepare\(|\.Clear\(|\.Position\s*=') `
     'native ground setup reaches Acting on the same rider turn and publishes actual carried debt without resource or turn writes'
 
+$actingPolicyText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeGroundFixturePolicy.cs')
+Assert-Kmc ($actingSetupText -match 'NativeGroundFixturePolicy.ActingProposals' -and
+    $actingSetupText -match 'observations\["chunk6aActingDestinationSearch"\]' -and
+    $actingSetupText -match 'CaptureFootprint\(rider, point\)' -and
+    $actingSetupText -match 'NativeGroundFixturePolicy.IsActingStep' -and
+    $actingSetupText -notmatch 'FindWalkablePoint\(' -and
+    $actingPolicyText -match 'Math.Abs\(travel - 0.6\) <= 0.15' -and
+    $actingPolicyText -match 'separation >= beforeSeparation && separation <= beforeSeparation \+ 0.15') `
+    'TB native setup proposes points from exact pair geometry and retains unchanged bounds with every native rejection'
+$fullDoorText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aDoorFixture.cs')
+$fullObstructionText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aObstructionScenario.cs')
+$campaignText=Get-Content -Raw (Join-Path $repoRoot 'scripts/runtime/Chunk6aSupportingEvidence.ps1')
+$ledgerText=Get-Content -Raw (Join-Path $repoRoot 'scripts/Test-Chunk6aLedger.ps1')
+Assert-Kmc ($fullDoorText -match 'private bool Chunk6aNeedsDoor => Chunk6aObstructionOnly;' -and
+    $fullObstructionText -match 'if \(!Chunk6aObstructionOnly\) throw' -and
+    $fullObstructionText -notmatch 'CloseChunk6aDoor|chunk6aStage == 6|TickChunk6aGeometryChange' -and
+    $chunk6aScenarioText -match 'one-positive-mount-and-dismount-with-separate-campaign-support' -and
+    $ledgerText -match 'Assert-KmcChunk6aCampaign' -and
+    $campaignText -match "name='geometry';scenario='chunk6a-geometry-change'" -and
+    $campaignText -match "name='obstruction';scenario='chunk6a-obstruction'" -and
+    $campaignText -match 'Assert-KmcCompositeRunOrder') `
+    'full native cases retain mandatory geometry and obstruction through fixed ordered fresh-transaction campaign evidence'
+
 $positiveFlow = [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 13\)(.*?)if \(chunk6aStage == 2\)')
 Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, true, false\)' -and
     $chunk6aScenarioText -match 'selectedUnits != null && selectedUnits.Count == 1 && selectedUnits\[0\] == rider' -and
