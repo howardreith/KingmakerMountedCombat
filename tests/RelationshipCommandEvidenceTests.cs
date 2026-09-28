@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("reaction events conserve discrete allowance and distinguish cooldowns from ordering", ReactionEvents);
             runner.Run("unacted obstruction identity cannot qualify a positive process", UnactedIdentity);
             runner.Run("native Move callbacks exclude Standard Swift and exploration costs", CallbackOwnership);
+            runner.Run("native ground fixtures require the full footprint and reachable endpoint", GroundFixture);
         }
         private static RelationshipCommandIdentity Make(object command, object process, object context,
             string control = "shell:1", string caster = "rider", string target = "horse", long generation = 4,
@@ -87,6 +88,16 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!request.MatchesUnacted(Make(new object(), null, null)), "second unacted command rejected");
             TestRunner.True(!request.MatchesUnacted(Make(command, new object(), new object())), "acted process cannot qualify unacted failure");
             TestRunner.True(!request.MatchesUnacted(Make(command, null, null, generation: 5)), "unacted generation mismatch rejected");
+        }
+        private static void GroundFixture()
+        {
+            TestRunner.True(NativeGroundFixturePolicy.IsClear(6, 6, 4, 0, 0, false), "clear full-footprint endpoint admitted");
+            TestRunner.True(!NativeGroundFixturePolicy.IsClear(6, 6, 4, 0, 0.1, false), "walkable center with clipped footprint refused");
+            TestRunner.True(!NativeGroundFixturePolicy.IsClear(6, 6, 4, 0.5, 0, false), "truncated route refused");
+            TestRunner.True(!NativeGroundFixturePolicy.IsClear(6, 2, 4, 0, 0, false), "projected endpoint cannot collapse separation");
+            TestRunner.True(!NativeGroundFixturePolicy.IsClear(6, 6, 4, 0, 0, true), "another actor occupies the endpoint");
+            TestRunner.True(!NativeGroundFixturePolicy.IsClear(6, 6, 0, 0, 0, false), "an unchanged endpoint is not setup movement");
+            TestRunner.True(!NativeGroundFixturePolicy.IsClear(6, 6, 4, double.NaN, 0, false), "missing route evidence refused");
         }
         private static void CallbackOwnership()
         {

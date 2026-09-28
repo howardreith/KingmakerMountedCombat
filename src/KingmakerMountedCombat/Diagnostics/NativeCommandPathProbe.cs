@@ -77,11 +77,23 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private static int Id(object value) => value == null ? 0 : RuntimeHelpers.GetHashCode(value);
         private static JObject Point(Vector3 value) => new JObject { ["x"] = value.x, ["y"] = value.y, ["z"] = value.z };
+        // The native worker owns all path contents until its completion callback.
+        // Identity/destination at PathTo are safe; even a stale CompleteState can belong
+        // to the previous pooled use and must not authorize reading vectorPath.
+        internal static JObject CapturePathContents(Path path, string boundary)
+        {
+            var ready = boundary == "path-complete-before" || boundary == "path-complete-after" ||
+                boundary == "path-not-found" || boundary == "movement-interrupted";
+            return new JObject { ["pathError"] = ready ? path?.error : null,
+                ["pathState"] = ready ? path?.CompleteState.ToString() : null,
+                ["points"] = !ready || path?.vectorPath == null ? null : new JArray(path.vectorPath.Select(Point)) };
+        }
         private void Record(string boundary, Request request)
         {
             if (disposed) return;
             if (events.Count >= 256) { if (errors.Count == 0) errors.Add("Native path observation bound exceeded."); return; }
             var path = request?.Path;
+            var contents = CapturePathContents(path, boundary);
             events.Add(new JObject {
                 ["boundary"] = boundary, ["sequence"] = events.Count + 1, ["frame"] = Time.frameCount,
                 ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["actorId"] = actor.UniqueId,
@@ -89,8 +101,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["result"] = command?.Result.ToString(), ["requestSequence"] = request?.Sequence,
                 ["pathObject"] = Id(path), ["destination"] = request == null ? null : Point(request.Destination),
                 ["position"] = Point(actor.Position), ["reallyMoving"] = actor.View.AgentASP.IsReallyMoving,
-                ["pathError"] = path?.error, ["pathState"] = path?.CompleteState.ToString(),
-                ["points"] = path?.vectorPath == null ? null : new JArray(path.vectorPath.Select(p => Point(p))) });
+                ["pathError"] = contents["pathError"], ["pathState"] = contents["pathState"],
+                ["points"] = contents["points"] });
         }
         private void PathRequested(UnitMovementAgent agent, UnitCommand value, Vector3 destination)
         {

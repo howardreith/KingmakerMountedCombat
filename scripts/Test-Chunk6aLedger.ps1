@@ -15,6 +15,13 @@ Set-StrictMode -Version Latest
 $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 if([string]::IsNullOrEmpty($LedgerPath)){$LedgerPath=Join-Path $repoRoot 'docs\chunk6a-ledger.json'}
 if([string]::IsNullOrEmpty($LabRoot)){$LabRoot=[IO.Path]::GetFullPath((Join-Path $repoRoot '..\..'))}
+function Test-KmcLiteralAssertion([string]$Expected,[string[]]$Errors) {
+    if([string]::IsNullOrEmpty($Expected)){return $false}
+    foreach($errorText in $Errors) {
+        if($null -ne $errorText -and $errorText.IndexOf($Expected,[StringComparison]::Ordinal) -ge 0){return $true}
+    }
+    return $false
+}
 function Get-Sha256([string]$path){ (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash.ToLowerInvariant() }
 function Get-Field($object,[string]$name){ if($null-ne$object-and@($object.PSObject.Properties.Name)-ccontains$name){$object.$name}else{$null} }
 
@@ -209,7 +216,7 @@ foreach($entry in $ledger.entries){
                 throw "Chunk 6A entry ${id}: row $failingRow records no failed assertion."
             }
             $rowErrors=@(Get-Field $matchedRows[0] 'errors')
-            if(@($rowErrors|Where-Object{[string]$_-clike ('*'+$failingAssertion+'*')}).Count-lt1){
+            if(-not (Test-KmcLiteralAssertion $failingAssertion $rowErrors)){
                 throw "Chunk 6A entry ${id}: row $failingRow does not contain the recorded failing assertion."
             }
             # The reason must attribute the failure to this behavior by naming its id.
@@ -320,7 +327,7 @@ foreach($record in $retained){
         throw "Chunk 6A retained failure ${key}: row $recordFailingRow records no failed assertion."
     }
     $recordRowErrors=@(Get-Field $recordMatched[0] 'errors')
-    if(@($recordRowErrors|Where-Object{[string]$_-clike ('*'+$recordFailingAssertion+'*')}).Count-lt1){
+    if(-not (Test-KmcLiteralAssertion $recordFailingAssertion $recordRowErrors)){
         throw "Chunk 6A retained failure ${key}: row $recordFailingRow does not contain the recorded failing assertion."
     }
     if([string](Get-Field $record 'reason')-cnotlike ('*'+$recordId+'*')){

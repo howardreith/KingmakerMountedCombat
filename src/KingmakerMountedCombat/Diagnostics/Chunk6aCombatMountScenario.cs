@@ -303,7 +303,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // widen the gap. This creates a normal player-owned Horse Move command and writes no
         // transform; it is the same native input every other ground-movement case uses.
         // A bounded walkable point may genuinely not exist in this fixture's geometry, and
-        // FindWalkablePointNearTarget says so by throwing. That is an exact, reportable
+        // The bounded route/footprint selector says so by throwing. That is an exact, reportable
         // obstacle rather than a reason to abort the tick opaquely, so the refusal is
         // returned as a message the caller turns into a named row failure.
         private UnitMoveTo Chunk6aSendHorseAway(
@@ -314,8 +314,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 SelectionManager.Instance.SelectUnit(horse.View, true, true, false);
-                destination = FindWalkablePointNearTarget(
-                    rider.Position, horse.Position, rider.DistanceTo(horse) + extraMeters);
+                destination = FindChunk6aGroundDestination(extraMeters);
             }
             catch (Exception exception)
             {

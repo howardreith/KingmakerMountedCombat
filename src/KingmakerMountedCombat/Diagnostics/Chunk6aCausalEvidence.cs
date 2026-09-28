@@ -165,7 +165,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (chunk6aSeparationCommand == null)
                     {
                         string refusal;
+                        chunk6aPath = new NativeCommandPathProbe(horse);
                         chunk6aSeparationCommand = Chunk6aSendHorseAway(4f, out chunk6aSeparationDestination, out refusal);
+                        if (chunk6aSeparationCommand != null) chunk6aPath.Bind(chunk6aSeparationCommand);
                         if (chunk6aSeparationCommand == null)
                         {
                             FailCurrent("CM02-approach-arrival", "Pre-encounter separation failed: " + refusal);
@@ -173,16 +175,19 @@ namespace KingmakerMountedCombat.Diagnostics
                         }
                         return;
                     }
+                    observations["chunk6aSeparationPath"] = chunk6aPath.Capture();
                     if (!chunk6aSeparationCommand.IsFinished) return;
+                    var setupPath = chunk6aPath.Capture(); chunk6aPath.Dispose(); chunk6aPath = null;
                     var separation = new JObject
                     {
+                        ["path"] = setupPath,
                         ["command"] = CaptureOrdinaryCommand(chunk6aSeparationCommand),
                         ["destination"] = CapturePosition(chunk6aSeparationDestination),
                         ["geometry"] = CaptureChunk6aGeometry("pre-encounter-separation-terminal"),
                         ["movement"] = NativeGroundMovementObservation.Capture(horse, chunk6aSeparationCommand)
                     };
                     observations["chunk6aPreEncounterSeparation"] = separation;
-                    if (chunk6aSeparationCommand.Result != UnitCommand.ResultType.Success)
+                    if (chunk6aSeparationCommand.Result != UnitCommand.ResultType.Success || !(bool)setupPath["complete"])
                     {
                         FailCurrent("CM02-approach-arrival", "Pre-encounter native separation did not succeed: " + separation.ToString(Formatting.None));
                         BeginCleanup(); return;
