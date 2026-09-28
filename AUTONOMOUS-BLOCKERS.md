@@ -1,3 +1,11 @@
+## 2026-09-28T01:48:01.223Z - preview.120 interruption repair
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserved published parent aba6b3bf1ae15a678397ee58ee51ca07d8bd3f57. Preview119 proof and five native runs are retained exactly; never restart its completed proof. Its ledger is8 PASS /1 FAIL /78 unqualified with ten retained mandatory failures. CM02-obstruction directly observed a native interruption leaving the exact unacted Mount pending. Source120 fixes only the native handler's UnitMoveTo-only accessor gap by retiring the exact captured Mount shell and calling native Interrupt. No resource writes. Focused build/source113/0, command ownership24/0, assembly629/0, wrapper1/0 PASS; Unity execution still required. Source120 has0/87 native qualification.
+
+Exact payloads, failed assertion, cause and restoration records: [Chunk6A report](docs/CHUNK6A-COMBAT-MOUNT.md), [history](docs/chunk6a-evidence-history.json), and lab analysis-cache/chunk6a-causal/ACTIVE.json. Next complete offline umbrella, guarded publication, new immutable120/suite/fresh proof, then positive, isolatedRT/TB, geometry, obstruction, fullRT/freshTB and remaining87. No6B before all87 pass one frozen candidate. Mission remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING. No active runtime/proof; Kingmaker closed, actual Steam guardPASS. No merge/release/tag/PR/permanent installation/HUMAN PLAY inference.
+
+---
+
 ## 2026-09-27T23:57:09.604Z - preview.119 path observation and fixture repair
 
 IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core, published parent4322f7f89a84027a80320ab1d53411468a62e60a preserved. Preview118 completed its unchanged purity proof (exit0, raw log SHA2566561d40dde73bead1a9e8ef292a0a312a13d1459fbdb5cf9c14d8201c5114933); never rerun it. Candidate package1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991, DLL39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a/MVID44696e8f-fa25-4ee3-a77e-d682a094874a, suite20260927-chunk6a-obstruction-a/SHA2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89.

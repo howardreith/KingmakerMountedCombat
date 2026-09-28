@@ -888,6 +888,20 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($filteredMoveGetter.Count-eq1 -and $filteredMoveGetter[0] -is [Reflection.MethodInfo] -and
         (Test-MethodIlContainsToken $filteredMoveGetter[0] 0x0600275E)) `
         'UnitCommands.Move filters a finished raw Move slot and cannot prove exact lifecycle ownership'
+    $mountInterrupted=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x0600184F)
+    $nativeInterrupt=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' 0x060027AC)
+    Assert-Contract ($mountInterrupted.Count-eq1 -and $mountInterrupted[0].Name-ceq'OnMovementInterrupted' -and
+        $mountInterrupted[0].ReturnType.FullName-ceq'System.Void' -and $mountInterrupted[0].GetParameters().Count-eq1 -and
+        $mountInterrupted[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Vector3' -and
+        (Test-MethodIlContainsToken $mountInterrupted[0] 0x0600269F) -and
+        (Test-MethodIlContainsToken $mountInterrupted[0] 0x060027AC) -and
+        $filteredMoveGetter[0].ReturnType.FullName-ceq'Kingmaker.UnitLogic.Commands.UnitMoveTo') `
+        'native movement interruption addresses only UnitMoveTo and misses a Move-slot UnitUseAbility'
+    Assert-Contract ($nativeInterrupt.Count-eq1 -and
+        (Test-MethodIlContainsToken $nativeInterrupt[0] 0x060027B2) -and
+        -not (Test-MethodIlContainsToken $nativeInterrupt[0] 0x06009120) -and
+        -not (Test-MethodIlContainsToken $nativeInterrupt[0] 0x0600838F)) `
+        'native Interrupt owns the synchronous terminal callback without native action-cost calls'
     $combatJoinTickUnit=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009361)
     $combatShouldEngage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009362)
     Assert-Contract ($combatJoinTickUnit.Count-eq1 -and $combatJoinTickUnit[0] -is [Reflection.MethodInfo] -and

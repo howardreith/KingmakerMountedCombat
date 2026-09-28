@@ -260,6 +260,11 @@ public static class KmcNativePatchProbe {
      throw new InvalidOperationException("Native physical movement observation contract changed.");
     Console.WriteLine("PASS native movement observation signature "+original.Name);
    }
+   var interruptedTarget=native.ManifestModule.ResolveMethod(0x0600184F);
+   var interruptedBefore=Activator.CreateInstance(harmonyMethod,new object[]{hooks.GetMethod("NativeMountMovementInterruptedPrefix",causalFlags)});
+   var interruptedAfter=Activator.CreateInstance(harmonyMethod,new object[]{hooks.GetMethod("NativeMountMovementInterruptedPostfix",causalFlags)});
+   patch.Invoke(harmony,new object[]{interruptedTarget,interruptedBefore,interruptedAfter,null});
+   Console.WriteLine("MOUNT INTERRUPTION WRAPPER PASS=1 FAIL=0; exact native boundary, callback execution remains a Unity gate");
    var pathHooks=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeCommandPathProbe+Hooks",true);
    var pathTokens=new[]{0x060018A3,0x060018B9,0x0600184F,0x06001850,0x060027B2,0x060027B2};
    var pathNames=new[]{"PathTo","OnPathComplete","OnMovementInterrupted","OnPathNotFound","OnEnded","OnEnded"};

@@ -46,7 +46,7 @@ namespace KingmakerMountedCombat.Integration
         public int RiderPrimaryRelationshipEndCount { get; set; }
     }
 
-    internal sealed class NativeMountedControlService : IDisposable,
+    internal sealed partial class NativeMountedControlService : IDisposable,
         IClickActionHandler,
         IAbilityTargetSelectionUIHandler
     {
@@ -225,7 +225,8 @@ namespace KingmakerMountedCombat.Integration
             ProcessBindingRefused = 5,
             DeliverResolved = 6,
             DeliverRefused = 7,
-            DeliverConsumed = 8
+            DeliverConsumed = 8,
+            ApproachInterrupted = 9
         }
 
         internal sealed class NativeShellLifecycleRecord
