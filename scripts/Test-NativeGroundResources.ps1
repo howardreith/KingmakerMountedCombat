@@ -42,9 +42,36 @@ foreach($mover in @('rider','mount')){
  Reject-Ground {param($x)$x.events[3].boundary='actor-cost-after'}
  Reject-Ground {param($x)$x.events[4].boundary='clear-before'}
  Reject-Ground {param($x)$x.events[4].boundary='opportunity-before'}
- Reject-Ground {param($x)$x.events[4].gameDeltaTime=0.2}
+ Reject-Ground {param($x)$x.events[4].detail='OtherController'}
  Reject-Ground {param($x)$x.events[4].sequence++}
  Reject-Ground {param($x)$x.events[4].gameTicks=$x.after.gameTicks+1}
- Reject-Ground {param($x)$x.events[5].state.reactions=0}
+ Reject-Ground {param($x)$x.events[5].state.reactions++}
+ Reject-Ground {param($x)$x.cooldownEligibilityContract='guessed-skip'}
+ Reject-Ground {param($x)$x.observerHooks=@($x.observerHooks|Where-Object token -CNE '06009343')}
+ foreach($field in @('method','prefix','postfix','moduleMvid')){Reject-Ground {param($x)@($x.observerHooks|Where-Object token -CEQ '06009343')[0].$field='wrong'}}
+ foreach($i in 4..7){
+  foreach($field in @('standard','move','swift','reactions','reactionCooldown','initiativeCooldown','initiativeOrder','reactionsPerRound')){Reject-Ground {param($x)$x.events[$i].state.$field++}}
+  Reject-Ground {param($x)$x.events[$i].callbackObject=0}
+  Reject-Ground {param($x)$x.events[$i].callbackObject++}
+  Reject-Ground {param($x)$x.events[$i].command=333}
+  Reject-Ground {param($x)$x.events[$i].state.inCombat=$true}
+  Reject-Ground {param($x)$x.events[$i].simulatingClick=$true}
+  Reject-Ground {param($x)$x.events[$i].frame=$x.after.frame+1}
+  Reject-Ground {param($x)$x.events[$i].boundary='cooldown-tick-before'}
+ }
+ Reject-Ground {param($x)$x.events[5].detail='eligible=True'}
+ Reject-Ground {param($x)$x.events[7].detail='eligible=True'}
+ # Missing callback coverage remains a failure even with all action and reaction endpoints intact.
+ Reject-Ground {param($x)$x.events=@($x.events|Select-Object -First 4);$x.after.allocationSequence=$x.before.allocationSequence+4}
+ Reject-Ground {param($x)$x.events=@($x.events|Select-Object -First 6);$x.after.allocationSequence=$x.before.allocationSequence+6}
+
 }
+# The original126 failed runtime window remains unqualified: no skip callback can
+# be inferred or invented from its unchanged endpoints and successful ground arrival.
+$failedPath=Join-Path $repo '../../runtime-evidence/c6a-allocation-a-tb/phase3d-horse-scenario-evidence.json'
+if((Get-FileHash -LiteralPath $failedPath).Hash.ToLowerInvariant()-cne'49ad0675647749ddd7dfc464b20c39a76100c85872a0048999b76f540214f492'){throw 'Original126 failed artifact changed'}
+$failed=Get-Content -LiteralPath $failedPath -Raw|ConvertFrom-Json
+$window=$failed.observations.chunk6aPreCombatPositioning.resourceWindow
+if($window.pass-ne$false-or$window.failure-cne'Passive native resources: elapsed window has no native tick observation for an actor'){throw 'Original126 failure identity changed'}
+Check-Ground $window $false
 'OUTSIDE-COMBAT GROUND RESOURCES PASS='+$script:checks+' FAIL=0; synthetic producer/external only'

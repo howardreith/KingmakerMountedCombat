@@ -63,6 +63,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             long groundCommand = 0; string groundActor = null;
             if (ground) {
+                Require(Text(p["cooldownEligibilityContract"]) == "observed-native-outside-combat-skip", "ground native eligibility contract missing");
+                var eligibilityHooks = p["observerHooks"].Where(h => Text(h["token"]) == "06009343").ToArray();
+                Require(eligibilityHooks.Length == 1 && Text(eligibilityHooks[0]["moduleMvid"]) == "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7" &&
+                    Text(eligibilityHooks[0]["method"]) == "Kingmaker.Controllers.Combat.BaseUnitCombatController.ShouldTickOnUnit" &&
+                    Text(eligibilityHooks[0]["prefix"]) == "CooldownEligibilityBefore" && Text(eligibilityHooks[0]["postfix"]) == "CooldownEligibilityAfter", "ground eligibility hook differs");
                 groundCommand = Int(p["groundCommand"]?["commandObject"]); groundActor = Text(p["groundCommand"]?["casterId"]);
                 Require(!tb && groundCommand != 0 && (groundActor == rider || groundActor == mount), "ground input identity/mode differs");
                 foreach (var role in new[] { "rider", "mount" }) foreach (var s in new[] { before[role], after[role] })
@@ -88,6 +93,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 current.Add(pair[1], state); ticks.Add(pair[1], 0);
             }
             Require(current[rider].Object != current[mount].Object, "pair objects alias");
+            var eligibility = new Dictionary<string, JToken>(); var skips = new Dictionary<string, int> { { rider, 0 }, { mount, 0 } };
+            long cooldownController = 0;
             var sequence = start; var time = startTicks;
             foreach (var e in p["events"]) {
                 Require(Int(e["sequence"]) == ++sequence && Int(e["gameTicks"]) >= time && Int(e["gameTicks"]) <= endTicks, "event order/gap differs");
@@ -98,6 +105,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 var groundBoundary = ground && (boundary == "admission-before" || boundary == "admission-after" || boundary == "cost-before" || boundary == "cost-after");
                 Require(groundBoundary || !new[] { "cost", "prepare", "clear", "opportunity", "admission", "movement", "turn-end" }.Any(boundary.Contains), "native cost/grant/reaction/movement or allocation change occurred");
                 var actual = Resources.Read(e["state"]);
+                if (ground && boundary.StartsWith("cooldown-tick-", StringComparison.Ordinal))
+                    throw new InvalidOperationException("Passive native resources: outside-combat ground actor unexpectedly received a native cooldown tick");
+                if (ground && (boundary == "cooldown-eligibility-before" || boundary == "cooldown-eligibility-after")) {
+                    var callback = Int(e["callbackObject"]);
+                    Require(callback != 0 && (cooldownController == 0 || cooldownController == callback) &&
+                        !Bool(e["state"]["inCombat"]) && !Bool(e["simulatingClick"]) && Int(e["command"]) == 0 &&
+                        Int(e["frame"]) >= Int(before["frame"]) && Int(e["frame"]) <= Int(after["frame"]), "ground eligibility context differs");
+                    cooldownController = callback;
+                    Require(current[actor].Matches(actual), "resource changed at native eligibility boundary");
+                    if (boundary == "cooldown-eligibility-before") {
+                        Require(!eligibility.ContainsKey(actor) && Text(e["detail"]) == "Kingmaker.Controllers.Combat.UnitCombatCooldownsController", "ground eligibility entry differs");
+                        eligibility.Add(actor, e);
+                    } else {
+                        Require(eligibility.ContainsKey(actor) && Int(eligibility[actor]["callbackObject"]) == callback &&
+                            Int(eligibility[actor]["frame"]) == Int(e["frame"]) && Int(eligibility[actor]["gameTicks"]) == Int(e["gameTicks"]) && Text(e["detail"]) == "eligible=False", "ground native skip result missing");
+                        eligibility.Remove(actor); skips[actor]++;
+                    }
+                    continue;
+                }
+                Require(ground || !boundary.StartsWith("cooldown-eligibility-", StringComparison.Ordinal), "ground eligibility leaked into passive window");
                 if (boundary == "cooldown-tick-after") {
                     Require(pending.ContainsKey(actor) && pending[actor].Matches(actual), "native cooldown effect differs");
                     pending.Remove(actor); current[actor] = actual; ticks[actor]++; continue;
@@ -108,10 +135,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     Require(!pending.ContainsKey(actor), "nested cooldown tick"); pending.Add(actor, actual.Tick(e));
                 }
             }
-            Require(sequence == end && pending.Count == 0, "trace did not close");
+            Require(sequence == end && pending.Count == 0 && eligibility.Count == 0, "trace did not close");
             foreach (var pair in new[] { new[] { "rider", rider }, new[] { "mount", mount } }) {
                 Require(current[pair[1]].Matches(Resources.Read(after[pair[0]])), "terminal resources unexplained");
-                Require(endTicks == startTicks || ticks[pair[1]] > 0, "elapsed window has no native tick observation for an actor");
+                Require(endTicks == startTicks || (ground ? skips[pair[1]] > 0 : ticks[pair[1]] > 0),
+                    ground ? "elapsed ground window has no exact native skip observation for an actor" : "elapsed window has no native tick observation for an actor");
             }
         }
     }

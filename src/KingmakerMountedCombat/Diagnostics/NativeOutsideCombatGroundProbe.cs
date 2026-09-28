@@ -15,7 +15,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private readonly NativeActorAllocationTrace trace;
         private readonly UnitEntityData rider, mount, mover;
-        private readonly bool priorObservation;
+        private readonly bool priorObservation, priorEligibility;
         private readonly JObject before;
         private readonly int start;
         private UnitMoveTo command;
@@ -32,9 +32,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.IsInCombat || mount.IsInCombat || Game.Instance.Player.IsInCombat ||
                 trace.GrantCount(rider) != 0 || trace.GrantCount(mount) != 0)
                 throw new InvalidOperationException("Ground observation requires the exact fresh pair outside combat.");
-            priorObservation = trace.ObserveReactionResources;
+            priorObservation = trace.ObserveReactionResources; priorEligibility = trace.ObserveGroundCooldownEligibility;
             start = trace.EventCount;
-            trace.ObserveReactionResources = true;
+            trace.ObserveReactionResources = true; trace.ObserveGroundCooldownEligibility = true;
             try { before = Snapshot(); } catch { Dispose(); throw; }
         }
         private JObject Snapshot() => new JObject {
@@ -56,6 +56,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JObject { ["contract"] = "one-native-ground-command-outside-combat-with-observed-time-only",
                 ["riderId"] = rider.UniqueId, ["mountId"] = mount.UniqueId, ["turnBased"] = false,
                 ["traceComplete"] = trace.Complete, ["observerHooks"] = trace.ObserverHooks,
+                ["cooldownEligibilityContract"] = "observed-native-outside-combat-skip",
                 ["before"] = before.DeepClone(), ["after"] = after,
                 ["groundCommand"] = new JObject { ["commandObject"] = command == null ? 0 : RuntimeHelpers.GetHashCode(command),
                     ["casterId"] = command?.Executor?.UniqueId, ["type"] = command?.GetType().FullName,
@@ -77,7 +78,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return; disposed = true;
-            trace.ObserveReactionResources = priorObservation;
+            trace.ObserveReactionResources = priorObservation; trace.ObserveGroundCooldownEligibility = priorEligibility;
         }
     }
 }

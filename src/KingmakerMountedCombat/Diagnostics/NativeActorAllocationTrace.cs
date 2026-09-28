@@ -50,6 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int dropped;
         private int observationErrors;
         internal bool ObserveReactionResources { get; set; }
+        internal bool ObserveGroundCooldownEligibility { get; set; }
         internal event Action<string, UnitEntityData, UnitCommand> BoundaryObserved;
         internal int EventCount => events.Count;
         internal JArray EventsSince(int offset) => new JArray(events.Skip(offset).Select(item => item.DeepClone()));
@@ -68,6 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(TurnController), 0x06000C3C, "PrepareBefore", "PrepareAfter");
                 Patch(typeof(UnitCombatState.Cooldowns), 0x0600C3BE, "ClearBefore", "ClearAfter");
                 Patch(typeof(UnitCombatCooldownsController), 0x0600934A, "CooldownTickBefore", "CooldownTickAfter");
+                Patch(typeof(BaseUnitCombatController), 0x06009343, "CooldownEligibilityBefore", "CooldownEligibilityAfter");
                 Patch(typeof(UnitCombatState), 0x060093A1, "OpportunityBefore", "OpportunityAfter");
                 Patch(typeof(UnitCombatState), 0x060093A4, "CombatClearBefore", "CombatClearAfter");
                 Patch(typeof(UnitCombatState), 0x0600939D, "RoundBefore", "RoundAfter");
@@ -234,6 +236,17 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool ObservesReactionActor(UnitEntityData actor) => ObserveReactionResources && (actor == rider || actor == mount);
         private static partial class Hooks
         {
+            internal static void CooldownEligibilityBefore(BaseUnitCombatController __instance, UnitEntityData unit, out bool __state)
+            {
+                var p = active;
+                __state = p != null && p.ObserveGroundCooldownEligibility && p.ObservesReactionActor(unit) &&
+                    __instance != null && __instance.GetType() == typeof(UnitCombatCooldownsController);
+                if (__state) p.Record("cooldown-eligibility-before", unit, detail: __instance.GetType().FullName, callback: __instance);
+            }
+            internal static void CooldownEligibilityAfter(BaseUnitCombatController __instance, UnitEntityData unit, bool __state, bool __result)
+            {
+                if (__state) active?.Record("cooldown-eligibility-after", unit, detail: "eligible=" + __result, callback: __instance);
+            }
             internal static void CooldownTickBefore(UnitEntityData unit)
             { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-before", unit); }
             internal static void CooldownTickAfter(UnitEntityData unit)

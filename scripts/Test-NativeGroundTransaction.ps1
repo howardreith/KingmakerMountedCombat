@@ -9,7 +9,7 @@ $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $PSScriptRoot 'runtime/NativePassiveResourceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'runtime/NativePreCombatGroundEvidence.ps1')
 function New-GroundTransaction([bool]$Joint=$false,$Plan=$null,$Resources=$null,[int]$CommandId=333){
- if($null-eq$Plan){$Plan=New-PlanFixture $Joint};$mover=$Plan.actorId;if($null-eq$Resources){$Resources=New-GroundResources $mover};$Resources.groundCommand.commandObject=$CommandId;foreach($e in $Resources.events){if($null-ne$e.PSObject.Properties["command"]){$e.command=$CommandId}}
+ if($null-eq$Plan){$Plan=New-PlanFixture $Joint};$mover=$Plan.actorId;if($null-eq$Resources){$Resources=New-GroundResources $mover};$Resources.groundCommand.commandObject=$CommandId;foreach($e in $Resources.events){if($e.boundary-cmatch 'admission|cost'){$e.command=$CommandId}}
  foreach($pair in @(@('type','Kingmaker.UnitLogic.Commands.UnitMoveTo'),@('createdByPlayer',$true),@('finished',$true),@('nativeResult','Success'))){$resources.groundCommand|Add-Member $pair[0] $pair[1]}
  $destination=Copy-GroundPlan $plan.candidates[$plan.selectedIndex].point
  $geometry=[pscustomobject]@{riderPosition=$plan.origin;horsePosition=$plan.center};$contract='native-ground-positioning-before-fresh-encounter';$role='riderPosition'
