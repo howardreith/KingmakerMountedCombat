@@ -39,6 +39,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 routeResidual <= MountedCombatSpatialPolicy.DiagnosticPlacementTolerance && footprintResidual < 0.001;
         }
 
+        internal static bool IsPreCombatPosition(double requestedSeparation, double separation, double travel,
+            double routeResidual, double footprintResidual, bool occupied)
+        {
+            return requestedSeparation >= 2 && requestedSeparation <= 2.65 && travel <= 4 &&
+                IsClear(requestedSeparation, separation, travel, routeResidual, footprintResidual, occupied);
+        }
+
         internal static bool IsClear(double requestedSeparation, double separation, double travel,
             double routeResidual, double footprintResidual, bool occupied)
         {

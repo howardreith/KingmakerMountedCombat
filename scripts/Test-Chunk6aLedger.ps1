@@ -118,6 +118,7 @@ foreach($entry in $ledger.entries){
                 $binding.evidenceSha256 -cne $entry.evidenceSha256 -or
                 (ConvertTo-Json @($binding.rows) -Compress) -cne (ConvertTo-Json @($entry.rows) -Compress)) { throw 'Primary evidence binding differs from the claimed entry.' }
             Assert-KmcSupportingRun $payload $binding $LabRoot
+            Assert-KmcIsolatedQualification $id $binding $LabRoot
             if($id -cin @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')) {
                 $roles=@(Get-KmcChunk6aCampaignRoles $false|Where-Object name -CLike 'compensation-*')
                 Assert-KmcCompositeRuns $payload (Get-Field $entry 'supportingRuns') $roles $LabRoot

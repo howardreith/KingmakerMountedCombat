@@ -82,6 +82,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private RuntimeCombatControlScenarioEngine combatControlEngine;
         private RuntimeCombatScenarioEngine combatEngine;
         private HorseCompanionUnmountedScenarioEngine horseCompanionEngine;
+        private Chunk6aMammothScenarioEngine mammothEngine;
         private readonly List<string> scenarioEngineErrors = new List<string>();
         private readonly BoundaryFailureDrain saveBackedFailureDrain = new BoundaryFailureDrain();
         private IReadOnlyList<string> saveBackedFailureErrors;
@@ -337,6 +338,7 @@ namespace KingmakerMountedCombat.Diagnostics
             bool stockEligible)
         {
             active?.horseCompanionEngine?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);
+            active?.mammothEngine?.ObserveNativeTurnBasedCommandEligibility(command, stockEligible);
         }
 
         internal static bool TryReportBootstrapFailure(IModLogger logger, string loadedModId, Exception exception)
@@ -664,7 +666,23 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
-            if (HorseCompanionUnmountedScenarioEngine.SupportsScenario(request.Scenario))
+            if (Chunk6aMammothScenarioEngine.SupportsScenario(request.Scenario))
+            {
+                if (mammothEngine == null)
+                {
+                    mammothEngine = new Chunk6aMammothScenarioEngine(request, relationship, playerAction, combat, nativeControls, horseCompanion, diagnosticSettings, logger);
+                    mammothEngine.Start();
+                }
+                mammothEngine.Update();
+                if (!mammothEngine.IsCompleted) return;
+                subscenarioResults = mammothEngine.Results;
+                CollectEngineErrors(mammothEngine.Errors, "Native Mammoth");
+                try { mammothEngine.Dispose(); }
+                catch (Exception exception) { scenarioEngineErrors.Add("Native Mammoth engine disposal failed: " + exception); }
+                CollectEngineErrors(mammothEngine.Errors, "Native Mammoth");
+                mammothEngine = null;
+            }
+            else if (HorseCompanionUnmountedScenarioEngine.SupportsScenario(request.Scenario))
             {
                 if (horseCompanionEngine == null)
                 {
@@ -1052,6 +1070,8 @@ namespace KingmakerMountedCombat.Diagnostics
             movementEngine = null;
             boundaryEngine?.Dispose();
             boundaryEngine = null;
+            mammothEngine?.Dispose();
+            mammothEngine = null;
             horseCompanionEngine?.Dispose();
             horseCompanionEngine = null;
             saveAuthorizationLease?.Dispose();
@@ -1427,6 +1447,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void FinalizeActiveScenarioEngines(List<string> finalErrors)
         {
+            if (mammothEngine != null)
+            {
+                var engine = mammothEngine; mammothEngine = null;
+                if (!engine.IsCompleted) finalErrors.Add("Native Mammoth engine interrupted before its terminal result.");
+                try { engine.Dispose(); }
+                catch (Exception exception) { finalErrors.Add("Native Mammoth engine disposal failed: " + exception); }
+                if ((subscenarioResults == null || subscenarioResults.Count == 0) && engine.Results.Count != 0) subscenarioResults = engine.Results;
+                CollectEngineErrors(engine.Errors, "Native Mammoth");
+            }
             if (horseCompanionEngine != null)
             {
                 var engine = horseCompanionEngine;
@@ -1741,6 +1770,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 request.EvidenceRoot,
                 Phase3dHorseScenarioTranche.EvidenceFileName,
                 Phase3dHorseScenarioTranche.EvidenceKind);
+            AddRuntimeArtifactIfPresent(artifacts, request.EvidenceRoot,
+                Chunk6aMammothScenarioEngine.EvidenceFileName, Chunk6aMammothScenarioEngine.EvidenceKind);
 
             var visualRoot = Path.Combine(request.EvidenceRoot, "movement-visuals");
             if (Directory.Exists(visualRoot))

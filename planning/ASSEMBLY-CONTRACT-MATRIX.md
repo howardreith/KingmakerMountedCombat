@@ -406,3 +406,20 @@ Pinned Kingmaker Assembly-CSharp SHA256 3b6450ffec440e296e586f71c711b195aed144b2
 Normal UI IgnoreClick validates current prediction/point. The diagnostic selected-ability path currently calls SetAbility then OnClick without hover/prediction settling. Do not clear, force or write a path based on this hypothesis. Source123 observes first; retain122 failure and unchanged30s deadline.
 
 Positive TB path evidence requires exact native getter and consumed or requested path callbacks for the one admitted unacted Mount. Capture before click, bind the actual Move command, retain failure evidence before cleanup, then unpatch. Preparation, reactions and the exactly-once acted Move cost keep their existing stricter event contracts.
+
+## 2026-09-28T10:09:32.703Z — isolated input and TB fixture seams
+
+Pinned Kingmaker Assembly-CSharp SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb, MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. Exact local metadata, bounded lab-only decompilation and desktop Harmony12 construction support the following diagnostic seams; Unity execution remains required.
+
+| Seam | Pinned token | Observation / constraint |
+|---|---|---|
+| SelectionManagerBase.Stop | 060000B9 | One real input around exact pending command; no diagnostic Interrupt substitution. |
+| UnitCommand.OnEnded | 060027B2 | Exact command terminal inside Stop call. |
+| ActionBarGroupSlot.OnClick / ActionBarSlot.OnClick | 060044BA / 06004504 | Actual live registered slot, exact owner and nested callbacks. |
+| MechanicActionBarSlotAbility.OnClick | 06002F5D | Same slot ability and rider. |
+| ClickWithSelectedAbilityHandler.SetAbility / OnClick | 060093F8 / 060093F6 | Native slot activates ability once; exact target click admits one command. |
+| FreePlaceSelector.PlaceSpawnPlaces(int,float,Vector3) | 06001785 | Existing Dismount placement; relaxation clamps points to native navigation with bounded iterations. Read-only investigation, no production change. |
+| FreePlaceSelector.GetRelaxedPosition(int,bool) | 06001786 | Existing Dismount obtains relaxed XZ and optional physics ground projection; does not prove the later rider footprint clear. |
+| FreePlaceSelector.RelaxPoints overloads | 06001787 / 06001788 | Native placement depends on live actor obstacles; origin navigation must be observed before attributing TB fixture failures. |
+
+New TB staging uses the existing pinned native ground input/path observation seams before encounter creation. The later0.6m Acting-step annulus, reach and native costs are unchanged. No proprietary decompiled text is committed.

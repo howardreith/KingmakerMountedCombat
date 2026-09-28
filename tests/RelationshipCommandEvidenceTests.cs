@@ -19,6 +19,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native Move callbacks exclude Standard Swift and exploration costs", CallbackOwnership);
             runner.Run("native TB setup proposals preserve measured separation at arbitrary orientation", ActingFixture);
             runner.Run("native ground fixtures require the full footprint and reachable endpoint", GroundFixture);
+            runner.Run("pre-combat positioning bounds cannot relax the later Acting step", PreCombatPositioning);
         }
         private static RelationshipCommandIdentity Make(object command, object process, object context,
             string control = "shell:1", string caster = "rider", string target = "horse", long generation = 4,
@@ -119,6 +120,17 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(!NativeGroundFixturePolicy.IsActingStep(6.5, bad[0], bad[1], bad[2], bad[3], false),
                     "projection, route or footprint failure remains refused");
             TestRunner.True(!NativeGroundFixturePolicy.IsActingStep(6.5, 6.55, 0.6, 0, 0, true), "occupied point refused");
+        }
+
+        private static void PreCombatPositioning()
+        {
+            TestRunner.True(NativeGroundFixturePolicy.IsPreCombatPosition(2.3, 2.3, 2, 0, 0, false), "clear bounded staging route");
+            foreach (var bad in new[] { new[] { 1.9, 2.0, 0.0, 0.0 }, new[] { 2.7, 2.0, 0.0, 0.0 },
+                new[] { 2.3, 4.01, 0.0, 0.0 }, new[] { 2.3, 0.1, 0.0, 0.0 },
+                new[] { 2.3, 2.0, 0.01, 0.0 }, new[] { 2.3, 2.0, 0.0, 0.01 }, new[] { 2.3, 2.0, double.NaN, 0.0 } })
+                TestRunner.True(!NativeGroundFixturePolicy.IsPreCombatPosition(bad[0], bad[0], bad[1], bad[2], bad[3], false), "invalid staging geometry refused");
+            TestRunner.True(!NativeGroundFixturePolicy.IsPreCombatPosition(2.3, 2.3, 2, 0, 0, true), "occupied staging destination refused");
+            TestRunner.True(!NativeGroundFixturePolicy.IsActingStep(2.3, 2.3, 2, 0, 0, false), "staging movement cannot substitute for bounded Acting step");
         }
 
         private static void GroundFixture()

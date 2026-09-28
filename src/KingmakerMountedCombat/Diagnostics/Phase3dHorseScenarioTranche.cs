@@ -436,7 +436,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    if (!CaptureChunk6aObstructionDeadline())
+                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aObstructionDeadline())
                         FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
@@ -6022,6 +6022,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            try { CleanupChunk6aHotbar(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A hotbar input/UI lease", exception); }
             // The Chunk 6A diagnostic adoption fault is scenario-owned and must be
             // disarmed on every abort path so it can never outlive its own row.
             try
@@ -6032,6 +6034,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { errors.Add("Chunk 6A approach path observer cleanup: " + exception.Message); }
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
+            try { CleanupChunk6aStopInput(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A Stop input observer", exception); }
             try { CleanupChunk6aObstruction(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A obstruction fixture", exception); }
             try { Chunk6aDisposeAdoptionFault(); }

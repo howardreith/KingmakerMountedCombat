@@ -35,6 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 ["contract"] = "bounded-pair-relative-native-ground-search",
                 ["origin"] = CapturePosition(origin), ["target"] = CapturePosition(targetPosition),
+                ["originNavigation"] = CaptureChunk6aOriginNavigation(),
                 ["initialSeparation"] = separation, ["requestedTravel"] = 0.6f,
                 ["travelTolerance"] = 0.15f, ["maximumSeparationIncrease"] = 0.15f,
                 ["routeTolerance"] = MountedCombatSpatialPolicy.DiagnosticPlacementTolerance,
