@@ -264,3 +264,7 @@ IN PROGRESS. Frozen123 has6/87 mandatory PASS, two retained TB setup FAILs and16
 IN PROGRESS. Frozen124 historical12PASS/3FAIL/72unqualified, nineteen original failures retained. Exact stale TB preview, native CreatedByPlayer semantic mismatch and Mammoth legacy-overlay registration failures are diagnosed in CURRENT.md and the bound checkpoint. All eleven transactions restored. Source125 zero native qualification; no resource/path/position/deadline writes or threshold changes. Full gates and new immutable candidate/proof required.
 
 2026-09-28T12:51:01.359Z Source125 adds isolated chunk6a-refused-wrong-creature-target, chunk6a-refused-mount-selected, chunk6a-refused-multiple-selection and diagnostic chunk6a-refused-foreign-selection. Each follows independent exploration windows/fresh RT allocation, contains one refused native click and no positive combat Mount/compensation; all native evidence TODO. Foreign selection cannot qualify CM06-unrelated-actor.
+
+## 2026-09-28T16:38:34.003Z — bounded ground fixture source checkpoint
+
+Chunk6A TB pre-combat positioning now has a bounded joint-plan fallback and two separately measured ordinary native ground windows. Offline contracts PASS; native126 remains TODO. Original125 HorseTB failure remains FAIL and unqualified. No geometry, arrival, deadline, resource or restoration threshold changed. See docs/CHUNK6A-COMBAT-MOUNT.md for exact source/build/gates.

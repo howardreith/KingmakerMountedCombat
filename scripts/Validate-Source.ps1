@@ -977,7 +977,9 @@ Assert-Kmc ($causalProbeText -match '(?s)if \(Kingmaker.Controllers.Clicks.Point
 $positioningText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aPreCombatPositioning.cs')
 Assert-Kmc ($positioningText -match 'CaptureChunk6aOriginNavigation' -and
     $positioningText -match 'ClickGroundHandler.MoveSelectedUnitsToPoint' -and
-    $positioningText -match 'NativeGroundFixturePolicy.IsPreCombatPosition' -and
+    (Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativePreCombatGroundPlan.cs')) -match 'NativeGroundFixturePolicy.IsPreCombatPosition' -and
+    $positioningText -match 'NativePreCombatGroundEvidence.AssertTransaction' -and
+    $positioningText -match 'NativeOutsideCombatGroundProbe' -and
     $positioningText -match 'chunk6aPositioningCommand.Result == UnitCommand.ResultType.Success' -and
     $positioningText -notmatch '\.Translocate\(|\.Position\s*=|\.Prepare\(|Cooldown.*=|ForceToEnd' -and
     $chunk6aScenarioText -match 'if \(Chunk6aTurnBased && !TickChunk6aPreCombatPositioning\(\)\) return;' -and

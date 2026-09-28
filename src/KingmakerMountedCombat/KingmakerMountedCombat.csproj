@@ -359,6 +359,10 @@
     <Compile Include="Diagnostics\NativeMountPointerEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aNativePointerScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aTurnSetup.cs" />
+    <Compile Include="Diagnostics\NativePassiveResourceEvidence.cs" />
+    <Compile Include="Diagnostics\NativeOutsideCombatGroundProbe.cs" />
+    <Compile Include="Diagnostics\NativePreCombatGroundPlan.cs" />
+    <Compile Include="Diagnostics\NativePreCombatGroundEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aPreCombatPositioning.cs" />
     <Compile Include="Diagnostics\NativeCommandPathProbe.cs" />
     <Compile Include="Diagnostics\NativeRelationshipUnactedEvidence.cs" />
