@@ -11,7 +11,7 @@ function New-JointFixture {
  $actual=New-PlanSearch rider mount $horse.after.geometry.riderPosition $horse.after.geometry.horsePosition 1.25 $false $false $inventory $null
  $resources=New-GroundResources rider;$resources.before=Copy-GroundPlan $horse.resourceWindow.after;$resources.after=Copy-GroundPlan $resources.before
  $resources.after.frame++;$resources.after.gameTicks+=1000000L;$resources.after.allocationSequence+=8
- foreach($actor in @('rider','mount')){foreach($field in @('standard','move','swift')){$resources.after.$actor.$field=[Math]::Max(0.0,$resources.after.$actor.$field-0.1)}}
+ # Native cooldown eligibility rejects outside-combat actors; all resources stay unchanged.
  $index=0
  foreach($e in $resources.events){
   $e.sequence=$resources.before.allocationSequence+(++$index)

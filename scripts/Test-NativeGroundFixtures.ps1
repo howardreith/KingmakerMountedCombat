@@ -21,11 +21,17 @@ function New-Passive([bool]$Tb=$false,[bool]$Combat=$true,[bool]$Passing=$false,
 function New-GroundResources([string]$Mover){
  $p=New-Passive -Combat $false;$p.contract='one-native-ground-command-outside-combat-with-observed-time-only'
  $p|Add-Member groundCommand ([pscustomobject]@{commandObject=333;casterId=$Mover})
- foreach($role in @('rider','mount')){$p.before.$role.grantSequence=0;$p.after.$role.grantSequence=0};foreach($e in $p.events){$e.state.grantSequence=0;$e.sequence+=4}
- $controls=@();$index=0
+ $p|Add-Member cooldownEligibilityContract 'observed-native-outside-combat-skip'
+ foreach($role in @('rider','mount')){$p.before.$role.grantSequence=0;$p.after.$role=Copy-Passive $p.before.$role}
+ $p.observerHooks+=@([pscustomobject]@{token='06009343';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';method='Kingmaker.Controllers.Combat.BaseUnitCombatController.ShouldTickOnUnit';prefix='CooldownEligibilityBefore';postfix='CooldownEligibilityAfter'})
+ $events=@();$index=0
  foreach($boundary in @('admission-before','admission-after','cost-before','cost-after')){
-  $controls+=@([pscustomobject]@{sequence=11L+$index;frame=$p.before.frame;gameTicks=$p.before.gameTicks;boundary=$boundary;nativeTurnBased=$false;nativePassing=$false;nativeSurprised=$false;gameDeltaTime=0.1;state=(Copy-Passive $p.before.$Mover);command=333;commandActor=$(if($index-eq0){$null}else{$Mover});commandType='Kingmaker.UnitLogic.Commands.UnitMoveTo';actionType='Move';simulatingClick=$false;acted=($index-ge2)})
+  $events+=@([pscustomobject]@{sequence=11L+$index;frame=$p.before.frame;gameTicks=$p.before.gameTicks;boundary=$boundary;nativeTurnBased=$false;nativePassing=$false;nativeSurprised=$false;gameDeltaTime=0.1;state=(Copy-Passive $p.before.$Mover);command=333;commandActor=$(if($index-eq0){$null}else{$Mover});commandType='Kingmaker.UnitLogic.Commands.UnitMoveTo';actionType='Move';simulatingClick=$false;acted=($index-ge2)})
   $index++
  }
- $p.events=@($controls)+@($p.events);$p.after.allocationSequence+=4;$p
+ foreach($role in @('rider','mount')){foreach($phase in @('before','after')){
+  $events+=@([pscustomobject]@{sequence=11L+$index;frame=$p.after.frame;gameTicks=$p.after.gameTicks;boundary=('cooldown-eligibility-'+$phase);nativeTurnBased=$false;nativePassing=$false;nativeSurprised=$false;gameDeltaTime=0.1;state=(Copy-Passive $p.before.$role);command=0;callbackObject=700;simulatingClick=$false;detail=$(if($phase-ceq'before'){'Kingmaker.Controllers.Combat.UnitCombatCooldownsController'}else{'eligible=False'})})
+  $index++
+ }}
+ $p.events=$events;$p.after.allocationSequence=10+$events.Count;$p
 }

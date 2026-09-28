@@ -42,6 +42,9 @@ function Assert-KmcNativePassiveResources($P,[switch]$Ground) {
   if($h.Count -ne 1 -or $h[0].moduleMvid -cne '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Passive required native hook missing'}
  }
  if($Ground){
+  if($P.cooldownEligibilityContract -cne 'observed-native-outside-combat-skip'){throw 'Ground native eligibility contract missing'}
+  $hooks=@($P.observerHooks|Where-Object token -CEQ '06009343')
+  if($hooks.Count-ne1-or$hooks[0].moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-or$hooks[0].method-cne'Kingmaker.Controllers.Combat.BaseUnitCombatController.ShouldTickOnUnit'-or$hooks[0].prefix-cne'CooldownEligibilityBefore'-or$hooks[0].postfix-cne'CooldownEligibilityAfter'){throw 'Ground eligibility hook differs'}
   $command=Int $P.groundCommand.commandObject;$mover=[string]$P.groundCommand.casterId
   if($tb-or$command-eq0-or$mover-cnotin@($P.riderId,$P.mountId)){throw 'Ground input identity/mode differs'}
   foreach($role in @('rider','mount')){foreach($s in @($b.$role,$a.$role)){if((Bool $s.inCombat)-or(Int $s.grantSequence)-ne0){throw 'Ground setup reused an encounter allocation'}}}
@@ -55,11 +58,11 @@ function Assert-KmcNativePassiveResources($P,[switch]$Ground) {
  }
  $sequence=Int $b.allocationSequence;$end=Int $a.allocationSequence;$time=Int $b.gameTicks;$endTime=Int $a.gameTicks
  if($sequence -lt 0 -or $end -lt $sequence -or $time -lt 0 -or $endTime -lt $time -or (Int $a.frame) -lt (Int $b.frame)){throw 'Passive window order differs'}
- $current=@{};$pending=@{};$ticks=@{}
+ $current=@{};$pending=@{};$ticks=@{};$eligibility=@{};$skips=@{};$cooldownController=0L
  foreach($pair in @(@('rider',$P.riderId),@('mount',$P.mountId))){
   $s=$b.($pair[0]);Equal $s $s
   if($s.actor -cne $pair[1]){throw 'Passive baseline actor differs'}
-  $current[$pair[1]]=$s;$ticks[$pair[1]]=0
+  $current[$pair[1]]=$s;$ticks[$pair[1]]=0;$skips[$pair[1]]=0
  }
  if($current[$P.riderId].actorObject -eq $current[$P.mountId].actorObject){throw 'Passive native pair objects alias'}
  foreach($e in $P.events){
@@ -71,6 +74,21 @@ function Assert-KmcNativePassiveResources($P,[switch]$Ground) {
   $boundary=[string]$e.boundary
   $groundBoundary=$Ground-and$boundary-cin@('admission-before','admission-after','cost-before','cost-after')
   if([string]::IsNullOrWhiteSpace($boundary) -or (-not$groundBoundary-and$boundary -cmatch 'cost|prepare|clear|opportunity|admission|movement|turn-end')){throw 'Passive native cost/grant/reaction/movement or allocation change occurred'}
+  if($Ground-and$boundary.StartsWith('cooldown-tick-',[StringComparison]::Ordinal)){throw 'Outside-combat ground actor unexpectedly received a native cooldown tick'}
+  if($Ground-and$boundary-cin@('cooldown-eligibility-before','cooldown-eligibility-after')){
+   $callback=Int $e.callbackObject
+   if($callback-eq0-or($cooldownController-ne0-and$callback-ne$cooldownController)-or(Bool $e.state.inCombat)-or(Bool $e.simulatingClick)-or(Int $e.command)-ne0-or(Int $e.frame)-lt(Int $b.frame)-or(Int $e.frame)-gt(Int $a.frame)){throw 'Ground eligibility context differs'}
+   $cooldownController=$callback;Equal $current[$actor] $e.state
+   if($boundary-ceq'cooldown-eligibility-before'){
+    if($eligibility.ContainsKey($actor)-or$e.detail-cne'Kingmaker.Controllers.Combat.UnitCombatCooldownsController'){throw 'Ground eligibility entry differs'}
+    $eligibility[$actor]=$e
+   }else{
+    if(-not$eligibility.ContainsKey($actor)-or(Int $eligibility[$actor].callbackObject)-ne$callback-or(Int $eligibility[$actor].frame)-ne(Int $e.frame)-or(Int $eligibility[$actor].gameTicks)-ne(Int $e.gameTicks)-or$e.detail-cne'eligible=False'){throw 'Ground native skip result missing'}
+    $eligibility.Remove($actor);$skips[$actor]++
+   }
+   continue
+  }
+  if(-not$Ground-and$boundary.StartsWith('cooldown-eligibility-',[StringComparison]::Ordinal)){throw 'Ground eligibility leaked into passive window'}
   if($boundary -ceq 'cooldown-tick-after'){
    if(-not $pending.ContainsKey($actor)){throw 'Passive native tick end without entry'}
    Equal $pending[$actor] $e.state;$pending.Remove($actor);$current[$actor]=$e.state;$ticks[$actor]++;continue
@@ -81,10 +99,13 @@ function Assert-KmcNativePassiveResources($P,[switch]$Ground) {
    $pending[$actor]=Expected $e
   }
  }
- if($sequence -ne $end -or $pending.Count -ne 0){throw 'Passive trace did not close'}
+ if($sequence -ne $end -or $pending.Count -ne 0 -or $eligibility.Count -ne 0){throw 'Passive trace did not close'}
  foreach($pair in @(@('rider',$P.riderId),@('mount',$P.mountId))){
   Equal $current[$pair[1]] $a.($pair[0])
-  if($endTime -ne (Int $b.gameTicks) -and $ticks[$pair[1]] -eq 0){throw 'Elapsed passive window lacks native tick for an actor'}
+  if($endTime -ne (Int $b.gameTicks)){
+   if($Ground){if($skips[$pair[1]]-eq0){throw 'Elapsed ground window lacks exact native skip for an actor'}}
+   elseif($ticks[$pair[1]]-eq0){throw 'Elapsed passive window lacks native tick for an actor'}
+  }
  }
 }
 

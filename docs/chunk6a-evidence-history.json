@@ -6381,6 +6381,378 @@
       },
       "transactionRestoredAtUtc": "2026-09-28T15:44:04.1229876+00:00",
       "completedAtUtc": "2026-09-28T15:44:14.0252203+00:00"
+    },
+    {
+      "runId": "c6a-allocation-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.126",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "b41ee8d8698dd9fe41f8a9b7257614cab7176015",
+        "dllSha256": "e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162",
+        "dllMvid": "d09b6ccd-3e48-42e7-9b4a-36769782a3a4",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.126-chunk6a-allocation-a-diagnostic.zip",
+        "packageSha256": "f6befdcbcdab1f11f0923075db5ded5a4c4dc853a954d623ea2025a4a2f591cf",
+        "manifestSha256": "c04d96a94df60d00fced13564b2d71f2b5a8cb1230dfc545979935d42541e5bf"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-allocation-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-allocation-a.json",
+        "sha256": "8fa6406c367452dc4f128055dfdd75c50fb0bb889038733a92452e08922527f1",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f6befdcbcdab1f11f0923075db5ded5a4c4dc853a954d623ea2025a4a2f591cf",
+        "manifestSha256": "c04d96a94df60d00fced13564b2d71f2b5a8cb1230dfc545979935d42541e5bf",
+        "dllSha256": "e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162",
+        "dllMvid": "d09b6ccd-3e48-42e7-9b4a-36769782a3a4"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 48,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "58f5c5ff48557e0631758cac6fcfd7bf22e45e886bc5abb47e305b17d7b3de19",
+          "length": 7401
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/orchestration.json",
+          "sha256": "f5c1d0401ef8d3d4d14df3af88b6f61faa8231953a3b63bca09ad89fb090845d",
+          "length": 1201
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "62360e8a88e3e9eaf8df5e33f3ce62ee50ae6bca093db64945fe71719d3e185a",
+          "length": 25905934
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/runtime-artifacts.json",
+          "sha256": "64cb9d5194c341f01c7c88d3deb83801b451a8180dd05be57c25864329656900",
+          "length": 2419
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/runtime-game-result.json",
+          "sha256": "58bd28cda45813389b64584b2c8d128708406488bd9a6bb320d2a7cfc6fabb30",
+          "length": 4590
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/runtime-request.json",
+          "sha256": "5cbcfdeffd030808885581205e596ad4f1619662bf1f3d4854f1f77ba782289f",
+          "length": 2835
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/runtime-result.json",
+          "sha256": "fc36debd4a0fd70d851bc6784c20169e16fc3015c3268456252e4616d9aba1d1",
+          "length": 7193
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-001.png",
+          "sha256": "d360d6da1f93a50115126a4ec89308c785c5c74af5c73373571f81a2630b59aa",
+          "length": 1317022
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-002.png",
+          "sha256": "79837494258c65b029ec387a4ac743536f7ca0052eae30b06d5fc932797a42c8",
+          "length": 1318183
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-003.png",
+          "sha256": "332814c201a4c628aa161f6d9a5f8f172bde5b51ed8d4b7340cf02f0b1e1837b",
+          "length": 1317845
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-004.png",
+          "sha256": "94780a5708c4fe48279f81a6b631e6ce081f457d7018619005cb5b63f53045ea",
+          "length": 1317514
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-005.png",
+          "sha256": "45d8598ebc9126c502b257fa073d6fa10142abdd16756f9d51e181372bfa09a1",
+          "length": 1317901
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-006.png",
+          "sha256": "9d39ec73495bf162ed50be5a790ea7e81329ef60b2581b63403897d64adc25ce",
+          "length": 1317603
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-007.png",
+          "sha256": "a90e1267cec46bffc2edc3836656bd03b79f0c77bc31974243117572bf07d2c8",
+          "length": 1318143
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-approach/movement-visuals/horse-motion-008.png",
+          "sha256": "2cb98503344ae5366a391ff9cb18cfe42c50873ec45659615dc76c1af32074ef",
+          "length": 1318169
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Superseded126 evidence retained with original native result and exact payload. Its PASS does not qualify127. The TB fixture failed before adoption with a missing native cooldown eligibility observation.",
+      "settledReceiptSha256": "0020b7c6f1498a7382c7d509b8d09f999153a9c03fce919c38542e4de9967b21"
+    },
+    {
+      "runId": "c6a-allocation-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.126",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "b41ee8d8698dd9fe41f8a9b7257614cab7176015",
+        "dllSha256": "e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162",
+        "dllMvid": "d09b6ccd-3e48-42e7-9b4a-36769782a3a4",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.126-chunk6a-allocation-a-diagnostic.zip",
+        "packageSha256": "f6befdcbcdab1f11f0923075db5ded5a4c4dc853a954d623ea2025a4a2f591cf",
+        "manifestSha256": "c04d96a94df60d00fced13564b2d71f2b5a8cb1230dfc545979935d42541e5bf"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-allocation-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-allocation-a.json",
+        "sha256": "8fa6406c367452dc4f128055dfdd75c50fb0bb889038733a92452e08922527f1",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f6befdcbcdab1f11f0923075db5ded5a4c4dc853a954d623ea2025a4a2f591cf",
+        "manifestSha256": "c04d96a94df60d00fced13564b2d71f2b5a8cb1230dfc545979935d42541e5bf",
+        "dllSha256": "e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162",
+        "dllMvid": "d09b6ccd-3e48-42e7-9b4a-36769782a3a4"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 46,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "bfc2f04e78ab08320580b7aa8ff6612c3e421773a4335ba67b8b03caac79d828",
+          "length": 7405
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/orchestration.json",
+          "sha256": "0373713fba61ef94bca8fba41d2471e63b3603cb35f97cb908143f7f58151bc6",
+          "length": 1198
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "20cd773abb8792715dfdd59001f511153b2db85f241d7959b469bb5709fb2688",
+          "length": 10760237
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/runtime-artifacts.json",
+          "sha256": "51826cb22d998c8b432b559ff6f8ae6a962688ca394334fd69918566e980b914",
+          "length": 2423
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/runtime-game-result.json",
+          "sha256": "1324c33dc60602766a37a0fd0fefde79773e7f7d78a9763a998fa5e0c786b242",
+          "length": 4264
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/runtime-request.json",
+          "sha256": "5c910eda27223f3154f1589562392511ebcd79714e233329674f6296b63591e7",
+          "length": 2833
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/runtime-result.json",
+          "sha256": "e5a0b5308bfa07366e7713b67824d7c46127d8aa7304f686f27d8c8a034b657f",
+          "length": 6360
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "a4a03e46154cc2a19a800ef81bc08e0277aa7452025062d09b13550c3e8ba48c",
+          "length": 1319271
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "f78136bb9f37d2fea49b5ef5475862e6a66545474f7b114319e5123e515a65c2",
+          "length": 1318125
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "fff171d0938e44c81024f273e8fc6a21c2791b3a4955eea4e1885932738d5845",
+          "length": 1318265
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "32699d35da14b389b6a94bbd17730e9895e7bb67ab10cd7a80833d9368225ea2",
+          "length": 1318195
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "e4aa24edc7dc3975a4a80d1b3c23e7519d8c8dc582572be79e5e57703e12844d",
+          "length": 1318078
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "fa74a6cc999ea8ddcece9d364e8ada12b2be21aa561805daa15a6117bbbcc04f",
+          "length": 1318510
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "98364bf86e7fe467bc13f82ab00e37b2faab6711e13531b4b039873290027b7b",
+          "length": 1317933
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "fd9de6a34643e700f34dc00940baa2081f1cd334b32ccdb56763d03a0264cbd3",
+          "length": 1317404
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Superseded126 evidence retained with original native result and exact payload. Its PASS does not qualify127. The TB fixture failed before adoption with a missing native cooldown eligibility observation.",
+      "settledReceiptSha256": "9de9e597904c2338fe28e47a549d87c860193f42956132fc5d48555be9e2dd92"
+    },
+    {
+      "runId": "c6a-allocation-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.126",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "b41ee8d8698dd9fe41f8a9b7257614cab7176015",
+        "dllSha256": "e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162",
+        "dllMvid": "d09b6ccd-3e48-42e7-9b4a-36769782a3a4",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.126-chunk6a-allocation-a-diagnostic.zip",
+        "packageSha256": "f6befdcbcdab1f11f0923075db5ded5a4c4dc853a954d623ea2025a4a2f591cf",
+        "manifestSha256": "c04d96a94df60d00fced13564b2d71f2b5a8cb1230dfc545979935d42541e5bf"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-allocation-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-allocation-a.json",
+        "sha256": "8fa6406c367452dc4f128055dfdd75c50fb0bb889038733a92452e08922527f1",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f6befdcbcdab1f11f0923075db5ded5a4c4dc853a954d623ea2025a4a2f591cf",
+        "manifestSha256": "c04d96a94df60d00fced13564b2d71f2b5a8cb1230dfc545979935d42541e5bf",
+        "dllSha256": "e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162",
+        "dllMvid": "d09b6ccd-3e48-42e7-9b4a-36769782a3a4"
+      },
+      "assertionPassCount": 43,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 43,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "63b478c1be8ce51182f4fe511aa032654de927e90977da564a38e6afe8a78b23",
+          "length": 7405
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/orchestration.json",
+          "sha256": "0d97d3a7bf9e9dd0dc416c88c7b8f792783a7be7480d82e3efd461abd9db99eb",
+          "length": 1198
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "49ad0675647749ddd7dfc464b20c39a76100c85872a0048999b76f540214f492",
+          "length": 1180839
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/runtime-artifacts.json",
+          "sha256": "ef7424c7fdcd29f7ec3647d66926f81f0a59a4dddef3ea0533f963d75c7d7ab6",
+          "length": 2422
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/runtime-game-result.json",
+          "sha256": "2834f78a19efab2cb29c63d286a69892748ed39ab624b22eb55346b2a90400d8",
+          "length": 5076
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/runtime-request.json",
+          "sha256": "83cddd15f53e045e0ce4ea29638a847adc8d05b6fef2c0c11e31dae5efe6d3e9",
+          "length": 2833
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/runtime-result.json",
+          "sha256": "a222bd0d3b2e2e033945a484494d8144795516643139c29da4ce1fb1844bc1ed",
+          "length": 6743
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "4c2eb94e1dd5480260a23dd1fa0b4903d57bce070c1fccf2961cbd7f7599518b",
+          "length": 1312219
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "817aed5e3636df61b34286b038a14b2945343860b79f008b08816c5d925fff5b",
+          "length": 1312594
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "35c60a0488d3b669048cf91e36252955ad8b93cdefbd45572c279f033c565234",
+          "length": 1311749
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "0a90f39a0b0dd3e9ac563db1b2dfa6252055ecd07ea84fb36b24ffa13e42490c",
+          "length": 1313219
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "23edd3a5c77504e328d95396ef0919a3db8e760658e1e9435f0bb67dcb09043a",
+          "length": 1312000
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "3ee0d7b59b3756568128dbdbf458712b3e5220dbfd0c42b2cdfccf5973461aab",
+          "length": 1311077
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "1cc07ad2367206421ed77780aa3961bddc9f4bc78ca8e46212cccecbd5f79dd1",
+          "length": 1311027
+        },
+        {
+          "path": "runtime-evidence/c6a-allocation-a-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "f00145281a05df3b6953dbbaddf16c0374f74bcbdc94a4edad4a1debbfd87220",
+          "length": 1312371
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Pre-combat positioning did not prove exact native arrival, action/reaction accounting, terminal state and unchanged relationship; complete evidence retained."
+          ]
+        },
+        {
+          "row": "chunk6a-adoption-compensation-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Pre-combat positioning did not prove exact native arrival, action/reaction accounting, terminal state and unchanged relationship; complete evidence retained."
+          ]
+        }
+      ],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Superseded126 evidence retained with original native result and exact payload. Its PASS does not qualify127. The TB fixture failed before adoption with a missing native cooldown eligibility observation.",
+      "settledReceiptSha256": "331aeae2abe23b868272253d440463e0f411e4ec6dc0e173d1097fdcdb496136"
     }
   ]
 }
