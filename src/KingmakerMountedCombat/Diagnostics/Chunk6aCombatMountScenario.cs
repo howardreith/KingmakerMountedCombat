@@ -35,7 +35,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Chunk6aCompensationTurnBasedScenario = "chunk6a-adoption-compensation-tb";
 
         internal static bool IsChunk6aCombatMountScenario(string scenario) =>
-            IsChunk6aDismountEscapeScenario(scenario) || IsChunk6aMountOrderScenario(scenario) ||
+            IsChunk6aAutoUseScenario(scenario) || IsChunk6aDismountEscapeScenario(scenario) || IsChunk6aMountOrderScenario(scenario) ||
             IsChunk6aRefusedScenario(scenario) ||
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
@@ -725,7 +725,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
+                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -895,6 +895,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (chunk6aStage == 31) { BeginChunk6aAutoUse(null); return; }
+            if (chunk6aStage == 32) { TickChunk6aAutoUse(); return; }
             if (chunk6aStage == 27 || chunk6aStage == 28) { TickChunk6aDismountEscape(); return; }
             if (chunk6aStage == 29 || chunk6aStage == 30) { TickChunk6aMountOrderCompletion(); return; }
             if (chunk6aStage == 24) { TickChunk6aRefusedMount(); return; }
@@ -1194,6 +1196,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
+                if (Chunk6aAutoUseOnly) { BeginChunk6aAutoUse(mountProof); return; }
                 if (Chunk6aDismountEscapeOnly) { BeginChunk6aDismountEscape(mountProof); return; }
                 if (Chunk6aMountOrderOnly) { FinishChunk6aMountOrder(mountProof); return; }
                 chunk6aStage = 3;

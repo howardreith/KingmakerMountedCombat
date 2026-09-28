@@ -170,7 +170,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (!TickChunk6aDoorSetup()) return;
                 }
-                else if (Chunk6aRefusedOnly)
+                else if (Chunk6aRefusedOnly || Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount)
                 { observations["chunk6aRefusalSetupGeometry"] = CaptureChunk6aGeometry("refusal-fresh-allocation-geometry"); }
                 else if (!Chunk6aCompensationOnly)
                 {

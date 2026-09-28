@@ -38,7 +38,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (abilityGroups.Length != 1) throw new InvalidOperationException("One registered native ability group required.");
             abilityGroup = abilityGroups[0]; original = groups.Select(g => g.ToggleState).ToArray();
             evidence = new JObject { ["contract"] = "native-action-bar-group-input-and-exact-restoration",
-                ["casterId"] = rider.UniqueId, ["managerObject"] = Id(manager),
+                ["casterId"] = rider.UniqueId, ["managerObject"] = Id(manager), ["mainOwnerObject"] = Id(manager.Slots),
                 ["abilityGroupObject"] = Id(abilityGroup), ["before"] = Snapshot(), ["restored"] = false };
             try
             {
@@ -51,15 +51,17 @@ namespace KingmakerMountedCombat.Diagnostics
         private static int Id(object value) => value == null ? 0 : RuntimeHelpers.GetHashCode(value);
         private JArray Snapshot() => new JArray(groups.Select((g, i) => new JObject {
             ["index"] = i, ["groupObject"] = Id(g), ["type"] = g.SlotType.ToString(), ["toggle"] = g.ToggleState }));
-        internal ActionBarSlot FindMountSlot()
+        internal ActionBarSlot FindMountSlot() => FindControlSlot("f053faad986631688defa003cd7bda0e");
+        internal ActionBarSlot FindControlSlot(string abilityGuid)
         {
+            if(abilityGuid!="f053faad986631688defa003cd7bda0e"&&abilityGuid!="3af2b81f4d72bbb30501fa730fcdf36e")throw new InvalidOperationException("Exact relationship control slot required.");
             if (disposed || !IsReady(rider) || !ReferenceEquals(ActionBarManager.Instance, manager))
                 throw new InvalidOperationException("Native action bar lease lost exact selected rider/manager.");
             var matches = new List<ActionBarSlot>();
             Action<object> inspect = item => {
                 var slot = item as ActionBarSlot;
                 var mechanic = slot?.MechanicSlot as MechanicActionBarSlotAbility;
-                if (slot != null && slot.gameObject.activeInHierarchy && mechanic?.Ability?.Blueprint?.AssetGuid == "f053faad986631688defa003cd7bda0e" &&
+                if (slot != null && slot.gameObject.activeInHierarchy && mechanic?.Ability?.Blueprint?.AssetGuid == abilityGuid &&
                     mechanic.Ability.Caster.Unit == rider && ReferenceEquals(typeof(ActionBarSlot).GetField("Selected", Flags)?.GetValue(slot), rider))
                     matches.Add(slot);
             };

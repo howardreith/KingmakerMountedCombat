@@ -1,11 +1,11 @@
-﻿param([ValidateSet('Debug','Release')][string]$Configuration='Release')
+param([ValidateSet('Debug','Release')][string]$Configuration='Release')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1')
 $checks=0
 function Copy-Additional($x){$x|ConvertTo-Json -Depth 30|ConvertFrom-Json}
-foreach($id in @('CM03-next-round-activation','CM05-dismount-survives-feature-policy-disable')){
+foreach($id in @('CM03-next-round-activation','CM05-dismount-survives-feature-policy-disable','CM06-ai-auto-use')){
  $roles=@(Get-KmcChunk6aAdditionalRoles $id)
  if($roles.Count-ne2){throw 'Combined claim lost a required case'};$checks++
  $bindings=@($roles|ForEach-Object{[pscustomobject]@{role=$_.name;scenario=$_.scenario;runId=('synthetic-'+$_.name);rows=@($_.rows);evidenceSha256=('a'*64)}})

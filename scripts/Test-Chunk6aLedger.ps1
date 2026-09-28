@@ -77,7 +77,11 @@ $mandatory=@(
 $ledger=Get-Content -Raw -LiteralPath $LedgerPath -Encoding UTF8|ConvertFrom-Json
 if([int]$ledger.schemaVersion-ne1){throw 'Unknown Chunk 6A ledger schema.'}
 $payload=$ledger.payload
+. (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aPrimaryClaimEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/LegacyCombatProjectionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aArtifactRowsEvidence.ps1')
 Assert-KmcChunk6aFrozenPayload $payload $LabRoot
 foreach($name in @('version','commit','branch','dllSha256','dllMvid','packageSha256','manifestSha256','suiteId','suiteSha256')){
     if([string]::IsNullOrEmpty([string](Get-Field $payload $name))){throw "Chunk 6A ledger payload lacks $name."}
@@ -117,6 +121,7 @@ foreach($entry in $ledger.entries){
             if($binding.runId -cne $entry.runId -or $binding.scenario -cne $entry.scenario -or
                 $binding.evidenceSha256 -cne $entry.evidenceSha256 -or
                 (ConvertTo-Json @($binding.rows) -Compress) -cne (ConvertTo-Json @($entry.rows) -Compress)) { throw 'Primary evidence binding differs from the claimed entry.' }
+            Assert-KmcChunk6aPrimaryClaim $id $binding
             Assert-KmcSupportingRun $payload $binding $LabRoot
             Assert-KmcIsolatedQualification $id $binding $LabRoot
             Assert-KmcChunk6aAdditionalQualification $id $payload $binding (Get-Field $entry 'supportingRuns') $LabRoot
@@ -164,9 +169,9 @@ foreach($entry in $ledger.entries){
             $evidenceLeaf=[string](Get-Field $entry 'evidenceLeaf')
             if([string]::IsNullOrEmpty($evidenceLeaf)){throw "Chunk 6A entry ${id}: names no evidence artifact."}
             $evidencePath=Join-Path $root $evidenceLeaf
-            $artifact=Get-Content -Raw -LiteralPath $evidencePath|ConvertFrom-Json
+            $artifactRows=@(Get-KmcChunk6aArtifactRows $evidencePath $entry.scenario $game -PassRowsOnly)
             foreach($rowName in $rows){
-                $matched=@(@($artifact.rows)|Where-Object{[string]$_.name-ceq[string]$rowName})
+                $matched=@($artifactRows|Where-Object{[string]$_.name-ceq[string]$rowName})
                 if($matched.Count-ne1-or[string]$matched[0].status-cne'PASS'){
                     throw "Chunk 6A entry ${id}: evidence has no single PASS row named $rowName."
                 }
@@ -225,10 +230,7 @@ foreach($entry in $ledger.entries){
             if([string]::IsNullOrEmpty($failingRow)-or[string]::IsNullOrEmpty($failingAssertion)){
                 throw "Chunk 6A FAIL entry ${id}: names no exact failing row and assertion."
             }
-            $artifact=Get-Content -Raw -LiteralPath $evidencePath|ConvertFrom-Json
-            $candidateRows=@()
-            if($null-ne(Get-Field $artifact 'rows')){$candidateRows+=@($artifact.rows)}
-            if($null-ne(Get-Field $artifact 'subscenarioResults')){$candidateRows+=@($artifact.subscenarioResults)}
+            $candidateRows=@(Get-KmcChunk6aArtifactRows $evidencePath $entry.scenario $game)
             $matchedRows=@($candidateRows|Where-Object{[string]$_.name-ceq$failingRow})
             if($matchedRows.Count-ne1){
                 throw "Chunk 6A entry ${id}: evidence has no single row named $failingRow."
@@ -338,10 +340,7 @@ foreach($record in $retained){
     if([string]::IsNullOrEmpty($recordFailingRow)-or[string]::IsNullOrEmpty($recordFailingAssertion)){
         throw "Chunk 6A retained failure ${key}: names no exact failing row and assertion."
     }
-    $recordArtifact=Get-Content -Raw -LiteralPath $recordEvidence|ConvertFrom-Json
-    $recordCandidateRows=@()
-    if($null-ne(Get-Field $recordArtifact 'rows')){$recordCandidateRows+=@($recordArtifact.rows)}
-    if($null-ne(Get-Field $recordArtifact 'subscenarioResults')){$recordCandidateRows+=@($recordArtifact.subscenarioResults)}
+    $recordCandidateRows=@(Get-KmcChunk6aArtifactRows $recordEvidence $record.scenario $recordGame)
     $recordMatched=@($recordCandidateRows|Where-Object{[string]$_.name-ceq$recordFailingRow})
     if($recordMatched.Count-ne1){throw "Chunk 6A retained failure ${key}: evidence has no single row named $recordFailingRow."}
     if([string]$recordMatched[0].status-cne'FAIL'){

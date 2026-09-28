@@ -156,3 +156,30 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeOrderObserverMembers.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeAutoUseControl.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeAutoUseCase.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aAutoUseEnvelope.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeAutoUseWrappers.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aPrimaryClaims.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-RuntimeArtifactManifestContract.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aLegacyReader.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aLegacyRows.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aLegacyLedger.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

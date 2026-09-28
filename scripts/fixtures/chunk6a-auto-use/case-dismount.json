@@ -1,0 +1,2884 @@
+{
+  "contract": "independent-fresh-rt-native-auto-use-control-window",
+  "case": "dismount",
+  "scenario": "chunk6a-auto-use-dismount-rt",
+  "input": {
+    "contract": "native-ui-auto-use-and-ai-revalidation-of-explicit-stale-reference",
+    "riderId": "rider",
+    "mountId": "mount",
+    "targetId": "enemy",
+    "riderObject": 101,
+    "mountObject": 102,
+    "targetObject": 103,
+    "mechanicObject": 201,
+    "aiObject": 202,
+    "abilityObject": 301,
+    "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+    "ordinaryAbilityObject": 401,
+    "ordinaryAbilityGuid": "ordinary-ability",
+    "contextObject": 203,
+    "slotRegistration": {
+      "managerObject": 204,
+      "ownerObject": 205,
+      "slotObject": 206,
+      "route": "group",
+      "occurrences": 1,
+      "casterId": "rider",
+      "active": true
+    },
+    "before": {
+      "frame": 102,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "selectedAbilityObject": 0,
+      "paused": true,
+      "turnBased": false,
+      "autoUseObject": 0,
+      "autoUseGuid": null,
+      "riderCommandsEmpty": true,
+      "mountCommandsEmpty": true,
+      "state": {
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "selectedIds": [
+          "rider"
+        ],
+        "ledger": {
+          "admittedMount": 2,
+          "acceptedMount": 2,
+          "admittedDismount": 1,
+          "acceptedDismount": 1,
+          "refusedVoluntary": 0,
+          "forcedDetach": 3,
+          "duplicateSuppressed": 2,
+          "concurrentSuppressed": 0
+        },
+        "relationshipState": "Mounted",
+        "generation": 2,
+        "geometry": {
+          "boundary": "command-boundary",
+          "frame": 102,
+          "seconds": 1,
+          "riderPosition": {
+            "x": 1,
+            "y": 2,
+            "z": 3
+          },
+          "horsePosition": {
+            "x": 5,
+            "y": 2,
+            "z": 3
+          },
+          "centerDistance": 4,
+          "command": null
+        }
+      },
+      "shellCount": 2,
+      "processBindings": 2,
+      "controls": {
+        "Registered": true,
+        "Enabled": true,
+        "NativeCastRequestCount": 2,
+        "TargetSelectionStartCount": 2,
+        "TargetSelectionEndCount": 2,
+        "ActivationRecordCount": 2
+      }
+    },
+    "staleReferenceFixtureDeclared": true,
+    "ordinarySuitable": true,
+    "constructorObserverExecuted": true,
+    "suitable": false,
+    "availableObject": 0,
+    "availableGuid": null,
+    "resources": {
+      "contract": "same-allocation-no-command-cost-with-observed-native-time-only",
+      "turnBased": false,
+      "traceComplete": true,
+      "riderId": "rider",
+      "mountId": "mount",
+      "before": {
+        "frame": 102,
+        "gameTicks": 1000000,
+        "allocationSequence": 10,
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false
+        }
+      },
+      "after": {
+        "frame": 102,
+        "gameTicks": 1000000,
+        "allocationSequence": 10,
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false
+        }
+      },
+      "events": [],
+      "observerHooks": [
+        {
+          "token": "0600934A",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "060093A1",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "060093A4",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "06000C3C",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "0600C3BE",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "06009120",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "0600838F",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "060026B2",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        },
+        {
+          "token": "06000C37",
+          "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+        }
+      ],
+      "pass": true
+    },
+    "errors": [],
+    "events": [
+      {
+        "phase": "constructor-control",
+        "kind": "suitability",
+        "receiverObject": 401,
+        "abilityObject": 401,
+        "abilityGuid": "ordinary-ability",
+        "casterId": "rider",
+        "enterOrdinal": 1,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 2,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": true
+      },
+      {
+        "phase": "baseline-ai",
+        "kind": "ai-create",
+        "receiverObject": 202,
+        "abilityObject": 0,
+        "abilityGuid": null,
+        "casterId": "rider",
+        "enterOrdinal": 5,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "contextObject": 203,
+        "targetId": "enemy",
+        "targetObject": 103,
+        "exitOrdinal": 8,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": {
+          "object": 602,
+          "type": "Kingmaker.UnitLogic.Commands.UnitAttack",
+          "action": "Standard",
+          "executorId": null,
+          "targetId": "enemy",
+          "started": false,
+          "acted": false,
+          "finished": false,
+          "abilityGuid": null
+        }
+      },
+      {
+        "phase": "baseline-ai",
+        "kind": "available",
+        "receiverObject": 101,
+        "abilityObject": 0,
+        "abilityGuid": null,
+        "casterId": null,
+        "enterOrdinal": 6,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 7,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": {
+          "object": 0,
+          "guid": null
+        }
+      },
+      {
+        "phase": "ui-toggle",
+        "kind": "suitability",
+        "receiverObject": 301,
+        "abilityObject": 301,
+        "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+        "casterId": "rider",
+        "enterOrdinal": 9,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 10,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": false
+      },
+      {
+        "phase": "ui-toggle",
+        "kind": "toggle",
+        "receiverObject": 201,
+        "abilityObject": 301,
+        "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+        "casterId": "rider",
+        "enterOrdinal": 11,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 14,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": null
+      },
+      {
+        "phase": "ui-toggle",
+        "kind": "suitability",
+        "receiverObject": 301,
+        "abilityObject": 301,
+        "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+        "casterId": "rider",
+        "enterOrdinal": 12,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 13,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": false
+      },
+      {
+        "phase": "stale-reference",
+        "kind": "available",
+        "receiverObject": 101,
+        "abilityObject": 301,
+        "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+        "casterId": "rider",
+        "enterOrdinal": 15,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 18,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": {
+          "object": 0,
+          "guid": null
+        }
+      },
+      {
+        "phase": "stale-reference",
+        "kind": "suitability",
+        "receiverObject": 301,
+        "abilityObject": 301,
+        "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+        "casterId": "rider",
+        "enterOrdinal": 16,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 17,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": false
+      },
+      {
+        "phase": "stale-reference",
+        "kind": "ai-create",
+        "receiverObject": 202,
+        "abilityObject": 0,
+        "abilityGuid": null,
+        "casterId": "rider",
+        "enterOrdinal": 19,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "contextObject": 203,
+        "targetId": "enemy",
+        "targetObject": 103,
+        "exitOrdinal": 24,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": {
+          "object": 603,
+          "type": "Kingmaker.UnitLogic.Commands.UnitAttack",
+          "action": "Standard",
+          "executorId": null,
+          "targetId": "enemy",
+          "started": false,
+          "acted": false,
+          "finished": false,
+          "abilityGuid": null
+        }
+      },
+      {
+        "phase": "stale-reference",
+        "kind": "available",
+        "receiverObject": 101,
+        "abilityObject": 301,
+        "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+        "casterId": "rider",
+        "enterOrdinal": 20,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 23,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": {
+          "object": 0,
+          "guid": null
+        }
+      },
+      {
+        "phase": "stale-reference",
+        "kind": "suitability",
+        "receiverObject": 301,
+        "abilityObject": 301,
+        "abilityGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+        "casterId": "rider",
+        "enterOrdinal": 21,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "complete": true,
+        "exitOrdinal": 22,
+        "exitFrame": 102,
+        "exitGameTicks": 1000000,
+        "result": false
+      }
+    ],
+    "constructedAbilityCommands": [
+      {
+        "phase": "constructor-control",
+        "command": {
+          "object": 601,
+          "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+          "action": "Standard",
+          "executorId": null,
+          "targetId": "enemy",
+          "started": false,
+          "acted": false,
+          "finished": false,
+          "abilityGuid": "ordinary-ability"
+        }
+      }
+    ],
+    "constructorCallbacks": [
+      {
+        "phase": "constructor-control",
+        "ordinal": 3,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "token": "06002727",
+        "command": {
+          "object": 601,
+          "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+          "action": "Standard",
+          "executorId": null,
+          "targetId": "enemy",
+          "started": false,
+          "acted": false,
+          "finished": false,
+          "abilityGuid": "ordinary-ability"
+        }
+      },
+      {
+        "phase": "constructor-control",
+        "ordinal": 4,
+        "frame": 102,
+        "gameTicks": 1000000,
+        "token": "06002726",
+        "command": {
+          "object": 601,
+          "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+          "action": "Standard",
+          "executorId": null,
+          "targetId": "enemy",
+          "started": false,
+          "acted": false,
+          "finished": false,
+          "abilityGuid": "ordinary-ability"
+        }
+      }
+    ],
+    "afterUi": {
+      "frame": 102,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "selectedAbilityObject": 0,
+      "paused": true,
+      "turnBased": false,
+      "autoUseObject": 0,
+      "autoUseGuid": null,
+      "riderCommandsEmpty": true,
+      "mountCommandsEmpty": true,
+      "state": {
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "selectedIds": [
+          "rider"
+        ],
+        "ledger": {
+          "admittedMount": 2,
+          "acceptedMount": 2,
+          "admittedDismount": 1,
+          "acceptedDismount": 1,
+          "refusedVoluntary": 0,
+          "forcedDetach": 3,
+          "duplicateSuppressed": 2,
+          "concurrentSuppressed": 0
+        },
+        "relationshipState": "Mounted",
+        "generation": 2,
+        "geometry": {
+          "boundary": "command-boundary",
+          "frame": 102,
+          "seconds": 1.001,
+          "riderPosition": {
+            "x": 1,
+            "y": 2,
+            "z": 3
+          },
+          "horsePosition": {
+            "x": 5,
+            "y": 2,
+            "z": 3
+          },
+          "centerDistance": 4,
+          "command": null
+        }
+      },
+      "shellCount": 2,
+      "processBindings": 2,
+      "controls": {
+        "Registered": true,
+        "Enabled": true,
+        "NativeCastRequestCount": 2,
+        "TargetSelectionStartCount": 2,
+        "TargetSelectionEndCount": 2,
+        "ActivationRecordCount": 2
+      }
+    },
+    "afterLease": {
+      "frame": 102,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "selectedAbilityObject": 0,
+      "paused": true,
+      "turnBased": false,
+      "autoUseObject": 301,
+      "autoUseGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+      "riderCommandsEmpty": true,
+      "mountCommandsEmpty": true,
+      "state": {
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "selectedIds": [
+          "rider"
+        ],
+        "ledger": {
+          "admittedMount": 2,
+          "acceptedMount": 2,
+          "admittedDismount": 1,
+          "acceptedDismount": 1,
+          "refusedVoluntary": 0,
+          "forcedDetach": 3,
+          "duplicateSuppressed": 2,
+          "concurrentSuppressed": 0
+        },
+        "relationshipState": "Mounted",
+        "generation": 2,
+        "geometry": {
+          "boundary": "command-boundary",
+          "frame": 102,
+          "seconds": 1.002,
+          "riderPosition": {
+            "x": 1,
+            "y": 2,
+            "z": 3
+          },
+          "horsePosition": {
+            "x": 5,
+            "y": 2,
+            "z": 3
+          },
+          "centerDistance": 4,
+          "command": null
+        }
+      },
+      "shellCount": 2,
+      "processBindings": 2,
+      "controls": {
+        "Registered": true,
+        "Enabled": true,
+        "NativeCastRequestCount": 2,
+        "TargetSelectionStartCount": 2,
+        "TargetSelectionEndCount": 2,
+        "ActivationRecordCount": 2
+      }
+    },
+    "afterAi": {
+      "frame": 102,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "selectedAbilityObject": 0,
+      "paused": true,
+      "turnBased": false,
+      "autoUseObject": 301,
+      "autoUseGuid": "3af2b81f4d72bbb30501fa730fcdf36e",
+      "riderCommandsEmpty": true,
+      "mountCommandsEmpty": true,
+      "state": {
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "selectedIds": [
+          "rider"
+        ],
+        "ledger": {
+          "admittedMount": 2,
+          "acceptedMount": 2,
+          "admittedDismount": 1,
+          "acceptedDismount": 1,
+          "refusedVoluntary": 0,
+          "forcedDetach": 3,
+          "duplicateSuppressed": 2,
+          "concurrentSuppressed": 0
+        },
+        "relationshipState": "Mounted",
+        "generation": 2,
+        "geometry": {
+          "boundary": "command-boundary",
+          "frame": 102,
+          "seconds": 1.003,
+          "riderPosition": {
+            "x": 1,
+            "y": 2,
+            "z": 3
+          },
+          "horsePosition": {
+            "x": 5,
+            "y": 2,
+            "z": 3
+          },
+          "centerDistance": 4,
+          "command": null
+        }
+      },
+      "shellCount": 2,
+      "processBindings": 2,
+      "controls": {
+        "Registered": true,
+        "Enabled": true,
+        "NativeCastRequestCount": 2,
+        "TargetSelectionStartCount": 2,
+        "TargetSelectionEndCount": 2,
+        "ActivationRecordCount": 2
+      }
+    },
+    "afterRestoration": {
+      "frame": 102,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "selectedAbilityObject": 0,
+      "paused": true,
+      "turnBased": false,
+      "autoUseObject": 0,
+      "autoUseGuid": null,
+      "riderCommandsEmpty": true,
+      "mountCommandsEmpty": true,
+      "state": {
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "selectedIds": [
+          "rider"
+        ],
+        "ledger": {
+          "admittedMount": 2,
+          "acceptedMount": 2,
+          "admittedDismount": 1,
+          "acceptedDismount": 1,
+          "refusedVoluntary": 0,
+          "forcedDetach": 3,
+          "duplicateSuppressed": 2,
+          "concurrentSuppressed": 0
+        },
+        "relationshipState": "Mounted",
+        "generation": 2,
+        "geometry": {
+          "boundary": "command-boundary",
+          "frame": 102,
+          "seconds": 1.004,
+          "riderPosition": {
+            "x": 1,
+            "y": 2,
+            "z": 3
+          },
+          "horsePosition": {
+            "x": 5,
+            "y": 2,
+            "z": 3
+          },
+          "centerDistance": 4,
+          "command": null
+        }
+      },
+      "shellCount": 2,
+      "processBindings": 2,
+      "controls": {
+        "Registered": true,
+        "Enabled": true,
+        "NativeCastRequestCount": 2,
+        "TargetSelectionStartCount": 2,
+        "TargetSelectionEndCount": 2,
+        "ActivationRecordCount": 2
+      }
+    },
+    "observerHooks": [
+      {
+        "token": "06002B30",
+        "method": "Kingmaker.UnitLogic.Abilities.AbilityData.get_IsSuitableForAutoUse",
+        "prefix": "SuitableBefore",
+        "postfix": "SuitableAfter",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06002F5F",
+        "method": "Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility.OnAutoUseToggle",
+        "prefix": "ToggleBefore",
+        "postfix": "ToggleAfter",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06008370",
+        "method": "Kingmaker.EntitySystem.Entities.UnitEntityData.GetAvailableAutoUseAbility",
+        "prefix": "AvailableBefore",
+        "postfix": "AvailableAfter",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06009434",
+        "method": "Kingmaker.Controllers.Brain.Blueprints.BlueprintAiAttack.CreateCommand",
+        "prefix": "AiBefore",
+        "postfix": "AiAfter",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06002726",
+        "method": "Kingmaker.UnitLogic.Commands.UnitUseAbility..ctor",
+        "prefix": null,
+        "postfix": "Constructed",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06002727",
+        "method": "Kingmaker.UnitLogic.Commands.UnitUseAbility..ctor",
+        "prefix": null,
+        "postfix": "Constructed",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      }
+    ],
+    "constructorControl": {
+      "object": 601,
+      "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+      "action": "Standard",
+      "executorId": null,
+      "targetId": "enemy",
+      "started": false,
+      "acted": false,
+      "finished": false,
+      "abilityGuid": "ordinary-ability"
+    },
+    "baselineAi": {
+      "object": 602,
+      "type": "Kingmaker.UnitLogic.Commands.UnitAttack",
+      "action": "Standard",
+      "executorId": null,
+      "targetId": "enemy",
+      "started": false,
+      "acted": false,
+      "finished": false,
+      "abilityGuid": null
+    },
+    "aiWithStaleReference": {
+      "object": 603,
+      "type": "Kingmaker.UnitLogic.Commands.UnitAttack",
+      "action": "Standard",
+      "executorId": null,
+      "targetId": "enemy",
+      "started": false,
+      "acted": false,
+      "finished": false,
+      "abilityGuid": null
+    },
+    "pass": true
+  },
+  "beforeSetup": {
+    "frame": 100,
+    "gameTicks": 1000000,
+    "allocationSequence": 10,
+    "paused": false,
+    "turnBased": false,
+    "state": {
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 2,
+        "acceptedMount": 2,
+        "admittedDismount": 1,
+        "acceptedDismount": 1,
+        "refusedVoluntary": 0,
+        "forcedDetach": 3,
+        "duplicateSuppressed": 2,
+        "concurrentSuppressed": 0
+      },
+      "relationshipState": "Mounted",
+      "generation": 2,
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 100,
+        "seconds": 1,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      }
+    },
+    "riderResources": {
+      "actor": "rider",
+      "actorObject": 101,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 3,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "mountResources": {
+      "actor": "mount",
+      "actorObject": 102,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 1,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "pairIdle": true,
+    "riderObject": 101,
+    "mountObject": 102,
+    "targetId": "enemy",
+    "targetObject": 103,
+    "targetInCombat": true,
+    "hostileTarget": true
+  },
+  "beforeInput": {
+    "frame": 102,
+    "gameTicks": 1000000,
+    "allocationSequence": 10,
+    "paused": true,
+    "turnBased": false,
+    "state": {
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 2,
+        "acceptedMount": 2,
+        "admittedDismount": 1,
+        "acceptedDismount": 1,
+        "refusedVoluntary": 0,
+        "forcedDetach": 3,
+        "duplicateSuppressed": 2,
+        "concurrentSuppressed": 0
+      },
+      "relationshipState": "Mounted",
+      "generation": 2,
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 102,
+        "seconds": 1,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      }
+    },
+    "riderResources": {
+      "actor": "rider",
+      "actorObject": 101,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 3,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "mountResources": {
+      "actor": "mount",
+      "actorObject": 102,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 1,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "pairIdle": true,
+    "riderObject": 101,
+    "mountObject": 102,
+    "targetId": "enemy",
+    "targetObject": 103,
+    "targetInCombat": true,
+    "hostileTarget": true
+  },
+  "afterInput": {
+    "frame": 102,
+    "gameTicks": 1000000,
+    "allocationSequence": 10,
+    "paused": true,
+    "turnBased": false,
+    "state": {
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 2,
+        "acceptedMount": 2,
+        "admittedDismount": 1,
+        "acceptedDismount": 1,
+        "refusedVoluntary": 0,
+        "forcedDetach": 3,
+        "duplicateSuppressed": 2,
+        "concurrentSuppressed": 0
+      },
+      "relationshipState": "Mounted",
+      "generation": 2,
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 102,
+        "seconds": 1.004,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      }
+    },
+    "riderResources": {
+      "actor": "rider",
+      "actorObject": 101,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 3,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "mountResources": {
+      "actor": "mount",
+      "actorObject": 102,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 1,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "pairIdle": true,
+    "riderObject": 101,
+    "mountObject": 102,
+    "targetId": "enemy",
+    "targetObject": 103,
+    "targetInCombat": true,
+    "hostileTarget": true
+  },
+  "afterRestoration": {
+    "frame": 102,
+    "gameTicks": 1000000,
+    "allocationSequence": 10,
+    "paused": false,
+    "turnBased": false,
+    "state": {
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 2,
+        "acceptedMount": 2,
+        "admittedDismount": 1,
+        "acceptedDismount": 1,
+        "refusedVoluntary": 0,
+        "forcedDetach": 3,
+        "duplicateSuppressed": 2,
+        "concurrentSuppressed": 0
+      },
+      "relationshipState": "Mounted",
+      "generation": 2,
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 102,
+        "seconds": 1.004,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      }
+    },
+    "riderResources": {
+      "actor": "rider",
+      "actorObject": 101,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 3,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "mountResources": {
+      "actor": "mount",
+      "actorObject": 102,
+      "inCombat": true,
+      "grantSequence": 1,
+      "standard": 2,
+      "move": 1,
+      "swift": 0.8,
+      "initiativeCooldown": 0,
+      "initiativeOrder": 7,
+      "reactionCooldown": 0.05,
+      "reactions": 0,
+      "reactionsPerRound": 1,
+      "waitingInitiative": false
+    },
+    "pairIdle": true,
+    "riderObject": 101,
+    "mountObject": 102,
+    "targetId": "enemy",
+    "targetObject": 103,
+    "targetInCombat": true,
+    "hostileTarget": true
+  },
+  "originalPause": false,
+  "pauseRestored": true,
+  "setupResources": {
+    "contract": "same-allocation-no-command-cost-with-observed-native-time-only",
+    "turnBased": false,
+    "traceComplete": true,
+    "riderId": "rider",
+    "mountId": "mount",
+    "before": {
+      "frame": 100,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      }
+    },
+    "after": {
+      "frame": 102,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      }
+    },
+    "events": [],
+    "observerHooks": [
+      {
+        "token": "0600934A",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A1",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A4",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06000C3C",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600C3BE",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06009120",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600838F",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060026B2",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06000C37",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      }
+    ],
+    "pass": true
+  },
+  "ui": {
+    "contract": "native-action-bar-group-input-and-exact-restoration",
+    "casterId": "rider",
+    "managerObject": 204,
+    "mainOwnerObject": 209,
+    "abilityGroupObject": 205,
+    "before": [
+      {
+        "index": 0,
+        "groupObject": 205,
+        "type": "ActivatableAbility",
+        "toggle": false
+      }
+    ],
+    "opened": [
+      {
+        "index": 0,
+        "groupObject": 205,
+        "type": "ActivatableAbility",
+        "toggle": true
+      }
+    ],
+    "current": [
+      {
+        "index": 0,
+        "groupObject": 205,
+        "type": "ActivatableAbility",
+        "toggle": true
+      }
+    ],
+    "after": [
+      {
+        "index": 0,
+        "groupObject": 205,
+        "type": "ActivatableAbility",
+        "toggle": false
+      }
+    ],
+    "matchingSlotObjects": [
+      206
+    ],
+    "restored": true
+  },
+  "allocationTrace": {
+    "dropped": 0,
+    "observationErrors": 0,
+    "observerHooks": [
+      {
+        "token": "0600934A",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A1",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A4",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06000C3C",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600C3BE",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06009120",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600838F",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060026B2",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06000C37",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      }
+    ],
+    "events": [
+      {
+        "sequence": 1,
+        "commandActor": "rider",
+        "state": {
+          "reactions": 1,
+          "reactionCooldown": 0,
+          "inCombat": false,
+          "standard": 0,
+          "initiativeOrder": 12,
+          "reactionsPerRound": 1,
+          "initiativeCooldown": 0,
+          "move": 0,
+          "actor": "rider",
+          "swift": 0
+        },
+        "command": 1101,
+        "boundary": "cost-before",
+        "actionType": "Move",
+        "timeSinceStart": 0.25,
+        "acted": true,
+        "gameTicks": 11000,
+        "frame": 10
+      },
+      {
+        "commandActor": "rider",
+        "state": {
+          "actor": "rider",
+          "inCombat": false,
+          "move": 0,
+          "standard": 0,
+          "swift": 0,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 12,
+          "reactionCooldown": 0,
+          "reactions": 1,
+          "reactionsPerRound": 1
+        },
+        "command": 1101,
+        "boundary": "cost-after",
+        "actionType": "Move",
+        "timeSinceStart": 0.25,
+        "acted": true,
+        "gameTicks": 11000,
+        "sequence": 2,
+        "frame": 10
+      },
+      {
+        "sequence": 3,
+        "commandActor": "rider",
+        "state": {
+          "reactions": 1,
+          "reactionCooldown": 0,
+          "inCombat": false,
+          "standard": 0,
+          "initiativeOrder": 12,
+          "reactionsPerRound": 1,
+          "initiativeCooldown": 0,
+          "move": 0,
+          "actor": "rider",
+          "swift": 0
+        },
+        "command": 2101,
+        "boundary": "cost-before",
+        "actionType": "Move",
+        "timeSinceStart": 0.25,
+        "acted": true,
+        "gameTicks": 12000,
+        "frame": 20
+      },
+      {
+        "commandActor": "rider",
+        "state": {
+          "actor": "rider",
+          "inCombat": false,
+          "move": 0,
+          "standard": 0,
+          "swift": 0,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 12,
+          "reactionCooldown": 0,
+          "reactions": 1,
+          "reactionsPerRound": 1
+        },
+        "command": 2101,
+        "boundary": "cost-after",
+        "actionType": "Move",
+        "timeSinceStart": 0.25,
+        "acted": true,
+        "gameTicks": 12000,
+        "sequence": 4,
+        "frame": 20
+      },
+      {
+        "sequence": 5,
+        "boundary": "synthetic-outside-tested-window",
+        "frame": 50,
+        "gameTicks": 100000
+      },
+      {
+        "sequence": 6,
+        "boundary": "synthetic-outside-tested-window",
+        "frame": 50,
+        "gameTicks": 100000
+      },
+      {
+        "sequence": 7,
+        "boundary": "synthetic-outside-tested-window",
+        "frame": 50,
+        "gameTicks": 100000
+      },
+      {
+        "sequence": 8,
+        "boundary": "synthetic-outside-tested-window",
+        "frame": 50,
+        "gameTicks": 100000
+      },
+      {
+        "boundary": "cost-before",
+        "sequence": 9,
+        "frame": 99,
+        "gameTicks": 1000000,
+        "command": 101,
+        "commandActor": "rider",
+        "actionType": "Move",
+        "acted": true,
+        "timeSinceStart": 0,
+        "state": {
+          "actor": "rider",
+          "actorObject": 101,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 0,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1,
+          "inCombat": true
+        }
+      },
+      {
+        "boundary": "cost-after",
+        "sequence": 10,
+        "frame": 99,
+        "gameTicks": 1000000,
+        "command": 101,
+        "commandActor": "rider",
+        "actionType": "Move",
+        "acted": true,
+        "timeSinceStart": 0,
+        "state": {
+          "actor": "rider",
+          "actorObject": 101,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 3,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1,
+          "inCombat": true
+        }
+      }
+    ]
+  },
+  "ordinaryCandidates": [
+    {
+      "object": 401,
+      "guid": "ordinary-ability",
+      "suitable": true
+    }
+  ],
+  "mountProof": {
+    "nativeTerminal": true,
+    "samples": [
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "init",
+        "acted": false,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 0,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 0,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "click-admission",
+        "acted": false,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 0,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 0,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "move-slot-installation",
+        "acted": false,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 0,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 0,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "approach-start",
+        "acted": false,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 0,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 0,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "process-binding",
+        "acted": false,
+        "nativeProcessBinding": true,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 301,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 201,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "acted",
+        "acted": true,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 301,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 201,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "cost-before",
+        "acted": true,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 301,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 201,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "cost-after",
+        "acted": true,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 301,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 201,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "deliver",
+        "acted": true,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 301,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 201,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 301,
+        "frame": 99
+      },
+      {
+        "processEnded": false,
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 1,
+            "acceptedMount": 1,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Unmounted",
+          "generation": 1
+        },
+        "allocationSequence": 8,
+        "finished": false,
+        "boundary": "relationship-transition",
+        "acted": true,
+        "nativeProcessBinding": false,
+        "simulatingClick": false,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 301,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 201,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "result": "Success",
+        "gameTicks": 1000000,
+        "deliveryContext": 0,
+        "frame": 99
+      },
+      {
+        "state": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 3,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1
+          },
+          "selectedIds": [
+            "rider"
+          ],
+          "ledger": {
+            "admittedMount": 2,
+            "acceptedMount": 2,
+            "admittedDismount": 1,
+            "acceptedDismount": 1,
+            "refusedVoluntary": 0,
+            "forcedDetach": 3,
+            "duplicateSuppressed": 2,
+            "concurrentSuppressed": 0
+          },
+          "relationshipState": "Mounted",
+          "generation": 2
+        },
+        "boundary": "terminal",
+        "nativeProcessBinding": false,
+        "deliveryContext": 0,
+        "frame": 100,
+        "gameTicks": 1000000,
+        "allocationSequence": 10,
+        "identity": {
+          "controlIdentity": "synthetic-control-0",
+          "generationAtInit": 1,
+          "commandType": "Move",
+          "contextObject": 301,
+          "abilityGuid": "f053faad986631688defa003cd7bda0e",
+          "processObject": 201,
+          "casterId": "rider",
+          "targetId": "mount",
+          "commandObject": 101
+        },
+        "acted": true,
+        "finished": true,
+        "processEnded": true,
+        "result": "Success",
+        "simulatingClick": false,
+        "nativeAllocation": {
+          "rider": {
+            "actor": "rider",
+            "actorObject": 101,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 3,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false
+          },
+          "mount": {
+            "actor": "mount",
+            "actorObject": 102,
+            "inCombat": true,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 1,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false
+          }
+        }
+      }
+    ],
+    "identityComplete": true,
+    "nativeResult": "Success",
+    "traceComplete": true,
+    "pass": true,
+    "errors": [],
+    "resourceWindow": {
+      "reactionResources": {
+        "pass": true,
+        "contract": "native-time-and-declared-partner-preparation-only"
+      },
+      "inCombat": true,
+      "turnBased": false,
+      "events": [
+        {
+          "boundary": "cost-before",
+          "sequence": 9,
+          "frame": 99,
+          "gameTicks": 1000000,
+          "command": 101,
+          "commandActor": "rider",
+          "actionType": "Move",
+          "acted": true,
+          "timeSinceStart": 0,
+          "state": {
+            "actor": "rider",
+            "actorObject": 101,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 0,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1,
+            "inCombat": true
+          }
+        },
+        {
+          "boundary": "cost-after",
+          "sequence": 10,
+          "frame": 99,
+          "gameTicks": 1000000,
+          "command": 101,
+          "commandActor": "rider",
+          "actionType": "Move",
+          "acted": true,
+          "timeSinceStart": 0,
+          "state": {
+            "actor": "rider",
+            "actorObject": 101,
+            "grantSequence": 1,
+            "standard": 2,
+            "move": 3,
+            "swift": 0.8,
+            "initiativeCooldown": 0,
+            "initiativeOrder": 7,
+            "reactionCooldown": 0.05,
+            "reactions": 0,
+            "reactionsPerRound": 1,
+            "waitingInitiative": false,
+            "nativePrepareCount": 1,
+            "inCombat": true
+          }
+        }
+      ],
+      "pass": true
+    },
+    "identity": {
+      "controlIdentity": "synthetic-control-0",
+      "generationAtInit": 1,
+      "commandType": "Move",
+      "contextObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "processObject": 201,
+      "casterId": "rider",
+      "targetId": "mount",
+      "commandObject": 101
+    },
+    "exactActedObserved": true,
+    "sameCommandAtEveryBoundary": true,
+    "preClick": {
+      "frame": 99,
+      "gameTicks": 1000000,
+      "allocationSequence": 8,
+      "state": {
+        "rider": {
+          "actor": "rider",
+          "actorObject": 101,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 0,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "mount": {
+          "actor": "mount",
+          "actorObject": 102,
+          "inCombat": true,
+          "grantSequence": 1,
+          "standard": 2,
+          "move": 1,
+          "swift": 0.8,
+          "initiativeCooldown": 0,
+          "initiativeOrder": 7,
+          "reactionCooldown": 0.05,
+          "reactions": 0,
+          "reactionsPerRound": 1,
+          "waitingInitiative": false,
+          "nativePrepareCount": 1
+        },
+        "selectedIds": [
+          "rider"
+        ],
+        "ledger": {
+          "admittedMount": 1,
+          "acceptedMount": 1,
+          "admittedDismount": 1,
+          "acceptedDismount": 1,
+          "refusedVoluntary": 0,
+          "forcedDetach": 3,
+          "duplicateSuppressed": 2,
+          "concurrentSuppressed": 0
+        },
+        "relationshipState": "Unmounted",
+        "generation": 1
+      }
+    },
+    "initCount": 1,
+    "predictionCommands": {
+      "commands": [],
+      "contract": "native-speculative-init-separated-from-one-committed-request",
+      "pass": true
+    },
+    "mountId": "mount",
+    "ledgerDelta": {
+      "admittedMount": 1,
+      "acceptedMount": 1,
+      "admittedDismount": 0,
+      "acceptedDismount": 0,
+      "refusedVoluntary": 0,
+      "forcedDetach": 0,
+      "duplicateSuppressed": 0,
+      "concurrentSuppressed": 0
+    },
+    "window": "positive-mount"
+  },
+  "mountTerminalBridge": {
+    "contract": "same-allocation-no-command-cost-with-observed-native-time-only",
+    "riderId": "rider",
+    "mountId": "mount",
+    "turnBased": false,
+    "traceComplete": true,
+    "observerHooks": [
+      {
+        "token": "0600934A",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A1",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A4",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06000C3C",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600C3BE",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06009120",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600838F",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060026B2",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06000C37",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      }
+    ],
+    "commandIdentity": {
+      "controlIdentity": "synthetic-control-0",
+      "generationAtInit": 1,
+      "commandType": "Move",
+      "contextObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "processObject": 201,
+      "casterId": "rider",
+      "targetId": "mount",
+      "commandObject": 101
+    },
+    "before": {
+      "frame": 100,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      }
+    },
+    "after": {
+      "frame": 100,
+      "gameTicks": 1000000,
+      "allocationSequence": 10,
+      "rider": {
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 3,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      },
+      "mount": {
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "standard": 2,
+        "move": 1,
+        "swift": 0.8,
+        "initiativeCooldown": 0,
+        "initiativeOrder": 7,
+        "reactionCooldown": 0.05,
+        "reactions": 0,
+        "reactionsPerRound": 1,
+        "waitingInitiative": false
+      }
+    },
+    "events": []
+  }
+}

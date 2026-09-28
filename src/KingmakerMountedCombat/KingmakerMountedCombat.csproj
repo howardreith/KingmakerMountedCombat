@@ -365,6 +365,10 @@
     <Compile Include="Diagnostics\NativeTurnCompletionProbe.cs" />
     <Compile Include="Diagnostics\NativeTurnCompletionEvidence.cs" />
     <Compile Include="Diagnostics\NativeAllocationContinuationEvidence.cs" />
+    <Compile Include="Diagnostics\NativeAutoUseControlProbe.cs" />
+    <Compile Include="Diagnostics\NativeAutoUseControlEvidence.cs" />
+    <Compile Include="Diagnostics\NativeAutoUseCaseEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk6aAutoUseScenario.cs" />
     <Compile Include="Diagnostics\NativeMountOrderEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aMountOrderScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aDismountEscapeScenario.cs" />

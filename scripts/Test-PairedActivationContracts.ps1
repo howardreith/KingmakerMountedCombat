@@ -314,6 +314,13 @@ public static class KmcNativePatchProbe {
    requested.FieldType.GetField("vectorPath").SetValue(samplePath,points);
    foreach(var boundary in new[]{"path-request","command-bound","command-ended","unknown"}) {
     var captured=contentsMethod.Invoke(null,new object[]{samplePath,boundary});
+    // Serialization normalizes a null-valued String token to JSON null. Check
+    // the live tokens consumed by the in-process ground evidence validator.
+    foreach(var field in new[]{"pathError","pathState","points"}) {
+     var token=captured.GetType().GetProperty("Item",new[]{typeof(string)}).GetValue(captured,new object[]{field});
+     if(token==null || token.GetType().GetProperty("Type").GetValue(token,null).ToString()!="Null")
+      throw new InvalidOperationException("In-flight path token must be Null before serialization: "+boundary+" "+field);
+    }
     var encoded=(string)serialize.Invoke(null,new[]{captured});
     if(encoded!="{\"pathError\":null,\"pathState\":null,\"points\":null}")
      throw new InvalidOperationException("Worker-owned path contents exposed at "+boundary);
@@ -323,7 +330,7 @@ public static class KmcNativePatchProbe {
    if(completedText.IndexOf("\"points\":[",StringComparison.Ordinal)<0) throw new InvalidOperationException("Completed path points absent.");
    points.Clear(); points.Add(Activator.CreateInstance(vectorType,new object[]{9f,8f,7f}));
    if((string)serialize.Invoke(null,new[]{completed})!=completedText) throw new InvalidOperationException("Native pool reuse mutated the completed snapshot.");
-   Console.WriteLine("PATH CONTENTS BOUNDARY PASS=5 FAIL=0; request contents absent, completed snapshot immutable");
+   Console.WriteLine("PATH CONTENTS BOUNDARY PASS=17 FAIL=0; twelve live Null tokens, request contents absent, completed snapshot immutable");
    var consumedProbe=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeMountApproachPathProbe",true);
    var snapshotMethod=consumedProbe.GetMethod("SnapshotConsumedPath",causalFlags);
    if(snapshotMethod==null)throw new InvalidOperationException("Consumed path snapshot seam absent.");

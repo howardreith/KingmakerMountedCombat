@@ -85,7 +85,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var ready = boundary == "path-complete-before" || boundary == "path-complete-after" ||
                 boundary == "path-not-found" || boundary == "movement-interrupted";
             return new JObject { ["pathError"] = ready ? path?.error : null,
-                ["pathState"] = ready ? path?.CompleteState.ToString() : null,
+                ["pathState"] = ready && path != null ? new JValue(path.CompleteState.ToString()) : JValue.CreateNull(),
                 ["points"] = !ready || path?.vectorPath == null ? null : new JArray(path.vectorPath.Select(Point)) };
         }
         private void Record(string boundary, Request request)
