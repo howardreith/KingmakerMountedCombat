@@ -1,3 +1,20 @@
+## 2026-09-28T15:50:48.005Z - preview125 campaign retained; source126 IN PROGRESS
+
+Published parent026d2c265c86252b2d7ad977f8bdd324041806a3 remains local/remote-equal with acceptedf05a265 ancestry. Source126 is an unpackaged worktree change. Preview125 is superseded for future qualification after its16 transactions settled:14 overallPASS,2FAIL,all five restoration checks PASS in every transaction. Human preview105 was restored. Exact closure receipt: analysis-cache/chunk6a-causal/campaign-reconciliation-preview125.json. The original completed purity was reused without rerunning it.
+
+Frozen125 packageSHA0988ad0ab1207ba9691c7dcd3674400b5fb02c6d2e9f5f53dc5a166928ffbdcc; DLLSHA20a683171596347efcb04721e47253eed7ff2296d31d6f5441ed0e532e50e182/MVIDabdf778d-24cf-4906-b481-8b225655578f; suite20260928-chunk6a-pointer-a/SHA2c4076e1a3d2d7d0f15fe590753c021176a5a56d3550beee471055b98482e8ec. Original purity exit0 at14:29:25.7359297Z, rawlogSHAea56128d18b136460665e1e373c0b772950ade0712de477c7e95b33937d7314f. All exact native artifacts, payloads and literal assertions are retained in [history](chunk6a-evidence-history.json).
+
+[The latest frozen ledger](chunk6a-ledger.json) is17PASS/2FAIL/68unqualified,21 original failures retained; it does not qualify source126. PASS campaigns include positive48/0, isolated compensationRT46/0 andTB47/0, geometry45/0, obstruction45/0, fullRT52/0, Stop45/0,hotbar49/0,MammothRT9/0 andTB10/0, wrong-target/mount-selected/multiple-selection45/0 each. Foreign-selection45/0 is supplemental and does not prove unrelated ordinary ability use. The MammothTB proof observed exact native pointer/path consumption, acted/cost/resource/reaction/terminal boundaries under RetainPartnerParticipation. Old mixed-command runs remain rejected as positive qualification.
+
+| Run | Exact first failure | Causal finding |
+| --- | --- | --- |
+| c6a-pointer-a-full-tb (43/2) | InvalidOperationException: No bounded pre-combat rider position has a clear native route and Acting clearance; origin and every proposal retained. |72 proposals rejected before encounter or Mount; no positive pointer result. Preserve all staging bounds; investigate a separately observed bounded Horse ground reposition with read-only joint feasibility. |
+| c6a-pointer-a-paused (44/2) | InvalidOperationException: Native approach preceded the observed unpause. | All11 held samples passed. Release and approach shared frame1633, but gameTicks advanced434324000000->434324110000 and allocation23->27. Strict frame ordering was an instrumentation assumption. |
+
+Source126 currently integrates only a diagnostic observation repair: one window-owned monotonic ordinal orders baseline, command callbacks, held samples and unpause; approach must directly observe paused=false after release with nondecreasing frame/game time. Identity, held-resource/reaction/geometry, native cost and terminal predicates remain. No production resource or movement write was added. Release build/source126 checks PASS; paused producer/external238/0 and full envelope18/0 passed before the version increment; repeat relevant gates on final source before publication.
+
+Separate future lab drafts compile and test continuation240/0,order536/0,pre-encounter admission260/0,disabled-setting Dismount402/0 and additional envelope36/0. These are not native qualifications. Order integration still needs complete-envelope binding tests, registration/composite mappings, and native observations. Horse staging repair is not implemented. Full offline umbrella, coherent publication,new immutable candidate/suite/fresh proof and required native order remain. No6B until every mandatory6A row passes one frozen candidate; no PR,merge,tag,release,permanent install or HUMAN PLAY inference.
+
 
 ## 2026-09-28T13:14:29.965Z — complete preview125 offline gate PASS
 

@@ -53,6 +53,16 @@ function Assert-KmcPausedQueue($Hold,$Proof) {
  $admitted=@($Proof.samples|Where-Object boundary -CEQ 'click-admission')
  if($admitted.Count -ne 1){throw 'Paused admission boundary absent'}
  foreach($key in @('frame','gameTicks','allocationSequence')){if($first.$key -ne $admitted[0].$key){throw 'Paused hold differs from exact click admission'}}
+ $lastOrder=0L
+ foreach($s in @($Proof.samples)){
+  if($null-eq$s.observationSequence-or[long]$s.observationSequence-le$lastOrder){throw 'Command observation order missing or nonmonotonic'};$lastOrder=[long]$s.observationSequence
+ }
+ if($null-eq$Proof.preClick.observationSequence-or$Proof.preClick.observationSequence-le0-or$null-eq$admitted[0].observationSequence-or$admitted[0].observationSequence-le$Proof.preClick.observationSequence-or$Proof.preClick.paused-ne$true-or$admitted[0].paused-ne$true){throw 'Paused admission order or pause observation missing'}
+ $lastOrder=[long]$admitted[0].observationSequence
+ foreach($s in @($Hold.samples)){
+  if($null-eq$s.observationSequence-or[long]$s.observationSequence-le$lastOrder){throw 'Held observation order missing or nonmonotonic'};$lastOrder=[long]$s.observationSequence
+ }
+ if($null-eq$r.observationSequence-or$r.observationSequence-le$lastOrder){throw 'Unpause observation does not follow held interval'}
  $approach=@($Proof.samples|Where-Object boundary -CEQ 'approach-start')
- if($approach.Count -ne 1 -or $approach[0].frame -le $r.frame -or $approach[0].gameTicks -lt $r.gameTicks){throw 'Native approach did not follow unpause'}
+ if($approach.Count-ne1-or$approach[0].observationSequence-le$r.observationSequence-or$approach[0].paused-ne$false-or$approach[0].frame-lt$r.frame-or$approach[0].gameTicks-lt$r.gameTicks){throw 'Native approach was not observed after unpause'}
 }

@@ -1,3 +1,9 @@
+## 2026-09-28T15:50:48.005Z - exact continuation checkpoint
+
+Branch codex/mounted-combat-phase3f-playable-core; HEAD026d2c265c86252b2d7ad977f8bdd324041806a3. Owned worktree: source126 paused observation repair, regressions, version metadata and retained125 campaign documentation/history. All16 native transactions restored; Kingmaker closed; no proof active. Original125 purity must never be rerun. Exact lab checkpoint/candidate/suite/proof closure: analysis-cache/chunk6a-causal/checkpoint-preview125-after-inputs.json and campaign-reconciliation-preview125.json. Frozen ledger17PASS/2FAIL/68unqualified with21 failures; current source0 native qualification.
+
+Next: finish focused integrated pause source bindings and versioned build/tests, validate imported history/ledger. Then implement bounded Horse pre-combat staging repair with unchanged geometric/travel/deadline guards and complete future order/disabled-setting Dismount integration. Lab next-candidate-integration contains compiled continuation/order/terminal-bridge/context and pre-encounter setting-lease repairs (240/536/260 checks); full order envelope/registration/composite gating remains pending. Separate paused-order-draft receipt remains immutable. Do not copy draft compiler outputs into packaging. After full offline umbrella and coherent guarded publication, build a new immutable126 candidate/suite and obtain fresh unchanged proof; run positive, isolatedcompRT/TB,geometry,obstruction,fullRT/freshTB and remaining mandatory6A. No old result may qualify changed payload.
+
 
 ## 2026-09-28T13:14:29.965Z — complete preview125 offline gate PASS
 

@@ -44,7 +44,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var c = chunk6aPausedCommand;
             var id = nativeControls.CaptureRelationshipCommandIdentity(c);
-            return new JObject { ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+            return new JObject { ["observationSequence"] = chunk6aCommandWindow.NextObservationSequence(), ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                 ["paused"] = Game.Instance.IsPaused, ["turnBased"] = CombatController.IsInTurnBasedCombat(),
                 ["allocationSequence"] = allocationTrace.EventCount, ["traceComplete"] = allocationTrace.Complete,
                 ["commandObject"] = c == null ? 0 : RuntimeHelpers.GetHashCode(c),
@@ -164,9 +164,34 @@ namespace KingmakerMountedCombat.Diagnostics
             if(!JToken.DeepEquals(events,exactEvents))throw new InvalidOperationException("Paused allocation events differ from the command proof.");
             var admitted=proof["samples"].OfType<JObject>().Single(x=>(string)x["boundary"]=="click-admission");
             foreach(var key in new[]{"frame","gameTicks","allocationSequence"})if(!JToken.DeepEquals(first[key],admitted[key]))throw new InvalidOperationException("Paused hold was not captured at exact click admission.");
+            // Unity can execute native command callbacks later in the same frame as
+            // synchronous unpause. One observer-owned ordinal orders both callbacks and
+            // held samples; frame equality alone neither proves nor refutes causality.
+            long lastOrder = 0;
+            foreach (var s in proof["samples"].OfType<JObject>())
+            {
+                var order = (long?)s["observationSequence"];
+                if (!order.HasValue || order.Value <= lastOrder) throw new InvalidOperationException("Command observation order missing or nonmonotonic.");
+                lastOrder = order.Value;
+            }
+            var preOrder = (long?)proof["preClick"]?["observationSequence"];
+            var admissionOrder = (long?)admitted["observationSequence"];
+            if (!preOrder.HasValue || preOrder <= 0 || !admissionOrder.HasValue || admissionOrder <= preOrder ||
+                (bool?)proof["preClick"]?["paused"] != true || (bool?)admitted["paused"] != true)
+                throw new InvalidOperationException("Paused admission order or pause observation missing.");
+            lastOrder = admissionOrder.Value;
+            foreach (var s in samples.OfType<JObject>())
+            {
+                var order = (long?)s["observationSequence"];
+                if (!order.HasValue || order.Value <= lastOrder) throw new InvalidOperationException("Held observation order missing or nonmonotonic.");
+                lastOrder = order.Value;
+            }
+            var releaseOrder = (long?)released["observationSequence"];
+            if (!releaseOrder.HasValue || releaseOrder <= lastOrder) throw new InvalidOperationException("Unpause observation does not follow the held interval.");
             var approach=proof["samples"].OfType<JObject>().Single(x=>(string)x["boundary"]=="approach-start");
-            if((int)approach["frame"] <= (int)released["frame"] || (long)approach["gameTicks"]<(long)released["gameTicks"])
-                throw new InvalidOperationException("Native approach preceded the observed unpause.");
+            if ((long?)approach["observationSequence"] <= releaseOrder || (bool?)approach["paused"] != false ||
+                (int)approach["frame"] < (int)released["frame"] || (long)approach["gameTicks"] < (long)released["gameTicks"])
+                throw new InvalidOperationException("Native approach was not observed after unpause.");
         }
     }
 }

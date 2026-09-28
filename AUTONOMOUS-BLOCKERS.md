@@ -1,3 +1,7 @@
+## 2026-09-28T15:50:48.005Z - active6A IN PROGRESS
+
+Two125 failures remain exact historical evidence: HorseTB pre-encounter staging had no eligible route/clearance; paused proof rejected same-frame callbacks despite later native clock/events. The latter has a tested observational source repair awaiting new-candidate native proof; Horse staging repair remains required. Frozen12517/87 mandatoryPASS does not qualify source126. All16 external restorations PASS. Remaining case implementation/qualification is ordinary mission work, not a proven critical hard stop. See [active report](docs/CHUNK6A-COMBAT-MOUNT.md).
+
 ## 2026-09-28T05:23:06.885Z - Complete preview.122 offline gate
 
 PASS: source116/0, components552/0, harness270/0, causal220/0, supporting52/0, history422/0, assembly629/0, command ownership24/0, compiled fields5/0, interruption wrapper1/0, path snapshot5/0, patch construction30/0. Umbrella57557 exited0. Raw logSHA 187c13300a504b8b7a245d2cf8f2f94579bbe05f4812fd9c511fd9f50113c848; DLL 598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa / MVID 44829661-73db-41b4-9c60-c51d5d37f466. Historical ledger consistency87/0 verifies1218PASS/2FAIL/77unqualified with13retained failures; it is not completion. Source122 has0native qualification. Next guarded publication, new immutable122/suite/fresh unchanged proof, then required native sequence and remaining87. Completed121 proof and seven restored results retained; never rerun121proof. No game/proofactive.

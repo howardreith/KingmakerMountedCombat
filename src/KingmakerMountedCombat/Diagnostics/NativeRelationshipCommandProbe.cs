@@ -39,6 +39,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly JArray installedHooks = new JArray();
         private RelationshipCommandIdentity identity;
         private int initCount;
+        private long observationSequence;
+        internal long NextObservationSequence() => checked(++observationSequence);
         private int traceEnd = -1;
         private bool disposed;
         private JObject completed;
@@ -59,7 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (active != null) throw new InvalidOperationException("A relationship command window is already active.");
             this.controls = controls; this.trace = trace; this.rider = rider; this.mount = mount;
             this.ability = ability; this.state = state; this.unactedFailure = unactedFailure; traceStart = trace.EventCount;
-            preClick = new JObject { ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+            preClick = new JObject { ["observationSequence"] = NextObservationSequence(), ["paused"] = Game.Instance.IsPaused, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                 ["frame"] = Time.frameCount, ["allocationSequence"] = trace.EventCount, ["state"] = state() };
             harmony = HarmonyInstance.Create(HarmonyId); active = this;
             trace.BoundaryObserved += OnAllocationBoundary;
@@ -147,7 +149,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     errors.Add("Deliver used a different execution context.");
                 var value = new JObject
                 {
-                    ["boundary"] = boundary, ["frame"] = Time.frameCount,
+                    ["boundary"] = boundary, ["observationSequence"] = NextObservationSequence(), ["paused"] = Game.Instance.IsPaused, ["frame"] = Time.frameCount,
                     ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
                     ["allocationSequence"] = trace.EventCount, ["simulatingClick"] = Kingmaker.Controllers.Clicks.PointerController.SimulatingClick, ["identity"] = Describe(observed), ["acted"] = command?.IsActed,
                     ["finished"] = command?.IsFinished, ["result"] = command?.Result.ToString(),
