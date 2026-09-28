@@ -32,7 +32,7 @@ function New-ObstructionCase {
     $open=Copy-Value $door;$open.open=$true;$open.cutEnabled=$false
     $case=@{contract='closed-native-door-unacted-mount';diagnosticStopIssued=$false;noResidue=$true;commandProof=$p;path=(New-PathProof)
         terminal=@{id=101;finished=$true;acted=$false;result='Interrupt'};after=@{relationshipState='Unmounted';generation=4}
-        doorAtClick=(Copy-Value $door);doorAtTerminal=(Copy-Value $door);closedDoorObservations=1;start=@{isAdjacent=$false;centerDistance=7.0;horizontalDistance=7.0;legalAdjacencyEnvelope=2.9;riderCorpulence=0.5;horseCorpulence=1.4;riderPosition=@{x=-3.5;z=0};horsePosition=@{x=3.5;z=0}}}
+        doorAtClick=(Copy-Value $door);doorAtTerminal=(Copy-Value $door);closedDoorObservations=1;start=@{isAdjacent=$false;centerDistance=7.0;horizontalDistance=7.0;legalAdjacencyEnvelope=2.9;riderCorpulence=0.5;horseCorpulence=0.9;riderPosition=@{x=-3.5;z=0};horsePosition=@{x=3.5;z=0}}}
     $fixture=@{contract='native-open-door-crossing-then-closed-cut';originalOpen=$true;originalEnabled=$false;originalCut=$false;disableNavmeshCutWhenOpen=$true
         restoration=@{exact=$true;ready=$true;state=$open};closedReady=(Copy-Value $door)
         center=@{x=0.0;y=0.0;z=0.0};near=@{x=-3.5;y=0.0;z=0.0};far=@{x=3.5;y=0.0;z=0.0}
@@ -93,4 +93,35 @@ foreach($field in @('points','pathError','pathState')) {
         $c=New-ObstructionCase;$c.case.path.events[1].$field=$(if($field -ceq 'points'){@(@{x=0;y=0;z=0})}elseif($field -ceq 'pathError'){$false}else{'Complete'})
         Reject {Assert-Obstruction $c} 'worker-owned'
     }
+}
+
+# Real Horse corpulence is 0.9; the frozen native reach is 1.5, hence 2.9 total.
+# The old 1.4 synthetic corpulence hid the validator's erroneous +1.0 formula.
+Test-Case 'obstruction rejects the old 2.4m envelope for the real Horse pair' {
+    $c=New-ObstructionCase;$c.case.start.legalAdjacencyEnvelope=2.4
+    Reject {Assert-Obstruction $c} 'envelope'
+}
+Test-Case 'obstruction rejects a point inside native reach but outside the old validator reach' {
+    $c=New-ObstructionCase;$c.case.start.centerDistance=2.6;$c.case.start.horizontalDistance=2.6
+    $c.case.start.riderPosition.x=-1.3;$c.case.start.horsePosition.x=1.3
+    Reject {Assert-Obstruction $c} 'envelope'
+}
+Test-Case 'obstruction rejects isolated corpulence drift with otherwise valid command evidence' {
+    $c=New-ObstructionCase;$c.case.start.horseCorpulence=1.4
+    Reject {Assert-Obstruction $c} 'envelope'
+}
+Test-Case 'obstruction rejects an absent live closed-door observation' {
+    $c=New-ObstructionCase;$c.case.closedDoorObservations=0
+    Reject {Assert-Obstruction $c} 'closed door'
+}
+Test-Case 'preview120 immutable native evidence passes the corrected parser only; overall FAIL is retained' {
+    $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../runtime-evidence/c6a-interruption-a-obstruction'))
+    $artifactPath=Join-Path $root 'phase3d-horse-scenario-evidence.json'
+    $resultPath=Join-Path $root 'runtime-result.json'
+    if((Get-FileHash $artifactPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne '2142e6ea9ed302d394f53f3ab9d62ec17e6e9023d338f61a1ddc7a5731cddbdb' -or
+        (Get-FileHash $resultPath -Algorithm SHA256).Hash.ToLowerInvariant() -cne '95a90d72e2aba03aa6a61a438a3b9263f76ba8fe4d801d606cf4915912f2e2bd') {throw 'Historical obstruction evidence changed.'}
+    $artifact=Get-Content -Raw $artifactPath|ConvertFrom-Json
+    $result=Get-Content -Raw $resultPath|ConvertFrom-Json
+    if($result.status -cne 'FAIL' -or $artifact.status -cne 'PASS') {throw 'Original external/native result facets changed.'}
+    Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-obstruction'}) $artifact 'PASS'
 }

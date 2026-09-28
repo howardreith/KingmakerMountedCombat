@@ -1,3 +1,11 @@
+## 2026-09-28T03:23:07.787Z - preview.121 external envelope repair
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserving published31ed92abadd1491b9aa177eacd43a5dea4a08550. Completed120 purity and five native runs remain immutable; never rerun its proof. Positive48/0, isolatedRT46/0, TB47/0 and geometry45/0 PASS. Obstruction is overallFAIL0/1 despite nativePASS45/0; all five external restoration checks passed. The native interruption repair executed correctly, but the external obstruction validator used +1.0m instead of the frozen +1.5m reach. Source121 corrects that formula with before/after regression and preserves all thresholds and production behavior. Focused build/source114/0, causal216/0, history362/0 PASS. Ledger120 remains8/1/78 with eleven retained failures; source1210/87.
+
+Exact payloads, original assertions, native callback evidence and restoration: [Chunk6A report](docs/CHUNK6A-COMBAT-MOUNT.md), [history](docs/chunk6a-evidence-history.json), and lab analysis-cache/chunk6a-causal/ACTIVE.json. Next complete offline umbrella, guarded publication, new immutable121/suite/fresh proof, then the required native sequence. No6B until all87 mandatory6A rows pass one frozen candidate. Mission target ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge/release/tag/PR/permanent install/HUMAN PLAY inference. No game or proof active.
+
+---
+
 ## 2026-09-28T01:48:01.223Z - preview.120 interruption repair
 
 IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserved published parent aba6b3bf1ae15a678397ee58ee51ca07d8bd3f57. Preview119 proof and five native runs are retained exactly; never restart its completed proof. Its ledger is8 PASS /1 FAIL /78 unqualified with ten retained mandatory failures. CM02-obstruction directly observed a native interruption leaving the exact unacted Mount pending. Source120 fixes only the native handler's UnitMoveTo-only accessor gap by retiring the exact captured Mount shell and calling native Interrupt. No resource writes. Focused build/source113/0, command ownership24/0, assembly629/0, wrapper1/0 PASS; Unity execution still required. Source120 has0/87 native qualification.

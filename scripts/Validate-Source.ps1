@@ -810,6 +810,12 @@ Assert-Kmc ($chunk6aObstruction -match 'AddRow\("CM02-obstruction", pass' -and
 # Geometry changes during a separately identified native Mount approach. Arrival
 # is observed before attachment; cooldown endpoints never replace exact acted/cost.
 $chunk6aRowRequirementText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'scripts\runtime\RuntimeHarness.Common.ps1')
+$obstructionValidatorBody = [Regex]::Match($chunk6aRowRequirementText, '(?s)function Assert-KmcChunk6aObstruction \{.*?\n\}').Value
+Assert-Kmc ($evaluatorText.Contains('public const float NativeAdjacentReachMeters = 1.5f;') -and
+    $obstructionValidatorBody.Contains('$envelope=[double]$g.riderCorpulence+[double]$g.horseCorpulence+1.5') -and
+    $obstructionValidatorBody.Contains('[Math]::Abs($envelope-[double]$g.legalAdjacencyEnvelope) -gt 0.0001') -and
+    $obstructionValidatorBody.Contains('$Case.closedDoorObservations -lt 1')) `
+    'obstruction rederives the frozen native 1.5m reach with unchanged geometry and closed-door thresholds'
 $geometryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aGeometryChangeScenario.cs')
 $groundProofText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\NativeRelationshipGroundOrder.cs')
 $chunk6aTrancheText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Phase3dHorseScenarioTranche.cs')
