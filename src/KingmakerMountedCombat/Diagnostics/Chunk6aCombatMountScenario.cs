@@ -1201,6 +1201,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Chunk6aAutoUseOnly) { BeginChunk6aAutoUse(mountProof); return; }
                 if (Chunk6aDismountEscapeOnly) { BeginChunk6aDismountEscape(mountProof); return; }
                 if (Chunk6aMountOrderOnly) { FinishChunk6aMountOrder(mountProof); return; }
+                if (request.Scenario == "chunk6a-combat-mount-tb") allocationTrace.ObserveReactionResources = true;
                 chunk6aStage = 3;
                 ResetLeafClock();
                 return;
@@ -1243,6 +1244,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // Stage 4: voluntary combat Dismount through the same normal control.
             if (chunk6aStage == 4)
             {
+                if (!PrepareChunk6aDismountTurn(turn)) return;
                 if (!Chunk6aIdle)
                 {
                     return;
@@ -1286,6 +1288,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 if (!EnsureChunk6aRiderSelection("CM05-combat-dismount-accepted")) return;
+                CaptureChunk6aDismountReady();
                 chunk6aPreDismount = CaptureChunk6aState("dismount-before");
                 BeginChunk6aCommandWindow(nativeControls.DismountAbility.AssetGuid);
                 chunk6aDismountLedgerBefore = Chunk6aLedgerCounters();

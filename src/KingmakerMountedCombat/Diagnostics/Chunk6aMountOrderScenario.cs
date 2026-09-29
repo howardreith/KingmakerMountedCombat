@@ -32,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["riderResources"] = allocationTrace.Snapshot(rider), ["mountResources"] = allocationTrace.Snapshot(horse),
                 ["pairedSequence"] = combat.PairedActivationSequence, ["adoptionCount"] = combat.MidEncounterAdoptionCount,
                 ["partnerContextObject"] = combat.PairedPartnerContext == null ? 0 : RuntimeHelpers.GetHashCode(combat.PairedPartnerContext),
-                ["partnerActor"] = combat.PairedPartnerContext?.Unit?.UniqueId,
+                ["partnerActor"] = NativeMountOrderEvidence.CaptureOptionalActor(combat.PairedPartnerContext?.Unit?.UniqueId),
                 ["pairedFinalized"] = combat.PairedActivationFinalized, ["pairedSplit"] = combat.PairedActivationSplit,
                 ["roster"] = new JArray(controller.SortedUnits.Select(u => new JObject { ["actor"] = u.UniqueId,
                     ["initiativeOrder"] = u.CombatState.Initiative, ["visible"] = u.IsVisibleForPlayer, ["surprised"] = controller.IsSurprised(u) }))
@@ -113,6 +113,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!Chunk6aIdle || controller.WaitingForUI || GetPendingNextUnit(controller) != null || !turn.CanEndTurnAndNoActing()) return;
                 if (!EnsureChunk6aRiderSelection("CM03-allocation-order")) return;
                 if (chunk6aOrderEndClicked) throw new InvalidOperationException("Duplicate native End Turn input.");
+                chunk6aOrderEvidence["earlyEndAllowance"] = new JObject { ["action"] = "Swift",
+                    ["method"] = "Kingmaker.EntitySystem.Entities.UnitEntityData.HasSwiftAction", ["token"] = "06008380",
+                    ["moduleMvid"] = typeof(Game).Assembly.ManifestModule.ModuleVersionId.ToString(),
+                    ["ilSha256"] = "65061d8c8cccff181626338782db42cc3504357af1bc2c3121fb9dc4a49a09a8" };
                 chunk6aOrderEvidence["beforeEndInput"] = CaptureChunk6aOrderBoundary();
                 chunk6aOrderEndClicked = true;
                 Game.Instance.PauseBind();
@@ -145,6 +149,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 var row = Chunk6aOrderRiderFirst ? "CM03-rider-before-mount-slot" : "CM03-mount-slot-before-rider";
                 AddRow(row, failure == null, failure ?? "The exact native order yielded one partner participation in the transition round and no independent mounted partner turn before the next paired activation.", chunk6aOrderEvidence);
                 AddRow("CM03-next-round-activation", failure == null, failure ?? "The next native round prepared both actors once under paired sequence two without repeating mid-encounter adoption.", chunk6aOrderEvidence);
+                string earlyEndFailure = failure;
+                if (earlyEndFailure == null) {
+                    try { NativeEarlyEndMountEvidence.AssertComplete(chunk6aOrderEvidence); }
+                    catch (Exception exception) { earlyEndFailure = exception.Message; }
+                }
+                AddRow("CM03-early-end-turn", earlyEndFailure == null, earlyEndFailure ??
+                    "One native End Turn input relinquished the adopted rider's observed unused Swift; partner completion remained exactly once and the next paired allocation prepared both actors once.", chunk6aOrderEvidence);
+
                 chunk6aStage = 99; BeginCleanup(); return;
             }
             if (turn?.Unit != rider) TryEndPhase3gFixtureTurn(turn);

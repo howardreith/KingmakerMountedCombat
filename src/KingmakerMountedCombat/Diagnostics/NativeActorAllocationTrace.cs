@@ -127,7 +127,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["proneRequested"] = actor.Descriptor.State.Prone.ShouldBeActive,
                 ["maneuverImmune"] = actor.Descriptor.State.HasCondition(Kingmaker.UnitLogic.UnitCondition.ImmuneToCombatManeuvers),
                 ["timeToNextNativeTurn"] = actor.GetTimeToNextTurn(), ["damage"] = actor.Damage,
-                ["hasStandard"] = actor.HasStandardAction(), ["usedStandard"] = actor.UsedStandardAction(),
+                ["hasSwift"] = actor.HasSwiftAction(), ["hasStandard"] = actor.HasStandardAction(), ["usedStandard"] = actor.UsedStandardAction(),
                 ["moveRestricted"] = actor.IsMoveActionRestricted(), ["speedMps"] = actor.CurrentSpeedMps,
                 ["stepRangeMetres"] = TurnController.MetersOfFiveFootStep,
                 ["agentPacing"] = AgentPacing(actor),

@@ -9090,6 +9090,1178 @@
           "length": 1580
         }
       ]
+    },
+    {
+      "runId": "c6a-precision-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 48,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "e05b6ac39e036d91fa431554212603dca7e8a5603d98ddd34b060c8f0ffda925",
+          "length": 7400
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/orchestration.json",
+          "sha256": "509a157e59128fb09c57085a4a15f7c4e5bf8c3310493fce8100d42388b7e49e",
+          "length": 1199
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "f53fc6b5b0e0e884e3c1034357a9044b415a55dbce68a6298374e534c8d2fff3",
+          "length": 16242708
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/runtime-artifacts.json",
+          "sha256": "1cdc00da1daf3d4adb0176168022dfa441b5f4f029ca483f05d38d3c24f00b78",
+          "length": 2418
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/runtime-game-result.json",
+          "sha256": "5a23c4099a6b16a7402c5d4f75daeddbabb3eb328122e8715a027292b8682b48",
+          "length": 4589
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/runtime-request.json",
+          "sha256": "e87d75a5eb033308205a9bdc2c7d14facf470a26ad541b73e68369944746ffef",
+          "length": 2832
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/runtime-result.json",
+          "sha256": "26da12aeef8dd5e839693060c955648bd242bd351d3766a0a2123b5d7b578c9f",
+          "length": 7192
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-001.png",
+          "sha256": "fd0f02b8c3d74955ba86faa8fbfa847d8416b286eb40025a0413d648c3bd0f14",
+          "length": 1316742
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-002.png",
+          "sha256": "81dee65a498a4b99f4b17387ec558c19c643ce267ad111381edac7b5a9336574",
+          "length": 1316991
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-003.png",
+          "sha256": "1ad44ffa62ec5a7b08a1fd2a20c376b51c00f4c7c177410e13a5fd480b89799d",
+          "length": 1317741
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-004.png",
+          "sha256": "9cd084be68502c5bfea910d935505451826ea86123bdd7d85d3612ba81c4e24a",
+          "length": 1316619
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-005.png",
+          "sha256": "327ee3f71e677616aadaeeee1185871f37b77dba322aa6586404b770d0d14665",
+          "length": 1317121
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-006.png",
+          "sha256": "c86278d4eb67c0bb109815482142f8c2b7b9d8961f6d9733e482bdc030602044",
+          "length": 1317521
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-007.png",
+          "sha256": "dca5cca96c410137403d7cfac42b7793a5286f02deb30d2d49db10689d119442",
+          "length": 1316143
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-approach/movement-visuals/horse-motion-008.png",
+          "sha256": "cc6f63419c2cf7a0934366b3c33802b1d27224fc22efd26302622fb645b3ceba",
+          "length": 1316889
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-approach.json",
+          "sha256": "3e889c55561cffb97bb17a08774e58a8e6e784b37d20ef23ce5d948d0e18742e",
+          "length": 1575
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "af547558515938ea783a62198827c6d30c9242d4cd04477ec8977674da6ea82d",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Overall native PASS remains bound to original candidate and original campaign ledger."
+    },
+    {
+      "runId": "c6a-precision-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 46,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "810066517373b6c1dcd1ad7f8d16de912b8e8055bc78f79b14c9f15830fb0a89",
+          "length": 7404
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/orchestration.json",
+          "sha256": "868381dcac3886c924f4cd35ef9eac534f0b0b61057f53aeebede9f46b041c61",
+          "length": 1197
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "f2a3ce1a2c20cc1ad4d9c9b97d33150bdcd011d086d6763b538a694668bceb24",
+          "length": 3320601
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/runtime-artifacts.json",
+          "sha256": "3741d8a559b3a13fa56df4c7d64061ff05f915e942bbb11ee3c780a810954899",
+          "length": 2421
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/runtime-game-result.json",
+          "sha256": "f0cef7341c9af1b4a26bc910739dfce02dc00b121e26c22bcc18fa7e7981a278",
+          "length": 4264
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/runtime-request.json",
+          "sha256": "4d4ba2ff78c11d9acb7d49b1555f275d6ebe12727df3d674717388565d123e2c",
+          "length": 2830
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/runtime-result.json",
+          "sha256": "dc9b961266379acb03e40448138480804d0c8a857285da77e7827d434bf36172",
+          "length": 6359
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "d5563f44bb93dd2c6c33668c650b4fa2996085d0909cfde1280ba295ff3ccf2e",
+          "length": 1315594
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "1f1eedab055f69c993d8fb23afe7d531b14958865a24f04fa64a286a45be89ce",
+          "length": 1316819
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "24d8b92da582ca1a9f65117e9e4dd92737c020ee38a2ac9ef016bb2ae60f391b",
+          "length": 1315917
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "65f77b1b634ad180d4777d7876773c947387512b2afa6bdcb7703f0174fb51e4",
+          "length": 1315023
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "2a19ca73211bab3c622dfda49e803c39fb61ce619278c18deac01c2f95c68053",
+          "length": 1314670
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "349b87662dea8ff9300aea9aa8e155785c9f188c5b85a3333c53fcd037fc34e5",
+          "length": 1314758
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "4740de5df91f2837aed49682ebbca05d24f51f77d77438292980ebfd28204edf",
+          "length": 1315798
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "37eb400ebff27437e13704812e029053d0590ab2de9e1b858bed84faf927b731",
+          "length": 1315400
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-rt.json",
+          "sha256": "410d19ce982f2dd26d4fa54480b5fef761898b10e9a64ebdd948e5fd00a72753",
+          "length": 1569
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "ce3c6d5747f653354784433e33c36e6c6e6429d15b510646296e5405710e8fea",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Overall native PASS remains bound to original candidate and original campaign ledger."
+    },
+    {
+      "runId": "c6a-precision-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 47,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "f9621e3d1dc7bc79b125be772f084caf493bdefe35e2cd994c2ce44216e7d336",
+          "length": 7404
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/orchestration.json",
+          "sha256": "e4eef64bea14b42ecea55a2bb895f6f20e635c4010688e9a0b2a5d78fc244ed9",
+          "length": 1197
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "b91ebe07ccb9176e1984c40d81ac349b6e19e9967e41df14cb671a19649d2510",
+          "length": 4714510
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/runtime-artifacts.json",
+          "sha256": "23ccdbdbd3ec6ef2e653cb17292d3f20ed62f4cd31b2578e4711b3e3368fa9bd",
+          "length": 2421
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/runtime-game-result.json",
+          "sha256": "dfde20d3aba8265b208b190e83b923ad60913a6e2cebd6103b64e224c8e980a7",
+          "length": 4442
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/runtime-request.json",
+          "sha256": "3e76b5a34284ea63c0d1c0c86c48021eeec9079963ad78d2d06537dc2618b058",
+          "length": 2830
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/runtime-result.json",
+          "sha256": "3b1184cfcbae638c6648561be15d9f405d1662f868c37ac9e950a68b3f0d09e5",
+          "length": 6791
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "e3da464ba42ba2fa0a68d01b55af1e8d1967ab96f6c79b800e49ca122979d7f7",
+          "length": 1314125
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "4dc401462a6a98514ca0612aea42616298f7aa6c92bb8aab36c91e7371ce7565",
+          "length": 1315613
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "6ed433edadb750d3c2964dd29fcaf1d3c69b36bdec0dcb66d4fe0ad18b9c3aa4",
+          "length": 1314082
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "52ab05996b142f5157a57642c9c3c409b77e12ec7aa19220627388abaff6abfc",
+          "length": 1313798
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "e2f80cab91c211e901b97efa234038dd064120f40cea851e1876480f4d77e219",
+          "length": 1315726
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "1bd5983e7cce2fccf000a577231475a892f6a9a531c600ce0541e10c64fb1c8d",
+          "length": 1316194
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "861451a2ad768befbd86bcbb88fa2c535eeaabe23133d493e746f91dd6918322",
+          "length": 1315775
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "6c16a0464f0b7da3a9ee7d00759a7e376192cc2c1f4517ecbea4c66cbef3ac6d",
+          "length": 1314413
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-tb.json",
+          "sha256": "b616bbef35b5982211dbb3f3d03b0b98c32bf324b6a6a3c2b5939acff40aa083",
+          "length": 1569
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "d068fc12ce84ca929d263069f34515c6312d6111920527d674adb8dd12fe7dfd",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Overall native PASS remains bound to original candidate and original campaign ledger."
+    },
+    {
+      "runId": "c6a-precision-a-geometry",
+      "scenario": "chunk6a-geometry-change",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 45,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/horse-companion-blueprint-registration.json",
+          "sha256": "692b3522c6fb118ff19dbcf2044cf42193f517bfde4bf64f6bdc8a017bdcebcb",
+          "length": 7401
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/orchestration.json",
+          "sha256": "ee101d9c4839288d333647a11b67632bb8f6697580f1545a8e6927558f4f8e29",
+          "length": 1199
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/phase3d-horse-scenario-evidence.json",
+          "sha256": "74459a69515cc6f42ec8dbf4347bb31f3dbfc23a64116731e0b6f0ba6a81e723",
+          "length": 15309507
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/runtime-artifacts.json",
+          "sha256": "cd2877ebb8ece2e3a0d083ac71617070335449632d691cb0c7a4089e29f2bc6d",
+          "length": 2419
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/runtime-game-result.json",
+          "sha256": "9054d4a685251898a8476227b2bfc12db6347a849e5137d628ff8f879ff543e5",
+          "length": 4071
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/runtime-request.json",
+          "sha256": "f2e22299699e1c729d725f8382f7ebf75d6a31bd5b75756a1171d541fd107ac2",
+          "length": 2833
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/runtime-result.json",
+          "sha256": "929b89c108532d6afe396e6b0ecf27dd926495611c1131e36584179d42cb3053",
+          "length": 5905
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-001.png",
+          "sha256": "78fb4553b4d67aeb29fa3996cec63943dd8218dd2f6335791bf497d42ec8bcbf",
+          "length": 1316974
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-002.png",
+          "sha256": "dd3780997afdf1d0a9aec8e0359d099ea92ffc289a39033290bc2bf406468ebd",
+          "length": 1318103
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-003.png",
+          "sha256": "0c3ca0ea0a602a0d3b4cb4a2f910ffdd6dea13cb7cff08fadab891214f21b81b",
+          "length": 1318640
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-004.png",
+          "sha256": "e3c14de166025d5cde52425ef9aea722b52f6e82759fcad64df674d84bc17fda",
+          "length": 1318031
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-005.png",
+          "sha256": "fe54158d33065b463f2be1a357a22eadd07116fb74e658cff179dc47ab52281f",
+          "length": 1318241
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-006.png",
+          "sha256": "dde5a8a1b5ba679360d77e98ae76116a32dbb14e1300d1841b3af9a8517f44cc",
+          "length": 1316611
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-007.png",
+          "sha256": "07f1ef2f171883a349e262daae61160d1e8b1fb9c963e347f8fda721aaf75a6a",
+          "length": 1316374
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-geometry/movement-visuals/horse-motion-008.png",
+          "sha256": "5f9613632da3d737d067f5e10b59032cfd7d9e22db0c3efc2fcf3cc3ab6859c2",
+          "length": 1317033
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-geometry.json",
+          "sha256": "7ea40c3f4e1a24b8a0e8ab97153cf39fe1bdae4e8b6f9d278af2a6b59965d9f5",
+          "length": 1575
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "32da24603192ea78211983293d2ff391d0f68065d908862130dcd34fe85c9b7c",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Overall native PASS remains bound to original candidate and original campaign ledger."
+    },
+    {
+      "runId": "c6a-precision-a-obstruction",
+      "scenario": "chunk6a-obstruction",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 45,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/horse-companion-blueprint-registration.json",
+          "sha256": "32c0e0d3e2ceedfb49581155933807ae435de3bcd0a563965f33ea6e80478941",
+          "length": 7400
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/orchestration.json",
+          "sha256": "c2da6a26c015baf4a8a52a9252ad25b192ebddf6b4177ea93630c46fae399093",
+          "length": 1202
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/phase3d-horse-scenario-evidence.json",
+          "sha256": "c3306164a280201078f77122e05990b619d96a807a53aeabdd019eddd20e40e4",
+          "length": 6573234
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/runtime-artifacts.json",
+          "sha256": "6c5c6a9b0b11728c704f68d1f4b1d85459dea4a67ac55a397bc4a213c4d3258e",
+          "length": 2417
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/runtime-game-result.json",
+          "sha256": "3b4c491561eda56926fb1e85b23ba1caae591b7c16a59a534f1e186052212926",
+          "length": 4063
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/runtime-request.json",
+          "sha256": "9ce6534b7f606f707d633626dd5e369df525e180272fb05a631a43c02964edd9",
+          "length": 2835
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/runtime-result.json",
+          "sha256": "dfa507a954464496e392bd056287f31ca5f01304d0e13d90d48e6405a2818b41",
+          "length": 5896
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-001.png",
+          "sha256": "ca2a680d87036bdf323e5bfcfd46e2b4b40d9d063984bfa4156f99eccbeab800",
+          "length": 1318369
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-002.png",
+          "sha256": "6b8b8faf7b55f4705c30fda8253ca057f6e7864434e7fe52e2943ca221a7a1a8",
+          "length": 1317701
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-003.png",
+          "sha256": "b13d792886a8c45a5698645c5875ed0201a26733f89b812f68b1e2c09a718d4e",
+          "length": 1318087
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-004.png",
+          "sha256": "2315f6314732cec83a3e1e8e2a0e592012fede652c85493dc5fbb480c9eb9200",
+          "length": 1317598
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-005.png",
+          "sha256": "4fd1993173064ba392d7ecabdbd0c2a362f924f2a7c6036e1c3419438cdae5c2",
+          "length": 1317583
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-006.png",
+          "sha256": "5597d789d071914bc44eb5406dc4902f3963ebf315ec1a79910f2901e623afd3",
+          "length": 1316794
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-007.png",
+          "sha256": "da53aa04099fcdbed0489915cb2d7b508abae7cc98a7694e8c2ca77ffbdfec8e",
+          "length": 1317957
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-obstruction/movement-visuals/horse-motion-008.png",
+          "sha256": "89dd2e0a6f2b3e70fcd2803fc5b6921b163af989c5fafd68bef1f650295f1d3f",
+          "length": 1317951
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-obstruction.json",
+          "sha256": "b8afc3183de93ca58c4dca2e66d9e65cda1e86ab900e4dc40845c4d0ff6d00b5",
+          "length": 1578
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "cee7c63c7dd933200bf7d6c0291ca5a38a80882b60717118a83021974cc54a6e",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Overall native PASS remains bound to original candidate and original campaign ledger."
+    },
+    {
+      "runId": "c6a-precision-a-full-rt",
+      "scenario": "chunk6a-combat-mount-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 52,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 52,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/horse-companion-blueprint-registration.json",
+          "sha256": "876d28bc66c029fe4cd95908be7caae328eeac4920bee68803eabeef173a6332",
+          "length": 7400
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/orchestration.json",
+          "sha256": "a40e9f116c3bb2fa074171d3e6a0b38b1786ce7d10b65991fcf4c90243fc175b",
+          "length": 1198
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "a03fb89ebbbfdf6ff80289944153d2b92d972a02bc417cd719e13ba2c3b44614",
+          "length": 42282585
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/runtime-artifacts.json",
+          "sha256": "a77fa9bf6953903064380c7fe069995a31f12e96f4a66ea67990f87db1a69821",
+          "length": 2418
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/runtime-game-result.json",
+          "sha256": "43edfdad98b6c6c681f6c26d7a29fa42582880f6efc52725b0cc929ac4bc15f7",
+          "length": 5296
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/runtime-request.json",
+          "sha256": "e6736e92dac47ec12ea909f665422d7318becf50a1969c42d786a4cd15649423",
+          "length": 2831
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/runtime-result.json",
+          "sha256": "2a8565ec3e6f131fc1004137f10f1c6aeca3cb63683cca6fdcb200d27dc07ab2",
+          "length": 8907
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "50a3606210047918613ef8c1cf46fed5171152b0efd498f4aac4e63367b4e816",
+          "length": 1313000
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "8afc6240618996d3ddbfdc6be4bfdaaa52779153a336dc01de379ad7199a4f9b",
+          "length": 1313084
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "14d77f42e95139fdaac152779d2d0ffc48639a278a3078ecf4f2853799cf5cca",
+          "length": 1311831
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "d5b71becc1c7ca3462aeae32bb1f4cfc1a85ea5128ff5806e89c0d2fcaeeef67",
+          "length": 1312836
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "873faba4f5dd8cabb366421092d80f117e01468a3b898083652466f68b4e4d78",
+          "length": 1313957
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "74a2fe66a481fe175e76082698ec95edb66a053457d2a73df6acb5b1dd785ba2",
+          "length": 1312813
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "a894be858edfc68d1aa2844c6288ebcb1da1641c3ff00ce83de853fc34e01434",
+          "length": 1313741
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "01ee2b3b3e55a5c7ef81f9f10566110a0d8d9a32bdc1f279b5025bc447d94dcf",
+          "length": 1313365
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-full-rt.json",
+          "sha256": "81cbbd8a3877f1c6253ebff4ea78d9a35941bffc3bf1bfac99f48610726280ad",
+          "length": 1574
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "c00bfcb7b8be0dacb0e3ae266a65dbd6c001ce8da83dc47619aabf7ba2269a37",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Overall native PASS remains bound to original candidate and original campaign ledger."
+    },
+    {
+      "runId": "c6a-precision-a-full-tb",
+      "scenario": "chunk6a-combat-mount-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 50,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 50,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/horse-companion-blueprint-registration.json",
+          "sha256": "43cd7fae40ec7e5e47f37ee8b472a94e06879a499d84f2cd427aabb742ead194",
+          "length": 7400
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/orchestration.json",
+          "sha256": "347104c175de3c1de0afff55b8ac0694219cd6b66d8c071e2d87d381b81055ef",
+          "length": 1198
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "f948067058709777fd8bce9d2ec7f04123032b4cbaeac44578b23a91c3e5fa72",
+          "length": 40762535
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/runtime-artifacts.json",
+          "sha256": "fa30e0b635fcbb3650ea639cd3079ddfc60a4be78074cf55a986ae66f7706a94",
+          "length": 2418
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/runtime-game-result.json",
+          "sha256": "537b5c1bf348afe028705589f9ca08019bc81678423def585ff3a3d93fbc6f9a",
+          "length": 5688
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/runtime-request.json",
+          "sha256": "f416a7cc4ded3ef6bb79e53da8a5cff74d0efa54e21dbd06a07ed794cecb2dd9",
+          "length": 2831
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/runtime-result.json",
+          "sha256": "a96df8b342f11fe370323c5744b40cce7cec640bdde0a56fda0ac0b79782bca1",
+          "length": 9132
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "250a33db1024d850d1580a240557689bb97a3586e27f033315e25aac04874213",
+          "length": 1318285
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "7e3aedaac88e3415b2b13c2dbb2fa87c1f0f1e0ad986f301e98d35eaace5aa95",
+          "length": 1318644
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "b8fd5987535e26c61a16acc653d103518693004d4e93dba2214651539f1363c0",
+          "length": 1318547
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "71fc91d08043b63e10ea825cfa2bad4d9892c1f476307eeae827cff4fdc94b0f",
+          "length": 1319142
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "4005c4ebf4eb8eeed9a5e3e3c9ee5b855e16e98535c7543c64b0cc1b3650641d",
+          "length": 1319051
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "1817766a431c8d6830463645f1edbce0bed2711d7e67e17ec459502c7418c5c1",
+          "length": 1319244
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "0084136759fc6ca76d8eaf3d87b144cb00b085360bcd58f00ed39788841d2653",
+          "length": 1318262
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-full-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "132fbb1172d14ce60de3b6f49dce8cef0fded613620ed207497681067229e797",
+          "length": 1318211
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-full-tb.json",
+          "sha256": "73bad46d157b028a283a7bed2325e22f580a284a6ce7363292535d421050d3a9",
+          "length": 1574
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-leaf-deadline",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        },
+        {
+          "row": "chunk6a-combat-mount-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-leaf-deadline: Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "0f8a13e03c9700a312972b8c358ef65b3829c080f8e699f2df73891daeb17ee8",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Class D: spent rider availability wait; precise pre-Mount setup and exact positive Mount succeeded."
+    },
+    {
+      "runId": "c6a-precision-a-order-rider-first",
+      "scenario": "chunk6a-allocation-rider-first-tb",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 51,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 51,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/horse-companion-blueprint-registration.json",
+          "sha256": "998bf4df2c6067fdff7460907c9d7ab994b505f3a76a02b11e082682ec310bb6",
+          "length": 7420
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/orchestration.json",
+          "sha256": "b4802c815a76a09ec3effc646cdc66b217a1d87f5826cd4735fbb9d2f0697a3c",
+          "length": 1228
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/phase3d-horse-scenario-evidence.json",
+          "sha256": "83f1569ca041c719182123dab908e95332201741713001578f036ac3fd9cf6f2",
+          "length": 125803173
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/runtime-artifacts.json",
+          "sha256": "b19e020ca63230a33bc12d78cabad4c9db7db3a7dc07f16b2922ea6f1ce3a831",
+          "length": 2439
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/runtime-game-result.json",
+          "sha256": "85d89ce6271e72db0344569b747bfab7da5a053d96f10ce4d7b605ba97117cb0",
+          "length": 5140
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/runtime-request.json",
+          "sha256": "882bbc91af2e60ca3f2ecbce6d3f28c7bc7e4752b2b5607a4411765e0c0bcb02",
+          "length": 2861
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/runtime-result.json",
+          "sha256": "d3d7a5b6aa15074da6a1b317b4375a3a9b9ce32317e8c665750aad905d0de818",
+          "length": 8505
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-001.png",
+          "sha256": "d873a555d4b33b214e57a673384578bf864c5ef506ae75402d71b82ceb20defd",
+          "length": 1318632
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-002.png",
+          "sha256": "80735e7ba63d06601899611e8f8a1ca5f47e4ea8aeaa3b84157fc84e02e97a86",
+          "length": 1316564
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-003.png",
+          "sha256": "904edc17354ab17995bf8aad51fe94a96594b83a837f70c9e19c20f424136d6f",
+          "length": 1316574
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-004.png",
+          "sha256": "34f36b4f4693dbf7c59e4867a775b2bb1f1c1677df6c0fe07eb9c9639b354b3a",
+          "length": 1317395
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-005.png",
+          "sha256": "df001424dd4a5802ff949ac660e8df3ab2ec69cd47d31558a60e11f413ad7a8c",
+          "length": 1317990
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-006.png",
+          "sha256": "0583a5b3e462ebcd51f5337d9dfe744667aabca91ede10907b763fb283e88286",
+          "length": 1317974
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-007.png",
+          "sha256": "b4b254e30a22120779ccae8c7fbb2ae54b6116ddcd6facf6a908983d7f13804b",
+          "length": 1317588
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-rider-first/movement-visuals/horse-motion-008.png",
+          "sha256": "6920bdb44151a6b9c94596bd9b6b6b4fb766782d3241363b54ca774407c96baf",
+          "length": 1317619
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-order-rider-first.json",
+          "sha256": "596a3bac74e698ba42401212db1c805a234c969f6e31faaaa6e19446f2e4cae5",
+          "length": 1584
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "e549f7226169988091ac72b34ad262a113978377c6c6ab32d841b96e24c06a74",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Overall native PASS remains bound to original candidate and original campaign ledger."
+    },
+    {
+      "runId": "c6a-precision-a-order-mount-first",
+      "scenario": "chunk6a-allocation-mount-first-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.130",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "7a54d0cc562def3c03fbc7788d3edf4a50e60286",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.130-chunk6a-precision-a-diagnostic.zip",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-precision-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-precision-a.json",
+        "sha256": "f3ecf000ec3c306324d0919c361c706b51abc9be951a088f7a78c80b52816922",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "f28bafa98a6aa5bfc6e2b9ac4cabc0199e37f027d05f72230820aebdc53eb5c0",
+        "manifestSha256": "3405f7fd9b43c104afb00a3442e9c22a775524d2004e05f48b5dd523fd415563",
+        "dllSha256": "1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e",
+        "dllMvid": "eb59ff96-ce01-4262-ada2-6a95d094d65c"
+      },
+      "assertionPassCount": 49,
+      "assertionFailCount": 4,
+      "nativeAssertionPassCount": 49,
+      "nativeAssertionFailCount": 4,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/horse-companion-blueprint-registration.json",
+          "sha256": "277b799820c92e7a4a5508ed850468d1b0c43f1b36d464808f24f9c7ca7958a7",
+          "length": 7420
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/orchestration.json",
+          "sha256": "ec798af269a9e8ffafb9bd4cd393d92827d825c9eff1e940f1f05e1d527b58ce",
+          "length": 1227
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/phase3d-horse-scenario-evidence.json",
+          "sha256": "580187c6470376aa8d89f370e386ead285303ad46ad8616721cbd30995bd6908",
+          "length": 105587454
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/runtime-artifacts.json",
+          "sha256": "32772b716d64d63f48ee13ad18c4a49cdada12ae7a0357abcfee13a83f44eeff",
+          "length": 2439
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/runtime-game-result.json",
+          "sha256": "b508f6efc29079bf072d97efcc999eafa15aebc82c5c1f2e96ffbeba700d999a",
+          "length": 6331
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/runtime-request.json",
+          "sha256": "b1b3948d350e7fd92a5cde62e54111011cbbf6dd499f293341d6ded13524c0e2",
+          "length": 2861
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/runtime-result.json",
+          "sha256": "52be25fc8daa0d973fb134ca9c2290ab0a64a9eeee196e1abb257929a31bf3e9",
+          "length": 9822
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-001.png",
+          "sha256": "1e6b9a7a959d8ff7b2b9eee017d88857c54704110b666afd186e758303978e3b",
+          "length": 1312626
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-002.png",
+          "sha256": "10cc859bc32d532d7f6fd643c47014549789c238ff11253119df5b96b3191aee",
+          "length": 1314547
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-003.png",
+          "sha256": "a6a7e372db90b38468f4c01cccfa0a326620ff5cdf042003308c6473f9126e5d",
+          "length": 1313678
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-004.png",
+          "sha256": "701e80390fe693eeab45ce0e80a7038b5024bdf6e6df5c2f83a036b3a00179b7",
+          "length": 1314448
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-005.png",
+          "sha256": "5087129d5ab6acdcd48ebc4633703b68121e0a1cf8cc22257ce5fc7dfba27b10",
+          "length": 1313943
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-006.png",
+          "sha256": "4df6f095961444f0d317d876e4c6591cfeca19c72eb91c2696a1929abd7a40bf",
+          "length": 1313914
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-007.png",
+          "sha256": "3ccfc0a4787bece097958dbb0881396539cc9b64c09007e6bac7779ab0949264",
+          "length": 1313568
+        },
+        {
+          "path": "runtime-evidence/c6a-precision-a-order-mount-first/movement-visuals/horse-motion-008.png",
+          "sha256": "d7d38b14114b931092d793adfa82c546a7f17414a7e55cdc760d66cbd1cd339b",
+          "length": 1312787
+        }
+      ],
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-precision-a-order-mount-first.json",
+          "sha256": "4c7b9a809c1f9cdc487fd83d0865a7b64eb7ec0457fe4d821ffafb4328ba4bd5",
+          "length": 1584
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM03-mount-slot-before-rider",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Mount allocation order: retained versus prepared partner context differs"
+          ]
+        },
+        {
+          "row": "CM03-next-round-activation",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Mount allocation order: retained versus prepared partner context differs"
+          ]
+        },
+        {
+          "row": "chunk6a-allocation-mount-first-tb",
+          "assertionFailCount": 2,
+          "assertions": [
+            "phase3d-tranche-0: CM03-mount-slot-before-rider: Mount allocation order: retained versus prepared partner context differs",
+            "phase3d-tranche-1: CM03-next-round-activation: Mount allocation order: retained versus prepared partner context differs"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "settledReceiptSha256": "3097b0c1d0cc8aa782c01868a4c17b8a96b2f63e60d0ae93b50f2875bf511748",
+      "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Class B: producer typed-string-null representation, actual retained context zero."
     }
   ]
 }

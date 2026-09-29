@@ -2,6 +2,7 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'NativeDismountEscapeEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativeMountOrderEvidence.ps1')
+. (Join-Path $PSScriptRoot 'EarlyEndMountEvidence.ps1')
 function Assert-KmcSameEvidence($A,$B,[string]$Label){
  if($null-eq$A-or$null-eq$B-or(ConvertTo-Json -InputObject $A -Depth 100 -Compress)-cne(ConvertTo-Json -InputObject $B -Depth 100 -Compress)){throw ('Additional Chunk6A binding differs: '+$Label)}
 }
@@ -37,7 +38,7 @@ function Assert-KmcDismountEscapeEnvelope($Request,$Artifact){
   if(@($Artifact.rows|Where-Object name -CEQ $row).Count-ne0){throw 'Dismount escape inherited another allocation'}
  }
 }
-function Assert-KmcMountOrderEnvelope($Request,$Artifact){
+function Assert-KmcMountOrderEnvelope($Request,$Artifact,[bool]$RequireEarlyEnd=$false){
  $e=$Artifact.observations.chunk6aMountOrder
  if($e.scenario-cne$Request.scenario-or$Artifact.scenario-cne$Request.scenario){throw 'Mount order request binding differs'}
  $p=Get-KmcExactWindow $Artifact 'positive-mount'
@@ -54,6 +55,13 @@ function Assert-KmcMountOrderEnvelope($Request,$Artifact){
  $row=if($e.riderFirst){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}
  $withoutRestoration=$e|ConvertTo-Json -Depth 100|ConvertFrom-Json
  $withoutRestoration.PSObject.Properties.Remove('restoration')
+ $early=@($Artifact.rows|Where-Object name -CEQ 'CM03-early-end-turn')
+ if($RequireEarlyEnd-or$early.Count-gt0){
+  if($early.Count-ne1-or$early[0].status-cne'PASS'){throw 'Mount order exact early End row absent'}
+  Assert-KmcEarlyEndMount $e
+  Assert-KmcSameEvidence $early[0].evidence $withoutRestoration 'early End row'
+ }
+
  foreach($name in @($row,'CM03-next-round-activation')){
   $matched=@($Artifact.rows|Where-Object name -CEQ $name)
   if($matched.Count-ne1-or$matched[0].status-cne'PASS'){throw 'Mount order exact mandatory row absent'}

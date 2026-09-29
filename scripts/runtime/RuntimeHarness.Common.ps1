@@ -13,6 +13,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'NativePassiveResourceEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativePreCombatGroundEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk6aAdditionalEvidence.ps1')
+. (Join-Path $PSScriptRoot 'FullTbDismountEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativeAutoUseCaseEvidence.ps1')
 . (Join-Path $PSScriptRoot 'RuntimeArtifactManifestEvidence.ps1')
 
@@ -3769,7 +3770,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-command-replacement','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb',
         'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
         'CM01-native-mammoth-fixture','CM01-native-mammoth-continuity','CM01-native-mammoth-child-cleanup','CM01-native-mammoth-restoration','CM01-native-mammoth-artifact','CM01-native-mammoth-interrupted','CM06-paused-queue','CM06-combat-mount-requires-qualified-paired-policy','CM02-foreign-companion','CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM01-exploration-free', 'CM02-approach-arrival',
-        'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM04-command-replacement', 'CM06-hotbar-path', 'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-next-round-activation','CM05-dismount-survives-feature-policy-disable','CM06-ai-auto-use',
+        'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM04-command-replacement', 'CM06-hotbar-path', 'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-next-round-activation','CM03-early-end-turn','CM05-dismount-survives-feature-policy-disable','CM06-ai-auto-use',
         'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
         'CM01-combat-mount-preparing-refused',
         'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
@@ -6320,6 +6321,8 @@ function Assert-KmcChunk6aCombatMountEvidence {
     $version=if($Artifact -is [System.Collections.IDictionary]){$Artifact['productVersion']}elseif($Artifact.PSObject.Properties['productVersion']){$Artifact.productVersion}else{$null}
     # Archives through125 predate the exact ground resource/joint-plan evidence.
     # Current and unknown identities must emit it; supplied new blocks always validate.
+    $requiresEarlyEndEvidence=$true
+    if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 130){$requiresEarlyEndEvidence=$false}
     $requiresPreciseActingSetup=$true
     if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 129){$requiresPreciseActingSetup=$false}
     $requiresGroundEvidence=$true
@@ -6367,6 +6370,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
         }
     }
     if ($pausedOnly) { $required += 'CM06-paused-queue' }
+    if ($orderOnly -and $requiresEarlyEndEvidence) { $required += 'CM03-early-end-turn' }
     if ($turnBased) { $required += 'CM01-combat-mount-preparing-refused' }
     if ($hotbarOnly) { $required += 'CM06-hotbar-path' }
     if ($orderOnly) { $required += @($(if($Request.scenario -ceq 'chunk6a-allocation-rider-first-tb'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}),'CM03-next-round-activation') }
@@ -6434,13 +6438,18 @@ function Assert-KmcChunk6aCombatMountEvidence {
             }
         }
     }
+    if ([string]$Request.scenario -ceq 'chunk6a-combat-mount-tb') {
+        $requiresLaterTurnEvidence=$true
+        if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 130){$requiresLaterTurnEvidence=$false}
+        if($requiresLaterTurnEvidence -or $observations.PSObject.Properties['chunk6aDismountTurn']){Assert-KmcFullTbDismountTurn $Artifact}
+    }
     if ($autoUseOnly) {
         Assert-KmcAutoUseEnvelope $Request $Artifact
         $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
         if($otherClaims.Count-ne0){throw 'Auto-use case cannot credit another combat allocation.'}
         if($autoUseMountOnly){return}
     }
-    if ($orderOnly) { Assert-KmcMountOrderEnvelope $Request $Artifact }
+    if ($orderOnly) { Assert-KmcMountOrderEnvelope $Request $Artifact $requiresEarlyEndEvidence }
     if ($escapeOnly) { Assert-KmcDismountEscapeEnvelope $Request $Artifact }
     if ($refusalOnly) {
         $refusal=$observations.chunk6aRefusedMount

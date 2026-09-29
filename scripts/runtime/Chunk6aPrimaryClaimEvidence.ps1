@@ -32,6 +32,8 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM06-multiple-selection','chunk6a-refused-multiple-selection',@('CM06-multiple-selection')),
   @('CM03-rider-before-mount-slot','chunk6a-allocation-rider-first-tb',@('CM03-rider-before-mount-slot','CM03-next-round-activation')),
   @('CM03-mount-slot-before-rider','chunk6a-allocation-mount-first-tb',@('CM03-mount-slot-before-rider','CM03-next-round-activation')),
+  @('CM03-early-end-turn','chunk6a-allocation-rider-first-tb',@('CM03-early-end-turn','CM03-rider-before-mount-slot','CM03-next-round-activation')),
+  @('CM03-early-end-turn','chunk6a-allocation-mount-first-tb',@('CM03-early-end-turn','CM03-mount-slot-before-rider','CM03-next-round-activation')),
   @('CM03-next-round-activation','chunk6a-allocation-mount-first-tb',@('CM03-next-round-activation','CM03-mount-slot-before-rider')),
   @('CM05-dismount-survives-feature-policy-disable','chunk6a-dismount-policy-disabled-rt',@('CM05-dismount-survives-feature-policy-disable')),
   @('CM06-ai-auto-use','chunk6a-auto-use-dismount-rt',@('CM06-ai-auto-use')),

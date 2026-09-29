@@ -100,4 +100,28 @@ foreach($first in @($true,$false)){
  Reject-Order {param($x)$x.restoration.riderBase++} $true
  Reject-Order {param($x)$x.restoration.mountBase++} $true
 }
+
+# Exact preview130 runtime regression: constructing a C# null string is not
+# equivalent to parsing its serialized JSON. Keep the validator strict.
+$captureActor=$orderType.GetMethod('CaptureOptionalActor',[Reflection.BindingFlags]'Static,NonPublic')
+$implicitString=@([Newtonsoft.Json.Linq.JToken].GetMethods([Reflection.BindingFlags]'Public,Static')|Where-Object {$_.Name-ceq'op_Implicit'-and$_.GetParameters().Count-eq1-and$_.GetParameters()[0].ParameterType-eq[string]})[0]
+$oneNull=[object[]]::new(1)
+$rawNull=$implicitString.Invoke($null,$oneNull)
+if($rawNull.Type-ne[Newtonsoft.Json.Linq.JTokenType]::String-or$null-ne$rawNull.Value){throw 'Pinned typed-string-null reproduction differs'}
+$live=[Newtonsoft.Json.Linq.JObject]::Parse(((New-Order $false)|ConvertTo-Json -Depth 90 -Compress))
+$live['mounted']['partnerActor']=$rawNull
+$invoke=[object[]]::new(1);$invoke[0]=$live
+$refused=$false;try{$null=$orderMethod.Invoke($null,$invoke)}catch{
+ if($_.Exception.InnerException.Message-cne'Mount allocation order: retained versus prepared partner context differs'){throw}
+ $refused=$true
+}
+if(-not$refused){throw 'Original in-memory failure no longer reproduced'}
+$explicitNull=$captureActor.Invoke($null,$oneNull)
+if($explicitNull.Type-ne[Newtonsoft.Json.Linq.JTokenType]::Null){throw 'Live observer did not emit explicit JSON null'}
+$live['mounted']['partnerActor']=$explicitNull
+$null=$orderMethod.Invoke($null,$invoke)
+$actorArgs=[object[]]::new(1);$actorArgs[0]='mount';$present=$captureActor.Invoke($null,$actorArgs)
+if($present.Type-ne[Newtonsoft.Json.Linq.JTokenType]::String-or$present.Value-cne'mount'){throw 'Present partner identity changed'}
+$script:orderChecks+=4
+
 'MOUNT ORDER PRODUCER+EXTERNAL PASS='+$script:orderChecks+' FAIL=0; two synthetic native orders, no Unity or envelope qualification'
