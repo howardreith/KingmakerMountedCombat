@@ -32,6 +32,15 @@ $case=[pscustomobject]@{contract='native-ownership-loss-during-exact-mount-appro
 $script:checks=0
 function Reject-Ownership([scriptblock]$mutate,[string]$reason){$copy=Copy-Ownership $case;&$mutate $copy;$rejected=$false;try{Assert-KmcOwnershipChange $copy}catch{if($_.Exception.Message.IndexOf($reason,[StringComparison]::Ordinal)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid ownership proof admitted'};$script:checks++}
 Assert-KmcOwnershipChange $case;$script:checks++
+
+# Exercise the same external full-scenario dispatcher that validates runtime-result.json.
+# Ownership is an isolated unacted command and therefore owns only the two exploration windows.
+$envelope=Copy-Ownership $artifact
+$envelope.rows=@($envelope.rows|Where-Object {$_.name -cne 'CM02-obstruction'})+@([pscustomobject]@{name='CM02-ownership-change';status='PASS';assertionPassCount=1;assertionFailCount=0;errors=@()})
+[void]$envelope.observations.PSObject.Properties.Remove('chunk6aDoorFixture')
+[void]$envelope.observations.PSObject.Properties.Remove('chunk6aObstruction')
+$envelope.observations|Add-Member -NotePropertyName chunk6aOwnershipChange -NotePropertyValue (Copy-Ownership $case) -Force
+Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-ownership-change'}) $envelope 'PASS';$script:checks++
 foreach($field in @('noResidue','restored','commandTerminalBeforeRestoration','inputsUnchangedAfterDetach')){Reject-Ownership {param($c)$c.$field=$false} 'undeclared, unrestored'}
 foreach($field in @('stimulusCount','restorationCount')){Reject-Ownership {param($c)$c.$field++} 'one stimulus'}
 Reject-Ownership {param($c)$c.diagnosticInterruptCount=1} 'zero measured interrupts'
