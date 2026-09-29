@@ -2,6 +2,12 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 $passed=0
+$parent=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/HorseCompanionUnmountedScenarioEngine.cs')
+$gate=[regex]::Match($parent,'(?s)if \(Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario\(request.Scenario\) \|\|\s+Phase3dHorseScenarioTranche.IsChunk4ChargeScenario\(request.Scenario\)\).*?var availability = playerAction.GetAvailability\(\);').Value
+foreach($required in @('Game.Instance.Player.IsInCombat || owner.Group.Any(member => member.IsInCombat)','mountedAlphaAdmissionStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds','BeginCleanup(); return;')){if(-not$gate.Contains($required)){throw 'Charge must use bounded native idle-party handoff before child admission'};$passed++}
+if($gate.Contains('LeaveCombat(')){throw 'Charge party handoff must wait for native settlement'};$passed++
+$fixture=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/ActorAllocationScenarios.cs')
+foreach($required in @('if (member.IsInCombat)','observations["fixturePartyAdmissionRefusal"] = refusal;','["actor"] = member.UniqueId','["group"] = member.GroupId','["frame"] = Time.frameCount','["playerInCombat"] = Game.Instance.Player.IsInCombat','refusal.ToString(Newtonsoft.Json.Formatting.None)')){if(-not$fixture.Contains($required)){throw 'Idle fixture refusal lost exact native diagnostic'};$passed++}
 function New-ChargePauseProof {
     param([string]$ActorId='rider')
     $actors=@{rider=@{id='rider';standard=0;move=0;swift=0;position=@(1,2,3)}

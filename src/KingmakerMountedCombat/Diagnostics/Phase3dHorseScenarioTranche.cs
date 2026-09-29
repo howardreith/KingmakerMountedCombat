@@ -436,7 +436,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aObstructionDeadline())
+                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aObstructionDeadline())
                         FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
@@ -6086,6 +6086,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6aApproachPath?.Dispose(); chunk6aApproachPath = null;
             }
             catch (Exception exception) { errors.Add("Chunk 6A approach path observer cleanup: " + exception.Message); }
+            // An ownership abort records its failure first, then owns interruption of only its exact pending command and native reattachment.
+            try { CleanupChunk6aOwnershipChange(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A ownership restoration", exception); }
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
             try { CleanupChunk6aAutoUse(); }

@@ -1595,7 +1595,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
             // The child captures the entire disposable party as idle, not just the
             // pair. Let the parent's native encounter settle before child construction.
-            if (Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario))
+            if (Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
+                Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario))
             {
                 var partyState = new JArray(owner.Group.Select(member => new JObject {
                     ["actor"] = member.UniqueId, ["inCombat"] = member.IsInCombat,
@@ -1607,7 +1608,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (clock.Elapsed.TotalSeconds - mountedAlphaAdmissionStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds)
                         return;
                     Fail("target-selected-mount-admission-deadline",
-                        "Chunk 6A parent encounter did not settle to an idle party: " + partyState.ToString(Formatting.None));
+                        "Native parent encounter did not settle to an idle party: " + partyState.ToString(Formatting.None));
                     BeginCleanup(); return;
                 }
             }

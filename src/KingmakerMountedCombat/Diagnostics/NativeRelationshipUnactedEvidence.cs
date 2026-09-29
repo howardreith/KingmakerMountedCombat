@@ -21,7 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal JObject FinishUnacted(string contract = "unacted-native-obstruction-no-cost-or-transition")
         {
             if (!unactedFailure) throw new InvalidOperationException("A positive window cannot use an unacted contract.");
-            if (contract != "unacted-native-obstruction-no-cost-or-transition" && contract != "unacted-native-stop-no-cost-or-transition" && contract != "unacted-native-replacement-no-cost-or-transition") throw new InvalidOperationException("Undeclared unacted native contract.");
+            if (contract != "unacted-native-obstruction-no-cost-or-transition" && contract != "unacted-native-stop-no-cost-or-transition" && contract != "unacted-native-replacement-no-cost-or-transition" && contract != "unacted-native-ownership-loss-no-cost-or-transition") throw new InvalidOperationException("Undeclared unacted native contract.");
             if (completed != null) return (JObject)completed.DeepClone();
             if (traceEnd < 0)
             {

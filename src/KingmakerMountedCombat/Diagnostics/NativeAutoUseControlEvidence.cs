@@ -15,7 +15,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private static void Same(JToken a,JToken b,string why){Need(a!=null&&b!=null&&JToken.DeepEquals(a,b),why);}
         private static double N(JToken v){Need(v!=null&&(v.Type==JTokenType.Integer||v.Type==JTokenType.Float),"number absent");var n=(double)v;Need(!double.IsNaN(n)&&!double.IsInfinity(n),"nonfinite number");return n;}
         private static JObject StableState(JToken state){var s=(JObject)state.DeepClone();var g=s["geometry"] as JObject;Need(g!=null,"geometry absent");g.Remove("seconds");return s;}
-        private static bool Empty(JToken v)=>v==null||v.Type==JTokenType.Null;
+        // Native JObject string assignments retain String/null until serialization.
+        private static bool Empty(JToken v)=>v==null||v.Type==JTokenType.Null||
+            v.Type==JTokenType.String&&((JValue)v).Value==null;
         private static void Unadmitted(JToken c,string target){Need(I(c["object"])!=0&&Empty(c["executorId"])&&S(c["targetId"])==target&&!B(c["started"])&&!B(c["acted"])&&!B(c["finished"]),"AI/control command was admitted or changed target");}
         internal static void AssertComplete(JObject e)
         {

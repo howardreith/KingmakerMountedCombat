@@ -21,6 +21,7 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM01-mammoth-rt','chunk6a-mammoth-mount-rt',@('CM01-combat-mount-accepted','CM02-approach-arrival')),
   @('CM01-mammoth-tb','chunk6a-mammoth-mount-tb',@('CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')),
   @('CM04-command-replacement','chunk6a-command-replacement',@('CM04-command-replacement')),
+  @('CM02-ownership-change','chunk6a-ownership-change',@('CM02-ownership-change')),
   @('CM04-stop-during-approach','chunk6a-stop-approach',@('CM04-stop-during-approach')),
   @('CM06-hotbar-path','chunk6a-hotbar-approach',@('CM06-hotbar-path')),
   @('CM06-pointer-target','chunk6a-combat-mount-tb',@('CM02-approach-arrival','CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt')),

@@ -29,7 +29,9 @@ namespace KingmakerMountedCombat.Diagnostics
             Check(Text(before["targetId"]) == Text(id["unrelatedId"]) && Int(before["targetObject"]) == Int(id["unrelatedObject"]), "foreign target identity differs");
             Check(Text(before["masterId"]) == owner && Int(before["masterObject"]) == ownerObject &&
                 Text(before["ownerPetId"]) == Text(before["targetId"]) && Int(before["ownerPetObject"]) == Int(before["targetObject"]), "native reciprocal ownership differs");
-            foreach (var field in new[] { "ownerLiveParty", "targetLiveParty", "ownerCommandsEmpty", "targetCommandsEmpty" }) Check(Yes(before[field]), "native fixture " + field + " unavailable");
+            foreach (var field in new[] { "ownerLiveParty", "targetLiveParty", "targetIsInGame", "targetDirectlyControllable", "targetViewPresent", "ownerCommandsEmpty", "targetCommandsEmpty" }) Check(Yes(before[field]), "native fixture " + field + " unavailable");
+            Check(Text(before["membershipSource"]) == "native-reciprocal-party-owner" &&
+                before["targetInPartyList"]?.Type == JTokenType.Boolean, "owner-derived native party membership evidence missing");
             Check(Text(before["targetBlueprint"]) == "e7aa96d15a45238438ae4cfb476f6bb9" && Text(before["targetProfile"]) == "Mammoth", "native foreign profile differs");
             foreach (var role in new[] { "owner", "target" })
             {
