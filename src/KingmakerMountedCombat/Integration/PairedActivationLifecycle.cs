@@ -418,11 +418,8 @@ namespace KingmakerMountedCombat.Integration
             }
             else
             {
-                if (!activation.BeginActorPreparation(mount, turn))
-                {
-                    activation = null;
-                    return "The partner's native preparation could not be reserved.";
-                }
+                // The native Prepare prefix reserves this grant exactly once.
+                // Reserving it here would make that prefix suppress the native body.
                 DisposePartnerContext();
                 // Identical to the accepted pre-combat path: this private native
                 // context supplies the partner's ONE preparation and its actor
@@ -431,6 +428,8 @@ namespace KingmakerMountedCombat.Integration
                 SurpriseContext.SetValue(partnerContext, controller.IsActingSurpriseCommands(rider));
                 RefreshPartnerNativeState();
                 partnerContext.Prepare();
+                if (activation != adopted || partnerContext?.Unit != mount || !adopted.State(mount).Prepared)
+                    return "The partner's native preparation did not complete.";
                 SynchronizePartnerPhase(turn);
             }
             MidEncounterAdoptionCount++;

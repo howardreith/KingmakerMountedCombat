@@ -16,6 +16,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-mount-preamble", StringComparison.Ordinal) ||
                 // The narrow real-time non-adjacent native-approach scenario.
                 string.Equals(scenario, "chunk6a-paused-queue", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-foreign-companion", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-refused-wrong-creature-target", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-refused-mount-selected", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-refused-multiple-selection", StringComparison.Ordinal) ||

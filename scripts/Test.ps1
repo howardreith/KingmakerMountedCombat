@@ -169,6 +169,18 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeAutoUseWrappers.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aRegressionBindings.ps1')
+if($LASTEXITCODE -ne 0) { throw 'Test-Chunk6aRegressionBindings.ps1 failed.' }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aRegressionArchives.ps1')
+if($LASTEXITCODE -ne 0) { throw 'Test-Chunk6aRegressionArchives.ps1 failed.' }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aRegressionReader.ps1')
+if($LASTEXITCODE -ne 0) { throw 'Test-Chunk6aRegressionReader.ps1 failed.' }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aRegressionLedger.ps1')
+if($LASTEXITCODE -ne 0) { throw 'Test-Chunk6aRegressionLedger.ps1 failed.' }
+
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aPrimaryClaims.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -182,4 +194,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aLegacyLedger.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-MidEncounterNativePreparation.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -1,5 +1,6 @@
 ﻿Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RefusedMountEvidence.ps1')
+. (Join-Path $PSScriptRoot 'ForeignCompanionEvidence.ps1')
 function Assert-KmcRefusalCase($E) {
  $id=$E.identity;$legal=$E.legal;$n=$E.condition;$p=$E.input
  if($E.contract -cne 'one-native-refused-mount-in-fresh-rt-allocation'){throw 'Wrong refusal case contract'}
@@ -8,10 +9,12 @@ function Assert-KmcRefusalCase($E) {
  $actorObjects=@($id.riderObject,$id.mountObject,$id.unrelatedObject)
  if(@($actorObjects|Where-Object {($_ -isnot [int] -and $_ -isnot [long]) -or $_ -eq 0}).Count -ne 0 -or @($actorObjects|Select-Object -Unique).Count -ne 3){throw 'Refusal native object identities missing'}
  foreach($field in @('reciprocalPair','unrelatedLivePartyActor')){if($id.$field -isnot [bool] -or $id.$field -ne $true){throw 'Native refusal fixture unavailable'}}
- foreach($field in @('unrelatedIsPet','unrelatedSupportedMount')){if($id.$field -isnot [bool] -or $id.$field -ne $false){throw 'Unrelated actor is not a plain unrelated creature'}}
+ if($E.case -ceq 'foreign-companion'){Assert-KmcForeignCompanion $E}
+ else {foreach($field in @('unrelatedIsPet','unrelatedSupportedMount')){if($id.$field -isnot [bool] -or $id.$field -ne $false){throw 'Unrelated actor is not a plain unrelated creature'}}}
  if($id.mountProfile -cne 'Horse'){throw 'Refusal profile differs'}
  $reason='Select the exact prospective rider.';$target=$id.mountId;$targetObject=$id.mountObject
  switch -CaseSensitive ($E.case) {
+  'foreign-companion' {$selection=@($id.riderId);$objects=@($id.riderObject);$target=$id.unrelatedId;$targetObject=$id.unrelatedObject;$row='CM02-foreign-companion';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'wrong-creature-target' {$selection=@($id.riderId);$objects=@($id.riderObject);$target=$id.unrelatedId;$targetObject=$id.unrelatedObject;$row='CM02-wrong-creature-target';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'mount-selected' {$selection=@($id.mountId);$objects=@($id.mountObject);$row='CM06-mount-selected'}
   'multiple-selection' {$selection=@($id.riderId,$id.mountId);$objects=@($id.riderObject,$id.mountObject);$row='CM06-multiple-selection'}
@@ -23,7 +26,7 @@ function Assert-KmcRefusalCase($E) {
  if($legal.turnBased -isnot [bool] -or $legal.turnBased -ne $false -or $legal.state.selectedIds -isnot [Array] -or $legal.state.selectedIds.Count -ne 1 -or $legal.state.selectedIds[0] -cne $id.riderId){throw 'Legal baseline requires the exact RT rider'}
  foreach($field in @('selectionVerified','inCombat','visible')){if($n.$field -isnot [bool] -or $n.$field -ne $true){throw 'Negative fixture unavailable'}}
  foreach($field in @('turnBased','canTargetRequested')){if($n.$field -isnot [bool] -or $n.$field -ne $false){throw 'Negative fixture did not refuse'}}
- $wrong=$E.case -ceq 'wrong-creature-target'
+ $wrong=$E.case -cin @('wrong-creature-target','foreign-companion')
  foreach($field in @('enabled','canTargetOwnedMount')){if($n.$field -isnot [bool] -or $n.$field -ne $wrong){throw 'Exact refusal cause differs'}}
  if($n.selectedIds -isnot [Array] -or $n.selectedObjects -isnot [Array] -or ($n.selectedIds -join ',') -cne ($selection -join ',') -or ($n.selectedObjects -join ',') -cne ($objects -join ',')){throw 'Negative exact selection differs'}
  foreach($v in $n.selectedObjects){if($v -isnot [int] -and $v -isnot [long]){throw 'Negative selection objects malformed'}}

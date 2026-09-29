@@ -1,6 +1,7 @@
 # Future qualification contract: a true PASS row must prove the claimed behavior.
 # This supplements all payload, suite, artifact, restoration, native and composite gates.
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk6aRegressionEvidence.ps1')
 function Get-KmcChunk6aPrimaryContracts {
  $mount=@('CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations')
  $dismount=@('CM05-combat-dismount-accepted','CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')
@@ -21,7 +22,9 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM01-mammoth-tb','chunk6a-mammoth-mount-tb',@('CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')),
   @('CM04-stop-during-approach','chunk6a-stop-approach',@('CM04-stop-during-approach')),
   @('CM06-hotbar-path','chunk6a-hotbar-approach',@('CM06-hotbar-path')),
+  @('CM06-pointer-target','chunk6a-combat-mount-tb',@('CM02-approach-arrival','CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt')),
   @('CM06-paused-queue','chunk6a-paused-queue',@('CM06-paused-queue')),
+  @('CM02-foreign-companion','chunk6a-refused-foreign-companion',@('CM02-foreign-companion')),
   @('CM02-wrong-creature-target','chunk6a-refused-wrong-creature-target',@('CM02-wrong-creature-target')),
   @('CM06-mount-selected','chunk6a-refused-mount-selected',@('CM06-mount-selected')),
   @('CM06-multiple-selection','chunk6a-refused-multiple-selection',@('CM06-multiple-selection')),
@@ -39,6 +42,11 @@ function Get-KmcChunk6aPrimaryContracts {
  )
  foreach($spec in $specs) {
   [pscustomobject]@{id=$spec[0];scenario=$spec[1];rows=@($spec[2]);evidenceLeaf=$(if($spec[0]-ceq'CM08-mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'})}
+ }
+ foreach($claimId in @(Get-KmcChunk6aRegressionClaims)) {
+  foreach($role in @(Get-KmcChunk6aRegressionRoles $claimId)) {
+   [pscustomobject]@{id=$claimId;scenario=$role.scenario;rows=@($role.rows);evidenceLeaf=$role.evidenceLeaf}
+  }
  }
 }
 function Assert-KmcChunk6aPrimaryClaim([string]$Id,$Binding) {

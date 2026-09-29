@@ -25,12 +25,13 @@ $end=$windows[1].samples[-1]
 $riderId=$windows[0].identity.casterId;$mountId=$windows[0].mountId
 function Copy-Envelope($e){$e|ConvertTo-Json -Depth 100|ConvertFrom-Json}
 $script:envelopeChecks=0
-foreach($caseName in @('wrong-creature-target','mount-selected','multiple-selection','foreign-selection')) {
+foreach($caseName in @('wrong-creature-target','mount-selected','multiple-selection','foreign-selection','foreign-companion')) {
  $fixture=New-RefusalCase $caseName
  $fixture.identity.riderId=$riderId;$fixture.identity.mountId=$mountId
  $fixture.input.riderId=$riderId;$fixture.input.mountId=$mountId
  $fixture.legal.state.selectedIds=@($riderId)
  switch($caseName){
+  'foreign-companion'{$selection=@($riderId);$target='other'}
   'wrong-creature-target'{$selection=@($riderId);$target='other'}
   'mount-selected'{$selection=@($mountId);$target=$mountId}
   'multiple-selection'{$selection=@($riderId,$mountId);$target=$mountId}
