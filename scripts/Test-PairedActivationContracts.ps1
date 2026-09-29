@@ -217,6 +217,21 @@ public static class KmcNativePatchProbe {
     Console.WriteLine("PASS reaction observer wrapper construction "+resourceTarget.Name);
    }
    Console.WriteLine("REACTION OBSERVER CONSTRUCTION PASS=2 FAIL=0; callbacks still require Unity execution");
+   var queuedType=candidate.GetType("KingmakerMountedCombat.Diagnostics.DiagnosticQueuedMountWindow",true);
+   var queuedResolver=queuedType.GetMethod("ResolveDispatchMethod",BindingFlags.Static|BindingFlags.NonPublic);
+   var queuedTarget=queuedResolver==null?null:(MethodInfo)queuedResolver.Invoke(null,null);
+   if(queuedTarget==null || queuedTarget.Name!="TryDispatch" || queuedTarget.IsStatic ||
+      queuedTarget.DeclaringType.FullName!="KingmakerMountedCombat.Integration.NativeMountedControlService" ||
+      queuedTarget.GetParameters().Length!=4 ||
+      queuedTarget.GetParameters()[3].ParameterType.FullName!="Kingmaker.UnitLogic.Abilities.AbilityExecutionContext")
+    throw new InvalidOperationException("Queued Mount fixture must resolve the actual context-bearing dispatch despite the adapter overload.");
+   Console.WriteLine("PASS queued Mount fixture resolves exact four-argument dispatch overload");
+   var engage=native.ManifestModule.ResolveMethod(0x0600935A);
+   if(engage.DeclaringType.FullName!="Kingmaker.Controllers.Combat.UnitEngagementExtension" || engage.Name!="IsEngage" ||
+      !engage.IsStatic || engage.GetParameters().Length!=2 ||
+      Array.Exists(engage.GetParameters(),p=>p.ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData"))
+    throw new InvalidOperationException("Pinned read-only native engagement query differs.");
+   Console.WriteLine("PASS exact native IsEngage observation signature 0600935A");
    var removal=native.ManifestModule.ResolveMethod(0x06000BE6);
    if(removal.Name!="RemoveUnit" || removal.GetParameters().Length!=1 || removal.GetParameters()[0].Name!="unit" ||
       removal.GetParameters()[0].ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData" ||

@@ -7,6 +7,14 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         private static void Check(bool value,string reason) { if(!value)throw new InvalidOperationException("Refused policy: "+reason); }
         private static bool Bool(JToken value,bool expected) => value?.Type==JTokenType.Boolean && (bool)value==expected;
+        private static bool SameState(JToken a, JToken b)
+        {
+            if (!(a is JObject) || !(b is JObject)) return false;
+            var x = a.DeepClone(); var y = b.DeepClone();
+            // Wall-clock capture time may differ inside one exact native frame; no native state is exempt.
+            (x["geometry"] as JObject)?.Remove("seconds"); (y["geometry"] as JObject)?.Remove("seconds");
+            return JToken.DeepEquals(x, y);
+        }
         internal static void AssertComplete(JObject e)
         {
             var p=e["policy"]; var input=e["input"]; var id=e["identity"];
@@ -23,10 +31,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     Check(b[field]?.Type==JTokenType.Integer&&JToken.DeepEquals(b[field],input["before"][field]),"synchronous policy clock differs");
                 Check(b["state"]?["selectedIds"] is JArray selected&&selected.Count==1&&(string)selected[0]==(string)id["riderId"],"policy selection differs");
                 NativeRefusedMountEvidence.AssertState(b["state"],input["before"]["state"]);
-                Check(JToken.DeepEquals(b["state"],input["before"]["state"]), "policy state changed outside its exact input");
+                Check(SameState(b["state"],input["before"]["state"]), "policy state changed outside its exact input");
             }
-            Check(JToken.DeepEquals(p["before"]["state"],e["legal"]["state"])&&
-                JToken.DeepEquals(p["disabled"]["state"],input["before"]["state"]), "policy did not enclose the exact refusal");
+            Check(SameState(p["before"]["state"],e["legal"]["state"])&&
+                SameState(p["disabled"]["state"],input["before"]["state"]), "policy did not enclose the exact refusal");
             Check(p["disabled"]["allocationSequence"]?.Type==JTokenType.Integer && JToken.DeepEquals(p["disabled"]["allocationSequence"],input["before"]["allocationSequence"]), "disabled allocation boundary differs");
             Check((long)p["before"]["allocationSequence"] <= (long)p["disabled"]["allocationSequence"] && (long)input["after"]["allocationSequence"] <= (long)p["restored"]["allocationSequence"], "policy allocation order differs");
             foreach(var end in new[]{"before","after"})

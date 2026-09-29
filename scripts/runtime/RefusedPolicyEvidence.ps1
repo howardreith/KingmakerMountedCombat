@@ -1,5 +1,10 @@
 Set-StrictMode -Version Latest
 function Assert-KmcRefusedPolicy($E) {
+ function SamePolicyState($a,$b){
+  $x=$a|ConvertTo-Json -Depth 80|ConvertFrom-Json;$y=$b|ConvertTo-Json -Depth 80|ConvertFrom-Json
+  foreach($state in @($x,$y)){if($null-ne$state.PSObject.Properties['geometry']){$state.geometry.PSObject.Properties.Remove('seconds')}}
+  if(($x|ConvertTo-Json -Depth 80 -Compress)-cne($y|ConvertTo-Json -Depth 80 -Compress)){throw 'Policy native state changed outside its exact refused input'}
+ }
  $p=$E.policy;$input=$E.input;$id=$E.identity
  if($p.contract-cne'synchronous-paired-policy-disabled-refusal-restored'){throw 'Policy contract missing'}
  $resources=$p.resources
@@ -14,9 +19,10 @@ function Assert-KmcRefusedPolicy($E) {
   }
   foreach($field in @('frame','gameTicks')){if(($b.$field-isnot[int]-and$b.$field-isnot[long])-or$b.$field-ne$input.before.$field){throw 'Policy clock differs'}}
   if($b.state.selectedIds-isnot[Array]-or$b.state.selectedIds.Count-ne1-or$b.state.selectedIds[0]-cne$id.riderId){throw 'Policy exact selection differs'}
-  if(($b.state|ConvertTo-Json -Depth 50 -Compress)-cne($input.before.state|ConvertTo-Json -Depth 50 -Compress)){throw 'Policy state changed outside its exact refused input'}
+  SamePolicyState $b.state $input.before.state
  }
- if(($p.before.state|ConvertTo-Json -Depth 50 -Compress)-cne($E.legal.state|ConvertTo-Json -Depth 50 -Compress)){throw 'Policy legal baseline differs'}
+ SamePolicyState $p.before.state $E.legal.state
+ SamePolicyState $p.disabled.state $input.before.state
  if(($p.disabled.allocationSequence-isnot[int]-and$p.disabled.allocationSequence-isnot[long])-or$p.disabled.allocationSequence-ne$input.before.allocationSequence){throw 'Disabled allocation boundary differs'}
  if($p.before.allocationSequence-gt$p.disabled.allocationSequence-or$input.after.allocationSequence-gt$p.restored.allocationSequence){throw 'Policy allocation order differs'}
  foreach($end in @('before','after')){

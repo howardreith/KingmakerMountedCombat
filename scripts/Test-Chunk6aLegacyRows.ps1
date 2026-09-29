@@ -36,5 +36,7 @@ $p=Join-Path $fixtures 'ordinary.json';[IO.File]::WriteAllText($p,'{"rows":[{"na
 $rows=@(Get-KmcChunk6aArtifactRows $p test $game -PassRowsOnly)
 $all=@(Get-KmcChunk6aArtifactRows $p test $game)
 if($rows.Count-ne1-or$rows[0].name-cne'row'-or$all.Count-ne2){throw 'Ordinary JSON projection changed'};$script:checks++
-[pscustomobject]@{status='PASS';pass=$script:checks;fail=0;fixtures=$fixtures;scope='Synthetic row projection and original105 parser regression only'}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $scratch 'Rows-DRAFT-receipt.json') -Encoding UTF8
+[pscustomobject]@{status='PASS';pass=$script:checks;fail=0;fixtures=$fixtures;scope='Synthetic row projection and synthetic modern parser regression only'}|ConvertTo-Json|Set-Content -LiteralPath (Join-Path $scratch 'Rows-DRAFT-receipt.json') -Encoding UTF8
 Write-Host ('ROW PROJECTION READER PASS='+$script:checks+' FAIL=0')
+
+Remove-LegacyTestFixture

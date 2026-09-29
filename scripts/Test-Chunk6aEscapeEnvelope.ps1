@@ -33,6 +33,7 @@ function New-EscapeEnvelope([string]$Case){
  $last=Copy-Value $wait.after;$last.frame++;$last.allocationSequence+=2;$last.rider.move+=3.0
  $after=New-Boundary $last ($Case-ceq'policy') ($Case-ceq'feature') 'Unmounted';$after.state.ledger.admittedDismount++;$after.state.ledger.acceptedDismount++
  $restored=Copy-Value $after;$restored.settings.movement=$true;$restored.settings.paired=$true
+ if($Case-ceq'feature'){$restored.state.geometry.shellState=$restored.state.geometry.shellState.Replace(';mountAbilityFactPresent=False;',';mountAbilityFactPresent=True;')}
  $pre=Copy-Value $before.state;$pre.generation=1;$pre.relationshipState='Unmounted';$pre.rider.move-=3.0;$pre.ledger.admittedMount--;$pre.ledger.acceptedMount--
  $mp=New-FullSyntheticControl $false $pre $before.state 8 99 $before.gameTicks
  $dp=New-FullSyntheticControl $true $click.state $after.state $click.allocationSequence $click.frame $click.gameTicks

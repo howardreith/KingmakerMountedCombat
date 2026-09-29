@@ -534,7 +534,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         private Vector3 FindNativeAttackFixturePoint(UnitEntityData mover, bool mounted, Vector3 preferredOrigin,
-            float minimumDisplacement, float weaponRadius, string evidenceKey, float maximumDisplacement = float.PositiveInfinity)
+            float minimumDisplacement, float weaponRadius, string evidenceKey, float maximumDisplacement = float.PositiveInfinity,
+            Func<Vector3, bool> accepts = null)
         {
             var direction = preferredOrigin - target.Position;
             direction.y = 0f;
@@ -562,7 +563,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["minimumDisplacement"] = minimumDisplacement, ["maximumDisplacement"] = maximumDisplacement, ["radius"] = radius,
                     ["blockers"] = new JArray(blockers) });
                 if (walkable && distance <= radius + 0.05f && displacement >= minimumDisplacement &&
-                    displacement <= maximumDisplacement && blockers.Length == 0)
+                    displacement <= maximumDisplacement && blockers.Length == 0 && (accepts == null || accepts(point)))
                     return point;
             }
             throw new InvalidOperationException(float.IsPositiveInfinity(maximumDisplacement)

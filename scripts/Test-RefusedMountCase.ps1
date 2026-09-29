@@ -31,6 +31,7 @@ function New-RefusalCase([string]$Case) {
   $native=[pscustomobject]@{ownerId='owner';ownerObject=204;targetId='other';targetObject=203;masterId='owner';masterObject=204;ownerPetId='other';ownerPetObject=203;ownerLiveParty=$true;targetLiveParty=$true;ownerCommandsEmpty=$true;targetCommandsEmpty=$true;targetBlueprint='e7aa96d15a45238438ae4cfb476f6bb9';targetProfile='Mammoth';ownerResources=$ownerResources;targetResources=$targetResources}
   $caseEvidence|Add-Member -NotePropertyName foreignCompanionBefore -NotePropertyValue $native
   $caseEvidence|Add-Member -NotePropertyName foreignCompanionAfter -NotePropertyValue (Copy-Refused $native)
+  $caseEvidence|Add-Member foreignCompanionPreCombat ([pscustomobject]@{frame=($input.before.frame-1);gameTicks=($input.before.gameTicks-1);inCombat=$false;pair=(Copy-Refused $native)})
  }
 
  if($Case-ceq'policy-disabled'){
@@ -85,6 +86,11 @@ foreach($case in @('wrong-creature-target','mount-selected','multiple-selection'
  Reject-Case {param($e)$e.legal.state.geometry.riderPosition.x+=0.01}
 }
 $case='foreign-companion';$baseline=New-RefusalCase $case
+Reject-Case {param($e)$e.foreignCompanionPreCombat=$null}
+Reject-Case {param($e)$e.foreignCompanionPreCombat.inCombat=$true}
+Reject-Case {param($e)$e.foreignCompanionPreCombat.frame=$e.legal.frame}
+Reject-Case {param($e)$e.foreignCompanionPreCombat.pair.ownerId='changed'}
+Reject-Case {param($e)$e.foreignCompanionPreCombat.pair.targetObject++}
 foreach($field in @('ownerId','masterId','ownerPetId','targetId','targetBlueprint','targetProfile')){Reject-Case {param($e)$e.foreignCompanionBefore.$field='invalid';$e.foreignCompanionAfter.$field='invalid'}}
 foreach($field in @('ownerObject','masterObject','ownerPetObject','targetObject')){
  Reject-Case {param($e)$e.foreignCompanionBefore.$field=0;$e.foreignCompanionAfter.$field=0}
@@ -101,6 +107,14 @@ foreach($field in @('ownerResources','targetResources')){
 
 $case='policy-disabled';$baseline=New-RefusalCase $case
 Check-Case $baseline $true
+# The observed131 failure changed only diagnostic capture seconds within one native frame.
+$wallClock=Copy-Refused $baseline
+$i=0
+foreach($boundary in @($wallClock.policy.before,$wallClock.policy.disabled,$wallClock.policy.restored,$wallClock.legal,$wallClock.input.before)){
+ $boundary.state.geometry|Add-Member seconds (0.25+(++$i)*0.001) -Force
+}
+$wallClock.condition.state=Copy-Refused $wallClock.input.before.state
+Check-Case $wallClock $true
 foreach($name in @('before','disabled','restored')){
  foreach($field in @('movement','paired','unified','scheduler','overlay')){
   Reject-Case {param($e)$e.policy.$name.settings.$field=-not$e.policy.$name.settings.$field}
@@ -111,6 +125,8 @@ foreach($name in @('before','disabled','restored')){
   Reject-Case {param($e)$e.policy.$name.state.$actor.$field++}
  }}
  Reject-Case {param($e)$e.policy.$name.state.selectedIds=@('mount')}
+ Reject-Case {param($e)$e.policy.$name.state.geometry.riderPosition.x+=0.01}
+ Reject-Case {param($e)$e.policy.$name.state.geometry|Add-Member shellState 'undeclared shell change' -Force}
 }
 foreach($field in @('riderId','mountId','contract')){Reject-Case {param($e)$e.policy.resources.$field='foreign'}}
 Reject-Case {param($e)$e.policy.resources.traceComplete=$false}

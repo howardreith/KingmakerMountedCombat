@@ -4,6 +4,13 @@ function Assert-KmcForeignCompanion($E) {
  if($E.case-cne'foreign-companion'){throw 'Foreign companion case differs'}
  foreach($field in @('unrelatedIsPet','unrelatedSupportedMount')){if($id.$field-isnot[bool]-or$id.$field-ne$true){throw 'Supported foreign pet missing'}}
  if($null-eq$b-or$null-eq$a-or($b|ConvertTo-Json -Depth 50 -Compress)-cne($a|ConvertTo-Json -Depth 50 -Compress)){throw 'Foreign pair changed across synchronous refused input'}
+ $pre=$E.foreignCompanionPreCombat
+ if($pre.inCombat-isnot[bool]-or$pre.inCombat-or
+    ($pre.frame-isnot[int]-and$pre.frame-isnot[long])-or($pre.gameTicks-isnot[int]-and$pre.gameTicks-isnot[long])-or
+    $pre.frame-ge$E.legal.frame-or$pre.gameTicks-gt$E.legal.gameTicks){throw 'Foreign pre-combat capture absent'}
+ foreach($field in @('ownerId','ownerObject','targetId','targetObject','masterId','masterObject','ownerPetId','ownerPetObject','targetBlueprint','targetProfile')){
+  if($null-eq$pre.pair.$field-or($pre.pair.$field|ConvertTo-Json -Compress)-cne($b.$field|ConvertTo-Json -Compress)){throw ('Pre-combat foreign identity changed '+$field)}
+ }
  $ids=@($b.ownerId,$id.riderId,$id.mountId,$id.unrelatedId)
  if(@($ids|Where-Object {$_-isnot[string]-or[string]::IsNullOrWhiteSpace($_)}).Count-ne0-or@($ids|Select-Object -Unique).Count-ne4){throw 'Distinct foreign owner missing'}
  $objects=@($b.ownerObject,$id.riderObject,$id.mountObject,$id.unrelatedObject)

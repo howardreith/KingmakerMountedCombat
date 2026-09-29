@@ -33,6 +33,8 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
 }
 if($Target-eq'Kingmaker'){
     foreach($expected in @(
+        @('Kingmaker.View.ObstacleAnalyzer',0x060017B4,'GetNearestNode'),
+        @('Kingmaker.View.ObstacleAnalyzer',0x060017AD,'TraceAlongNavmesh'),
         @('Kingmaker.Controllers.Combat.UnitCombatCooldownsController',0x0600934A,'TickOnUnit'),
         @('Kingmaker.Controllers.Combat.UnitCombatCooldownsController',0x06009349,'TickOnUnitTurnBased'),
         @('Kingmaker.Controllers.Combat.UnitCombatState',0x06009378,'set_AttackOfOpportunityCount'),

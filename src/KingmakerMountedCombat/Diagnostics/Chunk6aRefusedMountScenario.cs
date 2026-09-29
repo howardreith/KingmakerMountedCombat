@@ -20,6 +20,26 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool Chunk6aRefusedOnly => IsChunk6aRefusedScenario(request.Scenario);
         private NativeRefusedMountInputProbe chunk6aRefusalProbe;
         private bool chunk6aRefusalInvoked;
+        private UnitEntityData chunk6aForeignOwner, chunk6aForeignCompanion;
+        private JObject chunk6aForeignPreCombat;
+        private void CaptureChunk6aForeignPairBeforeCombat()
+        {
+            if (request.Scenario != "chunk6a-refused-foreign-companion" || chunk6aForeignPreCombat != null) return;
+            if (rider.IsInCombat || horse.IsInCombat || Game.Instance.Player.IsInCombat)
+                throw new InvalidOperationException("Foreign fixture resolution must precede the fresh encounter.");
+            string refusal;
+            if (!relationship.TryResolveAutomationPair(SupportedMountedProfiles.MammothBlueprintGuid,
+                out chunk6aForeignOwner, out chunk6aForeignCompanion, out refusal) ||
+                chunk6aForeignOwner == rider || chunk6aForeignOwner == horse ||
+                chunk6aForeignCompanion == rider || chunk6aForeignCompanion == horse ||
+                chunk6aForeignOwner.IsInCombat || chunk6aForeignCompanion.IsInCombat)
+                throw new InvalidOperationException("Foreign native pair unavailable before combat: " + refusal);
+            chunk6aForeignPreCombat = new JObject { ["frame"] = Time.frameCount,
+                ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks, ["inCombat"] = false,
+                ["pair"] = CaptureChunk6aForeignCompanion(chunk6aForeignOwner, chunk6aForeignCompanion) };
+            observations["chunk6aForeignPreCombat"] = chunk6aForeignPreCombat.DeepClone();
+        }
+
         private string Chunk6aRefusalCase => request.Scenario.Substring("chunk6a-refused-".Length);
         private string Chunk6aRefusalRow => Chunk6aRefusalCase == "policy-disabled" ? "CM06-combat-mount-requires-qualified-paired-policy" : Chunk6aRefusalCase == "foreign-companion" ? "CM02-foreign-companion" : Chunk6aRefusalCase == "wrong-creature-target" ? "CM02-wrong-creature-target" : "CM06-" + Chunk6aRefusalCase;
         private void TickChunk6aRefusedMount()
@@ -40,11 +60,11 @@ namespace KingmakerMountedCombat.Diagnostics
             var foreignCompanion = Chunk6aRefusalCase == "foreign-companion";
             if (foreignCompanion)
             {
-                string refusal;
-                if (!relationship.TryResolveAutomationPair(SupportedMountedProfiles.MammothBlueprintGuid, out foreignOwner, out other, out refusal) ||
-                    foreignOwner == rider || foreignOwner == horse || other == rider || other == horse ||
+                foreignOwner = chunk6aForeignOwner; other = chunk6aForeignCompanion;
+                if (chunk6aForeignPreCombat == null || foreignOwner == null || other == null ||
+                    !ReferenceEquals(foreignOwner.Descriptor.Pet, other) || !ReferenceEquals(other.Descriptor.Master.Value, foreignOwner) ||
                     !foreignOwner.IsInGame || !foreignOwner.Commands.Empty || !other.IsInGame || !other.IsDirectlyControllable || other.View == null || !other.Commands.Empty)
-                    throw new InvalidOperationException("Foreign companion refusal requires the unchanged native Mammoth and its distinct exact owner: " + refusal);
+                    throw new InvalidOperationException("Foreign native pair identity or readiness changed after pre-combat capture.");
             }
             else
             {
@@ -93,7 +113,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["unrelatedIsPet"] = other.Descriptor.Master.Value != null, ["unrelatedSupportedMount"] = SupportedMountedProfiles.IsSupported(other) },
                 ["legal"] = legal, ["condition"] = condition
             };
-            if (foreignCompanion) evidence["foreignCompanionBefore"] = CaptureChunk6aForeignCompanion(foreignOwner, other);
+            if (foreignCompanion) {
+                evidence["foreignCompanionPreCombat"] = chunk6aForeignPreCombat.DeepClone();
+                evidence["foreignCompanionBefore"] = CaptureChunk6aForeignCompanion(foreignOwner, other);
+            }
             observations["chunk6aRefusedMount"] = evidence;
             if (!exactSelection)
             { FailCurrent(row, "Exact negative selection failed before SetAbility or OnClick: " + condition.ToString(Formatting.None)); BeginCleanup(); return; }
@@ -130,6 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aRefusalProbe != null) observations["chunk6aRefusedMountInputAtCleanup"] = chunk6aRefusalProbe.Capture();
             chunk6aRefusalProbe?.Dispose(); chunk6aRefusalProbe = null;
             CleanupChunk6aRefusalPolicy();
+            chunk6aForeignOwner = null; chunk6aForeignCompanion = null; chunk6aForeignPreCombat = null;
         }
     }
 }

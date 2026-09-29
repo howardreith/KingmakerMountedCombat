@@ -5669,6 +5669,53 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private JObject CaptureNativeInputActor(UnitEntityData actor)
+        {
+            if (actor == null) return null;
+            var result = CaptureOrdinaryActor(actor);
+            var cooldown = actor.CombatState.Cooldown;
+            result["object"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(actor);
+            result["inCombat"] = actor.IsInCombat;
+            result["prepared"] = actor.CombatState.Prepared;
+            result["canAct"] = actor.Descriptor.State.CanAct;
+            result["canActInCombat"] = actor.CombatState.CanActInCombat;
+            result["hasMove"] = actor.HasMoveAction();
+            result["hasStandard"] = actor.HasStandardAction();
+            result["reactions"] = actor.CombatState.AttackOfOpportunityCount;
+            result["reactionsPerRound"] = actor.CombatState.AttackOfOpportunityPerRound;
+            result["reactionCooldown"] = cooldown.AttackOfOpportunity;
+            result["initiativeCooldown"] = cooldown.Initiative;
+            result["initiativeOrder"] = actor.CombatState.Initiative;
+            return result;
+        }
+
+        private JObject CaptureNativeAbilityInputState(BlueprintAbility blueprint)
+        {
+            var game = Game.Instance; var controller = game.TurnBasedCombatController; var turn = controller?.CurrentTurn;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var kind = ReferenceEquals(blueprint, nativeControls.MountAbility) ? NativeMountedControlKind.MountCompanion :
+                ReferenceEquals(blueprint, nativeControls.DismountAbility) ? NativeMountedControlKind.Dismount : NativeMountedControlKind.None;
+            var availability = kind == NativeMountedControlKind.None ? null : nativeControls.Evaluate(kind, rider);
+            return new JObject {
+                ["frame"] = Time.frameCount, ["gameTicks"] = game.TimeController.GameTime.Ticks,
+                ["mode"] = game.CurrentMode.ToString(), ["paused"] = game.IsPaused,
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["playerInCombat"] = game.Player.IsInCombat,
+                ["relationshipState"] = relationship.State.ToString(), ["generation"] = relationship.MountedPairGeneration,
+                ["rider"] = CaptureNativeInputActor(rider), ["mount"] = CaptureNativeInputActor(horse),
+                ["selected"] = selected == null ? null : new JArray(selected.Select(unit => new JObject {
+                    ["id"] = unit?.UniqueId, ["object"] = unit == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(unit) })),
+                ["exactSingleRider"] = selected != null && selected.Count == 1 && ReferenceEquals(selected[0], rider),
+                ["controlKind"] = kind.ToString(), ["visible"] = availability?.IsVisible,
+                ["enabled"] = availability?.IsEnabled, ["availabilityReason"] = availability?.Reason,
+                ["round"] = controller?.RoundNumber, ["turnActor"] = turn?.Unit?.UniqueId,
+                ["turnObject"] = turn == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(turn),
+                ["turnStatus"] = turn?.Status.ToString(), ["timeMoved"] = turn?.TimeMoved,
+                ["remainingNativeTime"] = turn?.GetRemainingTime(),
+                ["waitingForUi"] = controller != null && (bool)controller.WaitingForUI,
+                ["pendingNextUnit"] = controller == null ? null : GetPendingNextUnit(controller)?.UniqueId
+            };
+        }
+
         private bool TryNativeAbilityTargetClick(
             BlueprintAbility blueprint,
             UnitEntityData clickedTarget,
@@ -5680,6 +5727,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var handler = Game.Instance.SelectedAbilityHandler;
             var targetObject = clickedTarget?.View?.gameObject;
             var position = clickedTarget?.Position ?? Vector3.zero;
+            var preInput = CaptureNativeAbilityInputState(blueprint);
+            preInput["abilityAvailableForCast"] = data?.IsAvailableForCast;
+            observations[observationName + "-before-input"] = preInput;
             if (data == null || handler == null || targetObject == null)
             {
                 observations[observationName] = new JObject
