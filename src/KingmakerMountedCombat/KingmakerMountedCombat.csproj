@@ -353,6 +353,7 @@
     <Compile Include="Diagnostics\NativeRefusedMountInputProbe.cs" />
     <Compile Include="Diagnostics\NativeRefusedMountEvidence.cs" />
     <Compile Include="Diagnostics\NativeRefusedMountCaseEvidence.cs" />
+    <Compile Include="Diagnostics\NativeForeignCompanionEvidence.cs" />
     <Compile Include="Diagnostics\NativeMountPointerInput.cs" />
     <Compile Include="Diagnostics\NativeRelationshipPredictionProbe.cs" />
     <Compile Include="Diagnostics\NativePredictionCommandEvidence.cs" />

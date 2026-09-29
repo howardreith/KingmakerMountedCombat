@@ -125,6 +125,11 @@ foreach($entry in $ledger.entries){
             Assert-KmcSupportingRun $payload $binding $LabRoot
             Assert-KmcIsolatedQualification $id $binding $LabRoot
             Assert-KmcChunk6aAdditionalQualification $id $payload $binding (Get-Field $entry 'supportingRuns') $LabRoot
+            if($id -cin @(Get-KmcChunk6aRegressionClaims)) {
+                $regressionRoles=@(Get-KmcChunk6aRegressionRoles $id)
+                $regressionBindings=if($regressionRoles.Count -eq 1){@($binding)}else{@(Get-Field $entry 'supportingRuns')}
+                Assert-KmcChunk6aRegressionQualification $id $payload $binding $regressionBindings $LabRoot
+            }
             if($id -cin @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')) {
                 $roles=@(Get-KmcChunk6aCampaignRoles $false|Where-Object name -CLike 'compensation-*')
                 Assert-KmcCompositeRuns $payload (Get-Field $entry 'supportingRuns') $roles $LabRoot

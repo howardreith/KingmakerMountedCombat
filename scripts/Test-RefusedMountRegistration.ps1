@@ -2,8 +2,8 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $checks=0
-$rows=@('CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection')
-$cases=@('wrong-creature-target','mount-selected','multiple-selection','foreign-selection')
+$rows=@('CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM02-foreign-companion')
+$cases=@('wrong-creature-target','mount-selected','multiple-selection','foreign-selection','foreign-companion')
 $tokens=$null;$errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1'),[ref]$tokens,[ref]$errors)
 if($errors.Count -ne 0){throw $errors[0]}
@@ -36,4 +36,8 @@ if($source.Contains('TryNativeAbilityTargetClick') -or $source.Contains('BeginCh
 if(-not $source.Contains('NativeRefusedMountCaseEvidence.AssertComplete(evidence)')){throw 'Producer does not use shared refusal case decision'};$checks++
 $tranche=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk6aCombatMountScenario.cs')
 if(-not $tranche.Contains('Chunk6aRefusedOnly ? 24') -or -not $tranche.Contains('if (chunk6aStage == 24) { TickChunk6aRefusedMount(); return; }')){throw 'Refusal is not isolated from the positive/compensation flow'};$checks++
+foreach($file in @('src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs','scripts/runtime/RuntimeHarness.Common.ps1')) {
+ $text=Get-Content -Raw -LiteralPath (Join-Path $repo $file)
+ if(-not$text.Contains('CM02-foreign-companion')){throw 'Exact foreign refusal row missing from native/external catalog'};$checks++
+}
 Write-Output ('REFUSAL REGISTRATION PASS='+$checks+' FAIL=0; lab source/component contract, not native qualification')

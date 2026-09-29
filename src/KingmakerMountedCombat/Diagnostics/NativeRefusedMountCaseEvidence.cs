@@ -18,10 +18,13 @@ namespace KingmakerMountedCombat.Diagnostics
             Check(!string.IsNullOrEmpty(rider) && !string.IsNullOrEmpty(mount) && !string.IsNullOrEmpty(other) && new[] { rider, mount, other }.Distinct().Count() == 3, "distinct actors missing");
             var riderObject = Int(identity["riderObject"]); var mountObject = Int(identity["mountObject"]); var otherObject = Int(identity["unrelatedObject"]);
             Check(new[] { riderObject, mountObject, otherObject }.All(x => x != 0) && new[] { riderObject, mountObject, otherObject }.Distinct().Count() == 3, "native object identities missing");
-            Check(Yes(identity["reciprocalPair"]) && Text(identity["mountProfile"]) == "Horse" && Yes(identity["unrelatedLivePartyActor"]) && No(identity["unrelatedIsPet"]) && No(identity["unrelatedSupportedMount"]), "native fixture identity differs");
+            Check(Yes(identity["reciprocalPair"]) && Text(identity["mountProfile"]) == "Horse" && Yes(identity["unrelatedLivePartyActor"]), "native fixture identity differs");
+            if (c == "foreign-companion") NativeForeignCompanionEvidence.AssertComplete(e);
+            else Check(No(identity["unrelatedIsPet"]) && No(identity["unrelatedSupportedMount"]), "unrelated plain creature differs");
             string[] selected; long[] selectedObjects; string target, reason, row;
             switch (c)
             {
+                case "foreign-companion": selected = new[] { rider }; selectedObjects = new[] { riderObject }; target = other; row = "CM02-foreign-companion"; reason = "Mount target rejected: click the selected rider's exact active Horse."; break;
                 case "wrong-creature-target": selected = new[] { rider }; selectedObjects = new[] { riderObject }; target = other; row = "CM02-wrong-creature-target"; reason = "Mount target rejected: click the selected rider's exact active Horse."; break;
                 case "mount-selected": selected = new[] { mount }; selectedObjects = new[] { mountObject }; target = mount; row = "CM06-mount-selected"; reason = "Select the exact prospective rider."; break;
                 case "multiple-selection": selected = new[] { rider, mount }; selectedObjects = new[] { riderObject, mountObject }; target = mount; row = "CM06-multiple-selection"; reason = "Select the exact prospective rider."; break;
@@ -34,7 +37,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var input = e["input"] as JObject;
             Check(input != null && Yes(negative?["selectionVerified"]) && Yes(negative["inCombat"]) && No(negative["turnBased"]) && Yes(negative["visible"]) &&
                 No(negative["canTargetRequested"]), "negative fixture unavailable");
-            var wrong = c == "wrong-creature-target";
+            var wrong = c == "wrong-creature-target" || c == "foreign-companion";
             Check(wrong ? Yes(negative["enabled"]) && Yes(negative["canTargetOwnedMount"]) : No(negative["enabled"]) && No(negative["canTargetOwnedMount"]), "refusal cause differs");
             Check(negative["selectedIds"] is JArray ids && ids.Select(Text).SequenceEqual(selected) && negative["selectedObjects"] is JArray objects && objects.Select(Int).SequenceEqual(selectedObjects), "negative selection objects differ");
             Check(Text(negative["targetId"]) == target && Int(negative["targetObject"]) == (wrong ? otherObject : mountObject), "negative exact target differs");

@@ -154,6 +154,7 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM03-rider-before-mount-slot'=@('chunk6a-allocation-rider-first-tb','CM03-rider-before-mount-slot','CM03-next-round-activation')
         'CM03-mount-slot-before-rider'=@('chunk6a-allocation-mount-first-tb','CM03-mount-slot-before-rider','CM03-next-round-activation')
         'CM06-paused-queue'=@('chunk6a-paused-queue','CM06-paused-queue')
+        'CM02-foreign-companion'=@('chunk6a-refused-foreign-companion','CM02-foreign-companion')
         'CM02-wrong-creature-target'=@('chunk6a-refused-wrong-creature-target','CM02-wrong-creature-target')
         'CM06-mount-selected'=@('chunk6a-refused-mount-selected','CM06-mount-selected')
         'CM06-multiple-selection'=@('chunk6a-refused-multiple-selection','CM06-multiple-selection')

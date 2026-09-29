@@ -8,6 +8,7 @@ function New-RefusalCase([string]$Case) {
  $input=Copy-Refused $p
  $reason='Select the exact prospective rider.';$target='mount';$targetObject=202
  switch($Case){
+  'foreign-companion'{$selected=@('rider');$objects=@(201);$target='other';$targetObject=203;$row='CM02-foreign-companion';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'wrong-creature-target'{$selected=@('rider');$objects=@(201);$target='other';$targetObject=203;$row='CM02-wrong-creature-target';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'mount-selected'{$selected=@('mount');$objects=@(202);$row='CM06-mount-selected'}
   'multiple-selection'{$selected=@('rider','mount');$objects=@(201,202);$row='CM06-multiple-selection'}
@@ -18,10 +19,19 @@ function New-RefusalCase([string]$Case) {
  foreach($s in $input.events){$s.targetId=$target}
  $input.activations[1].targetId=$target;$input.activations[1].selectedIds=$selected -join ',';$input.activations[1].reason=$reason
  $state=Copy-Refused $input.before.state;$state.selectedIds=@('rider')
- [pscustomobject]@{contract='one-native-refused-mount-in-fresh-rt-allocation';case=$Case;scenario=('chunk6a-refused-'+$Case);row=$row;
+ $caseEvidence=[pscustomobject]@{contract='one-native-refused-mount-in-fresh-rt-allocation';case=$Case;scenario=('chunk6a-refused-'+$Case);row=$row;
  identity=[pscustomobject]@{riderId='rider';mountId='mount';unrelatedId='other';riderObject=201;mountObject=202;unrelatedObject=203;reciprocalPair=$true;mountProfile='Horse';unrelatedLivePartyActor=$true;unrelatedIsPet=$false;unrelatedSupportedMount=$false};
  legal=[pscustomobject]@{frame=$input.before.frame;gameTicks=$input.before.gameTicks;inCombat=$true;turnBased=$false;visible=$true;enabled=$true;canTargetOwnedMount=$true;exactRiderSelected=$true;state=$state};
- condition=[pscustomobject]@{frame=$input.before.frame;gameTicks=$input.before.gameTicks;selectionVerified=$true;inCombat=$true;turnBased=$false;visible=$true;enabled=($Case -ceq 'wrong-creature-target');canTargetOwnedMount=($Case -ceq 'wrong-creature-target');canTargetRequested=$false;selectedIds=$selected;selectedObjects=$objects;targetId=$target;targetObject=$targetObject;expectedReason=$reason;state=(Copy-Refused $input.before.state)};input=$input}
+ condition=[pscustomobject]@{frame=$input.before.frame;gameTicks=$input.before.gameTicks;selectionVerified=$true;inCombat=$true;turnBased=$false;visible=$true;enabled=($Case -cin @('wrong-creature-target','foreign-companion'));canTargetOwnedMount=($Case -cin @('wrong-creature-target','foreign-companion'));canTargetRequested=$false;selectedIds=$selected;selectedObjects=$objects;targetId=$target;targetObject=$targetObject;expectedReason=$reason;state=(Copy-Refused $input.before.state)};input=$input}
+ if($Case-ceq'foreign-companion'){
+  $caseEvidence.identity.unrelatedIsPet=$true;$caseEvidence.identity.unrelatedSupportedMount=$true
+  $ownerResources=Copy-Refused $r;$ownerResources|Add-Member -NotePropertyName actor -NotePropertyValue 'owner'
+  $targetResources=Copy-Refused $r;$targetResources|Add-Member -NotePropertyName actor -NotePropertyValue 'other'
+  $native=[pscustomobject]@{ownerId='owner';ownerObject=204;targetId='other';targetObject=203;masterId='owner';masterObject=204;ownerPetId='other';ownerPetObject=203;ownerLiveParty=$true;targetLiveParty=$true;ownerCommandsEmpty=$true;targetCommandsEmpty=$true;targetBlueprint='e7aa96d15a45238438ae4cfb476f6bb9';targetProfile='Mammoth';ownerResources=$ownerResources;targetResources=$targetResources}
+  $caseEvidence|Add-Member -NotePropertyName foreignCompanionBefore -NotePropertyValue $native
+  $caseEvidence|Add-Member -NotePropertyName foreignCompanionAfter -NotePropertyValue (Copy-Refused $native)
+ }
+ $caseEvidence
 }
 $script:caseChecks=0
 function Check-Case($e,[bool]$expected){
@@ -30,7 +40,7 @@ function Check-Case($e,[bool]$expected){
  if($producer -ne $expected -or $external -ne $expected){throw ('Refusal case producer/external differs '+$producer+'/'+$external+' expected '+$expected)}
  $script:caseChecks+=2
 }
-foreach($case in @('wrong-creature-target','mount-selected','multiple-selection','foreign-selection')){
+foreach($case in @('wrong-creature-target','mount-selected','multiple-selection','foreign-selection','foreign-companion')){
  $baseline=New-RefusalCase $case
  Check-Case $baseline $true
  function Reject-Case([scriptblock]$Mutate){$e=Copy-Refused $baseline;& $Mutate $e;try{Check-Case $e $false}catch{throw ('Case '+$case+' mutation '+$Mutate.ToString()+' field '+$field+': '+$_)}}
@@ -56,5 +66,19 @@ foreach($case in @('wrong-creature-target','mount-selected','multiple-selection'
  Reject-Case {param($e)$e.legal.state.generation++}
  Reject-Case {param($e)$e.legal.state.ledger.forcedDetach++}
  Reject-Case {param($e)$e.legal.state.geometry.riderPosition.x+=0.01}
+}
+$case='foreign-companion';$baseline=New-RefusalCase $case
+foreach($field in @('ownerId','masterId','ownerPetId','targetId','targetBlueprint','targetProfile')){Reject-Case {param($e)$e.foreignCompanionBefore.$field='invalid';$e.foreignCompanionAfter.$field='invalid'}}
+foreach($field in @('ownerObject','masterObject','ownerPetObject','targetObject')){
+ Reject-Case {param($e)$e.foreignCompanionBefore.$field=0;$e.foreignCompanionAfter.$field=0}
+ Reject-Case {param($e)$e.foreignCompanionBefore.$field=[string]$e.foreignCompanionBefore.$field;$e.foreignCompanionAfter.$field=$e.foreignCompanionBefore.$field}
+}
+foreach($field in @('ownerLiveParty','targetLiveParty','ownerCommandsEmpty','targetCommandsEmpty')){Reject-Case {param($e)$e.foreignCompanionBefore.$field=$false;$e.foreignCompanionAfter.$field=$false}}
+foreach($field in @('ownerResources','targetResources')){
+ Reject-Case {param($e)$e.foreignCompanionBefore.$field.actor='wrong';$e.foreignCompanionAfter.$field.actor='wrong'}
+ foreach($resource in @('standard','move','swift','reactions','reactionCooldown','initiativeCooldown','initiativeOrder','reactionsPerRound','nativePrepareCount')){
+  Reject-Case {param($e)$e.foreignCompanionAfter.$field.$resource++}
+  Reject-Case {param($e)$e.foreignCompanionBefore.$field.$resource='0';$e.foreignCompanionAfter.$field.$resource='0'}
+ }
 }
 Write-Output ('REFUSAL CASE PRODUCER+EXTERNAL PASS='+$script:caseChecks+' FAIL=0; synthetic only, no native qualification')

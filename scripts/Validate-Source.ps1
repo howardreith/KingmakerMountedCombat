@@ -219,6 +219,10 @@ Assert-Kmc ($adoptionText -match 'internal MidEncounterAdoption ResolveMidEncoun
     $adoptionText -match 'private bool CanReplaceActivationForAdoption\(\)') `
     'the adoption disposition is resolvable without side effects and a split pair is not layered over'
 
+Assert-Kmc ($adoptBody.Success -and $adoptBody.Value -notmatch 'BeginActorPreparation' -and
+    $adoptBody.Value -match '!adopted\.State\(mount\)\.Prepared') `
+    'the native preparation prefix owns the one partner grant and adoption requires its completion'
+
 # R1: a partner whose native slot in this round is already behind the running turn
 # is granted, prepared AND ENDED, so an allocation it has already taken can never
 # become addressable again on the principal's adopted boundary.

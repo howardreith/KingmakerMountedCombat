@@ -7125,6 +7125,1041 @@
       "qualificationAccepted": false,
       "interpretation": "Superseded127 results retained unchanged. PASS applies only to that exact payload and suite. TB failed before combat allocation/adoption in the ground evidence validator; direct live pathState token had String type with null value. Native ground Success and action/reaction conservation do not erase the overall FAIL.",
       "settledReceiptSha256": "6bb3391820302d4028b4fb07c3232cd7d578d85af9fe41d03b573df176218aa5"
+    },
+    {
+      "runId": "c6a-token-a-approach",
+      "scenario": "chunk6a-mount-approach",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.128",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "aec84a95cf058b32aec10bb14718ecde63fd2e6b",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.128-chunk6a-token-a-diagnostic.zip",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-token-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-token-a.json",
+        "sha256": "9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 48,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/horse-companion-blueprint-registration.json",
+          "sha256": "e8cb8e64ab3db585d3d0371b75c558827e78f5fe62b0659e8e0ac3dbdc9bc294",
+          "length": 7396
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/orchestration.json",
+          "sha256": "5cc37bbca2110748251c9c9293c3fe8e87feb6a47ac566e3312dbec375bd18e9",
+          "length": 1191
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/phase3d-horse-scenario-evidence.json",
+          "sha256": "529633302779c4e4033b973e153901050ad49f459810c4848d470687050ca356",
+          "length": 16133679
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/runtime-artifacts.json",
+          "sha256": "8d79c088bcf58364099566ae17dce59dbd18ce449ee8faa4c84ae0d302469a53",
+          "length": 2414
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/runtime-game-result.json",
+          "sha256": "8af8c75bc1d0eeb586171c751d34786e1ce508a14c48410eac705c50df1417b6",
+          "length": 4585
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/runtime-request.json",
+          "sha256": "f3f4a2626308b9941d4a19adf690569fee282c47d483a0a2cb73a5617389b1c4",
+          "length": 2820
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/runtime-result.json",
+          "sha256": "99589fd602c2ae79b61c5f32fbcc9a10a1ed2d8d631d98eee10b34d1fce48f2b",
+          "length": 7188
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-001.png",
+          "sha256": "dcb04fe1ca1aca28fa1a17cfdd8a84573fd129357a7d292eaa1db17a2acc7227",
+          "length": 1315092
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-002.png",
+          "sha256": "b11b87ad39a2cecf48e22421afc50beffdd4cb7e2b008d4420225e2c033940fb",
+          "length": 1314055
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-003.png",
+          "sha256": "8b1aeb1a8c9b93068266e2d9ee2f07b30a023e314017fd2bde64e788c6f4fd9f",
+          "length": 1313616
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-004.png",
+          "sha256": "eaa25398ce792fd329a07913335765d358eaeecd5deaf6fcc06a603c6e05eb4c",
+          "length": 1313898
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-005.png",
+          "sha256": "404787a74e9aa1e05572617173bd34534d5e60bebab57cf3fa02d14060cdc000",
+          "length": 1313727
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-006.png",
+          "sha256": "0b3da16e7ce09a83d0b7d01ea677afc7cdf80ac5d1e49d8e906943905a8bc3cb",
+          "length": 1314651
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-007.png",
+          "sha256": "6215280b81406a7c9d0dffc9bb7e37b112550d2e118b2aa509b2148a301b944c",
+          "length": 1313404
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-approach/movement-visuals/horse-motion-008.png",
+          "sha256": "4edd82a190748dcb6cc5c48859dffcec6c70932ede288f5eaf64396295c09837",
+          "length": 1314792
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Exact128 historical result retained after source129 superseded the payload. All original failures remain exact; no provisional failed-run PASS or cross-candidate qualification transfer.",
+      "settledReceiptSha256": "1bfcf09930bab205e9eff4c2f2b6a7c9b57f3f9a0ac4d408a1354dcc16d21030",
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-token-a-approach.json",
+          "sha256": "b856a9566d139f458a61ee9bd6d845cc97770a665d7c294c62babbaf1546d928",
+          "length": 1563
+        }
+      ],
+      "externalFailures": []
+    },
+    {
+      "runId": "c6a-token-a-rt",
+      "scenario": "chunk6a-adoption-compensation-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.128",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "aec84a95cf058b32aec10bb14718ecde63fd2e6b",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.128-chunk6a-token-a-diagnostic.zip",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-token-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-token-a.json",
+        "sha256": "9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 46,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/horse-companion-blueprint-registration.json",
+          "sha256": "c4b0b00c79e0a800ae12077909582d4b9aaab01bf083833d9d9e230016c5225b",
+          "length": 7400
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/orchestration.json",
+          "sha256": "3b4a3710eb1072c92c8c609f470e3ea23f920af5ae088751a74462c5b1717446",
+          "length": 1188
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "f998abf0710ddfeeae55a588bcd2396d17a2b607335a742afb71cff7624c3de0",
+          "length": 10884393
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/runtime-artifacts.json",
+          "sha256": "87ddd00979da0736be229b8f7857d55b682c1e5b87b5051071c00234956bdeb9",
+          "length": 2418
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/runtime-game-result.json",
+          "sha256": "1d855202350af8bb96b6be2b576154d3c72d95c0efbaf2d0629431300a55043d",
+          "length": 4259
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/runtime-request.json",
+          "sha256": "fbbb5a9759fa7015f350d3734c2ff6f17475c74a7056dd3a67af6265fc5152c2",
+          "length": 2818
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/runtime-result.json",
+          "sha256": "e9d82ac4b4619abda4fc01d4e98a01a53768216355a640f4d389b30b0ff26586",
+          "length": 6355
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "ccd2a6b6ece4ff9618a0093cf6135dff38e24584186bc9ae94836527616e6bd5",
+          "length": 1317239
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "9ceedef12197ee41dd0c01931de5d8649f294d1e19a0046160547cc7de2d39ed",
+          "length": 1319061
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "08c7a77cec2769a93dd0a99ac96f68539ddcb03a0c12bf5e24740ad5c9a2a5fd",
+          "length": 1316592
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "5067e3a22f483f555eaa34f65d85bc134549c4a8d0272e19d919cc94c4da647e",
+          "length": 1318021
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "9ef4741a4d2104776be5a6cf6b3c6597d7dec14ac7c51a7f4e5ff9cbb5a16e8b",
+          "length": 1318390
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "3d9f0e676177da1490124898b5c1fdbd9ee4cbade99b4ef4c23262565d0aa4eb",
+          "length": 1317437
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "254ebc739f0bae44041fcd23cb53ff49e2f113a2c1af22bee6b428204a705651",
+          "length": 1318548
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "1c53da2be4798da83c4f585451378e74dd2196e7128cfe6ac1255e375a34a8b0",
+          "length": 1317933
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Exact128 historical result retained after source129 superseded the payload. All original failures remain exact; no provisional failed-run PASS or cross-candidate qualification transfer.",
+      "settledReceiptSha256": "022ce6da78da101a34cce51b35c9a581a5d23f4c48a3a162bc025788f21a35ea",
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-token-a-rt.json",
+          "sha256": "ce042af0fbad698018b8ee8331f21bf7a9a367716e40fbd4aed0857aad7d11d1",
+          "length": 1557
+        }
+      ],
+      "externalFailures": []
+    },
+    {
+      "runId": "c6a-token-a-tb",
+      "scenario": "chunk6a-adoption-compensation-tb",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.128",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "aec84a95cf058b32aec10bb14718ecde63fd2e6b",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.128-chunk6a-token-a-diagnostic.zip",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-token-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-token-a.json",
+        "sha256": "9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 47,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/horse-companion-blueprint-registration.json",
+          "sha256": "1726fc317c258f07136355e5e757402fad6e2f9bf9ebee57ad4df3b2b2a8c7f6",
+          "length": 7400
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/orchestration.json",
+          "sha256": "c9a4a20e45810c4836781ad3f9dfceeabb055c8193530da5a057de52fba7b63f",
+          "length": 1189
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "7995613fdb77a0d73841af38209e1ae57ba95dcaee1fa63f0d3a2c7e7ba0e402",
+          "length": 17939005
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/runtime-artifacts.json",
+          "sha256": "2586e075c0aab9cc373de80e866f5c9232b65319c1f251caa8cbc2f906c6fbf6",
+          "length": 2418
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/runtime-game-result.json",
+          "sha256": "77809a6b6fa519a43d31486b7b94200b3df88179dfc8b7b199fce13c49f0d188",
+          "length": 4438
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/runtime-request.json",
+          "sha256": "b9edab165832f19c6dd593451d2c368fdcfacf4e35c672d7b9f14f9a161d0b84",
+          "length": 2818
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/runtime-result.json",
+          "sha256": "2b6a0dba3e78c47cfcc80ce66f50a3cee5bf275887b6cd688a58d7b3f8f4f164",
+          "length": 6787
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "b70722efd13574453f4d776d3f33957dc769e4ba08d020d8d5441503adfd77aa",
+          "length": 1318031
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "87063bc479fb4fa2a8d3b763e0f4ec27011e9e2370bc25baac9904920a3159fd",
+          "length": 1317373
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "d9bc97b19fffeaba76bbd33338ff9242890f452487758397d7a7cd1c582fa7cd",
+          "length": 1317566
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "3656451830f09e4aebd2db14a53fa2920b49b1d4898ccf1c3f6d88ad80e5a1dc",
+          "length": 1318424
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "4d2783df6a3d04a2cbb8060388c7b7a5e698daffb48b69c06a1b7d07b91b23ac",
+          "length": 1318837
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "a90c9acd12020a6522f965a2eb194560252e6d51b16d1480ebbdc57a1fca8e93",
+          "length": 1319042
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "c5e7a6545fdd46096381f80b2285cc184a9039eec217a81edce14d47eedc4b3c",
+          "length": 1317883
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "4e654ae677cc0919ee17e974191f910cd612af963ef78ae6e4854cf87f09d50e",
+          "length": 1319102
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Exact128 historical result retained after source129 superseded the payload. All original failures remain exact; no provisional failed-run PASS or cross-candidate qualification transfer.",
+      "settledReceiptSha256": "b53fddc258f2829f155453766a6c79d8352a74095ecf2c6fbcce7892f3c04bd7",
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-token-a-tb.json",
+          "sha256": "a0d2d080387168c71bba98d48d066372f686d4078cbcfeab7604466ccab28c5a",
+          "length": 1557
+        }
+      ],
+      "externalFailures": []
+    },
+    {
+      "runId": "c6a-token-a-geometry",
+      "scenario": "chunk6a-geometry-change",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.128",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "aec84a95cf058b32aec10bb14718ecde63fd2e6b",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.128-chunk6a-token-a-diagnostic.zip",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-token-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-token-a.json",
+        "sha256": "9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 45,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/horse-companion-blueprint-registration.json",
+          "sha256": "e6fbc8dd12b676478d25248a05c22c852c71f9260b03eec460fd4a457c47b697",
+          "length": 7397
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/orchestration.json",
+          "sha256": "4b3f4223f43f2d3e9bc1861b459691cfeced83d5e82897bf41f1d3474dd47e2a",
+          "length": 1191
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/phase3d-horse-scenario-evidence.json",
+          "sha256": "ff692abe3e11cb37550e1ba350a4aeda9944c82f88a154ba8af7f351dd297cb7",
+          "length": 24958814
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/runtime-artifacts.json",
+          "sha256": "b2b1d50b22f68b4509e0b66bee1ef20460f8472838e605682ba3ced379abf4bf",
+          "length": 2415
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/runtime-game-result.json",
+          "sha256": "83a0900ec6a8f44efab081518489d63fa06610c3200095006f957b50358f5ff9",
+          "length": 4059
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/runtime-request.json",
+          "sha256": "9c03da3025f2020b731dd320af6b9e65fd7a2837aeb5db7e4bc1af3dd0d3c10f",
+          "length": 2821
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/runtime-result.json",
+          "sha256": "496d74ed5a1b420eabbe91bb2c143dd3682eaa779dff8d7581536308db42a0bb",
+          "length": 5901
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-001.png",
+          "sha256": "4196b4b6219d611d5e1b571919ada1e394ed65e27fc77bf7cabf0b3bb789043f",
+          "length": 1317925
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-002.png",
+          "sha256": "807bb4018e244a4ae666d7122d1e04db9dc564a0287a925886ea993ff7c1eef4",
+          "length": 1319298
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-003.png",
+          "sha256": "0bcf88c0b04584f643882f03a815ac9411c6f4a6ba027ea84b2a5575e4eb7892",
+          "length": 1318599
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-004.png",
+          "sha256": "ea51e3b0cd7ed6e409e4ae5671a3f096bffc9b55c279c4fd2f88323643bec0c1",
+          "length": 1318340
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-005.png",
+          "sha256": "f74a0d9bb164119c8b98d37947d70b89e662b9a9f846dbbfae23f7352c7bfe23",
+          "length": 1319161
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-006.png",
+          "sha256": "b32ad3d9ede199a1b0e53e6f0d58f2deed0e13720fae5d1053c4b918f96b3bc3",
+          "length": 1319514
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-007.png",
+          "sha256": "6b207312c1a0c8fb6121b753820774d9d86ffca6fd8f8e8a689337db81db2c83",
+          "length": 1317930
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-geometry/movement-visuals/horse-motion-008.png",
+          "sha256": "eab09511e880a6a6a58bda3caf5a3083a874c5b10302b8408c25602d990faa0b",
+          "length": 1319337
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Exact128 historical result retained after source129 superseded the payload. All original failures remain exact; no provisional failed-run PASS or cross-candidate qualification transfer.",
+      "settledReceiptSha256": "db0285420f7bccefae80470083580e766bba405a00a5dcab66e9365c55debdf9",
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-token-a-geometry.json",
+          "sha256": "8ef642caa7a8809eef9cff38333450956b84cf3644ef98e187eef816869f079b",
+          "length": 1563
+        }
+      ],
+      "externalFailures": []
+    },
+    {
+      "runId": "c6a-token-a-obstruction",
+      "scenario": "chunk6a-obstruction",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.128",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "aec84a95cf058b32aec10bb14718ecde63fd2e6b",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.128-chunk6a-token-a-diagnostic.zip",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-token-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-token-a.json",
+        "sha256": "9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 45,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/horse-companion-blueprint-registration.json",
+          "sha256": "6efab285919091ec66635ed15e384bbc147d47e09c7440dd1d4ff92e0eb8cf2e",
+          "length": 7396
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/orchestration.json",
+          "sha256": "8f3ceb7a53051f6939d7deb548998b1cb6121b63f2710fc862731d1c4971932e",
+          "length": 1193
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/phase3d-horse-scenario-evidence.json",
+          "sha256": "f9a346e76eb58131b34bbe2acf42091bc730ee6d37bf204d66248056938aa5b2",
+          "length": 6894466
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/runtime-artifacts.json",
+          "sha256": "a6448143619c7eaccbc36ec3ab97591f7b47b9cb050dbea332b6afa231785af5",
+          "length": 2413
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/runtime-game-result.json",
+          "sha256": "d6177f0feeac553ecbb606ad3002a1e3b00b4ff83a0c1793faad685e7f358146",
+          "length": 4049
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/runtime-request.json",
+          "sha256": "d5761e7a8affcffe613ba8aa18387706fb597e1ff0eca28d05c67e3e16798310",
+          "length": 2823
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/runtime-result.json",
+          "sha256": "cb270080039c61e4a29c83912913c3abcf60e9523154abeb1448e7ac480abe59",
+          "length": 5892
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-001.png",
+          "sha256": "4167bd108f19a1161a4ba45530e1383042d270432064d73420e4ee81a3073423",
+          "length": 1314537
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-002.png",
+          "sha256": "8d9440cba947ca4d194e425416254c6bcfaaf7555cd28ea2af37e8bc86c2a67e",
+          "length": 1315060
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-003.png",
+          "sha256": "6429b155cc1b2c0b2df8e2435d246af39e2d5615e7e219aec09c982d5c4ef6a2",
+          "length": 1315449
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-004.png",
+          "sha256": "8342b20fbe60982cb3ad7fc13a2649eb7b65c8fb88e2a8501f972af31a468477",
+          "length": 1314804
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-005.png",
+          "sha256": "2412eb1ab357009557cbc52a44f78757390b0a924c1f03ddd1897c0800b5b97a",
+          "length": 1313492
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-006.png",
+          "sha256": "4f6b90eff02ba0833f0caad0fb88ce513ec85b1d8860c5f279570735402d91a3",
+          "length": 1314327
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-007.png",
+          "sha256": "3d3f288e0cbcc07f2bae1b465af902a1d434679dafbd8aa1bf91484cf516e828",
+          "length": 1314772
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-obstruction/movement-visuals/horse-motion-008.png",
+          "sha256": "d9f60b54ae91465006c90859d5bb450c04e464a68f1726d0467cb0ceb9cc8f6d",
+          "length": 1315848
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Exact128 historical result retained after source129 superseded the payload. All original failures remain exact; no provisional failed-run PASS or cross-candidate qualification transfer.",
+      "settledReceiptSha256": "9494fdebc48a7b46004d7d8ca3cc38e594dfcb37be355dc8380d8ca910122ef4",
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-token-a-obstruction.json",
+          "sha256": "faafffebe49d9915877726b1c1ff0b161f2981de2e0fa50ce427674d00561dc5",
+          "length": 1566
+        }
+      ],
+      "externalFailures": []
+    },
+    {
+      "runId": "c6a-token-a-full-rt",
+      "scenario": "chunk6a-combat-mount-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.128",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "aec84a95cf058b32aec10bb14718ecde63fd2e6b",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.128-chunk6a-token-a-diagnostic.zip",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-token-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-token-a.json",
+        "sha256": "9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9"
+      },
+      "assertionPassCount": 52,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 52,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/horse-companion-blueprint-registration.json",
+          "sha256": "6c43cbb3885857ff02456666fafaf6a6ef77ef5e613dfa8e785aefeed26184a9",
+          "length": 7396
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/orchestration.json",
+          "sha256": "b026a4a97b2530c4c73792a3ada4abe70cba340fd9f6273d4a0468fd4384e289",
+          "length": 1190
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "b5ab683094256ca05560562423f6ffe4c8bfaafbe74cd8f15e4ce618905cda0f",
+          "length": 42403335
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/runtime-artifacts.json",
+          "sha256": "27c1689857d05e34e61a8b0513152f5f9f84d37b888d7588e28e9b4a29ccbedb",
+          "length": 2414
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/runtime-game-result.json",
+          "sha256": "e2ac0d3a3ea802ac344c81bea545e42bfac79cb8d6a3ded07d4ddc667cff2cbf",
+          "length": 5292
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/runtime-request.json",
+          "sha256": "e81240147e75e61226f691f37ddf3b16c0962d53181e21312b3f6dda3c903fc0",
+          "length": 2819
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/runtime-result.json",
+          "sha256": "44b5bc380c9ca1b8842a9841f8d644a6cdb6da5e8b30d57468aaeb4ef903faa7",
+          "length": 8903
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "7c14c1e1a0f6aee85953e1990433cd9e47864744868e4e5791307ac6f73055ae",
+          "length": 1313563
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "674819023a4ee0dd88abacc1288014a2d0e498cc7688dc1cc07ba477087e12c6",
+          "length": 1314258
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "913a8328364c11aeba67951da70b3efb273748fed5033b50b38272e6470132f3",
+          "length": 1314948
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "e4aa6fa15b34c37bf63d74eb236630b187751e29255360db2c8e094534ec072d",
+          "length": 1314207
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "0c4dbe9ee06ba95f15f7ae54b6e0abf6f85822460db69f4bfc7128d955ed1483",
+          "length": 1314692
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "bcd981cfcaf1a4816a86bb4f17b762306a01073d24e03c57aac3300f4c03b0f5",
+          "length": 1313973
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "35b1f830a881c3c4171135b1209cab017bb2a1bb28a6b42d2843b7984655fea7",
+          "length": 1313854
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "9a48a8d0c1ba54404692d62824c47485be5722593d2577f0fb79eda856621671",
+          "length": 1313115
+        }
+      ],
+      "failures": [],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Exact128 historical result retained after source129 superseded the payload. All original failures remain exact; no provisional failed-run PASS or cross-candidate qualification transfer.",
+      "settledReceiptSha256": "1290faa7badab467e55d17e4e6a6f174fb83e499c24365450415ff33815a62ae",
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-token-a-full-rt.json",
+          "sha256": "4f1dbecd78ffebaea5b7d87369d4e0f17b560253b735f974d0a7530be1037c16",
+          "length": 1562
+        }
+      ],
+      "externalFailures": []
+    },
+    {
+      "runId": "c6a-token-a-full-tb",
+      "scenario": "chunk6a-combat-mount-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.128",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "aec84a95cf058b32aec10bb14718ecde63fd2e6b",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.128-chunk6a-token-a-diagnostic.zip",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988"
+      },
+      "suite": {
+        "suiteId": "20260928-chunk6a-token-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260928-chunk6a-token-a.json",
+        "sha256": "9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a",
+        "manifestSha256": "bdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988",
+        "dllSha256": "75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a",
+        "dllMvid": "225893fb-b686-433b-a3ad-3e46c8db77e9"
+      },
+      "assertionPassCount": 46,
+      "assertionFailCount": 6,
+      "nativeAssertionPassCount": 46,
+      "nativeAssertionFailCount": 6,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/horse-companion-blueprint-registration.json",
+          "sha256": "04f6c29191133583d6cf784326ce1ecc57d2a8869e93020a8e9e30b34c9d4337",
+          "length": 7396
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/orchestration.json",
+          "sha256": "0d3cbc288c14a44f29782d7e65cef497c59f350c4a3fe302b986f93dcb767c68",
+          "length": 1189
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "55257492878e6debbc67e60205ff1399cce2424b5a4a511f002afdd8fa547122",
+          "length": 28480936
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/runtime-artifacts.json",
+          "sha256": "263e9788b6e3fcef8bd123d4bc28d30abe17cdad0941aa370835d32a790cf2c7",
+          "length": 2414
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/runtime-game-result.json",
+          "sha256": "fdb25bf53c4a688c9f805c007a74d752eb99bc4d7155d8b5fe5d4e7df20fa15b",
+          "length": 7462
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/runtime-request.json",
+          "sha256": "f87f0025a43d76e00149b3b29647fdd087cba5e40eaf606fdf18ce1ab57890a3",
+          "length": 2819
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/runtime-result.json",
+          "sha256": "5b3f62bb59e2486264fe0c12f5b8c43b80fe6cd4505cd49550f796511e2feb87",
+          "length": 10530
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "2b3705ad6910c3041b138aab5e21b5784d12999e2d1809220de2259d954828ca",
+          "length": 1316555
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "01628feea20d3b6ca796042a5bd6088b849595b444ccb453301ac312bb6aeae5",
+          "length": 1316921
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "eb72665cdaf4613e35c2e0b09832eaf25a2229b5c8dd392e45a29a2fd41e38f3",
+          "length": 1317005
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "b01ad9dfb48e0e81247986be7b4109b9c17d13c3b3d25e7968f92bf640052706",
+          "length": 1315648
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "74abb14d102d260f5e2cd0c3ebb181e358a812dce75c69c31aa95f51efa4d362",
+          "length": 1317902
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "0aa1d1fe1a6b80bdfb80d9f79d7dde1abe4569f84c5b470337358d030d0e2961",
+          "length": 1316157
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "3ae2a4b0e685b31ea1bed89f6ec1b8d15eb6708ba8a0bfa9ddbefd00f61da824",
+          "length": 1317107
+        },
+        {
+          "path": "runtime-evidence/c6a-token-a-full-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "ea7ce74962c9ab71934ae3ec284f8194d69dac878281f76d812a8371b9f61e02",
+          "length": 1317243
+        }
+      ],
+      "failures": [
+        {
+          "facet": "native",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-game-result.json",
+            "sha256": "fdb25bf53c4a688c9f805c007a74d752eb99bc4d7155d8b5fe5d4e7df20fa15b",
+            "length": 7462
+          },
+          "row": "CM01-combat-mount-accepted",
+          "assertionFailCount": 1,
+          "assertions": [
+            "One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once."
+          ]
+        },
+        {
+          "facet": "native",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-game-result.json",
+            "sha256": "fdb25bf53c4a688c9f805c007a74d752eb99bc4d7155d8b5fe5d4e7df20fa15b",
+            "length": 7462
+          },
+          "row": "CM03-combat-mount-conserves-debt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation."
+          ]
+        },
+        {
+          "facet": "native",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-game-result.json",
+            "sha256": "fdb25bf53c4a688c9f805c007a74d752eb99bc4d7155d8b5fe5d4e7df20fa15b",
+            "length": 7462
+          },
+          "row": "CM02-approach-arrival",
+          "assertionFailCount": 1,
+          "assertions": [
+            "The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary."
+          ]
+        },
+        {
+          "facet": "native",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-game-result.json",
+            "sha256": "fdb25bf53c4a688c9f805c007a74d752eb99bc4d7155d8b5fe5d4e7df20fa15b",
+            "length": 7462
+          },
+          "row": "chunk6a-combat-mount-tb",
+          "assertionFailCount": 3,
+          "assertions": [
+            "phase3d-tranche-0: CM01-combat-mount-accepted: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.",
+            "phase3d-tranche-1: CM03-combat-mount-conserves-debt: The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.",
+            "phase3d-tranche-2: CM02-approach-arrival: The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary."
+          ]
+        }
+      ],
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "qualificationAccepted": false,
+      "interpretation": "Exact128 historical result retained after source129 superseded the payload. All original failures remain exact; no provisional failed-run PASS or cross-candidate qualification transfer.",
+      "settledReceiptSha256": "bb9c04778c069f3a60c04a33d2a106ff49a7bbb838fa8b6f67236f4ae37659ed",
+      "externalStateArtifacts": [
+        {
+          "path": "runtime-state/run-transactions/c6a-token-a-full-tb.json",
+          "sha256": "cf830ddb9a2e634d0816baf2591a35bd5225ceecd1bbdabae858bd8513355251",
+          "length": 1562
+        }
+      ],
+      "externalFailures": [
+        {
+          "facet": "overall",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-result.json",
+            "sha256": "5b3f62bb59e2486264fe0c12f5b8c43b80fe6cd4505cd49550f796511e2feb87",
+            "length": 10530
+          },
+          "row": "CM01-combat-mount-accepted",
+          "assertionFailCount": 1,
+          "assertions": [
+            "One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once."
+          ]
+        },
+        {
+          "facet": "overall",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-result.json",
+            "sha256": "5b3f62bb59e2486264fe0c12f5b8c43b80fe6cd4505cd49550f796511e2feb87",
+            "length": 10530
+          },
+          "row": "CM03-combat-mount-conserves-debt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation."
+          ]
+        },
+        {
+          "facet": "overall",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-result.json",
+            "sha256": "5b3f62bb59e2486264fe0c12f5b8c43b80fe6cd4505cd49550f796511e2feb87",
+            "length": 10530
+          },
+          "row": "CM02-approach-arrival",
+          "assertionFailCount": 1,
+          "assertions": [
+            "The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary."
+          ]
+        },
+        {
+          "facet": "overall",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-result.json",
+            "sha256": "5b3f62bb59e2486264fe0c12f5b8c43b80fe6cd4505cd49550f796511e2feb87",
+            "length": 10530
+          },
+          "row": "chunk6a-combat-mount-tb",
+          "assertionFailCount": 3,
+          "assertions": [
+            "phase3d-tranche-0: CM01-combat-mount-accepted: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.",
+            "phase3d-tranche-1: CM03-combat-mount-conserves-debt: The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.",
+            "phase3d-tranche-2: CM02-approach-arrival: The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary."
+          ]
+        },
+        {
+          "facet": "overall",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-result.json",
+            "sha256": "5b3f62bb59e2486264fe0c12f5b8c43b80fe6cd4505cd49550f796511e2feb87",
+            "length": 10530
+          },
+          "row": "overall-result-errors",
+          "assertionFailCount": 6,
+          "assertions": [
+            "Game reported FAIL: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.; The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.; The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary.; phase3d-tranche-0: CM01-combat-mount-accepted: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.; phase3d-tranche-1: CM03-combat-mount-conserves-debt: The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.; phase3d-tranche-2: CM02-approach-arrival: The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary.; Horse companion engine: phase3d-tranche-0: CM01-combat-mount-accepted: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.; Horse companion engine: phase3d-tranche-1: CM03-combat-mount-conserves-debt: The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.; Horse companion engine: phase3d-tranche-2: CM02-approach-arrival: The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary."
+          ]
+        }
+      ],
+      "nativeResultErrors": [
+        {
+          "facet": "native",
+          "sourceArtifact": {
+            "path": "runtime-evidence/c6a-token-a-full-tb/runtime-game-result.json",
+            "sha256": "fdb25bf53c4a688c9f805c007a74d752eb99bc4d7155d8b5fe5d4e7df20fa15b",
+            "length": 7462
+          },
+          "row": "native-result-errors",
+          "assertionFailCount": 6,
+          "assertions": [
+            "One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.",
+            "The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.",
+            "The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary.",
+            "phase3d-tranche-0: CM01-combat-mount-accepted: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.",
+            "phase3d-tranche-1: CM03-combat-mount-conserves-debt: The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.",
+            "phase3d-tranche-2: CM02-approach-arrival: The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary.",
+            "Horse companion engine: phase3d-tranche-0: CM01-combat-mount-accepted: One exact native combat Mount delivery produced one relationship transition and committed the rider's native Move exactly once.",
+            "Horse companion engine: phase3d-tranche-1: CM03-combat-mount-conserves-debt: The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.",
+            "Horse companion engine: phase3d-tranche-2: CM02-approach-arrival: The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary."
+          ]
+        }
+      ]
     }
   ]
 }
