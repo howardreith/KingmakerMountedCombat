@@ -445,3 +445,14 @@ The two independent RT fixtures exercise the selected rider's real registered UI
 Source128 path observer: in-flight pathState now uses an explicit Null JToken. The pinned Newtonsoft implicit null-string conversion produced a String token with null value, causing the live strict validator to refuse preview127 TB setup. The new regression checks all three unavailable fields before serialization for four unsafe boundaries and retains completed-path immutability. No worker-owned path read or assertion relaxation.
 
 Source129 native preparation ownership: pinned TurnController.Prepare06000C3C/MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7/IL SHA27c769eb310f4bccfa9db38e06a921260696b4d95c382586bea04e2f091af408 calls Clear once. FullTB128 observed entry/exit withoutClear after duplicate caller/prefix reservation. Only the existing native prefix may reserve pending partner preparation. Source129 requires completion and retains all Clear/reaction event assertions. Compiled128 regression FAIL, repaired12916/0; Unity129 pending. Historical failures remain exact; bounded local IL stays outside Git.
+
+## Source130 precise native Acting fixture
+
+Pinned Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7, assemblySHA3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb. Read-only reflection receipt: analysis-cache/chunk6a-causal/acting-ground-contract130.json. Native ground input dispatches selected actors through its optional command runner; the ordinary runner constructs a0.3m UnitMoveTo. The scoped diagnostic callback constructs a0.03m UnitMoveTo while retaining native input parameters, admission, movement and cost. Original fixture terminal tolerance0.06m remains exact. Actual Unity execution of this tighter fixture is pending.
+
+| Native member | Token | IL SHA-256 |
+| --- | --- | --- |
+| ClickGroundHandler.GetDefaultDirection(Vector3) |060093D9|816a8c1bb46df317a2805030f776d7b51d1af379c9844a51d21028b4f1d1af62|
+| ClickGroundHandler.MoveSelectedUnitsToPoint, commandRunner overload |060093DB|a5ed6ae99c10c86c3fea1581b0574517c2487f7f5d986381006e69b2c24b1c73|
+| ClickGroundHandler.RunCommand |060093DC|1b537eaab206cf2a920b9d9fe8973a854bb1acb81117a0c910739496f8a6d21b|
+| UnitMoveTo(Vector3,Single) |060026FF|564b034856debb2341d52fea096eb64a3dc5f8dfc51f8868621506441318d7dd|

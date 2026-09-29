@@ -16,6 +16,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-mount-preamble", StringComparison.Ordinal) ||
                 // The narrow real-time non-adjacent native-approach scenario.
                 string.Equals(scenario, "chunk6a-paused-queue", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-policy-disabled", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-refused-foreign-companion", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-refused-wrong-creature-target", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-refused-mount-selected", StringComparison.Ordinal) ||
@@ -23,6 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-refused-foreign-selection", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-mount-approach", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-stop-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-command-replacement", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-allocation-rider-first-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-allocation-mount-first-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-auto-use-mount-rt", StringComparison.Ordinal) ||

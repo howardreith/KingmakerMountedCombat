@@ -20,10 +20,12 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM05-tb','chunk6a-combat-mount-tb',$dismount),
   @('CM01-mammoth-rt','chunk6a-mammoth-mount-rt',@('CM01-combat-mount-accepted','CM02-approach-arrival')),
   @('CM01-mammoth-tb','chunk6a-mammoth-mount-tb',@('CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')),
+  @('CM04-command-replacement','chunk6a-command-replacement',@('CM04-command-replacement')),
   @('CM04-stop-during-approach','chunk6a-stop-approach',@('CM04-stop-during-approach')),
   @('CM06-hotbar-path','chunk6a-hotbar-approach',@('CM06-hotbar-path')),
   @('CM06-pointer-target','chunk6a-combat-mount-tb',@('CM02-approach-arrival','CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt')),
   @('CM06-paused-queue','chunk6a-paused-queue',@('CM06-paused-queue')),
+  @('CM06-combat-mount-requires-qualified-paired-policy','chunk6a-refused-policy-disabled',@('CM06-combat-mount-requires-qualified-paired-policy')),
   @('CM02-foreign-companion','chunk6a-refused-foreign-companion',@('CM02-foreign-companion')),
   @('CM02-wrong-creature-target','chunk6a-refused-wrong-creature-target',@('CM02-wrong-creature-target')),
   @('CM06-mount-selected','chunk6a-refused-mount-selected',@('CM06-mount-selected')),
@@ -38,10 +40,11 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM05-dismount-survives-feature-policy-disable','chunk6a-dismount-feature-disabled-rt',@('CM05-dismount-survives-feature-policy-disable')),
   @('CM02-adoption-plan-invalidated','chunk6a-adoption-compensation-rt',@('CM02-adoption-plan-invalidated')),
   @('CM02-adoption-compensation-releases','chunk6a-adoption-compensation-rt',@('CM02-adoption-compensation-releases')),
+  @('CM08-area-restoration','chunk4-area-cleanup',@('native-area-clean-dismount')),
   @('CM08-mounted-mammoth-primary-hit-tb','mounted-mammoth-primary-hit-tb',@('mounted-mammoth-primary-hit-tb'))
  )
  foreach($spec in $specs) {
-  [pscustomobject]@{id=$spec[0];scenario=$spec[1];rows=@($spec[2]);evidenceLeaf=$(if($spec[0]-ceq'CM08-mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'})}
+  [pscustomobject]@{id=$spec[0];scenario=$spec[1];rows=@($spec[2]);evidenceLeaf=$(if($spec[0]-ceq'CM08-area-restoration'){'boundary-scenario-evidence.jsonl'}elseif($spec[0]-ceq'CM08-mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'})}
  }
  foreach($claimId in @(Get-KmcChunk6aRegressionClaims)) {
   foreach($role in @(Get-KmcChunk6aRegressionRoles $claimId)) {

@@ -43,6 +43,7 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(scenario, Chunk6aHotbarScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aStopApproachScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aReplacementApproachScenario, StringComparison.Ordinal) ||
             scenario == Chunk6aPausedQueueScenario ||
             string.Equals(scenario, Chunk6aObstructionScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aGeometryChangeScenario, StringComparison.Ordinal) ||
@@ -725,7 +726,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
+                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aReplacementOnly ? 34 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -900,6 +901,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aStage == 27 || chunk6aStage == 28) { TickChunk6aDismountEscape(); return; }
             if (chunk6aStage == 29 || chunk6aStage == 30) { TickChunk6aMountOrderCompletion(); return; }
             if (chunk6aStage == 24) { TickChunk6aRefusedMount(); return; }
+            if (chunk6aStage == 34 || chunk6aStage == 35) { TickChunk6aReplacementApproach(); return; }
             if (chunk6aStage == 22 || chunk6aStage == 23) { TickChunk6aStopApproach(); return; }
             if (chunk6aStage == 16 || chunk6aStage == 17)
             {

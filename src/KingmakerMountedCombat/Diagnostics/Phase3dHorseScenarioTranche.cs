@@ -436,7 +436,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aObstructionDeadline())
+                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aObstructionDeadline())
                         FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
@@ -6044,6 +6044,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 6A Dismount escape settings", exception); }
             try { CleanupChunk6aRefusalInput(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A refusal observer", exception); }
+            try { CleanupChunk6aReplacementInput(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A replacement input observer", exception); }
             try { CleanupChunk6aStopInput(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A Stop input observer", exception); }
             try { CleanupChunk6aObstruction(); }

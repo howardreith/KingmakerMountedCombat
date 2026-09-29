@@ -22,8 +22,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (c == "foreign-companion") NativeForeignCompanionEvidence.AssertComplete(e);
             else Check(No(identity["unrelatedIsPet"]) && No(identity["unrelatedSupportedMount"]), "unrelated plain creature differs");
             string[] selected; long[] selectedObjects; string target, reason, row;
+            if (c == "policy-disabled") NativeRefusedPolicyEvidence.AssertComplete(e);
             switch (c)
             {
+                case "policy-disabled": selected = new[] { rider }; selectedObjects = new[] { riderObject }; target = mount; row = "CM06-combat-mount-requires-qualified-paired-policy"; reason = "Mounting during combat requires paired activation to be enabled."; break;
                 case "foreign-companion": selected = new[] { rider }; selectedObjects = new[] { riderObject }; target = other; row = "CM02-foreign-companion"; reason = "Mount target rejected: click the selected rider's exact active Horse."; break;
                 case "wrong-creature-target": selected = new[] { rider }; selectedObjects = new[] { riderObject }; target = other; row = "CM02-wrong-creature-target"; reason = "Mount target rejected: click the selected rider's exact active Horse."; break;
                 case "mount-selected": selected = new[] { mount }; selectedObjects = new[] { mountObject }; target = mount; row = "CM06-mount-selected"; reason = "Select the exact prospective rider."; break;
