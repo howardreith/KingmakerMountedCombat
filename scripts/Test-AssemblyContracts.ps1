@@ -45,6 +45,15 @@ if($Target-eq'Kingmaker'){
         $method=@(Find-Token $expected[0] $expected[1])
         Assert-Contract ($method.Count -eq 1 -and $method[0].Name -ceq $expected[2]) ('reaction resource signature '+$expected[0]+'.'+$expected[2])
     }
+    # Chunk 6A eligibility invalidation uses one owned Frightened Fact and only observes the native fear controller.
+    foreach($expected in @(
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x06002448,'OnTurnOn'),
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x06002449,'OnTurnOff'),
+        @('Kingmaker.Controllers.Units.UnitFearController',0x06009138,'TickOnUnit')
+    )){
+        $method=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($method.Count -eq 1 -and $method[0].Name -ceq $expected[2]) ('eligibility native signature '+$expected[0]+'.'+$expected[2])
+    }
     # Read-only steering observations for the mounted/unmounted arrival comparison.
     foreach($expected in @(
         @('Kingmaker.View.UnitMovementAgent',0x04001193,'m_NextPointIndex','System.Int32',$false),

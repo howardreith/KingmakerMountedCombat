@@ -155,6 +155,8 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM01-mammoth-tb'=@('chunk6a-mammoth-mount-tb','CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')
         'CM04-command-replacement'=@('chunk6a-command-replacement','CM04-command-replacement')
         'CM02-ownership-change'=@('chunk6a-ownership-change','CM02-ownership-change')
+        'CM02-size-form-change'=@('chunk6a-size-form-change','CM02-size-form-change')
+        'CM02-lost-direct-control'=@('chunk6a-lost-direct-control','CM02-lost-direct-control')
         'CM04-stop-during-approach'=@('chunk6a-stop-approach','CM04-stop-during-approach')
         'CM06-hotbar-path'=@('chunk6a-hotbar-approach','CM06-hotbar-path')
         'CM03-rider-before-mount-slot'=@('chunk6a-allocation-rider-first-tb','CM03-rider-before-mount-slot','CM03-next-round-activation')
