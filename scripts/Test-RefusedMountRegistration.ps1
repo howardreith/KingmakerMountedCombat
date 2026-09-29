@@ -40,4 +40,7 @@ foreach($file in @('src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs','
  $text=Get-Content -Raw -LiteralPath (Join-Path $repo $file)
  if(-not$text.Contains('CM02-foreign-companion')){throw 'Exact foreign refusal row missing from native/external catalog'};$checks++
 }
+$setup=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk6aCausalEvidence.cs')
+if($setup.IndexOf('CaptureChunk6aForeignPairBeforeCombat();')-lt0-or$setup.IndexOf('CaptureChunk6aForeignPairBeforeCombat();')-ge$setup.IndexOf('BeginTarget(6f, "chunk6a-combat-mount")')){throw 'Foreign pair must be captured before native encounter'};$checks++
+if([regex]::Matches($source,'TryResolveAutomationPair\(').Count-ne1-or$source.IndexOf('TryResolveAutomationPair(')-ge$source.IndexOf('private void TickChunk6aRefusedMount()')){throw 'Exploration resolver leaked into combat refusal'};$checks++
 Write-Output ('REFUSAL REGISTRATION PASS='+$checks+' FAIL=0; lab source/component contract, not native qualification')

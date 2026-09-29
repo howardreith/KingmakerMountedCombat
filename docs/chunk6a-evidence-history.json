@@ -10262,6 +10262,3013 @@
       },
       "settledReceiptSha256": "3097b0c1d0cc8aa782c01868a4c17b8a96b2f63e60d0ae93b50f2875bf511748",
       "interpretation": "Historical preview130 observations only. Original proof and overall result preserved. Working131 source supersedes this payload; no PASS transferred. Class B: producer typed-string-null representation, actual retained context zero."
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-full-tb",
+      "scenario": "chunk6a-combat-mount-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 50,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 50,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/horse-companion-blueprint-registration.json",
+          "sha256": "2d1f4a31fa804126b9ab95e47779d2ea0713dd7f55041875aa3015dabcf32144",
+          "length": 7401
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/orchestration.json",
+          "sha256": "f80d84f216b58c630aae048ca08a1fa0a20e3f4afe6a6388a4af1e7897a9308e",
+          "length": 1200
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "4ee42e8167723ab685f7838472d898471c463197c05fba13e1f66ca06ac7e460",
+          "length": 44748736
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/runtime-artifacts.json",
+          "sha256": "9f61fcbef1e36088903682b73b52ffd141ca5ca853324bb484f8d7f1685b7b2e",
+          "length": 2419
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/runtime-game-result.json",
+          "sha256": "d25b8a884f7a66dcbbd4c289e7ce714ecbd038311ea6289e5ae8256f32a2a422",
+          "length": 5842
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/runtime-request.json",
+          "sha256": "168b45caa8c00b3f1157de89d1dda785fce5d6997f505e51cf8716209d41d3c7",
+          "length": 2834
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/runtime-result.json",
+          "sha256": "222aa4c23f4a094d35d20272e2fcbc80c57ff5fd4046f097430fde6c18c5b8e5",
+          "length": 9279
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "95facd584b621faa32c94034fff2fe6245b8b434d3e17e04e27a80389cca94af",
+          "length": 1321353
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "a3776c638803a8e6314a8858c9a83366015eef1aa30bea1f8dd6300bfed577fc",
+          "length": 1321142
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "dbff8517846d5cabd5dad2824f8580d6704178c41818601720b8e63fcf59a9c2",
+          "length": 1321190
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "188511077fbb5242f50894ea03501ba5c348b4d4af9d8e1e726c674a7e894694",
+          "length": 1322145
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "55bbd0def855d0eb1bcae7f836c6996a8eb31d2b9940cb1c365c713ecf22eec6",
+          "length": 1321332
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "ce7e49f8429566bba0f0e576f6797b2618a4e9119d3167e8a9ab30ca16c22a60",
+          "length": 1321849
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "1df326bf17fcd581a95de9d571afda650230b1dc93d4faacdd1fb57bdb6788cc",
+          "length": 1322134
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-full-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "17d729d296c2b64092e35a237d5e19962f17e390679ed5aea2011e63b8e3cc66",
+          "length": 1322276
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Dismount ground setup: undeclared native event: opportunity-before"
+          ]
+        },
+        {
+          "row": "chunk6a-combat-mount-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Dismount ground setup: undeclared native event: opportunity-before"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:28:56.8488981+00:00",
+      "completedAtUtc": "2026-09-29T08:29:02.8794654+00:00",
+      "externalFailures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Dismount ground setup: undeclared native event: opportunity-before"
+          ]
+        },
+        {
+          "row": "chunk6a-combat-mount-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Dismount ground setup: undeclared native event: opportunity-before"
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 50,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-full-tb.json",
+        "sha256": "90dab75f6ee4f15257af334e8c4c2e22d9199a3f5fa5d38a3e578ed87031a3be",
+        "length": 1577
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-order-mount-first",
+      "scenario": "chunk6a-allocation-mount-first-tb",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 52,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 52,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/horse-companion-blueprint-registration.json",
+          "sha256": "23885122d273bd84ea0bc4de5b1840da144ecadd08870c2ca97d3fcd57eb9367",
+          "length": 7421
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/orchestration.json",
+          "sha256": "f6585a8dd4e4a79bfda68985512017d8e31e4007d36cade0864033e39626d067",
+          "length": 1230
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/phase3d-horse-scenario-evidence.json",
+          "sha256": "a38a622cfc47f181a59b346f363039265431fa80a2a17780d453a18c520b96db",
+          "length": 120293512
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/runtime-artifacts.json",
+          "sha256": "6dca5e974968059b78d9e68c427d9ef1a9060cd79804407a3e88e584a13aa788",
+          "length": 2440
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/runtime-game-result.json",
+          "sha256": "a76a21610794fe91f582dc66d0c101b72c7bf64cc061ae78abce7d1ba7b447fd",
+          "length": 5311
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/runtime-request.json",
+          "sha256": "6884fa791a370cd9a9121de014b37e2b0b1fdf0a0c927ffcf70cc0d1a1048d26",
+          "length": 2864
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/runtime-result.json",
+          "sha256": "73d797e2f8391782558fb6e9223ca1fe75044f03365c0cfae083be7337c5c8ae",
+          "length": 8922
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-001.png",
+          "sha256": "3dac38b678818526aa524c5c267246ef7fa2e6abf78a78e7e08174d41658a5b9",
+          "length": 1314399
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-002.png",
+          "sha256": "420b2322a88206018e16172e92f67f325dd1d30a7affbf70a5ea6fa0963bec23",
+          "length": 1312980
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-003.png",
+          "sha256": "3e4871e8e215c0dbb8d9a3cb5ec8652e7ce79eec93eea4ab4729de8b785247a0",
+          "length": 1313065
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-004.png",
+          "sha256": "13672f263be78cea6ed65a3974b5e1a5aad2eb6f63daeb79acaef4848195d779",
+          "length": 1312623
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-005.png",
+          "sha256": "cea9619a0dad7645985e5ae33cf72b4d43ed41fe3ab693a121bc7532949e73fb",
+          "length": 1313584
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-006.png",
+          "sha256": "85223fa63c9a4039db140409ff4e2aca3fc13a105d97833dbf0ceb69ae2ac80b",
+          "length": 1313671
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-007.png",
+          "sha256": "5ebd45e294551e57d8e781dff55ad966748d4fd16de9fcee4b094742e4bcfbd3",
+          "length": 1314053
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-mount-first/movement-visuals/horse-motion-008.png",
+          "sha256": "b1f023d1a19cf09442ee922e5f5e03896334eaf9fc3370bd9e2163f10fcb0e8a",
+          "length": 1313653
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:32:08.0851866+00:00",
+      "completedAtUtc": "2026-09-29T08:32:14.4708812+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 52,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-order-mount-first.json",
+        "sha256": "4e47c570e510a60cecfc1624b8f935bc7626c55eaca82532931c556618cc5169",
+        "length": 1587
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-order-rider-first",
+      "scenario": "chunk6a-allocation-rider-first-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 43,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 43,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/horse-companion-blueprint-registration.json",
+          "sha256": "f09588e9e769b63b49f1ae46d5005bb160e1df4bc8ffff633c55f0233ecb6545",
+          "length": 7421
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/orchestration.json",
+          "sha256": "385e51792959fdc2239589e70ad02f5ed33447ca3373cba835ff4057f3a67722",
+          "length": 1230
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/phase3d-horse-scenario-evidence.json",
+          "sha256": "4f9e8232cb15460ff79e1e2efc77bedb21fd0821e25ff47d7b91dc4835f260dc",
+          "length": 8865243
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/runtime-artifacts.json",
+          "sha256": "bb32ab32de0b4744eaa86980adeb4cb69dc70921ea4888996d172dac504c7a57",
+          "length": 2438
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/runtime-game-result.json",
+          "sha256": "8098bfb517886be6334a65cb359ca8b333e908fe3e9cc0fd06021fba51052ad3",
+          "length": 4911
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/runtime-request.json",
+          "sha256": "53549b52c747a9f065bb0f8b9291793b35ab2dd403647de9dd3876e342142467",
+          "length": 2864
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/runtime-result.json",
+          "sha256": "267b6cd46e9cc4c5d5d291fcd1289c4c94632296a15bb4ead2c17adb35db4b36",
+          "length": 6570
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-001.png",
+          "sha256": "26ead4efa6e6f3b655e3e6e10fa4e22cfae020209b6c3411ad1e81c144a7e576",
+          "length": 1318299
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-002.png",
+          "sha256": "655bf3b21919bea93aae08f37d343ffe00b1af3c4544e15ae0c456be01f111ea",
+          "length": 1317723
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-003.png",
+          "sha256": "f023dfc798b586badf4f62ef994105a5cb1b363791d6fd35689ca60e6759596d",
+          "length": 1318187
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-004.png",
+          "sha256": "a028d9325e9f42ce39cbdfef5358ca46979940f065c537220efa0fd292766f0c",
+          "length": 1317631
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-005.png",
+          "sha256": "b75b5b1f1d00a2809cacc3228583391ad9e0fe4d6572c18686890505afe3538a",
+          "length": 1317922
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-006.png",
+          "sha256": "dad720481df05ce954d94234154202b31ab2dff9c398d27764e1bc777b53feb4",
+          "length": 1318419
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-007.png",
+          "sha256": "8750bdf75685ca57948d7f38ee06ad5b36f3e3981af330a7c60f3cf762b46844",
+          "length": 1319028
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-order-rider-first/movement-visuals/horse-motion-008.png",
+          "sha256": "83f49ba4a7c13a7d72f928e1876887a6656c609f5321803bc93ead6bd18b595d",
+          "length": 1318748
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: No bounded joint mount/rider ground plan has clear native routes and unchanged staging bounds; every proposal retained."
+          ]
+        },
+        {
+          "row": "chunk6a-allocation-rider-first-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: No bounded joint mount/rider ground plan has clear native routes and unchanged staging bounds; every proposal retained."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:35:00.6592843+00:00",
+      "completedAtUtc": "2026-09-29T08:35:06.7483529+00:00",
+      "externalFailures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: No bounded joint mount/rider ground plan has clear native routes and unchanged staging bounds; every proposal retained."
+          ]
+        },
+        {
+          "row": "chunk6a-allocation-rider-first-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: No bounded joint mount/rider ground plan has clear native routes and unchanged staging bounds; every proposal retained."
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 43,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-order-rider-first.json",
+        "sha256": "b8e6129de86577c831c658cab53e4be2d083492050edda2ee22277ced3008cff",
+        "length": 1587
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-replacement",
+      "scenario": "chunk6a-command-replacement",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 45,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 45,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/horse-companion-blueprint-registration.json",
+          "sha256": "2cd369331610d7caf31ae9e2c2b4b0f2ff2539c69ee61bf08c7e7a6a28e26949",
+          "length": 7409
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/orchestration.json",
+          "sha256": "ddbc0778ae47d9456895bab4d527991c9b9bd515e333cfa8c9b15ea3b246ee9a",
+          "length": 1211
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/phase3d-horse-scenario-evidence.json",
+          "sha256": "cf59de2af62fbcd155f9d11c6c8d46052023dcd92d8d320338174fe00863fdea",
+          "length": 1980609
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/runtime-artifacts.json",
+          "sha256": "72babcbf034785fc4cdb8490bc650b7a99c0b760e72201c3aea28ef34c7a8ae0",
+          "length": 2426
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/runtime-game-result.json",
+          "sha256": "7acf66a85702b23deb78f0c224730134ef3491efab266759c2d8350ce672197a",
+          "length": 4087
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/runtime-request.json",
+          "sha256": "c701a15dc09355f7a4241d22900c5df3703a81df681a0d91227275f0b96ca044",
+          "length": 2846
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/runtime-result.json",
+          "sha256": "a1bc11bce8898d106aa5703364c286211fed875c8949f8f35a83988784d27092",
+          "length": 5921
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-001.png",
+          "sha256": "220bca6619585449fe4a2a6cf639c368fc0a8635761f12ce89c5a9f9cd05ed15",
+          "length": 1315853
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-002.png",
+          "sha256": "bf4417ee7b61848414287faabd316a94e1b2e86b89655a44a64fd9a4db7021c7",
+          "length": 1316211
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-003.png",
+          "sha256": "5e340de69129df17a76a08d0ce75205f05c40a5cd0064968bec2833ddd4c61e4",
+          "length": 1315454
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-004.png",
+          "sha256": "23c5cc88faae58504184f40cb5abec8c3527ecfdaf798c43ed748ba74bcb3272",
+          "length": 1316398
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-005.png",
+          "sha256": "79e5112e001fd77c6448c92240eddebada53221663b8f57bc74356bc6ea2de89",
+          "length": 1315326
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-006.png",
+          "sha256": "5b1c6dbb951f40d76034b118b96f1998d197ae3f42d1199c09b755bd5095543b",
+          "length": 1316177
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-007.png",
+          "sha256": "e7a871168fefff09bb0ae5c561d1e8a57f2c9a97ef39200fd28d889d1c80ecc9",
+          "length": 1314953
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-replacement/movement-visuals/horse-motion-008.png",
+          "sha256": "40d0c8cc3cac328eef6c89d299cd1fb6be0aa6dc7d596dc98ce5f0829be16386",
+          "length": 1315860
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:38:31.0212509+00:00",
+      "completedAtUtc": "2026-09-29T08:38:37.6764495+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 45,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-replacement.json",
+        "sha256": "4b8f9932df3d4f813ef44e82b620da76495ab1673865b8f99be12bc22adb3054",
+        "length": 1581
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-refused-foreign-companion",
+      "scenario": "chunk6a-refused-foreign-companion",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 44,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 44,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/horse-companion-blueprint-registration.json",
+          "sha256": "ce6ca9cd5cb521ccc6d200dc85bbc072c8315bf1fe98c238cd67fd57a7e76020",
+          "length": 7429
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/orchestration.json",
+          "sha256": "ed62a97452daadbaaf3d7dfbcdf7296e1b13c6ca3ca41ab5ce47f4b86f6a8b05",
+          "length": 1246
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/phase3d-horse-scenario-evidence.json",
+          "sha256": "0b9c08e36264e0cb6e79032597c3205447845a824f32091f486c630ce78755e8",
+          "length": 1164713
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/runtime-artifacts.json",
+          "sha256": "7c8c9e38dfab57470c0a9e811be311620be975e7a9cd9d0ea0abc985cc4084b9",
+          "length": 2446
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/runtime-game-result.json",
+          "sha256": "dc9effb1566d5f689c57f44690ef21df4d937d2228b5c58902127453188a1b21",
+          "length": 5248
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/runtime-request.json",
+          "sha256": "35ae38ccfbc21fe0406999765490c83e2adf44f1f937ca73116d496468ad9bf9",
+          "length": 2880
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/runtime-result.json",
+          "sha256": "c2cdadeb391df2ac5e3b005ccc4293e090a2f8a85048e3d99756274c708c8521",
+          "length": 7168
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-001.png",
+          "sha256": "3802dd4af29e61d094366b2873022fc29c22dbd38e6038d90400ff729957549c",
+          "length": 1314559
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-002.png",
+          "sha256": "4ea47426659f654d407ce5ace4364fae55db673ca580d53d269eeb4190305195",
+          "length": 1314875
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-003.png",
+          "sha256": "85f9d478f87a64be89a1551c91e8c7db233bbe79d01a6f96d993414165df821e",
+          "length": 1314650
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-004.png",
+          "sha256": "d1d83621e11e15d3520cbdd12e789fe285e2609943fd383860ab2961c2b21878",
+          "length": 1314963
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-005.png",
+          "sha256": "2e8d972fe383d2e45d4e3710f343e38188deb8b8edb2dfe4de774578a7329cd4",
+          "length": 1315510
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-006.png",
+          "sha256": "56b39df2a96768170afc97d0467d51c0c0ce8ef8dd962ce88d72ecc945aadabd",
+          "length": 1315719
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-007.png",
+          "sha256": "46d6de96d49ecd433ff6a2f462d14bce67a50eb868deaa0551f386c493fe2cd6",
+          "length": 1314419
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-refused-foreign-companion/movement-visuals/horse-motion-008.png",
+          "sha256": "637f2cfe5be152f3f70ef0d8bbb7702b2723b0f03117dd69e840ff8d25b3089e",
+          "length": 1314128
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Foreign companion refusal requires the unchanged native Mammoth and its distinct exact owner: Private-alpha mounting is available only outside combat."
+          ]
+        },
+        {
+          "row": "chunk6a-refused-foreign-companion",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Foreign companion refusal requires the unchanged native Mammoth and its distinct exact owner: Private-alpha mounting is available only outside combat."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:40:23.8075554+00:00",
+      "completedAtUtc": "2026-09-29T08:40:30.4119545+00:00",
+      "externalFailures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Foreign companion refusal requires the unchanged native Mammoth and its distinct exact owner: Private-alpha mounting is available only outside combat."
+          ]
+        },
+        {
+          "row": "chunk6a-refused-foreign-companion",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Foreign companion refusal requires the unchanged native Mammoth and its distinct exact owner: Private-alpha mounting is available only outside combat."
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 44,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-refused-foreign-companion.json",
+        "sha256": "6139426eb1edebdcf0fb63f171b625b7cefbd3396b534357a0e57af8c9ac77fc",
+        "length": 1595
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-policy-disabled",
+      "scenario": "chunk6a-refused-policy-disabled",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 44,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 44,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/horse-companion-blueprint-registration.json",
+          "sha256": "243f1e9db223f1919c24b6379002dbdb7b8392f1fbe6df815b6e937437db05fa",
+          "length": 7417
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/orchestration.json",
+          "sha256": "57708542523e6c1b36d206cb6e24951080254f8a02ccb90fded12c8d485e1cb5",
+          "length": 1223
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/phase3d-horse-scenario-evidence.json",
+          "sha256": "de97039fe15c17d697b95bb8d33abc6d25d6977dc4a4f8c5128cd65efe38ff08",
+          "length": 1409158
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/runtime-artifacts.json",
+          "sha256": "f75354f857596dc38960273991b1105ddb00918f316259ff0e4389c3790340f4",
+          "length": 2434
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/runtime-game-result.json",
+          "sha256": "6af7cbfe48246f798eedced6d58821b310c523322118799e9827ed00dc5051ff",
+          "length": 4732
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/runtime-request.json",
+          "sha256": "53bd7df1e19aefc9f2d8510fd74da3ebd339c5677c87224f753b334093bfeb2b",
+          "length": 2858
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/runtime-result.json",
+          "sha256": "74d90f1f4bd06a1996a437b82f3c8d329c483a2f83640bce6e684bf5d95eb7bd",
+          "length": 6645
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-001.png",
+          "sha256": "e3172b8b38b61ddc3bf367f4c045bf5a5de0116c03b1b4456d32c4318a807480",
+          "length": 1317489
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-002.png",
+          "sha256": "d1fe72849b5120b2193d998a70a1e5021247b9e5cb98a910d073d3199360b1d8",
+          "length": 1316828
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-003.png",
+          "sha256": "dcba76a1a6ab2c722a852bdc18860018e080e4306377606f5d2e919b0a5ba5fe",
+          "length": 1316381
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-004.png",
+          "sha256": "33aa3c6a80e8dc8ee1c247059131fa9dff9614f8006f083411fa81898fbd7620",
+          "length": 1317595
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-005.png",
+          "sha256": "476ee821fc4aedf5aaafbd29f83c7932846676a0ea0cf19680fc5829bd31a865",
+          "length": 1316433
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-006.png",
+          "sha256": "391feeeefc8558883d18b5dbc4ac080990185598b67c639f9a61318fe657df0c",
+          "length": 1317484
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-007.png",
+          "sha256": "6d4908e2047b693efdc1609464ba283b590ae5fabc57672870267ea87ba46b39",
+          "length": 1316724
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-policy-disabled/movement-visuals/horse-motion-008.png",
+          "sha256": "a567f3eeb1d584cf3d3e396d9c68d90d9aade740f8915fd3d62fe8e29adadce1",
+          "length": 1316999
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM06-combat-mount-requires-qualified-paired-policy",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Refused policy: policy state changed outside its exact input"
+          ]
+        },
+        {
+          "row": "chunk6a-refused-policy-disabled",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM06-combat-mount-requires-qualified-paired-policy: Refused policy: policy state changed outside its exact input"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:42:37.9243420+00:00",
+      "completedAtUtc": "2026-09-29T08:42:44.0840833+00:00",
+      "externalFailures": [
+        {
+          "row": "CM06-combat-mount-requires-qualified-paired-policy",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Refused policy: policy state changed outside its exact input"
+          ]
+        },
+        {
+          "row": "chunk6a-refused-policy-disabled",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM06-combat-mount-requires-qualified-paired-policy: Refused policy: policy state changed outside its exact input"
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 44,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-policy-disabled.json",
+        "sha256": "31abb544c5e0dab1dce26b13ea2ce7f55b327c335cea383bf73ab8a1582e42ab",
+        "length": 1585
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-dismount-feature",
+      "scenario": "chunk6a-dismount-feature-disabled-rt",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 48,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 48,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/horse-companion-blueprint-registration.json",
+          "sha256": "84e703464d841d8c2c2016e39f9f27b627d7c51adbc99cf9e63c98a7ff126bbe",
+          "length": 7423
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/orchestration.json",
+          "sha256": "d5b56f7e6bbcd2d020001b6251e13f9a96dd9e5de6643d6ab1dee6f71e55bd9c",
+          "length": 1230
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/phase3d-horse-scenario-evidence.json",
+          "sha256": "e8f8f9fb623efa3ef3e0a914d2fb8fb7130b2e462cf85c72bc4ba8b02480c468",
+          "length": 35819275
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/runtime-artifacts.json",
+          "sha256": "83f97567e397f64a94c9cb3ecbd9d6d3b1f1035a5fd5845e6674d5509ddca253",
+          "length": 2441
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/runtime-game-result.json",
+          "sha256": "50882e28a4707e292b7bba8960ba66d8ef836fa45bc189b39f81693af97f54be",
+          "length": 5399
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/runtime-request.json",
+          "sha256": "304caaff9a9feb87f4987925868c9b2ee101ebf48bc08cf932a6daab5466d7a5",
+          "length": 2865
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/runtime-result.json",
+          "sha256": "29ba395e56ce550c9324220e73546848f76692e23278dd803dedc03432459425",
+          "length": 8328
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-001.png",
+          "sha256": "f4f9539739117e858e5d7634d76de9524dff17f332957b8e22da230de6db4a3f",
+          "length": 1317146
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-002.png",
+          "sha256": "b2af9e01b467fae106a5f2460547bde7e002dd8eb64dbdafa37bab25a1ba154f",
+          "length": 1316649
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-003.png",
+          "sha256": "f30a43785aa7cbc6c0afa636e62e18e5df1ff934405ff4fe6e4ba63ce0576f52",
+          "length": 1316693
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-004.png",
+          "sha256": "23dedca84a51fb71990ced4d080778319c87cfdbe07743893aa25e48eafdd35c",
+          "length": 1317539
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-005.png",
+          "sha256": "af3b74035dbe4666a48f675b80f67404738a495c95df78f3231343377ad1c7fa",
+          "length": 1317365
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-006.png",
+          "sha256": "8b6c7291885ba72000340ded4be88b924a4c08e6530108794ae6f7e7b1ca700c",
+          "length": 1317360
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-007.png",
+          "sha256": "95a463084f1d40f2361c62ec4b27390912a6c7f056ccf28e6d8e31d8d44c4abd",
+          "length": 1317323
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-feature/movement-visuals/horse-motion-008.png",
+          "sha256": "f34720a98d5c30be48dd335ad885a9f1a2d538752a07ffe4395e5309ecd45183",
+          "length": 1317888
+        }
+      ],
+      "failures": [
+        {
+          "row": "CM05-dismount-survives-feature-policy-disable",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Dismount escape: setting restoration changed native state"
+          ]
+        },
+        {
+          "row": "chunk6a-dismount-feature-disabled-rt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM05-dismount-survives-feature-policy-disable: Dismount escape: setting restoration changed native state"
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:46:39.9502689+00:00",
+      "completedAtUtc": "2026-09-29T08:46:46.6494059+00:00",
+      "externalFailures": [
+        {
+          "row": "CM05-dismount-survives-feature-policy-disable",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Dismount escape: setting restoration changed native state"
+          ]
+        },
+        {
+          "row": "chunk6a-dismount-feature-disabled-rt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: CM05-dismount-survives-feature-policy-disable: Dismount escape: setting restoration changed native state"
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 48,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-dismount-feature.json",
+        "sha256": "5f3627a80aa5fe55e0bddee8c5e490929cf2c770c568abe23609b0a762295526",
+        "length": 1586
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-dismount-policy",
+      "scenario": "chunk6a-dismount-policy-disabled-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 49,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 49,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/horse-companion-blueprint-registration.json",
+          "sha256": "47fdcbff700f513b88765c3016e95a3948180571a1813a51ae42a3dc18ac679b",
+          "length": 7421
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/orchestration.json",
+          "sha256": "1a40c36e88d4c92877b4efb1aa03c7bd176551be1b454aff7ac7791c8f84baf2",
+          "length": 1228
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/phase3d-horse-scenario-evidence.json",
+          "sha256": "2054b3f319951399d0971c468af09614b65cfac437742afa77355e38ecb81227",
+          "length": 50464017
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/runtime-artifacts.json",
+          "sha256": "26e61f2f267938fd938f419824b4d77f919bc1478a5a53a44e89937f9adeba6a",
+          "length": 2439
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/runtime-game-result.json",
+          "sha256": "18d005c805e0ba47013820802fc91e99c8ed20a46fc687037fbc6592864d2af6",
+          "length": 4813
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/runtime-request.json",
+          "sha256": "aa879f06c88842de2b13ad6261246b72eb143e71aac1f7a0781b94c9dd60a298",
+          "length": 2862
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/runtime-result.json",
+          "sha256": "274274470f2d59dc3a8153f24c662261b380c1827da7c10019755af70bc3aa3b",
+          "length": 7670
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-001.png",
+          "sha256": "1019c59c0500447dedb645f796e735d1cbb5cad6c74bf1d1ff8bbd942c3354e9",
+          "length": 1313439
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-002.png",
+          "sha256": "ac32bd9667b693c3d5cd397868938796d5f44595c798021906aeccad2499e295",
+          "length": 1314254
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-003.png",
+          "sha256": "1eb1a0ae66cbc8719a9e1fbe38fd999a5cd88b051fa9dcce7f3d146593defbf9",
+          "length": 1313435
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-004.png",
+          "sha256": "dd731d845a796d03738fb03b85e3fc1e736182b9e0f21df5f7a1d9ba77732998",
+          "length": 1314355
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-005.png",
+          "sha256": "3f008aec1ef5ebc3caf7ee5a438c8a45647517ad0a0de1c389a05897cd467c54",
+          "length": 1313255
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-006.png",
+          "sha256": "960a2f5a4a26454bda40fd0d0d40402345133004d16dc044dda1de111f30c5e8",
+          "length": 1314042
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-007.png",
+          "sha256": "2c576534191c30e91dc5f9392dcb77b6b58ebcb39526e55f3faec8eabb25b977",
+          "length": 1313925
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-dismount-policy/movement-visuals/horse-motion-008.png",
+          "sha256": "512d834be818b197169304fc82c8ff62659e39e5c7d7b2e4d27357282bd5d940",
+          "length": 1313395
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:49:58.6181545+00:00",
+      "completedAtUtc": "2026-09-29T08:50:05.2075786+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 49,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-dismount-policy.json",
+        "sha256": "2ce75d0bf653f93e278e7f48053653cdac1af1437c182b21bb507fb82939c078",
+        "length": 1585
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-charge-rt",
+      "scenario": "chunk4-charge-safety-rt",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 65,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 65,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/horse-companion-blueprint-registration.json",
+          "sha256": "e8b222b12af7ba23ea0d8aeba4fa6fc043603af9bcd704f21adc5935a495c41d",
+          "length": 7407
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/orchestration.json",
+          "sha256": "ff1706c2723d39c6cbb01dae6bc4155736db01245e7951a762bf7e4b633aa218",
+          "length": 1212
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "d00c45b7bedcaece5ba123f035ef23d076c10af504972b0844cc447e65d4a575",
+          "length": 1014902
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/runtime-artifacts.json",
+          "sha256": "0fb6cae8f66fad35eeb4d5fc73ab8ab1644cce4c9f58b43a962e6e1f4f1ba1bc",
+          "length": 2424
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/runtime-game-result.json",
+          "sha256": "8b9c6c62b4c09b53cb6320f237d0f04c36dbedd5b185aefdf570f207079ac876",
+          "length": 4708
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/runtime-request.json",
+          "sha256": "2b1946c22e22b39914425a820e689cacb8b3970be1e7a983241b36459f6a99a1",
+          "length": 2846
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/runtime-result.json",
+          "sha256": "e9e462b5144acd45af591a01cd2b9a01fe2700e2e4b0f0159b5b483988696c6e",
+          "length": 6881
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "e479f52ca34345f05cc7089aea4f9c600414efcf35201c073108318f11404ba3",
+          "length": 1315669
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "6e8300bd6666d02f4f2c87a2d8ce19c2884124d12d2101b3a96e0364ea9195db",
+          "length": 1316685
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "71407d92fd7c1e36ba6cb547a0b27029260a8c3d8d92dce30d26fabd8fc74384",
+          "length": 1315325
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "b559ec748688cfc7b3e4e3cc5ce35446999592a64d0bf95e20dc5ac9d97f65e1",
+          "length": 1316856
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "7ad4155330b84b157e59a3258da2168838ac919000cf859b20b9d656bf551796",
+          "length": 1316437
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "1c96217903d15f36b94bc405c0de1ac72febc2a10c11d865ce02dacca95b65fa",
+          "length": 1315271
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "7cbf597be0a65c2ec0d0616637c12682c6f56c375dd7ece4ec4cc819f9c8dde6",
+          "length": 1315014
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-charge-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "29a7258df8827aaca61e282cdc0d6b02cd7300f41089b45bf6f193ee02c044bf",
+          "length": 1315815
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "AmbiguousMatchException: Ambiguous match found."
+          ]
+        },
+        {
+          "row": "chunk4-charge-safety-rt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: AmbiguousMatchException: Ambiguous match found."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:53:09.1991801+00:00",
+      "completedAtUtc": "2026-09-29T08:53:15.3484371+00:00",
+      "externalFailures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "AmbiguousMatchException: Ambiguous match found."
+          ]
+        },
+        {
+          "row": "chunk4-charge-safety-rt",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: AmbiguousMatchException: Ambiguous match found."
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 65,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-charge-rt.json",
+        "sha256": "93aa3175e66e5e7fbc2c0361257dfc6c924c512137fd54e9d008d3c06f8c79c1",
+        "length": 1583
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-auto-mount",
+      "scenario": "chunk6a-auto-use-mount-rt",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 44,
+      "assertionFailCount": 5,
+      "nativeAssertionPassCount": 44,
+      "nativeAssertionFailCount": 5,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/horse-companion-blueprint-registration.json",
+          "sha256": "8c9d0093addd5df818b25de64dc6091cc2d934fcbdf0c15942c1eb46699dc02e",
+          "length": 7406
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/orchestration.json",
+          "sha256": "d7648cb58e4cad634fb9943fc098b3e9e237d8fe38ff05297bd252e37fae036e",
+          "length": 1208
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/phase3d-horse-scenario-evidence.json",
+          "sha256": "dee5008ece575bd9be6c5afc169c8d86313b99c7a8018251fbc4f75916f94f01",
+          "length": 1232949
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/runtime-artifacts.json",
+          "sha256": "0ebdbba72091b84bb16a11b737df0e33887d80bb64adc1f5171aa6a1c8685cb7",
+          "length": 2423
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/runtime-game-result.json",
+          "sha256": "ec0d2e75cabc397180a452c233229e6bef5dc1abf5267fa99219f6269d87b086",
+          "length": 5952
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/runtime-request.json",
+          "sha256": "a3eb3ed2bb9324431234c5a04b1f1e6929f03d71a83240c9c57c1c5952366de7",
+          "length": 2842
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/runtime-result.json",
+          "sha256": "29617c449301cc0e4e8965a52e26e00c1f34881f7b94b33fb13ad10a5af2760a",
+          "length": 8207
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-001.png",
+          "sha256": "c35104c6d72d55408855060a4b2ee15356cb97824639fb69c2f3f3758d97df8b",
+          "length": 1315849
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-002.png",
+          "sha256": "f539a550779ae2496f94ef149ecc585626e5a6ac5031c66e0d8da9f104a6e72b",
+          "length": 1314535
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-003.png",
+          "sha256": "2bbf244ff58dc87373eb60457280c00084e67244540ef9c09c46904395514b44",
+          "length": 1314903
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-004.png",
+          "sha256": "83dc1ebe862da86c3e698096b2b7da71173695dd2195e303615fb2839c50a307",
+          "length": 1316748
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-005.png",
+          "sha256": "2d83fd7951bd5dd867c155a9f43d2921dc1d8d6fb532ba01973cd5080058cd8c",
+          "length": 1316673
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-006.png",
+          "sha256": "120aea750395ae37663a5743f0831138179aa3fe92b8cbf68f4674c83312e366",
+          "length": 1315263
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-007.png",
+          "sha256": "31472f4bebf144bf0c9a2a0b5917dc2c3e31f0b139ac7284f408fcd6ad6a1984",
+          "length": 1315620
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-auto-mount/movement-visuals/horse-motion-008.png",
+          "sha256": "5162298cd0a658e2e540dfe5adbd875612ce7147e58ca6c0cac1f886ea476a20",
+          "length": 1316271
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Auto-use case lost its exact paused empty-command setup."
+          ]
+        },
+        {
+          "row": "phase3d-horse-tranche-cleanup",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Phase 3D Horse tranche did not restore every acquired local lease."
+          ]
+        },
+        {
+          "row": "chunk6a-auto-use-mount-rt",
+          "assertionFailCount": 3,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Auto-use case lost its exact paused empty-command setup.",
+            "phase3d-tranche-1: Chunk 6A auto-use observer/UI/pause cleanup: InvalidOperationException: Auto-use pause lease changed outside its owner.",
+            "phase3d-tranche-2: phase3d-horse-tranche-cleanup: Phase 3D Horse tranche did not restore every acquired local lease."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T08:56:37.2682782+00:00",
+      "completedAtUtc": "2026-09-29T08:56:43.8555004+00:00",
+      "externalFailures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Auto-use case lost its exact paused empty-command setup."
+          ]
+        },
+        {
+          "row": "phase3d-horse-tranche-cleanup",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Phase 3D Horse tranche did not restore every acquired local lease."
+          ]
+        },
+        {
+          "row": "chunk6a-auto-use-mount-rt",
+          "assertionFailCount": 3,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Auto-use case lost its exact paused empty-command setup.",
+            "phase3d-tranche-1: Chunk 6A auto-use observer/UI/pause cleanup: InvalidOperationException: Auto-use pause lease changed outside its owner.",
+            "phase3d-tranche-2: phase3d-horse-tranche-cleanup: Phase 3D Horse tranche did not restore every acquired local lease."
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 44,
+      "externalAssertionFailCount": 5,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-auto-mount.json",
+        "sha256": "d0e18846355f98b16aab78f076d123fa52a3a68341b81263c61378e263a9ea0b",
+        "length": 1580
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-paused",
+      "scenario": "chunk6a-paused-queue",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 49,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 49,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/horse-companion-blueprint-registration.json",
+          "sha256": "598cb1a3acaa3cd5c5b0000f9a3a57183a63f2994a0aff24cebfe649a44be75d",
+          "length": 7397
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/orchestration.json",
+          "sha256": "82866f5b7cf7cd004d0f4164c5bf98b939f70ff0b6c7d26c65b2cfcbf9448285",
+          "length": 1195
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/phase3d-horse-scenario-evidence.json",
+          "sha256": "98bbbc930e834d607c7ff384c576b20c7dd7067cc23c9091ef4c2afab4e35ed1",
+          "length": 14970415
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/runtime-artifacts.json",
+          "sha256": "fb956a3eacfcb6c6fbd91254a1254ea2b71b58d49309c7b8d779a33e8bbac808",
+          "length": 2415
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/runtime-game-result.json",
+          "sha256": "5fbfa8d2d441379a915c23a1602d830258156644330b58aa0781fb7eb9cea61f",
+          "length": 4745
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/runtime-request.json",
+          "sha256": "f6767a4bf1cc62ccb3e6ecd601b7a2b927decd4e74f238b943d9e5c7fe9e13d9",
+          "length": 2829
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/runtime-result.json",
+          "sha256": "7d789c4e1b96ef487bd353ffbfd12ccfaa891315360678948899856519733179",
+          "length": 7603
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-001.png",
+          "sha256": "63c97d18c707346f4a4c280d0d4cff13ce0e5bc9eec6e1c920bee94a27c6796e",
+          "length": 1314831
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-002.png",
+          "sha256": "fefb1a233a4bb44811714b4570c3fc23f42623cd91f53c79104fbad90d43f516",
+          "length": 1314970
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-003.png",
+          "sha256": "1716efb1817b56707655c8cabdda72fddf94301dcd56f75f56d02f9cf7257284",
+          "length": 1315082
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-004.png",
+          "sha256": "3344214e81224dd232cd7ad61d1f7c8ec6dbf371c386d23d7cd729306400cd23",
+          "length": 1315612
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-005.png",
+          "sha256": "3e35dc32a0596cd53064206100b211f30b90a4c95f213c30c66ea1418ca09e00",
+          "length": 1314086
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-006.png",
+          "sha256": "ec7bd889d2060014f06bbc826e2823d51f594e7e75299ee3053a2c58c9729510",
+          "length": 1314914
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-007.png",
+          "sha256": "9469b20139e0ec82da909d8286c33b295d37e8a863a2142d5c4be538b9ec2b1f",
+          "length": 1315081
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-paused/movement-visuals/horse-motion-008.png",
+          "sha256": "0a37ffc1a505a2c9f7b36ce9ef6362a709231d1d34b41f81e210c7ca8e466df6",
+          "length": 1315729
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:10:35.5133813+00:00",
+      "completedAtUtc": "2026-09-29T12:10:42.0744885+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 49,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-paused.json",
+        "sha256": "21ff8a48a9b8486909967d83030678b8819cf016406010046e7b3eae580ed381",
+        "length": 1576
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-ordinary-tb",
+      "scenario": "ordinary-attack-controls-tb",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 60,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 60,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/horse-companion-blueprint-registration.json",
+          "sha256": "4d28a9d35d19edf04f3ef96fe73430b6a50cb6b5d9569c5ac6a7da4c48748fe2",
+          "length": 7413
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/orchestration.json",
+          "sha256": "74bf47693fe6f0819ae6e77b1788caa73603620bf6c474114481f12a3425bead",
+          "length": 1220
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "3e6d596544e86cba4eced96123e9d78a57142521bba870594341b3b6131fca7f",
+          "length": 10935
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/runtime-artifacts.json",
+          "sha256": "487ca436d14606bcbbd13acbcdc3ba3401a03224439cd311a00cb2131aa2bcd1",
+          "length": 1120
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/runtime-game-result.json",
+          "sha256": "28be3f555a209b3261dea1af0cbd32ab29d039f4f6d644b025b5a62ca405f20f",
+          "length": 4168
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/runtime-request.json",
+          "sha256": "bf8eb732b674e95692ae66a1839650fa85e4b54cf3a3d1ccb8bbedf276c92043",
+          "length": 2854
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/runtime-result.json",
+          "sha256": "0b1bd0d2a33bc168cfe30e49fd3a0925599e9d4809f0dfd97d802b9cceb0a00b",
+          "length": 5327
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "22cb5805a0c01280be97554afa7af54b3dd770bdbfabc03f9e627ebea46494c2",
+          "length": 1316892
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ordinary-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "3a2e2cfe5a4fe2ddcdc5f77100e45d981a6ccc23d6bacff5426cd27ac5e8f110",
+          "length": 1318453
+        }
+      ],
+      "failures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Native fixture Mount/Dismount input refused."
+          ]
+        },
+        {
+          "row": "ordinary-attack-controls-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Native fixture Mount/Dismount input refused."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:13:08.6454963+00:00",
+      "completedAtUtc": "2026-09-29T12:13:14.7437636+00:00",
+      "externalFailures": [
+        {
+          "row": "phase3d-horse-runtime-exception",
+          "assertionFailCount": 1,
+          "assertions": [
+            "InvalidOperationException: Native fixture Mount/Dismount input refused."
+          ]
+        },
+        {
+          "row": "ordinary-attack-controls-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "phase3d-tranche-0: phase3d-horse-runtime-exception: InvalidOperationException: Native fixture Mount/Dismount input refused."
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 60,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-ordinary-tb.json",
+        "sha256": "51ca9ade8f60537f1cc09120b031797fbe30f6747cfedaf190b8cb4bbe32b9ec",
+        "length": 1585
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-sustained-tb",
+      "scenario": "chunk4-sustained-tb",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 67,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 67,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/horse-companion-blueprint-registration.json",
+          "sha256": "757c8ebda3dfa949f54d3c9c05ba1ed2adfec177a790849c06ea59deb27feacd",
+          "length": 7406
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/orchestration.json",
+          "sha256": "88a1bd0f3f050ed077970f3824c9703138eb8cc81e50ba23e6f07178d448980b",
+          "length": 1214
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/phase3d-horse-scenario-evidence.json",
+          "sha256": "afa6f1be8a9138548537909798ed16895e97d8c673c1b335c969f59aba544d80",
+          "length": 2953130
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/runtime-artifacts.json",
+          "sha256": "4e26e713196a73a5b89c8f91667cf67921b5b54706a7f3f3c38f0d66d903a849",
+          "length": 2423
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/runtime-game-result.json",
+          "sha256": "d1cd861845dfc71899ae1e9c26723f0a65ea9fb5c3a2c7570040e8bc92fa6ae4",
+          "length": 4406
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/runtime-request.json",
+          "sha256": "68052083d98a7594cd2e6db0f8519ffacda76739fd31cf9629dbea4043823213",
+          "length": 2848
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/runtime-result.json",
+          "sha256": "c637182d7be6e9f98ede7a49f8f6be664b9aa52ecd99948bfe0bf2e276ec1d22",
+          "length": 6754
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-001.png",
+          "sha256": "ec74dec21c1da16c4cc84c587a7cba52248923d9f1c9c90b255a0e7dd9219e61",
+          "length": 1316530
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-002.png",
+          "sha256": "00d464257e571585040fca46b4b09edb48e354aa19e69ebd5a6f6e8807e3632e",
+          "length": 1316092
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-003.png",
+          "sha256": "30f0a9f3f1a579eb04d62528e400e7b3f050ce3f6022d48c2eff576e4145bbc3",
+          "length": 1316285
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-004.png",
+          "sha256": "1bd30eafcfb6226d17b28c2a4fe7ec2904cb3699919d01a77a6e0e7e509a6cb8",
+          "length": 1317246
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-005.png",
+          "sha256": "5a9c254b49b32f07bc77d37b6c6b25644276417b65e0b3d5a4f343cc07ad5fa9",
+          "length": 1317301
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-006.png",
+          "sha256": "925026af3f4a39a925056bc4aa5395ba205e677e1357dfcefebb9074731f2784",
+          "length": 1318016
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-007.png",
+          "sha256": "642161e0792333fc9d264274cb2a286ca072a40e32aa6a756c4225a145ec0ba9",
+          "length": 1317346
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-sustained-tb/movement-visuals/horse-motion-008.png",
+          "sha256": "4210d21f5a745ccf383557155c9a02c5c7790b21c1788d373012684791652654",
+          "length": 1318716
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:17:10.6170966+00:00",
+      "completedAtUtc": "2026-09-29T12:17:17.5061846+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 67,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-sustained-tb.json",
+        "sha256": "d9f8d9d43bbe5ba9dc46bf48fcfb13ec7620c345fa86cdd19dbb3d516ddbea59",
+        "length": 1586
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-mammoth-tb",
+      "scenario": "mounted-mammoth-primary-hit-tb",
+      "status": "FAIL",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 0,
+      "assertionFailCount": 1,
+      "nativeAssertionPassCount": 66,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mammoth-tb/combat-scenario-evidence.jsonl",
+          "sha256": "10d28e6fdccfa757b3a5814987c2e2b277289f63c5b045d2b398afe427cb18fd",
+          "length": 730853
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mammoth-tb/launcher-failure.json",
+          "sha256": "75d1b5a7c89b0d6ad2b9d7348aac6ee91c2da8271505abd88e468c8544872aa7",
+          "length": 308
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mammoth-tb/orchestration.json",
+          "sha256": "0e6113fae4d05399f69dda27f74b2d86b594a26c9b73d7f807c37177139bc062",
+          "length": 1427
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mammoth-tb/runtime-artifacts.json",
+          "sha256": "d3498f710463967cda8fd74e28b62042c947fb0ec1c068d229417286a5cfed24",
+          "length": 416
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mammoth-tb/runtime-game-result.json",
+          "sha256": "2bc552cec9cc72361080e434c72181867d54957da8b4c253fbe4b9f1691e6757",
+          "length": 3212
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mammoth-tb/runtime-request.json",
+          "sha256": "52b7f6fc5308b72321d5febfdba17ec1d07da3605642ce758efe38e240a4cdd2",
+          "length": 2855
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mammoth-tb/runtime-result.json",
+          "sha256": "c06e9841319660b571b711efc735e5c4e7c895155103f2c92f0cc402feca7d36",
+          "length": 3969
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:20:08.8942722+00:00",
+      "completedAtUtc": "2026-09-29T12:20:15.0932690+00:00",
+      "externalFailures": [
+        {
+          "row": "mounted-mammoth-primary-hit-tb",
+          "assertionFailCount": 1,
+          "assertions": [
+            "Mammoth native preparation/effect count or order differs."
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 0,
+      "externalAssertionFailCount": 1,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-mammoth-tb.json",
+        "sha256": "b560d6a34d1a1b92c7293a1625b7736e0955f29941caf561cdaf68ac8567e910",
+        "length": 1584
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-melee-rt",
+      "scenario": "chunk4-sustained-melee-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 65,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 65,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/horse-companion-blueprint-registration.json",
+          "sha256": "3be0a6961b96c22ba9da1f054042882f3095d4fd221db79b9672cad75546aa18",
+          "length": 7408
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/orchestration.json",
+          "sha256": "05817d26cc4cb8f7ffbcc0954589f10dfa4aa85a0c775fa0323b8716990cc721",
+          "length": 1212
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "226f674fa3f1d64d2d4e21fd52ebfd4d2e613cd4638c1ff8eb3cf4e912e2c854",
+          "length": 25218496
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/runtime-artifacts.json",
+          "sha256": "8c0d648c426f835e3daebabefd0f1daa84c961204a184e3825cb8e9e0816a030",
+          "length": 2426
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/runtime-game-result.json",
+          "sha256": "03e80e50b79db3f1fa5715cfc6e5fdb806b573165b5f1542d9499c735ba6dc93",
+          "length": 4089
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/runtime-request.json",
+          "sha256": "7cfd732db20366c5405e3417bfe5e7e0bea74a87f26ceb9839bcb870253e5b17",
+          "length": 2846
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/runtime-result.json",
+          "sha256": "08e0795734ebc5af4e19ddc7649510351d6b11edf7b6679a84bd3e95b3258193",
+          "length": 5928
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "8fb89481c8e4989398bdb7f09d38361c96c1616bdee394382c94fe4ede02c99f",
+          "length": 1313787
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "17a9011937d3c9654d547993074695a13a1468b974aec9330b7db67a0f355457",
+          "length": 1315248
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "d7baeba71dcad8399b84fee7a3cb76245ef480e9195169f7f682b7beca6d1842",
+          "length": 1313570
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "67badbe1e0461b28a3f2f63813e21b7f6cf454d21dc8e5317240e3057fddbd4d",
+          "length": 1314824
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "d56f119d51943114b2f7941d67bee9df6f2607d4cbbf4a8b23cb5cbd848d42ab",
+          "length": 1314256
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "fa76ec79e02e3be68dab0617c94e0262737cf793caa3c82dbff24a94cd7c8238",
+          "length": 1314215
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "a0fd648509e84fab127357b6f2e141a0024127e06ec9b1fbb1a12b8b4940c745",
+          "length": 1314337
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-melee-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "175eb2ba4b8d3ec141165a7fdd919878f3deca31b6ef080d37893309414a8e6c",
+          "length": 1313764
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:31:05.4265711+00:00",
+      "completedAtUtc": "2026-09-29T12:31:11.6255990+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 65,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-melee-rt.json",
+        "sha256": "22e04afa342dcafdafe2a536bd29ff7506ca8ea77e531609b5abcb1a0964a28b",
+        "length": 1582
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-ranged-rt",
+      "scenario": "chunk4-sustained-ranged-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 65,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 65,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/horse-companion-blueprint-registration.json",
+          "sha256": "b091908962bee212bbf2d3683376a8f83fe24c99e9d07b26d7a297868183f814",
+          "length": 7410
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/orchestration.json",
+          "sha256": "388e2fb0d0c11bf1a658305b2eac0d82fc08c267c160eb9f3349a5ff2cb20b34",
+          "length": 1214
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/phase3d-horse-scenario-evidence.json",
+          "sha256": "a11925605546480e100af919e6f226985dafbc5613c8dbcc12740b5057a1521e",
+          "length": 16102661
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/runtime-artifacts.json",
+          "sha256": "e65cc9905c0a8c8508e0bd7cea4b338ce261fcd0af0862c3bdc04bb994cb0b5c",
+          "length": 2428
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/runtime-game-result.json",
+          "sha256": "b6d4f0c474d0d82c0a4a9efff84b7db2a4796aa90e1dfefe0609ab1cd2564563",
+          "length": 4094
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/runtime-request.json",
+          "sha256": "4991363e410b704cf9fbba295014049e3a2f4cc621f3f79c8673640aac725796",
+          "length": 2849
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/runtime-result.json",
+          "sha256": "9bef54273f50247fd0fcf34e47f1b6bc4aef9e554d4f4c02cddec51c7fb210c6",
+          "length": 5935
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-001.png",
+          "sha256": "f6246d1608685312ad35e6a037ab29da57ccc094a64942afba9fca17f372c3bb",
+          "length": 1313893
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-002.png",
+          "sha256": "ce218480de241d1e7edbaa1efc0bc35654edb3041a37b8d4e4c9f4fe31cb42a3",
+          "length": 1314507
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-003.png",
+          "sha256": "50261f3af353173d6b03fd4bc2b8865e9a558dc05e8c275fad42873e6d5a7bfd",
+          "length": 1313847
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-004.png",
+          "sha256": "92e73517a750814075c5c3b05c10d448a90aeda3260ede2872f08cfbbc2fdfc9",
+          "length": 1314851
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-005.png",
+          "sha256": "cb288262c1cc567733f2d37cd29de6fb9e54d2fb54a30b75f0ee4c796639bcc8",
+          "length": 1313672
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-006.png",
+          "sha256": "0784b166792d26178dfd7a0af580c4736f0a0a0092a6b95457d803ad167fd1e1",
+          "length": 1314194
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-007.png",
+          "sha256": "002b05baf978b5cc37b5a46b5890438be8add7a4e57c4dadd880623f14a75abf",
+          "length": 1314512
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-ranged-rt/movement-visuals/horse-motion-008.png",
+          "sha256": "c8f6b2260d8cb7681e683ae4f53d3dabd08edd1cadefc185bf6608d2691397bb",
+          "length": 1314954
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:35:40.6849734+00:00",
+      "completedAtUtc": "2026-09-29T12:35:46.8241350+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 65,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-ranged-rt.json",
+        "sha256": "cc7c4d7ae791db7142bf81378a3fc135cfd8812b95eb7d447c8a426f2020c489",
+        "length": 1583
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-target-rider",
+      "scenario": "chunk4-targeting-rider-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 64,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 64,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/horse-companion-blueprint-registration.json",
+          "sha256": "f027dfdf46e993d92a70019cfd2145120491a934817aba1af82a6f4730439b88",
+          "length": 7412
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/orchestration.json",
+          "sha256": "a88c3cc5030b6d37727f064ad8f06dd92acf68b4f1507a04d68c251e4392af61",
+          "length": 1220
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/phase3d-horse-scenario-evidence.json",
+          "sha256": "b61ef05f986291644165cf6c75905d2e9c118856392d5579b58ab1dc25608994",
+          "length": 874980
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/runtime-artifacts.json",
+          "sha256": "613694fd3f638752942198604a7812e94556023d0f6a2de4a2dd2182cbb300d9",
+          "length": 2428
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/runtime-game-result.json",
+          "sha256": "f5c40395a2951a63eb90176ff68cf0a1cb8872ae81b5918fae46a3e1a68b3f80",
+          "length": 3887
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/runtime-request.json",
+          "sha256": "b0df5c290613151c039629f0289ae57fd184d293867034baeb782c8af75c3ebc",
+          "length": 2854
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/runtime-result.json",
+          "sha256": "7c83960e417e38655739f1fceee247e360ecdfadfe6dc488b441062794aa68e3",
+          "length": 5474
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-001.png",
+          "sha256": "0b27e4c64e567e7e57dbad3205c50a694dae06b00134866397a9eb7b610af93b",
+          "length": 1313153
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-002.png",
+          "sha256": "eaedfab97fe1473261c03f7107c65578c497c558e5d0ac9daafd0336c2a4d12c",
+          "length": 1313557
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-003.png",
+          "sha256": "9e2c4abf344161058b4ba6f75711de96df8e97ac0a0d791ba5bdd0f3d5c88baf",
+          "length": 1313020
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-004.png",
+          "sha256": "6ecff87e617f5887fe49229734b32deafa6316eb550960f18ec6c9a4aa795b20",
+          "length": 1313701
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-005.png",
+          "sha256": "0d9b410ccd74405a645a1019d96a986adb4cf13e3adae063c4063e3eddf86de4",
+          "length": 1313562
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-006.png",
+          "sha256": "e391db32424f5dcd81ad66f6bf2fc42fa2fb4a430ca6a4f149e52cda7d9238ad",
+          "length": 1313988
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-007.png",
+          "sha256": "8b4d0118c9a5cf0c142b3db9eaad2335c68110a543a7fb079b0321fa0eb26932",
+          "length": 1314230
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-rider/movement-visuals/horse-motion-008.png",
+          "sha256": "22318397fafe44de1a0ced2c755a55457ac9b1c92ef713a962c168b842646a31",
+          "length": 1313247
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:39:38.5468144+00:00",
+      "completedAtUtc": "2026-09-29T12:39:44.7645858+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 64,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-target-rider.json",
+        "sha256": "974dc8170c659773d3426e4a6d198f76e4edd9a157fe910e414c7f3c702196e5",
+        "length": 1586
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-target-mount",
+      "scenario": "chunk4-targeting-mount-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 63,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 63,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/horse-companion-blueprint-registration.json",
+          "sha256": "f8fe29befe687bdef0ed119a3a79d5f9cc6cd3edc8d85fb8f5abd6a661d300cc",
+          "length": 7412
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/orchestration.json",
+          "sha256": "8b75203d63141f1d08435caec3e5eafa9727b491eca06cd73fedf867218396a5",
+          "length": 1220
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/phase3d-horse-scenario-evidence.json",
+          "sha256": "eba8da6a17ea1fec3b353e000e636b25409e77e54f73f409deb96d9759bc5674",
+          "length": 660281
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/runtime-artifacts.json",
+          "sha256": "d6e2f4ee135bb0a7bd12df249c487fe8f77e79aa9295b1e0a7cf5dbfe1bebcfd",
+          "length": 2428
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/runtime-game-result.json",
+          "sha256": "83b16e6e0028fb1b83ec07c0350b1d3cd40e117c31b1cf4d6c473b012f374ae3",
+          "length": 3722
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/runtime-request.json",
+          "sha256": "c4374a149aa82da610e9559f6af5e18006e8646b2e17399ee9ac76cf47974e5f",
+          "length": 2854
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/runtime-result.json",
+          "sha256": "d4dd1d493308e888604518222a0a5456f85b28781452915febe83946b64d3364",
+          "length": 5055
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-001.png",
+          "sha256": "3325e2a85324b3bc85dfb0609dc9f66de75f8c830bda8459b7b89d26866ecee8",
+          "length": 1316101
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-002.png",
+          "sha256": "87a6ba26175fa0961a55b6628b587c0188bb3a84f725764305adf4eee496a876",
+          "length": 1316860
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-003.png",
+          "sha256": "0b38c17b4afacc8937c81508409c64a7d963a070f7998146044e26e1459ddeba",
+          "length": 1316600
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-004.png",
+          "sha256": "03b89da49822cb29a4de310af6e84de85202d9126baa4b616a6c6e0368856f05",
+          "length": 1317499
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-005.png",
+          "sha256": "ff3ed18e6859c6dd0b28da115225a45ef2e389f30eba83020db0f0089bbc278a",
+          "length": 1316179
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-006.png",
+          "sha256": "3d593136cca130ffa7c26226d19ca08b277183fca9a183c30ec54436d143f3ad",
+          "length": 1316755
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-007.png",
+          "sha256": "d2ee9154b0a215063db9be0cb0044377001035e729afe0c2035ea19946691537",
+          "length": 1316718
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-mount/movement-visuals/horse-motion-008.png",
+          "sha256": "752e19f8b9c8f5781c63878ec3f33a60f23999233a78b1a58f55f2944cc0ea7e",
+          "length": 1315976
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:41:51.0856816+00:00",
+      "completedAtUtc": "2026-09-29T12:41:57.2273843+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 63,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-target-mount.json",
+        "sha256": "abb00b5f052c030f9310ab27243bcb9bc87db05be638c7964295f3c03dec8af6",
+        "length": 1586
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-target-area",
+      "scenario": "chunk4-targeting-area-unmounted-rt",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 62,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 62,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/horse-companion-blueprint-registration.json",
+          "sha256": "401cbec0e3388bd1461260aa2156f7213a10bea593ac129745582e46bcfc9c54",
+          "length": 7420
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/orchestration.json",
+          "sha256": "271096080805efdbb1e8a464bca471b3764559d370e21938f802d03cfbe70495",
+          "length": 1227
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/phase3d-horse-scenario-evidence.json",
+          "sha256": "84da9c3467cb3bae1e179e6b4b1789a24d0c3c11551666b2a0e7bcac05917fe6",
+          "length": 598470
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/runtime-artifacts.json",
+          "sha256": "b7837ca045c335b264102708105b60aeeeb8a1d25fb243e6a878fbf63eb0cdf8",
+          "length": 2436
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/runtime-game-result.json",
+          "sha256": "dcacb55c4c2cbeb71dd0293932fa2e93a45c63da3a446c5e5e21487bb5414e56",
+          "length": 3574
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/runtime-request.json",
+          "sha256": "d7779b6565f1cd8b38944d4d8f0191e80915b781373b8768d59bb7067f80ec7d",
+          "length": 2861
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/runtime-result.json",
+          "sha256": "c82ee4df596f229a1a46aaafeb453f2d962f32e96419e343e64f3de65a22beeb",
+          "length": 4653
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-001.png",
+          "sha256": "87f02f838aab648a9511410f32c596c4bcf7012e434ea7659b336eaf2c7bd456",
+          "length": 1317697
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-002.png",
+          "sha256": "8f560aff0072b2a4185ed2a3aaf454ef53600ae08a44ca800b9fbc0805ccacc7",
+          "length": 1318288
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-003.png",
+          "sha256": "857d656866a8e4155db385887ec335f4be957dcef4f6f81103d4742d966ea93f",
+          "length": 1316781
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-004.png",
+          "sha256": "5df785b2be01cc4272089783db65c1c037a004adabaebcc30a33ded0e9904d8f",
+          "length": 1318297
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-005.png",
+          "sha256": "62b78feda6245eb141b265718139f69d30e0924272ee5105bab7c53325157e7b",
+          "length": 1317439
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-006.png",
+          "sha256": "331f6ee05b7cfd23d3eca25191f58340c4428b58f0205fdc884a0396faea6f99",
+          "length": 1329305
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-007.png",
+          "sha256": "36833305a4d4284c773cad4fc2d652417ce8b22ffba9f9301c70b8279508cc3f",
+          "length": 1330484
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-target-area/movement-visuals/horse-motion-008.png",
+          "sha256": "378fb65eba2d6708a193e4b8f7dbc9d1359f3fe2db82a25fe6983ba412ababf2",
+          "length": 1327087
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:44:07.8262478+00:00",
+      "completedAtUtc": "2026-09-29T12:44:13.9902706+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 62,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-target-area.json",
+        "sha256": "f1af3613d52ba023da5bf9b2b5558be61da49a5408886a7bbb058270fcaac47d",
+        "length": 1585
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-rider-death",
+      "scenario": "chunk4-rider-death-tb",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 62,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 62,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/horse-companion-blueprint-registration.json",
+          "sha256": "9aa7fa61798d1e2e1cdcb47ca4029b748cec7b20ded451fed87684d6c9b1146b",
+          "length": 7407
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/orchestration.json",
+          "sha256": "81bba3cc1c0a6dfed921e9864556bab6677315c381207bc3f2ec6b78ef25c453",
+          "length": 1214
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/phase3d-horse-scenario-evidence.json",
+          "sha256": "464d26a258f6836c4ab834781a22184fe0746246a3bba7ae7c3d479a9bf0eee1",
+          "length": 8840588
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/runtime-artifacts.json",
+          "sha256": "cd7a26515412688c4ff9978651a5f7ca049af090fca4ac720c7e295f9ed3bd51",
+          "length": 2424
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/runtime-game-result.json",
+          "sha256": "5aff07c75c043b3997735ccab328d825ae877f6ad5afa84c62f2d94eac7fe4f5",
+          "length": 3553
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/runtime-request.json",
+          "sha256": "42078630ee4a8b530b902f445f955cd624c9cc4f19964a09624f9e40da211007",
+          "length": 2848
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/runtime-result.json",
+          "sha256": "7d95669825add0d12d4836e4e662c3f18b5b5e2d07cccd4621683cfa7d5f4332",
+          "length": 4632
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-001.png",
+          "sha256": "9955efbd8b4d40037eb5c0f28277b05dae81574da83ca2320019e5297a8d7047",
+          "length": 1313438
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-002.png",
+          "sha256": "047b1376ba754e5896425dea087d7c55505f2169570a27bb1c666f4c88c3c727",
+          "length": 1313331
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-003.png",
+          "sha256": "4de6ba38b52e0d0b088f8d2ae636afc92999882f9e608561a0d9775aa67d2900",
+          "length": 1313994
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-004.png",
+          "sha256": "0c6e9b25b4a103672a56804f7c593ae1e88dd0389a2813acd650ba4088b63286",
+          "length": 1314033
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-005.png",
+          "sha256": "c2843dc9e10c0fd1c5305ea133fefc3a27bb580405bccbb99dafafa27f35caf0",
+          "length": 1314006
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-006.png",
+          "sha256": "00802c42c25fac92dbe57462ad2982a0ad29deab85fea02824a4e7c883d362ae",
+          "length": 1313087
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-007.png",
+          "sha256": "3cebcc28844746b68d7c91f18bba5be4ffcc5575ddaae92969be9b41d0e5ecf5",
+          "length": 1315240
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-rider-death/movement-visuals/horse-motion-008.png",
+          "sha256": "84f2ddc2545c3bdd47ad9d0fdba21813c3ab2c63883110db4fc96219bbac9934",
+          "length": 1313537
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:46:59.9123485+00:00",
+      "completedAtUtc": "2026-09-29T12:47:06.0713246+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 62,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-rider-death.json",
+        "sha256": "ce59885d83135e9cad5bb8eacbfca0a6da6f5cdcbf1e77f843cd41ef41bdc216",
+        "length": 1585
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-mount-death",
+      "scenario": "chunk4-mount-death-tb",
+      "status": "PASS",
+      "nativeStatus": "PASS",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 62,
+      "assertionFailCount": 0,
+      "nativeAssertionPassCount": 62,
+      "nativeAssertionFailCount": 0,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/horse-companion-blueprint-registration.json",
+          "sha256": "40f3b4d0d68439cd26e2fc281873b1f3fcc2ed9bd5ab9606c683f2375c398bb2",
+          "length": 7407
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/orchestration.json",
+          "sha256": "002cd26454f1fa89b488bc148b1bebbcd70cd739d794ad8439bf63bd16768581",
+          "length": 1214
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/phase3d-horse-scenario-evidence.json",
+          "sha256": "49fe2ffa27e3c5dfe0a26f6780690d23be22fe946f35318a2de7f2ca9fe06746",
+          "length": 8060982
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/runtime-artifacts.json",
+          "sha256": "fcef28c51eca8a315e17e1c2e032aaa78527f70aac7b54bcb6ce241090724b2c",
+          "length": 2424
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/runtime-game-result.json",
+          "sha256": "d871515eff091727a3e2c2cb883b0bd34cf50c0eb5eb3a1a11262d92410bf9a3",
+          "length": 3553
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/runtime-request.json",
+          "sha256": "57d143ccca2d0110f5623992d302beb1ea7127328a2c96a04b724365e217cde5",
+          "length": 2848
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/runtime-result.json",
+          "sha256": "9c967bc9e7e47a9f53a1c5d883c563f7d77597c873546798b93e19dca1231816",
+          "length": 4632
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-001.png",
+          "sha256": "5b22f9000618605d927107680c3a4a5bb9581988a700bdfc62bceea6b4509835",
+          "length": 1317004
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-002.png",
+          "sha256": "329f927db98694ef24f051e4e13a8416acd970394ca57d118a3374914b9bcf17",
+          "length": 1317017
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-003.png",
+          "sha256": "3252996e10d3bf6b413774f4453ea7686b978c80525fc8a09323759aa9e01036",
+          "length": 1315909
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-004.png",
+          "sha256": "8fdd1be7f561dd28b39ff027ce2551e987b9e6fdce914faffe45decf991ab7a2",
+          "length": 1316410
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-005.png",
+          "sha256": "6348412582e430749cbd44d690413351d22e22f010c8a65bb24d886e11e3f278",
+          "length": 1315663
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-006.png",
+          "sha256": "7674f96dcb3333c6d67c6a4d575e79947084cbf43477eb51daedb3caa7b36cfb",
+          "length": 1316378
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-007.png",
+          "sha256": "837d6151c3f8a0e9374c20813e6deca6687fad1e9fe2b3d9c40ed934ec4deca7",
+          "length": 1316112
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-mount-death/movement-visuals/horse-motion-008.png",
+          "sha256": "655d9ec9fa367361b80262145b5c45527a1e014acea10b46aa4a0d4ca05092bf",
+          "length": 1315562
+        }
+      ],
+      "failures": [],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:49:43.5353560+00:00",
+      "completedAtUtc": "2026-09-29T12:49:49.6845136+00:00",
+      "externalFailures": [],
+      "externalAssertionPassCount": 62,
+      "externalAssertionFailCount": 0,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-mount-death.json",
+        "sha256": "7f1776cbaf3ebdcae3250d0b8abf8bc1b2f3d4557b80ea6e570dfae7b6a6eaae",
+        "length": 1585
+      }
+    },
+    {
+      "schemaVersion": 2,
+      "runId": "c6a-later-turn-a-reg-area",
+      "scenario": "chunk4-area-cleanup",
+      "status": "FAIL",
+      "nativeStatus": "FAIL",
+      "observedPayload": {
+        "version": "0.1.0-chunk6a-preview.131",
+        "branch": "codex/mounted-combat-phase3f-playable-core",
+        "commit": "5e870d5f19f67b6fbce820ab0cfa71626dd11167",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b",
+        "packagePath": "C:\\Dev\\KingmakerMountedCombatLab\\artifacts\\KingmakerMountedCombat-0.1.0-chunk6a-preview.131-chunk6a-later-turn-a-diagnostic.zip",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c"
+      },
+      "suite": {
+        "suiteId": "20260929-chunk6a-later-turn-a",
+        "path": "C:\\Dev\\KingmakerMountedCombatLab\\runtime-state\\qualification-suite-snapshots\\20260929-chunk6a-later-turn-a.json",
+        "sha256": "82ef5fb37feda71162a48b598f8df362b735411ac45e786d4ce5818aea834495",
+        "saveDigest": "511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426",
+        "modsDigest": "c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c",
+        "packageSha256": "098f5df86d5473134854afe3eae2c4c601352a1f9504928dd1ba9e3c1324b402",
+        "manifestSha256": "fa86fbaad08db84cf7d2aa593d8ba289df4202e730e36fbf777fe22f34202b7c",
+        "dllSha256": "5bd980c89c57154cf09d5c18de347542f64b18754ebff4299d2f0f2f4e5cdc61",
+        "dllMvid": "ceffbac3-9184-497f-be3a-b897528e9c6b"
+      },
+      "assertionPassCount": 47,
+      "assertionFailCount": 2,
+      "nativeAssertionPassCount": 47,
+      "nativeAssertionFailCount": 2,
+      "artifacts": [
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-area/boundary-scenario-evidence.jsonl",
+          "sha256": "444bca3553ba4f69f4346bf770ec9a2ae5621daa03b066a03bf934268c1376da",
+          "length": 28197
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-area/orchestration.json",
+          "sha256": "28eafba3556167c5960df1bca87075fdbde2399a1ce1f99dd566aa4a0a2d094a",
+          "length": 1198
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-area/runtime-artifacts.json",
+          "sha256": "0faa12004b24c0ff33a2c938a36910f1f1a13c5724286215313d213f24ab1930",
+          "length": 402
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-area/runtime-game-result.json",
+          "sha256": "cd860b90ef11a680e3f1d5138274766932a7426f1ddba078ce3bb4b6746ba810",
+          "length": 3684
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-area/runtime-request.json",
+          "sha256": "17d8ddf9c7061ddb5dcfd70d61bed0e63e9f5ec144874bc0433a53396dabaa67",
+          "length": 2832
+        },
+        {
+          "path": "runtime-evidence/c6a-later-turn-a-reg-area/runtime-result.json",
+          "sha256": "9cd2e7c44750a858630a496a379264cfefc8d6bd4249dfb90c6eb9719da29280",
+          "length": 4337
+        }
+      ],
+      "failures": [
+        {
+          "row": "native-area-clean-dismount",
+          "assertionFailCount": 2,
+          "assertions": [
+            "Boundary row exceeded its 45 second monotonic deadline.",
+            "Rider or mount retained a RiderMovementAgent component."
+          ]
+        }
+      ],
+      "qualificationAccepted": false,
+      "reason": "Immutable preview.131 development observation; no qualification transfer to source132.",
+      "restoration": {
+        "modsRestored": true,
+        "saveProtectionPassed": true,
+        "baselineImmutable": true,
+        "workingRestored": true,
+        "saveWriteAllowlistPassed": true
+      },
+      "transactionRestoredAtUtc": "2026-09-29T12:53:22.0528787+00:00",
+      "completedAtUtc": "2026-09-29T12:53:28.2857381+00:00",
+      "externalFailures": [
+        {
+          "row": "native-area-clean-dismount",
+          "assertionFailCount": 2,
+          "assertions": [
+            "Boundary row exceeded its 45 second monotonic deadline.",
+            "Rider or mount retained a RiderMovementAgent component."
+          ]
+        }
+      ],
+      "externalAssertionPassCount": 47,
+      "externalAssertionFailCount": 2,
+      "transactionArtifact": {
+        "path": "runtime-state/run-transactions/c6a-later-turn-a-reg-area.json",
+        "sha256": "7fcf79620f6ae355d51ee58ba183f3a9998b1933e6a3c48c58fe7f1732bdaa56",
+        "length": 1578
+      }
     }
   ]
 }

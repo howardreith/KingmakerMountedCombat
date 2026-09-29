@@ -456,3 +456,7 @@ Pinned Kingmaker MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7, assemblySHA3b6450ffec
 | ClickGroundHandler.MoveSelectedUnitsToPoint, commandRunner overload |060093DB|a5ed6ae99c10c86c3fea1581b0574517c2487f7f5d986381006e69b2c24b1c73|
 | ClickGroundHandler.RunCommand |060093DC|1b537eaab206cf2a920b9d9fe8973a854bb1acb81117a0c910739496f8a6d21b|
 | UnitMoveTo(Vector3,Single) |060026FF|564b034856debb2341d52fea096eb64a3dc5f8dfc51f8868621506441318d7dd|
+
+## 2026-09-29 bounded Chunk6A fixture observations
+
+Pinned Kingmaker Assembly-CSharp MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7: UnitEngagementExtension.IsEngage(UnitEntityData,UnitEntityData), public static Boolean,0600935A; ObstacleAnalyzer.GetNearestNode(Vector3), public static Pathfinding.NNInfo,060017B4; TraceAlongNavmesh(Vector3,Vector3), public static Vector3,060017AD. Read-only observations compare native engagement and native versus Astar query projections; they do not change navigation eligibility or resources. Native UnitCombatPrepareController.Tick0600936F performs the bounded encounter-start Prepared/initiative/Clear sequence separately from TurnController.Prepare. Mammoth reader now accounts for each exact zero-debt initial Clear and both native Prepare envelopes; original131 external FAIL remains retained.

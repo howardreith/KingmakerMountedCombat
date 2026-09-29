@@ -84,4 +84,15 @@ if((Get-FileHash -LiteralPath $original).Hash.ToLowerInvariant()-cne'f9480670587
 $failure=Get-Content -Raw $original|ConvertFrom-Json;$waiting=$failure.observations.chunk6aDismountAvailability
 if($failure.status-cne'FAIL'-or$waiting.enabled-ne$false-or$waiting.reason-cne'The rider has no Move action available to dismount.'-or$waiting.state.round-ne1-or$waiting.state.currentTurnStatus-cne'Acting'-or$waiting.state.rider.nativeTurnObject-ne200452992-or$waiting.state.rider.move-le3-or@($failure.observations.chunk6aCommandProofs|Where-Object window -CEQ 'combat-dismount').Count-ne0){throw 'Original spent-turn failure not reproduced'}
 $script:checks++
+$reactionRoot=Join-Path $repo '../../runtime-evidence/c6a-later-turn-a-full-tb'
+if((Get-FileHash -LiteralPath (Join-Path $reactionRoot 'phase3d-horse-scenario-evidence.json')).Hash.ToLowerInvariant()-cne'4ee42e8167723ab685f7838472d898471c463197c05fba13e1f66ca06ac7e460'){
+ throw 'Original next-turn reaction failure artifact changed'
+}
+$reactionFailure=Get-Content -Raw (Join-Path $reactionRoot 'runtime-game-result.json')|ConvertFrom-Json
+$row=@($reactionFailure.subscenarioResults|Where-Object name -CEQ 'phase3d-horse-runtime-exception')
+if($reactionFailure.status-cne'FAIL'-or$reactionFailure.commit-cne'5e870d5f19f67b6fbce820ab0cfa71626dd11167'-or$row.Count-ne1-or
+ @($row[0].errors).Count-ne1-or$row[0].errors[0]-cne'InvalidOperationException: Dismount ground setup: undeclared native event: opportunity-before'){
+ throw 'Original next-turn reaction assertion changed'
+}
+$script:checks++
 'DISMOUNT LATER-TURN GROUND PASS='+$script:checks+' FAIL=0; synthetic negatives and immutable failure binding, no native qualification'

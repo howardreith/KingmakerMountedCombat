@@ -66,5 +66,7 @@ foreach($field in @('modsRestored','saveProtectionPassed','baselineImmutable','w
  Fixture ('result-'+$field) {param($v) $v['runtime-result.json'].$field=$false}
  Fixture ('transaction-'+$field) {param($v) $v.transaction.$field=$false}
 }
-[pscustomobject]@{status='PASS';checks=$script:checks;fail=0;scope='Draft parser/component regression only; original105 artifact, no current qualification';originalEvidenceSha256=$b.evidenceSha256;fixtures=$fixtureRoot;rejected=$script:failures}|ConvertTo-Json -Depth 15|Set-Content -LiteralPath (Join-Path $scratch 'Legacy-DRAFT-receipt.json') -Encoding UTF8
+[pscustomobject]@{status='PASS';checks=$script:checks;fail=0;scope='Draft parser/component regression only; synthetic modern artifact, no current qualification';originalEvidenceSha256=$b.evidenceSha256;fixtures=$fixtureRoot;rejected=$script:failures}|ConvertTo-Json -Depth 15|Set-Content -LiteralPath (Join-Path $scratch 'Legacy-DRAFT-receipt.json') -Encoding UTF8
 Write-Host ('LEGACY READER PASS='+$script:checks+' FAIL=0')
+
+Remove-LegacyTestFixture

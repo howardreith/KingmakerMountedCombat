@@ -583,7 +583,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 chunk6aMountTurnsWhileMounted++;
             }
-            if (game.IsPaused && chunk6aStage != 2)
+            // Stage 32 owns pause until its native auto-use input and lease restoration complete.
+            if (game.IsPaused && chunk6aStage != 2 && !(Chunk6aAutoUseOnly && chunk6aStage == 32))
             {
                 game.IsPaused = false;
                 return;

@@ -178,7 +178,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return result;
         }
 
-        internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null, object callback = null)
+        internal void Record(string boundary, UnitEntityData actor, UnitCommand command = null, string detail = null, object callback = null,
+            UnitEntityData reactionTarget = null)
         {
             if (actor == null || actor.Group != rider.Group && (!combat.PairedActivationEnabled || !actor.IsInCombat)) return;
             if (events.Count >= 16000) { dropped++; return; }
@@ -199,6 +200,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["turn"] = Id(turn), ["preparingTurn"] = Id(preparing), ["currentActor"] = turn?.Unit?.UniqueId,
                     ["turnStatus"] = turn?.Status.ToString(), ["state"] = Snapshot(actor), ["detail"] = detail,
                     ["callbackObject"] = Id(callback),
+                    ["reactionObservation"] = reactionTarget == null ? null : new JObject {
+                        ["targetId"] = reactionTarget.UniqueId, ["targetObject"] = Id(reactionTarget),
+                        ["attackerId"] = actor.UniqueId, ["attackerObject"] = Id(actor),
+                        ["attackerMotion"] = actor.HasMotionThisTick, ["targetMotion"] = reactionTarget.HasMotionThisTick,
+                        ["disengageTargetIds"] = new JArray(actor.CombatState.DisengageAttackTargets.Select(u => u.UniqueId)) },
                     ["command"] = Id(command), ["commandType"] = command?.GetType().FullName,
                     ["actionType"] = command?.Type.ToString(), ["timeSinceStart"] = command?.TimeSinceStart,
                     ["commandActor"] = command?.Executor?.UniqueId, ["started"] = command?.IsStarted,
@@ -251,10 +257,10 @@ namespace KingmakerMountedCombat.Diagnostics
             { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-before", unit); }
             internal static void CooldownTickAfter(UnitEntityData unit)
             { if (active?.ObservesReactionActor(unit) == true) active.Record("cooldown-tick-after", unit); }
-            internal static void OpportunityBefore(UnitCombatState __instance, bool simulate)
-            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-before", __instance.Unit, detail: "simulate=" + simulate); }
-            internal static void OpportunityAfter(UnitCombatState __instance, bool simulate, bool __result)
-            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-after", __instance.Unit, detail: "simulate=" + simulate + ";result=" + __result); }
+            internal static void OpportunityBefore(UnitCombatState __instance, UnitEntityData target, bool simulate)
+            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-before", __instance.Unit, detail: "simulate=" + simulate, reactionTarget: target); }
+            internal static void OpportunityAfter(UnitCombatState __instance, UnitEntityData target, bool simulate, bool __result)
+            { if (active?.ObservesReactionActor(__instance.Unit) == true) active.Record("opportunity-after", __instance.Unit, detail: "simulate=" + simulate + ";result=" + __result, reactionTarget: target); }
 
             internal static void PhysicalTickBefore(UnitMovementAgent __instance, out UnitMovementAgent __state)
             {

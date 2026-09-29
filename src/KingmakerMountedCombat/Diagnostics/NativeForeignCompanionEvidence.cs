@@ -15,6 +15,14 @@ namespace KingmakerMountedCombat.Diagnostics
             var id = e?["identity"]; var before = e?["foreignCompanionBefore"]; var after = e?["foreignCompanionAfter"];
             Check(Text(e?["case"]) == "foreign-companion" && Yes(id?["unrelatedIsPet"]) && Yes(id["unrelatedSupportedMount"]), "declared supported foreign pet missing");
             Check(before is JObject && after is JObject && JToken.DeepEquals(before, after), "native foreign pair changed across synchronous refused input");
+            var pre = e["foreignCompanionPreCombat"];
+            Check(pre?["inCombat"]?.Type == JTokenType.Boolean && !(bool)pre["inCombat"] &&
+                Int(pre["frame"]) < Int(e["legal"]["frame"]) && Int(pre["gameTicks"]) <= Int(e["legal"]["gameTicks"]),
+                "exact pre-combat capture absent");
+            foreach (var field in new[] { "ownerId", "ownerObject", "targetId", "targetObject", "masterId", "masterObject",
+                "ownerPetId", "ownerPetObject", "targetBlueprint", "targetProfile" })
+                Check(pre["pair"]?[field] != null && JToken.DeepEquals(pre["pair"][field], before[field]),
+                    "pre-combat foreign identity changed: " + field);
             var owner = Text(before["ownerId"]); var ownerObject = Int(before["ownerObject"]);
             Check(!string.IsNullOrWhiteSpace(owner) && new[] { owner, Text(id["riderId"]), Text(id["mountId"]), Text(id["unrelatedId"]) }.Distinct().Count() == 4, "distinct owner missing");
             Check(ownerObject != 0 && new[] { ownerObject, Int(id["riderObject"]), Int(id["mountObject"]), Int(id["unrelatedObject"]) }.Distinct().Count() == 4, "distinct owner object missing");

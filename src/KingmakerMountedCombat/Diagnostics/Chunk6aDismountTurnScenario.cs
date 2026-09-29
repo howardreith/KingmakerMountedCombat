@@ -1,5 +1,8 @@
 using System;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using Kingmaker.View;
+using Kingmaker.Controllers.Combat;
 using Kingmaker;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
@@ -18,6 +21,119 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitMoveTo chunk6aDismountGround;
         private int chunk6aDismountTurnStage;
         private bool chunk6aDismountPriorReactionObservation;
+
+        private Vector3 FindChunk6aDismountTargetPosition()
+        {
+            if (AstarPath.active == null || rider.IsInCombat || horse.IsInCombat || Game.Instance.Player.IsInCombat)
+                throw new InvalidOperationException("Full TB target placement requires fresh exploration geometry.");
+            // Frozen131 default rider-centred spawn overlapped the Horse (1.056m).
+            // A 2.2m ring leaves the native 0.9m Horse and 0.7m stock target clear,
+            // and admits a 0.5-0.7m ground proposal inside the Horse's melee envelope.
+            // This is a diagnostic spawn proposal, verified against the actual target after Spawn.
+            const float targetCorpulence = 0.7f, separation = 2.2f;
+            var direction = horse.Position - rider.Position; direction.y = 0;
+            if (direction.sqrMagnitude < 0.01f) throw new InvalidOperationException("Full TB target direction is degenerate.");
+            direction.Normalize();
+            var candidates = new JArray();
+            observations["chunk6aDismountTargetPlacement"] = new JObject {
+                ["contract"] = "pre-combat-clear-target-and-bounded-ground-proposal",
+                ["horseOrigin"] = CapturePosition(horse.Position), ["riderOrigin"] = CapturePosition(rider.Position),
+                ["horseCorpulence"] = horse.View.Corpulence, ["proposedTargetCorpulence"] = targetCorpulence,
+                ["separation"] = separation, ["candidates"] = candidates
+            };
+            for (var index = 0; index < 24; index++)
+            {
+                var angle = index == 0 ? 0 : (index % 2 == 0 ? index : -index) * 15;
+                var requested = horse.Position + Quaternion.Euler(0, angle, 0) * direction * separation;
+                var nearest = AstarPath.active.GetNearest(requested); var point = nearest.clampedPosition;
+                var distance = HorizontalDistance(point, horse.Position);
+                var blockers = Game.Instance.State.Units.Where(unit => unit.IsInState && unit.View != null &&
+                    HorizontalDistance(point, unit.Position) < targetCorpulence + unit.View.Corpulence + 0.05f)
+                    .Select(unit => unit.UniqueId).ToArray();
+                var clear = nearest.node != null && nearest.node.Walkable && blockers.Length == 0 &&
+                    Math.Abs(distance - separation) <= MountedCombatSpatialPolicy.DiagnosticPlacementTolerance;
+                candidates.Add(new JObject { ["requested"] = CapturePosition(requested), ["point"] = CapturePosition(point),
+                    ["distance"] = distance, ["blockers"] = new JArray(blockers), ["clear"] = clear });
+                if (clear) return point;
+            }
+            throw new InvalidOperationException("Full TB has no bounded clear native target placement before combat.");
+        }
+
+        private void VerifyChunk6aDismountTargetPlacement()
+        {
+            var placement = (JObject)observations["chunk6aDismountTargetPlacement"];
+            placement["actualTargetId"] = target.UniqueId;
+            placement["actualTargetPosition"] = CapturePosition(target.Position);
+            placement["actualTargetCorpulence"] = target.View.Corpulence;
+            placement["actualHorseSeparation"] = HorizontalDistance(horse.Position, target.Position);
+            if (Math.Abs(target.View.Corpulence - (float)placement["proposedTargetCorpulence"]) > 0.0001f ||
+                (float)placement["actualHorseSeparation"] < horse.View.Corpulence + target.View.Corpulence + 0.05f)
+                throw new InvalidOperationException("Full TB spawned target violates its actual native clearance precondition.");
+            placement["preCombatGroundProposal"] = CapturePosition(FindChunk6aDismountGroundDestination());
+        }
+
+        private JObject CaptureChunk6aDismountEngagement()
+        {
+            return new JObject {
+                ["targetId"] = target.UniqueId, ["targetObject"] = RuntimeHelpers.GetHashCode(target),
+                ["targetPosition"] = CapturePosition(target.Position), ["targetMoving"] = target.HasMotionThisTick,
+                ["targetCorpulence"] = target.View.Corpulence, ["riderCorpulence"] = rider.View.Corpulence,
+                ["mountCorpulence"] = horse.View.Corpulence,
+                ["riderEngagesTarget"] = rider.IsEngage(target), ["mountEngagesTarget"] = horse.IsEngage(target),
+                ["targetEngagesRider"] = target.IsEngage(rider), ["targetEngagesMount"] = target.IsEngage(horse),
+                ["riderTrackedTarget"] = rider.CombatState.EngagedUnits.Contains(target),
+                ["mountTrackedTarget"] = horse.CombatState.EngagedUnits.Contains(target),
+                ["riderMotion"] = rider.HasMotionThisTick, ["mountMotion"] = horse.HasMotionThisTick,
+                ["frame"] = Time.frameCount
+            };
+        }
+
+        private Vector3 FindChunk6aDismountGroundDestination()
+        {
+            var origin = horse.Position;
+            var radius = float.PositiveInfinity;
+            foreach (var actor in new[] { rider, horse })
+            {
+                var native = new UnitAttack(target); native.Init(actor);
+                var ranges = native.CreateFullAttack().Select(attack => attack.WeaponRange).ToArray();
+                if (ranges.Length == 0) throw new InvalidOperationException("Dismount setup has no native attack adjacency plan.");
+                radius = Math.Min(radius, horse.View.Corpulence + target.View.Corpulence + ranges.Min());
+            }
+            // The existing selector subtracts 0.4m. Cap its endpoint ring at current
+            // separation: this short native move enters Acting without retreating.
+            radius = Math.Min(radius, HorizontalDistance(origin, target.Position) + 0.4f);
+            var routes = new JArray();
+            observations["chunk6aDismountGroundRoutes"] = routes;
+            return FindNativeAttackFixturePoint(horse, true, origin, 0.5f, radius,
+                "chunk6aDismountGroundCandidates", 0.7f, point => {
+                    var end = ObstacleAnalyzer.TraceAlongNavmesh(origin, point);
+                    var footprint = NativeGroundMovementObservation.CaptureFootprint(horse, point);
+                    var residuals = ((JArray)footprint["probes"]).Select(p => (float)p["residual"]).ToArray();
+                    var routeResidual = HorizontalDistance(end, point);
+                    var clear = routeResidual <= MountedCombatSpatialPolicy.DiagnosticPlacementTolerance &&
+                        residuals.Length > 0 && residuals.All(r => !float.IsNaN(r) && !float.IsInfinity(r) &&
+                            r <= MountedCombatSpatialPolicy.DiagnosticPlacementTolerance);
+                    routes.Add(new JObject { ["point"] = CapturePosition(point), ["routeEnd"] = CapturePosition(end),
+                        ["routeResidual"] = routeResidual, ["footprint"] = footprint, ["clear"] = clear });
+                    return clear;
+                });
+        }
+
+        private void ObserveChunk6aDismountGroundEngagement(JObject ground)
+        {
+            var before = ground["engagementBefore"];
+            var sample = CaptureChunk6aDismountEngagement();
+            ((JArray)ground["engagementSamples"]).Add(sample);
+            foreach (var field in new[] { "targetId", "targetObject", "targetPosition" })
+                if (!JToken.DeepEquals(before[field], sample[field]))
+                    throw new InvalidOperationException("Dismount ground setup changed the stationary exact target: " + field);
+            if ((bool)sample["targetMoving"])
+                throw new InvalidOperationException("Dismount ground setup target began a native movement.");
+            foreach (var field in new[] { "riderEngagesTarget", "mountEngagesTarget", "targetEngagesRider", "targetEngagesMount",
+                "riderTrackedTarget", "mountTrackedTarget" })
+                if ((bool)before[field] && !(bool)sample[field])
+                    throw new InvalidOperationException("Dismount ground setup lost native engagement: " + field);
+        }
 
         private JObject CaptureChunk6aDismountBoundary()
         {
@@ -156,9 +272,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!EnsureChunk6aRiderSelection("CM05-combat-dismount-accepted")) return false;
                 if (turn.Status != TurnController.TurnStatus.Preparing)
                     throw new InvalidOperationException("Expected the observed next native Preparing allocation before mounted ground input.");
-                var point = FindWalkablePointAwayFromTarget(horse.Position, target.Position, 1f);
+                var engagement = CaptureChunk6aDismountEngagement();
+                if ((bool)engagement["targetMoving"] || !target.Commands.Empty)
+                    throw new InvalidOperationException("Dismount ground setup requires the exact stationary diagnostic target.");
+                var point = FindChunk6aDismountGroundDestination();
                 var ground = new JObject { ["before"] = CaptureChunk6aDismountBoundary(),
-                    ["destination"] = CapturePosition(point), ["origin"] = CapturePosition(horse.Position) };
+                    ["destination"] = CapturePosition(point), ["origin"] = CapturePosition(horse.Position),
+                    ["engagementBefore"] = engagement, ["engagementSamples"] = new JArray() };
                 chunk6aDismountTurn["groundSetup"] = ground;
                 chunk6aDismountTurn["groundStartBridge"] = Chunk6aDismountPassive(Chunk6aTurnResources(chunk6aDismountTurn["nextRound"]), Chunk6aTurnResources(ground["before"]));
                 using (var input = new NativeOrdinaryAttackInput(point))
@@ -178,6 +298,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk6aDismountTurnStage == 3)
             {
+                ObserveChunk6aDismountGroundEngagement((JObject)chunk6aDismountTurn["groundSetup"]);
                 observations["chunk6aDismountWait"] = new JObject {
                     ["expectedEvent"] = "exact-mounted-ground-command-terminal-and-native-Acting",
                     ["command"] = CaptureOrdinaryCommand(chunk6aDismountGround), ["boundary"] = CaptureChunk6aDismountBoundary()

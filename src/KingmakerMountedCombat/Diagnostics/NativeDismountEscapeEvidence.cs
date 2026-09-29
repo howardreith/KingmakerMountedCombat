@@ -113,7 +113,20 @@ namespace KingmakerMountedCombat.Diagnostics
             Boundary(after, rider, mount, generation, "Unmounted"); Boundary(restored, rider, mount, generation, "Unmounted");
             NativeTerminalBridgeEvidence.AssertComplete((JObject)p, (JObject)after, (JObject)e["dismountTerminalBridge"], false, "Unmounted");
             Settings(after["settings"], Text(e["case"]) == "policy", Text(e["case"]) == "feature"); Settings(restored["settings"], true, true);
-            Check(SameState(after["state"], restored["state"]), "setting restoration changed native state");
+            var restoredState = restored["state"].DeepClone();
+            if (Text(e["case"]) == "feature")
+            {
+                // Re-enabling movement after an exact Dismount re-leases only the owner's Mount fact.
+                // Keep the complete shell description exact except this declared false-to-true field.
+                const string absent = ";mountAbilityFactPresent=False;", present = ";mountAbilityFactPresent=True;";
+                var previous = Text(after["state"]?["geometry"]?["shellState"]);
+                var current = Text(restoredState["geometry"]?["shellState"]);
+                Check(previous != null && previous.Split(new[] { ";mountAbilityFactPresent=" }, StringSplitOptions.None).Length == 2 &&
+                    previous.Contains(absent) &&
+                    current == previous.Replace(absent, present), "expected exact Mount fact regrant differs");
+                restoredState["geometry"]["shellState"] = previous;
+            }
+            Check(SameState(after["state"], restoredState), "setting restoration changed native state");
             foreach (var f in new[] { "frame", "gameTicks", "allocationSequence" }) Check(Int(after[f]) == Int(restored[f]), "restoration boundary gap");
             foreach (var f in new[] { "admittedMount", "acceptedMount", "admittedDismount", "acceptedDismount", "refusedVoluntary", "forcedDetach", "duplicateSuppressed", "concurrentSuppressed" })
                 Check(Int(after["state"]["ledger"][f]) - Int(click["state"]["ledger"][f]) == (f == "admittedDismount" || f == "acceptedDismount" ? 1 : 0), "Dismount transition count differs");

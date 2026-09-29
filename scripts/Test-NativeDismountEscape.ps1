@@ -14,7 +14,8 @@ function New-Boundary($snapshot,[bool]$movement,[bool]$paired,[string]$state='Mo
  $r=Copy-Escape $snapshot.rider;$m=Copy-Escape $snapshot.mount
  $r|Add-Member -NotePropertyName nativePrepareCount -NotePropertyValue $r.grantSequence;$m|Add-Member -NotePropertyName nativePrepareCount -NotePropertyValue $m.grantSequence
  [pscustomobject]@{frame=$snapshot.frame;gameTicks=$snapshot.gameTicks;allocationSequence=$snapshot.allocationSequence;
- state=[pscustomobject]@{rider=$r;mount=$m;selectedIds=@('rider');ledger=(Copy-Escape $ledger);relationshipState=$state;generation=2};
+ state=[pscustomobject]@{rider=$r;mount=$m;selectedIds=@('rider');ledger=(Copy-Escape $ledger);relationshipState=$state;generation=2;
+ geometry=[pscustomobject]@{seconds=0.01;shellState=('lastShellRefusal=<none>;mountAbilityFactPresent='+$movement.ToString()+';registeredShells=0')}};
  riderResources=(Copy-Escape $snapshot.rider);mountResources=(Copy-Escape $snapshot.mount);
  settings=[pscustomobject]@{movement=$movement;paired=$paired;legacyUnified=$false;legacyScheduler=$false;overlay=$false};
  abilityPresent=$true;abilityObject=301;abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';abilityCasterId='rider';visible=$true;enabled=$true;reason='';pairIdle=$true;inCombat=$true;turnBased=$false}
@@ -44,6 +45,7 @@ function New-Escape([string]$Case='feature'){
  $last=Copy-Escape $w.after;$last.frame++;$last.gameTicks+=10000L;$last.allocationSequence+=4;$last.rider.move+=3.0
  $after=New-Boundary $last ($Case -ceq 'policy') ($Case -ceq 'feature') 'Unmounted';$after.state.ledger.admittedDismount++;$after.state.ledger.acceptedDismount++
  $restored=Copy-Escape $after;$restored.settings.movement=$true;$restored.settings.paired=$true
+ if($Case-ceq'feature'){$restored.state.geometry.shellState=$restored.state.geometry.shellState.Replace(';mountAbilityFactPresent=False;',';mountAbilityFactPresent=True;')}
  $e=[pscustomobject]@{contract='settled-positive-rt-mount-disabled-setting-native-dismount';case=$Case;scenario=('chunk6a-dismount-'+$Case+'-disabled-rt');
  mountProof=(New-Proof $false $before $before);beforeDisable=$before;afterDisable=$disabled;beforeClick=$click;waitResources=$w;
  clicked=$true;input=[pscustomobject]@{clicked=$true;abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';clickedTargetId='rider';resolvedTargetId='rider'};
@@ -75,6 +77,11 @@ foreach($b in @('beforeDisable','afterDisable','beforeClick')){
 }
 foreach($b in @('afterDisable','beforeClick','afterDismount')){Reject-Escape {param($x)$x.$b.settings.movement=$true};Reject-Escape {param($x)$x.$b.settings.paired=$false}}
 Reject-Escape {param($x)$x.restored.settings.movement=$false}
+Reject-Escape {param($x)$x.restored.state.geometry.shellState=$x.afterDismount.state.geometry.shellState}
+Reject-Escape {param($x)$x.restored.state.geometry.shellState+=';registeredShells=1'}
+Reject-Escape {param($x)$x.afterDismount.state.geometry.shellState+=';mountAbilityFactPresent=False;';$x.restored.state.geometry.shellState=$x.afterDismount.state.geometry.shellState.Replace(';mountAbilityFactPresent=False;',';mountAbilityFactPresent=True;')}
+Reject-Escape {param($x)$x.afterDismount.state.geometry.shellState+=';mountAbilityFactPresent=True;';$x.restored.state.geometry.shellState=$x.afterDismount.state.geometry.shellState.Replace(';mountAbilityFactPresent=False;',';mountAbilityFactPresent=True;')}
+$clockOnly=Copy-Escape $p;$clockOnly.restored.state.geometry.seconds+=0.001;Check-Escape $clockOnly $true
 Reject-Escape {param($x)$x.beforeClick.enabled=$false}
 Reject-Escape {param($x)$x.beforeClick.frame=109}
 Reject-Escape {param($x)$x.afterDisable.frame++}
@@ -102,8 +109,8 @@ foreach($name in @('mountTerminalBridge','dismountTerminalBridge')){
 }
 # Only diagnostic wall seconds may differ between consecutive captures.
 $x=Copy-Escape $p
-foreach($b in @('beforeClick','afterDismount','restored')){$x.$b.state|Add-Member geometry ([pscustomobject]@{seconds=1.0;riderPosition=@{x=1;y=0;z=0}})}
-$x.dismountProof.preClick.state|Add-Member geometry ([pscustomobject]@{seconds=1.1;riderPosition=@{x=1;y=0;z=0}})
+foreach($b in @('beforeClick','afterDismount','restored')){$x.$b.state.geometry|Add-Member riderPosition ([pscustomobject]@{x=1;y=0;z=0});$x.$b.state.geometry.seconds=1.0}
+$x.dismountProof.preClick.state.geometry|Add-Member riderPosition ([pscustomobject]@{x=1;y=0;z=0});$x.dismountProof.preClick.state.geometry.seconds=1.1
 $x.restored.state.geometry.seconds=1.2;Check-Escape $x $true
 $x.restored.state.geometry.riderPosition.x++;Check-Escape $x $false
 Write-Output ('DISMOUNT ESCAPE PRODUCER+EXTERNAL PASS='+$script:checks+' FAIL=0; synthetic model only; no native qualification')

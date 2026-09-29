@@ -66,7 +66,15 @@ function Assert-KmcDismountEscape($E,[switch]$StimulusOnly) {
  Boundary $after $rider $mount $generation 'Unmounted';Boundary $restored $rider $mount $generation 'Unmounted'
  Settings $after.settings ($E.case -ceq 'policy') ($E.case -ceq 'feature');Settings $restored.settings $true $true
  Assert-KmcNativeTerminalBridge $p $after $E.dismountTerminalBridge $false 'Unmounted'
- SameState $after.state $restored.state
+ $restoredState=$restored.state|ConvertTo-Json -Depth 80|ConvertFrom-Json
+ if($E.case-ceq'feature'){
+  $absent=';mountAbilityFactPresent=False;';$present=';mountAbilityFactPresent=True;'
+  $previous=$after.state.geometry.shellState;$current=$restoredState.geometry.shellState
+  if($previous-isnot[string]-or$previous.Split(@(';mountAbilityFactPresent='),[StringSplitOptions]::None).Count-ne2-or-not$previous.Contains($absent)-or
+     $current-cne$previous.Replace($absent,$present)){throw 'Escape exact Mount fact regrant differs'}
+  $restoredState.geometry.shellState=$previous
+ }
+ SameState $after.state $restoredState
  foreach($f in @('frame','gameTicks','allocationSequence')){if((Int $after.$f) -ne (Int $restored.$f)){throw 'Escape restoration gap'}}
  foreach($f in $ledgerFields){$expected=if($f -cin @('admittedDismount','acceptedDismount')){1}else{0};if((Int $after.state.ledger.$f)-(Int $click.state.ledger.$f) -ne $expected){throw 'Escape Dismount transition count differs'}}
 }
