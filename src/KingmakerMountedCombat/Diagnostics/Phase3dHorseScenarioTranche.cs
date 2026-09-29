@@ -6140,6 +6140,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 4 native character window", exception); }
             try { CleanupChunk4HorseCamera(); }
             catch (Exception exception) { AddCleanupError("Chunk 4 Horse camera", exception); }
+            try { RestoreChunk6aDismountTurn(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A later-turn Dismount observation", exception); }
             try { RestoreChunk6aMountOrderFixture(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A pre-encounter initiative inputs", exception); }
             try { CleanupActorAllocation(); }

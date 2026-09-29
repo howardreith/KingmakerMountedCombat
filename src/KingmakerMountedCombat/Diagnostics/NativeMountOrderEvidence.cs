@@ -9,6 +9,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private static long Int(JToken x) { Require(x?.Type == JTokenType.Integer, "integer missing"); return (long)x; }
         private static bool Bool(JToken x) { Require(x?.Type == JTokenType.Boolean, "boolean missing"); return (bool)x; }
         private static string Text(JToken x) => x?.Type == JTokenType.String ? (string)x : null;
+        // Pinned Newtonsoft keeps a null string as a String token until serialization.
+        // Preserve the strict absent-context contract in the live producer too.
+        internal static JToken CaptureOptionalActor(string actorId) => actorId == null ? JValue.CreateNull() : new JValue(actorId);
         internal static bool CanPrepareFixture(bool owned, bool riderCombat, bool mountCombat, bool partyCombat,
             bool unmounted, bool idle, bool targetTurnBased, bool modeLeaseCurrent)
             => !owned && !riderCombat && !mountCombat && !partyCombat && unmounted && idle && targetTurnBased && modeLeaseCurrent;

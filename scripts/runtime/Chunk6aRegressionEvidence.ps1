@@ -1,7 +1,8 @@
 # Separate future 6A evidence reader. No current-candidate qualification or runtime mutation.
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'UnrelatedChargeTerminalEvidence.ps1')
 function Get-KmcChunk6aRegressionClaims {
- @('CM08-mounted-charge-rejected-rt','CM08-mounted-charge-rejected-tb','CM08-unmounted-charge','CM08-ordinary-attack-controls-tb','CM08-chunk4-sustained-tb','CM08-sustained-rt','CM08-incoming-targeting','CM08-rider-death-cleanup','CM08-mount-death-cleanup')
+ @('CM06-unrelated-actor','CM08-mounted-charge-rejected-rt','CM08-mounted-charge-rejected-tb','CM08-unmounted-charge','CM08-ordinary-attack-controls-tb','CM08-chunk4-sustained-tb','CM08-sustained-rt','CM08-incoming-targeting','CM08-rider-death-cleanup','CM08-mount-death-cleanup')
 }
 function Get-KmcChunk6aRegressionRoles([string]$Id) {
  $charge=@('C4-CHARGE-mounted-rider','C4-CHARGE-unmounted-rider','C4-CHARGE-mounted-mount','C4-CHARGE-unrelated-actor','C4-CHARGE-queued-state-change')
@@ -9,6 +10,7 @@ function Get-KmcChunk6aRegressionRoles([string]$Id) {
  switch -CaseSensitive ($Id) {
   'CM08-mounted-charge-rejected-rt' {$specs=@(,@('charge-rt','chunk4-charge-safety-rt',$charge))}
   'CM08-mounted-charge-rejected-tb' {$specs=@(,@('charge-tb','chunk4-charge-safety-tb',$charge))}
+  'CM06-unrelated-actor' {$specs=@(@('charge-rt','chunk4-charge-safety-rt',$charge),@('charge-tb','chunk4-charge-safety-tb',$charge))}
   'CM08-unmounted-charge' {$specs=@(@('charge-rt','chunk4-charge-safety-rt',$charge),@('charge-tb','chunk4-charge-safety-tb',$charge))}
   'CM08-ordinary-attack-controls-tb' {
    $rows=@('C01-B','C01-C','C01-D','C03-rapid-off-B','C03-rapid-off-C','C03-bab-B','C03-bab-C','C03-haste-B','C03-haste-C','C02-restricted-B','C02-restricted-C','C03-single-B','C03-single-C','C03-spent-standard-B','C03-spent-standard-C','C03-rider-move-B','C03-carried-move-C','C03-mixed-range-B','C03-mixed-range-C')
@@ -86,6 +88,13 @@ function Assert-KmcChunk6aRegressionQualification([string]$Id,$Payload,$Primary,
  Assert-KmcChunk6aFrozenPayload $Payload $LabRoot
  Assert-KmcChunk6aRegressionRun $Payload $Primary $LabRoot
  foreach($binding in $Bindings){Assert-KmcChunk6aRegressionRun $Payload $binding $LabRoot}
+ if($Id-ceq'CM06-unrelated-actor'){
+  foreach($binding in $Bindings){
+   $artifact=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-evidence/'+$binding.runId+'/'+$binding.evidenceLeaf)) $binding.evidenceSha256
+   Assert-KmcUnrelatedChargeTerminal $artifact $(if($binding.scenario-ceq'chunk4-charge-safety-rt'){'RT'}else{'TB'})
+  }
+ }
+
  $roles=@(Get-KmcChunk6aRegressionRoles $Id)
  if($roles.Count-gt1){Assert-KmcCompositeRunOrder $Bindings $roles $LabRoot}
 }

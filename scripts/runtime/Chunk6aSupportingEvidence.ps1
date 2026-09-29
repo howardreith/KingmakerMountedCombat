@@ -202,9 +202,9 @@ function Assert-KmcBoundMammothProfile($Binding,$Request,[string]$Root) {
 
 # Each combined claim requires two independent restored transactions on the frozen payload.
 function Get-KmcChunk6aAdditionalRoles([string]$Id) {
- if($Id -ceq 'CM03-next-round-activation') {
+ if($Id -cin @('CM03-next-round-activation','CM03-early-end-turn')) {
   foreach($order in @('rider-first','mount-first')) {
-   [pscustomobject]@{name=$order;scenario=('chunk6a-allocation-'+$order+'-tb');rows=@('CM03-next-round-activation',$(if($order-ceq'rider-first'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}))}
+   [pscustomobject]@{name=$order;scenario=('chunk6a-allocation-'+$order+'-tb');rows=@('CM03-next-round-activation',$(if($order-ceq'rider-first'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}))+$(if($Id-ceq'CM03-early-end-turn'){@('CM03-early-end-turn')}else{@()})}
   }
  } elseif($Id -ceq 'CM06-ai-auto-use') {
   foreach($case in @('mount','dismount')) {[pscustomobject]@{name=('auto-use-'+$case);scenario=('chunk6a-auto-use-'+$case+'-rt');rows=@($Id)}}
