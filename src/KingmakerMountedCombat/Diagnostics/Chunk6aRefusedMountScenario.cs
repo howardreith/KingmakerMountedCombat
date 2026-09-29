@@ -109,7 +109,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderObject"] = RuntimeHelpers.GetHashCode(rider), ["mountObject"] = RuntimeHelpers.GetHashCode(horse), ["unrelatedObject"] = RuntimeHelpers.GetHashCode(other),
                     ["reciprocalPair"] = rider.Descriptor.Pet == horse && horse.Descriptor.Master.Value == rider,
                     ["mountProfile"] = SupportedMountedProfiles.Resolve(horse)?.DisplayName,
-                    ["unrelatedLivePartyActor"] = Game.Instance.Player.Party.Contains(other) && other.IsInGame && other.IsDirectlyControllable && other.View != null,
+                    ["unrelatedLivePartyActor"] = foreignCompanion ? IsLiveReciprocalPartyPet(foreignOwner, other) :
+                        Game.Instance.Player.Party.Contains(other) && other.IsInGame && other.IsDirectlyControllable && other.View != null,
                     ["unrelatedIsPet"] = other.Descriptor.Master.Value != null, ["unrelatedSupportedMount"] = SupportedMountedProfiles.IsSupported(other) },
                 ["legal"] = legal, ["condition"] = condition
             };
@@ -135,6 +136,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 failure ?? "One exact native target click was refused for the declared cause; no command, shell, movement, action/reaction event or relationship delta occurred.", evidence);
             chunk6aStage = 99; BeginCleanup();
         }
+        // Native companions inherit party membership from their exact reciprocal owner.
+        // Player.Party itself need not contain the pet; retain that raw observation.
+        private static bool IsLiveReciprocalPartyPet(UnitEntityData owner, UnitEntityData pet) =>
+            owner != null && pet != null && Game.Instance.Player.Party.Contains(owner) && owner.IsInGame &&
+            ReferenceEquals(owner.Descriptor.Pet, pet) && ReferenceEquals(pet.Descriptor.Master.Value, owner) &&
+            pet.IsInGame && pet.IsDirectlyControllable && pet.View != null;
         private JObject CaptureChunk6aForeignCompanion(UnitEntityData owner, UnitEntityData pet) => new JObject {
             ["ownerId"] = owner.UniqueId, ["ownerObject"] = RuntimeHelpers.GetHashCode(owner),
             ["targetId"] = pet.UniqueId, ["targetObject"] = RuntimeHelpers.GetHashCode(pet),
@@ -143,7 +150,11 @@ namespace KingmakerMountedCombat.Diagnostics
             ["ownerPetId"] = owner.Descriptor.Pet?.UniqueId,
             ["ownerPetObject"] = owner.Descriptor.Pet == null ? 0 : RuntimeHelpers.GetHashCode(owner.Descriptor.Pet),
             ["ownerLiveParty"] = Game.Instance.Player.Party.Contains(owner) && owner.IsInGame,
-            ["targetLiveParty"] = Game.Instance.Player.Party.Contains(pet) && pet.IsInGame && pet.IsDirectlyControllable && pet.View != null,
+            ["targetLiveParty"] = IsLiveReciprocalPartyPet(owner, pet),
+            ["membershipSource"] = "native-reciprocal-party-owner",
+            ["targetInPartyList"] = Game.Instance.Player.Party.Contains(pet),
+            ["targetIsInGame"] = pet.IsInGame, ["targetDirectlyControllable"] = pet.IsDirectlyControllable,
+            ["targetViewPresent"] = pet.View != null,
             ["targetBlueprint"] = pet.Blueprint.AssetGuid, ["targetProfile"] = SupportedMountedProfiles.Resolve(pet)?.DisplayName,
             ["ownerCommandsEmpty"] = owner.Commands.Empty, ["targetCommandsEmpty"] = pet.Commands.Empty,
             ["ownerResources"] = Chunk6aCooldowns(owner), ["targetResources"] = Chunk6aCooldowns(pet)

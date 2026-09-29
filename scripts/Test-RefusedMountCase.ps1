@@ -28,7 +28,7 @@ function New-RefusalCase([string]$Case) {
   $caseEvidence.identity.unrelatedIsPet=$true;$caseEvidence.identity.unrelatedSupportedMount=$true
   $ownerResources=Copy-Refused $r;$ownerResources|Add-Member -NotePropertyName actor -NotePropertyValue 'owner'
   $targetResources=Copy-Refused $r;$targetResources|Add-Member -NotePropertyName actor -NotePropertyValue 'other'
-  $native=[pscustomobject]@{ownerId='owner';ownerObject=204;targetId='other';targetObject=203;masterId='owner';masterObject=204;ownerPetId='other';ownerPetObject=203;ownerLiveParty=$true;targetLiveParty=$true;ownerCommandsEmpty=$true;targetCommandsEmpty=$true;targetBlueprint='e7aa96d15a45238438ae4cfb476f6bb9';targetProfile='Mammoth';ownerResources=$ownerResources;targetResources=$targetResources}
+  $native=[pscustomobject]@{ownerId='owner';ownerObject=204;targetId='other';targetObject=203;masterId='owner';masterObject=204;ownerPetId='other';ownerPetObject=203;ownerLiveParty=$true;targetLiveParty=$true;membershipSource='native-reciprocal-party-owner';targetInPartyList=$false;targetIsInGame=$true;targetDirectlyControllable=$true;targetViewPresent=$true;ownerCommandsEmpty=$true;targetCommandsEmpty=$true;targetBlueprint='e7aa96d15a45238438ae4cfb476f6bb9';targetProfile='Mammoth';ownerResources=$ownerResources;targetResources=$targetResources}
   $caseEvidence|Add-Member -NotePropertyName foreignCompanionBefore -NotePropertyValue $native
   $caseEvidence|Add-Member -NotePropertyName foreignCompanionAfter -NotePropertyValue (Copy-Refused $native)
   $caseEvidence|Add-Member foreignCompanionPreCombat ([pscustomobject]@{frame=($input.before.frame-1);gameTicks=($input.before.gameTicks-1);inCombat=$false;pair=(Copy-Refused $native)})
@@ -86,6 +86,13 @@ foreach($case in @('wrong-creature-target','mount-selected','multiple-selection'
  Reject-Case {param($e)$e.legal.state.geometry.riderPosition.x+=0.01}
 }
 $case='foreign-companion';$baseline=New-RefusalCase $case
+# Native132 had a reciprocal live companion outside the plain Player.Party list.
+Check-Case $baseline $true
+$listed=Copy-Refused $baseline
+foreach($point in @($listed.foreignCompanionBefore,$listed.foreignCompanionAfter,$listed.foreignCompanionPreCombat.pair)){$point.targetInPartyList=$true}
+Check-Case $listed $true
+Reject-Case {param($e)$e.foreignCompanionBefore.membershipSource='plain-party-list';$e.foreignCompanionAfter.membershipSource='plain-party-list'}
+Reject-Case {param($e)$e.foreignCompanionBefore.targetInPartyList='False';$e.foreignCompanionAfter.targetInPartyList='False'}
 Reject-Case {param($e)$e.foreignCompanionPreCombat=$null}
 Reject-Case {param($e)$e.foreignCompanionPreCombat.inCombat=$true}
 Reject-Case {param($e)$e.foreignCompanionPreCombat.frame=$e.legal.frame}
@@ -96,7 +103,7 @@ foreach($field in @('ownerObject','masterObject','ownerPetObject','targetObject'
  Reject-Case {param($e)$e.foreignCompanionBefore.$field=0;$e.foreignCompanionAfter.$field=0}
  Reject-Case {param($e)$e.foreignCompanionBefore.$field=[string]$e.foreignCompanionBefore.$field;$e.foreignCompanionAfter.$field=$e.foreignCompanionBefore.$field}
 }
-foreach($field in @('ownerLiveParty','targetLiveParty','ownerCommandsEmpty','targetCommandsEmpty')){Reject-Case {param($e)$e.foreignCompanionBefore.$field=$false;$e.foreignCompanionAfter.$field=$false}}
+foreach($field in @('ownerLiveParty','targetLiveParty','targetIsInGame','targetDirectlyControllable','targetViewPresent','ownerCommandsEmpty','targetCommandsEmpty')){Reject-Case {param($e)$e.foreignCompanionBefore.$field=$false;$e.foreignCompanionAfter.$field=$false}}
 foreach($field in @('ownerResources','targetResources')){
  Reject-Case {param($e)$e.foreignCompanionBefore.$field.actor='wrong';$e.foreignCompanionAfter.$field.actor='wrong'}
  foreach($resource in @('standard','move','swift','reactions','reactionCooldown','initiativeCooldown','initiativeOrder','reactionsPerRound','nativePrepareCount')){

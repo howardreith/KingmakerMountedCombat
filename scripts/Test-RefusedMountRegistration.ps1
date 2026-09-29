@@ -43,4 +43,8 @@ foreach($file in @('src/KingmakerMountedCombat/Diagnostics/RuntimeProtocol.cs','
 $setup=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk6aCausalEvidence.cs')
 if($setup.IndexOf('CaptureChunk6aForeignPairBeforeCombat();')-lt0-or$setup.IndexOf('CaptureChunk6aForeignPairBeforeCombat();')-ge$setup.IndexOf('BeginTarget(6f, "chunk6a-combat-mount")')){throw 'Foreign pair must be captured before native encounter'};$checks++
 if([regex]::Matches($source,'TryResolveAutomationPair\(').Count-ne1-or$source.IndexOf('TryResolveAutomationPair(')-ge$source.IndexOf('private void TickChunk6aRefusedMount()')){throw 'Exploration resolver leaked into combat refusal'};$checks++
+if(-not$source.Contains('foreignCompanion ? IsLiveReciprocalPartyPet(foreignOwner, other)')-or
+ -not$source.Contains('["targetLiveParty"] = IsLiveReciprocalPartyPet(owner, pet)')-or
+ -not$source.Contains('["targetInPartyList"] = Game.Instance.Player.Party.Contains(pet)')){throw 'Foreign pet must use exact owner membership while preserving its raw list observation'};$checks++
+foreach($required in @('Game.Instance.Player.Party.Contains(owner) && owner.IsInGame','ReferenceEquals(owner.Descriptor.Pet, pet)','ReferenceEquals(pet.Descriptor.Master.Value, owner)','pet.IsInGame && pet.IsDirectlyControllable && pet.View != null')){if(-not$source.Contains($required)){throw 'Foreign live reciprocal membership condition missing'};$checks++}
 Write-Output ('REFUSAL REGISTRATION PASS='+$checks+' FAIL=0; lab source/component contract, not native qualification')

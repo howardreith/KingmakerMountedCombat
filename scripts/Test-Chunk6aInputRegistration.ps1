@@ -1,4 +1,4 @@
-﻿param()
+param()
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
@@ -16,6 +16,7 @@ foreach($case in @(
     @('CM01-mammoth-rt','chunk6a-mammoth-mount-rt',@('CM01-combat-mount-accepted','CM02-approach-arrival')),
     @('CM01-mammoth-tb','chunk6a-mammoth-mount-tb',@('CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')),
     @('CM04-stop-during-approach','chunk6a-stop-approach',@('CM04-stop-during-approach')),
+    @('CM02-ownership-change','chunk6a-ownership-change',@('CM02-ownership-change')),
     @('CM06-hotbar-path','chunk6a-hotbar-approach',@('CM06-hotbar-path')),
     @('CM06-paused-queue','chunk6a-paused-queue',@('CM06-paused-queue')))) {
     $binding=[pscustomobject]@{scenario=$case[1];rows=@($case[2])}

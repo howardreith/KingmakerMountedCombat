@@ -272,7 +272,17 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 var member = rider.Group[index];
                 if (member.IsInCombat)
-                    throw new InvalidOperationException("Diagnostic fixture requires an idle party before encounter setup.");
+                {
+                    var refusal = new JObject { ["actor"] = member.UniqueId, ["group"] = member.GroupId,
+                        ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                        ["playerInCombat"] = Game.Instance.Player.IsInCombat,
+                        ["party"] = new JArray(rider.Group.Select(unit => new JObject {
+                            ["actor"] = unit.UniqueId, ["group"] = unit.GroupId, ["inCombat"] = unit.IsInCombat,
+                            ["commandsEmpty"] = unit.Commands.Empty })) };
+                    observations["fixturePartyAdmissionRefusal"] = refusal;
+                    throw new InvalidOperationException("Diagnostic fixture requires an idle party before encounter setup: " +
+                        refusal.ToString(Newtonsoft.Json.Formatting.None));
+                }
                 if (member != rider && member != horse) allocationFixtureParty.Add(member);
             }
             observations["fixturePartyCapturedIdle"] = new JArray(allocationFixtureParty.Select(member => member.UniqueId));
