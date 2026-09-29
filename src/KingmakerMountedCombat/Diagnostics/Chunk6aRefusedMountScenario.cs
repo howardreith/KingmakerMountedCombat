@@ -15,13 +15,13 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal static bool IsChunk6aRefusedScenario(string scenario) =>
-            scenario == "chunk6a-refused-foreign-companion" || scenario == "chunk6a-refused-wrong-creature-target" || scenario == "chunk6a-refused-mount-selected" ||
+            scenario == "chunk6a-refused-policy-disabled" || scenario == "chunk6a-refused-foreign-companion" || scenario == "chunk6a-refused-wrong-creature-target" || scenario == "chunk6a-refused-mount-selected" ||
             scenario == "chunk6a-refused-multiple-selection" || scenario == "chunk6a-refused-foreign-selection";
         private bool Chunk6aRefusedOnly => IsChunk6aRefusedScenario(request.Scenario);
         private NativeRefusedMountInputProbe chunk6aRefusalProbe;
         private bool chunk6aRefusalInvoked;
         private string Chunk6aRefusalCase => request.Scenario.Substring("chunk6a-refused-".Length);
-        private string Chunk6aRefusalRow => Chunk6aRefusalCase == "foreign-companion" ? "CM02-foreign-companion" : Chunk6aRefusalCase == "wrong-creature-target" ? "CM02-wrong-creature-target" : "CM06-" + Chunk6aRefusalCase;
+        private string Chunk6aRefusalRow => Chunk6aRefusalCase == "policy-disabled" ? "CM06-combat-mount-requires-qualified-paired-policy" : Chunk6aRefusalCase == "foreign-companion" ? "CM02-foreign-companion" : Chunk6aRefusalCase == "wrong-creature-target" ? "CM02-wrong-creature-target" : "CM06-" + Chunk6aRefusalCase;
         private void TickChunk6aRefusedMount()
         {
             if (!Chunk6aRefusedOnly || Chunk6aTurnBased || chunk6aRefusalInvoked)
@@ -63,7 +63,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["state"] = CaptureChunk6aCausalState()
             };
             var name = Chunk6aRefusalCase; var target = horse; UnitEntityData[] expected;
-            if (name == "wrong-creature-target" || foreignCompanion) { expected = new[] { rider }; target = other; }
+            if (name == "policy-disabled") { expected = new[] { rider }; BeginChunk6aRefusalPolicy(); }
+            else if (name == "wrong-creature-target" || foreignCompanion) { expected = new[] { rider }; target = other; }
             else if (name == "mount-selected") { manager.SelectUnit(horse.View, true, true, false); expected = new[] { horse }; }
             else if (name == "multiple-selection") { manager.SelectUnit(horse.View, false, true, false); expected = new[] { rider, horse }; }
             else { manager.SelectUnit(other.View, true, true, false); expected = new[] { other }; }
@@ -102,6 +103,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var input = chunk6aRefusalProbe.Capture(); evidence["input"] = input;
             condition["state"] = input["before"]["state"].DeepClone();
             chunk6aRefusalProbe.Dispose(); chunk6aRefusalProbe = null;
+            if (name == "policy-disabled") CompleteChunk6aRefusalPolicy(evidence);
             if (foreignCompanion) evidence["foreignCompanionAfter"] = CaptureChunk6aForeignCompanion(foreignOwner, other);
             string failure = null;
             try { NativeRefusedMountCaseEvidence.AssertComplete(evidence); }
@@ -127,6 +129,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (chunk6aRefusalProbe != null) observations["chunk6aRefusedMountInputAtCleanup"] = chunk6aRefusalProbe.Capture();
             chunk6aRefusalProbe?.Dispose(); chunk6aRefusalProbe = null;
+            CleanupChunk6aRefusalPolicy();
         }
     }
 }

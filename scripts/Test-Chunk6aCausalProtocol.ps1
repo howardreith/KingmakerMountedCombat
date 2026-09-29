@@ -157,6 +157,11 @@ function New-ActingSetupCase {
         before=$before;after=$after;admittedCommand=$command;terminalCommand=$terminal;createdByPlayer=$true
         displacement=0.6;residual=0.01;placementTolerance=0.06;traceComplete=$true
         events=@(@{boundary='admission-after';turn=501;command=401;commandActor='rider'})}
+    $before.frame=100
+    $setup.destination=@{x=1.0;y=2.0;z=3.0}
+    $setup.nativeGroundInput=@{contract='native-ground-input-with-one-precise-setup-command';methodToken='060093DB';directionToken='060093D9';constructorToken='060026FF'
+        callbackCount=1;actorId='rider';selectedIds=@('rider');commandObject=401;createdByPlayer=$true;frame=100
+        approachRadius=0.03;terminalApproachRadius=0.03;agentApproachRadius=0.03;targetPoint=@{x=1.0;y=2.0;z=3.0}}
     Copy-Value @{setup=$setup;proof=$p}
 }
 Test-Case 'native TB setup carries debt on the exact rider turn into a valid Mount proof' {
@@ -206,6 +211,26 @@ function New-TbCompensationEnvelope {
     $a.rows+=@{name='CM01-combat-mount-preparing-refused';status='PASS'}
     return $a
 }
+foreach($version in @('0.1.0-chunk6a-preview.130','invalid','')){
+ Test-Case ('current TB requires exact precise native input '+$version){
+  $a=New-TbCompensationEnvelope;Put-Value $a productVersion $version
+  $a.observations.chunk6aNativeActingSetup.PSObject.Properties.Remove('nativeGroundInput')
+  Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'} 'input contract absent'
+ }
+}
+Test-Case 'historical129 native setup remains under original strict arrival gate' {
+ $a=New-TbCompensationEnvelope;Put-Value $a productVersion '0.1.0-chunk6a-preview.129'
+ $a.observations.chunk6aNativeActingSetup.PSObject.Properties.Remove('nativeGroundInput')
+ Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'
+ $a.observations.chunk6aNativeActingSetup.residual=0.285911083
+ Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'} 'native ground destination'
+}
+Test-Case 'historical129 validates a supplied precise setup block' {
+ $a=New-TbCompensationEnvelope;Put-Value $a productVersion '0.1.0-chunk6a-preview.129'
+ $a.observations.chunk6aNativeActingSetup.nativeGroundInput.approachRadius=0.3
+ Reject {Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-adoption-compensation-tb'}) $a 'PASS'} 'arrival radius differs'
+}
+
 foreach($version in @('0.1.0-chunk6a-preview.124','0.1.0-chunk6a-preview.125')){
  Test-Case ('historical TB setup retains its original proof schema '+$version){
   $a=New-TbCompensationEnvelope;Put-Value $a productVersion $version

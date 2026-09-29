@@ -2,8 +2,8 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $checks=0
-$rows=@('CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM02-foreign-companion')
-$cases=@('wrong-creature-target','mount-selected','multiple-selection','foreign-selection','foreign-companion')
+$rows=@('CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM02-foreign-companion','CM06-combat-mount-requires-qualified-paired-policy')
+$cases=@('wrong-creature-target','mount-selected','multiple-selection','foreign-selection','foreign-companion','policy-disabled')
 $tokens=$null;$errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1'),[ref]$tokens,[ref]$errors)
 if($errors.Count -ne 0){throw $errors[0]}

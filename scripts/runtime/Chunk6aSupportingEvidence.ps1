@@ -1,3 +1,4 @@
+. (Join-Path $PSScriptRoot 'AreaRegressionProjectionEvidence.ps1')
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 
 . (Join-Path $PSScriptRoot 'LegacyCombatProjectionEvidence.ps1')
@@ -13,9 +14,12 @@ function Get-KmcBoundJson([string]$Path,[string]$ExpectedSha256) {
 function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     $run=[string]$Binding.runId
     if($run -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid supporting run ID.' }
+    $area=[string]$Binding.scenario -ceq 'chunk4-area-cleanup'
     $legacy=[string]$Binding.scenario -ceq 'mounted-mammoth-primary-hit-tb'
     if($legacy) {
         if([string]$Binding.evidenceLeaf -cne 'combat-scenario-evidence.jsonl' -or @($Binding.rows).Count -ne 1 -or [string]$Binding.rows[0] -cne 'mounted-mammoth-primary-hit-tb') { throw 'Legacy Mammoth requires its exact scenario, JSONL leaf and row.' }
+    } elseif($area) {
+        if($Binding.evidenceLeaf-cne'boundary-scenario-evidence.jsonl'-or@($Binding.rows).Count-ne1-or$Binding.rows[0]-cne'native-area-clean-dismount'){throw 'Area requires exact scenario, JSONL and native row'}
     } elseif([string]$Binding.evidenceLeaf -cnotmatch '^[A-Za-z0-9._-]+\.json$') { throw 'Evidence must name one JSON leaf.' }
     $root=Join-Path $LabRoot ('runtime-evidence/'+$run)
     $result=Get-KmcBoundJson (Join-Path $root 'runtime-result.json') $Binding.resultSha256
@@ -23,7 +27,7 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $Binding.requestSha256
     $orchestration=Get-KmcBoundJson (Join-Path $root 'orchestration.json') $Binding.orchestrationSha256
     $transaction=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-state/run-transactions/'+$run+'.json')) $Binding.transactionSha256
-    $artifact=if($legacy){Get-KmcLegacyCombatProjection $Binding $request $game $result $root}else{Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256}
+    $artifact=if($legacy){Get-KmcLegacyCombatProjection $Binding $request $game $result $root}elseif($area){Get-KmcAreaRegressionProjection $Binding $request $game $result $root}else{Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256}
     foreach($item in @($result,$game,$request)) {
         if([string]$item.runId -cne $run -or [string]$item.scenario -cne [string]$Binding.scenario) { throw 'Supporting run or scenario differs.' }
         if([string]$item.commit -cne [string]$Payload.commit -or [string]$item.branch -cne [string]$Payload.branch -or
@@ -127,7 +131,7 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
     if($RunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid supporting run ID.' }
     $root=Join-Path $LabRoot ('runtime-evidence/'+$RunId)
     $result=Get-Content -Raw (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
-    $leaf=if($result.scenario -ceq 'mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'}
+    $leaf=if($result.scenario -ceq 'chunk4-area-cleanup'){'boundary-scenario-evidence.jsonl'}elseif($result.scenario -ceq 'mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'}
     $binding=[ordered]@{role=$Role;runId=$RunId;scenario=$result.scenario;passCount=$result.assertionPassCount;failCount=$result.assertionFailCount;
         rows=$Rows;evidenceLeaf=$leaf}
     foreach($pair in @(@('resultSha256','runtime-result.json'),@('gameResultSha256','runtime-game-result.json'),
@@ -135,7 +139,7 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
         $binding[$pair[0]]=(Get-FileHash -LiteralPath (Join-Path $root $pair[1]) -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     $binding['transactionSha256']=(Get-FileHash -LiteralPath (Join-Path $LabRoot ('runtime-state/run-transactions/'+$RunId+'.json')) -Algorithm SHA256).Hash.ToLowerInvariant()
-    if($result.scenario -ceq 'mounted-mammoth-primary-hit-tb') {
+    if($result.scenario -cin @('mounted-mammoth-primary-hit-tb','chunk4-area-cleanup')) {
         $binding['artifactManifestSha256']=(Get-FileHash -LiteralPath (Join-Path $root 'runtime-artifacts.json')).Hash.ToLowerInvariant()
     }
     if($result.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb')) {
@@ -149,11 +153,13 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM08-mounted-mammoth-primary-hit-tb'=@('mounted-mammoth-primary-hit-tb','mounted-mammoth-primary-hit-tb')
         'CM01-mammoth-rt'=@('chunk6a-mammoth-mount-rt','CM01-combat-mount-accepted','CM02-approach-arrival')
         'CM01-mammoth-tb'=@('chunk6a-mammoth-mount-tb','CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')
+        'CM04-command-replacement'=@('chunk6a-command-replacement','CM04-command-replacement')
         'CM04-stop-during-approach'=@('chunk6a-stop-approach','CM04-stop-during-approach')
         'CM06-hotbar-path'=@('chunk6a-hotbar-approach','CM06-hotbar-path')
         'CM03-rider-before-mount-slot'=@('chunk6a-allocation-rider-first-tb','CM03-rider-before-mount-slot','CM03-next-round-activation')
         'CM03-mount-slot-before-rider'=@('chunk6a-allocation-mount-first-tb','CM03-mount-slot-before-rider','CM03-next-round-activation')
         'CM06-paused-queue'=@('chunk6a-paused-queue','CM06-paused-queue')
+        'CM06-combat-mount-requires-qualified-paired-policy'=@('chunk6a-refused-policy-disabled','CM06-combat-mount-requires-qualified-paired-policy')
         'CM02-foreign-companion'=@('chunk6a-refused-foreign-companion','CM02-foreign-companion')
         'CM02-wrong-creature-target'=@('chunk6a-refused-wrong-creature-target','CM02-wrong-creature-target')
         'CM06-mount-selected'=@('chunk6a-refused-mount-selected','CM06-mount-selected')

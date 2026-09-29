@@ -8,6 +8,7 @@ function New-RefusalCase([string]$Case) {
  $input=Copy-Refused $p
  $reason='Select the exact prospective rider.';$target='mount';$targetObject=202
  switch($Case){
+  'policy-disabled'{$selected=@('rider');$objects=@(201);$row='CM06-combat-mount-requires-qualified-paired-policy';$reason='Mounting during combat requires paired activation to be enabled.'}
   'foreign-companion'{$selected=@('rider');$objects=@(201);$target='other';$targetObject=203;$row='CM02-foreign-companion';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'wrong-creature-target'{$selected=@('rider');$objects=@(201);$target='other';$targetObject=203;$row='CM02-wrong-creature-target';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'mount-selected'{$selected=@('mount');$objects=@(202);$row='CM06-mount-selected'}
@@ -31,6 +32,22 @@ function New-RefusalCase([string]$Case) {
   $caseEvidence|Add-Member -NotePropertyName foreignCompanionBefore -NotePropertyValue $native
   $caseEvidence|Add-Member -NotePropertyName foreignCompanionAfter -NotePropertyValue (Copy-Refused $native)
  }
+
+ if($Case-ceq'policy-disabled'){
+  $sample=[pscustomobject]@{frame=$input.before.frame;gameTicks=$input.before.gameTicks;allocationSequence=$input.before.allocationSequence;rider=(Copy-Refused $input.before.state.rider);mount=(Copy-Refused $input.before.state.mount)}
+  foreach($actor in @('rider','mount')){
+   foreach($kv in @(@('actor',$actor),@('actorObject',$(if($actor-ceq'rider'){201}else{202})),@('inCombat',$true),@('grantSequence',1))){
+    $sample.$actor|Add-Member -NotePropertyName $kv[0] -NotePropertyValue $kv[1]
+   }
+  }
+  $resources=[pscustomobject]@{contract='same-allocation-no-command-cost-with-observed-native-time-only';pass=$true;riderId='rider';mountId='mount';turnBased=$false;traceComplete=$true;before=$sample;after=(Copy-Refused $sample);events=@();observerHooks=@(foreach($token in @('0600934A','060093A1','060093A4','06000C3C','0600C3BE','06009120','0600838F','060026B2','06000C37')){[pscustomobject]@{token=$token;moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}})}
+  $policy=[ordered]@{contract='synchronous-paired-policy-disabled-refusal-restored';resources=$resources}
+  foreach($name in @('before','disabled','restored')){
+   $policy[$name]=[pscustomobject]@{frame=$sample.frame;gameTicks=$sample.gameTicks;allocationSequence=$sample.allocationSequence;state=(Copy-Refused $input.before.state);settings=[pscustomobject]@{movement=$true;paired=($name-cne'disabled');unified=$false;scheduler=$false;overlay=$false}}
+  }
+  $caseEvidence|Add-Member -NotePropertyName policy -NotePropertyValue ([pscustomobject]$policy)
+ }
+
  $caseEvidence
 }
 $script:caseChecks=0
@@ -40,7 +57,7 @@ function Check-Case($e,[bool]$expected){
  if($producer -ne $expected -or $external -ne $expected){throw ('Refusal case producer/external differs '+$producer+'/'+$external+' expected '+$expected)}
  $script:caseChecks+=2
 }
-foreach($case in @('wrong-creature-target','mount-selected','multiple-selection','foreign-selection','foreign-companion')){
+foreach($case in @('wrong-creature-target','mount-selected','multiple-selection','foreign-selection','foreign-companion','policy-disabled')){
  $baseline=New-RefusalCase $case
  Check-Case $baseline $true
  function Reject-Case([scriptblock]$Mutate){$e=Copy-Refused $baseline;& $Mutate $e;try{Check-Case $e $false}catch{throw ('Case '+$case+' mutation '+$Mutate.ToString()+' field '+$field+': '+$_)}}
@@ -81,4 +98,27 @@ foreach($field in @('ownerResources','targetResources')){
   Reject-Case {param($e)$e.foreignCompanionBefore.$field.$resource='0';$e.foreignCompanionAfter.$field.$resource='0'}
  }
 }
+
+$case='policy-disabled';$baseline=New-RefusalCase $case
+Check-Case $baseline $true
+foreach($name in @('before','disabled','restored')){
+ foreach($field in @('movement','paired','unified','scheduler','overlay')){
+  Reject-Case {param($e)$e.policy.$name.settings.$field=-not$e.policy.$name.settings.$field}
+  Reject-Case {param($e)$e.policy.$name.settings.$field='False'}
+ }
+ foreach($field in @('frame','gameTicks','allocationSequence')){Reject-Case {param($e)$e.policy.$name.$field++}}
+ foreach($actor in @('rider','mount')){foreach($field in @('standard','move','swift','reactions','reactionCooldown','initiativeCooldown','initiativeOrder','nativePrepareCount')){
+  Reject-Case {param($e)$e.policy.$name.state.$actor.$field++}
+ }}
+ Reject-Case {param($e)$e.policy.$name.state.selectedIds=@('mount')}
+}
+foreach($field in @('riderId','mountId','contract')){Reject-Case {param($e)$e.policy.resources.$field='foreign'}}
+Reject-Case {param($e)$e.policy.resources.traceComplete=$false}
+Reject-Case {param($e)$e.policy.resources.pass=$false}
+Reject-Case {param($e)$e.policy.resources.observerHooks=@()}
+foreach($actor in @('rider','mount')){foreach($field in @('standard','move','swift','reactions','reactionCooldown','initiativeCooldown','initiativeOrder','grantSequence','reactionsPerRound')){
+ Reject-Case {param($e)$e.policy.resources.after.$actor.$field++}
+}}
+
+Reject-Case {param($e)$e.policy.resources.pass='True'}
 Write-Output ('REFUSAL CASE PRODUCER+EXTERNAL PASS='+$script:caseChecks+' FAIL=0; synthetic only, no native qualification')

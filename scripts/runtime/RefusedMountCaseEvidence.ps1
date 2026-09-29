@@ -1,6 +1,8 @@
 ﻿Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'RefusedMountEvidence.ps1')
 . (Join-Path $PSScriptRoot 'ForeignCompanionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativePassiveResourceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'RefusedPolicyEvidence.ps1')
 function Assert-KmcRefusalCase($E) {
  $id=$E.identity;$legal=$E.legal;$n=$E.condition;$p=$E.input
  if($E.contract -cne 'one-native-refused-mount-in-fresh-rt-allocation'){throw 'Wrong refusal case contract'}
@@ -13,7 +15,9 @@ function Assert-KmcRefusalCase($E) {
  else {foreach($field in @('unrelatedIsPet','unrelatedSupportedMount')){if($id.$field -isnot [bool] -or $id.$field -ne $false){throw 'Unrelated actor is not a plain unrelated creature'}}}
  if($id.mountProfile -cne 'Horse'){throw 'Refusal profile differs'}
  $reason='Select the exact prospective rider.';$target=$id.mountId;$targetObject=$id.mountObject
+ if($E.case-ceq'policy-disabled'){Assert-KmcRefusedPolicy $E}
  switch -CaseSensitive ($E.case) {
+  'policy-disabled' {$selection=@($id.riderId);$objects=@($id.riderObject);$row='CM06-combat-mount-requires-qualified-paired-policy';$reason='Mounting during combat requires paired activation to be enabled.'}
   'foreign-companion' {$selection=@($id.riderId);$objects=@($id.riderObject);$target=$id.unrelatedId;$targetObject=$id.unrelatedObject;$row='CM02-foreign-companion';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'wrong-creature-target' {$selection=@($id.riderId);$objects=@($id.riderObject);$target=$id.unrelatedId;$targetObject=$id.unrelatedObject;$row='CM02-wrong-creature-target';$reason="Mount target rejected: click the selected rider's exact active Horse."}
   'mount-selected' {$selection=@($id.mountId);$objects=@($id.mountObject);$row='CM06-mount-selected'}

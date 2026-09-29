@@ -92,10 +92,32 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["placementTolerance"] = MountedCombatSpatialPolicy.DiagnosticPlacementTolerance
                 };
                 observations["chunk6aNativeActingSetup"] = chunk6aActingSetup;
-                ClickGroundHandler.MoveSelectedUnitsToPoint(chunk6aActingSetupDestination, false);
+                UnitMoveTo ownedCommand = null; var callbackCount = 0;
+                ClickGroundHandler.MoveSelectedUnitsToPoint(chunk6aActingSetupDestination,
+                    ClickGroundHandler.GetDefaultDirection(chunk6aActingSetupDestination),
+                    preview: false, showTargetMarker: false, formationSpaceFactor: 1f, ignoreHold: true,
+                    commandRunner: (unit, point, speedLimit, orientation, delay, marker) => {
+                        var selected = Game.Instance.UI.SelectionManager.SelectedUnits;
+                        if (++callbackCount != 1 || unit != rider || selected.Count != 1 || selected[0] != rider ||
+                            !ReferenceEquals(Game.Instance.TurnBasedCombatController.CurrentTurn, turn) ||
+                            Vector3.Distance(point, chunk6aActingSetupDestination) > 0.000001f)
+                            throw new InvalidOperationException("Precise Acting input changed its single rider, native turn or destination.");
+                        ownedCommand = NativeActingGroundInput.Create(point, speedLimit, orientation, delay, marker);
+                        unit.Commands.Run(ownedCommand);
+                        chunk6aActingSetup["nativeGroundInput"] = new JObject {
+                            ["contract"] = "native-ground-input-with-one-precise-setup-command",
+                            ["methodToken"] = "060093DB", ["directionToken"] = "060093D9", ["constructorToken"] = "060026FF",
+                            ["callbackCount"] = callbackCount, ["actorId"] = unit.UniqueId,
+                            ["selectedIds"] = new JArray(selected.Select(actor => actor.UniqueId)),
+                            ["commandObject"] = RuntimeHelpers.GetHashCode(ownedCommand), ["frame"] = Time.frameCount,
+                            ["targetPoint"] = CapturePosition(ownedCommand.Target), ["approachRadius"] = ownedCommand.ApproachRadius,
+                            ["createdByPlayer"] = ownedCommand.CreatedByPlayer
+                        };
+                    });
                 chunk6aActingSetupCommand = rider.Commands.Move as UnitMoveTo;
                 chunk6aActingSetup["admittedCommand"] = CaptureOrdinaryCommand(chunk6aActingSetupCommand);
-                if (chunk6aActingSetupCommand == null || chunk6aActingSetupCommand.Executor != rider ||
+                if (callbackCount != 1 || !ReferenceEquals(ownedCommand, chunk6aActingSetupCommand) ||
+                    chunk6aActingSetupCommand == null || chunk6aActingSetupCommand.Executor != rider ||
                     !chunk6aActingSetupCommand.CreatedByPlayer)
                     throw new InvalidOperationException("Native rider turn setup admitted no exact player ground command: " +
                         chunk6aActingSetup.ToString(Formatting.None));
@@ -114,6 +136,10 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6aActingSetup["displacement"] = HorizontalDistance(chunk6aActingSetupOrigin, rider.Position);
             chunk6aActingSetup["residual"] = HorizontalDistance(chunk6aActingSetupDestination, rider.Position);
             chunk6aActingSetup["sameNativeTurn"] = ReferenceEquals(turn, chunk6aActingSetupTurn);
+            var preciseInput = (JObject)chunk6aActingSetup["nativeGroundInput"];
+            preciseInput["terminalApproachRadius"] = chunk6aActingSetupCommand.ApproachRadius;
+            preciseInput["agentApproachRadius"] = rider.View.AgentASP.ApproachRadius;
+            NativeActingGroundInput.AssertComplete(chunk6aActingSetup);
             if (chunk6aActingSetupCommand.Result != UnitCommand.ResultType.Success || !turn.IsActing ||
                 (float)chunk6aActingSetup["displacement"] <= 0.1f ||
                 (float)chunk6aActingSetup["residual"] > MountedCombatSpatialPolicy.DiagnosticPlacementTolerance)
