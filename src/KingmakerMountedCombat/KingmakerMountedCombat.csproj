@@ -346,6 +346,8 @@
     <Compile Include="Diagnostics\Chunk6aStopApproachScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aReplacementApproachScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aOwnershipChangeScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6aEligibilityChangeScenario.cs" />
+    <Compile Include="Diagnostics\NativePendingMountFear.cs" />
     <Compile Include="Diagnostics\NativeMountReplacementInputProbe.cs" />
     <Compile Include="Diagnostics\NativeMountStopInputProbe.cs" />
     <Compile Include="Diagnostics\Chunk6aHotbarScenario.cs" />

@@ -26,6 +26,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-stop-approach", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-command-replacement", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-ownership-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-size-form-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-lost-direct-control", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-allocation-rider-first-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-allocation-mount-first-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-auto-use-mount-rt", StringComparison.Ordinal) ||
