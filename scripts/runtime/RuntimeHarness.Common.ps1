@@ -6400,14 +6400,14 @@ function Assert-KmcChunk6aCombatMountEvidence {
             throw "PASS Chunk 6A combat-mount evidence requires exactly one PASS row named $name."
         }
     }
-    if (-not ($approachOnly -or $compensationOnly -or $geometryOnly -or $obstructionOnly -or $stopOnly -or $replacementOnly -or $refusalOnly)) {
+    if (-not ($approachOnly -or $compensationOnly -or $geometryOnly -or $obstructionOnly -or $stopOnly -or $replacementOnly -or $ownershipOnly -or $refusalOnly)) {
         Assert-KmcChunk6aFullTransaction $Artifact
     }
     $proofs = @($observations.chunk6aCommandProofs)
     $windows = @('exploration-mount','exploration-dismount')
     if ($compensationOnly) { $windows += 'compensation' }
     elseif ($geometryOnly) { $windows += 'geometry-change-mount' }
-    elseif ($autoUseMountOnly -or $obstructionOnly -or $stopOnly -or $replacementOnly -or $refusalOnly) { } # Each negative command has its own strict process-free proof.
+    elseif ($autoUseMountOnly -or $obstructionOnly -or $stopOnly -or $replacementOnly -or $ownershipOnly -or $refusalOnly) { } # Each negative command has its own strict process-free proof.
     else {
         $windows += 'positive-mount'
         if (-not $approachOnly) {
