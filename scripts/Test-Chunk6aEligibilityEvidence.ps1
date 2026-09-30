@@ -11,6 +11,10 @@ $nativeSizePath=Join-Path $lab 'runtime-evidence/c6a-eligibility136-b-size-form/
 $nativeSizeHash='d24133bb58936006acc45df27a3aa1fc2d6dd372920deb434ed6c036cc326e29'
 if(-not(Test-Path -LiteralPath $nativeSizePath -PathType Leaf)-or(Get-FileHash -Algorithm SHA256 -LiteralPath $nativeSizePath).Hash.ToLowerInvariant()-cne$nativeSizeHash){throw 'Exact preview.136 size/form evidence is missing or changed'}
 $nativeSizeArtifact=Get-Content -Raw -LiteralPath $nativeSizePath|ConvertFrom-Json
+$nativeControlPath=Join-Path $lab 'runtime-evidence/c6a-eligibility137-c-lost-control/phase3d-horse-scenario-evidence.json'
+$nativeControlHash='465279de2109e91163e4c423d540750750ba3044a15d0c8e4e33707ee7383451'
+if(-not(Test-Path -LiteralPath $nativeControlPath -PathType Leaf)-or(Get-FileHash -Algorithm SHA256 -LiteralPath $nativeControlPath).Hash.ToLowerInvariant()-cne$nativeControlHash){throw 'Exact preview.137 lost-control evidence is missing or changed'}
+$nativeControlArtifact=Get-Content -Raw -LiteralPath $nativeControlPath|ConvertFrom-Json
 function New-EligibilityProof([string]$Contract){
  $proof=Copy-Eligibility $artifact.observations.chunk6aObstruction.commandProof;$proof.contract=$Contract;$terminal=$proof.samples[-1]
  $start=Copy-Eligibility $proof.preClick.state.geometry;$geometry=Copy-Eligibility $start
@@ -19,17 +23,17 @@ function New-EligibilityProof([string]$Contract){
  $geometry.horizontalDistance=$length-0.5;$geometry.centerDistance=$length-0.5;$terminal.state.geometry=Copy-Eligibility $geometry
  [pscustomobject]@{proof=$proof;start=$start;geometry=$geometry;terminal=$terminal;trigger=[pscustomobject]@{approachObserved=$true;riderReallyMoving=$true;gameTicks=$terminal.gameTicks;frame=$terminal.frame;commandObject=$proof.identity.commandObject;moveSlotObject=$proof.identity.commandObject;started=$false;acted=$false;finished=$false;geometry=$geometry;riderDisplacement=0.5}}
 }
-function New-Command($Proof,[bool]$Terminal){[pscustomobject]@{id=$Proof.identity.commandObject;type='Kingmaker.UnitLogic.Commands.UnitUseAbility';executor=$Proof.identity.casterId;started=$Terminal;acted=$false;finished=$Terminal;result=$(if($Terminal){$Proof.nativeResult}else{'None'})}}
+function New-Command($Proof,[bool]$Terminal,[bool]$Started){[pscustomobject]@{id=$Proof.identity.commandObject;type='Kingmaker.UnitLogic.Commands.UnitUseAbility';executor=$Proof.identity.casterId;started=$Started;acted=$false;finished=$Terminal;result=$(if($Terminal){$Proof.nativeResult}else{'None'})}}
 
-$sizeBase=New-EligibilityProof 'unacted-native-size-form-change-no-cost-or-transition';$sizeProof=$sizeBase.proof;$sizeCommand=New-Command $sizeProof $false;$buffObject=501
+$sizeBase=New-EligibilityProof 'unacted-native-size-form-change-no-cost-or-transition';$sizeProof=$sizeBase.proof;$sizeCommand=New-Command $sizeProof $false $false;$buffObject=501
 $sizeBefore=[pscustomobject]@{riderId=$sizeProof.identity.casterId;mountId=$sizeProof.identity.targetId;buffName='EnlargePersonBuff';buffGuid='11111111111111111111111111111111';changeUnitSizeComponents=1;buffCount=0;buffObjects=@();riderSize=4;mountSize=5;riderPolymorphObject=0;mountPolymorphObject=0}
 $sizeActive=Copy-Eligibility $sizeBefore;$sizeActive.buffCount=1;$sizeActive.buffObjects=@($buffObject);$sizeActive.riderSize=5
 $sizeCase=[pscustomobject]@{contract='native-size-fact-invalidates-exact-mount-approach';restored=$true;noResidue=$true;stimulusCount=1;removalCount=1;diagnosticInterruptCount=0;
- start=$sizeBase.start;trigger=$sizeBase.trigger;commandProof=$sizeProof;terminal=(New-Command $sizeProof $true);stateBefore=$sizeBefore;stateAfterApplication=(Copy-Eligibility $sizeActive);stateBeforeRemoval=(Copy-Eligibility $sizeActive);stateAfterRestoration=(Copy-Eligibility $sizeBefore);
+ start=$sizeBase.start;trigger=$sizeBase.trigger;commandProof=$sizeProof;terminal=(New-Command $sizeProof $true $true);stateBefore=$sizeBefore;stateAfterApplication=(Copy-Eligibility $sizeActive);stateBeforeRemoval=(Copy-Eligibility $sizeActive);stateAfterRestoration=(Copy-Eligibility $sizeBefore);
  stimulus=[pscustomobject]@{contract='one-authored-enlarge-person-buff-through-native-rulebook';count=1;buffObject=$buffObject;before=(Copy-Eligibility $sizeBefore);after=(Copy-Eligibility $sizeActive);commandBefore=(Copy-Eligibility $sizeCommand);commandAfter=(Copy-Eligibility $sizeCommand);frameBefore=$sizeBase.terminal.frame;frameAfter=$sizeBase.terminal.frame;gameTicksBefore=$sizeBase.terminal.gameTicks;gameTicksAfter=$sizeBase.terminal.gameTicks};
  removal=[pscustomobject]@{contract='remove-only-exact-owned-native-buff-after-command-terminal';count=1;buffObject=$buffObject;frame=$sizeBase.terminal.frame;gameTicks=$sizeBase.terminal.gameTicks;after=(Copy-Eligibility $sizeBefore)}}
 
-$controlBase=New-EligibilityProof 'unacted-native-lost-direct-control-no-cost-or-transition';$controlProof=$controlBase.proof;$controlCommand=New-Command $controlProof $false
+$controlBase=New-EligibilityProof 'unacted-native-lost-direct-control-no-cost-or-transition';$controlProof=$controlBase.proof;$controlCommand=New-Command $controlProof $false $false
 function New-ControlState([bool]$Direct,[bool]$Panicked,[bool]$Frightened){[pscustomobject]@{riderId=$controlProof.identity.casterId;mountId=$controlProof.identity.targetId;directlyControllable=$Direct;inGame=$true;panicked=$Panicked;frightened=$Frightened;frightenedImmune=$false;visibleConsciousEnemies=1;visibleEnemyIds=@('enemy-1')}}
 function New-Lease([string]$Phase){
  $immediate=$Phase-ceq'immediate';$lost=$Phase-ceq'lost'
@@ -42,15 +46,34 @@ $restoreAfter=Copy-Eligibility $restoreBefore;$restoreAfter.panicked=$false;$res
 $fearProbe=[pscustomobject]@{contract='installed-unit-fear-controller-removes-and-restores-direct-control';riderId=$controlProof.identity.casterId;commandObject=$controlProof.identity.commandObject;complete=$true;lossObserved=$true;restorationObserved=$true;lossCount=1;restorationCount=1;errors=@();observerHooks=@([pscustomobject]@{method='Kingmaker.Controllers.Units.UnitFearController.TickOnUnit';token='06009138';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7';prefix='Before';postfix='After'});events=@([pscustomobject]@{ordinal=1;before=$lossBefore;after=$lossAfter;lossTransition=$true;restorationTransition=$false},[pscustomobject]@{ordinal=2;before=$restoreBefore;after=$restoreAfter;lossTransition=$false;restorationTransition=$true})}
 $controlBefore=New-ControlState $true $false $false;$controlImmediate=New-ControlState $true $false $true;$controlLost=New-ControlState $false $true $true;$controlRemoved=New-ControlState $false $true $false;$controlRestored=New-ControlState $true $false $false
 $controlCase=[pscustomobject]@{contract='native-fear-controller-invalidates-exact-mount-approach';restored=$true;noResidue=$true;stimulusCount=1;removalCount=1;diagnosticInterruptCount=0;
- start=$controlBase.start;trigger=$controlBase.trigger;commandProof=$controlProof;terminal=(New-Command $controlProof $true);stateBefore=$controlBefore;stateAtControlLoss=$controlLost;leaseBeforeRemoval=(New-Lease 'lost');leaseAfterRemoval=(New-Lease 'removed');stateAfterFactRemoval=$controlRemoved;fearController=$fearProbe;
+ start=$controlBase.start;trigger=$controlBase.trigger;commandProof=$controlProof;terminal=(New-Command $controlProof $true $false);stateBefore=$controlBefore;stateAtControlLoss=$controlLost;leaseBeforeRemoval=(New-Lease 'lost');leaseAfterRemoval=(New-Lease 'removed');stateAfterFactRemoval=$controlRemoved;fearController=$fearProbe;
  stimulus=[pscustomobject]@{contract='one-owned-native-frightened-fact';count=1;commandBefore=(Copy-Eligibility $controlCommand);lease=(New-Lease 'immediate');immediateState=$controlImmediate;frame=$controlBase.terminal.frame;gameTicks=$controlBase.terminal.gameTicks};
  restoration=[pscustomobject]@{contract='native-fear-controller-restores-control-after-owned-fact-removal';removalCount=1;state=$controlRestored;allocationEvents=@();noCostOrPreparationCallbacks=$true;frame=$controlBase.terminal.frame;gameTicks=$controlBase.terminal.gameTicks}}
 
+function New-IncapacityActor([string]$Id,[int]$Hp,[int]$Constitution,[int]$Damage,[bool]$Conscious){
+ [pscustomobject]@{id=$Id;inState=$true;inGame=$true;directlyControllable=$true;lifeState=$(if($Conscious){'Conscious'}else{'Unconscious'});conscious=$Conscious;dead=$false;finallyDead=$false;damage=$Damage;hitPoints=$Hp;temporaryHitPoints=0;constitution=$Constitution;allowDyingCondition=$true;immortal=$false;essential=$false;mainCharacter=$false}
+}
+function New-IncapacityCase([string]$Kind){
+ $contract='unacted-native-'+$Kind+'-incapacitated-no-cost-or-transition';$base=New-EligibilityProof $contract;$proof=$base.proof
+ $riderBefore=New-IncapacityActor $proof.identity.casterId 100 14 0 $true;$mountBefore=New-IncapacityActor $proof.identity.targetId 12 15 0 $true
+ $before=[pscustomobject]@{rider=$riderBefore;mount=$mountBefore;relationship='Unmounted';generation=$proof.identity.generationAtInit}
+ $after=Copy-Eligibility $before;$subject=$after.$Kind;$subject.lifeState='Unconscious';$subject.conscious=$false;$subject.damage=$(if($Kind-ceq'rider'){102}else{14})
+ $beforeSubject=$before.$Kind;$otherKind=if($Kind-ceq'rider'){'mount'}else{'rider'};$requested=$(if($Kind-ceq'rider'){510}else{70});$nativeDamage=$(if($Kind-ceq'rider'){102}else{14});$ruleObject=$(if($Kind-ceq'rider'){701}else{702})
+ $source=@([pscustomobject]@{type='Kingmaker.Controllers.Units.UnitLifeController';method='SetLifeState';token='06009164';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},[pscustomobject]@{type='Kingmaker.Controllers.Units.UnitLifeController';method='TickOnUnit';token='06009162';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})
+ [pscustomobject]@{contract='native-life-state-invalidates-exact-mount-approach';subjectKind=$Kind;subjectId=$beforeSubject.id;otherId=$before.$otherKind.id;subjectRemainsIncapacitated=$true;externalRestorationRequired=$true;otherActorUnchanged=$true;noResidue=$true;stimulusCount=1;damageDispatchCount=1;diagnosticInterruptCount=0;
+  start=$base.start;trigger=$base.trigger;commandProof=$proof;terminal=(New-Command $proof $true $false);stateBefore=$before;stateAfterDamage=(Copy-Eligibility $after);stateAfterTerminal=(Copy-Eligibility $after);
+  stimulus=[pscustomobject]@{contract='one-native-ruledeal-damage-to-incapacitation-window';subjectKind=$Kind;subjectId=$beforeSubject.id;sourceId='enemy-source';count=1;damageDispatchCount=1;difficulty=0.2;hitPoints=$beforeSubject.hitPoints;constitution=$beforeSubject.constitution;temporaryHitPoints=0;damageBefore=0;desiredDamage=$beforeSubject.hitPoints+1;deathThreshold=$beforeSubject.hitPoints+$beforeSubject.constitution;requestedDamage=$requested;projectedDamage=$nativeDamage;nativeDamage=$nativeDamage;nativeDamageBeforeDifficulty=$requested;ruleObject=$ruleObject;before=(Copy-Eligibility $before);after=(Copy-Eligibility $after);commandBefore=(New-Command $proof $false $false);frameBefore=$base.terminal.frame;frameAfter=$base.terminal.frame;gameTicksBefore=$base.terminal.gameTicks;gameTicksAfter=$base.terminal.gameTicks};
+  nativeLifeEvents=[pscustomobject]@{events=@([pscustomobject]@{kind='native-life-state';actor=$beforeSubject.id;lifeState='Unconscious';detail='Conscious';frame=$base.terminal.frame;gameTicks=$base.terminal.gameTicks;currentActor=$null;commandRunning=$false;standard=0.0;move=0.0;damage=$nativeDamage;nativeSource=$source})}}
+}
+$riderIncapacityCase=New-IncapacityCase 'rider';$mountIncapacityCase=New-IncapacityCase 'mount'
 $script:checks=0
 function Reject-Size([scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $sizeCase;&$Mutate $copy;$rejected=$false;try{Assert-KmcSizeFormChange $copy}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid size/form proof admitted'};$script:checks++}
 function Reject-Control([scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $controlCase;&$Mutate $copy;$rejected=$false;try{Assert-KmcLostDirectControl $copy}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid direct-control proof admitted'};$script:checks++}
+function Reject-Incapacity([string]$Kind,[scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $(if($Kind-ceq'rider'){$riderIncapacityCase}else{$mountIncapacityCase});&$Mutate $copy;$rejected=$false;try{Assert-KmcPendingIncapacity ('chunk6a-'+$Kind+'-incapacitated') $copy $Kind}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid incapacity proof admitted'};$script:checks++}
 Assert-KmcSizeFormChange $sizeCase;$script:checks++
 Assert-KmcLostDirectControl $controlCase;$script:checks++
+Assert-KmcPendingIncapacity 'chunk6a-rider-incapacitated' $riderIncapacityCase 'rider';$script:checks++
+Assert-KmcPendingIncapacity 'chunk6a-mount-incapacitated' $mountIncapacityCase 'mount';$script:checks++
 
 function Assert-Envelope([string]$Scenario,[string]$Row,[string]$Observation,$Case){
  $envelope=Copy-Eligibility $artifact
@@ -61,11 +84,22 @@ function Assert-Envelope([string]$Scenario,[string]$Row,[string]$Observation,$Ca
 }
 Assert-Envelope 'chunk6a-size-form-change' 'CM02-size-form-change' 'chunk6aSizeFormChange' $sizeCase
 Assert-Envelope 'chunk6a-lost-direct-control' 'CM02-lost-direct-control' 'chunk6aLostDirectControl' $controlCase
+Assert-Envelope 'chunk6a-rider-incapacitated' 'CM02-rider-incapacitated' 'chunk6aPendingIncapacity' $riderIncapacityCase
+Assert-Envelope 'chunk6a-mount-incapacitated' 'CM02-mount-incapacitated' 'chunk6aPendingIncapacity' $mountIncapacityCase
 Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-size-form-change'}) $nativeSizeArtifact 'PASS';$script:checks++
+Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-lost-direct-control'}) $nativeControlArtifact 'PASS';$script:checks++
 
 Reject-Size {param($c)$c.commandProof.resourceWindow.reactionResources.pass=$false} 'Reaction resource contract'
 Reject-Size {param($c)$c.terminal.started=$false} 'terminal snapshot'
 Reject-Control {param($c)$c.commandProof.samples[-1].state.rider.reactionCooldown=[double]$c.commandProof.samples[-1].state.rider.reactionCooldown+0.5} 'reaction allowance or cooldown'
+Reject-Control {param($c)$c.terminal.started=$true} 'terminal snapshot'
+Reject-Control {param($c)$c.fearController.events[0].after.commandStarted=$true} 'loss boundary differs'
+Reject-Incapacity 'rider' {param($c)$c.terminal.started=$true} 'terminal snapshot'
+Reject-Incapacity 'mount' {param($c)$c.nativeLifeEvents.events[0].nativeSource[1].token='06000000'} 'source-frame identity differs'
+Reject-Incapacity 'rider' {param($c)$c.stateAfterTerminal.rider.dead=$true} 'nonlethal Unconscious'
+Reject-Incapacity 'mount' {param($c)$c.stimulus.damageDispatchCount=2} 'dispatch count differs'
+Reject-Incapacity 'rider' {param($c)$c.stateAfterTerminal.mount.damage++} 'independent actor'
+Reject-Incapacity 'mount' {param($c)$c.commandProof.resourceWindow.reactionResources.pass=$false} 'Reaction resource contract'
 Reject-Size {param($c)$c.stimulus.after.riderSize=4} 'equal-or-larger'
 Reject-Size {param($c)$c.stimulus.after.changeUnitSizeComponents=2} 'identity differs'
 Reject-Size {param($c)$c.removal.buffObject++} 'exact terminal command'
@@ -77,7 +111,7 @@ Reject-Control {param($c)$c.fearController.events[0].after.commandFinished=$fals
 Reject-Control {param($c)$c.restoration.state.panicked=$true} 'did not restore'
 Reject-Control {param($c)$c.restoration.allocationEvents=@([pscustomobject]@{boundary='cost-before'})} 'native cost'
 
-foreach($case in @(@('CM02-size-form-change','chunk6a-size-form-change'),@('CM02-lost-direct-control','chunk6a-lost-direct-control'))){
+foreach($case in @(@('CM02-size-form-change','chunk6a-size-form-change'),@('CM02-lost-direct-control','chunk6a-lost-direct-control'),@('CM02-rider-incapacitated','chunk6a-rider-incapacitated'),@('CM02-mount-incapacitated','chunk6a-mount-incapacitated'))){
  if(@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_-ceq$case[1]}).Count-ne1){throw 'Eligibility scenario registration missing or duplicate'};$script:checks++
  if(@(Get-KmcPhase3dHorseRuntimeRows|Where-Object {$_-ceq$case[0]}).Count-ne1){throw 'Eligibility row registration missing or duplicate'};$script:checks++
  $binding=[pscustomobject]@{scenario=$case[1];rows=@($case[0]);evidenceLeaf='phase3d-horse-scenario-evidence.json'}
@@ -89,7 +123,7 @@ $dispatchStart=$dispatcherSource.IndexOf('internal static bool IsChunk6aCombatMo
 $dispatchEnd=$dispatcherSource.IndexOf('private bool IsChunk6aCombatMount',$dispatchStart)
 if($dispatchStart-lt0-or$dispatchEnd-le$dispatchStart){throw 'Chunk 6A in-game dispatcher contract is missing'};$script:checks++
 $dispatchBlock=$dispatcherSource.Substring($dispatchStart,$dispatchEnd-$dispatchStart)
-foreach($name in @('Chunk6aSizeFormChangeScenario','Chunk6aLostDirectControlScenario')){
+foreach($name in @('Chunk6aSizeFormChangeScenario','Chunk6aLostDirectControlScenario','Chunk6aRiderIncapacitatedScenario','Chunk6aMountIncapacitatedScenario')){
  if([regex]::Matches($dispatchBlock,[regex]::Escape($name)).Count-ne1){throw "Eligibility in-game dispatcher omitted or duplicated $name"};$script:checks++
 }
 $source=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk6aEligibilityChangeScenario.cs')
@@ -104,6 +138,17 @@ if($controlSource.IndexOf('new NativeFearControlProbe')-gt$controlSource.IndexOf
 $fearSource=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/NativePendingMountFear.cs')
 foreach($forbidden in @('IsPanicked =','Cooldowns.Clear','TurnController.Prepare','EndTurn','StandardAction =','MoveAction =','SwiftAction =')){if($fearSource.Contains($forbidden)){throw "Fear fixture writes forbidden production state: $forbidden"}};$script:checks++
 foreach($pin in @('0x06009138','OnTurnOn','OnTurnOff','UnitCondition.Frightened')){if(-not$fearSource.Contains($pin)){throw "Fear fixture omitted exact native pin: $pin"}};$script:checks++
+$incapacitySource=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk6aPendingIncapacityScenario.cs')
+$incapacityTick=$incapacitySource.Substring($incapacitySource.IndexOf('private void TickChunk6aPendingIncapacity()'),$incapacitySource.IndexOf('private JObject CaptureChunk6aPendingIncapacityState')-$incapacitySource.IndexOf('private void TickChunk6aPendingIncapacity()'))
+$selection=$incapacityTick.IndexOf('EnsureChunk6aRiderSelection(Chunk6aIncapacityRow)');$baseline=$incapacityTick.IndexOf('chunk6aIncapacityOriginal = CaptureChunk6aPendingIncapacityState()');$probe=$incapacityTick.IndexOf('new NativeRelationshipCommandProbe');$click=$incapacityTick.IndexOf('TryNativeAbilityTargetClick')
+if($selection-lt0-or$selection-ge$baseline-or$baseline-ge$probe-or$probe-ge$click){throw 'Pending incapacity selection/baseline/click order differs'};$script:checks++
+$observer=$incapacityTick.IndexOf('new PairedConditionObserver(rider, horse, true)');$damage=$incapacityTick.IndexOf('Rulebook.Trigger(new RuleDealDamage');$finish=$incapacityTick.IndexOf('FinishUnacted(Chunk6aIncapacityProofContract)')
+if($observer-lt0-or$observer-ge$damage-or$damage-ge$finish-or[regex]::Matches($incapacityTick,'Rulebook[.]Trigger[(]new RuleDealDamage').Count-ne1){throw 'Pending incapacity observer/damage/terminal order differs'};$script:checks++
+foreach($pin in @('Chunk6aRiderIncapacitatedScenario','Chunk6aMountIncapacitatedScenario','06009164','06009162','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7','unacted-native-rider-incapacitated-no-cost-or-transition','unacted-native-mount-incapacitated-no-cost-or-transition','externalRestorationRequired','!(bool)terminal["started"]')){if(-not$incapacitySource.Contains($pin)){throw "Pending incapacity source omitted exact pin: $pin"}};$script:checks++
+foreach($forbidden in @('.Damage =','Cooldowns.Clear','TurnController.Prepare','ForceUnitConscious','StandardAction =','MoveAction =','SwiftAction =','.Interrupt(')){if($incapacityTick.Contains($forbidden)){throw "Pending incapacity stimulus writes forbidden state: $forbidden"}};$script:checks++
+$project=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/KingmakerMountedCombat.csproj')
+if([regex]::Matches($project,[regex]::Escape('Diagnostics\Chunk6aPendingIncapacityScenario.cs')).Count-ne1){throw 'Pending incapacity source compile registration missing or duplicate'};$script:checks++
 if((Get-FileHash $original).Hash-cne$originalHash){throw 'Original obstruction artifact changed'}
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $nativeSizePath).Hash.ToLowerInvariant()-cne$nativeSizeHash){throw 'Exact preview.136 size/form evidence changed'}
+if((Get-FileHash -Algorithm SHA256 -LiteralPath $nativeControlPath).Hash.ToLowerInvariant()-cne$nativeControlHash){throw 'Exact preview.137 lost-control evidence changed'}
 Write-Host "ELIGIBILITY PASS=$script:checks FAIL=0; offline contracts and immutable native artifact replay only, no qualification."

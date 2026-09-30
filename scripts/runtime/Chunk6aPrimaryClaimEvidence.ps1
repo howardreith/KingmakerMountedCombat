@@ -24,6 +24,8 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM02-ownership-change','chunk6a-ownership-change',@('CM02-ownership-change')),
   @('CM02-size-form-change','chunk6a-size-form-change',@('CM02-size-form-change')),
   @('CM02-lost-direct-control','chunk6a-lost-direct-control',@('CM02-lost-direct-control')),
+  @('CM02-rider-incapacitated','chunk6a-rider-incapacitated',@('CM02-rider-incapacitated')),
+  @('CM02-mount-incapacitated','chunk6a-mount-incapacitated',@('CM02-mount-incapacitated')),
   @('CM04-stop-during-approach','chunk6a-stop-approach',@('CM04-stop-during-approach')),
   @('CM06-hotbar-path','chunk6a-hotbar-approach',@('CM06-hotbar-path')),
   @('CM06-pointer-target','chunk6a-combat-mount-tb',@('CM02-approach-arrival','CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt')),

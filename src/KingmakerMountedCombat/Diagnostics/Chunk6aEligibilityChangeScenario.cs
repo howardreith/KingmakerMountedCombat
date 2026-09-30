@@ -355,11 +355,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The native fear controller did not restore control after exact Fact removal before the unchanged deadline.");
                 return true;
             }
+            if (CaptureChunk6aPendingIncapacityDeadline()) return true;
             return false;
         }
 
         private void CleanupChunk6aEligibilityChanges()
         {
+            CleanupChunk6aPendingIncapacity();
             if (Chunk6aSizeFormOnly)
             {
                 if (chunk6aSizeBuff != null) { chunk6aSizeBuff.Remove(); chunk6aSizeBuff = null; chunk6aSizeRemovalCount++; }
