@@ -55,6 +55,16 @@ namespace KingmakerMountedCombat.Domain
                 (kind == NativeMountedControlKind.MountCompanion || kind == NativeMountedControlKind.Dismount);
         }
 
+        public static bool IsRepeatedRelationshipRequest(
+            NativeMountedControlKind kind,
+            bool targetSelectionActive,
+            bool ownsUnsettledRelationshipShell)
+        {
+            return targetSelectionActive && ownsUnsettledRelationshipShell &&
+                (kind == NativeMountedControlKind.MountCompanion ||
+                 kind == NativeMountedControlKind.Dismount);
+        }
+
         public static bool IsExpectedPrimaryCaster(
             NativeMountedControlKind kind,
             bool turnBased,

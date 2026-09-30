@@ -845,9 +845,23 @@ namespace KingmakerMountedCombat.Integration
             switch (kind)
             {
                 case NativeMountedControlKind.MountCompanion:
-                    return playerAction.GetNativeMountAvailability(caster);
+                {
+                    var availability = playerAction.GetNativeMountAvailability(caster);
+                    return RefuseRepeatedRelationshipRequest(
+                        NativeMountedControlKind.MountCompanion,
+                        caster,
+                        availability,
+                        "Mount Companion");
+                }
                 case NativeMountedControlKind.Dismount:
-                    return playerAction.GetNativeDismountAvailability(caster);
+                {
+                    var availability = playerAction.GetNativeDismountAvailability(caster);
+                    return RefuseRepeatedRelationshipRequest(
+                        NativeMountedControlKind.Dismount,
+                        caster,
+                        availability,
+                        "Dismount");
+                }
                 case NativeMountedControlKind.RiderPrimary:
                     return combat.GetNativeAbilityAvailability(combat.ResolveRiderPrimaryAction(), caster);
                 case NativeMountedControlKind.MountPrimary:
@@ -857,6 +871,32 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        private NativeMountedControlAvailability RefuseRepeatedRelationshipRequest(
+            NativeMountedControlKind kind,
+            UnitEntityData caster,
+            NativeMountedControlAvailability availability,
+            string controlName)
+        {
+            if (!availability.IsEnabled)
+            {
+                return availability;
+            }
+
+            var moveSlot = caster?.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            if (!NativeMountedControlPolicy.IsRepeatedRelationshipRequest(
+                    kind,
+                    targetSelectionMode,
+                    OwnsUnsettledRelationshipShell(moveSlot)))
+            {
+                return availability;
+            }
+
+            return new NativeMountedControlAvailability(
+                true,
+                false,
+                false,
+                controlName + " already has a pending native relationship command.");
+        }
         internal bool CanTarget(
             NativeMountedControlKind kind,
             UnitEntityData caster,
