@@ -6457,6 +6457,22 @@ function Assert-KmcChunk6aCombatMountEvidence {
         }
     }
     if ($escapeOnly) { $windows += 'disabled-setting-dismount' }
+    $positiveMountDisposition = $null
+    if ($windows -ccontains 'positive-mount') {
+        $dispositionProperty = $observations.PSObject.Properties['chunk6aAdoptionDisposition']
+        if ($null -eq $dispositionProperty -or $null -eq $dispositionProperty.Value -or
+            $dispositionProperty.Value -is [Array] -or $dispositionProperty.Value -is [string]) {
+            throw 'Positive Mount evidence omitted its declared adoption disposition.'
+        }
+        $positiveMountDisposition = [string]$dispositionProperty.Value.disposition
+        if ($turnBased) {
+            if ($positiveMountDisposition -cnotin @('PreparePartnerThisRound','RetainPartnerParticipation')) {
+                throw "Positive Mount evidence declared an unusable turn-based adoption disposition: $positiveMountDisposition"
+            }
+        } elseif ($positiveMountDisposition -cne 'RealTimeOwnership') {
+            throw 'Positive Mount evidence did not declare RealTimeOwnership for its real-time native command.'
+        }
+    }
     if ($proofs.Count -ne $windows.Count) { throw 'Chunk 6A command window count differs from its declared scenario.' }
     foreach ($window in $windows) {
         $found = @($proofs | Where-Object { [string]$_.window -ceq $window })
@@ -6467,7 +6483,7 @@ function Assert-KmcChunk6aCombatMountEvidence {
         if([string]$found[0].identity.abilityGuid -cne $expectedAbility -or [string]$found[0].identity.targetId -cne $expectedTarget){throw 'Named relationship window has the wrong ability or target identity.'}
         $isCombat = -not $window.StartsWith('exploration-')
         $prepares = if ($window -ceq 'positive-mount' -and
-            [string]$observations.chunk6aAdoptionDisposition.disposition -ceq 'PreparePartnerThisRound') { 1 } else { 0 }
+            $positiveMountDisposition -ceq 'PreparePartnerThisRound') { 1 } else { 0 }
         if ($window -ceq 'geometry-change-mount') {
             Assert-KmcRelationshipCommandProof $found[0] $true $false 0 $true ([long]$observations.chunk6aGeometryChange.auxiliaryCommandId) $requiresPredictionEvidence
             Assert-KmcChunk6aGeometryChange $observations.chunk6aGeometryChange $found[0]

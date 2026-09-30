@@ -36,6 +36,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!EnsureChunk6aRiderSelection("CM06-repeated-request"))
                     return;
 
+                var controller = Game.Instance.TurnBasedCombatController;
+                var order = controller == null ? null : controller.SortedUnits.ToList();
+                observations["chunk6aAdoptionDisposition"] = new JObject
+                {
+                    ["disposition"] = chunk6aDisposition.ToString(),
+                    ["refusal"] = chunk6aDispositionRefusal,
+                    ["riderRosterIndex"] = order == null ? -1 : order.IndexOf(rider),
+                    ["mountRosterIndex"] = order == null ? -1 : order.IndexOf(horse)
+                };
                 var start = CaptureChunk6aGeometry("repeated-request-pre-click");
                 if ((bool)start["isAdjacent"])
                     throw new InvalidOperationException("Repeated-request Mount must start outside transition reach.");
