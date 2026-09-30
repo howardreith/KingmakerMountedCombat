@@ -45,6 +45,8 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(scenario, Chunk6aStopApproachScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aReplacementApproachScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aOwnershipChangeScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aSizeFormChangeScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aLostDirectControlScenario, StringComparison.Ordinal) ||
             scenario == Chunk6aPausedQueueScenario ||
             string.Equals(scenario, Chunk6aObstructionScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aGeometryChangeScenario, StringComparison.Ordinal) ||

@@ -78,6 +78,14 @@ foreach($case in @(@('CM02-size-form-change','chunk6a-size-form-change'),@('CM02
  if(-not(Assert-KmcIsolatedScenarioRows $case[0] $binding)){throw 'Eligibility isolated mapping missing'};$script:checks++
  Assert-KmcChunk6aPrimaryClaim $case[0] $binding;$script:checks++
 }
+$dispatcherSource=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk6aCombatMountScenario.cs')
+$dispatchStart=$dispatcherSource.IndexOf('internal static bool IsChunk6aCombatMountScenario')
+$dispatchEnd=$dispatcherSource.IndexOf('private bool IsChunk6aCombatMount',$dispatchStart)
+if($dispatchStart-lt0-or$dispatchEnd-le$dispatchStart){throw 'Chunk 6A in-game dispatcher contract is missing'};$script:checks++
+$dispatchBlock=$dispatcherSource.Substring($dispatchStart,$dispatchEnd-$dispatchStart)
+foreach($name in @('Chunk6aSizeFormChangeScenario','Chunk6aLostDirectControlScenario')){
+ if([regex]::Matches($dispatchBlock,[regex]::Escape($name)).Count-ne1){throw "Eligibility in-game dispatcher omitted or duplicated $name"};$script:checks++
+}
 $source=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Chunk6aEligibilityChangeScenario.cs')
 $sizeSource=$source.Substring($source.IndexOf('private void TickChunk6aSizeFormChange()'),$source.IndexOf('private void TickChunk6aLostDirectControl()')-$source.IndexOf('private void TickChunk6aSizeFormChange()'))
 $controlSource=$source.Substring($source.IndexOf('private void TickChunk6aLostDirectControl()'),$source.IndexOf('private JObject CaptureChunk6aSizeState')-$source.IndexOf('private void TickChunk6aLostDirectControl()'))
