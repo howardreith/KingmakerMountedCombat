@@ -57,6 +57,18 @@ namespace KingmakerMountedCombat.Diagnostics
             return Math.Abs(after - expected) <= tolerance;
         }
 
+        internal static bool IncapacityActionBridge(double before, double entry,
+            double exit, double after, long beforeTicks, long clearTicks,
+            long afterTicks, double tolerance)
+        {
+            if (clearTicks < beforeTicks || afterTicks < clearTicks) return false;
+            var beforeElapsed = (clearTicks - beforeTicks) / (double)TimeSpan.TicksPerSecond;
+            var afterElapsed = (afterTicks - clearTicks) / (double)TimeSpan.TicksPerSecond;
+            return EndpointConserved(before, entry, beforeElapsed, false, tolerance) &&
+                Math.Abs(exit - entry) <= 0.0001 &&
+                EndpointConserved(exit, after, afterElapsed, false, tolerance);
+        }
+
         internal static bool ExactMoveCallback(bool acted, bool inCombat, bool turnBased,
             double timeSinceStart, double beforeMove, double afterMove,
             double beforeStandard, double afterStandard, double beforeSwift, double afterSwift)
@@ -83,6 +95,10 @@ namespace KingmakerMountedCombat.Diagnostics
             InitiativeOrder == other.InitiativeOrder && Math.Abs(Cooldown - other.Cooldown) <= 0.0001 &&
             Math.Abs(InitiativeCooldown - other.InitiativeCooldown) <= 0.0001;
         internal NativeReactionResources Clear() => new NativeReactionResources(Allowance, 0, 0, InitiativeOrder);
+        internal NativeReactionResources ClearInitiativeOnly() =>
+            new NativeReactionResources(Allowance, Cooldown, 0, InitiativeOrder);
+        internal NativeReactionResources LeaveCombat() =>
+            new NativeReactionResources(Allowance, Cooldown, InitiativeCooldown, 0);
         internal NativeReactionResources Prepare(int perRound) => new NativeReactionResources(
             perRound > 0 && Allowance <= perRound ? perRound : Allowance, 0, 0, InitiativeOrder);
         internal NativeReactionResources Tick(double delta, bool turnBased, bool inCombat,

@@ -17,7 +17,8 @@ namespace KingmakerMountedCombat.Diagnostics
             (int)state["reactions"], (double)state["reactionCooldown"],
             (double)state["initiativeCooldown"], (int)state["initiativeOrder"]);
 
-        private JObject EvaluateReactionResources(JArray events, int partnerPreparations)
+        private JObject EvaluateReactionResources(JArray events, int partnerPreparations,
+            string incapacityClearActor = null)
         {
             var failures = new JArray();
             try
@@ -27,8 +28,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     var actorId = actor == "rider" ? rider.UniqueId : mount.UniqueId;
                     var baseline = preClick["state"][actor];
                     var current = ReadReaction(baseline);
-                    var initiative = current.InitiativeOrder;
+                    var expectedInitiativeOrder = current.InitiativeOrder;
                     var perRound = (int)baseline["reactionsPerRound"];
+                    var permitsIncapacityClear = !string.IsNullOrEmpty(incapacityClearActor) &&
+                        actorId == incapacityClearActor;
                     var stack = new Stack<ReactionBoundary>();
                     // Native event sequence is the ordering authority, including equal-clock samples.
                     var timeline = events.OfType<JObject>().Where(e => (string)e["state"]?["actor"] == actorId)
@@ -40,10 +43,29 @@ namespace KingmakerMountedCombat.Diagnostics
                         var value = item.Value;
                         var stateValue = item.IsEvent ? value["state"] : value["state"][actor];
                         var actual = ReadReaction(stateValue);
-                        if (item.Sequence < (int)preClick["allocationSequence"] || item.Sequence > traceEnd ||
-                            actual.InitiativeOrder != initiative || (int)stateValue["reactionsPerRound"] != perRound)
-                            throw new InvalidOperationException(actor + " reaction sequence, initiative ordering or per-round allowance changed.");
                         var boundary = item.IsEvent ? (string)value["boundary"] : "sample";
+                        var expectedOrder = permitsIncapacityClear && boundary == "combat-clear-after"
+                            ? 0 : expectedInitiativeOrder;
+                        if (item.Sequence < (int)preClick["allocationSequence"] || item.Sequence > traceEnd ||
+                            actual.InitiativeOrder != expectedOrder ||
+                            (int)stateValue["reactionsPerRound"] != perRound)
+                            throw new InvalidOperationException(actor +
+                                " reaction sequence, initiative ordering or per-round allowance changed.");
+                        if (permitsIncapacityClear && boundary == "combat-clear-before")
+                        {
+                            if (stack.Count != 0 || !actual.Matches(current))
+                                throw new InvalidOperationException(actor + " native incapacity combat-clear entry changed a resource.");
+                            continue;
+                        }
+                        if (permitsIncapacityClear && boundary == "combat-clear-after")
+                        {
+                            var expectedLeave = current.LeaveCombat();
+                            if (stack.Count != 0 || !actual.Matches(expectedLeave))
+                                throw new InvalidOperationException(actor + " native incapacity combat-clear exit changed more than initiative ordering.");
+                            current = actual;
+                            expectedInitiativeOrder = actual.InitiativeOrder;
+                            continue;
+                        }
                         var kind = boundary.EndsWith("-before", StringComparison.Ordinal) ? boundary.Substring(0, boundary.Length - 7) :
                             boundary.EndsWith("-after", StringComparison.Ordinal) ? boundary.Substring(0, boundary.Length - 6) : null;
                         var nativeResource = kind == "cooldown-tick" || kind == "prepare" || kind == "clear" || kind == "opportunity";
@@ -70,9 +92,14 @@ namespace KingmakerMountedCombat.Diagnostics
                         }
                         else if (kind == "clear")
                         {
-                            if (actor != "mount" || partnerPreparations != 1 || !stack.Any(entry => entry.Kind == "prepare"))
-                                throw new InvalidOperationException("Undeclared reaction cooldown clear.");
-                            expected = actual.Clear();
+                            if (permitsIncapacityClear)
+                                expected = actual.ClearInitiativeOnly();
+                            else
+                            {
+                                if (actor != "mount" || partnerPreparations != 1 || !stack.Any(entry => entry.Kind == "prepare"))
+                                    throw new InvalidOperationException("Undeclared reaction cooldown clear.");
+                                expected = actual.Clear();
+                            }
                         }
                         // The measured Mount/Dismount contract allows no opportunity consumption.
                         // A declined/simulated native attempt may occur only with unchanged resources.
@@ -82,7 +109,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
             catch (Exception exception) { failures.Add(exception.Message); }
-            return new JObject { ["contract"] = ReactionContract, ["pass"] = failures.Count == 0, ["errors"] = failures };
+            return new JObject {
+                ["contract"] = ReactionContract,
+                ["incapacityClearActor"] = incapacityClearActor == null ? JValue.CreateNull() : new JValue(incapacityClearActor),
+                ["pass"] = failures.Count == 0,
+                ["errors"] = failures
+            };
         }
     }
 }
