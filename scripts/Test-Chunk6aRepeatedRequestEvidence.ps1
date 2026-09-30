@@ -60,5 +60,21 @@ Reject-Case {param($c)$c.oneRequest=$false} 'terminal did not contain exactly on
 Reject-Case {param($c)$c.terminalControls.NativeCastRequestCount++} 'terminal did not contain exactly one request'
 Reject-Case {param($c)$c.commandProof.initCount=2} 'exact acted native terminal'
 Reject-Case {param($c)$c.commandProof.exactActedObserved=$false} 'exact acted native terminal'
+$envelope=Copy-Case $artifact
+$envelope.scenario='chunk6a-repeated-mount-request'
+$envelope.rows=@($envelope.rows|Where-Object { $_.name -cin @('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing') })+@([pscustomobject]@{name='CM06-repeated-request';status='PASS';evidence=(Copy-Case $case)})
+$envelope.observations|Add-Member -NotePropertyName chunk6aRepeatedRequest -NotePropertyValue (Copy-Case $case) -Force
+$request=[pscustomobject]@{scenario='chunk6a-repeated-mount-request'}
+Assert-KmcChunk6aCombatMountEvidence $request $envelope 'PASS';$script:checks++
+$missingDisposition=Copy-Case $envelope
+$missingDisposition.observations.PSObject.Properties.Remove('chunk6aAdoptionDisposition')
+$rejected=$false
+try{Assert-KmcChunk6aCombatMountEvidence $request $missingDisposition 'PASS'}catch{if($_.Exception.Message-cne'Positive Mount evidence omitted its declared adoption disposition.'){throw};$rejected=$true}
+if(-not$rejected){throw 'Repeated-request envelope without adoption disposition was admitted'};$script:checks++
+$invalidDisposition=Copy-Case $envelope
+$invalidDisposition.observations.chunk6aAdoptionDisposition.disposition='Unavailable'
+$rejected=$false
+try{Assert-KmcChunk6aCombatMountEvidence $request $invalidDisposition 'PASS'}catch{if($_.Exception.Message-cne'Positive Mount evidence did not declare RealTimeOwnership for its real-time native command.'){throw};$rejected=$true}
+if(-not$rejected){throw 'Repeated-request envelope with invalid RT adoption disposition was admitted'};$script:checks++
 if((Get-FileHash -LiteralPath $original -Algorithm SHA256).Hash-cne$originalHash){throw 'Original artifact changed'}
 Write-Host "REPEATED REQUEST EVIDENCE PASS=$script:checks FAIL=0; synthetic contract only, offline regression, no native qualification."

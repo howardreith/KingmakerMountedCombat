@@ -39,4 +39,9 @@ $scenario=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Di
 foreach($token in @('EnsureChunk6aRiderSelection("CM06-repeated-request")','ApproachObserved','OwnsUnsettledRelationshipShell(command)','TryNativeAbilityTargetClick(','rejectedBeforeSecondCommand','FinishChunk6aCommandWindow("positive-mount"','CM06-repeated-request')){
  if($scenario.IndexOf($token,[StringComparison]::Ordinal)-lt0){throw "Scenario contract missing: $token"};$checks++
 }
+$selectionIndex=$scenario.IndexOf('EnsureChunk6aRiderSelection("CM06-repeated-request")',[StringComparison]::Ordinal)
+$dispositionIndex=$scenario.IndexOf('observations["chunk6aAdoptionDisposition"]',[StringComparison]::Ordinal)
+$baselineIndex=$scenario.IndexOf('CaptureChunk6aGeometry("repeated-request-pre-click")',[StringComparison]::Ordinal)
+$nativeInputIndex=$scenario.IndexOf('BeginChunk6aCommandWindow(nativeControls.MountAbility.AssetGuid)',[StringComparison]::Ordinal)
+if($selectionIndex-lt0-or$dispositionIndex-le$selectionIndex-or$baselineIndex-le$dispositionIndex-or$nativeInputIndex-le$baselineIndex){throw 'Repeated-request adoption and pre-click baseline must follow exact rider selection and precede native input'};$checks++
 Write-Host ("REPEATED REQUEST BINDINGS PASS="+$checks+" FAIL=0")
