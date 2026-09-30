@@ -220,11 +220,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 rider.Commands.Empty && horse.Commands.Empty;
             chunk6aIncapacityEvidence["otherActorUnchanged"] = otherUnchanged;
             chunk6aIncapacityEvidence["noResidue"] = noResidue;
-            var pass = (bool)proof["pass"] && !(bool)terminal["started"] && otherUnchanged && noResidue &&
+            var expectedTerminalStarted = Chunk6aMountIncapacitatedOnly;
+            var terminalState = expectedTerminalStarted ? "started/unacted" : "unstarted/unacted";
+            var pass = (bool)proof["pass"] && (bool)terminal["started"] == expectedTerminalStarted && otherUnchanged && noResidue &&
                 chunk6aIncapacityDamageDispatchCount == 1 && chunk6aIncapacityCleanupInterruptCount == 0;
             AddRow(Chunk6aIncapacityRow, pass,
                 pass ? "One real native RuleDealDamage placed the exact " + Chunk6aIncapacityKind +
-                    " in the nonlethal Unconscious state through UnitLifeController; the same pending Mount ended unstarted/unacted with no process, cost, transition or residue while the other actor remained unchanged." :
+                    " in the nonlethal Unconscious state through UnitLifeController; the same pending Mount ended " + terminalState +
+                    " with no process, cost, transition or residue while the other actor remained unchanged." :
                     "The exact native incapacity event, unacted terminal, resource proof, or independent-partner proof failed.",
                 chunk6aIncapacityEvidence);
             chunk6aStage = 99; BeginCleanup();

@@ -19,6 +19,10 @@ $nativeIncapacityPath=Join-Path $lab 'runtime-evidence/c6a-incapacity138-d-rider
 $nativeIncapacityHash='0d186aa46473ae287704609796cf3520506fc42204efbf14b7cc6aa19045c22e'
 if(-not(Test-Path -LiteralPath $nativeIncapacityPath -PathType Leaf)-or(Get-FileHash -Algorithm SHA256 -LiteralPath $nativeIncapacityPath).Hash.ToLowerInvariant()-cne$nativeIncapacityHash){throw 'Exact preview.138 rider-incapacity failure evidence is missing or changed'}
 $nativeIncapacityArtifact=Get-Content -Raw -LiteralPath $nativeIncapacityPath|ConvertFrom-Json
+$nativeMountIncapacityPath=Join-Path $lab 'runtime-evidence/c6a-incapacity139-e-mount-incapacitated/phase3d-horse-scenario-evidence.json'
+$nativeMountIncapacityHash='af7f83dbb3edf6f7030db8ccd82ff4b1373c15003f42e194901854e429d1bd72'
+if(-not(Test-Path -LiteralPath $nativeMountIncapacityPath -PathType Leaf)-or(Get-FileHash -Algorithm SHA256 -LiteralPath $nativeMountIncapacityPath).Hash.ToLowerInvariant()-cne$nativeMountIncapacityHash){throw 'Exact preview.139 mount-incapacity failure evidence is missing or changed'}
+$nativeMountIncapacityArtifact=Get-Content -Raw -LiteralPath $nativeMountIncapacityPath|ConvertFrom-Json
 function New-EligibilityProof([string]$Contract){
  $proof=Copy-Eligibility $artifact.observations.chunk6aObstruction.commandProof;$proof.contract=$Contract;$terminal=$proof.samples[-1]
  $start=Copy-Eligibility $proof.preClick.state.geometry;$geometry=Copy-Eligibility $start
@@ -112,23 +116,27 @@ function New-IncapacityCase([string]$Kind){
  $lifeEvents=[pscustomobject]@{events=@([pscustomobject]@{kind='native-life-state';actor=$beforeSubject.id;lifeState='Unconscious';detail='Conscious';frame=$base.terminal.frame;gameTicks=$base.terminal.gameTicks;currentActor=$null;commandRunning=$false;standard=$proof.preClick.state.$Kind.standard;move=$proof.preClick.state.$Kind.move;damage=$nativeDamage;nativeSource=$source})}
  Set-SyntheticIncapacityClear $proof $lifeEvents $Kind
  [pscustomobject]@{contract='native-life-state-invalidates-exact-mount-approach';subjectKind=$Kind;subjectId=$beforeSubject.id;otherId=$before.$otherKind.id;subjectRemainsIncapacitated=$true;externalRestorationRequired=$true;otherActorUnchanged=$true;noResidue=$true;stimulusCount=1;damageDispatchCount=1;diagnosticInterruptCount=0;
-  start=$base.start;trigger=$base.trigger;commandProof=$proof;terminal=(New-Command $proof $true $false);stateBefore=$before;stateAfterDamage=(Copy-Eligibility $afterDamage);stateAfterTerminal=(Copy-Eligibility $after);
+  start=$base.start;trigger=$base.trigger;commandProof=$proof;terminal=(New-Command $proof $true ($Kind-ceq'mount'));stateBefore=$before;stateAfterDamage=(Copy-Eligibility $afterDamage);stateAfterTerminal=(Copy-Eligibility $after);
   stimulus=[pscustomobject]@{contract='one-native-ruledeal-damage-to-incapacitation-window';subjectKind=$Kind;subjectId=$beforeSubject.id;sourceId='enemy-source';count=1;damageDispatchCount=1;difficulty=0.2;hitPoints=$beforeSubject.hitPoints;constitution=$beforeSubject.constitution;temporaryHitPoints=0;damageBefore=0;desiredDamage=$beforeSubject.hitPoints+1;deathThreshold=$beforeSubject.hitPoints+$beforeSubject.constitution;requestedDamage=$requested;projectedDamage=$nativeDamage;nativeDamage=$nativeDamage;nativeDamageBeforeDifficulty=$requested;ruleObject=$ruleObject;before=(Copy-Eligibility $before);after=(Copy-Eligibility $afterDamage);commandBefore=(New-Command $proof $false $false);frameBefore=$base.terminal.frame;frameAfter=$base.terminal.frame;gameTicksBefore=$base.terminal.gameTicks;gameTicksAfter=$base.terminal.gameTicks};
   nativeLifeEvents=$lifeEvents}
 }
 $riderIncapacityCase=New-IncapacityCase 'rider';$mountIncapacityCase=New-IncapacityCase 'mount'
 $nativeRiderIncapacityCase=Copy-Eligibility $nativeIncapacityArtifact.observations.chunk6aPendingIncapacity
 Set-IncapacityProducerClaims $nativeRiderIncapacityCase.commandProof $nativeRiderIncapacityCase.nativeLifeEvents 'rider'
+$nativeMountIncapacityCase=Copy-Eligibility $nativeMountIncapacityArtifact.observations.chunk6aPendingIncapacity
+Set-IncapacityProducerClaims $nativeMountIncapacityCase.commandProof $nativeMountIncapacityCase.nativeLifeEvents 'mount'
 $script:checks=0
 function Reject-Size([scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $sizeCase;&$Mutate $copy;$rejected=$false;try{Assert-KmcSizeFormChange $copy}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid size/form proof admitted'};$script:checks++}
 function Reject-Control([scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $controlCase;&$Mutate $copy;$rejected=$false;try{Assert-KmcLostDirectControl $copy}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid direct-control proof admitted'};$script:checks++}
 function Reject-Incapacity([string]$Kind,[scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $(if($Kind-ceq'rider'){$riderIncapacityCase}else{$mountIncapacityCase});&$Mutate $copy;$rejected=$false;try{Assert-KmcPendingIncapacity ('chunk6a-'+$Kind+'-incapacitated') $copy $Kind}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid incapacity proof admitted'};$script:checks++}
 function Reject-NativeIncapacity([scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $nativeRiderIncapacityCase;&$Mutate $copy;$rejected=$false;try{Assert-KmcPendingIncapacity 'chunk6a-rider-incapacitated' $copy 'rider'}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid native incapacity resource proof admitted'};$script:checks++}
+function Reject-NativeMountIncapacity([scriptblock]$Mutate,[string]$Reason){$copy=Copy-Eligibility $nativeMountIncapacityCase;&$Mutate $copy;$rejected=$false;try{Assert-KmcPendingIncapacity 'chunk6a-mount-incapacitated' $copy 'mount'}catch{if($_.Exception.Message.IndexOf($Reason,[StringComparison]::OrdinalIgnoreCase)-lt0){throw};$rejected=$true};if(-not$rejected){throw 'Invalid native mount-incapacity resource proof admitted'};$script:checks++}
 Assert-KmcSizeFormChange $sizeCase;$script:checks++
 Assert-KmcLostDirectControl $controlCase;$script:checks++
 Assert-KmcPendingIncapacity 'chunk6a-rider-incapacitated' $riderIncapacityCase 'rider';$script:checks++
 Assert-KmcPendingIncapacity 'chunk6a-mount-incapacitated' $mountIncapacityCase 'mount';$script:checks++
 Assert-KmcPendingIncapacity 'chunk6a-rider-incapacitated' $nativeRiderIncapacityCase 'rider';$script:checks++
+Assert-KmcPendingIncapacity 'chunk6a-mount-incapacitated' $nativeMountIncapacityCase 'mount';$script:checks++
 
 function Assert-Envelope([string]$Scenario,[string]$Row,[string]$Observation,$Case){
  $envelope=Copy-Eligibility $artifact
@@ -141,6 +149,7 @@ Assert-Envelope 'chunk6a-size-form-change' 'CM02-size-form-change' 'chunk6aSizeF
 Assert-Envelope 'chunk6a-lost-direct-control' 'CM02-lost-direct-control' 'chunk6aLostDirectControl' $controlCase
 Assert-Envelope 'chunk6a-rider-incapacitated' 'CM02-rider-incapacitated' 'chunk6aPendingIncapacity' $riderIncapacityCase
 Assert-Envelope 'chunk6a-mount-incapacitated' 'CM02-mount-incapacitated' 'chunk6aPendingIncapacity' $mountIncapacityCase
+Assert-Envelope 'chunk6a-mount-incapacitated' 'CM02-mount-incapacitated' 'chunk6aPendingIncapacity' $nativeMountIncapacityCase
 Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-size-form-change'}) $nativeSizeArtifact 'PASS';$script:checks++
 Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-lost-direct-control'}) $nativeControlArtifact 'PASS';$script:checks++
 
@@ -151,6 +160,8 @@ Reject-Control {param($c)$c.terminal.started=$true} 'terminal snapshot'
 Reject-Control {param($c)$c.fearController.events[0].after.commandStarted=$true} 'loss boundary differs'
 Reject-Incapacity 'rider' {param($c)$c.terminal.started=$true} 'terminal snapshot'
 Reject-Incapacity 'mount' {param($c)$c.nativeLifeEvents.events[0].nativeSource[1].token='06000000'} 'life event is missing or differs'
+Reject-NativeMountIncapacity {param($c)$c.terminal.started=$false} 'terminal snapshot'
+Reject-NativeMountIncapacity {param($c)$clear=@($c.commandProof.resourceWindow.events|Where-Object {[string]$_.boundary-cmatch'^(clear-|combat-clear)'});$terminal=$c.commandProof.samples[-1];$terminal.allocationSequence=[int]$clear[3].sequence-1;$c.commandProof.resourceWindow.nativeIncapacityClearDisposition.actionBridgeAfterSequence=$terminal.allocationSequence} 'action bridge sequence'
 Reject-Incapacity 'rider' {param($c)$c.stateAfterTerminal.rider.dead=$true} 'nonlethal Unconscious'
 Reject-Incapacity 'mount' {param($c)$c.stimulus.damageDispatchCount=2} 'dispatch count differs'
 Reject-Incapacity 'rider' {param($c)$c.stateAfterTerminal.mount.damage++} 'independent actor'
@@ -210,11 +221,11 @@ $selection=$incapacityTick.IndexOf('EnsureChunk6aRiderSelection(Chunk6aIncapacit
 if($selection-lt0-or$selection-ge$baseline-or$baseline-ge$probe-or$probe-ge$click){throw 'Pending incapacity selection/baseline/click order differs'};$script:checks++
 $observer=$incapacityTick.IndexOf('new PairedConditionObserver(rider, horse, true)');$damage=$incapacityTick.IndexOf('Rulebook.Trigger(new RuleDealDamage');$finish=$incapacityTick.IndexOf('FinishUnacted(Chunk6aIncapacityProofContract, lifeEvents)')
 if($observer-lt0-or$observer-ge$damage-or$damage-ge$finish-or[regex]::Matches($incapacityTick,'Rulebook[.]Trigger[(]new RuleDealDamage').Count-ne1){throw 'Pending incapacity observer/damage/terminal order differs'};$script:checks++
-foreach($pin in @('Chunk6aRiderIncapacitatedScenario','Chunk6aMountIncapacitatedScenario','06009164','06009162','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7','unacted-native-rider-incapacitated-no-cost-or-transition','unacted-native-mount-incapacitated-no-cost-or-transition','FinishUnacted(Chunk6aIncapacityProofContract, lifeEvents)','externalRestorationRequired','!(bool)terminal["started"]')){if(-not$incapacitySource.Contains($pin)){throw "Pending incapacity source omitted exact pin: $pin"}};$script:checks++
+foreach($pin in @('Chunk6aRiderIncapacitatedScenario','Chunk6aMountIncapacitatedScenario','06009164','06009162','07fa1e4d-8618-41b3-9b8d-faa17d3b26f7','unacted-native-rider-incapacitated-no-cost-or-transition','unacted-native-mount-incapacitated-no-cost-or-transition','FinishUnacted(Chunk6aIncapacityProofContract, lifeEvents)','externalRestorationRequired','expectedTerminalStarted = Chunk6aMountIncapacitatedOnly','(bool)terminal["started"] == expectedTerminalStarted')){if(-not$incapacitySource.Contains($pin)){throw "Pending incapacity source omitted exact pin: $pin"}};$script:checks++
 foreach($forbidden in @('.Damage =','Cooldowns.Clear','TurnController.Prepare','ForceUnitConscious','StandardAction =','MoveAction =','SwiftAction =','.Interrupt(')){if($incapacityTick.Contains($forbidden)){throw "Pending incapacity stimulus writes forbidden state: $forbidden"}};$script:checks++
 $unactedSource=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/NativeRelationshipUnactedEvidence.cs')
 $reactionSource=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/NativeRelationshipReactionEvidence.cs')
-foreach($pin in @('native-incapacity-combat-removal-clears-initiative-only','ExactNativeIncapacityLifeEvent','combat-clear-before','clear-before','clear-after','combat-clear-after','IncapacityActionBridge','actionResourcesBridged','noNativeCostOrPreparationCallbacks')){if(-not$unactedSource.Contains($pin)){throw "Unacted incapacity resource proof omitted exact pin: $pin"}};$script:checks++
+foreach($pin in @('native-incapacity-combat-removal-clears-initiative-only','ExactNativeIncapacityLifeEvent','combat-clear-before','clear-before','clear-after','combat-clear-after','IncapacityActionBridge','(int)terminal["allocationSequence"] >= (int)clearEvents[3]["sequence"]','actionResourcesBridged','noNativeCostOrPreparationCallbacks')){if(-not$unactedSource.Contains($pin)){throw "Unacted incapacity resource proof omitted exact pin: $pin"}};$script:checks++
 foreach($pin in @('incapacityClearActor','ClearInitiativeOnly','LeaveCombat','combat-clear-before','combat-clear-after')){if(-not$reactionSource.Contains($pin)){throw "Reaction incapacity resource proof omitted exact pin: $pin"}};$script:checks++
 $project=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/KingmakerMountedCombat.csproj')
 if([regex]::Matches($project,[regex]::Escape('Diagnostics\Chunk6aPendingIncapacityScenario.cs')).Count-ne1){throw 'Pending incapacity source compile registration missing or duplicate'};$script:checks++
@@ -222,4 +233,5 @@ if((Get-FileHash $original).Hash-cne$originalHash){throw 'Original obstruction a
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $nativeSizePath).Hash.ToLowerInvariant()-cne$nativeSizeHash){throw 'Exact preview.136 size/form evidence changed'}
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $nativeControlPath).Hash.ToLowerInvariant()-cne$nativeControlHash){throw 'Exact preview.137 lost-control evidence changed'}
 if((Get-FileHash -Algorithm SHA256 -LiteralPath $nativeIncapacityPath).Hash.ToLowerInvariant()-cne$nativeIncapacityHash){throw 'Exact preview.138 rider-incapacity failure evidence changed'}
+if((Get-FileHash -Algorithm SHA256 -LiteralPath $nativeMountIncapacityPath).Hash.ToLowerInvariant()-cne$nativeMountIncapacityHash){throw 'Exact preview.139 mount-incapacity failure evidence changed'}
 Write-Host "ELIGIBILITY PASS=$script:checks FAIL=0; offline contracts and immutable native artifact replay only, no qualification."

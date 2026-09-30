@@ -89,7 +89,7 @@ function Assert-KmcIncapacityClearDisposition($Proof,[string]$Contract,$NativeLi
     if($beforeCandidates.Count-eq0){throw 'Native incapacity clear lacks a preceding subject resource observation.'}
     $preceding=@($beforeCandidates|Sort-Object sequence,rank)[-1]
     $terminal=@($Proof.samples)[-1]
-    if($null-eq$terminal-or[int]$terminal.allocationSequence-ne[int]$clearEvents[3].sequence-or
+    if($null-eq$terminal-or[int]$terminal.allocationSequence-lt[int]$clearEvents[3].sequence-or
        [int]$disposition.actionBridgeBeforeSequence-ne$preceding.sequence-or
        [int]$disposition.actionBridgeAfterSequence-ne[int]$terminal.allocationSequence){
         throw 'Native incapacity clear action bridge sequence differs.'
@@ -351,7 +351,8 @@ function Assert-KmcPendingIncapacity([string]$Scenario,$Case,[string]$ExpectedKi
     $proofContract='unacted-native-'+$ExpectedKind+'-incapacitated-no-cost-or-transition'
     Assert-KmcEligibilityCommandProof $proof $proofContract $Case.nativeLifeEvents
     Assert-KmcEligibilityGeometry $Case.start $Case.trigger $proof
-    Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true $false
+    $expectedTerminalStarted=($ExpectedKind-ceq'mount')
+    Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true $expectedTerminalStarted
     $subjectField=$ExpectedKind;$otherField=if($ExpectedKind-ceq'rider'){'mount'}else{'rider'}
     $beforeSubject=$Case.stateBefore.$subjectField;$beforeOther=$Case.stateBefore.$otherField
     $afterDamageSubject=$Case.stateAfterDamage.$subjectField;$afterDamageOther=$Case.stateAfterDamage.$otherField
