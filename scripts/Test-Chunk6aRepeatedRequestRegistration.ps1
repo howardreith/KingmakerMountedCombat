@@ -39,6 +39,15 @@ $scenario=[IO.File]::ReadAllText((Join-Path $repo 'src/KingmakerMountedCombat/Di
 foreach($token in @('EnsureChunk6aRiderSelection("CM06-repeated-request")','ApproachObserved','OwnsUnsettledRelationshipShell(command)','TryNativeAbilityTargetClick(','rejectedBeforeSecondCommand','FinishChunk6aCommandWindow("positive-mount"','CM06-repeated-request')){
  if($scenario.IndexOf($token,[StringComparison]::Ordinal)-lt0){throw "Scenario contract missing: $token"};$checks++
 }
+foreach($token in @(
+ 'firstNativeShell["commandObject"] = RuntimeHelpers.GetHashCode(chunk6aCommandWindow.Command);',
+ 'JObject.FromObject(chunk6aRepeatedRequestControlsBefore, JsonSerializer.Create(JsonSettings))',
+ 'JObject.FromObject(controlsBefore, JsonSerializer.Create(JsonSettings))',
+ 'JObject.FromObject(controlsAfter, JsonSerializer.Create(JsonSettings))',
+ 'JObject.FromObject(controlsTerminal, JsonSerializer.Create(JsonSettings))'
+)){
+ if($scenario.IndexOf($token,[StringComparison]::Ordinal)-lt0){throw "Repeated-request exact evidence producer missing: $token"};$checks++
+}
 $selectionIndex=$scenario.IndexOf('EnsureChunk6aRiderSelection("CM06-repeated-request")',[StringComparison]::Ordinal)
 $dispositionIndex=$scenario.IndexOf('observations["chunk6aAdoptionDisposition"]',[StringComparison]::Ordinal)
 $baselineIndex=$scenario.IndexOf('CaptureChunk6aGeometry("repeated-request-pre-click")',[StringComparison]::Ordinal)

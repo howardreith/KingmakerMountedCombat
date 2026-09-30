@@ -7,6 +7,7 @@ using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
@@ -64,7 +65,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["generation"] = chunk6aRepeatedRequestGenerationBefore,
                         ["shellCount"] = chunk6aRepeatedRequestShellsBefore,
                         ["processBindingCount"] = chunk6aRepeatedRequestBindingsBefore,
-                        ["controls"] = JObject.FromObject(chunk6aRepeatedRequestControlsBefore),
+                        ["controls"] = JObject.FromObject(chunk6aRepeatedRequestControlsBefore, JsonSerializer.Create(JsonSettings)),
                         ["ledger"] = chunk6aRepeatedRequestLedgerBefore.DeepClone()
                     }
                 };
@@ -76,8 +77,13 @@ namespace KingmakerMountedCombat.Diagnostics
                     horse,
                     "chunk6a-repeated-request-first-click");
                 chunk6aCommandWindow.ClickCompleted(clicked);
-                chunk6aRepeatedRequestEvidence["firstInput"] =
-                    observations["chunk6a-repeated-request-first-click"]?.DeepClone();
+                var firstInput = observations["chunk6a-repeated-request-first-click"]?.DeepClone() as JObject;
+                var firstNativeShell = firstInput?["nativeShell"] as JObject;
+                if (firstNativeShell != null && chunk6aCommandWindow.Command != null)
+                {
+                    firstNativeShell["commandObject"] = RuntimeHelpers.GetHashCode(chunk6aCommandWindow.Command);
+                }
+                chunk6aRepeatedRequestEvidence["firstInput"] = firstInput;
                 if (!clicked)
                 {
                     FailCurrent("CM06-repeated-request",
@@ -192,8 +198,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["input"] = observations["chunk6a-repeated-request-second-click"]?.DeepClone(),
                     ["before"] = before,
                     ["after"] = after,
-                    ["controlsBefore"] = JObject.FromObject(controlsBefore),
-                    ["controlsAfter"] = JObject.FromObject(controlsAfter),
+                    ["controlsBefore"] = JObject.FromObject(controlsBefore, JsonSerializer.Create(JsonSettings)),
+                    ["controlsAfter"] = JObject.FromObject(controlsAfter, JsonSerializer.Create(JsonSettings)),
                     ["shellCountBefore"] = shellsBefore,
                     ["shellCountAfter"] = nativeControls.NativeRelationshipShellCount,
                     ["processBindingCountBefore"] = bindingsBefore,
@@ -251,7 +257,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var controlsTerminal = nativeControls.CaptureSnapshot();
             chunk6aRepeatedRequestEvidence["commandProof"] = proof;
             chunk6aRepeatedRequestEvidence["terminal"] = terminal;
-            chunk6aRepeatedRequestEvidence["terminalControls"] = JObject.FromObject(controlsTerminal);
+            chunk6aRepeatedRequestEvidence["terminalControls"] = JObject.FromObject(controlsTerminal, JsonSerializer.Create(JsonSettings));
             chunk6aRepeatedRequestEvidence["terminalShellCount"] = nativeControls.NativeRelationshipShellCount;
             chunk6aRepeatedRequestEvidence["terminalProcessBindingCount"] = nativeControls.NativeRelationshipProcessBindingCount;
 
