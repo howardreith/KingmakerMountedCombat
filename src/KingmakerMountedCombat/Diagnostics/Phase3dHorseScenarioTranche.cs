@@ -436,7 +436,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aEligibilityDeadline() && !CaptureChunk6aObstructionDeadline())
+                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aRepeatedRequestDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aEligibilityDeadline() && !CaptureChunk6aObstructionDeadline())
                         FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
@@ -5719,7 +5719,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool TryNativeAbilityTargetClick(
             BlueprintAbility blueprint,
             UnitEntityData clickedTarget,
-            string observationName)
+            string observationName,
+            Func<JObject> afterSetAbilityObservation = null)
         {
             nativeControls.Update();
             var fact = rider.Descriptor.Abilities.GetAbility(blueprint);
@@ -5745,6 +5746,7 @@ namespace KingmakerMountedCombat.Diagnostics
             lastNativeAbilityShell = null;
             var before = nativeControls.CaptureSnapshot();
             handler.SetAbility(data);
+            var afterSetAbility = afterSetAbilityObservation?.Invoke();
             var priority = handler.GetPriority(targetObject, position);
             var resolvedTarget = handler.GetTarget(targetObject, position, data);
             var clicked = handler.OnClick(targetObject, position, 0, false, false);
@@ -5758,7 +5760,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 lastNativeAbilityShell = shell;
             }
-            observations[observationName] = new JObject
+            var inputEvidence = new JObject
             {
                 ["abilityGuid"] = blueprint.AssetGuid,
                 ["clickedTargetId"] = clickedTarget.UniqueId,
@@ -5776,6 +5778,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativePrimaryShellObservation"] = after.LastNativePrimaryShellObservation,
                 ["nativeShell"] = CaptureNativeAbilityShell(shell)
             };
+            if (afterSetAbility != null)
+            {
+                inputEvidence["afterSetAbility"] = afterSetAbility;
+            }
+            observations[observationName] = inputEvidence;
             handler.DropAbility();
             return clicked;
         }

@@ -14,8 +14,40 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native primary intent shell preparation is exact and pair local", PreparesOnlyExactMountedPrimaryShell);
             runner.Run("native controls explain separate-turn primary ownership", ExplainsWrongTurn);
             runner.Run("queued native control cleanup preserves active effects and foreign orders", PendingControlCleanup);
+            runner.Run("native relationship controls refuse a repeated pending request", RefusesRepeatedRelationshipRequest);
         }
 
+        private static void RefusesRepeatedRelationshipRequest()
+        {
+            foreach (var kind in new[]
+            {
+                NativeMountedControlKind.MountCompanion,
+                NativeMountedControlKind.Dismount
+            })
+            {
+                TestRunner.True(
+                    NativeMountedControlPolicy.IsRepeatedRelationshipRequest(kind, true, true),
+                    kind + " admitted a second request while its exact first shell was unsettled.");
+                TestRunner.True(
+                    !NativeMountedControlPolicy.IsRepeatedRelationshipRequest(kind, true, false),
+                    kind + " was refused without an unsettled relationship shell.");
+                TestRunner.True(
+                    !NativeMountedControlPolicy.IsRepeatedRelationshipRequest(kind, false, true),
+                    kind + " invalidated its admitted command outside native target selection.");
+            }
+
+            foreach (var kind in new[]
+            {
+                NativeMountedControlKind.None,
+                NativeMountedControlKind.RiderPrimary,
+                NativeMountedControlKind.MountPrimary
+            })
+            {
+                TestRunner.True(
+                    !NativeMountedControlPolicy.IsRepeatedRelationshipRequest(kind, true, true),
+                    kind + " was incorrectly classified as a relationship request.");
+            }
+        }
         private static void PendingControlCleanup()
         {
             foreach (var kind in new[] { NativeMountedControlKind.MountCompanion, NativeMountedControlKind.Dismount })

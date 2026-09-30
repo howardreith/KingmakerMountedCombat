@@ -593,6 +593,27 @@ Assert-Kmc ($nativeControlsText -match 'private sealed class NativeRelationshipS
     $nativeControlsText -match 'deliveringShell != null &&\s*\r?\n?\s*playerAction\.TryExecuteNativeDismount') `
     'a relationship delivery must own an exact resolved shell and its original relationship generation'
 
+# A second player-facing relationship request is refused from the exact unsettled
+# Move-slot shell. The admitted shell still delivers through the direct transition
+# path, so the UI guard cannot reject its own later Deliver callback.
+$repeatedRequestText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6aRepeatedRequestScenario.cs')
+$repeatGuardBody = [Regex]::Match($nativeControlsText, '(?s)private NativeMountedControlAvailability RefuseRepeatedRelationshipRequest\(.*?\n        \}\r?\n')
+$relationshipDispatchBody = [Regex]::Match($nativeControlsText, '(?s)internal bool TryDispatch\(\s*\r?\n\s*NativeMountedControlKind kind,\s*\r?\n\s*UnitEntityData caster,\s*\r?\n\s*UnitEntityData target,\s*\r?\n\s*AbilityExecutionContext context\).*?\n        \}\r?\n')
+Assert-Kmc ($leasePolicyText -match '(?s)IsRepeatedRelationshipRequest\(.*?targetSelectionActive && ownsUnsettledRelationshipShell &&\s*\r?\n\s*\(kind == NativeMountedControlKind\.MountCompanion \|\|\s*\r?\n\s*kind == NativeMountedControlKind\.Dismount\)' -and
+    $availabilityBody.Value -match 'RefuseRepeatedRelationshipRequest\(\s*\r?\n\s*NativeMountedControlKind\.MountCompanion' -and
+    $availabilityBody.Value -match 'RefuseRepeatedRelationshipRequest\(\s*\r?\n\s*NativeMountedControlKind\.Dismount' -and
+    $repeatGuardBody.Success -and
+    $repeatGuardBody.Value -match 'caster\?\.Commands\?\.GetCommand\(UnitCommand\.CommandType\.Move\)' -and
+    $repeatGuardBody.Value -match 'kind,\s*\r?\n\s*targetSelectionMode,\s*\r?\n\s*OwnsUnsettledRelationshipShell\(moveSlot\)' -and
+    $repeatGuardBody.Value -match 'new NativeMountedControlAvailability\(\s*\r?\n\s*true,\s*\r?\n\s*false,\s*\r?\n\s*false,' -and
+    $repeatGuardBody.Value -match 'already has a pending native relationship command' -and
+    $relationshipDispatchBody.Success -and
+    $relationshipDispatchBody.Value -match 'deliveringShell != null &&\s*\r?\n\s*playerAction\.TryExecuteNativeMount\(caster, target, deliveringShell\.ControlIdentity\)' -and
+    $relationshipDispatchBody.Value -match 'deliveringShell != null &&\s*\r?\n\s*playerAction\.TryExecuteNativeDismount\(caster, deliveringShell\.ControlIdentity\)' -and
+    $relationshipDispatchBody.Value -notmatch 'RefuseRepeatedRelationshipRequest|Evaluate\(' -and
+    $repeatedRequestText -match '(?s)EnsureChunk6aRiderSelection\("CM06-repeated-request"\).*?CaptureChunk6aGeometry\("repeated-request-pre-click"\).*?BeginChunk6aCommandWindow\(nativeControls\.MountAbility\.AssetGuid\).*?chunk6a-repeated-request-first-click' -and
+    $repeatedRequestText -match '(?s)ApproachObserved.*?OwnsUnsettledRelationshipShell\(command\).*?availabilityBeforeSelection.*?chunk6a-repeated-request-second-click.*?availabilityDuringSelection.*?FinishChunk6aCommandWindow\("positive-mount"') `
+    'repeated Mount or Dismount input is refused from the exact unsettled Move shell while that admitted shell retains direct delivery'
 # The Chunk 6A runtime scenario observes native accounting and must never create
 # it: no resource write, no preparation, no turn forcing except the accepted
 # idle-fixture end-turn input, and no direct position or state assignment.
@@ -755,7 +776,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, t
     $positiveFlow.Value -match '(?s)if \(!EnsureChunk6aRiderSelection\("CM02-approach-arrival"\)\) return;.*?chunk6aPreMount = CaptureChunk6aState\("mount-before"\);.*?chunk6aApproachStart = CaptureChunk6aGeometry\("positive-pre-click"\);.*?chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);.*?chunk6aMountClicked = Chunk6aHotbarOnly \? InvokeChunk6aHotbar\(\) : TryNativeAbilityTargetClick') `
     'positive Mount selects and verifies the exact single rider before resource ledger geometry baseline and native input'
 
-Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount \? 31 : Chunk6aCompensationOnly \? 11 : Chunk6aRefusedOnly \? 24 : Chunk6aStopOnly \? 22 : Chunk6aReplacementOnly \? 34 : Chunk6aOwnershipOnly \? 36 : Chunk6aSizeFormOnly \? 38 : Chunk6aLostDirectControlOnly \? 40 : Chunk6aPendingIncapacityOnly \? 43 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
+Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount \? 31 : Chunk6aCompensationOnly \? 11 : Chunk6aRefusedOnly \? 24 : Chunk6aStopOnly \? 22 : Chunk6aReplacementOnly \? 34 : Chunk6aRepeatedRequestOnly \? 45 : Chunk6aOwnershipOnly \? 36 : Chunk6aSizeFormOnly \? 38 : Chunk6aLostDirectControlOnly \? 40 : Chunk6aPendingIncapacityOnly \? 43 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
     $chunk6aScenarioText -match 'if \(!Chunk6aCompensationOnly\) throw' -and
     $positiveFlow.Value -match 'if \(Chunk6aCompensationOnly\) throw' -and
     [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -match 'chunk6aStage = 99;\s*BeginCleanup\(\)' -and
