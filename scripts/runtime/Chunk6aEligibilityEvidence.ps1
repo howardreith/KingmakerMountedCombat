@@ -10,13 +10,12 @@ function Get-KmcEligibilityNumber($Value,[string]$Name) {
     if([double]::IsNaN($number)-or[double]::IsInfinity($number)){throw "Eligibility evidence has nonfinite $Name."}
     return $number
 }
-function Assert-KmcEligibilityCommandSnapshot($Command,$Proof,[bool]$Terminal) {
+function Assert-KmcEligibilityCommandSnapshot($Command,$Proof,[bool]$Terminal,[bool]$ExpectedTerminalStarted) {
     if($null-eq$Command-or-not(Test-KmcExactJsonInteger $Command.id)-or$Command.id-ne$Proof.identity.commandObject-or
        $Command.executor-cne$Proof.identity.casterId-or$Command.type-cne'Kingmaker.UnitLogic.Commands.UnitUseAbility'-or
        $Command.acted-ne$false){throw 'Eligibility command snapshot identifies another request.'}
     if($Terminal){
-        # UnitCommand.End marks this native Interrupt terminal started even though it never acted or acquired a process.
-        if($Command.started-ne$true-or$Command.finished-ne$true-or$Command.result-cne$Proof.nativeResult){throw 'Eligibility terminal snapshot differs from the exact native failure.'}
+        if($Command.started-ne$ExpectedTerminalStarted-or$Command.finished-ne$true-or$Command.result-cne$Proof.nativeResult){throw 'Eligibility terminal snapshot differs from the exact native failure.'}
     } elseif($Command.started-ne$false-or$Command.finished-ne$false-or$Command.result-cne'None'){
         throw 'Eligibility stimulus did not surround the pending native Mount.'
     }
@@ -97,12 +96,12 @@ function Assert-KmcSizeFormChange($Case) {
        $Case.stimulusCount-ne1-or$Case.removalCount-ne1-or$Case.diagnosticInterruptCount-ne0){throw 'Size/form case is undeclared, unrestored, or retained residue.'}
     $proof=$Case.commandProof;Assert-KmcEligibilityCommandProof $proof 'unacted-native-size-form-change-no-cost-or-transition'
     Assert-KmcEligibilityGeometry $Case.start $Case.trigger $proof
-    Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true
+    Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true $true
     $stimulus=$Case.stimulus
     if($stimulus.contract-cne'one-authored-enlarge-person-buff-through-native-rulebook'-or$stimulus.count-ne1-or
        $stimulus.frameAfter-lt$stimulus.frameBefore-or$stimulus.gameTicksAfter-lt$stimulus.gameTicksBefore-or$stimulus.buffObject-eq0){throw 'Size stimulus boundary differs.'}
-    Assert-KmcEligibilityCommandSnapshot $stimulus.commandBefore $proof $false
-    Assert-KmcEligibilityCommandSnapshot $stimulus.commandAfter $proof $false
+    Assert-KmcEligibilityCommandSnapshot $stimulus.commandBefore $proof $false $false
+    Assert-KmcEligibilityCommandSnapshot $stimulus.commandAfter $proof $false $false
     Assert-KmcEligibilitySizeState $Case.stateBefore $proof 'before' 0
     if(-not(Test-KmcEligibilityJsonEqual $Case.stateBefore $stimulus.before)){throw 'Size pre-stimulus state differs from the selected baseline.'}
     Assert-KmcEligibilitySizeState $stimulus.after $proof 'active' ([int]$stimulus.buffObject)
@@ -158,7 +157,7 @@ function Assert-KmcFearController($Probe,$Proof) {
        $before.commandObject-ne$Proof.identity.commandObject-or$before.commandStarted-ne$false-or$before.commandActed-ne$false-or$before.commandFinished-ne$false-or
        $before.commandProcessObject-ne0-or$before.moveSlotObject-ne$Proof.identity.commandObject-or@($before.visibleConsciousEnemies).Count-lt1-or
        $after.conditionActive-ne$true-or$after.panicked-ne$true-or$after.directlyControllable-ne$false-or$after.commandObject-ne$Proof.identity.commandObject-or
-       $after.commandActed-ne$false-or$after.commandFinished-ne$true-or$after.commandResult-cnotin@('Interrupt','Fail')-or$after.commandProcessObject-ne0){throw 'Native fear-controller loss boundary differs.'}
+       $after.commandStarted-ne$false-or$after.commandActed-ne$false-or$after.commandFinished-ne$true-or$after.commandResult-cnotin@('Interrupt','Fail')-or$after.commandProcessObject-ne0){throw 'Native fear-controller loss boundary differs.'}
     $before=$restore[0].before;$after=$restore[0].after
     if($before.conditionActive-ne$false-or$before.panicked-ne$true-or$before.directlyControllable-ne$false-or
        $after.conditionActive-ne$false-or$after.panicked-ne$false-or$after.directlyControllable-ne$true-or$after.commandsEmpty-ne$true-or$after.moveSlotObject-ne0){throw 'Native fear-controller restoration boundary differs.'}
@@ -168,11 +167,11 @@ function Assert-KmcLostDirectControl($Case) {
        $Case.stimulusCount-ne1-or$Case.removalCount-ne1-or$Case.diagnosticInterruptCount-ne0){throw 'Lost-direct-control case is undeclared, unrestored, or retained residue.'}
     $proof=$Case.commandProof;Assert-KmcEligibilityCommandProof $proof 'unacted-native-lost-direct-control-no-cost-or-transition'
     Assert-KmcEligibilityGeometry $Case.start $Case.trigger $proof
-    Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true
+    Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true $false
     Assert-KmcDirectControlState $Case.stateBefore $proof 'before'
     $stimulus=$Case.stimulus
     if($stimulus.contract-cne'one-owned-native-frightened-fact'-or$stimulus.count-ne1-or$stimulus.gameTicks-gt@($proof.samples)[-1].gameTicks){throw 'Native fear stimulus boundary differs.'}
-    Assert-KmcEligibilityCommandSnapshot $stimulus.commandBefore $proof $false
+    Assert-KmcEligibilityCommandSnapshot $stimulus.commandBefore $proof $false $false
     Assert-KmcFearLease $stimulus.lease $proof 'immediate'
     Assert-KmcDirectControlState $stimulus.immediateState $proof 'immediate'
     Assert-KmcDirectControlState $Case.stateAtControlLoss $proof 'lost'
@@ -194,8 +193,87 @@ function Assert-KmcLostDirectControl($Case) {
         if($restoration.state.$field-cne$Case.stateBefore.$field){throw "Direct-control restoration changed owned field: $field."}
     }
 }
-function Assert-KmcEligibilityChange([string]$Scenario,$Case) {
+function Assert-KmcPendingIncapacityActor($State,$Proof,[string]$Kind,[string]$Phase) {
+    $expectedId=if($Kind-ceq'rider'){$Proof.identity.casterId}else{$Proof.identity.targetId}
+    if($State.id-cne$expectedId-or$State.inState-ne$true-or$State.inGame-ne$true-or
+       $State.allowDyingCondition-ne$true-or$State.immortal-ne$false-or$State.essential-ne$false-or$State.mainCharacter-ne$false){throw "Pending incapacity actor identity or policy differs at $Phase."}
+    foreach($field in @('damage','hitPoints','temporaryHitPoints','constitution')){$null=Get-KmcEligibilityNumber $State.$field "$Kind $field at $Phase"}
+    if($State.hitPoints-le0-or$State.constitution-le0-or$State.temporaryHitPoints-lt0-or$State.damage-lt0){throw "Pending incapacity actor stats are invalid at $Phase."}
+    if($Phase-ceq'before'){
+        if($State.lifeState-cne'Conscious'-or$State.conscious-ne$true-or$State.dead-ne$false-or$State.finallyDead-ne$false){throw 'Pending incapacity baseline is not conscious.'}
+    } elseif($State.lifeState-cne'Unconscious'-or$State.conscious-ne$false-or$State.dead-ne$false-or$State.finallyDead-ne$false-or
+             $State.damage-le$State.hitPoints-or$State.damage-ge($State.hitPoints+$State.constitution)){
+        throw 'Native damage did not retain the exact nonlethal Unconscious state.'
+    }
+}
+function Assert-KmcPendingIncapacity([string]$Scenario,$Case,[string]$ExpectedKind) {
+    if($Case.contract-cne'native-life-state-invalidates-exact-mount-approach'-or$Case.subjectKind-cne$ExpectedKind-or
+       $Case.subjectRemainsIncapacitated-ne$true-or$Case.externalRestorationRequired-ne$true-or$Case.otherActorUnchanged-ne$true-or
+       $Case.noResidue-ne$true-or$Case.stimulusCount-ne1-or$Case.damageDispatchCount-ne1-or$Case.diagnosticInterruptCount-ne0){
+        throw 'Pending-Mount incapacity case is undeclared, changed its subject, or retained residue.'
+    }
+    $expectedScenario='chunk6a-'+$ExpectedKind+'-incapacitated'
+    if($Scenario-cne$expectedScenario){throw 'Pending-Mount incapacity scenario and subject differ.'}
+    $proof=$Case.commandProof
+    $proofContract='unacted-native-'+$ExpectedKind+'-incapacitated-no-cost-or-transition'
+    Assert-KmcEligibilityCommandProof $proof $proofContract
+    Assert-KmcEligibilityGeometry $Case.start $Case.trigger $proof
+    Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true $false
+    $subjectField=$ExpectedKind;$otherField=if($ExpectedKind-ceq'rider'){'mount'}else{'rider'}
+    $beforeSubject=$Case.stateBefore.$subjectField;$beforeOther=$Case.stateBefore.$otherField
+    $afterDamageSubject=$Case.stateAfterDamage.$subjectField;$afterDamageOther=$Case.stateAfterDamage.$otherField
+    $terminalSubject=$Case.stateAfterTerminal.$subjectField;$terminalOther=$Case.stateAfterTerminal.$otherField
+    if($Case.stateBefore.relationship-cne'Unmounted'-or$Case.stateAfterDamage.relationship-cne'Unmounted'-or$Case.stateAfterTerminal.relationship-cne'Unmounted'-or
+       $Case.stateBefore.generation-ne$proof.identity.generationAtInit-or$Case.stateAfterDamage.generation-ne$proof.identity.generationAtInit-or
+       $Case.stateAfterTerminal.generation-ne$proof.identity.generationAtInit){throw 'Pending incapacity changed relationship state or generation.'}
+    Assert-KmcPendingIncapacityActor $beforeSubject $proof $subjectField 'before'
+    Assert-KmcPendingIncapacityActor $beforeOther $proof $otherField 'before'
+    Assert-KmcPendingIncapacityActor $afterDamageSubject $proof $subjectField 'after-damage'
+    Assert-KmcPendingIncapacityActor $terminalSubject $proof $subjectField 'terminal'
+    if(-not(Test-KmcEligibilityJsonEqual $beforeOther $afterDamageOther)-or-not(Test-KmcEligibilityJsonEqual $beforeOther $terminalOther)){
+        throw 'Pending incapacity changed the independent actor.'
+    }
+    $stimulus=$Case.stimulus
+    if($stimulus.contract-cne'one-native-ruledeal-damage-to-incapacitation-window'-or$stimulus.subjectKind-cne$ExpectedKind-or
+       $stimulus.subjectId-cne$beforeSubject.id-or$Case.subjectId-cne$beforeSubject.id-or$Case.otherId-cne$beforeOther.id-or
+       [string]::IsNullOrWhiteSpace([string]$stimulus.sourceId)-or$stimulus.sourceId-cin@($beforeSubject.id,$beforeOther.id)-or
+       $stimulus.count-ne1-or$stimulus.damageDispatchCount-ne1-or-not(Test-KmcExactJsonInteger $stimulus.ruleObject)-or$stimulus.ruleObject-eq0){
+        throw 'Native incapacity stimulus identity or dispatch count differs.'
+    }
+    foreach($field in @('difficulty','hitPoints','constitution','temporaryHitPoints','damageBefore','desiredDamage','deathThreshold','requestedDamage','projectedDamage','nativeDamage','nativeDamageBeforeDifficulty')){
+        $null=Get-KmcEligibilityNumber $stimulus.$field "incapacity stimulus $field"
+    }
+    if($stimulus.difficulty-le0-or$stimulus.hitPoints-ne$beforeSubject.hitPoints-or$stimulus.constitution-ne$beforeSubject.constitution-or
+       $stimulus.temporaryHitPoints-ne$beforeSubject.temporaryHitPoints-or$stimulus.damageBefore-ne$beforeSubject.damage-or
+       $stimulus.desiredDamage-ne($stimulus.hitPoints+1)-or$stimulus.deathThreshold-ne($stimulus.hitPoints+$stimulus.constitution)-or
+       $stimulus.requestedDamage-le0-or$stimulus.nativeDamageBeforeDifficulty-ne$stimulus.requestedDamage-or$stimulus.nativeDamage-le0-or
+       $stimulus.projectedDamage-ge$stimulus.deathThreshold-or$stimulus.frameAfter-lt$stimulus.frameBefore-or
+       $stimulus.gameTicksAfter-lt$stimulus.gameTicksBefore-or$stimulus.gameTicksAfter-gt@($proof.samples)[-1].gameTicks){
+        throw 'Native RuleDealDamage did not prove the exact nonlethal window.'
+    }
+    $projected=[double]$stimulus.damageBefore+[double]$stimulus.requestedDamage*[double]$stimulus.difficulty-[double]$stimulus.temporaryHitPoints
+    if([Math]::Abs($projected-[double]$stimulus.projectedDamage)-gt0.001){throw 'Recorded native incapacity projection differs from the declared inputs.'}
+    if(-not(Test-KmcEligibilityJsonEqual $stimulus.before $Case.stateBefore)-or-not(Test-KmcEligibilityJsonEqual $stimulus.after $Case.stateAfterDamage)){
+        throw 'Native incapacity stimulus did not surround the selected life-state baseline.'
+    }
+    Assert-KmcEligibilityCommandSnapshot $stimulus.commandBefore $proof $false $false
+    $events=@($Case.nativeLifeEvents.events)
+    if($events.Count-ne1){throw 'Native incapacity observer event count differs.'}
+    $event=$events[0];$sources=@($event.nativeSource)
+    if($event.kind-cne'native-life-state'-or$event.actor-cne$beforeSubject.id-or$event.detail-cne'Conscious'-or
+       $event.lifeState-cne'Unconscious'-or$event.damage-ne$terminalSubject.damage-or$sources.Count-ne2){
+        throw 'Native incapacitation life-state event differs.'
+    }
+    if($sources[0].type-cne'Kingmaker.Controllers.Units.UnitLifeController'-or$sources[0].method-cne'SetLifeState'-or
+       $sources[0].token-cne'06009164'-or$sources[0].assemblyMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-or
+       $sources[1].type-cne'Kingmaker.Controllers.Units.UnitLifeController'-or$sources[1].method-cne'TickOnUnit'-or
+       $sources[1].token-cne'06009162'-or$sources[1].assemblyMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){
+        throw 'Native incapacitation source-frame identity differs.'
+    }
+}function Assert-KmcEligibilityChange([string]$Scenario,$Case) {
     if($Scenario-ceq'chunk6a-size-form-change'){Assert-KmcSizeFormChange $Case;return}
     if($Scenario-ceq'chunk6a-lost-direct-control'){Assert-KmcLostDirectControl $Case;return}
+    if($Scenario-ceq'chunk6a-rider-incapacitated'){Assert-KmcPendingIncapacity $Scenario $Case 'rider';return}
+    if($Scenario-ceq'chunk6a-mount-incapacitated'){Assert-KmcPendingIncapacity $Scenario $Case 'mount';return}
     throw 'Unknown Chunk 6A eligibility scenario.'
 }
