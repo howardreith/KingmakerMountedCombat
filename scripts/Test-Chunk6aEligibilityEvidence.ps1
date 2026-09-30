@@ -7,6 +7,10 @@ $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'));$lab=[IO.Path]::Get
 function Copy-Eligibility($Value){$Value|ConvertTo-Json -Depth 100|ConvertFrom-Json}
 $original=Join-Path $lab 'runtime-evidence/c6a-envelope-a-obstruction/phase3d-horse-scenario-evidence.json';$originalHash=(Get-FileHash $original).Hash
 $artifact=Get-Content -Raw $original|ConvertFrom-Json
+$nativeSizePath=Join-Path $lab 'runtime-evidence/c6a-eligibility136-b-size-form/phase3d-horse-scenario-evidence.json'
+$nativeSizeHash='d24133bb58936006acc45df27a3aa1fc2d6dd372920deb434ed6c036cc326e29'
+if(-not(Test-Path -LiteralPath $nativeSizePath -PathType Leaf)-or(Get-FileHash -Algorithm SHA256 -LiteralPath $nativeSizePath).Hash.ToLowerInvariant()-cne$nativeSizeHash){throw 'Exact preview.136 size/form evidence is missing or changed'}
+$nativeSizeArtifact=Get-Content -Raw -LiteralPath $nativeSizePath|ConvertFrom-Json
 function New-EligibilityProof([string]$Contract){
  $proof=Copy-Eligibility $artifact.observations.chunk6aObstruction.commandProof;$proof.contract=$Contract;$terminal=$proof.samples[-1]
  $start=Copy-Eligibility $proof.preClick.state.geometry;$geometry=Copy-Eligibility $start
@@ -15,7 +19,7 @@ function New-EligibilityProof([string]$Contract){
  $geometry.horizontalDistance=$length-0.5;$geometry.centerDistance=$length-0.5;$terminal.state.geometry=Copy-Eligibility $geometry
  [pscustomobject]@{proof=$proof;start=$start;geometry=$geometry;terminal=$terminal;trigger=[pscustomobject]@{approachObserved=$true;riderReallyMoving=$true;gameTicks=$terminal.gameTicks;frame=$terminal.frame;commandObject=$proof.identity.commandObject;moveSlotObject=$proof.identity.commandObject;started=$false;acted=$false;finished=$false;geometry=$geometry;riderDisplacement=0.5}}
 }
-function New-Command($Proof,[bool]$Terminal){[pscustomobject]@{id=$Proof.identity.commandObject;type='Kingmaker.UnitLogic.Commands.UnitUseAbility';executor=$Proof.identity.casterId;started=$false;acted=$false;finished=$Terminal;result=$(if($Terminal){$Proof.nativeResult}else{'None'})}}
+function New-Command($Proof,[bool]$Terminal){[pscustomobject]@{id=$Proof.identity.commandObject;type='Kingmaker.UnitLogic.Commands.UnitUseAbility';executor=$Proof.identity.casterId;started=$Terminal;acted=$false;finished=$Terminal;result=$(if($Terminal){$Proof.nativeResult}else{'None'})}}
 
 $sizeBase=New-EligibilityProof 'unacted-native-size-form-change-no-cost-or-transition';$sizeProof=$sizeBase.proof;$sizeCommand=New-Command $sizeProof $false;$buffObject=501
 $sizeBefore=[pscustomobject]@{riderId=$sizeProof.identity.casterId;mountId=$sizeProof.identity.targetId;buffName='EnlargePersonBuff';buffGuid='11111111111111111111111111111111';changeUnitSizeComponents=1;buffCount=0;buffObjects=@();riderSize=4;mountSize=5;riderPolymorphObject=0;mountPolymorphObject=0}
@@ -57,8 +61,10 @@ function Assert-Envelope([string]$Scenario,[string]$Row,[string]$Observation,$Ca
 }
 Assert-Envelope 'chunk6a-size-form-change' 'CM02-size-form-change' 'chunk6aSizeFormChange' $sizeCase
 Assert-Envelope 'chunk6a-lost-direct-control' 'CM02-lost-direct-control' 'chunk6aLostDirectControl' $controlCase
+Assert-KmcChunk6aCombatMountEvidence ([pscustomobject]@{scenario='chunk6a-size-form-change'}) $nativeSizeArtifact 'PASS';$script:checks++
 
 Reject-Size {param($c)$c.commandProof.resourceWindow.reactionResources.pass=$false} 'Reaction resource contract'
+Reject-Size {param($c)$c.terminal.started=$false} 'terminal snapshot'
 Reject-Control {param($c)$c.commandProof.samples[-1].state.rider.reactionCooldown=[double]$c.commandProof.samples[-1].state.rider.reactionCooldown+0.5} 'reaction allowance or cooldown'
 Reject-Size {param($c)$c.stimulus.after.riderSize=4} 'equal-or-larger'
 Reject-Size {param($c)$c.stimulus.after.changeUnitSizeComponents=2} 'identity differs'
@@ -99,4 +105,5 @@ $fearSource=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagno
 foreach($forbidden in @('IsPanicked =','Cooldowns.Clear','TurnController.Prepare','EndTurn','StandardAction =','MoveAction =','SwiftAction =')){if($fearSource.Contains($forbidden)){throw "Fear fixture writes forbidden production state: $forbidden"}};$script:checks++
 foreach($pin in @('0x06009138','OnTurnOn','OnTurnOff','UnitCondition.Frightened')){if(-not$fearSource.Contains($pin)){throw "Fear fixture omitted exact native pin: $pin"}};$script:checks++
 if((Get-FileHash $original).Hash-cne$originalHash){throw 'Original obstruction artifact changed'}
-Write-Host "ELIGIBILITY PASS=$script:checks FAIL=0; synthetic/source contracts only, no native qualification."
+if((Get-FileHash -Algorithm SHA256 -LiteralPath $nativeSizePath).Hash.ToLowerInvariant()-cne$nativeSizeHash){throw 'Exact preview.136 size/form evidence changed'}
+Write-Host "ELIGIBILITY PASS=$script:checks FAIL=0; offline contracts and immutable native artifact replay only, no qualification."

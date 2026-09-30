@@ -15,7 +15,8 @@ function Assert-KmcEligibilityCommandSnapshot($Command,$Proof,[bool]$Terminal) {
        $Command.executor-cne$Proof.identity.casterId-or$Command.type-cne'Kingmaker.UnitLogic.Commands.UnitUseAbility'-or
        $Command.acted-ne$false){throw 'Eligibility command snapshot identifies another request.'}
     if($Terminal){
-        if($Command.started-ne$false-or$Command.finished-ne$true-or$Command.result-cne$Proof.nativeResult){throw 'Eligibility terminal snapshot differs from the exact native failure.'}
+        # UnitCommand.End marks this native Interrupt terminal started even though it never acted or acquired a process.
+        if($Command.started-ne$true-or$Command.finished-ne$true-or$Command.result-cne$Proof.nativeResult){throw 'Eligibility terminal snapshot differs from the exact native failure.'}
     } elseif($Command.started-ne$false-or$Command.finished-ne$false-or$Command.result-cne'None'){
         throw 'Eligibility stimulus did not surround the pending native Mount.'
     }
