@@ -184,7 +184,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (preceding != null) actionBridgeBeforeSequence = preceding.Sequence;
                 if (terminal != null) actionBridgeAfterSequence = (int)terminal["allocationSequence"];
                 actionBridged = preceding != null && terminal != null &&
-                    (int)terminal["allocationSequence"] == (int)clearEvents[3]["sequence"] &&
+                    (int)terminal["allocationSequence"] >= (int)clearEvents[3]["sequence"] &&
                     actionFields.All(field => NativeResourceWindowPolicy.IncapacityActionBridge(
                         (double)preceding.State[field], (double)states[0][field],
                         (double)states[3][field], (double)terminal["state"][subjectKind][field],
