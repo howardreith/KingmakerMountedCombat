@@ -789,12 +789,8 @@ Assert-Kmc ($admissionBody.Value -match 'owner.Group.Any\(member => member.IsInC
     $admissionBody.Value -match '(?s)chunk6aPartyHandoff.*?MountedAlphaAdmissionTimeoutSeconds.*?BeginCleanup\(\); return;.*?BeginMountedAlpha\(\)') `
     'Chunk 6A waits for the whole native party to leave combat before child observer construction'
 $reactionEvidenceText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeRelationshipReactionEvidence.cs')
-Assert-Kmc ($causalProbeText -match 'EvaluateReactionResources\(events, expectedPartnerPreparations\)' -and
-    $causalProbeText -match '\(bool\)reactions\["pass"\] && oneSequence' -and
-    $reactionEvidenceText -match 'native-time-and-declared-partner-preparation-only' -and
-    $reactionEvidenceText -match 'actual.InitiativeOrder != initiative' -and
-    $reactionEvidenceText -match 'actual.Tick\(') `
-    'resourceWindow PASS requires both actors reaction allowance and cooldown proof with separate initiative ordering'
+$resourceIdentityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/RelationshipCommandIdentity.cs')
+Assert-Kmc ($causalProbeText -match 'EvaluateReactionResources\(events, expectedPartnerPreparations\)' -and $causalProbeText -match '\(bool\)reactions\["pass"\] && oneSequence' -and $reactionEvidenceText -match 'native-time-and-declared-partner-preparation-only' -and $reactionEvidenceText -match 'actual.Matches\(current\)' -and $reactionEvidenceText -match 'expectedInitiativeOrder' -and $reactionEvidenceText -match 'actual.InitiativeOrder != expectedOrder' -and $reactionEvidenceText -match 'ClearInitiativeOnly\(' -and $reactionEvidenceText -match 'LeaveCombat\(' -and $reactionEvidenceText -match 'actual.Tick\(' -and $resourceIdentityText -match 'Allowance == other.Allowance &&\s*InitiativeOrder == other.InitiativeOrder' -and $resourceIdentityText -match 'ClearInitiativeOnly\(\) =>\s*new NativeReactionResources\(Allowance, Cooldown, 0, InitiativeOrder\)' -and $resourceIdentityText -match 'LeaveCombat\(\) =>\s*new NativeReactionResources\(Allowance, Cooldown, InitiativeCooldown, 0\)' -and $resourceIdentityText -match 'IncapacityActionBridge\(') 'resourceWindow PASS requires both actors reaction allowance and cooldown proof with separate initiative ordering'
 
 # 4. A native resource the engine is still RESTORING is waited for, never written. The
 # fresh encounter may still be draining native resource debt from its own earlier setup.
@@ -832,7 +828,8 @@ Assert-Kmc ($chunk6aObstruction -match 'AddRow\("CM02-obstruction", pass' -and
     $chunk6aObstruction -match 'Chunk6aDoorSettled\(false\)' -and
     $chunk6aObstruction -notmatch 'SelectionManager.Instance.Stop' -and
     $chunk6aUnacted -match '!Command.IsActed && Command.ExecutionProcess == null' -and
-    $chunk6aUnacted -match 'EvaluateReactionResources\(events, 0\)' -and
+    $chunk6aUnacted -match 'EvaluateReactionResources\(events, 0, incapacityActor\)' -and
+    $chunk6aUnacted -match '!hasClear \|\| incapacityContract && incapacityClearPass' -and
     $chunk6aUnacted -match 'ledger.Properties\(\).All\(p => \(long\)p.Value == 0\)') `
     'native obstruction requires path failure, exact unacted terminal, zero ledger/cost/preparation deltas and reaction proof'
 

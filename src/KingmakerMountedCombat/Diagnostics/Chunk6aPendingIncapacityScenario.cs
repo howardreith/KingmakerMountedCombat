@@ -202,7 +202,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "The native life-state boundary did not contain exactly Conscious-to-Unconscious through SetLifeState and TickOnUnit.");
                 BeginCleanup(); return;
             }
-            var proof = chunk6aCommandWindow.FinishUnacted(Chunk6aIncapacityProofContract);
+            var proof = chunk6aCommandWindow.FinishUnacted(Chunk6aIncapacityProofContract, lifeEvents);
             var terminal = CaptureOrdinaryCommand(command);
             chunk6aIncapacityEvidence["commandProof"] = proof;
             chunk6aIncapacityEvidence["terminal"] = terminal;

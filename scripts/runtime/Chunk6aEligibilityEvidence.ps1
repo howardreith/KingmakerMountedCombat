@@ -20,7 +20,128 @@ function Assert-KmcEligibilityCommandSnapshot($Command,$Proof,[bool]$Terminal,[b
         throw 'Eligibility stimulus did not surround the pending native Mount.'
     }
 }
-function Assert-KmcEligibilityCommandProof($Proof,[string]$Contract) {
+function Test-KmcEligibilityResourceEqual($Left,$Right,[string]$Name) {
+    $first=Get-KmcEligibilityNumber $Left ($Name+' left')
+    $second=Get-KmcEligibilityNumber $Right ($Name+' right')
+    if([Math]::Abs($first-$second)-gt0.0001){return $false}
+    return $true
+}
+function Assert-KmcIncapacityClearDisposition($Proof,[string]$Contract,$NativeLifeEvents) {
+    $subjectId=if($Contract-ceq'unacted-native-rider-incapacitated-no-cost-or-transition'){$Proof.identity.casterId}
+        elseif($Contract-ceq'unacted-native-mount-incapacitated-no-cost-or-transition'){$Proof.identity.targetId}
+        else{throw 'Undeclared incapacity resource contract.'}
+    $subjectKind=if($Contract-ceq'unacted-native-rider-incapacitated-no-cost-or-transition'){'rider'}else{'mount'}
+    $lifeEvents=@($NativeLifeEvents.events)
+    if($lifeEvents.Count-ne1){throw 'Exact native incapacity life event is missing or differs.'}
+    $life=$lifeEvents[0];$sources=@($life.nativeSource)
+    if($life.kind-cne'native-life-state'-or$life.actor-cne$subjectId-or$life.detail-cne'Conscious'-or
+       $life.lifeState-cne'Unconscious'-or$life.commandRunning-ne$false-or$sources.Count-ne2-or
+       $sources[0].type-cne'Kingmaker.Controllers.Units.UnitLifeController'-or$sources[0].method-cne'SetLifeState'-or
+       $sources[0].token-cne'06009164'-or$sources[0].assemblyMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-or
+       $sources[1].type-cne'Kingmaker.Controllers.Units.UnitLifeController'-or$sources[1].method-cne'TickOnUnit'-or
+       $sources[1].token-cne'06009162'-or$sources[1].assemblyMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){
+        throw 'Exact native incapacity life event is missing or differs.'
+    }
+    $window=$Proof.resourceWindow
+    $property=$window.PSObject.Properties['nativeIncapacityClearDisposition']
+    if($null-eq$property-or$null-eq$property.Value){throw 'Native incapacity clear disposition is missing.'}
+    $disposition=$property.Value
+    if($disposition.contract-cne'native-incapacity-combat-removal-clears-initiative-only'-or
+       $disposition.declaredCommandContract-cne$Contract-or$disposition.subjectId-cne$subjectId-or
+       $disposition.lifeEventFrame-ne$life.frame-or$disposition.lifeEventGameTicks-ne$life.gameTicks-or
+       $disposition.pass-ne$true-or@($disposition.errors).Count-ne0-or
+       $disposition.actionResourcesUnchanged-ne$true-or$disposition.actionResourcesBridged-ne$true-or
+       $disposition.reactionResourcesUnchanged-ne$true-or
+       $disposition.initiativeCooldownCleared-ne$true-or$disposition.initiativeOrderCleared-ne$true-or
+       $disposition.preparedCleared-ne$true){
+        throw 'Native incapacity clear disposition is not exact.'
+    }
+    $expected=@('combat-clear-before','clear-before','clear-after','combat-clear-after')
+    $declaredBoundaries=@($disposition.boundaries);$declaredSequences=@($disposition.sequences)
+    if($declaredBoundaries.Count-ne4-or$declaredSequences.Count-ne4){throw 'Native incapacity clear boundary count differs.'}
+    $pairIds=@($Proof.identity.casterId,$Proof.mountId)
+    $clearEvents=@($window.events|Where-Object {
+        $_.state.actor-cin$pairIds-and([string]$_.boundary-cmatch'^(clear-|combat-clear)')
+    })
+    if($clearEvents.Count-ne4){throw 'Native incapacity clear boundary count differs.'}
+    for($i=0;$i-lt4;$i++){
+        $event=$clearEvents[$i]
+        if($declaredBoundaries[$i]-cne$expected[$i]-or$event.boundary-cne$expected[$i]-or
+           $event.state.actor-cne$subjectId-or$declaredSequences[$i]-ne$event.sequence-or
+           ($i-gt0-and$event.sequence-ne($clearEvents[$i-1].sequence+1))){
+            throw 'Native incapacity clear actor, order, or sequence differs.'
+        }
+        if($event.frame-ne$life.frame-or$event.gameTicks-ne$life.gameTicks-or$event.state.inCombat-ne$false){
+            throw 'Native incapacity clear is not bound to the exact life-state boundary.'
+        }
+    }
+    $states=@($clearEvents|ForEach-Object {$_.state});$baseline=$states[0]
+    $beforeCandidates=@()
+    foreach($event in @($window.events|Where-Object {$_.state.actor-ceq$subjectId-and[int]$_.sequence-lt[int]$clearEvents[0].sequence})){
+        $beforeCandidates+=@([pscustomobject]@{sequence=[int]$event.sequence;rank=1;gameTicks=[long]$event.gameTicks;state=$event.state})
+    }
+    foreach($sample in @($Proof.samples|Where-Object {[int]$_.allocationSequence-lt[int]$clearEvents[0].sequence})){
+        $beforeCandidates+=@([pscustomobject]@{sequence=[int]$sample.allocationSequence;rank=2;gameTicks=[long]$sample.gameTicks;state=$sample.state.$subjectKind})
+    }
+    if([int]$Proof.preClick.allocationSequence-lt[int]$clearEvents[0].sequence){
+        $beforeCandidates+=@([pscustomobject]@{sequence=[int]$Proof.preClick.allocationSequence;rank=0;gameTicks=[long]$Proof.preClick.gameTicks;state=$Proof.preClick.state.$subjectKind})
+    }
+    if($beforeCandidates.Count-eq0){throw 'Native incapacity clear lacks a preceding subject resource observation.'}
+    $preceding=@($beforeCandidates|Sort-Object sequence,rank)[-1]
+    $terminal=@($Proof.samples)[-1]
+    if($null-eq$terminal-or[int]$terminal.allocationSequence-ne[int]$clearEvents[3].sequence-or
+       [int]$disposition.actionBridgeBeforeSequence-ne$preceding.sequence-or
+       [int]$disposition.actionBridgeAfterSequence-ne[int]$terminal.allocationSequence){
+        throw 'Native incapacity clear action bridge sequence differs.'
+    }
+    foreach($field in @('standard','move','swift')){
+        foreach($state in $states[1..3]){
+            if(-not(Test-KmcEligibilityResourceEqual $baseline.$field $state.$field "incapacity $field")){
+                throw 'Native incapacity clear changed Standard, Move, or Swift.'
+            }
+        }
+        $beforeValue=Get-KmcEligibilityNumber $preceding.state.$field "incapacity preceding $field"
+        $entryValue=Get-KmcEligibilityNumber $baseline.$field "incapacity entry $field"
+        $exitValue=Get-KmcEligibilityNumber $states[3].$field "incapacity exit $field"
+        $afterValue=Get-KmcEligibilityNumber $terminal.state.$subjectKind.$field "incapacity terminal $field"
+        if([long]$clearEvents[0].gameTicks-lt$preceding.gameTicks-or[long]$terminal.gameTicks-lt[long]$clearEvents[0].gameTicks){
+            throw 'Native incapacity clear action bridge clock is reversed.'
+        }
+        $beforeElapsed=([long]$clearEvents[0].gameTicks-$preceding.gameTicks)/10000000.0
+        $afterElapsed=([long]$terminal.gameTicks-[long]$clearEvents[0].gameTicks)/10000000.0
+        if([Math]::Abs($entryValue-[Math]::Max(0.0,$beforeValue-$beforeElapsed))-gt0.05-or
+           [Math]::Abs($exitValue-$entryValue)-gt0.0001-or
+           [Math]::Abs($afterValue-[Math]::Max(0.0,$exitValue-$afterElapsed))-gt0.05){
+            throw 'Native incapacity clear action resources are not reconciled with surrounding command observations.'
+        }
+    }
+    foreach($state in $states[1..3]){
+        if($state.reactions-ne$baseline.reactions-or$state.reactionsPerRound-ne$baseline.reactionsPerRound-or
+           -not(Test-KmcEligibilityResourceEqual $state.reactionCooldown $baseline.reactionCooldown 'incapacity reaction cooldown')){
+            throw 'Native incapacity clear changed reaction allowance or cooldown.'
+        }
+    }
+    $beforeCooldown=Get-KmcEligibilityNumber $baseline.initiativeCooldown 'incapacity initiative cooldown'
+    if($beforeCooldown-le0-or
+       -not(Test-KmcEligibilityResourceEqual $states[1].initiativeCooldown $baseline.initiativeCooldown 'clear-before initiative')-or
+       -not(Test-KmcEligibilityResourceEqual $states[2].initiativeCooldown 0.0 'clear-after initiative')-or
+       -not(Test-KmcEligibilityResourceEqual $states[3].initiativeCooldown 0.0 'combat-clear-after initiative')){
+        throw 'Native incapacity clear did not perform the exact initiative-cooldown clear.'
+    }
+    if($baseline.initiativeOrder-eq0-or$states[1].initiativeOrder-ne$baseline.initiativeOrder-or
+       $states[2].initiativeOrder-ne$baseline.initiativeOrder-or$states[3].initiativeOrder-ne0){
+        throw 'Native incapacity combat clear did not perform the exact initiative-order clear.'
+    }
+    if($states[1].prepared-ne$baseline.prepared-or$states[2].prepared-ne$baseline.prepared-or$states[3].prepared-ne$false){
+        throw 'Native incapacity combat clear changed preparation outside its terminal removal boundary.'
+    }
+    if(-not(Test-KmcEligibilityResourceEqual $life.standard $baseline.standard 'life-event standard')-or
+       -not(Test-KmcEligibilityResourceEqual $life.move $baseline.move 'life-event move')){
+        throw 'Native incapacity life event is not resource-identical to combat removal entry.'
+    }
+    return [string]$subjectId
+}
+function Assert-KmcEligibilityCommandProof($Proof,[string]$Contract,$NativeLifeEvents=$null) {
     if($Proof.contract-cne$Contract){throw 'Missing exact unacted eligibility contract.'}
     foreach($flag in @('pass','sameCommandAtEveryBoundary','nativeTerminal','traceComplete')){if($Proof.$flag-ne$true){throw "Unacted eligibility proof lacks true $flag."}}
     if($Proof.initCount-ne1-or@($Proof.errors).Count-ne0-or$Proof.nativeResult-cnotin@('Interrupt','Fail')){throw 'Eligibility-invalidated Mount lacks a truthful native terminal.'}
@@ -52,9 +173,16 @@ function Assert-KmcEligibilityCommandProof($Proof,[string]$Contract) {
     $terminal=$samples[-1]
     if($terminal.finished-ne$true-or$terminal.result-cne$Proof.nativeResult-or$null-ne$terminal.processEnded){throw 'Eligibility terminal is not a finished process-free native failure.'}
     $window=$Proof.resourceWindow
+    $incapacityActor=$null
+    if($Contract-cin@('unacted-native-rider-incapacitated-no-cost-or-transition','unacted-native-mount-incapacitated-no-cost-or-transition')){
+        $incapacityActor=Assert-KmcIncapacityClearDisposition $Proof $Contract $NativeLifeEvents
+        $nativeCallbackProperty=$window.PSObject.Properties['noNativeCostOrPreparationCallbacks']
+        if($null-eq$nativeCallbackProperty-or$nativeCallbackProperty.Value-ne$true){throw 'Native incapacity window contains a cost or preparation callback.'}
+    } elseif($null-ne$NativeLifeEvents){throw 'Native life evidence was supplied to a non-incapacity contract.'}
     if($window.pass-ne$true-or$window.noCostOrPreparationCallbacks-ne$true-or$window.endpointsConserved-ne$true){throw 'Eligibility resource window did not prove conservation.'}
     foreach($event in @($window.events|Where-Object {$_.state.actor-cin@($id.casterId,$Proof.mountId)})){
-        if([string]$event.boundary-cmatch'^(cost-|actor-cost-|prepare-|clear-|combat-clear)'){throw 'Eligibility window contains native cost, preparation or reset.'}
+        $forbidden=if($null-ne$incapacityActor){'^(cost-|actor-cost-|prepare-)'}else{'^(cost-|actor-cost-|prepare-|clear-|combat-clear)'}
+        if([string]$event.boundary-cmatch$forbidden){throw 'Eligibility window contains a native cost, preparation, or undeclared reset.'}
     }
     $elapsed=([long]$terminal.gameTicks-[long]$pre.gameTicks)/10000000.0
     foreach($actor in @('rider','mount')){foreach($field in @('standard','move','swift')){
@@ -62,7 +190,7 @@ function Assert-KmcEligibilityCommandProof($Proof,[string]$Contract) {
         $after=Get-KmcEligibilityNumber $terminal.state.$actor.$field "$actor $field after"
         if([Math]::Abs($after-[Math]::Max(0.0,$before-$elapsed))-gt0.05){throw "Eligibility window refunded or added $actor $field debt."}
     }}
-    Assert-KmcRelationshipReactionResources $Proof 0
+    Assert-KmcRelationshipReactionResources $Proof 0 $incapacityActor
 }
 function Assert-KmcEligibilityGeometry($Start,$Trigger,$Proof) {
     $id=$Proof.identity;$approach=@($Proof.samples|Where-Object boundary -CEQ 'approach-start')[0];$terminal=@($Proof.samples)[-1]
@@ -201,9 +329,14 @@ function Assert-KmcPendingIncapacityActor($State,$Proof,[string]$Kind,[string]$P
     if($State.hitPoints-le0-or$State.constitution-le0-or$State.temporaryHitPoints-lt0-or$State.damage-lt0){throw "Pending incapacity actor stats are invalid at $Phase."}
     if($Phase-ceq'before'){
         if($State.lifeState-cne'Conscious'-or$State.conscious-ne$true-or$State.dead-ne$false-or$State.finallyDead-ne$false){throw 'Pending incapacity baseline is not conscious.'}
+    } elseif($Phase-ceq'after-damage'){
+        if($State.lifeState-cne'Conscious'-or$State.conscious-ne$true-or$State.dead-ne$false-or$State.finallyDead-ne$false-or
+           $State.damage-le$State.hitPoints-or$State.damage-ge($State.hitPoints+$State.constitution)){
+            throw 'Immediate native damage snapshot did not retain the exact nonlethal pre-life-tick window.'
+        }
     } elseif($State.lifeState-cne'Unconscious'-or$State.conscious-ne$false-or$State.dead-ne$false-or$State.finallyDead-ne$false-or
              $State.damage-le$State.hitPoints-or$State.damage-ge($State.hitPoints+$State.constitution)){
-        throw 'Native damage did not retain the exact nonlethal Unconscious state.'
+        throw 'Native life tick did not retain the exact nonlethal Unconscious state.'
     }
 }
 function Assert-KmcPendingIncapacity([string]$Scenario,$Case,[string]$ExpectedKind) {
@@ -216,7 +349,7 @@ function Assert-KmcPendingIncapacity([string]$Scenario,$Case,[string]$ExpectedKi
     if($Scenario-cne$expectedScenario){throw 'Pending-Mount incapacity scenario and subject differ.'}
     $proof=$Case.commandProof
     $proofContract='unacted-native-'+$ExpectedKind+'-incapacitated-no-cost-or-transition'
-    Assert-KmcEligibilityCommandProof $proof $proofContract
+    Assert-KmcEligibilityCommandProof $proof $proofContract $Case.nativeLifeEvents
     Assert-KmcEligibilityGeometry $Case.start $Case.trigger $proof
     Assert-KmcEligibilityCommandSnapshot $Case.terminal $proof $true $false
     $subjectField=$ExpectedKind;$otherField=if($ExpectedKind-ceq'rider'){'mount'}else{'rider'}

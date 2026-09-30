@@ -5752,9 +5752,13 @@ function Assert-KmcUnmountedAttackControlRows {
 # native Move commitment and both actors' native preparation counts from the
 # recorded samples: the game may not assert its own accounting unchecked.
 function Assert-KmcRelationshipReactionResources {
-    param($Proof, [int]$PartnerPrepares)
+    param($Proof, [int]$PartnerPrepares, [string]$IncapacityClearActor=$null)
     if($Proof.resourceWindow.reactionResources.contract -cne 'native-time-and-declared-partner-preparation-only' -or
         $Proof.resourceWindow.reactionResources.pass -ne $true){throw 'Reaction resource contract is missing or failed.'}
+    if(-not[string]::IsNullOrEmpty($IncapacityClearActor)) {
+        $actorProperty=$Proof.resourceWindow.reactionResources.PSObject.Properties['incapacityClearActor']
+        if($null-eq$actorProperty-or[string]$actorProperty.Value-cne$IncapacityClearActor){throw 'Reaction resource proof is not bound to the declared incapacity subject.'}
+    }
     $sequence=[int]$Proof.preClick.allocationSequence
     foreach($event in $Proof.resourceWindow.events){
         if(-not(Test-KmcExactJsonInteger $event.sequence) -or [int]$event.sequence -ne ++$sequence){throw 'Reaction event sequence is missing, repeated or reordered.'}
@@ -5783,7 +5787,8 @@ function Assert-KmcRelationshipReactionResources {
     foreach($actor in @('rider','mount')) {
         $actorId=if($actor -ceq 'rider'){$Proof.identity.casterId}else{$Proof.mountId}
         $baseline=$Proof.preClick.state.$actor;$current=Read-Reaction $baseline
-        $order=$current.order;$perRound=[int]$baseline.reactionsPerRound
+        $expectedInitiativeOrder=$current.order
+        $perRound=[int]$baseline.reactionsPerRound
         $stack=New-Object System.Collections.Stack
         $timeline=@()
         foreach($event in @($Proof.resourceWindow.events|Where-Object { $_.state.actor -ceq $actorId })) {
@@ -5794,9 +5799,22 @@ function Assert-KmcRelationshipReactionResources {
             $value=$item.value;$isEvent=$item.rank -eq 0
             $state=if($isEvent){$value.state}else{$value.state.$actor}
             $actual=Read-Reaction $state
-            if($item.sequence -lt $Proof.preClick.allocationSequence -or $item.sequence -gt $Proof.samples[-1].allocationSequence -or
-                $actual.order -ne $order -or [int]$state.reactionsPerRound -ne $perRound){throw "$actor reaction sequence, initiative ordering or per-round allowance changed."}
             $boundary=if($isEvent){[string]$value.boundary}else{'sample'}
+            $permitsIncapacityClear=-not[string]::IsNullOrEmpty($IncapacityClearActor)-and$actorId-ceq$IncapacityClearActor
+            $expectedOrder=if($permitsIncapacityClear-and$boundary-ceq'combat-clear-after'){0}else{$expectedInitiativeOrder}
+            if($item.sequence -lt $Proof.preClick.allocationSequence -or $item.sequence -gt $Proof.samples[-1].allocationSequence -or
+                $actual.order-ne$expectedOrder-or[int]$state.reactionsPerRound -ne $perRound){
+                throw "$actor reaction sequence, initiative ordering or per-round allowance changed."
+            }
+            if($permitsIncapacityClear-and$boundary-ceq'combat-clear-before'){
+                if($stack.Count-ne0-or-not(Same-Reaction $actual $current)){throw "$actor native incapacity combat-clear entry changed a resource."}
+                continue
+            }
+            if($permitsIncapacityClear-and$boundary-ceq'combat-clear-after'){
+                $expectedLeave=$current.Clone();$expectedLeave.order=0
+                if($stack.Count-ne0-or-not(Same-Reaction $actual $expectedLeave)){throw "$actor native incapacity combat-clear exit changed more than initiative ordering."}
+                $current=$actual;$expectedInitiativeOrder=$actual.order;continue
+            }
             $kind=$boundary -creplace '-(before|after)$',''
             $native=$kind -cin @('cooldown-tick','prepare','clear','opportunity')
             if($native -and $boundary.EndsWith('-after')) {
@@ -5831,8 +5849,11 @@ function Assert-KmcRelationshipReactionResources {
                 $expected.cooldown=0.0;$expected.initiative=0.0
                 if($perRound -gt 0 -and $expected.allowance -le $perRound){$expected.allowance=$perRound}
             } elseif($kind -ceq 'clear') {
-                if($actor -cne 'mount' -or $PartnerPrepares -ne 1 -or @($stack|Where-Object kind -CEQ 'prepare').Count -eq 0){throw 'Undeclared reaction cooldown clear.'}
-                $expected.cooldown=0.0;$expected.initiative=0.0
+                if($permitsIncapacityClear){$expected.initiative=0.0}
+                else {
+                    if($actor -cne 'mount' -or $PartnerPrepares -ne 1 -or @($stack|Where-Object kind -CEQ 'prepare').Count -eq 0){throw 'Undeclared reaction cooldown clear.'}
+                    $expected.cooldown=0.0;$expected.initiative=0.0
+                }
             }
             $stack.Push(@{kind=$kind;expected=$expected})
         }

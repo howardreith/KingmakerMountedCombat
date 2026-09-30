@@ -14,6 +14,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("an unobserved acted boundary cannot be replaced by a charged endpoint", ActedIsMandatory);
             runner.Run("resource windows distinguish RT decay from refund and extra charge", RealTimeDebt);
             runner.Run("TB resource windows reject both refunds and second charges", TurnBasedDebt);
+            runner.Run("native incapacity clears stay bridged to surrounding RT resource observations", IncapacityClearBridge);
             runner.Run("reaction events conserve discrete allowance and distinguish cooldowns from ordering", ReactionEvents);
             runner.Run("unacted obstruction identity cannot qualify a positive process", UnactedIdentity);
             runner.Run("native Move callbacks exclude Standard Swift and exploration costs", CallbackOwnership);
@@ -66,6 +67,20 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(NativeResourceWindowPolicy.EndpointConserved(3, 3, 10, true, 0.0001), "static TB debt retained");
             TestRunner.True(!NativeResourceWindowPolicy.EndpointConserved(3, 6, 10, true, 0.0001), "second cost rejected");
             TestRunner.True(!NativeResourceWindowPolicy.EndpointConserved(3, 0, 10, true, 0.0001), "refund rejected");
+        }
+        private static void IncapacityClearBridge()
+        {
+            const long second = TimeSpan.TicksPerSecond;
+            TestRunner.True(NativeResourceWindowPolicy.IncapacityActionBridge(
+                4, 3.5, 3.5, 3, 0, second / 2, second, 0.0001), "ordinary RT decay bridges both sides");
+            TestRunner.True(NativeResourceWindowPolicy.IncapacityActionBridge(
+                0, 0, 0, 0, 100, 100, 100, 0.0001), "same-tick zero resources remain exact");
+            TestRunner.True(!NativeResourceWindowPolicy.IncapacityActionBridge(
+                0, 1, 1, 0, 100, 100, 100, 0.0001), "consistent quartet debt plus refund is rejected");
+            TestRunner.True(!NativeResourceWindowPolicy.IncapacityActionBridge(
+                4, 3.5, 3, 2.5, 0, second / 2, second, 0.0001), "the clear callback cannot change an action");
+            TestRunner.True(!NativeResourceWindowPolicy.IncapacityActionBridge(
+                4, 3.5, 3.5, 3, second, 0, second * 2, 0.0001), "a reversed bridge clock is rejected");
         }
         private static void ReactionEvents()
         {
