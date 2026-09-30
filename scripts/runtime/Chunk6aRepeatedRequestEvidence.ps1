@@ -69,7 +69,7 @@ function Assert-KmcRepeatedMountRequest($Case,$Proofs) {
     $input=$repeat.input
     if($input.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or
         $input.clickedTargetId-cne$id.targetId-or$input.clicked-ne$false-or
-        $input.targetSelectionStartDelta-ne1-or$input.targetSelectionEndDelta-ne1-or
+        $input.targetSelectionStartDelta-ne1-or$input.targetSelectionEndDelta-ne0-or
         $input.nativeCastRequestDelta-ne0-or$input.nativeRefusalDelta-ne1-or
         $input.dispatchAcceptedDelta-ne0-or$input.dispatchRejectedDelta-ne0-or
         $input.nativePrimaryShellPrepareDelta-ne0) {

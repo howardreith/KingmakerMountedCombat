@@ -14,9 +14,9 @@ $firstInput=[pscustomobject]@{abilityGuid='f053faad986631688defa003cd7bda0e';cli
 $repeatControlsBefore=Copy-Case $initialControls
 $repeatControlsBefore.TargetSelectionStartCount++;$repeatControlsBefore.TargetSelectionEndCount++;$repeatControlsBefore.NativeCastRequestCount++
 $repeatControlsAfter=Copy-Case $repeatControlsBefore
-$repeatControlsAfter.TargetSelectionStartCount++;$repeatControlsAfter.TargetSelectionEndCount++;$repeatControlsAfter.NativeRefusalCount++
+$repeatControlsAfter.TargetSelectionStartCount++;$repeatControlsAfter.NativeRefusalCount++
 $state=Copy-Case $approach.state
-$repeatInput=[pscustomobject]@{abilityGuid='f053faad986631688defa003cd7bda0e';clickedTargetId=$id.targetId;resolvedTargetId=$id.targetId;priority='None';clicked=$false;targetSelectionStartDelta=1;targetSelectionEndDelta=1;nativeCastRequestDelta=0;nativeRefusalDelta=1;dispatchAcceptedDelta=0;dispatchRejectedDelta=0;nativePrimaryShellPrepareDelta=0;nativeShell=[pscustomobject]@{present=$true;inMoveSlot=$true;commandObject=$id.commandObject}}
+$repeatInput=[pscustomobject]@{abilityGuid='f053faad986631688defa003cd7bda0e';clickedTargetId=$id.targetId;resolvedTargetId=$id.targetId;priority='None';clicked=$false;targetSelectionStartDelta=1;targetSelectionEndDelta=0;nativeCastRequestDelta=0;nativeRefusalDelta=1;dispatchAcceptedDelta=0;dispatchRejectedDelta=0;nativePrimaryShellPrepareDelta=0;nativeShell=[pscustomobject]@{present=$true;inMoveSlot=$true;commandObject=$id.commandObject}}
 $terminalControls=Copy-Case $initialControls
 $terminalControls.TargetSelectionStartCount+=2;$terminalControls.TargetSelectionEndCount+=2;$terminalControls.NativeCastRequestCount++;$terminalControls.NativeRefusalCount++;$terminalControls.DispatchAcceptedCount++
 $terminal=Copy-Case $proof.samples[-1].state
@@ -48,6 +48,7 @@ Reject-Case {param($c)$c.repeat.processBindingCountAfter++} 'created a second sh
 Reject-Case {param($c)$c.repeat.allocationEventCountAfter++} 'created a second shell'
 Reject-Case {param($c)$c.repeat.input.nativeCastRequestDelta=1} 'callback sequence differs'
 Reject-Case {param($c)$c.repeat.input.nativeRefusalDelta=0} 'callback sequence differs'
+Reject-Case {param($c)$c.repeat.input.targetSelectionEndDelta=1} 'callback sequence differs'
 Reject-Case {param($c)$c.repeat.controlsAfter.DispatchAcceptedCount++} 'changed control counter'
 Reject-Case {param($c)$c.repeat.controlsAfter.NativeRefusalCount--} 'lacks one exact native refusal'
 Reject-Case {param($c)$c.repeat.after.ledger.acceptedMount++} 'changed relationship state or ledger'
