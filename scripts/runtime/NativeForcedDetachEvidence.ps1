@@ -4,7 +4,9 @@ Set-StrictMode -Version Latest
 # booking no voluntary Mount or Dismount admission, no KMC control activity and no native action cost or
 # preparation callback for either actor between the labelled native damage and the settled cleanup.
 # Repeated deliveries for the same detach are suppressed by the transition ledger, never booked again.
-# The synthetic fixture test runs both readers over the same evidence and mutations.
+# Activation ledger records appended inside the window are exposed and bound exactly: none for a rider
+# death (the mount primary is live), exactly one passive RelationshipEnded observation of the live rider
+# primary otherwise. The synthetic fixture test runs both readers over the same evidence and mutations.
 function Assert-KmcForcedDetach($Evidence) {
  function Fail([string]$reason){throw ('Forced detach: '+$reason)}
  function Int($value){if($value-isnot[int]-and$value-isnot[long]){Fail 'integer missing'};[long]$value}
@@ -24,7 +26,7 @@ function Assert-KmcForcedDetach($Evidence) {
  function Text($object,[string]$name){$f=Field $object $name;if(-not$f.present-or$null-eq$f.value-or$f.value-isnot[string]){return $null};[string]$f.value}
  function Items($object,[string]$name){$f=Field $object $name;if(-not$f.present-or$f.value-isnot[array]){Fail ($name+' missing')};@($f.value)}
  $ledgerFields=@('admittedMount','acceptedMount','admittedDismount','acceptedDismount','refusedVoluntary','forcedDetach','duplicateSuppressed','concurrentSuppressed')
- $controlFields=@('targetSelectionStart','targetSelectionEnd','nativeCastRequest','nativeRefusal','dispatchAccepted','dispatchRejected','activationCount')
+ $passiveControlFields=@('targetSelectionStart','targetSelectionEnd','nativeCastRequest','nativeRefusal','dispatchAccepted','dispatchRejected')
  $lifeDeliveries=@(
   @('UnitIncapacitated','Incapacitated','IUnitLifeStateChanged.HandleUnitLifeStateChanged'),
   @('UnitDeath','Death','IUnitHandler.HandleUnitDeath'),
@@ -43,8 +45,9 @@ function Assert-KmcForcedDetach($Evidence) {
   $ledger=Value $b 'ledger';$controls=Value $b 'controls'
   if($null-eq$ledger-or$null-eq$controls){Fail 'boundary ledger or controls missing'}
   foreach($f in $ledgerFields){[void](Int (Value $ledger $f))}
-  foreach($f in $controlFields){[void](Int (Value $controls $f))}
-  foreach($f in @('frame','gameTicks','allocationSequence','generation','shellCount','processBindings','lifecycleSequence')){[void](Int (Value $b $f))}
+  foreach($f in $passiveControlFields){[void](Int (Value $controls $f))}
+  [void](Int (Value $controls 'activationCount'))
+  foreach($f in @('frame','gameTicks','allocationSequence','generation','shellCount','processBindings','lifecycleSequence','activationSequence')){[void](Int (Value $b $f))}
   if((Value $b 'pairCommand')-isnot[bool]){Fail 'boundary pair command flag missing'}
  }
  if((Text $Evidence 'level')-cne'NATIVE INTEGRATION'-or(Text $Evidence 'caseId')-cne'CM05-forced-detach'-or
@@ -70,10 +73,11 @@ function Assert-KmcForcedDetach($Evidence) {
  Life (Value $after 'survivorLife') $survivor $true $false
  if((Int (Value $after 'frame'))-lt(Int (Value $before 'frame'))-or(Int (Value $after 'gameTicks'))-lt(Int (Value $before 'gameTicks'))-or
     (Int (Value $after 'allocationSequence'))-lt(Int (Value $before 'allocationSequence'))-or
-    (Int (Value $after 'lifecycleSequence'))-lt(Int (Value $before 'lifecycleSequence'))){Fail 'window runs backwards'}
+    (Int (Value $after 'lifecycleSequence'))-lt(Int (Value $before 'lifecycleSequence'))-or
+    (Int (Value $after 'activationSequence'))-lt(Int (Value $before 'activationSequence'))){Fail 'window runs backwards'}
  if((Int (Value $after 'generation'))-ne(Int (Value $before 'generation'))){Fail 'a forced detach changed the pair generation'}
  $beforeControls=Value $before 'controls';$afterControls=Value $after 'controls'
- foreach($f in $controlFields){if((Int (Value $afterControls $f))-ne(Int (Value $beforeControls $f))){Fail ('native control count changed: '+$f)}}
+ foreach($f in $passiveControlFields){if((Int (Value $afterControls $f))-ne(Int (Value $beforeControls $f))){Fail ('native control count changed: '+$f)}}
  foreach($f in @('shellCount','processBindings')){if((Int (Value $after $f))-ne(Int (Value $before $f))){Fail ('native relationship shell state changed: '+$f)}}
 
  $deliveries=@(Items $Evidence 'deliveries')
@@ -107,6 +111,23 @@ function Assert-KmcForcedDetach($Evidence) {
   $delta=(Int (Value $afterLedger $f))-(Int (Value $beforeLedger $f))
   $expected=if($f-ceq'forcedDetach'){1}elseif($f-ceq'duplicateSuppressed'){$attempted-1}else{0}
   if($delta-ne$expected){Fail ('transition ledger delta differs: '+$f)}
+ }
+
+ $records=@(Items $Evidence 'activationRecords')
+ $recordDelta=(Int (Value $after 'activationSequence'))-(Int (Value $before 'activationSequence'))
+ if($records.Count-ne$recordDelta-or$recordDelta-ne((Int (Value $afterControls 'activationCount'))-(Int (Value $beforeControls 'activationCount')))){Fail 'activation record count differs from the activation ledger delta'}
+ $expectedRecords=if($scenario-ceq'chunk4-rider-death-tb'){0}else{1}
+ if($records.Count-ne$expectedRecords){Fail 'activation record count differs from the live primary of the scenario'}
+ $recordSequence=Int (Value $before 'activationSequence')
+ foreach($record in $records){
+  $recordSequence++
+  if($null-eq$record-or(Int (Value $record 'sequence'))-ne$recordSequence){Fail 'activation records are not the consecutive appended window'}
+  if((Text $record 'phase')-cne'RelationshipEnded'-or(Text $record 'kind')-cne'RiderPrimary'-or(Text $record 'terminalResult')-cne'relationship-ended-before-primary-terminal'-or-not(Yes (Value $record 'relationshipEnded'))){Fail 'an appended activation record is not the passive relationship-ended observation of the live rider primary'}
+  $dispatch=Field $record 'dispatchAccepted'
+  if((Text $record 'casterId')-cne$rider-or(Text $record 'riderIdAtStart')-cne$rider-or(Text $record 'mountIdAtStart')-cne$mount-or(Text $record 'targetId')-cne'<none>'-or-not(No (Value $record 'targetSelectionMode'))-or-not$dispatch.present-or$null-ne$dispatch.value){Fail 'an appended activation record names another actor, a target, a selection or a dispatch'}
+  if((Text $record 'relationshipStateAtStart')-cne'Mounted'-or(Text $record 'relationshipStateObserved')-cne'Unmounted'-or(Text $record 'cleanupTrigger')-cne$trigger){Fail 'an appended activation record does not observe this forced detach'}
+  $frame=Int (Value $record 'frame');$observed=Int (Value $record 'lifecycleSequenceObserved')
+  if($frame-lt(Int (Value $before 'frame'))-or$frame-gt(Int (Value $after 'frame'))-or$observed-lt(Int (Value $cleanup 'sequence'))-or$observed-gt(Int (Value $after 'lifecycleSequence'))){Fail 'an appended activation record lies outside the forced-detach window'}
  }
 
  $t=Value $after 'lastTransition'

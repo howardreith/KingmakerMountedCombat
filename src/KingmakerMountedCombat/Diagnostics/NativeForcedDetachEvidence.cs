@@ -10,7 +10,11 @@ namespace KingmakerMountedCombat.Diagnostics
     // KMC control activity (selection, cast, dispatch, shell, process binding) and no
     // native action cost or preparation callback for either actor between the labelled
     // native damage and the settled cleanup. Repeated deliveries for the same detach
-    // are suppressed by the transition ledger, never booked again.
+    // are suppressed by the transition ledger, never booked again. The activation
+    // ledger records appended inside the window are exposed and bound exactly: when
+    // the rider primary is the live paired command (mount death, rider incapacitation)
+    // the control service appends one passive RelationshipEnded observation of that
+    // activation; when the mount primary is live (rider death) it appends nothing.
     // Mirrored exactly by scripts/runtime/NativeForcedDetachEvidence.ps1; the synthetic
     // fixture test runs both readers over the same evidence and mutations.
     internal static class NativeForcedDetachEvidence
@@ -18,17 +22,20 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Row = "CM05-forced-detach";
         internal const string Contract = "forced-detach-records-once-pays-no-voluntary-move";
         internal const string Stimulus = "labelled-native-damage-effect";
+        internal const string RelationshipEndedTerminal = "relationship-ended-before-primary-terminal";
         private const string Incapacitation = "chunk4-rider-incapacitation-tb";
-        private static readonly string[] Scenarios = { "chunk4-rider-death-tb", "chunk4-mount-death-tb", Incapacitation };
+        private const string RiderDeath = "chunk4-rider-death-tb";
+        private static readonly string[] Scenarios = { RiderDeath, "chunk4-mount-death-tb", Incapacitation };
         private static readonly string[] LedgerFields =
         {
             "admittedMount", "acceptedMount", "admittedDismount", "acceptedDismount",
             "refusedVoluntary", "forcedDetach", "duplicateSuppressed", "concurrentSuppressed"
         };
-        private static readonly string[] ControlFields =
+        // Counters that must not move at all; activationCount moves by exactly the bound records.
+        private static readonly string[] PassiveControlFields =
         {
             "targetSelectionStart", "targetSelectionEnd", "nativeCastRequest", "nativeRefusal",
-            "dispatchAccepted", "dispatchRejected", "activationCount"
+            "dispatchAccepted", "dispatchRejected"
         };
         // The native lifecycle deliveries (boundary, cleanup trigger, handler source) that
         // may end a mounted pair when a pair actor dies or falls unconscious. The first is
@@ -75,8 +82,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 "boundary resource snapshots name other actors");
             Require(boundary["ledger"] is JObject && boundary["controls"] is JObject, "boundary ledger or controls missing");
             foreach (var field in LedgerFields) Int(boundary["ledger"][field]);
-            foreach (var field in ControlFields) Int(boundary["controls"][field]);
-            foreach (var field in new[] { "frame", "gameTicks", "allocationSequence", "generation", "shellCount", "processBindings", "lifecycleSequence" })
+            foreach (var field in PassiveControlFields) Int(boundary["controls"][field]);
+            Int(boundary["controls"]["activationCount"]);
+            foreach (var field in new[] { "frame", "gameTicks", "allocationSequence", "generation", "shellCount", "processBindings", "lifecycleSequence", "activationSequence" })
                 Int(boundary[field]);
             Require(boundary["pairCommand"]?.Type == JTokenType.Boolean, "boundary pair command flag missing");
         }
@@ -108,9 +116,10 @@ namespace KingmakerMountedCombat.Diagnostics
             Life(after["survivorLife"], survivor, true, false);
             Require(Int(after["frame"]) >= Int(before["frame"]) && Int(after["gameTicks"]) >= Int(before["gameTicks"]) &&
                 Int(after["allocationSequence"]) >= Int(before["allocationSequence"]) &&
-                Int(after["lifecycleSequence"]) >= Int(before["lifecycleSequence"]), "window runs backwards");
+                Int(after["lifecycleSequence"]) >= Int(before["lifecycleSequence"]) &&
+                Int(after["activationSequence"]) >= Int(before["activationSequence"]), "window runs backwards");
             Require(Int(after["generation"]) == Int(before["generation"]), "a forced detach changed the pair generation");
-            foreach (var field in ControlFields)
+            foreach (var field in PassiveControlFields)
                 Require(Int(after["controls"][field]) == Int(before["controls"][field]), "native control count changed: " + field);
             foreach (var field in new[] { "shellCount", "processBindings" })
                 Require(Int(after[field]) == Int(before[field]), "native relationship shell state changed: " + field);
@@ -151,6 +160,35 @@ namespace KingmakerMountedCombat.Diagnostics
                 var delta = Int(after["ledger"][field]) - Int(before["ledger"][field]);
                 var expected = field == "forcedDetach" ? 1L : field == "duplicateSuppressed" ? attempted - 1L : 0L;
                 Require(delta == expected, "transition ledger delta differs: " + field);
+            }
+
+            // Activation ledger records appended inside the window. The live paired
+            // command is the mount primary for a rider death (nothing is appended) and
+            // the rider primary otherwise (the service appends exactly one passive
+            // RelationshipEnded observation of that activation when the pair leaves
+            // Mounted). Any selection, cast, dispatch or terminal record is control activity.
+            var records = evidence["activationRecords"] as JArray;
+            Require(records != null, "activation records missing");
+            var recordDelta = Int(after["activationSequence"]) - Int(before["activationSequence"]);
+            Require(records.Count == recordDelta && recordDelta == Int(after["controls"]["activationCount"]) - Int(before["controls"]["activationCount"]),
+                "activation record count differs from the activation ledger delta");
+            Require(records.Count == (scenario == RiderDeath ? 0 : 1), "activation record count differs from the live primary of the scenario");
+            var recordSequence = Int(before["activationSequence"]);
+            foreach (var record in records)
+            {
+                recordSequence++;
+                Require(record is JObject && Int(record["sequence"]) == recordSequence, "activation records are not the consecutive appended window");
+                Require(Text(record["phase"]) == "RelationshipEnded" && Text(record["kind"]) == "RiderPrimary" &&
+                    Text(record["terminalResult"]) == RelationshipEndedTerminal && Yes(record["relationshipEnded"]),
+                    "an appended activation record is not the passive relationship-ended observation of the live rider primary");
+                Require(Text(record["casterId"]) == rider && Text(record["riderIdAtStart"]) == rider && Text(record["mountIdAtStart"]) == mount &&
+                    Text(record["targetId"]) == "<none>" && No(record["targetSelectionMode"]) && record["dispatchAccepted"]?.Type == JTokenType.Null,
+                    "an appended activation record names another actor, a target, a selection or a dispatch");
+                Require(Text(record["relationshipStateAtStart"]) == "Mounted" && Text(record["relationshipStateObserved"]) == "Unmounted" &&
+                    Text(record["cleanupTrigger"]) == trigger, "an appended activation record does not observe this forced detach");
+                Require(Int(record["frame"]) >= Int(before["frame"]) && Int(record["frame"]) <= Int(after["frame"]) &&
+                    Int(record["lifecycleSequenceObserved"]) >= Int(cleanup["sequence"]) && Int(record["lifecycleSequenceObserved"]) <= Int(after["lifecycleSequence"]),
+                    "an appended activation record lies outside the forced-detach window");
             }
 
             var transition = after["lastTransition"];

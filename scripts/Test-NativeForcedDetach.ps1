@@ -87,7 +87,10 @@ Reject-All 'native target selection started' {param($c)$c.after.controls.targetS
 Reject-All 'native cast requested' {param($c)$c.after.controls.nativeCastRequest=2}
 Reject-All 'native refusal booked' {param($c)$c.after.controls.nativeRefusal=1}
 Reject-All 'native dispatch accepted' {param($c)$c.after.controls.dispatchAccepted=2}
-Reject-All 'activation record appended' {param($c)$c.after.controls.activationCount=7}
+Reject-All 'activation count moved without a record' {param($c)$c.after.controls.activationCount=7}
+Reject-All 'activation sequence moved without a record' {param($c)$c.after.activationSequence=13}
+Reject-All 'activation records absent' {param($c)$c.PSObject.Properties.Remove('activationRecords')}
+Reject-All 'rider death with an appended record' {param($c)$c.activationRecords=@(New-KmcForcedDetachActivationRecord 13 11 'Death' 'UnitDeath' 'IUnitHandler.HandleUnitDeath');$c.after.activationSequence=13;$c.after.controls.activationCount=7}
 Reject-All 'relationship shell created' {param($c)$c.after.shellCount=2}
 Reject-All 'process binding created' {param($c)$c.after.processBindings=2}
 Reject-All 'pair generation changed' {param($c)$c.after.generation=5}
@@ -129,6 +132,31 @@ Reject-All 'relationship result residue' {param($c)$c.after.lastTransitionResult
 Reject-All 'relationship result errors' {param($c)$c.after.lastTransitionResult.errors=@('residue')}
 Reject-All 'relationship result trigger differs' {param($c)$c.after.lastTransitionResult.trigger='Incapacitated'}
 Reject-All 'incapacitation delivered as death' {param($c)$c.deliveries[0].boundary='UnitDeath';$c.deliveries[0].cleanupTrigger='Death';$c.deliveries[0].source='IUnitHandler.HandleUnitDeath';$c.after.lastTransition.trigger='Death';$c.after.lastTransitionResult.trigger='Death'} $incapacitation
+# Mount death and rider incapacitation leave exactly one passive RelationshipEnded rider-primary record (preview.146 observation).
+$mountDeath=$bases['chunk4-mount-death-tb']
+Reject-All 'mount death without the appended record' {param($c)$c.activationRecords=@();$c.after.activationSequence=12;$c.after.controls.activationCount=6} $mountDeath
+Reject-All 'record kept but count unchanged' {param($c)$c.after.controls.activationCount=6} $mountDeath
+Reject-All 'record kept but sequence unchanged' {param($c)$c.after.activationSequence=12} $mountDeath
+Reject-All 'two appended records' {param($c)$second=Copy-Forced $c.activationRecords[0];$second.sequence=14;$c.activationRecords+=@($second);$c.after.activationSequence=14;$c.after.controls.activationCount=8} $mountDeath
+Reject-All 'record sequence not consecutive' {param($c)$c.activationRecords[0].sequence=14} $mountDeath
+Reject-All 'record is a cast request' {param($c)$c.activationRecords[0].phase='CastRequested'} $mountDeath
+Reject-All 'record is a dispatch' {param($c)$c.activationRecords[0].phase='DispatchStarted';$c.activationRecords[0].dispatchAccepted=$true} $mountDeath
+Reject-All 'record is a command terminal' {param($c)$c.activationRecords[0].phase='CommandTerminal';$c.activationRecords[0].terminalResult='Success:completed'} $mountDeath
+Reject-All 'record is a target selection' {param($c)$c.activationRecords[0].phase='TargetSelectionStarted';$c.activationRecords[0].targetSelectionMode=$true} $mountDeath
+Reject-All 'record of a Mount control' {param($c)$c.activationRecords[0].kind='MountCompanion'} $mountDeath
+Reject-All 'record of a Dismount control' {param($c)$c.activationRecords[0].kind='Dismount'} $mountDeath
+Reject-All 'record of the mount primary' {param($c)$c.activationRecords[0].kind='MountPrimary'} $mountDeath
+Reject-All 'record cast by the mount' {param($c)$c.activationRecords[0].casterId='mount'} $mountDeath
+Reject-All 'record with a target' {param($c)$c.activationRecords[0].targetId='enemy'} $mountDeath
+Reject-All 'record with a dispatch verdict' {param($c)$c.activationRecords[0].dispatchAccepted=$false} $mountDeath
+Reject-All 'record still mounted' {param($c)$c.activationRecords[0].relationshipStateObserved='Mounted';$c.activationRecords[0].relationshipEnded=$false} $mountDeath
+Reject-All 'record under another trigger' {param($c)$c.activationRecords[0].cleanupTrigger='Incapacitated'} $mountDeath
+Reject-All 'record with another terminal' {param($c)$c.activationRecords[0].terminalResult='no-active-command-observed'} $mountDeath
+Reject-All 'record of another pair' {param($c)$c.activationRecords[0].mountIdAtStart='other'} $mountDeath
+Reject-All 'record before the window' {param($c)$c.activationRecords[0].frame=9} $mountDeath
+Reject-All 'record after the window' {param($c)$c.activationRecords[0].frame=12} $mountDeath
+Reject-All 'record observed before the cleanup delivery' {param($c)$c.activationRecords[0].lifecycleSequenceObserved=3} $mountDeath
+Reject-All 'incapacitation without the appended record' {param($c)$c.activationRecords=@();$c.after.activationSequence=12;$c.after.controls.activationCount=6} $incapacitation
 Reject-All 'incapacitation subject dead' {param($c)$c.after.subjectLife.dead=$true} $incapacitation
 Reject-All 'mount death subject is the rider' {param($c)$c.subject='rider';$c.survivor='mount'} $bases['chunk4-mount-death-tb']
 
@@ -195,7 +223,7 @@ $turnWait=$source.IndexOf('if (turn == null) return;',$finish)
 $endInput=$source.IndexOf('TryEndPhase3gFixtureTurn(turn);',$finish)
 if($settled-lt0-or$finish-le$settled-or$turnWait-le$finish-or$endInput-le$turnWait){throw 'Forced detach window does not close at the settled cleanup before the ordinary End input'};$checks++
 if(([regex]::Matches($source,[regex]::Escape('BeginChunk6aForcedDetachWindow();')).Count-ne1)-or([regex]::Matches($source,[regex]::Escape('FinishChunk6aForcedDetachWindow();')).Count-ne1)){throw 'Forced detach window is opened or closed in more than one place'};$checks++
-foreach($needle in @('NativeForcedDetachEvidence.AssertComplete(evidence);','AddRow(Chunk6aForcedDetachRow, failure == null,','observations["chunk6aForcedDetach"] = evidence;','["lifecycleSequence"] = deliveries.Count == 0 ? 0L : deliveries[deliveries.Count - 1].Sequence,','["ledger"] = Chunk6aLedgerCounters(),')){
+foreach($needle in @('NativeForcedDetachEvidence.AssertComplete(evidence);','AddRow(Chunk6aForcedDetachRow, failure == null,','observations["chunk6aForcedDetach"] = evidence;','["lifecycleSequence"] = deliveries.Count == 0 ? 0L : deliveries[deliveries.Count - 1].Sequence,','["ledger"] = Chunk6aLedgerCounters(),','["activationSequence"] = LastChunk6aActivationSequence(nativeControls.SnapshotAbilityActivations()),','["activationRecords"] = new JArray(nativeControls.SnapshotAbilityActivations()','.Select(ProjectChunk6aActivationRecord))')){
  if(-not$source.Contains($needle)){throw ('Forced detach scenario lacks: '+$needle)};$checks++
 }
 $tranche=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Phase3dHorseScenarioTranche.cs')
