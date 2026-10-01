@@ -21,11 +21,12 @@ function New-KmcForcedDetachDelivery([long]$sequence,[string]$boundary,[string]$
  [ordered]@{sequence=$sequence;boundary=$boundary;source=$source;detail=$null;stateBefore=$stateBefore;stateAfter=$stateAfter;cleanupTrigger=$trigger;cleanupAttempted=$attempted;cleanupSucceeded=$succeeded;cleanupErrors=@()}
 }
 # The one passive activation ledger record the control service appends when the live rider primary's
-# relationship ends (observed preview.146 mount death: activationId=5 phase=RelationshipEnded kind=RiderPrimary).
+# relationship ends (observed preview.146/147 mount death: activationId=5 phase=RelationshipEnded kind=RiderPrimary,
+# dispatchAccepted=true from the primary's earlier accepted dispatch, transition result bound to the cleanup).
 function New-KmcForcedDetachActivationRecord([long]$sequence,[int]$frame,[string]$trigger,[string]$boundary,[string]$source){
  [ordered]@{sequence=$sequence;activationId=5;phase='RelationshipEnded';kind='RiderPrimary';abilityGuid='kmc-rider-primary';frame=$frame;casterId='rider';activeSelectedUnitIds='rider';targetId='<none>';targetSelectionMode=$false;
   relationshipStateAtStart='Mounted';relationshipStateObserved='Unmounted';riderIdAtStart='rider';mountIdAtStart='mount';riderViewChanged=$false;mountViewChanged=$false;inCombat=$true;turnBased=$true;gameMode='Default';currentTurnUnitId='rider';
-  lifecycleSequenceAtStart=3;lifecycleSequenceObserved=4;lifecycleDeliveries=('4:'+$boundary+':'+$source+':cleanup='+$trigger);cleanupTrigger=$trigger;dispatchAccepted=$null;relationshipEnded=$true;relationshipTransitionChanged=$true;terminalResult='relationship-ended-before-primary-terminal'}
+  lifecycleSequenceAtStart=3;lifecycleSequenceObserved=4;lifecycleDeliveries=('4:'+$boundary+':'+$source+':cleanup='+$trigger);cleanupTrigger=$trigger;dispatchAccepted=$true;relationshipEnded=$true;relationshipTransitionChanged=$true;relationshipTransitionResult=('succeeded=True;state=Unmounted;trigger='+$trigger);terminalResult='relationship-ended-before-primary-terminal'}
 }
 function New-KmcForcedDetachEvents([int]$start){
  @([ordered]@{sequence=($start+1);boundary='turn-end-before';frame=11;state=[ordered]@{actor='other1'}},

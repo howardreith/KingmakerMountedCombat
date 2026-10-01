@@ -182,10 +182,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     Text(record["terminalResult"]) == RelationshipEndedTerminal && Yes(record["relationshipEnded"]),
                     "an appended activation record is not the passive relationship-ended observation of the live rider primary");
                 Require(Text(record["casterId"]) == rider && Text(record["riderIdAtStart"]) == rider && Text(record["mountIdAtStart"]) == mount &&
-                    Text(record["targetId"]) == "<none>" && No(record["targetSelectionMode"]) && record["dispatchAccepted"]?.Type == JTokenType.Null,
-                    "an appended activation record names another actor, a target, a selection or a dispatch");
+                    Text(record["targetId"]) == "<none>" && No(record["targetSelectionMode"]),
+                    "an appended activation record names another actor, a target or a selection");
+                // The live primary was dispatched and accepted before the native stimulus (preview.147 observation);
+                // a record without that accepted dispatch would not describe the live command.
+                Require(Yes(record["dispatchAccepted"]), "an appended activation record does not carry the live primary's accepted dispatch");
                 Require(Text(record["relationshipStateAtStart"]) == "Mounted" && Text(record["relationshipStateObserved"]) == "Unmounted" &&
-                    Text(record["cleanupTrigger"]) == trigger, "an appended activation record does not observe this forced detach");
+                    Text(record["cleanupTrigger"]) == trigger && Yes(record["relationshipTransitionChanged"]) &&
+                    Text(record["relationshipTransitionResult"]) == "succeeded=True;state=Unmounted;trigger=" + trigger &&
+                    (Text(record["lifecycleDeliveries"]) ?? string.Empty).Contains(Int(cleanup["sequence"]) + ":" + Text(cleanup["boundary"]) + ":" + Text(cleanup["source"]) + ":cleanup=" + trigger),
+                    "an appended activation record does not observe this forced detach");
                 Require(Int(record["frame"]) >= Int(before["frame"]) && Int(record["frame"]) <= Int(after["frame"]) &&
                     Int(record["lifecycleSequenceObserved"]) >= Int(cleanup["sequence"]) && Int(record["lifecycleSequenceObserved"]) <= Int(after["lifecycleSequence"]),
                     "an appended activation record lies outside the forced-detach window");

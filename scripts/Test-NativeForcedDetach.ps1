@@ -148,7 +148,12 @@ Reject-All 'record of a Dismount control' {param($c)$c.activationRecords[0].kind
 Reject-All 'record of the mount primary' {param($c)$c.activationRecords[0].kind='MountPrimary'} $mountDeath
 Reject-All 'record cast by the mount' {param($c)$c.activationRecords[0].casterId='mount'} $mountDeath
 Reject-All 'record with a target' {param($c)$c.activationRecords[0].targetId='enemy'} $mountDeath
-Reject-All 'record with a dispatch verdict' {param($c)$c.activationRecords[0].dispatchAccepted=$false} $mountDeath
+Reject-All 'record with a refused dispatch' {param($c)$c.activationRecords[0].dispatchAccepted=$false} $mountDeath
+Reject-All 'record without the accepted dispatch' {param($c)$c.activationRecords[0].dispatchAccepted=$null} $mountDeath
+Reject-All 'record transition unchanged' {param($c)$c.activationRecords[0].relationshipTransitionChanged=$false} $mountDeath
+Reject-All 'record transition result differs' {param($c)$c.activationRecords[0].relationshipTransitionResult='succeeded=False;state=Faulted;trigger=Death'} $mountDeath
+Reject-All 'record transition result under another trigger' {param($c)$c.activationRecords[0].relationshipTransitionResult='succeeded=True;state=Unmounted;trigger=Incapacitated'} $mountDeath
+Reject-All 'record lifecycle deliveries omit the cleanup' {param($c)$c.activationRecords[0].lifecycleDeliveries='3:CombatEnded:IUnitCombatHandler.HandleUnitLeaveCombat'} $mountDeath
 Reject-All 'record still mounted' {param($c)$c.activationRecords[0].relationshipStateObserved='Mounted';$c.activationRecords[0].relationshipEnded=$false} $mountDeath
 Reject-All 'record under another trigger' {param($c)$c.activationRecords[0].cleanupTrigger='Incapacitated'} $mountDeath
 Reject-All 'record with another terminal' {param($c)$c.activationRecords[0].terminalResult='no-active-command-observed'} $mountDeath

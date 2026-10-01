@@ -123,9 +123,12 @@ function Assert-KmcForcedDetach($Evidence) {
   $recordSequence++
   if($null-eq$record-or(Int (Value $record 'sequence'))-ne$recordSequence){Fail 'activation records are not the consecutive appended window'}
   if((Text $record 'phase')-cne'RelationshipEnded'-or(Text $record 'kind')-cne'RiderPrimary'-or(Text $record 'terminalResult')-cne'relationship-ended-before-primary-terminal'-or-not(Yes (Value $record 'relationshipEnded'))){Fail 'an appended activation record is not the passive relationship-ended observation of the live rider primary'}
-  $dispatch=Field $record 'dispatchAccepted'
-  if((Text $record 'casterId')-cne$rider-or(Text $record 'riderIdAtStart')-cne$rider-or(Text $record 'mountIdAtStart')-cne$mount-or(Text $record 'targetId')-cne'<none>'-or-not(No (Value $record 'targetSelectionMode'))-or-not$dispatch.present-or$null-ne$dispatch.value){Fail 'an appended activation record names another actor, a target, a selection or a dispatch'}
-  if((Text $record 'relationshipStateAtStart')-cne'Mounted'-or(Text $record 'relationshipStateObserved')-cne'Unmounted'-or(Text $record 'cleanupTrigger')-cne$trigger){Fail 'an appended activation record does not observe this forced detach'}
+  if((Text $record 'casterId')-cne$rider-or(Text $record 'riderIdAtStart')-cne$rider-or(Text $record 'mountIdAtStart')-cne$mount-or(Text $record 'targetId')-cne'<none>'-or-not(No (Value $record 'targetSelectionMode'))){Fail 'an appended activation record names another actor, a target or a selection'}
+  # The live primary was dispatched and accepted before the native stimulus (preview.147 observation).
+  if(-not(Yes (Value $record 'dispatchAccepted'))){Fail "an appended activation record does not carry the live primary's accepted dispatch"}
+  $cleanupToken=([string](Int (Value $cleanup 'sequence')))+':'+(Text $cleanup 'boundary')+':'+(Text $cleanup 'source')+':cleanup='+$trigger
+  if((Text $record 'relationshipStateAtStart')-cne'Mounted'-or(Text $record 'relationshipStateObserved')-cne'Unmounted'-or(Text $record 'cleanupTrigger')-cne$trigger-or-not(Yes (Value $record 'relationshipTransitionChanged'))-or
+     (Text $record 'relationshipTransitionResult')-cne('succeeded=True;state=Unmounted;trigger='+$trigger)-or-not([string](Text $record 'lifecycleDeliveries')).Contains($cleanupToken)){Fail 'an appended activation record does not observe this forced detach'}
   $frame=Int (Value $record 'frame');$observed=Int (Value $record 'lifecycleSequenceObserved')
   if($frame-lt(Int (Value $before 'frame'))-or$frame-gt(Int (Value $after 'frame'))-or$observed-lt(Int (Value $cleanup 'sequence'))-or$observed-gt(Int (Value $after 'lifecycleSequence'))){Fail 'an appended activation record lies outside the forced-detach window'}
  }
