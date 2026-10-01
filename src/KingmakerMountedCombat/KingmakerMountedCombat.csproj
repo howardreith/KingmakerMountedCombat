@@ -387,6 +387,7 @@
     <Compile Include="Diagnostics\NativeDismountGroundEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aDismountEscapeScenario.cs" />
     <Compile Include="Diagnostics\NativeDismountEscapeEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk6aRepeatedDismountScenario.cs" />
     <Compile Include="Diagnostics\NativePassiveResourceProbe.cs" />
     <Compile Include="Diagnostics\NativeTerminalBridgeEvidence.cs" />
     <Compile Include="Diagnostics\NativeRelationshipTerminalBridge.cs" />

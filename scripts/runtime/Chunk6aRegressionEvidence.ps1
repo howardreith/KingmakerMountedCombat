@@ -2,12 +2,15 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'UnrelatedChargeTerminalEvidence.ps1')
 function Get-KmcChunk6aRegressionClaims {
- @('CM06-unrelated-actor','CM08-mounted-charge-rejected-rt','CM08-mounted-charge-rejected-tb','CM08-unmounted-charge','CM08-ordinary-attack-controls-tb','CM08-chunk4-sustained-tb','CM08-sustained-rt','CM08-incoming-targeting','CM08-rider-death-cleanup','CM08-mount-death-cleanup')
+ @('CM06-unmounted-ordinary','CM06-unrelated-actor','CM08-mounted-charge-rejected-rt','CM08-mounted-charge-rejected-tb','CM08-unmounted-charge','CM08-ordinary-attack-controls-tb','CM08-chunk4-sustained-tb','CM08-sustained-rt','CM08-incoming-targeting','CM08-rider-death-cleanup','CM08-mount-death-cleanup')
 }
 function Get-KmcChunk6aRegressionRoles([string]$Id) {
  $charge=@('C4-CHARGE-mounted-rider','C4-CHARGE-unmounted-rider','C4-CHARGE-mounted-mount','C4-CHARGE-unrelated-actor','C4-CHARGE-queued-state-change')
+ $unmountedTb=@('C01-B','C03-rapid-off-B','C03-bab-B','C03-haste-B','C02-restricted-B','C03-single-B','C03-spent-standard-B','C03-rider-move-B','C03-mixed-range-B')
+ $unmountedRt=@('unmounted-stock-attack-control','unmounted-ranged-control')
  $specs=@()
  switch -CaseSensitive ($Id) {
+  'CM06-unmounted-ordinary' {$specs=@(@('unmounted-rt','unmounted-attack-controls-rt',$unmountedRt),@('unmounted-tb','ordinary-attack-controls-tb',$unmountedTb))}
   'CM08-mounted-charge-rejected-rt' {$specs=@(,@('charge-rt','chunk4-charge-safety-rt',$charge))}
   'CM08-mounted-charge-rejected-tb' {$specs=@(,@('charge-tb','chunk4-charge-safety-tb',$charge))}
   'CM06-unrelated-actor' {$specs=@(@('charge-rt','chunk4-charge-safety-rt',$charge),@('charge-tb','chunk4-charge-safety-tb',$charge))}

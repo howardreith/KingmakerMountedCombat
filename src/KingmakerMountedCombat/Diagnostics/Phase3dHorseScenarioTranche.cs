@@ -388,6 +388,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsUnmountedAttackControls)
             {
                 CaptureIdleFixturePartyForCleanup();
+                BeginChunk6aRepeatedDismountObservation();
                 BeginTarget(TargetDistance, "unmounted-control-dismount");
                 BeginRtCombatDismount();
                 return;
@@ -1985,8 +1986,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (IsUnmountedAttackControls && !ObserveChunk6aRepeatedDismountCancellation()) return;
             rtCombatDismountBefore = combat.CaptureUnifiedTurnSnapshot();
-            if (!TryNativeAbilityTargetClick(nativeControls.DismountAbility, rider, "rt-combat-dismount"))
+            BeginChunk6aRepeatedDismountCommand();
+            var dismountClicked = TryNativeAbilityTargetClick(
+                nativeControls.DismountAbility, rider, "rt-combat-dismount");
+            ObserveChunk6aRepeatedDismountClick(dismountClicked);
+            if (!dismountClicked)
             {
                 FailCurrent("unmounted-stock-attack-control", "Native Dismount was not admitted before unmounted stock controls.");
                 BeginCleanup();
@@ -2000,6 +2006,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (relationship.State != RelationshipState.Unmounted || !rider.Commands.Empty || !horse.Commands.Empty)
             {
+                return;
+            }
+            if (IsUnmountedAttackControls && chunk6aCommandWindow?.Terminal != true) return;
+            if (!FinishChunk6aRepeatedDismountObservation())
+            {
+                BeginCleanup();
                 return;
             }
             observations["rtCombatDismountCompletion"] = new JObject
@@ -6373,7 +6385,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsUnmountedAttackControls ? 31 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
