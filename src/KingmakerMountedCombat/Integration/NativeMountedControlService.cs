@@ -1128,6 +1128,11 @@ namespace KingmakerMountedCombat.Integration
             return activationLedger.Snapshot();
         }
 
+        internal IReadOnlyList<NativeLifecycleDeliveryRecord> SnapshotLifecycleDeliveries()
+        {
+            return lifecycleLedger.Snapshot();
+        }
+
         public void HandleAbilityTargetSelectionStart(AbilityData ability)
         {
             var kind = ResolveKind(ability?.Blueprint);

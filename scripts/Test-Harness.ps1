@@ -10402,7 +10402,8 @@ try {
             $unmountedEngineSource.Contains('var availability = playerAction.GetAvailability();') -and
             $unmountedEngineSource.Contains('availability.Action == MountedPlayerActionKind.Mount') -and
             $unmountedEngineSource.Contains('"target-selected-mount-admission-deadline"') -and
-            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }'))).Count -eq 5 -and
+            # Five bounded waits plus the tranche handoff re-check (AwaitTrancheHandoff) unpause while waiting; no other site may.
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }'))).Count -eq 6 -and
             ([regex]::Matches($unmountedEngineSource, [regex]::Escape('horse.Commands.InterruptAll(false);'))).Count -ge 2 -and
             $unmountedEngineSource.Contains('var nativeTurn = controller.CurrentTurn;') -and
             $unmountedEngineSource.Contains('turnBasedNativeTurnStableFrames++') -and
@@ -12687,7 +12688,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsUnmountedAttackControls ? 31 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

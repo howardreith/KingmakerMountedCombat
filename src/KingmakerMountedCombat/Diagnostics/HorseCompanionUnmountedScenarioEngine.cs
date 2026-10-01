@@ -458,6 +458,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     case EngineStep.AwaitMountedReady:
                         AwaitMountedReady();
                         break;
+                    case EngineStep.AwaitTrancheHandoff:
+                        AwaitTrancheHandoff();
+                        break;
                     case EngineStep.AwaitPhase3dTranche:
                         AwaitPhase3dTranche();
                         break;
@@ -1595,8 +1598,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             // The child captures the entire disposable party as idle, not just the
             // pair. Let the parent's native encounter settle before child construction.
-            if (Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
-                Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario))
+            if (Phase3dHorseScenarioTranche.RequiresIdlePartyHandoff(request.Scenario))
             {
                 var partyState = new JArray(owner.Group.Select(member => new JObject {
                     ["actor"] = member.UniqueId, ["inCombat"] = member.IsInCombat,
@@ -2115,7 +2117,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (IsPhase3dScenario)
             {
-                BeginPhase3dTranche(true);
+                BeginTrancheHandoff();
                 return;
             }
 
@@ -2167,6 +2169,53 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             BeginMountedRealTimeMovement();
+        }
+
+        private double trancheHandoffStartedAtSeconds;
+
+        private void BeginTrancheHandoff()
+        {
+            trancheHandoffStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            step = EngineStep.AwaitTrancheHandoff;
+            AwaitTrancheHandoff();
+        }
+
+        // The child captures the whole disposable party as idle at entry. Native combat
+        // can linger after the parent's preliminary target is disposed and the mounted
+        // alpha stages run between the admission wait and this point, so the party is
+        // re-checked immediately before the child is created, within the same bounded
+        // admission leaf. The exact state, including the preamble Mount admission mode,
+        // is published on every check and named by the refusal.
+        private void AwaitTrancheHandoff()
+        {
+            var requiresIdleParty = Phase3dHorseScenarioTranche.RequiresIdlePartyHandoff(request.Scenario);
+            var partyState = new JArray(owner.Group.Select(member => new JObject {
+                ["actor"] = member.UniqueId, ["inCombat"] = member.IsInCombat,
+                ["commandsEmpty"] = member.Commands.Empty
+            }));
+            var handoff = new JObject {
+                ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                ["playerInCombat"] = Game.Instance.Player.IsInCombat,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["preambleMountAdmission"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>",
+                ["requiresIdleParty"] = requiresIdleParty,
+                ["waitedSeconds"] = clock.Elapsed.TotalSeconds - trancheHandoffStartedAtSeconds,
+                ["party"] = partyState
+            };
+            observations["chunk6aPartyHandoffAtChild"] = handoff;
+            if (requiresIdleParty &&
+                (Game.Instance.Player.IsInCombat || owner.Group.Any(member => member.IsInCombat)))
+            {
+                if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }
+                if (clock.Elapsed.TotalSeconds - trancheHandoffStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds)
+                    return;
+                Fail("tranche-handoff-idle-party-deadline",
+                    "The disposable party did not leave native combat before the child tranche within the bounded leaf: " +
+                    handoff.ToString(Formatting.None));
+                BeginCleanup();
+                return;
+            }
+            BeginPhase3dTranche(true);
         }
 
         private void BeginPhase3dTranche(bool pairAlreadyMounted)
@@ -4080,6 +4129,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitTargetRemoval,
             AwaitMountedAlphaAdmission,
             AwaitMountedReady,
+            AwaitTrancheHandoff,
             AwaitPhase3dTranche,
             AwaitMountedDollRoom,
             AwaitMountedRealTimeMovement,

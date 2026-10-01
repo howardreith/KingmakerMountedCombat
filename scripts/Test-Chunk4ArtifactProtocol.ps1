@@ -13,7 +13,8 @@ foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chu
         elseif($root -ceq 'chunk4-ground-arrival-rt'){New-GroundEnvelope}else{New-CoreEnvelope $root}
     $identity=@{evidenceKind='phase3d-horse-scenario-evidence';runId='parser-only';scenario=$root;branch='codex/mounted-combat-phase3f-playable-core';
         commit=('a'*40);productVersion='0.1.0-parser-only';dllSha256=('b'*64);dllMvid='00000000-0000-0000-0000-000000000001';createdAtUtc=[DateTime]::UtcNow.ToString('o')}
-    foreach($key in $identity.Keys){$outer|Add-Member -NotePropertyName $key -NotePropertyValue $identity[$key]}
+    # Core fixtures already carry their scenario (the forced-detach envelope binds it); the identity overwrites it with the same root.
+    foreach($key in $identity.Keys){$outer|Add-Member -NotePropertyName $key -NotePropertyValue $identity[$key] -Force}
     $request=@{};foreach($key in $identity.Keys){$request[$key]=$identity[$key]}
     $request.evidenceRoot=Join-Path $kmcRoot $root
     $null=[IO.Directory]::CreateDirectory($request.evidenceRoot)
