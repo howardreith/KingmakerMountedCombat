@@ -3,6 +3,7 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'NativeDismountEscapeEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativeMountOrderEvidence.ps1')
 . (Join-Path $PSScriptRoot 'EarlyEndMountEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeRepeatedDismountEvidence.ps1')
 function Assert-KmcSameEvidence($A,$B,[string]$Label){
  if($null-eq$A-or$null-eq$B-or(ConvertTo-Json -InputObject $A -Depth 100 -Compress)-cne(ConvertTo-Json -InputObject $B -Depth 100 -Compress)){throw ('Additional Chunk6A binding differs: '+$Label)}
 }
@@ -86,4 +87,29 @@ function Assert-KmcMountOrderEnvelope($Request,$Artifact,[bool]$RequireEarlyEnd=
  foreach($row in @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases','CM02-geometry-change','CM02-obstruction','CM05-combat-dismount-accepted')){
   if(@($Artifact.rows|Where-Object name -CEQ $row).Count-ne0){throw 'Mount order inherited another allocation'}
  }
+}
+function Assert-KmcRepeatedDismountInputEnvelope($Request,$Artifact){
+ $e=$Artifact.observations.chunk6aRepeatedDismount
+ if($null-eq$e-or$e.scenario-cne$Request.scenario-or$Artifact.scenario-cne$Request.scenario){throw 'Repeated Dismount request binding differs'}
+ $proof=Get-KmcExactWindow $Artifact 'focused-combat-dismount'
+ Assert-KmcSameEvidence $e.positiveProof $proof 'repeated Dismount exact command'
+ Assert-KmcRelationshipCommandProof $proof $true $false 0 $false 0 $true
+ Assert-KmcRepeatedDismountInput $e
+ $rows=@($Artifact.rows|Where-Object name -CEQ 'CM05-repeated-input')
+ if($rows.Count-ne1-or$rows[0].status-cne'PASS'){throw 'Repeated Dismount exact mandatory row absent'}
+ Assert-KmcSameEvidence $rows[0].evidence $e 'repeated Dismount row'
+ $trace=$Artifact.observations.actorAllocationTrace
+ if(($trace.dropped-isnot[int]-and$trace.dropped-isnot[long])-or$trace.dropped-ne0-or
+    ($trace.observationErrors-isnot[int]-and$trace.observationErrors-isnot[long])-or$trace.observationErrors-ne0){throw 'Repeated Dismount complete native trace missing'}
+ foreach($window in @($e.cancellation,$e.repeat)){
+  $slice=@($trace.events|Where-Object{$_.sequence-gt$window.before.allocationSequence-and$_.sequence-le$window.after.allocationSequence})
+  Assert-KmcSameEvidence @($window.allocationEvents) $slice 'repeated Dismount synchronous full trace'
+ }
+ $terminal=@($proof.samples|Where-Object boundary -CEQ 'terminal')
+ if($terminal.Count-ne1){throw 'Repeated Dismount command terminal absent'}
+ $commandSlice=@($trace.events|Where-Object{$_.sequence-gt$proof.preClick.allocationSequence-and$_.sequence-le$terminal[0].allocationSequence})
+ Assert-KmcSameEvidence @($proof.resourceWindow.events) $commandSlice 'repeated Dismount exact command full trace'
+ Assert-KmcSameEvidence @($e.terminalBridge.observerHooks) @($trace.observerHooks) 'repeated Dismount terminal hooks'
+ $bridgeSlice=@($trace.events|Where-Object{$_.sequence-gt$e.terminalBridge.before.allocationSequence-and$_.sequence-le$e.terminalBridge.after.allocationSequence})
+ Assert-KmcSameEvidence @($e.terminalBridge.events) $bridgeSlice 'repeated Dismount terminal full trace'
 }

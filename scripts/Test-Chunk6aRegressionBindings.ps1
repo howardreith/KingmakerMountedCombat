@@ -2,7 +2,7 @@ $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aRegressionEvidence.ps1')
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $repo 'scripts/runtime/OrdinaryAttackControlsEvidence.ps1')
-$ids=@('CM06-unrelated-actor','CM08-mounted-charge-rejected-rt','CM08-mounted-charge-rejected-tb','CM08-unmounted-charge','CM08-ordinary-attack-controls-tb','CM08-chunk4-sustained-tb','CM08-sustained-rt','CM08-incoming-targeting','CM08-rider-death-cleanup','CM08-mount-death-cleanup')
+$ids=@('CM06-unmounted-ordinary','CM06-unrelated-actor','CM08-mounted-charge-rejected-rt','CM08-mounted-charge-rejected-tb','CM08-unmounted-charge','CM08-ordinary-attack-controls-tb','CM08-chunk4-sustained-tb','CM08-sustained-rt','CM08-incoming-targeting','CM08-rider-death-cleanup','CM08-mount-death-cleanup')
 $checks=0
 function Copy-RegressionValue($v){$v|ConvertTo-Json -Depth 50|ConvertFrom-Json}
 function Reject-Regression([scriptblock]$Change){
@@ -12,7 +12,7 @@ function Reject-Regression([scriptblock]$Change){
 }
 foreach($id in $ids){
  $script:claim=$id;$roles=@(Get-KmcChunk6aRegressionRoles $id)
- $expected=if($id-ceq'CM08-incoming-targeting'){3}elseif($id-cin@('CM06-unrelated-actor','CM08-unmounted-charge','CM08-sustained-rt')){2}else{1}
+ $expected=if($id-ceq'CM08-incoming-targeting'){3}elseif($id-cin@('CM06-unmounted-ordinary','CM06-unrelated-actor','CM08-unmounted-charge','CM08-sustained-rt')){2}else{1}
  if($roles.Count-ne$expected){throw ('Role cardinality differs: '+$id+' observed='+$roles.Count)};$checks++
  $script:bindings=@(for($i=0;$i-lt$roles.Count;$i++){
   $r=$roles[$i];$value=[ordered]@{role=$r.name;runId=('synthetic-'+$i);scenario=$r.scenario;rows=@($r.rows);evidenceLeaf=$r.evidenceLeaf;passCount=50;failCount=0}
@@ -35,5 +35,9 @@ foreach($id in $ids){
 }
 $ordinary=@(Get-KmcChunk6aRegressionRoles 'CM08-ordinary-attack-controls-tb')
 if(($ordinary[0].rows -join '|')-cne(@(Get-KmcOrdinaryAttackControlCases|ForEach-Object id)-join'|')){throw 'Ordinary baseline row inventory differs'};$checks++
+$unmounted=@(Get-KmcChunk6aRegressionRoles 'CM06-unmounted-ordinary')
+$expectedUnmounted=@(Get-KmcOrdinaryAttackControlCases|Where-Object {-not$_.mounted}|ForEach-Object id)
+if(($unmounted[0].rows-join'|')-cne'unmounted-stock-attack-control|unmounted-ranged-control'-or
+   ($unmounted[1].rows-join'|')-cne($expectedUnmounted-join'|')){throw 'Unmounted ordinary role or row inventory differs'};$checks++
 foreach($id in @('CM07-cold-load','CM08-persistence-suite','CM08-horse-smoke','CM06-ai-auto-use','unregistered')){$refused=$false;try{Assert-KmcChunk6aRegressionBindings $id $primary $bindings}catch{$refused=$true};if(-not$refused){throw 'Unimplemented claim accepted'};$checks++}
 'REGRESSION BINDINGS PASS='+$checks+' FAIL=0; synthetic only, no qualification'

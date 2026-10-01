@@ -3779,7 +3779,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
         'CM03-combat-mount-conserves-debt', 'CM03-combat-mount-adoption-preparations',
         'CM06-combat-mount-repeat-refused', 'CM05-combat-dismount-accepted',
-        'CM05-combat-dismount-conserves-debt', 'CM05-no-duplicate-mount-turn',
+        'CM05-combat-dismount-conserves-debt', 'CM05-no-duplicate-mount-turn', 'CM05-repeated-input',
         'C4-CHARGE-mounted-rider', 'C4-CHARGE-unmounted-rider',
         'C4-CHARGE-mounted-mount', 'C4-CHARGE-unrelated-actor', 'C4-CHARGE-queued-state-change',
         'C01-B', 'C01-C', 'C01-D',
@@ -6718,9 +6718,10 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L) -or
         ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')) -or
         ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb') -and $phase3dSchemaVersion -ne 30L) -or
+        ($phase3dSchemaVersion -eq 31L -and [string]$Request.scenario -cne 'unmounted-attack-controls-rt') -or
         ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
@@ -6814,7 +6815,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         }
         return
     }
-    $nativeControlScope = $phase3dSchemaVersion -eq 7L
+    $nativeControlScope = $phase3dSchemaVersion -in @(7L,31L)
     if ($nativeControlScope) {
         if ([string]$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
             throw 'Phase 3F native-control evidence cannot qualify a unified-TB scenario.'
@@ -6845,7 +6846,9 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             break
         }
         'unmounted-attack-controls-rt' {
-            @('unmounted-stock-attack-control','unmounted-ranged-control')
+            $rows = @('unmounted-stock-attack-control','unmounted-ranged-control')
+            if ($phase3dSchemaVersion -eq 31L) { $rows += 'CM05-repeated-input' }
+            $rows
             break
         }
         'phase3d-horse-presentation-suite' {
@@ -7248,6 +7251,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
     elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'unmounted-attack-controls-rt') {
         Assert-KmcUnmountedAttackControlRows -Artifact $artifact -RowMap $rowMap
+        if ($phase3dSchemaVersion -eq 31L) { Assert-KmcRepeatedDismountInputEnvelope -Request $Request -Artifact $artifact }
         $readiness = $artifact.observations.rtCombatDismountReadiness
         if ($readiness.gamePaused -ne $false -or $readiness.riderCanActInCombat -ne $true -or
             $readiness.riderHandsBusy -ne $false -or [double]$readiness.riderInitiative -gt 0.000001d) {
@@ -7269,7 +7273,13 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $riderAiRestored.states[0].effectiveAiAfter -ne $riderAi.states[0].effectiveAiBefore) {
             throw 'Focused unmounted controls did not isolate and exactly restore native rider AI.'
         }
-        foreach ($row in $rowMap.Values) {
+        $nativeAttackRows = if ($phase3dSchemaVersion -eq 31L) {
+            @($rowMap['unmounted-stock-attack-control'],$rowMap['unmounted-ranged-control'])
+        } else {
+            # Preserve the exact historical schema-7 assertion over every focused row.
+            @($rowMap.Values)
+        }
+        foreach ($row in $nativeAttackRows) {
             if ([string]$row.evidence.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
                 [long]$row.evidence.preDispatchDamageRules -ne 0L) {
                 throw 'Focused unmounted control did not retain the exact native UnitAttack executor.'

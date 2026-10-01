@@ -18,6 +18,7 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM02-obstruction','chunk6a-obstruction',@('CM02-obstruction')),
   @('CM05-rt','chunk6a-combat-mount-rt',$dismount),
   @('CM05-tb','chunk6a-combat-mount-tb',$dismount),
+  @('CM05-repeated-input','unmounted-attack-controls-rt',@('CM05-repeated-input')),
   @('CM01-mammoth-rt','chunk6a-mammoth-mount-rt',@('CM01-combat-mount-accepted','CM02-approach-arrival')),
   @('CM01-mammoth-tb','chunk6a-mammoth-mount-tb',@('CM01-combat-mount-accepted','CM02-approach-arrival','CM01-combat-mount-preparing-refused')),
   @('CM04-command-replacement','chunk6a-command-replacement',@('CM04-command-replacement')),
