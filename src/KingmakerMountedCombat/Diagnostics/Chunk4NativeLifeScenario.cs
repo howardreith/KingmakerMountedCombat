@@ -473,6 +473,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["processBindings"] = nativeControls.NativeRelationshipProcessBindingCount,
                 ["controls"] = CaptureChunk6aForcedDetachControls(), ["ledger"] = Chunk6aLedgerCounters(),
                 ["lifecycleSequence"] = deliveries.Count == 0 ? 0L : deliveries[deliveries.Count - 1].Sequence,
+                ["activationSequence"] = LastChunk6aActivationSequence(nativeControls.SnapshotAbilityActivations()),
                 ["rider"] = allocationTrace.Snapshot(rider), ["mount"] = allocationTrace.Snapshot(horse),
                 ["subjectLife"] = ProjectChunk6aForcedDetachLife(Chunk4LifeSubject),
                 ["survivorLife"] = ProjectChunk6aForcedDetachLife(Chunk4LifeSurvivor),
@@ -496,6 +497,8 @@ namespace KingmakerMountedCombat.Diagnostics
             var end = (int)after["allocationSequence"];
             var firstDelivery = (long)before["lifecycleSequence"];
             var lastDelivery = (long)after["lifecycleSequence"];
+            var firstActivation = (long)before["activationSequence"];
+            var lastActivation = (long)after["activationSequence"];
             var evidence = new JObject
             {
                 ["level"] = "NATIVE INTEGRATION", ["caseId"] = Chunk6aForcedDetachRow,
@@ -507,7 +510,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["allocationEvents"] = new JArray(allocationTrace.EventsSince(start).Take(Math.Max(0, end - start))),
                 ["deliveries"] = new JArray(nativeControls.SnapshotLifecycleDeliveries()
                     .Where(record => record.Sequence > firstDelivery && record.Sequence <= lastDelivery)
-                    .Select(ProjectChunk6aForcedDetachDelivery))
+                    .Select(ProjectChunk6aForcedDetachDelivery)),
+                // The control service appends one passive RelationshipEnded observation for a
+                // pending rider-primary activation when the pair leaves Mounted (observed on the
+                // preview.146 mount death); the records are exposed and bound, never hidden
+                // behind a flat count.
+                ["activationRecords"] = new JArray(nativeControls.SnapshotAbilityActivations()
+                    .Where(record => record.Sequence > firstActivation && record.Sequence <= lastActivation)
+                    .Select(ProjectChunk6aActivationRecord))
             };
             chunk6aForcedDetachEvidence = evidence;
             observations["chunk6aForcedDetach"] = evidence;
@@ -516,7 +526,7 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { failure = exception.Message; }
             AddRow(Chunk6aForcedDetachRow, failure == null,
                 failure ?? "Native " + (Chunk4LifeIncapacitation ? "incapacitation" : "death") +
-                " detached the mounted pair through lifecycle cleanup exactly once; no voluntary Mount or Dismount, native control activity, action cost or preparation was booked for either actor in the window.",
+                " detached the mounted pair through lifecycle cleanup exactly once; no voluntary Mount or Dismount, native control activity, action cost or preparation was booked for either actor in the window, and the activation ledger appended only the passive relationship-ended observation of the live rider primary, if any.",
                 evidence);
         }
 
