@@ -73,7 +73,9 @@ function Assert-KmcRepeatedDismountInput($Evidence) {
    }
   }
  }
- function Same-Window($before,$after,[bool]$selection) {
+ function Same-Window($window,[string]$rider,[string]$mount,[bool]$selection) {
+  $before=$window.before;$after=$window.after
+  if($null-eq$before-or$null-eq$after){throw 'Repeated Dismount synchronous window boundaries missing'}
   foreach($field in @('frame','gameTicks','allocationSequence','shellCount','processBindings')){
    if((Int $before.$field)-ne(Int $after.$field)){throw ('Repeated Dismount synchronous window changed '+$field)}
   }
@@ -83,13 +85,58 @@ function Assert-KmcRepeatedDismountInput($Evidence) {
   Same-State $before.state $after.state
   Same-Resources $before.riderResources $after.riderResources 'rider'
   Same-Resources $before.mountResources $after.mountResources 'mount'
-  foreach($field in @('nativeCastRequest','nativeRefusal','dispatchAccepted','dispatchRejected','activationCount')){
+  foreach($field in @('nativeCastRequest','nativeRefusal','dispatchAccepted','dispatchRejected')){
    if((Int $before.controls.$field)-ne(Int $after.controls.$field)){throw ('Repeated Dismount control count changed '+$field)}
   }
   $expected=if($selection){1L}else{0L}
   if((Int $after.controls.targetSelectionStart)-(Int $before.controls.targetSelectionStart)-ne$expected-or
      (Int $after.controls.targetSelectionEnd)-(Int $before.controls.targetSelectionEnd)-ne$expected){
    throw 'Repeated Dismount target-selection callback count differs'
+  }
+  Passive-Selection-Records $window $before $after $rider $mount $selection
+ }
+ # Evidence arrives either as parsed JSON objects or as the offline fixture's dictionaries.
+ function Field($object,[string]$name) {
+  if($object-is[Collections.IDictionary]){
+   if(-not$object.Contains($name)){return [pscustomobject]@{present=$false;value=$null}}
+   return [pscustomobject]@{present=$true;value=$object[$name]}
+  }
+  $property=$object.PSObject.Properties[$name]
+  if($null-eq$property){return [pscustomobject]@{present=$false;value=$null}}
+  [pscustomobject]@{present=$true;value=$property.Value}
+ }
+ function Null-Field($record,[string]$name) {
+  $field=Field $record $name
+  if(-not$field.present-or$null-ne$field.value){throw ('Repeated Dismount activation record '+$name+' is not exactly null')}
+ }
+ # The native control service appends one activation ledger record per observed
+ # control phase, so a SetAbility/DropAbility cancellation lawfully appends exactly
+ # TargetSelectionStarted and TargetSelectionEnded for one Dismount activation and a
+ # refused post-terminal input appends none. The window proves passivity by exposing
+ # those records; a flat count that contradicts the required selection callbacks is
+ # not evidence (preview.144 c6a-repeated-dismount144-j-unmounted-controls).
+ function Passive-Selection-Records($window,$before,$after,[string]$rider,[string]$mount,[bool]$selection) {
+  $field=Field $window 'activationRecords'
+  if(-not$field.present-or$field.value-isnot[array]){throw 'Repeated Dismount activation records missing'}
+  $records=@($field.value)
+  $expected=if($selection){2}else{0}
+  if($records.Count-ne$expected){throw 'Repeated Dismount activation record count differs'}
+  if((Int $after.controls.activationCount)-(Int $before.controls.activationCount)-ne$records.Count){throw 'Repeated Dismount activation count differs from the appended records'}
+  if(-not$selection){return}
+  $started=$records[0];$ended=$records[1]
+  if([string]$started.phase-cne'TargetSelectionStarted'-or[string]$ended.phase-cne'TargetSelectionEnded'){throw 'Repeated Dismount activation phases are not one passive target selection'}
+  if([string]$started.terminalResult-cne'target-selection-started'-or[string]$ended.terminalResult-cne'target-selection-cancelled'){throw 'Repeated Dismount activation terminal results are not one cancelled target selection'}
+  if((Int $started.activationId)-le0-or(Int $ended.activationId)-ne(Int $started.activationId)-or(Int $ended.sequence)-ne((Int $started.sequence)+1)){throw 'Repeated Dismount activation records are not one consecutive activation'}
+  foreach($record in @($started,$ended)){
+   if([string]$record.kind-cne'Dismount'-or[string]$record.abilityGuid-cne'3af2b81f4d72bbb30501fa730fcdf36e'-or[string]$record.casterId-cne$rider-or
+      [string]$record.activeSelectedUnitIds-cne$rider-or[string]$record.targetId-cne'<none>'-or-not(Yes $record.targetSelectionMode)){throw 'Repeated Dismount activation record identity differs'}
+   if((Int $record.frame)-ne(Int $before.frame)){throw 'Repeated Dismount activation record left the synchronous frame'}
+   if([string]$record.relationshipStateAtStart-cne'Mounted'-or[string]$record.relationshipStateObserved-cne'Mounted'-or
+      [string]$record.riderIdAtStart-cne$rider-or[string]$record.mountIdAtStart-cne$mount-or
+      -not(No $record.riderViewChanged)-or-not(No $record.mountViewChanged)-or-not(No $record.relationshipEnded)-or-not(No $record.relationshipTransitionChanged)){throw 'Repeated Dismount activation record observed a relationship or view change'}
+   if(-not(Yes $record.inCombat)-or-not(No $record.turnBased)){throw 'Repeated Dismount activation record is not RT combat'}
+   Null-Field $record 'dispatchAccepted';Null-Field $record 'cleanupTrigger'
+   if([string]$record.lifecycleDeliveries-cne'<none>'-or(Int $record.lifecycleSequenceObserved)-ne(Int $record.lifecycleSequenceAtStart)){throw 'Repeated Dismount activation record observed a dispatch, cleanup or lifecycle delivery'}
   }
  }
  if([string]$Evidence.contract-cne'cancel-once-one-native-dismount-then-repeat-refused'-or
@@ -106,7 +153,7 @@ function Assert-KmcRepeatedDismountInput($Evidence) {
  $generation=Int $cancel.before.state.generation
  Boundary $cancel.before $rider $mount $generation 'Mounted'
  Boundary $cancel.after $rider $mount $generation 'Mounted'
- Same-Window $cancel.before $cancel.after $true
+ Same-Window $cancel $rider $mount $true
  if((Int $cancel.selected.handlerObject)-eq0-or
     (Int $cancel.selected.abilityDataObject)-ne(Int $cancel.before.abilityDataObject)-or
     (Int $cancel.selected.selectedAbilityObject)-ne(Int $cancel.before.abilityDataObject)-or
@@ -143,7 +190,7 @@ function Assert-KmcRepeatedDismountInput($Evidence) {
  Boundary $repeat.before $rider $mount $generation 'Unmounted'
  Boundary $repeat.after $rider $mount $generation 'Unmounted'
  Same $Evidence.afterPositive $repeat.before 'positive terminal to repeat baseline'
- Same-Window $repeat.before $repeat.after $false
+ Same-Window $repeat $rider $mount $false
  if([string]$repeat.inputBaseline.availabilityReason-cne'Dismount is available only to the exact mounted rider.'-or
     $null-ne$repeat.inputBaseline.abilityAvailableForCast){
   throw 'Repeated Dismount unavailable baseline differs'

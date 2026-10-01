@@ -25,12 +25,16 @@ function New-Causal($rider,$mount,[string]$relationship,[int]$accepted){
  $m|Add-Member nativePrepareCount ([long]$m.grantSequence)
  [ordered]@{rider=$r;mount=$m;selectedIds=@('rider');ledger=(New-Ledger $accepted);geometry=[ordered]@{seconds=1.0;rider=@(0.0,0.0,0.0);mount=@(1.0,0.0,0.0)};relationshipState=$relationship;generation=4}
 }
-function New-Controls([int]$selections,[int]$casts,[int]$accepted){
- [ordered]@{targetSelectionStart=$selections;targetSelectionEnd=$selections;nativeCastRequest=$casts;nativeRefusal=0;dispatchAccepted=$accepted;dispatchRejected=0;activationCount=$accepted}
+function New-Controls([int]$selections,[int]$casts,[int]$accepted,[int]$activations){
+ [ordered]@{targetSelectionStart=$selections;targetSelectionEnd=$selections;nativeCastRequest=$casts;nativeRefusal=0;dispatchAccepted=$accepted;dispatchRejected=0;activationCount=$activations}
 }
-function New-Boundary([string]$name,[int]$frame,[long]$ticks,[int]$sequence,[string]$relationship,$rider,$mount,[int]$accepted,[int]$selections,[int]$casts,[int]$dispatch){
+# One native control-service activation ledger record, as the scenario projects it.
+function New-ActivationRecord([long]$sequence,[long]$activationId,[string]$phase,[string]$terminal,[int]$frame=100){
+ [ordered]@{sequence=$sequence;activationId=$activationId;phase=$phase;kind='Dismount';abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';frame=$frame;casterId='rider';activeSelectedUnitIds='rider';targetId='<none>';targetSelectionMode=$true;relationshipStateAtStart='Mounted';relationshipStateObserved='Mounted';riderIdAtStart='rider';mountIdAtStart='mount';riderViewChanged=$false;mountViewChanged=$false;inCombat=$true;turnBased=$false;gameMode='Default';currentTurnUnitId='<none>';lifecycleSequenceAtStart=3;lifecycleSequenceObserved=3;lifecycleDeliveries='<none>';cleanupTrigger=$null;dispatchAccepted=$null;relationshipEnded=$false;relationshipTransitionChanged=$false;relationshipTransitionResult='succeeded=True;state=Mounted';terminalResult=$terminal}
+}
+function New-Boundary([string]$name,[int]$frame,[long]$ticks,[int]$sequence,[string]$relationship,$rider,$mount,[int]$accepted,[int]$selections,[int]$casts,[int]$dispatch,[int]$activations){
  $mounted=$relationship-ceq'Mounted'
- [ordered]@{name=$name;frame=$frame;gameTicks=$ticks;allocationSequence=$sequence;traceComplete=$true;turnBased=$false;inCombat=$true;pairIdle=$true;riderId='rider';mountId='mount';selectedIds=@('rider');exactSingleRider=$true;selectedAbilityObject=0;riderCommandsEmpty=$true;mountCommandsEmpty=$true;shellCount=$dispatch;processBindings=$dispatch;controls=(New-Controls $selections $casts $dispatch);state=(New-Causal $rider $mount $relationship $accepted);riderResources=(Copy-Repeated $rider);mountResources=(Copy-Repeated $mount);riderPosition=@(0.0,0.0,0.0);mountPosition=@(1.0,0.0,0.0);abilityPresent=$mounted;abilityObject=$(if($mounted){701}else{0});abilityDataObject=$(if($mounted){702}else{0});availabilityVisible=$mounted;availabilityEnabled=$mounted;availabilityReason=$(if($mounted){'Dismount is available.'}else{'Dismount is available only to the exact mounted rider.'})}
+ [ordered]@{name=$name;frame=$frame;gameTicks=$ticks;allocationSequence=$sequence;traceComplete=$true;turnBased=$false;inCombat=$true;pairIdle=$true;riderId='rider';mountId='mount';selectedIds=@('rider');exactSingleRider=$true;selectedAbilityObject=0;riderCommandsEmpty=$true;mountCommandsEmpty=$true;shellCount=$dispatch;processBindings=$dispatch;controls=(New-Controls $selections $casts $dispatch $activations);state=(New-Causal $rider $mount $relationship $accepted);riderResources=(Copy-Repeated $rider);mountResources=(Copy-Repeated $mount);riderPosition=@(0.0,0.0,0.0);mountPosition=@(1.0,0.0,0.0);abilityPresent=$mounted;abilityObject=$(if($mounted){701}else{0});abilityDataObject=$(if($mounted){702}else{0});availabilityVisible=$mounted;availabilityEnabled=$mounted;availabilityReason=$(if($mounted){'Dismount is available.'}else{'Dismount is available only to the exact mounted rider.'})}
 }
 function New-DismountProof($preState,$terminalState,$terminalRider,$terminalMount){
  $identity=[ordered]@{commandObject=101;controlIdentity='shell-1';processObject=201;contextObject=301;casterId='rider';targetId='rider';generationAtInit=4;commandType='Move';abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e'}
@@ -55,14 +59,14 @@ function New-RepeatedCase {
  $preMount=New-Resource 'mount' 12 5.0 4.0 3.0
  $terminalRider=New-Resource 'rider' 11 2.0 1.75 1.0
  $terminalMount=New-Resource 'mount' 12 3.0 2.0 1.0
- $cancelBefore=New-Boundary 'cancel-before' 100 1000000000 0 'Mounted' $preRider $preMount 0 0 0 0
- $cancelAfter=New-Boundary 'cancel-after' 100 1000000000 0 'Mounted' $preRider $preMount 0 1 0 0
+ $cancelBefore=New-Boundary 'cancel-before' 100 1000000000 0 'Mounted' $preRider $preMount 0 0 0 0 8
+ $cancelAfter=New-Boundary 'cancel-after' 100 1000000000 0 'Mounted' $preRider $preMount 0 1 0 0 10
  $proof=New-DismountProof $cancelAfter.state (New-Causal $terminalRider $terminalMount 'Unmounted' 1) $terminalRider $terminalMount
- $after=New-Boundary 'positive-terminal' 110 1020000000 2 'Unmounted' $terminalRider $terminalMount 1 2 1 1
+ $after=New-Boundary 'positive-terminal' 110 1020000000 2 'Unmounted' $terminalRider $terminalMount 1 2 1 1 16
  $terminal=@($proof.samples|Where-Object boundary -CEQ 'terminal')[0]
  $hooks=@(New-Hooks)
  $bridge=[ordered]@{contract='same-allocation-no-command-cost-with-observed-native-time-only';commandIdentity=(Copy-Repeated $proof.identity);riderId='rider';mountId='mount';turnBased=$false;traceComplete=$true;observerHooks=$hooks;before=[ordered]@{frame=$terminal.frame;gameTicks=$terminal.gameTicks;allocationSequence=$terminal.allocationSequence;rider=(Copy-Repeated $terminal.nativeAllocation.rider);mount=(Copy-Repeated $terminal.nativeAllocation.mount)};after=[ordered]@{frame=$after.frame;gameTicks=$after.gameTicks;allocationSequence=$after.allocationSequence;rider=(Copy-Repeated $after.riderResources);mount=(Copy-Repeated $after.mountResources)};events=@()}
- $e=[ordered]@{contract='cancel-once-one-native-dismount-then-repeat-refused';scenario='unmounted-attack-controls-rt';riderId='rider';mountId='mount';abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';cancellation=[ordered]@{setAbilityInvoked=$true;onClickInvoked=$false;dropAbilityInvoked=$true;before=$cancelBefore;selected=[ordered]@{handlerObject=700;abilityDataObject=702;selectedAbilityObject=702;abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';casterId='rider'};after=$cancelAfter;allocationEvents=@()};positiveClicked=$true;positiveInput=[ordered]@{clicked=$true;abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';clickedTargetId='rider';resolvedTargetId='rider'};positiveProof=$proof;afterPositive=$after;terminalBridge=$bridge;repeat=[ordered]@{before=(Copy-Repeated $after);clicked=$false;input=[ordered]@{abilityPresent=$false;handlerPresent=$true;targetViewPresent=$true;clicked=$false};inputBaseline=[ordered]@{availabilityReason='Dismount is available only to the exact mounted rider.';abilityAvailableForCast=$null};after=(Copy-Repeated $after);allocationEvents=@()}}
+ $e=[ordered]@{contract='cancel-once-one-native-dismount-then-repeat-refused';scenario='unmounted-attack-controls-rt';riderId='rider';mountId='mount';abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';cancellation=[ordered]@{setAbilityInvoked=$true;onClickInvoked=$false;dropAbilityInvoked=$true;before=$cancelBefore;selected=[ordered]@{handlerObject=700;abilityDataObject=702;selectedAbilityObject=702;abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';casterId='rider'};after=$cancelAfter;activationRecords=@((New-ActivationRecord 9 5 'TargetSelectionStarted' 'target-selection-started'),(New-ActivationRecord 10 5 'TargetSelectionEnded' 'target-selection-cancelled'));allocationEvents=@()};positiveClicked=$true;positiveInput=[ordered]@{clicked=$true;abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e';clickedTargetId='rider';resolvedTargetId='rider'};positiveProof=$proof;afterPositive=$after;terminalBridge=$bridge;repeat=[ordered]@{before=(Copy-Repeated $after);clicked=$false;input=[ordered]@{abilityPresent=$false;handlerPresent=$true;targetViewPresent=$true;clicked=$false};inputBaseline=[ordered]@{availabilityReason='Dismount is available only to the exact mounted rider.';abilityAvailableForCast=$null};after=(Copy-Repeated $after);activationRecords=@();allocationEvents=@()}}
  $proof.window='focused-combat-dismount'
  $artifact=[ordered]@{scenario='unmounted-attack-controls-rt';observations=[ordered]@{chunk6aRepeatedDismount=(Copy-Repeated $e);chunk6aCommandProofs=@(Copy-Repeated $proof);actorAllocationTrace=[ordered]@{dropped=0;observationErrors=0;observerHooks=$hooks;events=@($proof.resourceWindow.events|ForEach-Object{Copy-Repeated $_})}};rows=@([ordered]@{name='CM05-repeated-input';status='PASS';evidence=(Copy-Repeated $e)})}
  [pscustomobject]@{evidence=$e;artifact=$artifact;request=[pscustomobject]@{scenario='unmounted-attack-controls-rt'}}
@@ -96,6 +100,27 @@ Reject-All 'positive terminal reaction cooldown' {param($c)$c.evidence.positiveP
 Reject-All 'repeat click admitted' {param($c)$c.evidence.repeat.clicked=$true}
 Reject-All 'exact acted missing' {param($c)$c.evidence.positiveProof.exactActedObserved=$false}
 Reject-All 'cancellation allocation event' {param($c)$c.evidence.cancellation.allocationEvents=@([ordered]@{sequence=1})}
+# Preview.144 c6a-repeated-dismount144-j-unmounted-controls: the cancellation lawfully appended the
+# two passive target-selection ledger records (activationCount 8->10 with selection 2->3/2->3). The
+# original flat-count model and the original record-less artifact shape must both stay rejected.
+Reject-All 'cancellation activation records absent' {param($c)$c.evidence.cancellation.PSObject.Properties.Remove('activationRecords')}
+Reject-All 'cancellation flat activation count (preview.144 validator model)' {param($c)$c.evidence.cancellation.after.controls.activationCount=$c.evidence.cancellation.before.controls.activationCount;$c.evidence.cancellation.activationRecords=@()}
+Reject-All 'cancellation activation count without records (preview.144 artifact shape)' {param($c)$c.evidence.cancellation.activationRecords=@()}
+Reject-All 'cancellation activation count without matching delta' {param($c)$c.evidence.cancellation.after.controls.activationCount=11}
+Reject-All 'cancellation activation phase order' {param($c)$c.evidence.cancellation.activationRecords[0].phase='TargetSelectionEnded';$c.evidence.cancellation.activationRecords[1].phase='TargetSelectionStarted'}
+Reject-All 'cancellation activation cast requested' {param($c)$c.evidence.cancellation.activationRecords[1].phase='CastRequested';$c.evidence.cancellation.activationRecords[1].terminalResult='native-cast-requested'}
+Reject-All 'cancellation activation selection ended after cast' {param($c)$c.evidence.cancellation.activationRecords[1].terminalResult='selection-ended-after-cast'}
+Reject-All 'cancellation activation dispatch accepted' {param($c)$c.evidence.cancellation.activationRecords[1].dispatchAccepted=$true}
+Reject-All 'cancellation activation foreign kind' {param($c)$c.evidence.cancellation.activationRecords[0].kind='Mount'}
+Reject-All 'cancellation activation foreign caster' {param($c)$c.evidence.cancellation.activationRecords[0].casterId='mount'}
+Reject-All 'cancellation activation relationship ended' {param($c)$c.evidence.cancellation.activationRecords[1].relationshipEnded=$true;$c.evidence.cancellation.activationRecords[1].relationshipStateObserved='Unmounted'}
+Reject-All 'cancellation activation second activation' {param($c)$c.evidence.cancellation.activationRecords[1].activationId=6}
+Reject-All 'cancellation activation other frame' {param($c)$c.evidence.cancellation.activationRecords[1].frame=101}
+Reject-All 'cancellation activation lifecycle delivery' {param($c)$c.evidence.cancellation.activationRecords[1].lifecycleDeliveries='4:terminal:native';$c.evidence.cancellation.activationRecords[1].lifecycleSequenceObserved=4}
+Reject-All 'cancellation activation cleanup trigger' {param($c)$c.evidence.cancellation.activationRecords[1].cleanupTrigger='ForcedDetach'}
+Reject-All 'repeat activation record' {param($c)$c.evidence.repeat.activationRecords=@((New-ActivationRecord 17 6 'TargetSelectionStarted' 'target-selection-started' 110));$c.evidence.repeat.after.controls.activationCount=17}
+Reject-All 'repeat activation count without record' {param($c)$c.evidence.repeat.after.controls.activationCount=17}
+Reject-All 'repeat activation records absent' {param($c)$c.evidence.repeat.PSObject.Properties.Remove('activationRecords')}
 $bad=Copy-Repeated $base;$bad.artifact.observations.actorAllocationTrace.events=@()
 if(Test-Envelope $bad){throw 'Envelope accepted a command trace omitted from the full allocation'};$checks++
 $bad=Copy-Repeated $base;$bad.artifact.rows[0].evidence.repeat.clicked=$true
@@ -108,6 +133,13 @@ $baseline=$source.IndexOf('var before = CaptureChunk6aRepeatedDismountBoundary("
 $set=$source.IndexOf('handler.SetAbility(ability)')
 $drop=$source.IndexOf('handler.DropAbility()')
 if($select-lt0-or$baseline-le$select-or$set-le$baseline-or$drop-le$set){throw 'Cancellation selection/baseline/native input order differs'};$checks++
+$activationBaseline=$source.IndexOf('var activationsBefore = LastChunk6aActivationSequence(nativeControls.SnapshotAbilityActivations())')
+$activationCapture=$source.IndexOf('["activationRecords"] = CaptureChunk6aRepeatedDismountActivationRecords(activationsBefore)')
+if($activationBaseline-lt0-or$activationBaseline-ge$baseline-or$activationCapture-le$drop){throw 'Cancellation activation ledger baseline/capture order differs'};$checks++
+$repeatBaseline=$source.IndexOf('var repeatActivationsBefore = LastChunk6aActivationSequence(nativeControls.SnapshotAbilityActivations())')
+$repeatClick=$source.IndexOf('var repeatedClicked = TryNativeAbilityTargetClick(')
+$repeatCapture=$source.IndexOf('["activationRecords"] = CaptureChunk6aRepeatedDismountActivationRecords(repeatActivationsBefore)')
+if($repeatBaseline-lt0-or$repeatClick-le$repeatBaseline-or$repeatCapture-le$repeatClick){throw 'Repeat activation ledger baseline/capture order differs'};$checks++
 $tranche=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Phase3dHorseScenarioTranche.cs')
 $begin=$tranche.IndexOf('BeginChunk6aRepeatedDismountCommand();')
 $click=$tranche.IndexOf('var dismountClicked = TryNativeAbilityTargetClick(')
