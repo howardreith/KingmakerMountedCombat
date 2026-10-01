@@ -109,6 +109,12 @@ namespace KingmakerMountedCombat.Integration
 
         internal long MountTargetClickCount { get; private set; }
 
+        // The admission mode of the most recent native Mount Companion dispatch
+        // (Exploration or VoluntaryCombat), published read-only for diagnostics whose
+        // child requires an out-of-combat preamble Mount. It is written only where the
+        // dispatch itself is logged and changes nothing about the dispatch.
+        internal string LastRelationshipDispatchAdmission { get; private set; }
+
         internal bool ArmCombatAction(MountedCombatActionKind action)
         {
             return combat.Arm(action);
@@ -328,6 +334,7 @@ namespace KingmakerMountedCombat.Integration
             try
             {
                 ClearMountTargetSelection();
+                LastRelationshipDispatchAdmission = admission.ToString();
                 var transition = relationship.MountRiderOn(caster, target, admission);
                 accepted = transition.Succeeded;
                 feedbackState.SetOperationFeedback(relationship.LastResult);

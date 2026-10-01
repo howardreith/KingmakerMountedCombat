@@ -725,7 +725,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "CM01-combat-mount-cancel-costs-nothing", "CM01-combat-mount-accepted",
             "CM03-combat-mount-conserves-debt", "CM03-combat-mount-adoption-preparations",
             "CM06-combat-mount-repeat-refused", "CM05-combat-dismount-accepted",
-            "CM05-combat-dismount-conserves-debt", "CM05-no-duplicate-mount-turn",
+            "CM05-combat-dismount-conserves-debt", "CM05-no-duplicate-mount-turn", "CM05-forced-detach",
             "T01-native-allocation-trace", "A05-native-preparation-callbacks", "T02-native-exhaustion-refresh-trace", "3g-rider-longbow-ordinary", "3g-rider-longbow-primary", "3g-rider-melee-ordinary", "3g-rider-melee-primary",
             "3g-horse-bite-ordinary", "3g-horse-bite-primary", "3g-paused-dismount", "3g-paused-mount-stop",
             "3g-paused-mount-execute", "3g-paused-control-failure",

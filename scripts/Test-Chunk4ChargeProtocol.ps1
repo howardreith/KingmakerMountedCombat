@@ -3,7 +3,11 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 $passed=0
 $parent=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/HorseCompanionUnmountedScenarioEngine.cs')
-$gate=[regex]::Match($parent,'(?s)if \(Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario\(request.Scenario\) \|\|\s+Phase3dHorseScenarioTranche.IsChunk4ChargeScenario\(request.Scenario\)\).*?var availability = playerAction.GetAvailability\(\);').Value
+# The idle-party wait is keyed on the tranche's handoff set, which must still name the charge family.
+$tranche=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Phase3dHorseScenarioTranche.cs')
+$handoffSet=[regex]::Match($tranche,'(?s)internal static bool RequiresIdlePartyHandoff\(string scenario\).*?\n        \}').Value
+if(-not$handoffSet.Contains('IsChunk4ChargeScenario(scenario)')){throw 'Charge must be in the idle-party handoff set'};$passed++
+$gate=[regex]::Match($parent,'(?s)if \(Phase3dHorseScenarioTranche.RequiresIdlePartyHandoff\(request.Scenario\)\).*?var availability = playerAction.GetAvailability\(\);').Value
 foreach($required in @('Game.Instance.Player.IsInCombat || owner.Group.Any(member => member.IsInCombat)','mountedAlphaAdmissionStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds','BeginCleanup(); return;')){if(-not$gate.Contains($required)){throw 'Charge must use bounded native idle-party handoff before child admission'};$passed++}
 if($gate.Contains('LeaveCombat(')){throw 'Charge party handoff must wait for native settlement'};$passed++
 $fixture=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/ActorAllocationScenarios.cs')

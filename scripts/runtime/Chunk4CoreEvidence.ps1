@@ -1,7 +1,26 @@
+. (Join-Path $PSScriptRoot 'NativeForcedDetachEvidence.ps1')
 function Test-KmcChunk4CoreScenario {
     param([string]$Scenario)
     return $Scenario -cin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb',
         'chunk4-targeting-area-unmounted-rt','chunk4-targeting-rider-rt','chunk4-targeting-mount-rt','chunk4-ground-arrival-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')
+}
+function Test-KmcChunk4NativeLifeScenario {
+    param([string]$Scenario)
+    return $Scenario -cin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb')
+}
+# Schema 32 (preview.146+) adds the Chunk 6A CM05-forced-detach row to every native life scenario.
+# Archives through preview.145 carry schema 22 without it; the current identity must emit it.
+function Get-KmcChunk4CoreSchemaVersion {
+    param([string]$Scenario,[AllowNull()][string]$ProductVersion)
+    if(!(Test-KmcChunk4NativeLifeScenario $Scenario)){return 22}
+    if([string]$ProductVersion -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 145){return 22}
+    return 32
+}
+function Get-KmcChunk4CoreRequiredRows {
+    param([string]$Scenario,[long]$SchemaVersion)
+    $rows=@(Get-KmcChunk4CoreLeaves $Scenario)
+    if($SchemaVersion -eq 32 -and (Test-KmcChunk4NativeLifeScenario $Scenario)){$rows+='CM05-forced-detach'}
+    return $rows
 }
 function Get-KmcChunk4CoreLeaves {
     param([string]$Scenario)
@@ -20,9 +39,12 @@ function Get-KmcChunk4CoreLeaves {
 }
 function Assert-KmcChunk4CoreEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if($Artifact.schemaVersion -ne 22 -or !(Test-KmcChunk4CoreScenario $Request.scenario)){throw 'Core scenario requires exact schema22 and a registered root.'}
+    if(!(Test-KmcChunk4CoreScenario $Request.scenario)){throw 'Core scenario requires exact schema22 and a registered root.'}
+    $version=if($Artifact -is [Collections.IDictionary]){$Artifact['productVersion']}elseif($Artifact.PSObject.Properties['productVersion']){$Artifact.productVersion}else{$null}
+    $schema=Get-KmcChunk4CoreSchemaVersion $Request.scenario $version
+    if($Artifact.schemaVersion -ne $schema){throw "Core scenario requires exact schema$schema and a registered root."}
     Assert-KmcMountedRuntimeConfiguration $Artifact.observations.phase3fActualConfiguration $true 'Chunk 4 core configuration'
-    $required=@(Get-KmcChunk4CoreLeaves $Request.scenario)
+    $required=@(Get-KmcChunk4CoreRequiredRows $Request.scenario $schema)
     $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal);$pass=0;$fail=0
     foreach($row in $Artifact.rows){
@@ -30,7 +52,8 @@ function Assert-KmcChunk4CoreEvidence {
         if($row.status -ceq 'FAIL'){$fail++;continue};$pass++
         $e=$row.evidence
         if($row.name -cin $failureOnly -or $e.level -cne 'NATIVE INTEGRATION' -or $e.caseId -cne $row.name){throw 'Core PASS lacks exact native identity.'}
-        if($row.name.StartsWith('C4-LIFE-')){Assert-KmcChunk4LifeRow $e}
+        if($row.name -ceq 'CM05-forced-detach'){Assert-KmcForcedDetach $e}
+        elseif($row.name.StartsWith('C4-LIFE-')){Assert-KmcChunk4LifeRow $e}
         elseif($row.name.StartsWith('C4-HORSE-')){Assert-KmcChunk4HorseRow $e}
         elseif($row.name.StartsWith('C4-GROUND-')){Assert-KmcChunk4GroundArrivalRow $e}
         elseif($row.name -ceq 'C4-RANGED-native-mixed-range'){Assert-KmcChunk4NativeRangedRow $e}
@@ -44,6 +67,7 @@ function Assert-KmcChunk4CoreEvidence {
     if($Artifact.status -ceq 'PASS'){
         $trace=$Artifact.observations.ordinaryAttackTrace
         if($trace.dropped -ne 0 -or @($trace.events|Where-Object {$_.PSObject.Properties['observationError']}).Count -ne 0){throw 'Core native command observations dropped or failed.'}
+        if($schema -eq 32){Assert-KmcForcedDetachEnvelope $Request $Artifact}
     }
 }
 function Assert-KmcChunk4InstantStop {

@@ -42,6 +42,9 @@ namespace KingmakerMountedCombat.Diagnostics
         private PairedConditionObserver chunk4LifeObserver;
         private Chunk4IncomingRuleObserver chunk4IncomingObserver;
         private NativeDeathPolicyLease chunk4DeathPolicy;
+        private const string Chunk6aForcedDetachRow = NativeForcedDetachEvidence.Row;
+        private JObject chunk6aForcedDetachBefore;
+        private JObject chunk6aForcedDetachEvidence;
 
         private void BeginChunk4NativeLife()
         {
@@ -232,6 +235,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4LifeEvidence["source"] = target.UniqueId; chunk4LifeEvidence["requestedDamage"] = requested;
                 chunk4LifeEvidence["damageToParty"] = difficulty; chunk4LifeEvidence["deathThreshold"] = deathThreshold;
                 chunk4LifeEvidence["damageDispatches"] = 1;
+                BeginChunk6aForcedDetachWindow();
                 var damage = Rulebook.Trigger(new RuleDealDamage(target, subject,
                     new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
                 chunk4LifeEvidence["nativeDamage"] = damage.Damage;
@@ -251,6 +255,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     !rider.Commands.Empty || !horse.Commands.Empty || !chunk4IncomingObserver.AllAttacksResolved) return;
                 if (Chunk4LifePermanent && !subject.Descriptor.State.IsFinallyDead)
                     throw new InvalidOperationException("Native damage did not produce permanent rider death under the selected native policy.");
+                FinishChunk6aForcedDetachWindow();
                 if (turn == null) return;
                 if (ReferenceEquals(turn, chunk4LifeTurn))
                 {
@@ -388,6 +393,131 @@ namespace KingmakerMountedCombat.Diagnostics
                 AddRow(Chunk4LifeId, true, "Native damage interrupted a live pair command; independent costs, unrelated turns, native death/recovery policy and encounter retirement were preserved.", chunk4LifeEvidence);
                 BeginCleanup();
             }
+        }
+
+        // Chunk 6A CM05-forced-detach. The labelled native life stimulus above ends
+        // the mounted pair through lifecycle cleanup. The window between the damage
+        // dispatch and the settled cleanup is measured as deltas of the transition
+        // ledger, the native control counters, the lifecycle delivery ledger and the
+        // complete native allocation trace, so the forced detach is proven to be
+        // recorded exactly once under a cleanup trigger, without any voluntary Mount
+        // or Dismount admission, shell, cast or dispatch, and without any native cost
+        // or preparation callback for either actor. Nothing here writes game state;
+        // the repeated native deliveries of the same death are the idempotency probe.
+        private JObject CaptureChunk6aForcedDetachControls()
+        {
+            var controls = nativeControls.CaptureSnapshot();
+            return new JObject
+            {
+                ["targetSelectionStart"] = controls.TargetSelectionStartCount,
+                ["targetSelectionEnd"] = controls.TargetSelectionEndCount,
+                ["nativeCastRequest"] = controls.NativeCastRequestCount,
+                ["nativeRefusal"] = controls.NativeRefusalCount,
+                ["dispatchAccepted"] = controls.DispatchAcceptedCount,
+                ["dispatchRejected"] = controls.DispatchRejectedCount,
+                ["activationCount"] = controls.ActivationRecordCount
+            };
+        }
+
+        private static JObject ProjectChunk6aForcedDetachLife(UnitEntityData actor) => new JObject
+        {
+            ["actor"] = actor.UniqueId, ["lifeState"] = actor.Descriptor.State.LifeState.ToString(),
+            ["conscious"] = actor.Descriptor.State.IsConscious, ["dead"] = actor.Descriptor.State.IsDead,
+            ["finallyDead"] = actor.Descriptor.State.IsFinallyDead
+        };
+
+        private static JToken ProjectChunk6aForcedDetachTransition(MountedTransitionRecord record) => record == null
+            ? (JToken)JValue.CreateNull()
+            : new JObject
+            {
+                ["kind"] = record.Kind.ToString(), ["controlIdentity"] = record.ControlIdentity,
+                ["riderId"] = record.RiderId, ["mountId"] = record.MountId, ["generationBefore"] = record.GenerationBefore,
+                ["settled"] = record.Settled, ["accepted"] = record.Accepted,
+                ["trigger"] = record.Trigger == null ? (JToken)JValue.CreateNull() : record.Trigger
+            };
+
+        private static JToken ProjectChunk6aForcedDetachResult(TransitionResult result) => result == null
+            ? (JToken)JValue.CreateNull()
+            : new JObject
+            {
+                ["succeeded"] = result.Succeeded, ["state"] = result.State.ToString(),
+                ["trigger"] = result.Trigger.HasValue ? (JToken)result.Trigger.Value.ToString() : JValue.CreateNull(),
+                ["errors"] = new JArray(result.Errors ?? new string[0]),
+                ["movementAuthorityResidual"] = result.MovementAuthorityResidual, ["presentationResidual"] = result.PresentationResidual
+            };
+
+        private static JObject ProjectChunk6aForcedDetachDelivery(NativeLifecycleDeliveryRecord record) => new JObject
+        {
+            ["sequence"] = record.Sequence, ["boundary"] = record.Boundary.ToString(), ["source"] = record.Source,
+            ["detail"] = record.Detail == null ? (JToken)JValue.CreateNull() : record.Detail,
+            ["stateBefore"] = record.StateBefore.ToString(), ["stateAfter"] = record.StateAfter.ToString(),
+            ["cleanupTrigger"] = record.CleanupTrigger.HasValue ? (JToken)record.CleanupTrigger.Value.ToString() : JValue.CreateNull(),
+            ["cleanupAttempted"] = record.CleanupAttempted, ["cleanupSucceeded"] = record.CleanupSucceeded,
+            ["cleanupErrors"] = new JArray(record.CleanupErrors ?? new string[0])
+        };
+
+        private JObject CaptureChunk6aForcedDetachBoundary(string name)
+        {
+            var ledger = playerAction.TransitionLedger;
+            var deliveries = nativeControls.SnapshotLifecycleDeliveries();
+            return new JObject
+            {
+                ["name"] = name, ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                ["allocationSequence"] = allocationTrace.EventCount, ["traceComplete"] = allocationTrace.Complete,
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(),
+                ["inCombat"] = rider.IsInCombat && horse.IsInCombat && Game.Instance.Player.IsInCombat,
+                ["relationshipState"] = relationship.State.ToString(), ["generation"] = relationship.MountedPairGeneration,
+                ["pairCommand"] = combat.HasActiveCommand,
+                ["riderCommandsEmpty"] = rider.Commands.Empty, ["mountCommandsEmpty"] = horse.Commands.Empty,
+                ["shellCount"] = nativeControls.NativeRelationshipShellCount,
+                ["processBindings"] = nativeControls.NativeRelationshipProcessBindingCount,
+                ["controls"] = CaptureChunk6aForcedDetachControls(), ["ledger"] = Chunk6aLedgerCounters(),
+                ["lifecycleSequence"] = deliveries.Count == 0 ? 0L : deliveries[deliveries.Count - 1].Sequence,
+                ["rider"] = allocationTrace.Snapshot(rider), ["mount"] = allocationTrace.Snapshot(horse),
+                ["subjectLife"] = ProjectChunk6aForcedDetachLife(Chunk4LifeSubject),
+                ["survivorLife"] = ProjectChunk6aForcedDetachLife(Chunk4LifeSurvivor),
+                ["lastTransition"] = ProjectChunk6aForcedDetachTransition(ledger.Records.Count == 0 ? null : ledger.Records[ledger.Records.Count - 1]),
+                ["lastTransitionResult"] = ProjectChunk6aForcedDetachResult(relationship.LastTransition)
+            };
+        }
+
+        private void BeginChunk6aForcedDetachWindow()
+        {
+            if (chunk6aForcedDetachBefore != null) throw new InvalidOperationException("Forced detach window is already open.");
+            chunk6aForcedDetachBefore = CaptureChunk6aForcedDetachBoundary("before-damage");
+        }
+
+        private void FinishChunk6aForcedDetachWindow()
+        {
+            if (chunk6aForcedDetachBefore == null || chunk6aForcedDetachEvidence != null) return;
+            var before = chunk6aForcedDetachBefore;
+            var after = CaptureChunk6aForcedDetachBoundary("after-cleanup");
+            var start = (int)before["allocationSequence"];
+            var end = (int)after["allocationSequence"];
+            var firstDelivery = (long)before["lifecycleSequence"];
+            var lastDelivery = (long)after["lifecycleSequence"];
+            var evidence = new JObject
+            {
+                ["level"] = "NATIVE INTEGRATION", ["caseId"] = Chunk6aForcedDetachRow,
+                ["contract"] = NativeForcedDetachEvidence.Contract, ["mode"] = "TB", ["scenario"] = request.Scenario,
+                ["riderId"] = rider.UniqueId, ["mountId"] = horse.UniqueId,
+                ["subject"] = Chunk4LifeSubject.UniqueId, ["survivor"] = Chunk4LifeSurvivor.UniqueId,
+                ["nativeStimulus"] = NativeForcedDetachEvidence.Stimulus,
+                ["before"] = before, ["after"] = after,
+                ["allocationEvents"] = new JArray(allocationTrace.EventsSince(start).Take(Math.Max(0, end - start))),
+                ["deliveries"] = new JArray(nativeControls.SnapshotLifecycleDeliveries()
+                    .Where(record => record.Sequence > firstDelivery && record.Sequence <= lastDelivery)
+                    .Select(ProjectChunk6aForcedDetachDelivery))
+            };
+            chunk6aForcedDetachEvidence = evidence;
+            observations["chunk6aForcedDetach"] = evidence;
+            string failure = null;
+            try { NativeForcedDetachEvidence.AssertComplete(evidence); }
+            catch (Exception exception) { failure = exception.Message; }
+            AddRow(Chunk6aForcedDetachRow, failure == null,
+                failure ?? "Native " + (Chunk4LifeIncapacitation ? "incapacitation" : "death") +
+                " detached the mounted pair through lifecycle cleanup exactly once; no voluntary Mount or Dismount, native control activity, action cost or preparation was booked for either actor in the window.",
+                evidence);
         }
 
         // Only the exact native damage/life event authorizes this fixture's

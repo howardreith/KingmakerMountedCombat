@@ -216,12 +216,14 @@ function Get-KmcChunk6aAdditionalRoles([string]$Id) {
   foreach($case in @('mount','dismount')) {[pscustomobject]@{name=('auto-use-'+$case);scenario=('chunk6a-auto-use-'+$case+'-rt');rows=@($Id)}}
  } elseif($Id -ceq 'CM05-dismount-survives-feature-policy-disable') {
   foreach($case in @('feature','policy')) {[pscustomobject]@{name=$case;scenario=('chunk6a-dismount-'+$case+'-disabled-rt');rows=@($Id)}}
+ } elseif($Id -ceq 'CM05-forced-detach') {
+  foreach($case in @(@('rider-death','chunk4-rider-death-tb'),@('mount-death','chunk4-mount-death-tb'),@('rider-incapacitation','chunk4-rider-incapacitation-tb'))) {[pscustomobject]@{name=$case[0];scenario=$case[1];rows=@($Id)}}
  }
 }
 function Assert-KmcChunk6aAdditionalBindings([string]$Id,$Primary,$Bindings) {
  $roles=@(Get-KmcChunk6aAdditionalRoles $Id);if($roles.Count-eq0){return}
  $items=@($Bindings)
- if($items.Count-ne2-or@($items|ForEach-Object runId|Select-Object -Unique).Count-ne2){throw 'Additional qualification needs two fresh native allocations'}
+ if($items.Count-ne$roles.Count-or@($items|ForEach-Object runId|Select-Object -Unique).Count-ne$roles.Count){throw 'Additional qualification needs every fresh native allocation'}
  foreach($role in $roles){
   $found=@($items|Where-Object role -CEQ $role.name)
   if($found.Count-ne1-or$found[0].scenario-cne$role.scenario){throw 'Additional qualification role/scenario differs'}
@@ -241,6 +243,11 @@ function Assert-KmcChunk6aAdditionalQualification([string]$Id,$Payload,$Primary,
   $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $binding.requestSha256
   $artifact=Get-KmcBoundJson (Join-Path $root $binding.evidenceLeaf) $binding.evidenceSha256
   if([IO.Path]::GetFullPath($root).TrimEnd('\')-cne[IO.Path]::GetFullPath($request.evidenceRoot).TrimEnd('\')){throw 'Additional evidence root differs'}
-  Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS'
+  if(Test-KmcChunk4CoreScenario ([string]$request.scenario)){
+   if($Id-cne'CM05-forced-detach'-or$artifact.schemaVersion-ne32){throw 'Additional native life qualification requires the schema-32 forced-detach artifact'}
+   Assert-KmcChunk4CoreEvidence $request $artifact 'PASS'
+  } else {
+   Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS'
+  }
  }
 }

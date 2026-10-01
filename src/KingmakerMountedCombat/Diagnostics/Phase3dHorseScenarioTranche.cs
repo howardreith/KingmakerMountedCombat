@@ -251,6 +251,17 @@ namespace KingmakerMountedCombat.Diagnostics
             this.horse = horse ?? throw new ArgumentNullException(nameof(horse));
         }
 
+        // Scenarios whose child entry captures the entire disposable party as idle
+        // (CaptureIdleFixturePartyForCleanup) and therefore require the parent to hand
+        // off only after native combat has ended for every member, behind an
+        // exploration preamble Mount. Pinned by Test-ParentHandoffIdleParty.ps1.
+        internal static bool RequiresIdlePartyHandoff(string scenario)
+        {
+            return IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) ||
+                IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) ||
+                string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal);
+        }
+
         internal static bool SupportsScenario(string scenario)
         {
             return IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
@@ -307,6 +318,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException(
                     "Phase 3D Horse qualification requires the exact Horse pair already mounted through the parent native out-of-combat flow.");
             }
+            // A preamble Mount admitted while native combat was already running adopted
+            // that encounter and paid a combat Move; it is not the out-of-combat flow
+            // this child requires, so the mismatch is refused here with its exact reason
+            // instead of surfacing later as an idle-party refusal.
+            if (pairAlreadyMounted && RequiresIdlePartyHandoff(request.Scenario) &&
+                string.Equals(playerAction.LastRelationshipDispatchAdmission, "VoluntaryCombat", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Phase 3D Horse qualification requires an exploration preamble Mount; the parent's last native Mount dispatch was admitted as VoluntaryCombat.");
+            }
 
             originalPause = game.IsPaused;
             originalUnsafeExperiment = settings.EnableUnsafeMovementExperiment;
@@ -346,6 +367,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["overlayPresent"] = playerAction.OverlayPresent
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
+            observations["parentPreambleMountAdmission"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>";
 
             if (IsChunk6aCombatMount) { BeginChunk6aCombatMount(); return; }
             if (IsChunk4Charge) { BeginChunk4Charge(); return; }
@@ -6385,7 +6407,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsUnmountedAttackControls ? 31 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
