@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Kingmaker;
@@ -99,6 +100,71 @@ namespace KingmakerMountedCombat.Diagnostics
             return new JArray(allocationTrace.EventsSince(start).Take(Math.Max(0, end - start)));
         }
 
+        private static long LastChunk6aActivationSequence(
+            IReadOnlyList<NativeMountedAbilityActivationRecord> records)
+        {
+            return records == null || records.Count == 0 ? 0L : records[records.Count - 1].Sequence;
+        }
+
+        // The native control service appends one activation ledger record per
+        // observed control phase (target selection started/ended, cast requested or
+        // refused, dispatch, terminal). A synchronous window proves it stayed passive
+        // by exposing exactly the records it appended, never by hiding them behind a
+        // flat count: the preview.144 cancellation lawfully appended the two
+        // target-selection phases and nothing else.
+        private JArray CaptureChunk6aRepeatedDismountActivationRecords(long lastSequenceBefore)
+        {
+            var appended = new JArray();
+            foreach (var record in nativeControls.SnapshotAbilityActivations())
+            {
+                if (record.Sequence > lastSequenceBefore)
+                {
+                    appended.Add(ProjectChunk6aActivationRecord(record));
+                }
+            }
+            return appended;
+        }
+
+        private static JObject ProjectChunk6aActivationRecord(NativeMountedAbilityActivationRecord record)
+        {
+            return new JObject
+            {
+                ["sequence"] = record.Sequence,
+                ["activationId"] = record.ActivationId,
+                ["phase"] = record.Phase.ToString(),
+                ["kind"] = record.Kind.ToString(),
+                ["abilityGuid"] = record.AbilityGuid,
+                ["frame"] = record.Frame,
+                ["casterId"] = record.CasterId,
+                ["activeSelectedUnitIds"] = record.ActiveSelectedUnitIds,
+                ["targetId"] = record.TargetId,
+                ["targetSelectionMode"] = record.TargetSelectionMode,
+                ["relationshipStateAtStart"] = record.RelationshipStateAtStart.ToString(),
+                ["relationshipStateObserved"] = record.RelationshipStateObserved.ToString(),
+                ["riderIdAtStart"] = record.RiderIdAtStart,
+                ["mountIdAtStart"] = record.MountIdAtStart,
+                ["riderViewChanged"] = record.RiderViewChanged,
+                ["mountViewChanged"] = record.MountViewChanged,
+                ["inCombat"] = record.InCombat,
+                ["turnBased"] = record.TurnBased,
+                ["gameMode"] = record.GameMode,
+                ["currentTurnUnitId"] = record.CurrentTurnUnitId,
+                ["lifecycleSequenceAtStart"] = record.LifecycleSequenceAtStart,
+                ["lifecycleSequenceObserved"] = record.LifecycleSequenceObserved,
+                ["lifecycleDeliveries"] = record.LifecycleDeliveries,
+                ["cleanupTrigger"] = record.CleanupTrigger.HasValue
+                    ? (JToken)record.CleanupTrigger.Value.ToString()
+                    : JValue.CreateNull(),
+                ["dispatchAccepted"] = record.DispatchAccepted.HasValue
+                    ? (JToken)record.DispatchAccepted.Value
+                    : JValue.CreateNull(),
+                ["relationshipEnded"] = record.RelationshipEnded,
+                ["relationshipTransitionChanged"] = record.RelationshipTransitionChanged,
+                ["relationshipTransitionResult"] = record.RelationshipTransitionResult,
+                ["terminalResult"] = record.TerminalResult
+            };
+        }
+
         private bool ObserveChunk6aRepeatedDismountCancellation()
         {
             if (!IsUnmountedAttackControls) return true;
@@ -117,6 +183,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             var start = allocationTrace.EventCount;
+            var activationsBefore = LastChunk6aActivationSequence(nativeControls.SnapshotAbilityActivations());
             var before = CaptureChunk6aRepeatedDismountBoundary("cancel-before");
             handler.SetAbility(ability);
             var selected = new JObject
@@ -137,6 +204,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["before"] = before,
                 ["selected"] = selected,
                 ["after"] = after,
+                ["activationRecords"] = CaptureChunk6aRepeatedDismountActivationRecords(activationsBefore),
                 ["allocationEvents"] = CaptureChunk6aRepeatedDismountEvents(start, (int)after["allocationSequence"])
             };
             chunk6aRepeatedDismountEvidence["cancellation"] = cancellation;
@@ -179,6 +247,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var proof = FinishChunk6aCommandWindow("focused-combat-dismount", true, 0, false);
             chunk6aRepeatedDismountEvidence["positiveProof"] = proof;
             var afterPositive = CaptureChunk6aRepeatedDismountBoundary("positive-terminal");
+            var repeatActivationsBefore = LastChunk6aActivationSequence(nativeControls.SnapshotAbilityActivations());
             chunk6aRepeatedDismountEvidence["afterPositive"] = afterPositive;
             chunk6aRepeatedDismountEvidence["terminalBridge"] =
                 NativeRelationshipTerminalBridge.Capture(allocationTrace, proof, afterPositive, false);
@@ -194,6 +263,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["input"] = observations["chunk6a-repeated-dismount-click"]?.DeepClone(),
                 ["inputBaseline"] = observations["chunk6a-repeated-dismount-click-before-input"]?.DeepClone(),
                 ["after"] = afterRepeat,
+                ["activationRecords"] = CaptureChunk6aRepeatedDismountActivationRecords(repeatActivationsBefore),
                 ["allocationEvents"] = CaptureChunk6aRepeatedDismountEvents(start, (int)afterRepeat["allocationSequence"])
             };
 
@@ -329,8 +399,11 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
-        private static void SameWindow(JToken before, JToken after, bool controlsMaySelect)
+        private static void SameWindow(JToken window, string rider, string mount, bool controlsMaySelect)
         {
+            var before = window?["before"];
+            var after = window?["after"];
+            Require(before is JObject && after is JObject, "synchronous window boundaries missing");
             foreach (var field in new[] { "frame", "gameTicks", "allocationSequence", "shellCount", "processBindings" })
                 Require(Int(before[field]) == Int(after[field]), "synchronous window changed " + field);
             Same(before["riderPosition"], after["riderPosition"], "rider moved");
@@ -339,13 +412,62 @@ namespace KingmakerMountedCombat.Diagnostics
             SameCausalState(before["state"], after["state"]);
             SameResources(before["riderResources"], after["riderResources"], "rider");
             SameResources(before["mountResources"], after["mountResources"], "mount");
-            foreach (var field in new[] { "nativeCastRequest", "nativeRefusal", "dispatchAccepted", "dispatchRejected", "activationCount" })
+            foreach (var field in new[] { "nativeCastRequest", "nativeRefusal", "dispatchAccepted", "dispatchRejected" })
                 Require(Int(before["controls"][field]) == Int(after["controls"][field]),
                     "control count changed: " + field);
             var selectionDelta = controlsMaySelect ? 1L : 0L;
             Require(Int(after["controls"]["targetSelectionStart"]) - Int(before["controls"]["targetSelectionStart"]) == selectionDelta &&
                 Int(after["controls"]["targetSelectionEnd"]) - Int(before["controls"]["targetSelectionEnd"]) == selectionDelta,
                 "target selection callback count changed");
+            PassiveSelectionRecords(window, before, after, rider, mount, controlsMaySelect);
+        }
+
+        // The native control service appends one activation ledger record per
+        // observed control phase. A SetAbility/DropAbility cancellation therefore
+        // lawfully appends exactly TargetSelectionStarted and TargetSelectionEnded
+        // for one activation of the exact Dismount kind with no cast, dispatch,
+        // relationship, view or lifecycle change, and a refused post-terminal input
+        // appends none. The window must expose those records; a flat count that
+        // contradicts the selection callbacks it also requires is not evidence.
+        private static void PassiveSelectionRecords(
+            JToken window, JToken before, JToken after, string rider, string mount, bool controlsMaySelect)
+        {
+            var records = window["activationRecords"] as JArray;
+            Require(records != null, "activation records missing");
+            Require(records.Count == (controlsMaySelect ? 2 : 0), "activation record count differs");
+            Require(Int(after["controls"]["activationCount"]) - Int(before["controls"]["activationCount"]) == records.Count,
+                "activation count differs from the appended records");
+            if (!controlsMaySelect) return;
+            var started = records[0];
+            var ended = records[1];
+            Require(Text(started["phase"]) == "TargetSelectionStarted" && Text(ended["phase"]) == "TargetSelectionEnded",
+                "activation phases are not one passive target selection");
+            Require(Text(started["terminalResult"]) == "target-selection-started" &&
+                Text(ended["terminalResult"]) == "target-selection-cancelled",
+                "activation terminal results are not one cancelled target selection");
+            Require(Int(started["activationId"]) > 0 && Int(ended["activationId"]) == Int(started["activationId"]) &&
+                Int(ended["sequence"]) == Int(started["sequence"]) + 1,
+                "activation records are not one consecutive activation");
+            foreach (var record in new[] { started, ended })
+            {
+                Require(Text(record["kind"]) == "Dismount" && Text(record["abilityGuid"]) == Dismount &&
+                    Text(record["casterId"]) == rider && Text(record["activeSelectedUnitIds"]) == rider &&
+                    Text(record["targetId"]) == "<none>" && Yes(record["targetSelectionMode"]),
+                    "activation record identity differs");
+                Require(Int(record["frame"]) == Int(before["frame"]), "activation record left the synchronous frame");
+                Require(Text(record["relationshipStateAtStart"]) == "Mounted" &&
+                    Text(record["relationshipStateObserved"]) == "Mounted" &&
+                    Text(record["riderIdAtStart"]) == rider && Text(record["mountIdAtStart"]) == mount &&
+                    No(record["riderViewChanged"]) && No(record["mountViewChanged"]) &&
+                    No(record["relationshipEnded"]) && No(record["relationshipTransitionChanged"]),
+                    "activation record observed a relationship or view change");
+                Require(Yes(record["inCombat"]) && No(record["turnBased"]), "activation record is not RT combat");
+                Require(record["dispatchAccepted"]?.Type == JTokenType.Null &&
+                    record["cleanupTrigger"]?.Type == JTokenType.Null &&
+                    Text(record["lifecycleDeliveries"]) == "<none>" &&
+                    Int(record["lifecycleSequenceObserved"]) == Int(record["lifecycleSequenceAtStart"]),
+                    "activation record observed a dispatch, cleanup or lifecycle delivery");
+            }
         }
 
         private static void PositiveProof(JToken proof, string rider, string mount, long generation)
@@ -394,7 +516,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var generation = Int(before?["state"]?["generation"]);
             Boundary(before, rider, mount, generation, "Mounted");
             Boundary(after, rider, mount, generation, "Mounted");
-            SameWindow(before, after, true);
+            SameWindow(cancel, rider, mount, true);
             var selected = cancel["selected"];
             Require(Int(selected?["handlerObject"]) != 0 &&
                 Int(selected?["abilityDataObject"]) == Int(before["abilityDataObject"]) &&
@@ -436,7 +558,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Boundary(repeat["before"], rider, mount, generation, "Unmounted");
             Boundary(repeat["after"], rider, mount, generation, "Unmounted");
             Same(afterPositive, repeat["before"], "repeat did not begin at the positive terminal boundary");
-            SameWindow(repeat["before"], repeat["after"], false);
+            SameWindow(repeat, rider, mount, false);
             var repeatedAvailability = repeat["inputBaseline"]?["abilityAvailableForCast"];
             Require(Text(repeat["inputBaseline"]?["availabilityReason"]) ==
                 "Dismount is available only to the exact mounted rider." &&
