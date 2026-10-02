@@ -133,8 +133,9 @@ function Sync-CoreForcedDetach($envelope) {
     $row=@($envelope.rows|Where-Object {$_.name -ceq 'CM05-forced-detach'})[0]
     $row.evidence=(ConvertTo-Json -InputObject $forced -Depth 30)|ConvertFrom-Json
 }
-function Add-CoreNativeSurvivorTurn($envelope) {
+function Add-CoreNativeSurvivorTurn($envelope,[switch]$RetainedIdentity) {
     $e=$envelope.rows[0].evidence
+    $identity=if($RetainedIdentity){'activation'}else{$null}
     $e.eligibleRosterBeforeDamage=@('mount','other2','rider','other1');$e.principalRosterIndex=2
     $e.successorOrderBefore=@('other1','mount','other2')
     $turn=$e.successorTurns[0]|ConvertTo-Json -Depth 15|ConvertFrom-Json
@@ -144,8 +145,8 @@ function Add-CoreNativeSurvivorTurn($envelope) {
     $e.successorTurns[2].round=3;$e.successorTurns[2].state.round=3;$e.unrelatedTurns[1].round=3
     foreach($state in @($e.finalLife,$e.nativeEncounterExit,$e.afterPolicyRestore)){$state.mountGrants=3}
     $e.allocationTrace.events=@(New-CoreNativeTurnEnd 'other1' 11 2 22 1)+@(0..1|ForEach-Object {
-        [pscustomobject]@{sequence=($_+3);boundary=$(if($_ -eq 0){'prepare-before'}else{'prepare-after'});round=3;frame=24;turn=13;preparingTurn=13;currentActor='mount';activationIdentity=$null;simulatingClick=$false;
-            state=[pscustomobject]@{actor='mount';grantSequence=3;pairedGrantIdentity=$null;prepared=$true;canAct=$true}}
+        [pscustomobject]@{sequence=($_+3);boundary=$(if($_ -eq 0){'prepare-before'}else{'prepare-after'});round=3;frame=24;turn=13;preparingTurn=13;currentActor='mount';activationIdentity=$identity;simulatingClick=$false;
+            state=[pscustomobject]@{actor='mount';grantSequence=3;pairedGrantIdentity=$identity;prepared=$true;canAct=$true}}
     })+@(New-CoreNativeTurnEnd 'mount' 13 3 27 5)
     Sync-CoreForcedDetach $envelope
 }
@@ -375,6 +376,30 @@ foreach($mutation in $survivorMutations){
     if(!$rejected){throw "Invalid survivor preparation envelope accepted: $mutation"};$passed++
 }
 Write-Host "COMPONENT with native survivor-order fixture TOTAL PASS=$passed FAIL=0"
+
+# Preview.148 c6a-forced-detach148-n-rider-incap-2: a non-lethal incapacitation retains the split paired identity until
+# roster removal, so the surviving Horse's new-round Prepare carries exactly that identity. Any other identity, a mixed
+# pair, or a retained identity without the split state still rejects.
+$root='chunk4-rider-incapacitation-tb';$native=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $native -RetainedIdentity
+Assert-KmcChunk4CoreEvidence @{scenario=$root} $native 'PASS';$passed++
+$native=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $native
+Assert-KmcChunk4CoreEvidence @{scenario=$root} $native 'PASS';$passed++
+$retainedMutations=@(
+    {param($e) $e.allocationTrace.events[2].activationIdentity='other-activation'},
+    {param($e) $e.allocationTrace.events[3].state.pairedGrantIdentity='other-activation'},
+    {param($e) $e.allocationTrace.events[3].activationIdentity=$null;$e.allocationTrace.events[3].state.pairedGrantIdentity=$null},
+    {param($e) $e.allocationTrace.events[2].state.pairedGrantIdentity=$null},
+    {param($e) $e.successorTurns[1].state.split=$false},
+    {param($e) $e.successorTurns[1].state.identity='other-activation'},
+    {param($e) $e.beforeDamage.identity='other-activation'}
+)
+foreach($mutation in $retainedMutations){
+    $changed=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $changed -RetainedIdentity
+    & $mutation $changed.rows[0].evidence;$rejected=$false
+    try{Assert-KmcChunk4CoreEvidence @{scenario=$root} $changed 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw "Invalid retained-identity survivor envelope accepted: $mutation"};$passed++
+}
+Write-Host "COMPONENT with retained-identity survivor fixture TOTAL PASS=$passed FAIL=0"
 
 # AG's first unrelated actor was the native enemy, whose turn ended without
 # player input. Its actual TurnController ending callbacks remain required.

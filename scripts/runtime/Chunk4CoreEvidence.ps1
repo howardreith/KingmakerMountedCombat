@@ -284,16 +284,25 @@ function Assert-KmcChunk4LifeSuccessors {
     if($preparations.Count -ne 2*$survivorCount){throw 'Life cleanup has an unsolicited, missing or duplicate pair-actor preparation callback.'}
     if($survivorCount -eq 1){
         $turn=@($turns|Where-Object survivor)[0]
+        # A death retires the paired identity on the death frame, so the survivor refresh carries none. A non-lethal
+        # incapacitation retains the split identity until roster removal (preview.148 c6a-forced-detach148-n-rider-incap-2),
+        # so the refresh may carry exactly the retained split identity the successor-state rule already accepts, never another.
+        $retainedIdentity=if($turn.state.split -eq $true -and $null -ne $turn.state.identity -and [string]$turn.state.identity -ceq [string]$e.beforeDamage.identity){[string]$turn.state.identity}else{$null}
+        $identityCarried=@()
         for($index=0;$index -lt 2;$index++){
             $p=$preparations[$index];$boundary=if($index -eq 0){'prepare-before'}else{'prepare-after'}
+            $identityLawful=($null -eq $p.activationIdentity -and $null -eq $p.state.pairedGrantIdentity) -or
+                ($null -ne $retainedIdentity -and [string]$p.activationIdentity -ceq $retainedIdentity -and [string]$p.state.pairedGrantIdentity -ceq $retainedIdentity)
+            $identityCarried+=@($null -ne $p.activationIdentity)
             if($p.boundary -cne $boundary -or $p.state.actor -cne $e.survivor -or $p.currentActor -cne $e.survivor -or
                 $p.turn -ne $turn.turn -or $p.preparingTurn -ne $turn.turn -or $p.round -ne $turn.round -or
                 $p.frame -lt $e.beforeDamage.frame -or $p.frame -gt $turn.frame -or
-                $p.simulatingClick -ne $false -or $null -ne $p.activationIdentity -or $null -ne $p.state.pairedGrantIdentity -or
+                $p.simulatingClick -ne $false -or -not $identityLawful -or
                 $p.state.grantSequence -ne ($e.beforeDamage.($Survivor+'Grants')+1) -or $p.state.prepared -ne $true -or $p.state.canAct -ne $true){
                 throw 'Survivor refresh was not one actual independent native Prepare in its recorded new round.'
             }
         }
+        if($identityCarried[0] -ne $identityCarried[1]){throw 'Survivor refresh changed its paired identity between its own Prepare callbacks.'}
         if($preparations[0].sequence -ge $preparations[1].sequence){throw 'Native survivor Prepare callbacks are out of order.'}
     }
     return $survivorCount
