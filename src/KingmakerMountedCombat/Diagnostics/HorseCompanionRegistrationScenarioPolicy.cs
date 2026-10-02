@@ -33,6 +33,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-mount-incapacitated", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-allocation-rider-first-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-allocation-mount-first-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-spent-move-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-spent-standard-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-spent-all-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-rider-without-move-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-rider-other-action-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-unrelated-candidate-between-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-after-rider-expenditure-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-after-mount-expenditure-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-immediately-after-mount-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-auto-use-mount-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-auto-use-dismount-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-dismount-feature-disabled-rt", StringComparison.Ordinal) ||

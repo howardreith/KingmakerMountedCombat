@@ -164,15 +164,15 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aDismountTurn == null) return;
             var ready = CaptureChunk6aDismountBoundary();
             chunk6aDismountTurn["ready"] = ready;
-            chunk6aDismountTurn["readyBridge"] = Chunk6aDismountPassive(
-                Chunk6aTurnResources(chunk6aDismountTurn["groundSetup"]["after"]), Chunk6aTurnResources(ready));
+            var expenditureAfter = chunk6aDismountTurn["groundSetup"]?["after"] ?? chunk6aDismountTurn["riderAttack"]?["after"];
+            chunk6aDismountTurn["readyBridge"] = Chunk6aDismountPassive(Chunk6aTurnResources(expenditureAfter), Chunk6aTurnResources(ready));
         }
 
         // CM05-tb permits a later native turn. The immediate-after-Mount claim is separate.
         // An idle Acting turn cannot regain Move merely by polling availability.
         private bool PrepareChunk6aDismountTurn(TurnController turn)
         {
-            if (request.Scenario != "chunk6a-combat-mount-tb") return true;
+            if (!Chunk6aLaterTurnDismount) return true;
             var controller = Game.Instance.TurnBasedCombatController;
             if (relationship.State != RelationshipState.Mounted || !CombatController.IsInTurnBasedCombat() ||
                 !rider.IsInCombat || !horse.IsInCombat || !Game.Instance.Player.IsInCombat)
@@ -272,6 +272,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!EnsureChunk6aRiderSelection("CM05-combat-dismount-accepted")) return false;
                 if (turn.Status != TurnController.TurnStatus.Preparing)
                     throw new InvalidOperationException("Expected the observed next native Preparing allocation before mounted ground input.");
+                if (Chunk6aLaterTurnRiderAttack)
+                {
+                    // CM05-after-rider-expenditure: the mounted rider's single ranged attack is
+                    // the next allocation's Acting entry and its Standard expenditure.
+                    var attack = new JObject { ["kind"] = "single-attack", ["turnObject"] = RuntimeHelpers.GetHashCode(turn),
+                        ["round"] = controller.RoundNumber, ["before"] = CaptureChunk6aEconomyBoundary() };
+                    chunk6aDismountTurn["riderAttack"] = attack;
+                    chunk6aDismountTurn["attackStartBridge"] = Chunk6aDismountPassive(Chunk6aTurnResources(chunk6aDismountTurn["nextRound"]), Chunk6aTurnResources(attack["before"]));
+                    chunk6aEconomyLaterAttack = IssueChunk6aNativeAttack(rider, false, attack);
+                    chunk6aDismountTurnStage = 3; ResetLeafClock(); return false;
+                }
                 var engagement = CaptureChunk6aDismountEngagement();
                 if ((bool)engagement["targetMoving"] || !target.Commands.Empty)
                     throw new InvalidOperationException("Dismount ground setup requires the exact stationary diagnostic target.");
@@ -295,6 +306,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (chunk6aDismountGround?.Executor != horse || !chunk6aDismountGround.CreatedByPlayer)
                     throw new InvalidOperationException("Full TB next-turn ground input lost exact mount movement authority.");
                 chunk6aDismountTurnStage = 3; ResetLeafClock(); return false;
+            }
+            if (chunk6aDismountTurnStage == 3 && Chunk6aLaterTurnRiderAttack)
+            {
+                if (!Chunk6aEconomyCommandSettled(chunk6aEconomyLaterAttack, rider)) return false;
+                var attack = (JObject)chunk6aDismountTurn["riderAttack"];
+                FinishChunk6aEconomyCommand(attack, rider, chunk6aEconomyLaterAttack);
+                if (chunk6aEconomyLaterAttack.Result != UnitCommand.ResultType.Success || !turn.IsActing)
+                    throw new InvalidOperationException("The mounted rider's native attack did not settle on the same native Acting rider turn: " + attack.ToString(Newtonsoft.Json.Formatting.None));
+                chunk6aDismountTurnStage = 4;
             }
             if (chunk6aDismountTurnStage == 3)
             {

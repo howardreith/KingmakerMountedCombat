@@ -161,6 +161,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (chunk6aExplorationStage == 4)
             {
+                if (!PrepareChunk6aActionEconomyEquipment()) return;
                 if (!Chunk6aTurnBased && !EnsureChunk6aRiderSelection("CM01-combat-mount-setup")) return;
                 if (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 observations["chunk6aRiderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
@@ -170,7 +171,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (!TickChunk6aDoorSetup()) return;
                 }
-                else if (Chunk6aRefusedOnly || Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount)
+                else if (Chunk6aRefusedOnly || Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount || Chunk6aAdjacentMount)
                 { observations["chunk6aRefusalSetupGeometry"] = CaptureChunk6aGeometry("refusal-fresh-allocation-geometry"); }
                 else if (!Chunk6aCompensationOnly)
                 {
@@ -230,9 +231,14 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             CaptureChunk6aForeignPairBeforeCombat();
             PrepareChunk6aMountOrderFixture();
-            if (request.Scenario == "chunk6a-combat-mount-tb") {
+            if (request.Scenario == "chunk6a-combat-mount-tb" || Chunk6aEconomyTargetPlacement == "dismount-ring") {
                 BeginTarget(6f, "chunk6a-combat-mount", FindChunk6aDismountTargetPosition());
                 VerifyChunk6aDismountTargetPlacement();
+            } else if (Chunk6aEconomyTargetPlacement == "near-mount") {
+                // The mount spends its Standard from its own slot without approach, so the
+                // stationary target is placed inside its exact native attack reach.
+                BeginTarget(6f, "chunk6a-combat-mount", FindChunk6aDismountTargetPosition());
+                VerifyChunk6aMountReachTargetPlacement();
             } else BeginTarget(6f, "chunk6a-combat-mount");
             ruleProbe.Arm(target, false);
             chunk6aStage = 1;

@@ -385,6 +385,9 @@
     <Compile Include="Diagnostics\NativeEarlyEndMountEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aMountOrderScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aDismountTurnScenario.cs" />
+    <Compile Include="Diagnostics\NativeActionEconomyEvidence.cs" />
+    <Compile Include="Diagnostics\Chunk6aActionEconomyScenario.cs" />
+    <Compile Include="Diagnostics\ChildEntryPreambleEvidence.cs" />
     <Compile Include="Diagnostics\NativeDismountGroundEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aDismountEscapeScenario.cs" />
     <Compile Include="Diagnostics\NativeDismountEscapeEvidence.cs" />

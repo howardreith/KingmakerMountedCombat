@@ -52,6 +52,15 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM05-dismount-survives-feature-policy-disable','chunk6a-dismount-feature-disabled-rt',@('CM05-dismount-survives-feature-policy-disable')),
   @('CM02-adoption-plan-invalidated','chunk6a-adoption-compensation-rt',@('CM02-adoption-plan-invalidated')),
   @('CM02-adoption-compensation-releases','chunk6a-adoption-compensation-rt',@('CM02-adoption-compensation-releases')),
+  @('CM03-mount-spent-move','chunk6a-mount-spent-move-tb',@('CM03-mount-spent-move')),
+  @('CM03-mount-spent-standard','chunk6a-mount-spent-standard-tb',@('CM03-mount-spent-standard')),
+  @('CM03-mount-spent-all','chunk6a-mount-spent-all-tb',@('CM03-mount-spent-all')),
+  @('CM03-rider-without-move','chunk6a-rider-without-move-tb',@('CM03-rider-without-move')),
+  @('CM03-rider-other-action','chunk6a-rider-other-action-tb',@('CM03-rider-other-action')),
+  @('CM03-unrelated-candidate-between','chunk6a-unrelated-candidate-between-tb',@('CM03-unrelated-candidate-between')),
+  @('CM05-after-rider-expenditure','chunk6a-dismount-after-rider-expenditure-tb',@('CM05-after-rider-expenditure')),
+  @('CM05-after-mount-expenditure','chunk6a-dismount-after-mount-expenditure-tb',@('CM05-after-mount-expenditure')),
+  @('CM05-immediately-after-mount','chunk6a-dismount-immediately-after-mount-tb',@('CM05-immediately-after-mount')),
   @('CM08-area-restoration','chunk4-area-cleanup',@('native-area-clean-dismount')),
   @('CM08-mounted-mammoth-primary-hit-tb','mounted-mammoth-primary-hit-tb',@('mounted-mammoth-primary-hit-tb'))
  )

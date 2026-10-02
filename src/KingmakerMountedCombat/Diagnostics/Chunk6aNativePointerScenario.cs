@@ -24,7 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!ready) return;
             try
             {
-                chunk6aApproachPath.CaptureBeforeClick();
+                chunk6aApproachPath?.CaptureBeforeClick();
                 chunk6aMountClicked = chunk6aPointerInput.Click();
                 var command = rider.Commands.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
                 lastNativeAbilityShell = command?.Executor == rider && command.Target?.Unit == horse &&

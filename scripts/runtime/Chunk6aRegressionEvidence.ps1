@@ -99,5 +99,5 @@ function Assert-KmcChunk6aRegressionQualification([string]$Id,$Payload,$Primary,
  }
 
  $roles=@(Get-KmcChunk6aRegressionRoles $Id)
- if($roles.Count-gt1){Assert-KmcCompositeRunOrder $Bindings $roles $LabRoot}
+ if($roles.Count-gt1){Assert-KmcCompositeRoleSet $Bindings $roles}
 }

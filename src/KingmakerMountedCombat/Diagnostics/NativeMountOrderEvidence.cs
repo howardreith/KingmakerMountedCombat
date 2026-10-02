@@ -15,17 +15,34 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static bool CanPrepareFixture(bool owned, bool riderCombat, bool mountCombat, bool partyCombat,
             bool unmounted, bool idle, bool targetTurnBased, bool modeLeaseCurrent)
             => !owned && !riderCombat && !mountCombat && !partyCombat && unmounted && idle && targetTurnBased && modeLeaseCurrent;
+        // The two allocation-order scenarios keep their frozen contract: the declared
+        // order names the scenario. Action-economy variants share the same fixture and
+        // structure under their own scenario names through AssertCore.
         internal static void AssertComplete(JObject e)
         {
             Require(Text(e?["contract"]) == "fresh-native-allocation-order-through-next-paired-round", "contract differs");
-            var first = Bool(e["riderFirst"]); var rider = Text(e["riderId"]); var mount = Text(e["mountId"]);
-            Require(!string.IsNullOrEmpty(rider) && !string.IsNullOrEmpty(mount) && rider != mount &&
-                Text(e["scenario"]) == "chunk6a-allocation-" + (first ? "rider-first" : "mount-first") + "-tb", "case/pair differs");
-            var fixture = e["fixture"]; var proof = e["positiveProof"]; var mounted = e["mounted"]; var next = e["nextRound"]; var before = e["mountBefore"];
+            var first = Bool(e["riderFirst"]);
+            AssertCore(e, "chunk6a-allocation-" + (first ? "rider-first" : "mount-first") + "-tb", first);
+        }
+        internal static void AssertFixture(JObject e, bool first)
+        {
+            Require(Text(e?["contract"]) == "fresh-native-allocation-order-through-next-paired-round", "contract differs");
+            Require(Bool(e["riderFirst"]) == first, "declared order differs");
+            var fixture = e["fixture"];
             Require(Bool(fixture?["outsideCombat"]) && Bool(fixture["targetTurnBased"]) && Bool(fixture["modeLeaseCurrent"]) && Text(fixture["relationshipState"]) == "Unmounted" &&
                 Int(fixture["riderInputBase"]) == (first ? 40 : -40) && Int(fixture["mountInputBase"]) == (first ? -40 : 40) &&
                 JToken.DeepEquals(fixture["beforeResources"], fixture["afterResources"]), "native pre-encounter input changed resources");
             foreach (var actor in new[] { "rider", "mount" }) Require(Int(fixture["beforeResources"][actor]["grantSequence"]) == 0 && !Bool(fixture["beforeResources"][actor]["inCombat"]), "fixture reused an allocation");
+        }
+        internal static void AssertCore(JObject e, string expectedScenario, bool first)
+        {
+            Require(Text(e?["contract"]) == "fresh-native-allocation-order-through-next-paired-round", "contract differs");
+            Require(Bool(e["riderFirst"]) == first, "declared order differs");
+            var rider = Text(e["riderId"]); var mount = Text(e["mountId"]);
+            Require(!string.IsNullOrEmpty(rider) && !string.IsNullOrEmpty(mount) && rider != mount &&
+                Text(e["scenario"]) == expectedScenario, "case/pair differs");
+            AssertFixture(e, first);
+            var fixture = e["fixture"]; var proof = e["positiveProof"]; var mounted = e["mounted"]; var next = e["nextRound"]; var before = e["mountBefore"];
             Require(Bool(proof?["pass"]) && Bool(proof["identityComplete"]) && Bool(proof["sameCommandAtEveryBoundary"]) && Bool(proof["exactActedObserved"]) &&
                 Bool(proof["nativeTerminal"]) && Text(proof["nativeResult"]) == "Success" && Bool(proof["resourceWindow"]["pass"]) &&
                 Bool(proof["resourceWindow"]["reactionResources"]["pass"]), "positive Mount proof incomplete");
