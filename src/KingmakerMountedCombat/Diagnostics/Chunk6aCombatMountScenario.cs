@@ -36,6 +36,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         internal static bool IsChunk6aCombatMountScenario(string scenario) =>
             IsChunk6aAutoUseScenario(scenario) || IsChunk6aDismountEscapeScenario(scenario) || IsChunk6aMountOrderScenario(scenario) ||
+            IsChunk6aActionEconomyScenario(scenario) ||
             IsChunk6aRefusedScenario(scenario) ||
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
@@ -58,7 +59,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool IsChunk6aCombatMount => IsChunk6aCombatMountScenario(request.Scenario);
 
-        private bool Chunk6aTurnBased => Chunk6aMountOrderOnly ||
+        private bool Chunk6aTurnBased => Chunk6aMountOrderOnly || Chunk6aActionEconomyOnly ||
             request.Scenario == Chunk6aMammothScenarioEngine.TurnBasedScenario ||
             string.Equals(request.Scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
@@ -152,6 +153,7 @@ namespace KingmakerMountedCombat.Diagnostics
             allocationTrace = new NativeActorAllocationTrace(rider, horse, combat);
             allocationTrace.BeginEncounter(request.Scenario);
             observations["chunk6aCombatMount"] = chunk6aSamples;
+            BeginChunk6aActionEconomy();
             if (request.Scenario == Chunk6aCombatMountRealTimeScenario || request.Scenario == Chunk6aCombatMountTurnBasedScenario)
                 observations["chunk6aFullTransactionContract"] = "one-positive-mount-and-dismount-with-separate-campaign-support";
             step = Phase3dHorseStep.Phase3gControls;
@@ -647,12 +649,14 @@ namespace KingmakerMountedCombat.Diagnostics
                             });
                         return;
                     }
+                    // Action-economy variants may spend the mount's own earlier slot first.
+                    if (TickChunk6aMountSlotExpenditure(turn)) return;
                     if (turn?.Unit != rider)
                     {
                         TryEndPhase3gFixtureTurn(turn);
                         return;
                     }
-                    if (!PrepareChunk6aNativeActingTurn(turn)) return;
+                    if (!PrepareChunk6aActingEntry(turn)) return;
                 }
                 if (!Chunk6aIdle)
                 {
@@ -733,7 +737,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : 13;
+                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : Chunk6aRiderExhaustOnly ? 50 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -907,6 +911,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aStage == 32) { TickChunk6aAutoUse(); return; }
             if (chunk6aStage == 27 || chunk6aStage == 28) { TickChunk6aDismountEscape(); return; }
             if (chunk6aStage == 29 || chunk6aStage == 30) { TickChunk6aMountOrderCompletion(); return; }
+            if (chunk6aStage == 50) { TickChunk6aRiderExhaustion(); return; }
+            if (chunk6aStage >= 60 && chunk6aStage <= 62) { TickChunk6aEconomyDismount(); return; }
             if (chunk6aStage == 24) { TickChunk6aRefusedMount(); return; }
             if (chunk6aStage == 34 || chunk6aStage == 35) { TickChunk6aReplacementApproach(); return; }
             if (chunk6aStage == 45 || chunk6aStage == 46) { TickChunk6aRepeatedRequest(); return; }
@@ -983,7 +989,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 PrepareChunk6aPausedQueue();
                 chunk6aPreMount = CaptureChunk6aState("mount-before");
                 chunk6aApproachStart = CaptureChunk6aGeometry("positive-pre-click");
-                if ((bool)chunk6aApproachStart["isAdjacent"])
+                if (!Chunk6aAdjacentMount && (bool)chunk6aApproachStart["isAdjacent"])
                 {
                     FailCurrent("CM02-approach-arrival", "Positive pre-click geometry is already inside the transition envelope.");
                     BeginCleanup();
@@ -1000,11 +1006,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderRosterIndex"] = chunk6aPreMount["riderRosterIndex"],
                     ["mountRosterIndex"] = chunk6aPreMount["mountRosterIndex"]
                 };
-                if (Chunk6aTurnBased)
+                if (Chunk6aTurnBased && !Chunk6aAdjacentMount)
                 {
                     chunk6aApproachPath = new NativeMountApproachPathProbe(rider, horse);
                     // Capture only after the native target preview passes IgnoreClick.
                 }
+                CaptureChunk6aEconomyPreClick();
                 BeginChunk6aCommandWindow(nativeControls.MountAbility.AssetGuid);
                 if (Chunk6aTurnBased) { BeginChunk6aNativePointer(); return; }
                 chunk6aMountClicked = Chunk6aHotbarOnly ? InvokeChunk6aHotbar() : TryNativeAbilityTargetClick(
@@ -1049,7 +1056,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
                 var expectedMountPrepare = chunk6aDisposition == MidEncounterAdoption.PreparePartnerThisRound ? 1 : 0;
-                var mountProof = FinishChunk6aCommandWindow("positive-mount", true, expectedMountPrepare, true);
+                var mountProof = FinishChunk6aCommandWindow("positive-mount", true, expectedMountPrepare, !Chunk6aAdjacentMount);
                 FinishChunk6aHotbar(mountProof);
                 FinishChunk6aPausedQueue(mountProof);
                 var after = CaptureChunk6aState("mount-after");
@@ -1131,9 +1138,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 // publishes.
                 if (!(bool)mountProof["pass"])
                 {
-                    AddRow("CM02-approach-arrival", false, "The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary.", mountProof);
+                    if (Chunk6aAdjacentMount) FailCurrent(Chunk6aActionEconomyVariant.Row, "The exact adjacent combat Mount command proof failed: " + mountProof["errors"]?.ToString(Formatting.None));
+                    else AddRow("CM02-approach-arrival", false, "The exact command proof failed; endpoint geometry cannot replace a missing or inconsistent causal boundary.", mountProof);
                     BeginCleanup(); return;
                 }
+                // An adjacent action-economy variant mounts without approach; CM02-approach-arrival
+                // belongs to the approach transactions and is not credited here.
+                if (!Chunk6aAdjacentMount)
+                {
                 var terminalGeometry = CaptureChunk6aGeometry("transition-result");
                 // Arrival is measured at Deliver BEFORE attachment can move the rider view.
                 var arrival = mountProof["samples"].OfType<JObject>().Single(sample =>
@@ -1201,6 +1213,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["noDuplicateRequest"] = noDuplicateRequest,
                         ["transitionLedger"] = playerAction.TransitionLedger.Describe()
                     });
+                }
 
                 // The narrow approach scenario stops here. Its whole claim is the
                 // non-adjacent admission and the native approach that followed, so it
@@ -1212,6 +1225,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 if (Chunk6aAutoUseOnly) { BeginChunk6aAutoUse(mountProof); return; }
                 if (Chunk6aDismountEscapeOnly) { BeginChunk6aDismountEscape(mountProof); return; }
+                if (Chunk6aActionEconomyOnly) { FinishChunk6aActionEconomyMount(mountProof); return; }
                 if (Chunk6aMountOrderOnly) { FinishChunk6aMountOrder(mountProof); return; }
                 if (request.Scenario == "chunk6a-combat-mount-tb") allocationTrace.ObserveReactionResources = true;
                 chunk6aStage = 3;

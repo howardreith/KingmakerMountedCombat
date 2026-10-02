@@ -82,9 +82,41 @@ $payload=$ledger.payload
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aPrimaryClaimEvidence.ps1')
 . (Join-Path $PSScriptRoot 'runtime/LegacyCombatProjectionEvidence.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aArtifactRowsEvidence.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aHarnessIdentity.ps1')
 Assert-KmcChunk6aFrozenPayload $payload $LabRoot
 foreach($name in @('version','commit','branch','dllSha256','dllMvid','packageSha256','manifestSha256','suiteId','suiteSha256')){
     if([string]::IsNullOrEmpty([string](Get-Field $payload $name))){throw "Chunk 6A ledger payload lacks $name."}
+}
+# ---------------------------------------------------------------------------
+# Two identities, bound separately. The product candidate: source revision and
+# source tree digest, package, manifest, DLL, suite and purity proof. The
+# qualification harness: the reader revision and the hash of every reader file.
+# A ledger is valid only under the harness that qualified it; a pure reader
+# correction re-qualifies the same immutable artifacts under a new harness
+# identity without touching the product payload. Required from preview.150.
+# ---------------------------------------------------------------------------
+# Required for every Chunk 6A candidate from preview.150; earlier Chunk 6A candidates and the
+# historical product lines (chunk2-5, paired, phase, feasibility) predate the identities and are
+# validated as before. A recorded identity is always validated when present.
+$identitiesRequired=Test-KmcChunk6aIdentitiesRequired ([string]$payload.version)
+$harness=Get-Field $ledger 'harness'
+$purity=Get-Field $payload 'purity'
+$sourceTreeDigest=[string](Get-Field $payload 'sourceTreeDigest')
+if($identitiesRequired -or $null -ne $harness){ Assert-KmcChunk6aHarnessIdentity $harness $repoRoot }
+if($identitiesRequired -or -not [string]::IsNullOrEmpty($sourceTreeDigest)){
+    if($sourceTreeDigest -cne (Get-KmcChunk6aSourceTreeDigest $repoRoot ([string]$payload.commit))){throw 'Chunk 6A ledger payload source tree digest differs from the frozen commit.'}
+}
+# A freshly frozen ledger (no PASS entry) precedes its own purity proof; every PASS entry on a
+# candidate from preview.150 requires the proof bound in the payload before the first PASS.
+$anyPass=@($ledger.entries | Where-Object { [string](Get-Field $_ 'status') -ceq 'PASS' }).Count -gt 0
+if(($identitiesRequired -and $anyPass) -or $null -ne $purity){
+    if($null -eq $purity){throw 'Chunk 6A ledger payload records no purity proof.'}
+    $purityPath=Join-Path $LabRoot ('analysis-cache/chunk6a-causal/'+[string](Get-Field $purity 'receipt'))
+    if([string](Get-Field $purity 'receipt') -cnotmatch '^[A-Za-z0-9._-]{1,120}$'){throw 'Chunk 6A purity receipt name is invalid.'}
+    $receipt=Get-KmcBoundJson $purityPath ([string](Get-Field $purity 'receiptSha256'))
+    if([string]$receipt.status -cne 'PASS' -or [string]$receipt.runId -cne [string](Get-Field $purity 'runId') -or [string]$receipt.candidateCommit -cne [string]$payload.commit -or
+       [string]$receipt.packageSha256 -cne [string]$payload.packageSha256 -or [string]$receipt.dllSha256 -cne [string]$payload.dllSha256 -or
+       [string]$receipt.suiteId -cne [string]$payload.suiteId -or [string]$receipt.suiteSha256 -cne [string]$payload.suiteSha256){throw 'Chunk 6A purity proof does not bind the frozen candidate.'}
 }
 $statuses=@('PASS','FAIL','MAPPED','NOT RUN','BLOCKED','EXCLUDED')
 $ids=@{}
@@ -115,6 +147,14 @@ foreach($entry in $ledger.entries){
     $id=[string]$entry.id
     switch -CaseSensitive ([string]$entry.status){
         'PASS' {
+            # The four CM08 set rows are composites over other mandatory PASS entries; they
+            # never bind a native run of their own.
+            if(Test-KmcChunk6aCompositeId $id){
+                if($null -ne (Get-Field $entry 'runId') -or $null -ne (Get-Field $entry 'evidenceBinding')){throw "Chunk 6A composite entry $id must not bind a native run of its own."}
+                Assert-KmcChunk6aCompositeEntry $id $entry $ledger $LabRoot $repoRoot
+                $checks++
+                break
+            }
             # Bind all five restoration checks, native/overall results, transaction and suite.
             $binding=Get-Field $entry 'evidenceBinding'
             if($null -eq $binding) { throw "Chunk 6A PASS entry $id lacks its complete evidence binding." }
@@ -273,6 +313,12 @@ foreach($entry in $ledger.entries){
             $checks++
         }
     }
+    # A composite member set can only be claimed through its composite id.
+    if([string]$entry.status -cne 'PASS' -and $null -ne (Get-Field $entry 'compositeOf')){throw "Chunk 6A entry $id declares composite members without a composite PASS."}
+}
+foreach($set in @(Get-KmcChunk6aCompositeSets)){
+    if(-not $ids.ContainsKey($set.id)){throw "Chunk 6A ledger omits the composite id $($set.id)."}
+    foreach($member in $set.members){ if($member -cnotin $mandatory){throw "Composite $($set.id) names a non-mandatory member $member."} }
 }
 
 

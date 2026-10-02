@@ -368,6 +368,11 @@ namespace KingmakerMountedCombat.Diagnostics
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
             observations["parentPreambleMountAdmission"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>";
+            // The structured handoff snapshot replaces the bare admission string as the
+            // child's qualification evidence; contradictory evidence is refused at entry.
+            var childEntryPreamble = CaptureChildEntryPreamble(pairAlreadyMounted);
+            observations["childEntryPreamble"] = childEntryPreamble;
+            ChildEntryPreambleEvidence.AssertComplete(childEntryPreamble, request.Scenario, pairAlreadyMounted, RequiresIdlePartyHandoff(request.Scenario));
 
             if (IsChunk6aCombatMount) { BeginChunk6aCombatMount(); return; }
             if (IsChunk4Charge) { BeginChunk4Charge(); return; }
@@ -6240,6 +6245,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 6A later-turn Dismount observation", exception); }
             try { RestoreChunk6aMountOrderFixture(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A pre-encounter initiative inputs", exception); }
+            try { RestoreChunk6aActionEconomyFixture(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A action-economy fixture", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
             try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
@@ -6529,6 +6536,78 @@ namespace KingmakerMountedCombat.Diagnostics
                 NativeFixtureSelectionRestoration.Expected(originalSelection, NativeLifeFinalDeathSubject).Where(item => item.View != null)
                     .Select(item => item.View),
                 false);
+        }
+
+        // Read-only snapshot of the parent-to-child handoff, captured once at child entry.
+        private JObject CaptureChildEntryPreamble(bool pairAlreadyMounted)
+        {
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            var ledger = playerAction.TransitionLedger;
+            var mountGuid = nativeControls.MountAbility?.AssetGuid;
+            var dismountGuid = nativeControls.DismountAbility?.AssetGuid;
+            Func<UnitEntityData, int> relationshipCommands = actor => actor.Commands?.Raw == null ? 0 : actor.Commands.Raw.OfType<UnitUseAbility>()
+                .Count(item => item.Spell?.Blueprint?.AssetGuid == mountGuid || item.Spell?.Blueprint?.AssetGuid == dismountGuid);
+            Func<UnitEntityData, JObject> actorState = actor =>
+            {
+                var cooldown = actor.CombatState?.Cooldown;
+                return new JObject
+                {
+                    ["id"] = actor.UniqueId, ["object"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(actor),
+                    ["standard"] = cooldown?.StandardAction ?? 0f, ["move"] = cooldown?.MoveAction ?? 0f, ["swift"] = cooldown?.SwiftAction ?? 0f,
+                    ["initiative"] = cooldown?.Initiative ?? 0f, ["reactionCooldown"] = cooldown?.AttackOfOpportunity ?? 0f,
+                    ["reactions"] = actor.CombatState?.AttackOfOpportunityCount ?? 0, ["prepared"] = actor.CombatState?.Prepared == true,
+                    ["inCombat"] = actor.IsInCombat, ["canAct"] = actor.Descriptor?.State?.CanAct == true,
+                    ["hasMove"] = actor.HasMoveAction(), ["hasStandard"] = actor.HasStandardAction(),
+                    ["commandRunning"] = actor.Commands != null && actor.Commands.IsRunning(),
+                    ["handsBusy"] = actor.AreHandsBusyWithAnimation
+                };
+            };
+            var moveSlot = rider.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            var members = Enumerable.Range(0, rider.Group.Count).Select(index => rider.Group[index]).ToArray();
+            return new JObject
+            {
+                ["contract"] = ChildEntryPreambleEvidence.Contract,
+                ["parentScenario"] = HorseCompanionUnmountedScenarioEngine.ScenarioName,
+                ["parentEngine"] = typeof(HorseCompanionUnmountedScenarioEngine).FullName,
+                ["childScenario"] = request.Scenario, ["childTranche"] = GetType().FullName, ["runId"] = request.RunId,
+                ["sessionObject"] = game?.Player == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(game.Player),
+                ["areaGuid"] = game?.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                ["frame"] = Time.frameCount, ["gameTicks"] = game?.TimeController?.GameTime.Ticks ?? 0L,
+                ["capturedAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                ["riderId"] = rider.UniqueId, ["riderObject"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(rider),
+                ["mountId"] = horse.UniqueId, ["mountObject"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(horse),
+                ["pairAlreadyMounted"] = pairAlreadyMounted,
+                ["relationshipState"] = relationship.State.ToString(), ["relationshipGeneration"] = relationship.MountedPairGeneration,
+                ["relationshipRiderId"] = relationship.Rider?.UniqueId, ["relationshipMountId"] = relationship.Mount?.UniqueId,
+                ["admissionMode"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>",
+                ["admissionModeExplicit"] = playerAction.LastRelationshipDispatchAdmission != null,
+                ["commands"] = new JObject
+                {
+                    ["riderCommandsEmpty"] = rider.Commands.Empty, ["mountCommandsEmpty"] = horse.Commands.Empty,
+                    ["riderRelationshipCommands"] = relationshipCommands(rider), ["mountRelationshipCommands"] = relationshipCommands(horse),
+                    ["riderMoveSlot"] = moveSlot == null ? null : moveSlot.GetType().FullName
+                },
+                ["control"] = new JObject
+                {
+                    ["transitionInFlight"] = nativeControls.HasUnsettledRelationshipTransition,
+                    ["riderOwnsUnsettledShell"] = moveSlot != null && nativeControls.OwnsUnsettledRelationshipShell(moveSlot),
+                    ["shellCount"] = nativeControls.NativeRelationshipShellCount, ["processBindings"] = nativeControls.NativeRelationshipProcessBindingCount,
+                    ["dispatchAccepted"] = nativeControls.DispatchAcceptedCount, ["dispatchRejected"] = nativeControls.DispatchRejectedCount,
+                    ["transitionLedger"] = ledger.Describe(), ["acceptedMountCount"] = ledger.AcceptedMountCount, ["acceptedDismountCount"] = ledger.AcceptedDismountCount,
+                    ["forcedDetachCount"] = ledger.ForcedDetachCount, ["refusedVoluntaryCount"] = ledger.RefusedVoluntaryCount
+                },
+                ["actors"] = new JObject { ["rider"] = actorState(rider), ["mount"] = actorState(horse) },
+                ["party"] = new JObject
+                {
+                    ["playerInCombat"] = game?.Player?.IsInCombat == true, ["members"] = members.Length,
+                    ["membersInCombat"] = members.Count(member => member.IsInCombat),
+                    ["idle"] = members.All(member => member.Commands.Empty),
+                    ["memberIds"] = new JArray(members.Select(member => member.UniqueId))
+                },
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["currentTurnActor"] = controller?.CurrentTurn?.Unit?.UniqueId,
+                ["paused"] = game?.IsPaused == true
+            };
         }
 
         private void AddCleanupError(string scope, Exception exception)

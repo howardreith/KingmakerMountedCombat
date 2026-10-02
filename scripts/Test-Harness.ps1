@@ -14,6 +14,28 @@ $runtimeEvidenceTestRoot = Assert-KmcChildPath (Join-Path $runtimeEvidenceParent
 $passed = 0
 $failed = 0
 
+# From preview.150 every tranche artifact carries the structured child-entry preamble snapshot;
+# synthetic current-version Phase 3D artifacts carry a consistent synthetic snapshot for their
+# scenario (Chunk 6A children start unmounted, every other child mounted behind an exploration
+# preamble Mount; the disposable party idle; no command, shell, process or dispatch in flight).
+function New-TestChildEntryPreamble([string]$Scenario,[string]$RunId) {
+    $mounted = -not ($Scenario -clike 'chunk6a-*')
+    $actor = { param([string]$Id,[int]$Object) [ordered]@{id=$Id;object=$Object;standard=0.0;move=0.0;swift=0.0;initiative=0.0;reactionCooldown=0.0;reactions=1;prepared=$false;inCombat=$false;canAct=$true;hasMove=$true;hasStandard=$true;commandRunning=$false;handsBusy=$false} }
+    [ordered]@{
+        contract='structured-child-entry-preamble-snapshot';parentScenario='horse-companion-unmounted-suite';parentEngine='KingmakerMountedCombat.Diagnostics.HorseCompanionUnmountedScenarioEngine'
+        childScenario=$Scenario;childTranche='KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche';runId=$RunId
+        sessionObject=4242;areaGuid='0123456789abcdef0123456789abcdef';frame=120;gameTicks=5000000;capturedAtUtc='2026-10-02T00:00:00.0000000Z'
+        riderId='rider';riderObject=101;mountId='horse';mountObject=102;pairAlreadyMounted=$mounted
+        relationshipState=$(if($mounted){'Mounted'}else{'Unmounted'});relationshipGeneration=3;relationshipRiderId=$(if($mounted){'rider'}else{$null});relationshipMountId=$(if($mounted){'horse'}else{$null})
+        admissionMode=$(if($mounted){'Exploration'}else{'<none>'});admissionModeExplicit=$mounted
+        commands=[ordered]@{riderCommandsEmpty=$true;mountCommandsEmpty=$true;riderRelationshipCommands=0;mountRelationshipCommands=0;riderMoveSlot=$null}
+        control=[ordered]@{transitionInFlight=$false;riderOwnsUnsettledShell=$false;shellCount=2;processBindings=2;dispatchAccepted=2;dispatchRejected=0;transitionLedger='admittedMount=1;acceptedMount=1';acceptedMountCount=1;acceptedDismountCount=$(if($mounted){0}else{1});forcedDetachCount=0;refusedVoluntaryCount=0}
+        actors=[ordered]@{rider=(& $actor 'rider' 101);mount=(& $actor 'horse' 102)}
+        party=[ordered]@{playerInCombat=$false;members=6;membersInCombat=0;idle=$true;memberIds=@('rider','horse','a','b','c','d')}
+        turnBased=$false;currentTurnActor=$null;paused=$false
+    }
+}
+
 function Invoke-HarnessTest {
     param([string]$Name, [scriptblock]$Body)
     try {
@@ -5023,7 +5045,7 @@ try {
         & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $validPackage
     }
     foreach ($sizeCase in @(
-        @{name='DLL';leaf='KingmakerMountedCombat.dll';limit=5MB},
+        @{name='DLL';leaf='KingmakerMountedCombat.dll';limit=8MB},
         @{name='Info';leaf='Info.json';limit=4MB}
     )) {
         Invoke-HarnessTest ("package validator retains the {0} entry size boundary" -f $sizeCase.name) {
@@ -11141,7 +11163,8 @@ try {
             createdAtUtc=[DateTime]::UtcNow.ToString('o');status='FAIL'
             rows=@([ordered]@{name='phase3d-horse-runtime-exception';status='FAIL';detail='Synthetic guarded failure.'})
             observations=[ordered]@{phase3fActualConfiguration=[ordered]@{enablePairedActivation=$true
-                enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}}
+                enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+                childEntryPreamble=(New-TestChildEntryPreamble 'actor-allocation-rider-first-tb' 'paired-condition-schema')}
             subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic guarded failure.')}
         foreach($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {$artifact[$name]=$phase3dRequest.$name}
         $path=Join-Path $phase3dRoot 'phase3d-horse-scenario-evidence.json'
@@ -11675,6 +11698,7 @@ try {
                     }
                 }
             }
+            $observations['childEntryPreamble'] = New-TestChildEntryPreamble $phase3dScenario $phase3dRequest.runId
             $phase3dArtifact = [ordered]@{
                 schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){6}else{1})
                 evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
@@ -11740,6 +11764,7 @@ try {
                                 $unmountedRequest = $phase3dRequest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest.scenario = 'unmounted-attack-controls-rt'
                                 $unmountedArtifact.scenario = $unmountedRequest.scenario
+                                $unmountedArtifact.observations.childEntryPreamble.childScenario = $unmountedRequest.scenario
                                 $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $true
                                 if ($unmountedMutation -ceq 'paired-path') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $false }
                                 if ($unmountedMutation -ceq 'paired-type') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = 'true' }
@@ -12129,7 +12154,7 @@ try {
             productVersion=$failureRequest.productVersion;dllSha256=$failureRequest.dllSha256
             dllMvid=$failureRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
             status='FAIL';rows=@($failureRow)
-            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress}
+            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress;childEntryPreamble=(New-TestChildEntryPreamble $failureRequest.scenario $failureRequest.runId)}
             subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic combat-Mount admission deadline.')
         }
         $failurePath = Join-Path $failureRoot 'phase3d-horse-scenario-evidence.json'
@@ -12224,6 +12249,7 @@ try {
             status='FAIL';rows=@($failureRow)
             observations=[ordered]@{
                 riderId='rider';horseId='horse';leafDeadlineProgress=$progress
+                childEntryPreamble=(New-TestChildEntryPreamble $failureRequest.scenario $failureRequest.runId)
                 'tb-combat-mount'=[ordered]@{
                     abilityGuid='mount-ability';clickedTargetId='horse';resolvedTargetId='horse'
                     priority='2';clicked=$true;targetSelectionStartDelta=1;targetSelectionEndDelta=1

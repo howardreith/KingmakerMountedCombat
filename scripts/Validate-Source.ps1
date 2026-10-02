@@ -733,7 +733,7 @@ Assert-Kmc ($chunk6aScenarioText -notmatch 'actedObserved\s*\|\|\s*moveCommitted
     'one exact command owns approach, observed acted, native cost, process, delivery and terminal evidence'
 
 $mountTurnWait = [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 1\)(.*?)var availability = nativeControls.Evaluate')
-Assert-Kmc ($mountTurnWait.Value -match 'if \(turn\?\.Unit != rider\)\s*\{\s*TryEndPhase3gFixtureTurn\(turn\);\s*return;\s*\}\s*if \(!PrepareChunk6aNativeActingTurn\(turn\)\) return;' -and
+Assert-Kmc ($mountTurnWait.Value -match 'if \(TickChunk6aMountSlotExpenditure\(turn\)\) return;\s*if \(turn\?\.Unit != rider\)\s*\{\s*TryEndPhase3gFixtureTurn\(turn\);\s*return;\s*\}\s*if \(!PrepareChunk6aActingEntry\(turn\)\) return;' -and
     $mountTurnWait.Value -notmatch 'turn\?\.Unit != rider \|\| !turn.IsActing') `
     'Chunk 6A preserves the exact rider Preparing turn and ends only other fixture actors while waiting for Acting'
 
@@ -766,7 +766,7 @@ Assert-Kmc ($fullDoorText -match 'private bool Chunk6aNeedsDoor => Chunk6aObstru
     $ledgerText -match 'Assert-KmcChunk6aCampaign' -and
     $campaignText -match "name='geometry';scenario='chunk6a-geometry-change'" -and
     $campaignText -match "name='obstruction';scenario='chunk6a-obstruction'" -and
-    $campaignText -match 'Assert-KmcCompositeRunOrder') `
+    $campaignText -match 'Assert-KmcCompositeRoleSet') `
     'full native cases retain mandatory geometry and obstruction through fixed ordered fresh-transaction campaign evidence'
 
 $positiveFlow = [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 13\)(.*?)if \(chunk6aStage == 2\)')
@@ -776,7 +776,7 @@ Assert-Kmc ($chunk6aScenarioText -match 'manager.SelectUnit\(rider.View, true, t
     $positiveFlow.Value -match '(?s)if \(!EnsureChunk6aRiderSelection\("CM02-approach-arrival"\)\) return;.*?chunk6aPreMount = CaptureChunk6aState\("mount-before"\);.*?chunk6aApproachStart = CaptureChunk6aGeometry\("positive-pre-click"\);.*?chunk6aMountLedgerBefore = Chunk6aLedgerCounters\(\);.*?chunk6aMountClicked = Chunk6aHotbarOnly \? InvokeChunk6aHotbar\(\) : TryNativeAbilityTargetClick') `
     'positive Mount selects and verifies the exact single rider before resource ledger geometry baseline and native input'
 
-Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount \? 31 : Chunk6aCompensationOnly \? 11 : Chunk6aRefusedOnly \? 24 : Chunk6aStopOnly \? 22 : Chunk6aReplacementOnly \? 34 : Chunk6aRepeatedRequestOnly \? 45 : Chunk6aOwnershipOnly \? 36 : Chunk6aSizeFormOnly \? 38 : Chunk6aLostDirectControlOnly \? 40 : Chunk6aPendingIncapacityOnly \? 43 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : 13;' -and
+Assert-Kmc ($chunk6aScenarioText -match 'chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount \? 31 : Chunk6aCompensationOnly \? 11 : Chunk6aRefusedOnly \? 24 : Chunk6aStopOnly \? 22 : Chunk6aReplacementOnly \? 34 : Chunk6aRepeatedRequestOnly \? 45 : Chunk6aOwnershipOnly \? 36 : Chunk6aSizeFormOnly \? 38 : Chunk6aLostDirectControlOnly \? 40 : Chunk6aPendingIncapacityOnly \? 43 : Chunk6aGeometryOnly \? 16 : Chunk6aObstructionOnly \? 18 : Chunk6aRiderExhaustOnly \? 50 : 13;' -and
     $chunk6aScenarioText -match 'if \(!Chunk6aCompensationOnly\) throw' -and
     $positiveFlow.Value -match 'if \(Chunk6aCompensationOnly\) throw' -and
     [Regex]::Match($chunk6aScenarioText, '(?s)if \(chunk6aStage == 12\)(.*?)// Stage 13:').Value -match 'chunk6aStage = 99;\s*BeginCleanup\(\)' -and
@@ -972,7 +972,7 @@ Assert-Kmc ($approachMovementText -match 'out ApproachMovementCall __state' -and
 $pointerScenarioText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6aNativePointerScenario.cs')
 $pointerInputText=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/NativeMountPointerInput.cs')
 Assert-Kmc ($positiveFlow.Value -match '(?s)CaptureChunk6aState.*?BeginChunk6aCommandWindow\(nativeControls.MountAbility.AssetGuid\).*?if \(Chunk6aTurnBased\) \{ BeginChunk6aNativePointer\(\); return; \}' -and
-    $pointerScenarioText -match '(?s)PollReady\(\).*?if \(!ready\) return;.*?chunk6aApproachPath.CaptureBeforeClick\(\);.*?chunk6aPointerInput.Click\(\).*?CompleteChunk6aPositiveClick\(\);' -and
+    $pointerScenarioText -match '(?s)PollReady\(\).*?if \(!ready\) return;.*?chunk6aApproachPath\?\.CaptureBeforeClick\(\);.*?chunk6aPointerInput.Click\(\).*?CompleteChunk6aPositiveClick\(\);' -and
     $pointerScenarioText -match '(?s)private void CompleteChunk6aPositiveClick\(\).*?ClickCompleted\(chunk6aMountClicked\).*?chunk6aApproachPath.Bind\(lastNativeAbilityShell\)' -and
     $chunk6aTrancheText -match '\["approachPathObserver"\] = chunk6aApproachPath\?\.Capture\(\)' -and
     $chunk6aTrancheText -match '(?s)private void BestEffortCleanup\(\).*?chunk6aApproachPath.Capture\(\).*?chunk6aApproachPath\?\.Dispose\(\).*?chunk6aCommandWindow\?\.Dispose\(\)') 'positive TB records pre-click preview and binds its admitted command, preserving observation before exception and cleanup'
@@ -990,7 +990,8 @@ Assert-Kmc ($causalProbeText -match '(?s)if \(Kingmaker.Controllers.Clicks.Point
     $predictionProbeText -match 'NativePredictionCommandEvidence.AssertComplete' -and
     $chunk6aRowRequirementText -match 'Assert-KmcNativePredictionCommands' -and
     $chunk6aRowRequirementText -match 'Assert-KmcNativeMountPointer' -and
-    $chunk6aRowRequirementText.Contains('Assert-KmcRelationshipCommandProof $found[0] $isCombat ($turnBased -and $isCombat) $prepares ($window -ceq ''positive-mount'') 0 $requiresPredictionEvidence') -and
+    $chunk6aRowRequirementText.Contains('$requireApproach = ($window -ceq ''positive-mount'') -and -not ($actionEconomyOnly -and $actionEconomyVariant.adjacentMount)') -and
+    $chunk6aRowRequirementText.Contains('Assert-KmcRelationshipCommandProof $found[0] $isCombat ($turnBased -and $isCombat) $prepares $requireApproach 0 $requiresPredictionEvidence') -and
     $chunk6aRowRequirementText.Contains('$requiresPredictionEvidence=$true') -and
     $chunk6aRowRequirementText.Contains('[long]$Matches[1] -le 124') -and
     $causalProbeText -match 'var events = new JArray\(trace.EventsSince\(traceStart\)') 'native prediction has explicit separate identities while current envelopes require their proof and retain every resource event'

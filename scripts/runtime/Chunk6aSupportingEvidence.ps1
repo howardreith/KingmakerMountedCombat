@@ -70,18 +70,15 @@ function Assert-KmcCompositeRuns($Payload,$Bindings,$RequiredRoles,[string]$LabR
     # RequiredRoles is owned by the fixed mandatory claim contract, not supplied by a ledger entry.
     $items=@($Bindings);$roles=@($RequiredRoles)
     if($roles.Count -lt 2 -or @($roles | ForEach-Object { [string]$_.name } | Select-Object -Unique).Count -ne $roles.Count -or $items.Count -ne $roles.Count) { throw 'Composite evidence lacks required roles.' }
-    $runIds=@($items | ForEach-Object { [string]$_.runId })
-    if(@($runIds | Select-Object -Unique).Count -ne $items.Count) { throw 'Composite roles require separate native transactions.' }
+    Assert-KmcCompositeRoleSet $items $roles
     foreach($role in $roles) {
         $matches=@($items | Where-Object { [string]$_.role -ceq [string]$role.name })
-        if($matches.Count -ne 1) { throw "Composite evidence needs exactly one $role run." }
         if([string]$matches[0].scenario -cne [string]$role.scenario) { throw 'Supporting role requires its declared scenario.' }
         foreach($requiredRow in @($role.rows)) {
             if(@($matches[0].rows) -cnotcontains [string]$requiredRow) { throw 'Supporting role omits a required row.' }
         }
         Assert-KmcSupportingRun $Payload $matches[0] $LabRoot
     }
-    Assert-KmcCompositeRunOrder $items $roles $LabRoot
 }
 
 function Get-KmcChunk6aCampaignRoles([bool]$IncludeTurnBased) {
@@ -101,16 +98,33 @@ function Assert-KmcChunk6aCampaign($Payload,$Bindings,[bool]$IncludeTurnBased,[s
     $roles=@(Get-KmcChunk6aCampaignRoles $IncludeTurnBased)
     Assert-KmcCompositeRuns $Payload $Bindings $roles $LabRoot
 }
-function Assert-KmcCompositeRunOrder($Bindings,$roles,[string]$LabRoot) {
-    $previousEnd=[DateTimeOffset]::MinValue
-    foreach($role in $roles) {
-        $binding=@($Bindings|Where-Object role -CEQ $role.name)[0]
-        $transaction=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-state/run-transactions/'+$binding.runId+'.json')) $binding.transactionSha256
-        $start=[DateTimeOffset]$transaction.preparedAtUtc
-        $end=[DateTimeOffset]$transaction.restoredAtUtc
-        if($start -le $previousEnd -or $end -le $start) { throw 'Campaign roles did not run in order as separate restored transactions.' }
-        $previousEnd=$end
+# A composite requires an exact set of independent role bindings: each declared role exactly
+# once, no missing, duplicate or foreign role, separate native transactions, and the accepted
+# bindings sorted into the canonical declared order. It never forces the native transactions to
+# have executed chronologically in declaration order.
+function Assert-KmcCompositeRoleSet($Bindings,$Roles) {
+    $items=@($Bindings);$roles=@($Roles)
+    $names=@($roles | ForEach-Object { [string]$_.name })
+    if($names.Count -lt 1 -or @($names | Select-Object -Unique).Count -ne $names.Count) { throw 'Composite contract roles are not unique.' }
+    if($items.Count -ne $names.Count) { throw 'Composite evidence lacks required roles.' }
+    foreach($item in $items) {
+        if([string]$item.role -cnotin $names) { throw ('Composite evidence names a foreign role: '+[string]$item.role) }
     }
+    foreach($name in $names) {
+        if(@($items | Where-Object { [string]$_.role -ceq $name }).Count -ne 1) { throw "Composite evidence needs exactly one $name run." }
+    }
+    $runIds=@($items | ForEach-Object { [string]$_.runId })
+    if(@($runIds | Select-Object -Unique).Count -ne $items.Count) { throw 'Composite roles require separate native transactions.' }
+    for($index=0;$index -lt $names.Count;$index++) {
+        if([string]$items[$index].role -cne $names[$index]) { throw 'Composite bindings are not sorted into the canonical declared role order.' }
+    }
+}
+function Sort-KmcCompositeBindings($Bindings,$Roles) {
+    $items=@($Bindings);$names=@(@($Roles) | ForEach-Object { [string]$_.name })
+    $sorted=@(foreach($name in $names) { $found=@($items | Where-Object { [string]$_.role -ceq $name }); if($found.Count -ne 1) { throw "Composite evidence needs exactly one $name run." }; $found[0] })
+    if($sorted.Count -ne $items.Count) { throw 'Composite evidence names a foreign role.' }
+    Assert-KmcCompositeRoleSet $sorted $Roles
+    ,$sorted
 }
 
 function Assert-KmcChunk6aFrozenPayload($Payload,[string]$LabRoot) {
@@ -170,6 +184,15 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM02-wrong-creature-target'=@('chunk6a-refused-wrong-creature-target','CM02-wrong-creature-target')
         'CM06-mount-selected'=@('chunk6a-refused-mount-selected','CM06-mount-selected')
         'CM06-multiple-selection'=@('chunk6a-refused-multiple-selection','CM06-multiple-selection')
+        'CM03-mount-spent-move'=@('chunk6a-mount-spent-move-tb','CM03-mount-spent-move')
+        'CM03-mount-spent-standard'=@('chunk6a-mount-spent-standard-tb','CM03-mount-spent-standard')
+        'CM03-mount-spent-all'=@('chunk6a-mount-spent-all-tb','CM03-mount-spent-all')
+        'CM03-rider-without-move'=@('chunk6a-rider-without-move-tb','CM03-rider-without-move')
+        'CM03-rider-other-action'=@('chunk6a-rider-other-action-tb','CM03-rider-other-action')
+        'CM03-unrelated-candidate-between'=@('chunk6a-unrelated-candidate-between-tb','CM03-unrelated-candidate-between')
+        'CM05-after-rider-expenditure'=@('chunk6a-dismount-after-rider-expenditure-tb','CM05-after-rider-expenditure')
+        'CM05-after-mount-expenditure'=@('chunk6a-dismount-after-mount-expenditure-tb','CM05-after-mount-expenditure')
+        'CM05-immediately-after-mount'=@('chunk6a-dismount-immediately-after-mount-tb','CM05-immediately-after-mount')
     }
     if(-not $requirements.ContainsKey($Id)){return $false}
     $required=$requirements[$Id]
@@ -204,6 +227,60 @@ function Assert-KmcBoundMammothProfile($Binding,$Request,[string]$Root) {
     $manifest=Get-KmcBoundJson (Join-Path $Root 'runtime-artifacts.json') $Binding.artifactManifestSha256
     $null=Get-KmcBoundJson (Join-Path $Root 'chunk6a-native-mammoth-profile.json') $Binding.profileSha256
     Assert-KmcNativeMammothArtifact $Request $manifest 'PASS'
+}
+
+# The four CM08 set rows are strict composite gates: every member id must itself be a PASS
+# entry on the same frozen payload, and the persistence/removal sets additionally require the
+# current Chunk 5 persistence machinery on that payload (its own ledger, checker and, for the
+# persistence suite, its completion gate). They are never new gameplay scenarios.
+function Get-KmcChunk6aCompositeSets {
+    @(
+        [pscustomobject]@{id='CM08-horse-smoke';members=@('CM01-horse-rt','CM01-horse-tb','CM05-rt','CM05-tb','CM06-hotbar-path','CM06-pointer-target');chunk5Completion=$false;chunk5Entries=@()}
+        [pscustomobject]@{id='CM08-mammoth-smoke';members=@('CM01-mammoth-rt','CM01-mammoth-tb','CM08-mounted-mammoth-primary-hit-tb');chunk5Completion=$false;chunk5Entries=@()}
+        [pscustomobject]@{id='CM08-persistence-suite';members=@('CM07-mount-save-rt','CM07-mount-load-rt','CM07-mount-save-tb','CM07-mount-load-tb','CM07-dismount-save','CM07-dismount-load','CM07-cold-load','CM07-save-slot-routes','CM07-unsettled-save-deferred','CM07-area-reload','CM07-schema-unchanged');chunk5Completion=$true;chunk5Entries=@()}
+        [pscustomobject]@{id='CM08-disable-removal-readiness';members=@('CM05-dismount-survives-feature-policy-disable','CM04-disable-unload');chunk5Completion=$false;chunk5Entries=@('P07-disable-reenable','P07-prepare-removal','P07-absent-kmc','P07-removal-no-dll')}
+    )
+}
+function Get-KmcChunk6aCompositeSet([string]$Id) { $found=@(Get-KmcChunk6aCompositeSets | Where-Object { $_.id -ceq $Id }); if($found.Count -eq 1) { $found[0] } else { $null } }
+function Test-KmcChunk6aCompositeId([string]$Id) { $null -ne (Get-KmcChunk6aCompositeSet $Id) }
+# A composite PASS entry: compositeOf names exactly the declared member set, every member is a
+# PASS entry of the same ledger (same frozen payload), and when the set binds the Chunk 5
+# machinery the bound Chunk 5 ledger is byte-exact, executes the same product payload, passes
+# the Chunk 5 checker (with -Completion where required) and carries every required P07 entry
+# as PASS. The disable/removal set thereby binds the current removal/no-DLL readiness, the
+# re-enable readiness and the restored human installation through the Chunk 5 bindings.
+function Assert-KmcChunk6aCompositeEntry([string]$Id,$Entry,$Ledger,[string]$LabRoot,[string]$RepoRoot) {
+    $set=Get-KmcChunk6aCompositeSet $Id
+    if($null -eq $set) { throw "Composite qualification requested for a non-composite id: $Id" }
+    $declared=@($Entry.compositeOf)
+    if($declared.Count -ne @($set.members).Count -or @($declared | Select-Object -Unique).Count -ne $declared.Count) { throw "Composite entry $Id does not declare its exact member set." }
+    foreach($member in $set.members) {
+        if($member -cnotin $declared) { throw "Composite entry $Id omits member $member." }
+        $memberEntries=@($Ledger.entries | Where-Object { [string]$_.id -ceq $member })
+        if($memberEntries.Count -ne 1 -or [string]$memberEntries[0].status -cne 'PASS') { throw "Composite entry $Id requires member $member to be PASS on the same frozen payload." }
+    }
+    foreach($member in $declared) { if($member -cnotin @($set.members)) { throw "Composite entry $Id names a foreign member $member." } }
+    $needsChunk5=$set.chunk5Completion -or @($set.chunk5Entries).Count -gt 0
+    $binding=if($null -ne $Entry.PSObject.Properties['chunk5Ledger']) { $Entry.chunk5Ledger } else { $null }
+    if(-not $needsChunk5) { if($null -ne $binding) { throw "Composite entry $Id binds Chunk 5 evidence it does not require." }; return }
+    if($null -eq $binding) { throw "Composite entry $Id requires its current Chunk 5 persistence ledger binding." }
+    $path=[string]$binding.path
+    if([string]::IsNullOrEmpty($path) -or $path -cmatch '(^|[\\/])\.\.([\\/]|$)') { throw "Composite entry $Id names an invalid Chunk 5 ledger path." }
+    $full=if([IO.Path]::IsPathRooted($path)) { $path } else { Join-Path $LabRoot $path }
+    $chunk5=Get-KmcBoundJson $full ([string]$binding.sha256)
+    $payload=$Ledger.payload
+    foreach($field in @('commit','dllSha256','dllMvid','version','packageSha256')) {
+        if([string]$chunk5.payload.$field -cne [string]$payload.$field) { throw "Composite entry $($Id): the bound Chunk 5 ledger executes another product payload ($field)." }
+    }
+    $checker=Join-Path (Join-Path $RepoRoot 'scripts') 'Test-Chunk5Ledger.ps1'
+    $arguments=@('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$checker,'-LedgerPath',$full,'-LabRoot',$LabRoot)
+    if($set.chunk5Completion) { $arguments+='-Completion' }
+    $null=& powershell.exe @arguments
+    if($LASTEXITCODE -ne 0) { throw "Composite entry $($Id): the bound Chunk 5 ledger did not pass its checker"+$(if($set.chunk5Completion){' with the completion gate'}else{''})+'.' }
+    foreach($required in @($set.chunk5Entries)) {
+        $found=@($chunk5.entries | Where-Object { [string]$_.id -ceq $required })
+        if($found.Count -ne 1 -or [string]$found[0].status -cne 'PASS') { throw "Composite entry $($Id): Chunk 5 entry $required is not PASS on the current payload." }
+    }
 }
 
 # Each combined claim requires two independent restored transactions on the frozen payload.

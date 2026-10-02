@@ -96,7 +96,18 @@ Write-Host ('Synthetic test fixtures retained: '+$fixtureParent)
 
 Fixture-Reject {param($v) $v['phase3d-horse-scenario-evidence.json'].commit='wrong'} 'artifact payload or run differs'
 Fixture-Reject {param($v) $v['phase3d-horse-scenario-evidence.json'].status='FAIL'} 'artifact is not PASS'
-Reject { Assert-KmcCompositeRunOrder $bindings @($roles[1],$roles[0]) $lab } 'did not run in order'
+# Roles are an exact set, never a chronology: the declared order only sorts the ledger.
+$sorted=Sort-KmcCompositeBindings @($bindings[1],$bindings[0]) $roles
+if((($sorted|ForEach-Object role) -join ',') -cne 'rt,tb'){throw 'Composite bindings were not sorted into the canonical declared order.'};$script:checks++
+Assert-KmcCompositeRoleSet $bindings $roles;$script:checks++
+Reject { Assert-KmcCompositeRoleSet @($bindings[1],$bindings[0]) $roles } 'canonical declared role order'
+$b=Copy-Json $bindings;$b[1].role='foreign'
+Reject { Assert-KmcCompositeRoleSet $b $roles } 'foreign role'
+Reject { Sort-KmcCompositeBindings $b $roles } 'exactly one tb run'
+$b=Copy-Json $bindings;$b[0].role='tb'
+Reject { Assert-KmcCompositeRoleSet $b $roles } 'exactly one rt run'
+Reject { Assert-KmcCompositeRuns $payload @($bindings[1],$bindings[0]) $roles $lab } 'canonical declared role order'
+if($null -ne (Get-Command -Name Assert-KmcCompositeRunOrder -CommandType Function -ErrorAction SilentlyContinue)){throw 'Chronological composite order rule must not exist.'};$script:checks++
 
 # Fixed six/seven-role obligations cannot be selected by the ledger writer.
 $campaignRoles=@(Get-KmcChunk6aCampaignRoles $true)
@@ -116,8 +127,8 @@ $runNames=@('approach','rt','tb','geometry','obstruction','full-rt','full-tb')
 $campaign=@(for($index=0;$index -lt $campaignRoles.Count;$index++) {
     Get-KmcSupportingBinding $campaignRoles[$index].name ('c6a-envelope-a-'+$runNames[$index]) $campaignRoles[$index].rows $lab
 })
-# Timeline validation alone is not qualification: both full cases still FAILED.
-Assert-KmcCompositeRunOrder $campaign $campaignRoles $lab;$script:checks++
+# Role-set validation alone is not qualification: both full cases still FAILED.
+Assert-KmcCompositeRoleSet $campaign $campaignRoles;$script:checks++
 foreach($missing in @('geometry','obstruction','full-rt','full-tb')) {
     $incomplete=@($campaign|Where-Object role -CNE $missing)
     Reject {Assert-KmcChunk6aCampaign $p121 $incomplete $true $lab} 'lacks required roles'

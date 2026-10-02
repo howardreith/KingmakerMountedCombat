@@ -2,15 +2,33 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'NativeAllocationContinuationEvidence.ps1')
 function Assert-KmcMountOrder($E){
+ if($E.contract-cne'fresh-native-allocation-order-through-next-paired-round'){throw 'Mount order contract differs'}
+ if($E.riderFirst-isnot[bool]){throw 'Mount order boolean absent'}
+ $first=[bool]$E.riderFirst;$order=if($first){'rider-first'}else{'mount-first'}
+ Assert-KmcMountOrderCore $E ('chunk6a-allocation-'+$order+'-tb') $first
+}
+# The pre-encounter fixture alone (shared by the action-economy variants).
+function Assert-KmcMountOrderFixture($E,[bool]$First){
  function I($v){if($v-isnot[int]-and$v-isnot[long]){throw 'Mount order integer absent'};[long]$v}
  function B($v){if($v-isnot[bool]){throw 'Mount order boolean absent'};[bool]$v}
  function Equal($a,$b){($a|ConvertTo-Json -Depth 90 -Compress)-ceq($b|ConvertTo-Json -Depth 90 -Compress)}
  if($E.contract-cne'fresh-native-allocation-order-through-next-paired-round'){throw 'Mount order contract differs'}
- $first=B $E.riderFirst;$rider=[string]$E.riderId;$mount=[string]$E.mountId;$order=if($first){'rider-first'}else{'mount-first'}
- if([string]::IsNullOrEmpty($rider)-or[string]::IsNullOrEmpty($mount)-or$rider-ceq$mount-or$E.scenario-cne('chunk6a-allocation-'+$order+'-tb')){throw 'Mount order case/pair differs'}
- $fixture=$E.fixture;$proof=$E.positiveProof;$mounted=$E.mounted;$next=$E.nextRound;$before=$E.mountBefore
+ if((B $E.riderFirst)-ne$First){throw 'Mount order declared order differs'}
+ $first=$First;$fixture=$E.fixture
  if(-not(B $fixture.outsideCombat)-or-not(B $fixture.targetTurnBased)-or-not(B $fixture.modeLeaseCurrent)-or$fixture.relationshipState-cne'Unmounted'-or(I $fixture.riderInputBase)-ne$(if($first){40}else{-40})-or(I $fixture.mountInputBase)-ne$(if($first){-40}else{40})-or-not(Equal $fixture.beforeResources $fixture.afterResources)){throw 'Mount order fixture changed resources'}
  foreach($role in @('rider','mount')){if((I $fixture.beforeResources.$role.grantSequence)-ne0-or(B $fixture.beforeResources.$role.inCombat)){throw 'Mount order fixture reused allocation'}}
+}
+# The complete order/continuation structure under an explicitly declared scenario name.
+function Assert-KmcMountOrderCore($E,[string]$ExpectedScenario,[bool]$First){
+ function I($v){if($v-isnot[int]-and$v-isnot[long]){throw 'Mount order integer absent'};[long]$v}
+ function B($v){if($v-isnot[bool]){throw 'Mount order boolean absent'};[bool]$v}
+ function Equal($a,$b){($a|ConvertTo-Json -Depth 90 -Compress)-ceq($b|ConvertTo-Json -Depth 90 -Compress)}
+ if($E.contract-cne'fresh-native-allocation-order-through-next-paired-round'){throw 'Mount order contract differs'}
+ if((B $E.riderFirst)-ne$First){throw 'Mount order declared order differs'}
+ $first=$First;$rider=[string]$E.riderId;$mount=[string]$E.mountId
+ if([string]::IsNullOrEmpty($rider)-or[string]::IsNullOrEmpty($mount)-or$rider-ceq$mount-or$E.scenario-cne$ExpectedScenario){throw 'Mount order case/pair differs'}
+ Assert-KmcMountOrderFixture $E $First
+ $fixture=$E.fixture;$proof=$E.positiveProof;$mounted=$E.mounted;$next=$E.nextRound;$before=$E.mountBefore
  foreach($flag in @('pass','identityComplete','sameCommandAtEveryBoundary','exactActedObserved','nativeTerminal')){if(-not(B $proof.$flag)){throw 'Mount order positive proof incomplete'}}
  if($proof.nativeResult-cne'Success'-or-not(B $proof.resourceWindow.pass)-or-not(B $proof.resourceWindow.reactionResources.pass)){throw 'Mount order native resource proof incomplete'}
  $id=$proof.identity;if($id.casterId-cne$rider-or$id.targetId-cne$mount-or$id.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or$id.commandType-cne'Move'-or(I $proof.initCount)-ne1){throw 'Mount order exact Mount differs'}

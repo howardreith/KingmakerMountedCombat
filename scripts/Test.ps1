@@ -162,6 +162,18 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeForcedDetach.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeActionEconomy.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-ChildEntryPreamble.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aHarnessIdentity.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aCompositeGates.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeDismountEscape.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

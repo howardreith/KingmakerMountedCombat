@@ -1351,3 +1351,82 @@ Source investigation found AdoptRunningEncounter reserved the partner grant befo
 The compiled-caller/domain regression fails on exact128 with "Native Prepare prefix rejected partner: adoption caller already reserved the same grant (observed caller reservations=1)" and passes16/0 on source129. Release build/source128/0 PASS; DLL2c1b23c6c170d5ad4e37eb0d1a8b2a42a180f481994dcaa4087c475d4864c2cb/MVID5e4cecda-893f-4a1f-bafb-6ef9c2a8b944,5073408bytes under unchanged5MiB. Initial source validation caught the stale BuildIdentity version; that failed log remains, and all three version declarations now agree.
 
 Source129 also integrates the separately tested foreign-companion refusal case and fixed CM08 regression/pointer qualification bindings. These keep every original native body, manifest, candidate, suite, overall-PASS and restoration gate. Foreign ownership is observed without mutation. Integrated focused tests and complete offline umbrella remain pending; no new package, proof or native run exists. Game closed, all128 transactions reconciled. Next finish gates, coherent commit/guarded publish, new129 immutable candidate/suite/fresh proof, then the required ordered native campaign. No6B before87 mandatory PASS on one frozen candidate. Target ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge/tag/release/PR/permanent installation/HUMAN PLAY inference.
+
+
+## 2026-10-02 - preview.150: the action-economy batch, composite gates, separate identities
+
+Preview.149 closed at 6 PASS / 0 FAIL / 81 BLOCKED (58 retained failures). Preview.150 is the
+first batched development candidate: nine mandatory action-economy rows implemented as nine
+isolated fresh turn-based transactions on shared producer/reader infrastructure, plus four
+qualification-machinery changes the owner directed after preview.149. No native evidence exists
+for preview.150 until its own frozen package, suite and purity proof; no PASS is transferred.
+
+### Nine isolated scenarios, one row each
+
+All nine reuse the allocation-order fixture (pre-encounter initiative inputs +/-40, restored
+exactly), the combat-mount stages, the exact command windows and the complete native
+allocation trace. The native automatic-End preference is leased false for the whole
+transaction (the same `NativeAutomaticEndProbe(false)` lease the Chunk 4 TB scenarios use), so
+every End below is one observed native input. Every expenditure is an ordinary native actor
+command on the actor's own native turn; KMC writes no resource.
+
+| Scenario | Row | Order | Native mechanics proved |
+|---|---|---|---|
+| `chunk6a-mount-spent-move-tb` | CM03-mount-spent-move | mount first | one ordinary ground order on the mount's own slot (TB Move debt = observed allowed movement time; `ignoreCooldown` true at acted); native End keeps the debt; the rider's Mount adopts under RetainPartnerParticipation with zero partner preparation/clear; the debt is replayed unchanged from the slot end through the Mount pre-click, the exact Mount terminal and the mounted boundary, and is cleared only by the next lawful native Prepare |
+| `chunk6a-mount-spent-standard-tb` | CM03-mount-spent-standard | mount first | one native single attack (right-click attack mode, Standard +6, Move +0) on a target placed inside the mount's exact native attack reach; same retention proof |
+| `chunk6a-mount-spent-all-tb` | CM03-mount-spent-all | mount first | one native full attack (Standard +6, Move +3; no Move and no Standard left); adoption grants nothing; same retention proof |
+| `chunk6a-rider-without-move-tb` | CM03-rider-without-move | rider first | ground Acting setup plus one single ranged attack (leased stock longbow) leave the rider without a lawful Move; availability, native `IsAvailableForCast` and native targeting all refuse before commitment; zero new command, shell, process, dispatch, cost, generation change or transition; one native End input |
+| `chunk6a-rider-other-action-tb` | CM03-rider-other-action | rider first | the rider's Acting entry is one single ranged attack (Standard +6) leaving exactly one lawful Move; the Mount charges exactly that Move and the prior Standard debt is unchanged through the terminal and the next round |
+| `chunk6a-unrelated-candidate-between-tb` | CM03-unrelated-candidate-between | rider (+40), one leased idle party member (+10), mount (-40) | exact native roster rider < unrelated < mount; the unrelated candidate is prepared, takes its turn and ends exactly once after the Mount and before the next paired round; neither skipped nor duplicated |
+| `chunk6a-dismount-after-rider-expenditure-tb` | CM05-after-rider-expenditure | rider first | Mount, native End, next paired allocation; the mounted rider's single ranged attack is the Acting entry and its Standard expenditure; the Dismount pays exactly its own Move, every rider and mount debt is retained; no mount turn in the release round and one separate mount preparation in the following round |
+| `chunk6a-dismount-after-mount-expenditure-tb` | CM05-after-mount-expenditure | rider first | the existing later-turn machinery (mounted ground order charged to the mount) followed by the Dismount; the mount's Move debt is retained through the Dismount; same release observation |
+| `chunk6a-dismount-immediately-after-mount-tb` | CM05-immediately-after-mount | rider first, adjacent | a native five-foot step is the free Acting entry (no Move charge, step within the native limit) so the adjacent Mount charges exactly 3 and one Move remains; the immediate same-allocation Dismount pays its own Move, splits the activation, creates no duplicate mount turn in the release round, and the mount's separate participation resumes with one native preparation in the following round |
+
+Producer: `Chunk6aActionEconomyScenario.cs` (stages 50 and 60-62, the mount-slot step inside
+stage 1, the rider Acting entry, the pre-click retention capture, the release observation) with
+`NativeActionEconomyEvidence.cs` as the row validator; `NativeMountOrderEvidence.AssertCore`
+is the refactored order/continuation core shared with the two allocation-order rows under an
+explicitly declared scenario name (the frozen `AssertComplete` contract is unchanged).
+External: `scripts/runtime/NativeActionEconomyEvidence.ps1` (mirror), the
+`Assert-KmcActionEconomyEnvelope` envelope (exact proofs, order fixture, frozen row, full
+trace binding), the primary-claim contracts and isolated qualification mappings for all nine
+ids, and `scripts/Test-NativeActionEconomy.ps1` (nine synthetic variants, producer/external
+parity, corruption rejections, registry pins).
+
+### Owner directives implemented in the same candidate
+
+- **CM08 set rows are strict composites** (`Get-KmcChunk6aCompositeSets`): horse smoke =
+  CM01-horse-rt, CM01-horse-tb, CM05-rt, CM05-tb, CM06-hotbar-path, CM06-pointer-target; mammoth
+  smoke = CM01-mammoth-rt, CM01-mammoth-tb, CM08-mounted-mammoth-primary-hit-tb; persistence
+  suite = the eleven CM07 rows plus the current Chunk 5 ledger passing its checker with the
+  completion gate on the same product payload; disable/removal readiness =
+  CM05-dismount-survives-feature-policy-disable, CM04-disable-unload plus the Chunk 5
+  `P07-disable-reenable`, `P07-prepare-removal`, `P07-absent-kmc` and `P07-removal-no-dll`
+  entries PASS on the same payload. A composite PASS entry binds no native run of its own
+  (`scripts/Test-Chunk6aCompositeGates.ps1` exercises the four gates against the committed Chunk 5 ledger).
+- **Composite roles are an exact set, never a chronology**: `Assert-KmcCompositeRoleSet`
+  requires each declared role exactly once (no missing, duplicate or foreign role, separate
+  transactions) and the bindings sorted into the canonical declared order;
+  `Sort-KmcCompositeBindings` produces that order for the ledger. The chronological
+  `Assert-KmcCompositeRunOrder` rule is removed.
+- **Product and harness identities are bound separately** (`Chunk6aHarnessIdentity.ps1`): the
+  payload adds the product source tree digest and the purity proof binding; the ledger adds a
+  `harness` block (reader revision, per-reader-file hashes, digest) that must match the readers
+  validating it. A pure reader correction may re-qualify immutable artifacts under a new
+  harness identity only when `Test-KmcChunk6aPureReaderChange` proves every changed path is a
+  dedicated reader, test or document; the shared harness, launcher, fixtures, packaging and
+  product source are native-side and require a new candidate.
+- **The parent handoff is structured evidence** (`ChildEntryPreambleEvidence`): every tranche
+  child artifact from preview.150 carries `childEntryPreamble` (parent/child scenario and
+  session, rider and mount identities, relationship state and generation, exact admission mode,
+  zero in-flight Mount/Dismount command, shell, process, dispatch and cost, both actors'
+  resource and preparation state, frame and native game time), validated at child entry and
+  by the harness; the bare `parentPreambleMountAdmission` string is no longer qualification.
+- **Three verification tiers** (`scripts/Test-Tiers.ps1`, owner workflow amendment of
+  2026-10-02): FAST during implementation (build, affected source/contract tests, the affected
+  evidence validators and the focused regression), CANDIDATE once before a native freeze (FAST plus
+  the runtime safety/harness core with the package validator, assembly contracts, cross-feature
+  regression readers and the ledger protocol), FULL (`scripts/Test.ps1`) only at a milestone or
+  when a shared foundation changes. One candidate carries a coherent cluster of mandatory
+  behaviors; the external validator is the acceptance authority and later rows no longer mirror
+  the full algorithm in C#. The diagnostic-assembly package bound is 8 MiB.

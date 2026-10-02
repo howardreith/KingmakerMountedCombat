@@ -40,7 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void PrepareChunk6aMountOrderFixture()
         {
-            if (!Chunk6aMountOrderOnly) return;
+            if (!Chunk6aOrderFixtureOnly) return;
             if (!NativeMountOrderEvidence.CanPrepareFixture(chunk6aOrderInputOwned, rider.IsInCombat, horse.IsInCombat,
                 Game.Instance.Player.IsInCombat, relationship.State == RelationshipState.Unmounted, Chunk6aIdle,
                 turnBasedModeProbe?.TemporaryValue == true, turnBasedModeProbe?.TemporaryValueIsCurrent == true))
@@ -48,14 +48,14 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6aOrderRiderBase = rider.Stats.Initiative.BaseValue; chunk6aOrderMountBase = horse.Stats.Initiative.BaseValue;
             var before = new JObject { ["rider"] = allocationTrace.Snapshot(rider), ["mount"] = allocationTrace.Snapshot(horse) };
             chunk6aOrderEvidence = new JObject { ["contract"] = "fresh-native-allocation-order-through-next-paired-round", ["scenario"] = request.Scenario,
-                ["riderFirst"] = Chunk6aOrderRiderFirst, ["riderId"] = rider.UniqueId, ["mountId"] = horse.UniqueId,
+                ["riderFirst"] = Chunk6aOrderFixtureRiderFirst, ["riderId"] = rider.UniqueId, ["mountId"] = horse.UniqueId,
                 ["fixture"] = new JObject { ["outsideCombat"] = true, ["targetTurnBased"] = turnBasedModeProbe.TemporaryValue, ["modeLeaseCurrent"] = turnBasedModeProbe.TemporaryValueIsCurrent, ["relationshipState"] = relationship.State.ToString(),
                     ["riderOriginalBase"] = chunk6aOrderRiderBase, ["mountOriginalBase"] = chunk6aOrderMountBase, ["beforeResources"] = before },
                 ["turns"] = chunk6aOrderTurns };
             observations["chunk6aMountOrder"] = chunk6aOrderEvidence;
             chunk6aOrderInputOwned = true;
-            rider.Stats.Initiative.BaseValue = Chunk6aOrderRiderFirst ? 40 : -40;
-            horse.Stats.Initiative.BaseValue = Chunk6aOrderRiderFirst ? -40 : 40;
+            rider.Stats.Initiative.BaseValue = Chunk6aOrderFixtureRiderFirst ? 40 : -40;
+            horse.Stats.Initiative.BaseValue = Chunk6aOrderFixtureRiderFirst ? -40 : 40;
             var after = new JObject { ["rider"] = allocationTrace.Snapshot(rider), ["mount"] = allocationTrace.Snapshot(horse) };
             var fixture = (JObject)chunk6aOrderEvidence["fixture"];
             fixture["afterResources"] = after; fixture["riderInputBase"] = rider.Stats.Initiative.BaseValue; fixture["mountInputBase"] = horse.Stats.Initiative.BaseValue;
@@ -63,10 +63,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!JToken.DeepEquals(before, after)) throw new InvalidOperationException("Pre-encounter initiative input changed an allocation resource.");
             chunk6aOrderStartSequence = allocationTrace.EventCount;
             fixture["allocationSequence"] = chunk6aOrderStartSequence;
+            PrepareChunk6aEconomyUnrelatedFixture();
         }
         private void ObserveChunk6aMountOrderTurn()
         {
-            if (!Chunk6aMountOrderOnly || chunk6aOrderEvidence == null) return;
+            if (!Chunk6aOrderFixtureOnly || chunk6aOrderEvidence == null) return;
             var controller = Game.Instance.TurnBasedCombatController; var turn = controller?.CurrentTurn;
             if (turn == null || !Game.Instance.Player.IsInCombat) return;
             var key = controller.RoundNumber + ":" + RuntimeHelpers.GetHashCode(turn) + ":" + turn.Status;
@@ -76,7 +77,16 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void FinishChunk6aMountOrder(JObject mountProof)
         {
-            if (!Chunk6aMountOrderOnly || chunk6aOrderEvidence == null || (bool?)mountProof?["pass"] != true || chunk6aCommandWindow != null)
+            RecordChunk6aMountOrderMounted(mountProof);
+            allocationTrace.ObserveReactionResources = true;
+            chunk6aOrderCompletion = new NativeTurnCompletionProbe(allocationTrace, rider, horse, combat);
+            chunk6aStage = 29; ResetLeafClock();
+        }
+        // The mounted boundary and its terminal bridge are shared by the order completion and
+        // the action-economy Dismount variants.
+        private void RecordChunk6aMountOrderMounted(JObject mountProof)
+        {
+            if (!Chunk6aOrderFixtureOnly || chunk6aOrderEvidence == null || (bool?)mountProof?["pass"] != true || chunk6aCommandWindow != null)
                 throw new InvalidOperationException("Allocation order requires one complete positive native Mount.");
             chunk6aOrderEvidence["positiveProof"] = mountProof.DeepClone();
             chunk6aOrderEvidence["mountBefore"] = chunk6aPreMount.DeepClone();
@@ -96,14 +106,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["events"] = new JArray(allocationTrace.EventsSince((int)terminal["allocationSequence"]).Take((int)mounted["allocationSequence"] - (int)terminal["allocationSequence"])) };
             chunk6aOrderEvidence["terminalBridge"] = bridge;
             NativePassiveResourceEvidence.AssertComplete(bridge);
-            allocationTrace.ObserveReactionResources = true;
-            chunk6aOrderCompletion = new NativeTurnCompletionProbe(allocationTrace, rider, horse, combat);
-            chunk6aStage = 29; ResetLeafClock();
         }
         private void TickChunk6aMountOrderCompletion()
         {
             var controller = Game.Instance.TurnBasedCombatController; var turn = controller.CurrentTurn;
-            if (!Chunk6aMountOrderOnly || relationship.State != RelationshipState.Mounted || !rider.IsInCombat || !horse.IsInCombat ||
+            if (!Chunk6aOrderFixtureOnly || relationship.State != RelationshipState.Mounted || !rider.IsInCombat || !horse.IsInCombat ||
                 !Game.Instance.Player.IsInCombat || !CombatController.IsInTurnBasedCombat())
                 throw new InvalidOperationException("Allocation-order encounter or exact pair ended before observation completed.");
             if (chunk6aStage == 29)
@@ -143,6 +150,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["riderId"] = rider.UniqueId, ["mountId"] = horse.UniqueId, ["before"] = resourceBoundary(mounted), ["after"] = resourceBoundary(next),
                     ["completion"] = chunk6aOrderEvidence["completion"].DeepClone(), ["observerHooks"] = allocationTrace.ObserverHooks,
                     ["events"] = new JArray(allocationTrace.EventsSince((int)mounted["allocationSequence"]).Take((int)next["allocationSequence"] - (int)mounted["allocationSequence"])) };
+                if (Chunk6aActionEconomyOnly) { CompleteChunk6aActionEconomyOrder(); chunk6aStage = 99; BeginCleanup(); return; }
                 string failure = null;
                 try { NativeMountOrderEvidence.AssertComplete(chunk6aOrderEvidence); }
                 catch (Exception exception) { failure = exception.Message; }
@@ -165,8 +173,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             chunk6aOrderCompletion?.Dispose(); chunk6aOrderCompletion = null;
             if (!chunk6aOrderInputOwned) return;
-            if (rider.IsInCombat || horse.IsInCombat || rider.Stats.Initiative.BaseValue != (Chunk6aOrderRiderFirst ? 40 : -40) ||
-                horse.Stats.Initiative.BaseValue != (Chunk6aOrderRiderFirst ? -40 : 40))
+            if (rider.IsInCombat || horse.IsInCombat || rider.Stats.Initiative.BaseValue != (Chunk6aOrderFixtureRiderFirst ? 40 : -40) ||
+                horse.Stats.Initiative.BaseValue != (Chunk6aOrderFixtureRiderFirst ? -40 : 40))
                 throw new InvalidOperationException("Mount-order initiative restoration found live combat or changed lease inputs.");
             rider.Stats.Initiative.BaseValue = chunk6aOrderRiderBase; horse.Stats.Initiative.BaseValue = chunk6aOrderMountBase;
             chunk6aOrderInputOwned = false;
