@@ -3,59 +3,64 @@ using Newtonsoft.Json.Linq;
 
 namespace KingmakerMountedCombat.Diagnostics
 {
-    // The parent-to-child handoff persisted as structured evidence in the child artifact:
-    // parent and child scenario and session, the exact pair, the relationship state and
-    // generation, the exact admission mode of the last native relationship dispatch, zero
-    // in-flight Mount/Dismount command, shell, process, dispatch and cost, both actors'
-    // resource and preparation state, and the frame and native game time. A bare string or
-    // Boolean is not final qualification; this snapshot is validated at child entry and
-    // again by the external reader.
+    // The structured parent-to-child handoff snapshot persisted in every tranche artifact from
+    // preview.150. The compiled producer checks only the snapshot's internal integrity here:
+    // identities and fields exist, references claimed identical are identical, numbers are
+    // finite. Which handoffs are lawful for which child (the admission mode a mounted child
+    // requires, the idle-party requirement) is judged only by the external validator
+    // scripts/runtime/ChildEntryPreambleEvidence.ps1. Observation only.
     internal static class ChildEntryPreambleEvidence
     {
         internal const string Contract = "structured-child-entry-preamble-snapshot";
-        internal const string ParentScenario = "horse-companion-unmounted-suite";
+        internal const string ParentScenario = HorseCompanionUnmountedScenarioEngine.ScenarioName;
         internal const string ExplorationAdmission = "Exploration";
         internal const string VoluntaryCombatAdmission = "VoluntaryCombat";
 
-        private static void Require(bool ok, string why) { if (!ok) throw new InvalidOperationException("Child entry preamble: " + why); }
+        private static void Require(bool ok, string why) { if (!ok) throw new InvalidOperationException("Child entry preamble structure: " + why); }
         private static string Text(JToken x) => x?.Type == JTokenType.String ? (string)x : null;
-        private static long Int(JToken x) { Require(x?.Type == JTokenType.Integer, "integer missing"); return (long)x; }
-        private static bool Bool(JToken x) { Require(x?.Type == JTokenType.Boolean, "boolean missing"); return (bool)x; }
-        private static double Num(JToken x) { Require(x != null && (x.Type == JTokenType.Integer || x.Type == JTokenType.Float), "number missing"); var n = (double)x; Require(!double.IsNaN(n) && !double.IsInfinity(n), "nonfinite number"); return n; }
-
-        internal static void AssertComplete(JObject p, string childScenario, bool pairAlreadyMounted, bool requiresIdleParty)
+        private static bool IsInt(JToken x) => x?.Type == JTokenType.Integer;
+        private static bool IsBool(JToken x) => x?.Type == JTokenType.Boolean;
+        private static bool IsFinite(JToken x)
         {
-            Require(Text(p?["contract"]) == Contract, "contract differs");
+            if (x == null) return false;
+            if (x.Type == JTokenType.Integer) return true;
+            if (x.Type != JTokenType.Float) return false;
+            var n = (double)x; return !double.IsNaN(n) && !double.IsInfinity(n);
+        }
+        private static long Int(JToken x, string label) { Require(IsInt(x), label + " integer missing"); return (long)x; }
+
+        internal static void AssertStructure(JObject p, string childScenario, bool pairAlreadyMounted)
+        {
+            Require(p != null && Text(p["contract"]) == Contract, "contract differs");
             Require(Text(p["parentScenario"]) == ParentScenario && !string.IsNullOrEmpty(Text(p["parentEngine"])), "parent identity missing");
-            Require(Text(p["childScenario"]) == childScenario && !string.IsNullOrEmpty(childScenario), "child scenario differs");
-            Require(!string.IsNullOrEmpty(Text(p["runId"])) && Int(p["sessionObject"]) != 0 && !string.IsNullOrEmpty(Text(p["areaGuid"])), "session binding missing");
+            Require(!string.IsNullOrEmpty(childScenario) && Text(p["childScenario"]) == childScenario, "child scenario differs");
+            Require(!string.IsNullOrEmpty(Text(p["runId"])) && Int(p["sessionObject"], "sessionObject") != 0 && !string.IsNullOrEmpty(Text(p["areaGuid"])), "session binding missing");
             // A JSON re-reader may parse the ISO timestamp as a date token; either form is the same clock evidence.
-            Require(Int(p["frame"]) >= 0 && Int(p["gameTicks"]) >= 0 && (!string.IsNullOrEmpty(Text(p["capturedAtUtc"])) || p["capturedAtUtc"]?.Type == JTokenType.Date), "clock missing");
+            Require(Int(p["frame"], "frame") >= 0 && Int(p["gameTicks"], "gameTicks") >= 0 && (!string.IsNullOrEmpty(Text(p["capturedAtUtc"])) || p["capturedAtUtc"]?.Type == JTokenType.Date), "clock missing");
             var rider = Text(p["riderId"]); var mount = Text(p["mountId"]);
-            Require(!string.IsNullOrEmpty(rider) && !string.IsNullOrEmpty(mount) && rider != mount && Int(p["riderObject"]) != 0 && Int(p["mountObject"]) != 0 && Int(p["riderObject"]) != Int(p["mountObject"]), "pair identity missing");
-            Require(Bool(p["pairAlreadyMounted"]) == pairAlreadyMounted, "handoff mounted flag differs");
-            Require(Text(p["relationshipState"]) == (pairAlreadyMounted ? "Mounted" : "Unmounted") && Int(p["relationshipGeneration"]) >= 0, "relationship state contradicts the handoff");
+            Require(!string.IsNullOrEmpty(rider) && !string.IsNullOrEmpty(mount) && rider != mount && Int(p["riderObject"], "riderObject") != 0 && Int(p["mountObject"], "mountObject") != 0 &&
+                Int(p["riderObject"], "riderObject") != Int(p["mountObject"], "mountObject"), "pair identity missing");
+            // Internally consistent references: the handoff flag, the relationship state it
+            // claims and the explicitness of the recorded admission mode.
+            Require(IsBool(p["pairAlreadyMounted"]) && (bool)p["pairAlreadyMounted"] == pairAlreadyMounted, "handoff mounted flag differs");
+            Require(Text(p["relationshipState"]) == (pairAlreadyMounted ? "Mounted" : "Unmounted") && Int(p["relationshipGeneration"], "relationshipGeneration") >= 0, "relationship state contradicts the handoff flag");
             var admission = Text(p["admissionMode"]); Require(!string.IsNullOrEmpty(admission), "admission mode missing");
-            if (pairAlreadyMounted) Require(admission == ExplorationAdmission, "mounted handoff was not an exploration preamble Mount");
-            else Require(admission != VoluntaryCombatAdmission, "unmounted handoff follows a voluntary combat dispatch");
-            Require(Bool(p["admissionModeExplicit"]) == (admission != "<none>"), "admission explicitness differs");
-            var commands = p["commands"];
-            Require(Bool(commands?["riderCommandsEmpty"]) && Bool(commands["mountCommandsEmpty"]) && Int(commands["riderRelationshipCommands"]) == 0 && Int(commands["mountRelationshipCommands"]) == 0, "a Mount/Dismount command is in flight at child entry");
-            var control = p["control"];
-            Require(!Bool(control?["transitionInFlight"]) && !Bool(control["riderOwnsUnsettledShell"]) && Int(control["shellCount"]) >= 0 && Int(control["processBindings"]) >= 0 &&
-                Int(control["dispatchAccepted"]) >= 0 && Int(control["dispatchRejected"]) >= 0 && !string.IsNullOrEmpty(Text(control["transitionLedger"])), "a relationship shell, process or dispatch is unsettled at child entry");
+            Require(IsBool(p["admissionModeExplicit"]) && (bool)p["admissionModeExplicit"] == (admission != "<none>"), "admission explicitness differs");
+            var commands = p["commands"] as JObject; Require(commands != null, "command snapshot missing");
+            Require(IsBool(commands["riderCommandsEmpty"]) && IsBool(commands["mountCommandsEmpty"]) && IsInt(commands["riderRelationshipCommands"]) && IsInt(commands["mountRelationshipCommands"]), "command snapshot fields missing");
+            var control = p["control"] as JObject; Require(control != null, "control snapshot missing");
+            Require(IsBool(control["transitionInFlight"]) && IsBool(control["riderOwnsUnsettledShell"]) && Int(control["shellCount"], "shellCount") >= 0 && Int(control["processBindings"], "processBindings") >= 0 &&
+                Int(control["dispatchAccepted"], "dispatchAccepted") >= 0 && Int(control["dispatchRejected"], "dispatchRejected") >= 0 && !string.IsNullOrEmpty(Text(control["transitionLedger"])), "control snapshot fields missing");
             foreach (var role in new[] { "rider", "mount" })
             {
-                var actor = p["actors"]?[role]; Require(actor != null && Text(actor["id"]) == (role == "rider" ? rider : mount), role + " resources missing");
-                foreach (var field in new[] { "standard", "move", "swift", "initiative", "reactionCooldown" }) Require(Num(actor[field]) >= 0, role + " " + field + " invalid");
-                Require(actor["prepared"]?.Type == JTokenType.Boolean && actor["inCombat"]?.Type == JTokenType.Boolean && actor["canAct"]?.Type == JTokenType.Boolean &&
-                    actor["hasMove"]?.Type == JTokenType.Boolean && actor["hasStandard"]?.Type == JTokenType.Boolean && Int(actor["reactions"]) >= 0, role + " preparation state missing");
-                Require(!Bool(actor["commandRunning"]), role + " has a running native command at child entry");
+                var actor = p["actors"]?[role] as JObject; Require(actor != null && Text(actor["id"]) == (role == "rider" ? rider : mount), role + " resources missing");
+                foreach (var field in new[] { "standard", "move", "swift", "initiative", "reactionCooldown" }) Require(IsFinite(actor[field]) && (double)actor[field] >= 0, role + " " + field + " invalid");
+                foreach (var field in new[] { "prepared", "inCombat", "canAct", "hasMove", "hasStandard", "commandRunning" }) Require(IsBool(actor[field]), role + " " + field + " missing");
+                Require(Int(actor["reactions"], role + " reactions") >= 0, role + " reactions invalid");
             }
-            var party = p["party"];
-            Require(party?["playerInCombat"]?.Type == JTokenType.Boolean && Int(party["membersInCombat"]) >= 0 && Int(party["members"]) >= 2, "party state missing");
-            if (requiresIdleParty) Require(!Bool(party["playerInCombat"]) && Int(party["membersInCombat"]) == 0 && Bool(party["idle"]), "the disposable party was not idle at child entry");
-            Require(p["turnBased"]?.Type == JTokenType.Boolean && p["paused"]?.Type == JTokenType.Boolean, "mode state missing");
+            var party = p["party"] as JObject; Require(party != null, "party snapshot missing");
+            Require(IsBool(party["playerInCombat"]) && IsBool(party["idle"]) && Int(party["membersInCombat"], "membersInCombat") >= 0 && Int(party["members"], "members") >= 2, "party snapshot fields missing");
+            Require(IsBool(p["turnBased"]) && IsBool(p["paused"]), "mode state missing");
         }
     }
 }

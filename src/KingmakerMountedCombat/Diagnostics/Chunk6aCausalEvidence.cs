@@ -239,6 +239,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 // stationary target is placed inside its exact native attack reach.
                 BeginTarget(6f, "chunk6a-combat-mount", FindChunk6aDismountTargetPosition());
                 VerifyChunk6aMountReachTargetPlacement();
+            } else if (Chunk6aEconomyTargetPlacement == "mount-step-clear") {
+                // The mount spends its Move through a bounded ground step on its own slot, so the
+                // stationary target is placed beyond the step candidates' corpulence margin.
+                BeginTarget(6f, "chunk6a-combat-mount", FindChunk6aMountStepClearTargetPosition());
+                VerifyChunk6aMountStepClearTargetPlacement();
             } else BeginTarget(6f, "chunk6a-combat-mount");
             ruleProbe.Arm(target, false);
             chunk6aStage = 1;

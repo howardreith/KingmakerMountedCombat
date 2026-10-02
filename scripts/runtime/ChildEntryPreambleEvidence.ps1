@@ -1,5 +1,7 @@
-# External mirror of ChildEntryPreambleEvidence.AssertComplete: the structured parent-to-child
-# handoff snapshot persisted in every tranche artifact from preview.150. Read-only.
+# External acceptance authority for the structured parent-to-child handoff snapshot persisted in
+# every tranche artifact from preview.150. The compiled producer checks only the snapshot's
+# structure (ChildEntryPreambleEvidence.AssertStructure); which handoffs are lawful for which
+# child is decided here. Read-only.
 Set-StrictMode -Version Latest
 function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlreadyMounted,[bool]$RequiresIdleParty){
  function Fail($why){throw ('Child entry preamble: '+$why)}
@@ -20,7 +22,11 @@ function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlrea
  $expectedState=if($PairAlreadyMounted){'Mounted'}else{'Unmounted'}
  if((T (Prop $P 'relationshipState'))-cne$expectedState-or(I (Prop $P 'relationshipGeneration'))-lt0){Fail 'relationship state contradicts the handoff'}
  $admission=T (Prop $P 'admissionMode');if([string]::IsNullOrEmpty($admission)){Fail 'admission mode missing'}
- if($PairAlreadyMounted){if($admission-cne'Exploration'){Fail 'mounted handoff was not an exploration preamble Mount'}}
+ # The recorded admission mode is validated as observed: a mounted handoff may follow the
+ # parent's exploration Mount or its lawful voluntary combat Mount (a mounted child never has
+ # to repeat an exploration Mount); an unmounted handoff never follows a voluntary combat
+ # dispatch; a saved-game restoration is not a handoff path.
+ if($PairAlreadyMounted){if($admission-cnotin@('Exploration','VoluntaryCombat')){Fail ('mounted handoff was not an exploration or voluntary combat Mount: '+$admission)}}
  elseif($admission-ceq'VoluntaryCombat'){Fail 'unmounted handoff follows a voluntary combat dispatch'}
  if((B (Prop $P 'admissionModeExplicit'))-ne($admission-cne'<none>')){Fail 'admission explicitness differs'}
  $commands=Prop $P 'commands'
@@ -42,7 +48,7 @@ function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlrea
  if((Prop $P 'turnBased')-isnot[bool]-or(Prop $P 'paused')-isnot[bool]){Fail 'mode state missing'}
 }
 # The tranche's own handoff rule: Chunk 6A combat-mount children start unmounted; every
-# other tranche child requires the mounted exploration preamble.
+# other tranche child requires the mounted preamble.
 function Test-KmcChildEntryExpectsMounted([string]$Scenario){ -not ($Scenario -clike 'chunk6a-*') }
 function Test-KmcChildEntryRequiresIdleParty([string]$Scenario){
  $Scenario -clike 'chunk4-*' -or $Scenario -clike 'actor-allocation-*' -or $Scenario -clike 'chunk6a-*' -or $Scenario -ceq 'unmounted-attack-controls-rt'

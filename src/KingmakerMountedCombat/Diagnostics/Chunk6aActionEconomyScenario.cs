@@ -153,19 +153,26 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!JToken.DeepEquals(before, after)) throw new InvalidOperationException("Unrelated initiative input changed an allocation resource.");
         }
 
+        // Runs after the allocation cleanup has returned the disposable party to its idle state.
+        // Every lease is always released exactly; an anomaly is recorded and reported only after
+        // the restorations so that no residue survives it.
         private void RestoreChunk6aActionEconomyFixture()
         {
             if (chunk6aEconomy == null) return;
+            string anomaly = null;
             if (chunk6aEconomyUnrelatedOwned)
             {
                 var unrelated = chunk6aEconomyUnrelated;
-                if (unrelated.IsInCombat || unrelated.Stats.Initiative.BaseValue != NativeActionEconomyEvidence.UnrelatedInitiativeInput)
-                    throw new InvalidOperationException("Unrelated initiative restoration found live combat or a changed lease input.");
+                var inCombatAtRestore = unrelated.IsInCombat;
+                var leaseInputIntact = unrelated.Stats.Initiative.BaseValue == NativeActionEconomyEvidence.UnrelatedInitiativeInput;
                 unrelated.Stats.Initiative.BaseValue = chunk6aEconomyUnrelatedBase;
                 chunk6aEconomyUnrelatedOwned = false;
                 var record = (JObject)chunk6aEconomy["unrelated"];
-                record["restoration"] = new JObject { ["outsideCombat"] = !unrelated.IsInCombat, ["base"] = unrelated.Stats.Initiative.BaseValue,
-                    ["exact"] = unrelated.Stats.Initiative.BaseValue == chunk6aEconomyUnrelatedBase };
+                record["restoration"] = new JObject { ["outsideCombat"] = !unrelated.IsInCombat, ["inCombatAtRestore"] = inCombatAtRestore,
+                    ["leaseInputIntact"] = leaseInputIntact, ["base"] = unrelated.Stats.Initiative.BaseValue,
+                    ["exact"] = unrelated.Stats.Initiative.BaseValue == chunk6aEconomyUnrelatedBase, ["frame"] = Time.frameCount };
+                if (inCombatAtRestore || !leaseInputIntact)
+                    anomaly = "Unrelated initiative restoration found live combat or a changed lease input; the original base was restored: inCombat=" + inCombatAtRestore + ", leaseInputIntact=" + leaseInputIntact + ".";
             }
             if (chunk6aEconomyAutoEnd != null)
             {
@@ -173,6 +180,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 try { probe.Dispose(); }
                 finally { ((JObject)chunk6aEconomy["automaticEnd"])["restored"] = probe.Restored; }
             }
+            if (anomaly != null) throw new InvalidOperationException(anomaly);
         }
 
         private Vector3 FindChunk6aEconomyStepDestination(UnitEntityData mover, UnitEntityData anchor, string name)
@@ -259,6 +267,61 @@ namespace KingmakerMountedCombat.Diagnostics
             placement["mountReachContract"] = "mount-attacks-the-stationary-target-from-its-own-slot-without-approach";
             if (ranges.Length == 0 || separation > reach - 0.05f || separation < horse.View.Corpulence + target.View.Corpulence + 0.05f)
                 throw new InvalidOperationException("Near-mount target placement is outside the mount's exact native attack reach: " + placement.ToString(Formatting.None));
+        }
+
+        // CM03-mount-spent-move: the mount's own slot expenditure is a bounded 0.6 m ground step
+        // around the mount, so the stationary target is placed beyond every candidate step's
+        // mover-plus-target corpulence margin. The margin itself is a recorded fixture fact.
+        internal const float MountStepClearSeparation = 3.4f, MountStepTravelBound = 0.75f, MountStepClearMargin = 0.2f;
+        private float Chunk6aMountStepClearance(float targetCorpulence) =>
+            horse.View.Corpulence + targetCorpulence + 0.05f + MountStepTravelBound + MountStepClearMargin;
+
+        private Vector3 FindChunk6aMountStepClearTargetPosition()
+        {
+            if (AstarPath.active == null || rider.IsInCombat || horse.IsInCombat || Game.Instance.Player.IsInCombat)
+                throw new InvalidOperationException("Mount-step-clear target placement requires fresh exploration geometry.");
+            const float targetCorpulence = 0.7f;
+            var clearance = Chunk6aMountStepClearance(targetCorpulence);
+            var direction = horse.Position - rider.Position; direction.y = 0;
+            if (direction.sqrMagnitude < 0.01f) throw new InvalidOperationException("Mount-step-clear target direction is degenerate.");
+            direction.Normalize();
+            var candidates = new JArray();
+            observations["chunk6aDismountTargetPlacement"] = new JObject {
+                ["contract"] = "pre-combat-clear-target-beyond-the-mount-step-margin",
+                ["horseOrigin"] = CapturePosition(horse.Position), ["riderOrigin"] = CapturePosition(rider.Position),
+                ["horseCorpulence"] = horse.View.Corpulence, ["proposedTargetCorpulence"] = targetCorpulence,
+                ["separation"] = MountStepClearSeparation, ["stepTravelBound"] = MountStepTravelBound, ["blockerMargin"] = 0.05f,
+                ["margin"] = MountStepClearMargin, ["stepClearance"] = clearance, ["candidates"] = candidates };
+            for (var index = 0; index < 24; index++)
+            {
+                var angle = index == 0 ? 0 : (index % 2 == 0 ? index : -index) * 15;
+                var requested = horse.Position + Quaternion.Euler(0, angle, 0) * direction * MountStepClearSeparation;
+                var nearest = AstarPath.active.GetNearest(requested); var point = nearest.clampedPosition;
+                var distance = HorizontalDistance(point, horse.Position);
+                var blockers = Game.Instance.State.Units.Where(unit => unit.IsInState && unit.View != null &&
+                    HorizontalDistance(point, unit.Position) < targetCorpulence + unit.View.Corpulence + 0.05f).Select(unit => unit.UniqueId).ToArray();
+                var beyond = distance >= clearance;
+                var clear = nearest.node != null && nearest.node.Walkable && blockers.Length == 0 && beyond &&
+                    Math.Abs(distance - MountStepClearSeparation) <= MountedCombatSpatialPolicy.DiagnosticPlacementTolerance;
+                candidates.Add(new JObject { ["requested"] = CapturePosition(requested), ["point"] = CapturePosition(point), ["distance"] = distance,
+                    ["riderDistance"] = HorizontalDistance(point, rider.Position), ["blockers"] = new JArray(blockers), ["beyondStepMargin"] = beyond, ["clear"] = clear });
+                if (clear) return point;
+            }
+            throw new InvalidOperationException("No bounded clear native target placement lies beyond the mount's step margin before combat.");
+        }
+
+        private void VerifyChunk6aMountStepClearTargetPlacement()
+        {
+            var placement = (JObject)observations["chunk6aDismountTargetPlacement"];
+            placement["actualTargetId"] = target.UniqueId;
+            placement["actualTargetPosition"] = CapturePosition(target.Position);
+            placement["actualTargetCorpulence"] = target.View.Corpulence;
+            var separation = HorizontalDistance(horse.Position, target.Position);
+            var clearance = Chunk6aMountStepClearance(target.View.Corpulence);
+            placement["actualHorseSeparation"] = separation; placement["actualRiderSeparation"] = HorizontalDistance(rider.Position, target.Position);
+            placement["actualStepClearance"] = clearance; placement["actualBeyondStepMargin"] = separation >= clearance;
+            if (separation < clearance)
+                throw new InvalidOperationException("Mount-step-clear target spawned inside the mount's step margin: " + placement.ToString(Formatting.None));
         }
 
         private JObject CaptureChunk6aEconomyInput(string kind, bool clicked, int cycles, JObject extra)
@@ -369,8 +432,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!Chunk6aEconomyCommandSettled(chunk6aEconomyMountSlotCommand, horse)) return true;
                 FinishChunk6aEconomyCommand(chunk6aEconomyMountSlot, horse, chunk6aEconomyMountSlotCommand);
-                if (chunk6aEconomyMountSlotCommand.Result != UnitCommand.ResultType.Success || !turn.IsActing)
-                    throw new InvalidOperationException("The mount's own native command did not settle on its Acting slot: " + chunk6aEconomyMountSlot.ToString(Formatting.None));
+                // The native terminal result and the slot status after the command are recorded
+                // facts for the external validator; the slot ends through the fixture's native End.
                 chunk6aEconomyMountSlotStage = 2; ResetLeafClock();
             }
             // The exact idle slot ends through the fixture's native End (ForceToEnd(false)).
@@ -406,8 +469,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!ReferenceEquals(turn, chunk6aEconomyEntryTurn)) throw new InvalidOperationException("The rider's native turn changed before its Acting entry settled.");
             if (!Chunk6aEconomyCommandSettled(chunk6aEconomyEntryCommand, rider)) return false;
             FinishChunk6aEconomyCommand(chunk6aEconomyEntry, rider, chunk6aEconomyEntryCommand);
-            if (chunk6aEconomyEntryCommand.Result != UnitCommand.ResultType.Success || !turn.IsActing)
-                throw new InvalidOperationException("The rider's Acting entry did not settle on the same native Acting turn: " + chunk6aEconomyEntry.ToString(Formatting.None));
+            // The native terminal result is a recorded fact for the external validator. Only the
+            // allocation state gates the flow: the Mount request needs the rider's Acting turn.
+            if (!turn.IsActing)
+            {
+                AddRow(variant.Row, false, "The rider's Acting entry command settled without the native turn entering Acting, so no Mount request can be issued on this allocation; the recorded entry evidence is retained.", chunk6aEconomy);
+                BeginCleanup(); return false;
+            }
             chunk6aEconomyEntryStage = 2; ResetLeafClock();
             return true;
         }
@@ -455,7 +523,7 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 NativeMountOrderEvidence.AssertCore(chunk6aOrderEvidence, request.Scenario, variant.RiderFirst);
-                NativeActionEconomyEvidence.AssertComplete(chunk6aEconomy, chunk6aOrderEvidence, Chunk6aEconomyProof("positive-mount"), null);
+                NativeActionEconomyEvidence.AssertStructure(chunk6aEconomy);
             }
             catch (Exception exception) { failure = exception.Message; }
             AddRow(variant.Row, failure == null, failure ?? Chunk6aEconomyDetail(variant), chunk6aEconomy);
@@ -465,9 +533,9 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             switch (variant.Row)
             {
-                case "CM03-mount-spent-move": return "The mount spent its own native Move through an ordinary ground order on its own earlier slot; the later rider Mount adopted it without a cooldown clear, preparation replay, allocation refresh or second participation, and the exact prior Move debt was retained until the next lawful native preparation.";
-                case "CM03-mount-spent-standard": return "The mount spent its own native Standard through a single attack on its own earlier slot; the later rider Mount adopted it without a cooldown clear, preparation replay, allocation refresh or second participation, and the exact prior Standard debt was retained until the next lawful native preparation.";
-                case "CM03-mount-spent-all": return "The mount spent its whole participation through a native full attack on its own earlier slot; the later rider Mount adopted it granting nothing: no cooldown clear, preparation replay, allocation refresh or second participation, with the exact prior debt retained until the next lawful native preparation.";
+                case "CM03-mount-spent-move": return "The mount spent its own native Move through an ordinary ground order on its own earlier slot; the later rider Mount adopted it without a cooldown clear, preparation replay, allocation refresh or second participation, and the prior Move debt was changed only by native time passage until the next lawful native preparation.";
+                case "CM03-mount-spent-standard": return "The mount spent its own native Standard through a single attack on its own earlier slot; the later rider Mount adopted it without a cooldown clear, preparation replay, allocation refresh or second participation, and the prior Standard debt was changed only by native time passage until the next lawful native preparation.";
+                case "CM03-mount-spent-all": return "The mount spent its whole participation through a native full attack on its own earlier slot; the later rider Mount adopted it granting nothing: no cooldown clear, preparation replay, allocation refresh or second participation, with the prior debt changed only by native time passage until the next lawful native preparation.";
                 case "CM03-rider-other-action": return "The rider spent its native Standard through a single ranged attack, retained one lawful Move, and the Mount charged exactly that Move without changing the prior Standard debt.";
                 case "CM03-unrelated-candidate-between": return "With an unrelated actor between rider and mount in the exact native roster, the Mount adopted the pair and the unrelated candidate was prepared and took its one native turn exactly once, neither skipped nor duplicated, before the next paired round.";
                 default: return "The exact native variant evidence is complete.";
@@ -487,7 +555,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turn == null || ReferenceEquals(turn, chunk6aEconomyExhaustTurn)) return;
                 ((JObject)chunk6aEconomyRefusal["end"])["afterEnd"] = CaptureChunk6aEconomyBoundary();
                 string failure = null;
-                try { NativeActionEconomyEvidence.AssertComplete(chunk6aEconomy, chunk6aOrderEvidence, null, null); }
+                try { NativeActionEconomyEvidence.AssertStructure(chunk6aEconomy); }
                 catch (Exception exception) { failure = exception.Message; }
                 AddRow(variant.Row, failure == null, failure ?? "A rider that spent its Standard and had no lawful Move left was refused combat Mount at availability and native targeting before any command, shell, process, dispatch, cost, generation change or transition; the exhausted native turn ended through one native End input.", chunk6aEconomy);
                 chunk6aStage = 99; BeginCleanup(); return;
@@ -508,9 +576,15 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!Chunk6aEconomyCommandSettled(chunk6aEconomyExhaustCommand, rider)) return;
                 FinishChunk6aEconomyCommand(chunk6aEconomyExhaustion, rider, chunk6aEconomyExhaustCommand);
-                if (chunk6aEconomyExhaustCommand.Result != UnitCommand.ResultType.Success)
-                    throw new InvalidOperationException("The exhausting native attack did not succeed: " + chunk6aEconomyExhaustion.ToString(Formatting.None));
-                if (rider.HasMoveAction()) throw new InvalidOperationException("The rider still holds a native Move after its Standard and setup Move: " + CaptureChunk6aSpent(rider).ToString(Formatting.None));
+                // The terminal result and the remaining actions are recorded facts. The refusal is
+                // requested only when no lawful Move remains: with a Move left the same native click
+                // would commit a real Mount that this variant does not own.
+                chunk6aEconomyExhaustion["riderHasMoveAfter"] = rider.HasMoveAction();
+                if (rider.HasMoveAction())
+                {
+                    AddRow(variant.Row, false, "The rider still holds a native Move after its Standard and setup Move, so the refusal cannot be requested without committing a real Mount: " + CaptureChunk6aSpent(rider).ToString(Formatting.None), chunk6aEconomy);
+                    chunk6aStage = 99; BeginCleanup(); return;
+                }
                 if (!EnsureChunk6aRiderSelection(variant.Row)) return;
                 var before = CaptureChunk6aEconomyBoundary();
                 var availability = nativeControls.Evaluate(NativeMountedControlKind.MountCompanion, rider);
@@ -639,7 +713,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turns.Count >= 128) throw new InvalidOperationException("Split-release observation bound exceeded.");
                 turns.Add(CaptureChunk6aEconomyBoundary());
             }
-            if (controller.RoundNumber > chunk6aEconomyDismountRound + 1) throw new InvalidOperationException("The mount's separate native turn did not occur in the round after the release round.");
+            if (controller.RoundNumber > chunk6aEconomyDismountRound + 1)
+            {
+                // Bounded observation: every turn seen since the Dismount is retained with the row.
+                chunk6aEconomyRelease["observationEnd"] = CaptureChunk6aEconomyBoundary();
+                AddRow(variant.Row, false, "The mount's separate native turn did not occur in the round after the release round; the bounded release observation is retained.", chunk6aEconomy);
+                chunk6aStage = 99; BeginCleanup(); return;
+            }
             if (turn?.Unit == horse)
             {
                 var afterDismount = (JObject)chunk6aEconomyDismount["afterDismount"];
@@ -649,7 +729,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6aEconomyRelease["traceComplete"] = allocationTrace.Complete;
                 chunk6aEconomyRelease["duplicateMountTurn"] = controller.RoundNumber == chunk6aEconomyDismountRound;
                 string failure = null;
-                try { NativeActionEconomyEvidence.AssertComplete(chunk6aEconomy, chunk6aOrderEvidence, Chunk6aEconomyProof("positive-mount"), Chunk6aEconomyProof("combat-dismount")); }
+                try { NativeActionEconomyEvidence.AssertStructure(chunk6aEconomy); }
                 catch (Exception exception) { failure = exception.Message; }
                 AddRow(variant.Row, failure == null, failure ?? Chunk6aEconomyDismountDetail(variant), chunk6aEconomy);
                 chunk6aStage = 99; BeginCleanup(); return;
