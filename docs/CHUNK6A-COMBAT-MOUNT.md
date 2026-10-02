@@ -1430,3 +1430,69 @@ parity, corruption rejections, registry pins).
   when a shared foundation changes. One candidate carries a coherent cluster of mandatory
   behaviors; the external validator is the acceptance authority and later rows no longer mirror
   the full algorithm in C#. The diagnostic-assembly package bound is 8 MiB.
+
+## 2026-10-02 - preview.151: one acceptance authority and the eleven preview.150 repairs
+
+Preview.150 closed at 17 PASS / 11 FAIL / 59 BLOCKED (69 retained failures, 22 restored transactions,
+every failure immutable). The owner decision of 2026-10-02 ("close the 6A development loop and
+prepare 6B") makes preview.151 one bounded stabilization candidate that repairs only the eleven
+preview.150 failures; full 87-row exact-candidate qualification is deferred to the final combined
+Chunk 6 consolidation. No PASS transfers from preview.150. The coverage accounting is recorded in
+`docs/CHUNK6A-DEVELOPMENT-QUEUE.md` (36 BLOCKED ids with an exact path, 23 without, each named).
+
+### One acceptance authority
+
+- The compiled `NativeActionEconomyEvidence.AssertStructure` and `ChildEntryPreambleEvidence.AssertStructure`
+  check only structure: required identities and fields exist, references claimed identical are
+  identical, frames, game ticks and allocation sequences never reverse, trace slices are contiguous,
+  numbers are finite, arrays are bounded, and the fixture leases were restored (`AssertRestoration`).
+  They never decide a command subclass, a null versus bound actor field, a terminal representation,
+  a callback cardinality, a debt outcome, a shared paired turn end, a fixture margin or an allocation
+  interpretation; the three row sites of `Chunk6aActionEconomyScenario.cs` call only the structural
+  check and the former behavioral throws became recorded facts or flow guards (a rider entry that
+  leaves the turn outside Acting, a rider that still holds a Move before the refusal request, a
+  release observation that outlives its bounded round).
+- `scripts/runtime/NativeActionEconomyEvidence.ps1` and `scripts/runtime/ChildEntryPreambleEvidence.ps1`
+  are the only acceptance authority: legal command type, action and reaction costs, debt
+  conservation, preparation and allocation, terminal behavior, fixture semantics and the mandatory
+  row result. Corrected fixture facts, each observed on frozen preview.150 and judged lawful: the
+  click handler creates and replaces unstarted same-actor commands before the exact admission
+  (hover predictions are simulated clicks; none acts or is charged); the command actor binding is
+  null at admission-before and bound at admission-after; a completed turn-based attack ends with the
+  native Interrupt terminal once every planned attack is done (ground orders and five-foot steps
+  must arrive); a mounted rider attack is the product `MountedPairAttackCommand`; a single attack
+  after partial movement on the same turn ends by consuming the remaining Move at the native command
+  end; after a split the mount still receives the shared pre-split turn object's native end. A
+  mounted child-entry handoff is validated as recorded (Exploration or VoluntaryCombat); no mounted
+  child repeats an exploration Mount.
+- Proofs: `scripts/Test-NativeActionEconomy.ps1` (producer structural acceptance of every lawful
+  synthetic envelope, external acceptance, external-only rejection of behavioral corruptions,
+  rejection by both of structural corruptions, and the preview.150 reader from history refusing
+  eight of the nine corrected envelopes on identical evidence bytes under a distinct reader digest);
+  `scripts/Test-ChildEntryPreamble.ps1` (the same split for the handoff snapshot);
+  `scripts/Test-Chunk6aImmutableReplay.ps1` (lab-bound: the five complete immutable preview.150
+  artifacts, bound by the SHA-256 their retained-failure entries record, are accepted by the
+  structural check and the external envelope facts, their preview.150 verdicts stay unchanged, the
+  unrelated-candidate restoration defect is still refused, the harness digest differs from the
+  preview.150 harness and the product payload is the frozen preview.150 identity).
+  `Assert-KmcActionEconomyEnvelopeFacts` carries the binding, validator and full-trace checks so
+  the same facts can be re-evaluated on an immutable artifact whatever its compiled row said.
+
+### The eleven repairs
+
+| Preview.150 failure | Observed fact | Preview.151 change |
+|---|---|---|
+| CM03-mount-spent-move | the default target sat inside the mount step margin of all 18 bounded step candidates | `mount-step-clear` placement: the target is spawned on a 24-angle ring 3.4 m from the horse beyond corpulence + 0.75 m step bound + 0.2 m margin, verified after spawn |
+| CM03-mount-spent-standard, CM03-rider-other-action, CM05-immediately-after-mount | pre-admission command replacements; null command actor at admission-before | lawful recorded facts in the external reader; the compiled check is structural |
+| CM03-mount-spent-all, CM03-rider-without-move | Interrupt terminal of completed attacks; the remaining Move consumed at the command end | lawful recorded facts (planned attacks completed, cost callbacks exact); flow guards replace the compiled throws |
+| CM03-unrelated-candidate-between | the initiative lease restoration ran before the allocation cleanup | `RestoreChunk6aActionEconomyFixture` runs after `CleanupActorAllocation`, restores unconditionally and reports an anomaly only after restoring |
+| CM05-after-rider-expenditure | the mounted rider attack is `MountedPairAttackCommand` | the expected type follows the Mounted baseline |
+| CM05-after-mount-expenditure | the shared pre-split turn end reached the mount in the release round | turn-end callbacks on the pre-split turn object are the one lawful mount event in the release round |
+| CM03-rider-before-mount-slot | every route trace from the rider origin ended at the origin; cause not established | `NativePreCombatGroundPlan` records origin-side measurements for the first blocked route (self-trace, inside-navmesh and area queries, nudged and deepened origin traces, agent path state); no geometry repair without supporting measurements |
+| CM08-ordinary-attack-controls-tb | the parent Mount was admitted as VoluntaryCombat; the compiled preamble rule required Exploration | the admission mode is recorded and validated as observed by the external reader |
+
+Verification tiers: FAST while implementing, CANDIDATE once before the freeze (with the immutable
+replay under `-LabRoot`), FULL deferred to the Chunk 6 consolidation. The five lifecycle/persistence
+foundation cases and the "CHUNK 6A IMPLEMENTATION STABLE / FINAL QUALIFICATION DEFERRED TO CHUNK 6
+CONSOLIDATION" record follow the preview.151 native runs; neither preview.150 nor preview.151 is
+accepted, released, fully qualified or HUMAN PLAY approved.

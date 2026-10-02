@@ -116,8 +116,10 @@ function Assert-KmcRepeatedDismountInputEnvelope($Request,$Artifact){
  Assert-KmcSameEvidence @($e.terminalBridge.events) $bridgeSlice 'repeated Dismount terminal full trace'
 }
 # One isolated action-economy transaction: the variant evidence bound to its exact command
-# proofs, the shared order fixture, the frozen row and the complete native trace.
-function Assert-KmcActionEconomyEnvelope($Request,$Artifact){
+# proofs, the shared order fixture and the complete native trace, judged by the external
+# validator. Returns the bound facts; the row verdict is the envelope's own step so that the
+# same facts can be re-evaluated on an immutable artifact whatever its compiled row said.
+function Assert-KmcActionEconomyEnvelopeFacts($Request,$Artifact){
  $o=$Artifact.observations
  if($null-eq$o.PSObject.Properties['chunk6aActionEconomy']){throw 'Action economy evidence absent'}
  $e=$o.chunk6aActionEconomy
@@ -142,18 +144,7 @@ function Assert-KmcActionEconomyEnvelope($Request,$Artifact){
   Assert-KmcRelationshipCommandProof $dismountProof $true $true 0 $false 0 $true
  }
  Assert-KmcActionEconomy $e $order $mountProof $dismountProof
- Assert-KmcActionEconomyRestoration $e
  Assert-KmcMountOrderRestoration $order
- $rows=@($Artifact.rows|Where-Object name -CEQ $v.row)
- if($rows.Count-ne1-or$rows[0].status-cne'PASS'){throw 'Action economy exact mandatory row absent'}
- # AddRow freezes the evidence before cleanup; the lease and input restorations are separate observations.
- $frozen=$e|ConvertTo-Json -Depth 100|ConvertFrom-Json
- $frozen.automaticEnd.PSObject.Properties.Remove('restored')
- if($null-ne$frozen.PSObject.Properties['unrelated']-and$null-ne$frozen.unrelated){$frozen.unrelated.PSObject.Properties.Remove('restoration')}
- Assert-KmcSameEvidence $rows[0].evidence $frozen 'action economy row'
- $allowed=@('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-preparing-refused',[string]$v.row)
- if(-not$v.riderExhaust){$allowed+=@('CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations');if(-not$v.adjacentMount){$allowed+='CM02-approach-arrival'}}
- if(@($Artifact.rows|Where-Object {$_.name-clike'CM*'-and$_.name-cnotin$allowed}).Count-ne0){throw 'Action economy allocation credited another combat row'}
  $trace=$o.actorAllocationTrace
  if(($trace.dropped-isnot[int]-and$trace.dropped-isnot[long])-or$trace.dropped-ne0-or($trace.observationErrors-isnot[int]-and$trace.observationErrors-isnot[long])-or$trace.observationErrors-ne0){throw 'Action economy complete native trace missing'}
  foreach($proof in @($o.chunk6aCommandProofs)){
@@ -164,7 +155,7 @@ function Assert-KmcActionEconomyEnvelope($Request,$Artifact){
  $sliceOf={param($w) @($trace.events|Where-Object {$_.sequence-gt$w.before.allocationSequence-and$_.sequence-le$w.after.allocationSequence})}
  foreach($name in @('mountSlot','riderEntry','exhaustion','refusal','retention')){
   if($null-eq$e.PSObject.Properties[$name]-or$null-eq$e.$name-or$null-eq$e.$name.PSObject.Properties['events']){continue}
-  Assert-KmcSameEvidence @($e.$name.events) (& $sliceOf $e.$name) ('action economy window '+$name)
+  Assert-KmcSameEvidence @($e.$name.events) @(& $sliceOf $e.$name) ('action economy window '+$name)
  }
  if($null-ne$e.PSObject.Properties['mountSlot']-and$null-ne$e.mountSlot){
   $s=$e.mountSlot
@@ -177,21 +168,21 @@ function Assert-KmcActionEconomyEnvelope($Request,$Artifact){
   Assert-KmcSameEvidence @($r.events) $releaseSlice 'action economy release trace'
   if([string]$v.dismount-ceq'immediate'){
    Assert-KmcSameEvidence @($d.mountTerminalBridge.observerHooks) @($trace.observerHooks) 'action economy bridge hooks'
-   Assert-KmcSameEvidence @($d.mountTerminalBridge.events) (& $sliceOf $d.mountTerminalBridge) 'action economy terminal bridge'
+   Assert-KmcSameEvidence @($d.mountTerminalBridge.events) @(& $sliceOf $d.mountTerminalBridge) 'action economy terminal bridge'
   } else {
    $later=$d.laterTurn
    Assert-KmcSameEvidence $later $o.chunk6aDismountTurn 'action economy later-turn observation'
    foreach($w in @($later.mountTerminalBridge,$later.continuation,$later.readyBridge)){
     Assert-KmcSameEvidence @($w.observerHooks) @($trace.observerHooks) 'action economy later-turn hooks'
-    Assert-KmcSameEvidence @($w.events) (& $sliceOf $w) 'action economy later-turn window'
+    Assert-KmcSameEvidence @($w.events) @(& $sliceOf $w) 'action economy later-turn window'
    }
    if([string]$v.dismount-ceq'later-after-mount'){
-    Assert-KmcSameEvidence @($later.groundSetup.events) (& $sliceOf $later.groundSetup) 'action economy ground window'
-    Assert-KmcSameEvidence @($later.groundStartBridge.events) (& $sliceOf $later.groundStartBridge) 'action economy ground start bridge'
+    Assert-KmcSameEvidence @($later.groundSetup.events) @(& $sliceOf $later.groundSetup) 'action economy ground window'
+    Assert-KmcSameEvidence @($later.groundStartBridge.events) @(& $sliceOf $later.groundStartBridge) 'action economy ground start bridge'
     Assert-KmcNativePassiveResources $later.groundStartBridge
    } else {
-    Assert-KmcSameEvidence @($later.riderAttack.events) (& $sliceOf $later.riderAttack) 'action economy rider attack window'
-    Assert-KmcSameEvidence @($later.attackStartBridge.events) (& $sliceOf $later.attackStartBridge) 'action economy attack start bridge'
+    Assert-KmcSameEvidence @($later.riderAttack.events) @(& $sliceOf $later.riderAttack) 'action economy rider attack window'
+    Assert-KmcSameEvidence @($later.attackStartBridge.events) @(& $sliceOf $later.attackStartBridge) 'action economy attack start bridge'
     Assert-KmcNativePassiveResources $later.attackStartBridge
    }
    Assert-KmcNativePassiveResources $later.mountTerminalBridge
@@ -202,6 +193,22 @@ function Assert-KmcActionEconomyEnvelope($Request,$Artifact){
   Assert-KmcSameEvidence @($order.allocationTrace.events) @($trace.events|Where-Object {$_.sequence-le$order.nextRound.allocationSequence}) 'action economy order trace prefix'
   $continued=@($trace.events|Where-Object {$_.sequence-gt$order.continuation.before.allocationSequence-and$_.sequence-le$order.continuation.after.allocationSequence})
   Assert-KmcSameEvidence @($order.continuation.events) $continued 'action economy continuation trace'
-  Assert-KmcSameEvidence @($order.terminalBridge.events) (& $sliceOf $order.terminalBridge) 'action economy terminal bridge trace'
+  Assert-KmcSameEvidence @($order.terminalBridge.events) @(& $sliceOf $order.terminalBridge) 'action economy terminal bridge trace'
  }
+ [pscustomobject]@{e=$e;v=$v;order=$order;mountProof=$mountProof;dismountProof=$dismountProof}
+}
+function Assert-KmcActionEconomyEnvelope($Request,$Artifact){
+ $facts=@(Assert-KmcActionEconomyEnvelopeFacts $Request $Artifact)[-1]
+ $e=$facts.e;$v=$facts.v
+ Assert-KmcActionEconomyRestoration $e
+ $rows=@($Artifact.rows|Where-Object name -CEQ $v.row)
+ if($rows.Count-ne1-or$rows[0].status-cne'PASS'){throw 'Action economy exact mandatory row absent'}
+ # AddRow freezes the evidence before cleanup; the lease and input restorations are separate observations.
+ $frozen=$e|ConvertTo-Json -Depth 100|ConvertFrom-Json
+ $frozen.automaticEnd.PSObject.Properties.Remove('restored')
+ if($null-ne$frozen.PSObject.Properties['unrelated']-and$null-ne$frozen.unrelated){$frozen.unrelated.PSObject.Properties.Remove('restoration')}
+ Assert-KmcSameEvidence $rows[0].evidence $frozen 'action economy row'
+ $allowed=@('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing','CM01-combat-mount-preparing-refused',[string]$v.row)
+ if(-not$v.riderExhaust){$allowed+=@('CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations');if(-not$v.adjacentMount){$allowed+='CM02-approach-arrival'}}
+ if(@($Artifact.rows|Where-Object {$_.name-clike'CM*'-and$_.name-cnotin$allowed}).Count-ne0){throw 'Action economy allocation credited another combat row'}
 }

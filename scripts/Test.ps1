@@ -174,6 +174,15 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aCompositeGates.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+# Immutable preview.150 action-economy artifacts re-evaluated under the current reader; the lab
+# evidence lives outside the repository, so the step reports SKIPPED where it is absent.
+if (Test-Path -LiteralPath 'C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6a-causal/ledger-preview150.json') {
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aImmutableReplay.ps1') -Configuration $Configuration
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+} else {
+    Write-Host 'SKIPPED Test-Chunk6aImmutableReplay.ps1: lab ledger absent (the immutable preview.150 replay was not evaluated)'
+}
+
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-NativeDismountEscape.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

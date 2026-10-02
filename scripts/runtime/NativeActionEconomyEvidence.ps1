@@ -1,12 +1,16 @@
-# External mirror of NativeActionEconomyEvidence: the nine Chunk 6A action-economy rows
-# (CM03 mount/rider expenditure and refusal, unrelated candidate; CM05 Dismount economy).
-# Read-only; the enclosing envelope binds proofs, order evidence and the full trace.
+# External acceptance authority for the nine Chunk 6A action-economy rows (CM03 mount/rider
+# expenditure and refusal, unrelated candidate; CM05 Dismount economy). The compiled producer
+# checks only the structure of its evidence (NativeActionEconomyEvidence.AssertStructure); every
+# behavioral decision - legal command type, action and reaction costs, debt conservation,
+# preparation and allocation, terminal behavior, fixture semantics and the mandatory row result -
+# is made here and nowhere else. Read-only; the enclosing envelope binds proofs, order evidence
+# and the full trace.
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'NativeMountOrderEvidence.ps1')
 . (Join-Path $PSScriptRoot 'FullTbDismountEvidence.ps1')
 function Get-KmcActionEconomyVariants {
  @(
-  [pscustomobject]@{scenario='chunk6a-mount-spent-move-tb';row='CM03-mount-spent-move';riderFirst=$false;unrelated=$false;adjacentMount=$false;longbow=$false;riderExhaust=$false;mountSlot='ground';riderEntry='ground';dismount='none';targetPlacement='default'},
+  [pscustomobject]@{scenario='chunk6a-mount-spent-move-tb';row='CM03-mount-spent-move';riderFirst=$false;unrelated=$false;adjacentMount=$false;longbow=$false;riderExhaust=$false;mountSlot='ground';riderEntry='ground';dismount='none';targetPlacement='mount-step-clear'},
   [pscustomobject]@{scenario='chunk6a-mount-spent-standard-tb';row='CM03-mount-spent-standard';riderFirst=$false;unrelated=$false;adjacentMount=$false;longbow=$false;riderExhaust=$false;mountSlot='single-attack';riderEntry='ground';dismount='none';targetPlacement='near-mount'},
   [pscustomobject]@{scenario='chunk6a-mount-spent-all-tb';row='CM03-mount-spent-all';riderFirst=$false;unrelated=$false;adjacentMount=$false;longbow=$false;riderExhaust=$false;mountSlot='full-attack';riderEntry='ground';dismount='none';targetPlacement='near-mount'},
   [pscustomobject]@{scenario='chunk6a-rider-without-move-tb';row='CM03-rider-without-move';riderFirst=$true;unrelated=$false;adjacentMount=$false;longbow=$true;riderExhaust=$true;mountSlot='none';riderEntry='ground';dismount='none';targetPlacement='default'},
@@ -20,6 +24,16 @@ function Get-KmcActionEconomyVariants {
 function Get-KmcActionEconomyVariant([string]$Scenario){ $found=@(Get-KmcActionEconomyVariants|Where-Object {$_.scenario -ceq $Scenario}); if($found.Count-eq1){$found[0]}else{$null} }
 function Get-KmcActionEconomyScenarios { @(Get-KmcActionEconomyVariants|ForEach-Object scenario) }
 function Get-KmcActionEconomyRows { @(Get-KmcActionEconomyVariants|ForEach-Object row) }
+# Native facts the reader accepts as lawful (observed on frozen preview.150 and judged here):
+#  - the click handler creates and replaces unstarted same-actor commands before the exact
+#    admission (hover predictions are simulated clicks); none of them acts or is charged;
+#  - the command's actor binding is null at admission-before and bound at admission-after;
+#  - a completed turn-based attack ends with the native terminal Interrupt once every planned
+#    attack is done; ground orders and five-foot steps must arrive (Success);
+#  - a mounted rider's attack is the product's paired attack command;
+#  - a single attack after partial movement on the same turn ends by consuming the remaining
+#    Move (the native controller writes the full Move debt at the command end);
+#  - after a split, the mount still receives the shared pre-split turn object's native end.
 function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
  function Fail($why){throw ('Action economy: '+$why)}
  function I($v){if($v-isnot[int]-and$v-isnot[long]){Fail 'integer missing'};[long]$v}
@@ -43,24 +57,37 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
   @{Actor=$d.Actor;Object=$d.Object;InCombat=$d.InCombat;Grants=$d.Grants;InitiativeCooldown=[Math]::Max(0.0,$d.InitiativeCooldown-$delta);
     Standard=$(if($decay-gt0){[Math]::Max(0.0,$d.Standard-$decay)}else{$d.Standard});Move=$(if($decay-gt0){[Math]::Max(0.0,$d.Move-$decay)}else{$d.Move});Swift=$(if($decay-gt0){[Math]::Max(0.0,$d.Swift-$decay)}else{$d.Swift})}
  }
+ # Replays one actor's debt through a passive window: only a cost callback of the allowed
+ # command may change it; admissions of commands that never act are passive callbacks. Native
+ # turn-time passage decays a spent actor's cooldowns across the other actors' turns (observed
+ # at the actor's next callback when its own cooldown ticks are not in the observed set): lawful
+ # only as a monotonic decrease after a native turn transition; an increase, or a change without
+ # a transition, is refused.
+ function Debt-Decayed($x,$y){$null-ne$y-and$x.Actor-ceq$y.Actor-and$x.Object-eq$y.Object-and$x.Object-ne0-and$x.Grants-eq$y.Grants-and$y.Standard-le($x.Standard+0.0001)-and$y.Move-le($x.Move+0.0001)-and$y.Swift-le($x.Swift+0.0001)}
  function Replay-Debt($before,$events,[long]$start,[long]$end,[string]$actor,$allowedCommand,[string]$label){
   $current=Read-Debt $before;if($current.Actor-cne$actor-or$current.Object-eq0){Fail ($label+': baseline actor differs')}
-  $pending=$null;$sequence=$start
+  $pending=$null;$sequence=$start;$transition=$false
   foreach($e in @($events|Where-Object {$null-ne$_})){
    $sequence++;if((I $e.sequence)-ne$sequence){Fail ($label+': trace sequence gap')}
-   $who=T (Prop (Prop $e 'state') 'actor');if($who-cne$actor){continue}
-   $boundary=[string](Prop $e 'boundary');$actual=Read-Debt $e.state
+   $who=T (Prop (Prop $e 'state') 'actor');$boundary=[string](Prop $e 'boundary')
+   if($boundary-ceq'turn-end-after'-or$boundary-ceq'prepare-after'-or$boundary-ceq'round-state-after'){$transition=$true}
+   if($who-cne$actor){continue}
+   $actual=Read-Debt $e.state
    if($boundary.Contains('prepare')-or$boundary.Contains('clear')-or$boundary.Contains('remove-unit')){Fail ($label+': native preparation, clear or removal occurred for '+$actor+' at '+$boundary)}
    $command=Cmd $e;$owned=$null-ne$allowedCommand-and$command-eq[long]$allowedCommand-and$command-ne0
-   if($boundary.Contains('cost')-or$boundary.Contains('admission')){
+   if($boundary.Contains('cost')){
     $action=T (Prop $e 'actionType')
     if(-not($owned-or$action-ceq'Free'-or$null-eq$action)){Fail ($label+': undeclared native '+$action+' command callback for '+$actor+' at '+$boundary)}
     if($owned){$current=$actual;$pending=$null;continue}
    }
    if($boundary-ceq'cooldown-tick-after'){if($null-eq$pending-or-not(Debt-Matches $pending $actual)){Fail ($label+': native cooldown effect differs')};$current=$actual;$pending=$null;continue}
    if($null-ne$pending){if(-not(Debt-Matches $pending $actual)){Fail ($label+': nested native callback changed debt')}}
-   elseif(-not((Debt-Matches $current $actual)-or$owned)){Fail ($label+': '+$actor+' debt changed without a native tick at '+$boundary)}
+   elseif(-not((Debt-Matches $current $actual)-or$owned)){
+    if($transition-and(Debt-Decayed $current $actual)){$current=$actual}
+    else{Fail ($label+': '+$actor+' debt changed without a native tick at '+$boundary)}
+   }
    if($owned){$current=$actual}
+   $transition=$false
    if($boundary-ceq'cooldown-tick-before'){if($null-ne$pending){Fail ($label+': nested cooldown tick')};$pending=Debt-Tick $actual $e}
   }
   if($sequence-ne$end-or$null-ne$pending){Fail ($label+': trace did not close')}
@@ -74,34 +101,58 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
   if(-not(B $before.turnBased)-or-not(B $after.turnBased)){Fail ($label+': native mode differs')}
   if((I $before.controllerObject)-ne(I $after.controllerObject)-or(I $before.sessionObject)-ne(I $after.sessionObject)){Fail ($label+': encounter identity changed')}
  }
+ # One ordinary native actor command on the actor's own turn: exact admission, exact cost
+ # callbacks, lawful terminal, lawful type, and the declared resource effect.
  function Assert-ActorCommand($c,[string]$actor,[string]$other,[string]$kind,[string]$label){
   $before=$c.before;$after=$c.after;$admitted=$c.admitted;$terminal=$c.terminal
   Assert-Pair $before $after $actor $label
   $id=I $admitted.id
-  if($id-eq0-or(I $terminal.id)-ne$id-or(T $admitted.executor)-cne$actor-or(T $terminal.executor)-cne$actor-or-not(B $terminal.finished)-or-not(B $terminal.acted)-or(T $terminal.result)-cne'Success'){Fail ($label+': exact native command did not succeed')}
-  $expectedType=if($kind-ceq'single-attack'-or$kind-ceq'full-attack'){'Kingmaker.UnitLogic.Commands.UnitAttack'}else{'Kingmaker.UnitLogic.Commands.UnitMoveTo'}
+  if($id-eq0-or(I $terminal.id)-ne$id-or(T $admitted.executor)-cne$actor-or(T $terminal.executor)-cne$actor-or-not(B $terminal.started)-or-not(B $terminal.finished)-or-not(B $terminal.acted)){Fail ($label+': exact native command did not start, act and finish')}
+  $attack=$kind-ceq'single-attack'-or$kind-ceq'full-attack'
+  $result=T $terminal.result
+  if($attack){
+   if($result-cne'Success'-and$result-cne'Interrupt'){Fail ($label+': native attack terminal is neither Success nor Interrupt')}
+   if((I $c.planned)-lt1-or(I $c.completed)-ne(I $c.planned)){Fail ($label+': native attack did not complete its planned attacks')}
+  } elseif($result-cne'Success'){Fail ($label+': native ground command did not succeed')}
+  $riderActor=T (Prop (Prop $before 'riderResources') 'actor')
+  $mounted=(T $before.state.relationshipState)-ceq'Mounted'
+  $expectedType=if(-not$attack){'Kingmaker.UnitLogic.Commands.UnitMoveTo'}elseif($mounted-and$actor-ceq$riderActor){'KingmakerMountedCombat.Integration.MountedPairAttackCommand'}else{'Kingmaker.UnitLogic.Commands.UnitAttack'}
   if((T $admitted.type)-cne$expectedType-or(T $terminal.type)-cne$expectedType){Fail ($label+': command type differs')}
   if(-not(B $c.traceComplete)){Fail ($label+': allocation trace incomplete')}
   $input=Prop $c 'input';if($null-eq$input-or-not(B $input.clicked)){Fail ($label+': native input was not admitted')}
   $events=Events $c;$start=I $before.allocationSequence;$end=I $after.allocationSequence
-  $costs=@();$admissions=0;$sequence=$start
+  $costs=@();$admissionBefore=0;$admissionAfter=0;$replacements=@{};$sequence=$start
   foreach($e in $events){
    $sequence++;if((I $e.sequence)-ne$sequence){Fail ($label+': event sequence gap')}
    $who=T (Prop (Prop $e 'state') 'actor');$boundary=[string](Prop $e 'boundary')
    if($who-cne$actor-and$who-cne$other){continue}
    if($boundary.Contains('prepare')-or$boundary.Contains('clear')-or$boundary.Contains('turn-end')-or$boundary.Contains('remove-unit')){Fail ($label+': undeclared native allocation event '+$boundary)}
-   if($boundary.Contains('cost')-or$boundary.Contains('admission')){
-    if($who-cne$actor-or(Cmd $e)-ne$id-or(T $e.commandActor)-cne$actor-or(B $e.simulatingClick)){Fail ($label+': another actor or command owns a native callback at '+$boundary)}
-    if($boundary.Contains('admission')){$admissions++}
-    if($boundary.Contains('cost')){$costs+=@($e)}
+   $command=Cmd $e
+   if($boundary.Contains('cost')){
+    if($who-cne$actor-or$command-ne$id-or(T (Prop $e 'commandActor'))-cne$actor-or(B $e.simulatingClick)-or-not(B $e.acted)){Fail ($label+': another actor or command owns a native cost callback at '+$boundary)}
+    $costs+=@($e);continue
+   }
+   if($boundary.Contains('admission')){
+    if($who-cne$actor){Fail ($label+': another actor owns a native admission callback at '+$boundary)}
+    if($command-eq$id){
+     if(B $e.simulatingClick){Fail ($label+': the exact command was admitted by a simulated click')}
+     $ca=T (Prop $e 'commandActor')
+     if($boundary-ceq'admission-before'){if($null-ne$ca-and$ca-cne$actor){Fail ($label+': admission-before names another actor')};$admissionBefore++}
+     elseif($boundary-ceq'admission-after'){if($ca-cne$actor){Fail ($label+': admission-after does not bind the actor')};$admissionAfter++}
+     else{Fail ($label+': unknown admission boundary '+$boundary)}
+    } else {
+     if($command-eq0-or(B $e.acted)){Fail ($label+': a replaced command acted at '+$boundary)}
+     if(-not$replacements.ContainsKey($command)){$replacements[$command]=0};$replacements[$command]++
+    }
    }
   }
-  if($sequence-ne$end-or$admissions-ne2){Fail ($label+': admission or trace terminal differs')}
+  if($sequence-ne$end-or$admissionBefore-ne1-or$admissionAfter-ne1){Fail ($label+': admission or trace terminal differs')}
+  if($replacements.Count-gt32){Fail ($label+': unbounded command replacements')}
   $boundaries=@('cost-before','actor-cost-before','actor-cost-after','cost-after')
   if($costs.Count-ne$boundaries.Count){Fail ($label+': native TB cost callback count differs')}
-  for($i=0;$i-lt$costs.Count;$i++){if((T $costs[$i].boundary)-cne$boundaries[$i]-or-not(B $costs[$i].acted)){Fail ($label+': native cost boundary order differs')}}
+  for($i=0;$i-lt$costs.Count;$i++){if((T $costs[$i].boundary)-cne$boundaries[$i]){Fail ($label+': native cost boundary order differs')}}
   $b=$costs[0].state;$a=$costs[$costs.Count-1].state
-  $beforeRole=if($actor-ceq(T (Prop (Prop $before 'riderResources') 'actor'))){'rider'}else{'mount'}
+  $beforeRole=if($actor-ceq$riderActor){'rider'}else{'mount'}
   $afterRole=if($actor-ceq(T (Prop (Prop $after 'riderResources') 'actor'))){'rider'}else{'mount'}
   $beforeRes=Res $before $beforeRole;$afterRes=Res $after $afterRole
   if((T (Prop $beforeRes 'actor'))-cne$actor-or(T (Prop $afterRes 'actor'))-cne$actor){Fail ($label+': actor resources missing')}
@@ -118,10 +169,18 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
    if(-not(Near (N $a.standard) ((N $b.standard)+6))){Fail ($label+': native Standard cost differs')}
    if(-not(Near (N $a.swift) (N $b.swift))){Fail ($label+': attack wrote Swift')}
    $full=$kind-ceq'full-attack'
-   if((B $c.nativeFull)-ne$full-or(B $c.nativeSingle)-eq$full-or(B $input.fullEnabled)-ne$full){Fail ($label+': native attack mode differs')}
+   if((B $c.nativeFull)-ne$full-or(B $input.fullEnabled)-ne$full){Fail ($label+': native attack mode differs')}
    $moveAdd=if($full){3.0}else{0.0}
    if(-not(Near (N $a.move) ((N $b.move)+$moveAdd))){Fail ($label+': native attack Move component differs')}
-   if(-not(Near (N $afterRes.standard) ((N $beforeRes.standard)+6))-or-not(Near (N $afterRes.move) ((N $beforeRes.move)+$moveAdd))){Fail ($label+': attack terminal debt differs')}
+   if(-not(Near (N $afterRes.standard) ((N $beforeRes.standard)+6))){Fail ($label+': attack terminal Standard debt differs')}
+   # Terminal Move: the cost component, or - for a single attack after partial movement on the
+   # same turn - the remaining Move the native controller consumes when the command ends.
+   $expectedMove=(N $beforeRes.move)+$moveAdd
+   $endConsumed=(-not$full)-and(N $beforeRes.move)-gt0-and(N $beforeRes.move)-lt3-and(Near (N $afterRes.move) 3)
+   if($endConsumed){
+    $endAfter=@($events|Where-Object {(T (Prop $_ 'boundary'))-ceq'command-end-after'-and(Cmd $_)-eq$id})
+    if($endAfter.Count-ne1-or-not(Near (N $endAfter[0].state.move) 3)){Fail ($label+': remaining Move was not consumed at the native command end')}
+   } elseif(-not(Near (N $afterRes.move) $expectedMove)){Fail ($label+': attack terminal Move debt differs')}
   }
  }
  function Assert-Spent($s,[bool]$usedOneMove,[bool]$usedStandard,[bool]$hasMove,[bool]$hasStandard,[string]$label){
@@ -251,16 +310,24 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
   if($null-eq$mountTurn-or(T $mountTurn.currentActor)-cne$mount-or(I $mountTurn.round)-ne($round+1)-or-not(B $mountTurn.turnBased)-or(T $mountTurn.state.relationshipState)-cne'Unmounted'-or(I $mountTurn.state.generation)-ne(I $afterDismount.state.generation)){Fail "the mount's separate participation did not resume in the following round"}
   if((I (Res $mountTurn 'mount').grantSequence)-ne((I (Res $afterDismount 'mount').grantSequence)+1)-or(I (Res $mountTurn 'rider').grantSequence)-ne((I (Res $afterDismount 'rider').grantSequence)+1)){Fail 'next-round preparations differ from exactly once each'}
   if(-not(B $r.traceComplete)){Fail 'release trace incomplete'}
-  $events=Events $r;$sequence=I $afterDismount.allocationSequence;$mountPrepares=0;$riderPrepares=0
+  $preSplitTurn=I $afterDismount.turnObject
+  $events=Events $r;$sequence=I $afterDismount.allocationSequence;$mountPrepares=0;$riderPrepares=0;$sharedEnds=0
   foreach($x in $events){
    $sequence++;if((I $x.sequence)-ne$sequence){Fail 'release trace gap'}
    $who=T (Prop (Prop $x 'state') 'actor');$boundary=[string](Prop $x 'boundary')
    if($who-ceq$mount){
-    if((I $x.round)-eq$round-and($boundary.Contains('cost')-or$boundary.Contains('prepare')-or$boundary.Contains('turn-end'))){Fail 'the mount acted, prepared or ended in the release round after the Dismount'}
+    if((I $x.round)-eq$round){
+     # The split pair still shares the pre-split turn object's native end: the mount receives
+     # that one turn's end callbacks without acting, preparing or being charged.
+     $sharedEnd=$boundary.StartsWith('turn-end')-and(I (Prop $x 'turn'))-eq$preSplitTurn
+     if($sharedEnd){$sharedEnds++}
+     elseif($boundary.Contains('cost')-or$boundary.Contains('prepare')-or$boundary.Contains('turn-end')){Fail 'the mount acted, prepared or ended in the release round after the Dismount'}
+    }
     if($boundary-ceq'prepare-before'){if((I $x.round)-ne($round+1)){Fail 'mount prepared outside the following round'};$mountPrepares++}
    }
    if($who-ceq$rider-and$boundary-ceq'prepare-before'){if((I $x.round)-ne($round+1)){Fail 'rider prepared outside the following round'};$riderPrepares++}
   }
+  if($sharedEnds-gt2){Fail 'the mount ended the shared pre-split turn more than once'}
   if($sequence-ne(I $mountTurn.allocationSequence)-or$mountPrepares-ne1-or$riderPrepares-ne1){Fail 'release observation did not close on one separate preparation each'}
  }
  function Assert-Dismount($E,$v,$Order,$MountProof,$DismountProof){
@@ -317,7 +384,7 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
   }
   Assert-Release $E $rider $mount $afterDismount
  }
- # ---- AssertComplete ----
+ # ---- Assert-KmcActionEconomy ----
  if($null-eq$E-or(T (Prop $E 'contract'))-cne'chunk6a-action-economy-isolated-native-variant'){Fail 'contract differs'}
  $v=Get-KmcActionEconomyVariant ([string](Prop $E 'variant'))
  if($null-eq$v-or(T $E.scenario)-cne$v.scenario-or(T $E.row)-cne$v.row){Fail 'variant, scenario or row differs'}

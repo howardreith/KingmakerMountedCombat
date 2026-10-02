@@ -1,17 +1,20 @@
 param([ValidateSet('Debug','Release')][string]$Configuration='Release')
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
-# The structured parent-to-child handoff snapshot: producer (compiled validator through
-# reflection) and external reader agree on one synthetic snapshot and reject the same
-# contradictions; the tranche captures and validates it at child entry; the harness requires
-# it from preview.150. Synthetic objects only; no native qualification.
+# The structured parent-to-child handoff snapshot under one acceptance authority: the compiled
+# producer (AssertStructure, through reflection) accepts every structurally valid snapshot
+# without deciding which handoffs are lawful; the external reader decides (the recorded admission
+# mode as observed, the zero-command/zero-cost handoff, the idle-party requirement); structural
+# contradictions are refused by both; the tranche captures and structurally checks the snapshot at
+# child entry; the harness requires it from preview.150. Synthetic objects only; no native qualification.
 . (Join-Path $PSScriptRoot 'runtime/ChildEntryPreambleEvidence.ps1')
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'));$paths=[xml](Get-Content -Raw (Join-Path $repo 'LocalGamePaths.props'));$managed=Join-Path $paths.Project.PropertyGroup.KingmakerInstallDir 'Kingmaker_Data/Managed'
 [Reflection.Assembly]::LoadFrom((Join-Path $managed 'Newtonsoft.Json.dll'))|Out-Null
 $assembly=[Reflection.Assembly]::LoadFrom((Join-Path $repo ('bin/'+$Configuration+'/KingmakerMountedCombat.dll')))
 $type=$assembly.GetType('KingmakerMountedCombat.Diagnostics.ChildEntryPreambleEvidence',$true)
-$method=$type.GetMethod('AssertComplete',[Reflection.BindingFlags]'Static,NonPublic')
-if($null-eq$method){throw 'Producer validator is missing'}
+$method=$type.GetMethod('AssertStructure',[Reflection.BindingFlags]'Static,NonPublic')
+if($null-eq$method-or$method.GetParameters().Count-ne3){throw 'Producer structural check is missing or decides more than structure'}
+if($null-ne$type.GetMethod('AssertComplete',[Reflection.BindingFlags]'Static,NonPublic')){throw 'The compiled producer still carries a behavioral acceptance method'}
 $checks=0
 function Copy-Preamble($x){$x|ConvertTo-Json -Depth 40|ConvertFrom-Json}
 function New-Preamble([bool]$Mounted){
@@ -30,51 +33,62 @@ function New-Preamble([bool]$Mounted){
   turnBased=$false;currentTurnActor=$null;paused=$false
  }
 }
-function Check($p,[string]$Scenario,[bool]$Mounted,[bool]$Idle,[bool]$Expected){
- $producer=$true;try{$args=[object[]]::new(4);$args[0]=[Newtonsoft.Json.Linq.JObject]::Parse(($p|ConvertTo-Json -Depth 40 -Compress));$args[1]=$Scenario;$args[2]=$Mounted;$args[3]=$Idle;$null=$method.Invoke($null,$args)}catch{$producer=$false;if($Expected){throw $_.Exception.InnerException}}
- $external=$true;try{Assert-KmcChildEntryPreamble $p $Scenario $Mounted $Idle}catch{$external=$false;if($Expected){throw}}
- if($producer-ne$Expected-or$external-ne$Expected){throw ('Child entry preamble producer/external '+$producer+'/'+$external+' expected '+$Expected)};$script:checks+=2
+# $Expected is the external verdict; the producer accepts unless the corruption is structural.
+function Check($p,[string]$Scenario,[bool]$Mounted,[bool]$Idle,[bool]$Expected,[bool]$Structural=$false){
+ $producerExpected=$Expected-or-not$Structural
+ $producer=$true;$producerError=$null
+ try{$invokeArgs=[object[]]::new(3);$invokeArgs[0]=[Newtonsoft.Json.Linq.JObject]::Parse(($p|ConvertTo-Json -Depth 40 -Compress));$invokeArgs[1]=$Scenario;$invokeArgs[2]=$Mounted;$null=$method.Invoke($null,$invokeArgs)}
+ catch{$producer=$false;$producerError=$_.Exception.InnerException;if($producerExpected){throw ('producer: '+$(if($null-ne$producerError){$producerError.Message}else{$_.Exception.Message}))}}
+ $external=$true;try{Assert-KmcChildEntryPreamble $p $Scenario $Mounted $Idle}catch{$external=$false;if($Expected){throw ('external reader: '+$_.Exception.Message)}}
+ if($producer-ne$producerExpected-or$external-ne$Expected){throw ('Child entry preamble producer/external '+$producer+'/'+$external+' expected '+$producerExpected+'/'+$Expected+$(if($null-ne$producerError){'; producer='+$producerError.Message}else{''}))};$script:checks+=2
 }
 foreach($mounted in @($true,$false)){
  $p=New-Preamble $mounted;$scenario=$p.childScenario
  Check $p $scenario $mounted $true $true
- function Reject([scriptblock]$Mutate,[string]$Scenario=$scenario,[bool]$M=$mounted,[bool]$Idle=$true){$x=Copy-Preamble $p;& $Mutate $x;try{Check $x $Scenario $M $Idle $false}catch{throw ('Mutation '+$Mutate.ToString()+': '+$_)}}
- Reject {param($x)$x.contract='wrong'}
- Reject {param($x)$x.parentScenario='other'}
- Reject {param($x)$x.parentEngine=''}
- Reject {param($x)$x.childScenario='other'}
- Reject {param($x)$x.runId=''}
- Reject {param($x)$x.sessionObject=0}
- Reject {param($x)$x.areaGuid=''}
- Reject {param($x)$x.frame=-1}
- Reject {param($x)$x.capturedAtUtc=''}
- Reject {param($x)$x.mountId='rider'}
- Reject {param($x)$x.mountObject=101}
- Reject {param($x)$x.pairAlreadyMounted=-not$x.pairAlreadyMounted}
- Reject {param($x)$x.relationshipState=$(if($mounted){'Unmounted'}else{'Mounted'})}
- Reject {param($x)$x.relationshipGeneration=-1}
- Reject {param($x)$x.admissionMode='VoluntaryCombat';$x.admissionModeExplicit=$true}
- Reject {param($x)$x.admissionMode=''}
- Reject {param($x)$x.admissionModeExplicit=-not$x.admissionModeExplicit}
+ function Reject([scriptblock]$Mutate,[string]$Scenario=$scenario,[bool]$M=$mounted,[bool]$Idle=$true,[switch]$Structural){$x=Copy-Preamble $p;& $Mutate $x;try{Check $x $Scenario $M $Idle $false ([bool]$Structural)}catch{throw ('Mutation '+$Mutate.ToString()+': '+$_)}}
+ # Structural contradictions: refused by the producer and the reader.
+ Reject {param($x)$x.contract='wrong'} -Structural
+ Reject {param($x)$x.parentScenario='other'} -Structural
+ Reject {param($x)$x.parentEngine=''} -Structural
+ Reject {param($x)$x.childScenario='other'} -Structural
+ Reject {param($x)$x.runId=''} -Structural
+ Reject {param($x)$x.sessionObject=0} -Structural
+ Reject {param($x)$x.areaGuid=''} -Structural
+ Reject {param($x)$x.frame=-1} -Structural
+ Reject {param($x)$x.capturedAtUtc=''} -Structural
+ Reject {param($x)$x.mountId='rider'} -Structural
+ Reject {param($x)$x.mountObject=101} -Structural
+ Reject {param($x)$x.pairAlreadyMounted=-not$x.pairAlreadyMounted} -Structural
+ Reject {param($x)$x.relationshipState=$(if($mounted){'Unmounted'}else{'Mounted'})} -Structural
+ Reject {param($x)$x.relationshipGeneration=-1} -Structural
+ Reject {param($x)$x.admissionMode=''} -Structural
+ Reject {param($x)$x.admissionModeExplicit=-not$x.admissionModeExplicit} -Structural
+ Reject {param($x)$x.control.transitionLedger=''} -Structural
+ Reject {param($x)$x.control.dispatchRejected=-1} -Structural
+ Reject {param($x)$x.actors.rider.id='other'} -Structural
+ Reject {param($x)$x.actors.mount.move=-1} -Structural
+ Reject {param($x)$x.actors.mount.PSObject.Properties.Remove('prepared')} -Structural
+ Reject {param($x)$x.party.members=1} -Structural
+ Reject {param($x)$x.PSObject.Properties.Remove('turnBased')} -Structural
+ Reject {param($x)} 'another-scenario' -Structural
+ Reject {param($x)} $scenario (-not$mounted) -Structural
+ # Behavioral decisions: the producer records them, the reader alone refuses them.
  Reject {param($x)$x.commands.riderCommandsEmpty=$false}
  Reject {param($x)$x.commands.mountRelationshipCommands=1}
  Reject {param($x)$x.control.transitionInFlight=$true}
  Reject {param($x)$x.control.riderOwnsUnsettledShell=$true}
- Reject {param($x)$x.control.transitionLedger=''}
- Reject {param($x)$x.control.dispatchRejected=-1}
- Reject {param($x)$x.actors.rider.id='other'}
- Reject {param($x)$x.actors.mount.move=-1}
  Reject {param($x)$x.actors.rider.commandRunning=$true}
- Reject {param($x)$x.actors.mount.PSObject.Properties.Remove('prepared')}
- Reject {param($x)$x.party.members=1}
  Reject {param($x)$x.party.playerInCombat=$true}
  Reject {param($x)$x.party.membersInCombat=1}
  Reject {param($x)$x.party.idle=$false}
- Reject {param($x)$x.PSObject.Properties.Remove('turnBased')}
- Reject {param($x)} 'another-scenario'
- Reject {param($x)} $scenario (-not$mounted)
- if($mounted){ Reject {param($x)$x.admissionMode='<none>';$x.admissionModeExplicit=$false} }
- else {
+ if($mounted){
+  Reject {param($x)$x.admissionMode='<none>';$x.admissionModeExplicit=$false}
+  Reject {param($x)$x.admissionMode='SavedRestore';$x.admissionModeExplicit=$true}
+  # A mounted handoff through the parent's lawful voluntary combat Mount is validated as observed
+  # (preview.150 c6a-action-economy150-a-ordinary-tb-600); no exploration Mount is repeated.
+  $q=Copy-Preamble $p;$q.admissionMode='VoluntaryCombat';$q.admissionModeExplicit=$true;Check $q $scenario $true $true $true
+ } else {
+  Reject {param($x)$x.admissionMode='VoluntaryCombat';$x.admissionModeExplicit=$true}
   # An unmounted child may follow an exploration preamble that already dismounted.
   $q=Copy-Preamble $p;$q.admissionMode='Exploration';$q.admissionModeExplicit=$true;Check $q $scenario $false $true $true
  }
@@ -91,12 +105,12 @@ if(Test-KmcChildEntryPreambleRequired '0.1.0-chunk6a-preview.149'){throw 'preamb
 if(-not(Test-KmcChildEntryPreambleRequired '0.1.0-chunk6a-preview.150')){throw 'preamble must be required from preview.150'};$checks++
 foreach($other in @('0.1.0-chunk4-preview.54','0.1.0-chunk5-preview.105','0.1.0-paired-preview.37','0.1.0-phase2b-dev.1','0.1.0-phase2a-review.2','0.0.1-feasibility','0.1.0-parser-only')){if(Test-KmcChildEntryPreambleRequired $other){throw ('only Chunk 6A candidates from preview.150 require the preamble: '+$other)};$checks++}
 if(-not(Test-KmcChildEntryPreambleRequired '0.1.0-chunk6a-preview.151')){throw 'later Chunk 6A candidates require the preamble'};$checks++
-# Tranche source pins: captured once at child entry, validated before any scenario begins,
-# with the exact admission mode and the zero-command/shell/process/dispatch facts.
+# Tranche source pins: captured once at child entry, structurally checked before any scenario
+# begins, with the exact admission mode and the zero-command/shell/process/dispatch facts.
 $tranche=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Phase3dHorseScenarioTranche.cs')
 foreach($pin in @(
  'observations\["childEntryPreamble"\] = childEntryPreamble;',
- 'ChildEntryPreambleEvidence\.AssertComplete\(childEntryPreamble, request\.Scenario, pairAlreadyMounted, RequiresIdlePartyHandoff\(request\.Scenario\)\);',
+ 'ChildEntryPreambleEvidence\.AssertStructure\(childEntryPreamble, request\.Scenario, pairAlreadyMounted\);',
  '\["admissionMode"\] = playerAction\.LastRelationshipDispatchAdmission \?\? "<none>"',
  '\["transitionInFlight"\] = nativeControls\.HasUnsettledRelationshipTransition',
  '\["riderOwnsUnsettledShell"\] = moveSlot != null && nativeControls\.OwnsUnsettledRelationshipShell\(moveSlot\)',
@@ -104,9 +118,10 @@ foreach($pin in @(
  '\["membersInCombat"\] = members\.Count\(member => member\.IsInCombat\)')){
  if($tranche -notmatch $pin){throw ('Tranche preamble capture pin missing: '+$pin)};$checks++
 }
+if($tranche -match 'ChildEntryPreambleEvidence\.AssertComplete\('){throw 'The tranche still calls a behavioral preamble validator'};$checks++
 $start=[regex]::Match($tranche,'(?s)internal void Start\(bool pairAlreadyMounted\)(.*?)if \(IsChunk6aCombatMount\) \{ BeginChunk6aCombatMount\(\); return; \}')
 if(-not$start.Success-or$start.Value-notmatch 'CaptureChildEntryPreamble\(pairAlreadyMounted\)'){throw 'The preamble is not captured inside Start before any scenario begins'};$checks++
 $harness=Get-Content -Raw (Join-Path $repo 'scripts/runtime/RuntimeHarness.Common.ps1')
 if($harness -notmatch "Assert-KmcChildEntryPreamble \`$preambleProperty\.Value \(\[string\]\`$Request\.scenario\) \(Test-KmcChildEntryExpectsMounted \(\[string\]\`$Request\.scenario\)\) \(Test-KmcChildEntryRequiresIdleParty \(\[string\]\`$Request\.scenario\)\)"){throw 'Harness does not validate the child entry preamble'};$checks++
 if($harness -notmatch 'Test-KmcChildEntryPreambleRequired \(\[string\]\$artifact\.productVersion\)'){throw 'Harness does not gate the preamble by product version'};$checks++
-Write-Output ('CHILD ENTRY PREAMBLE PRODUCER+EXTERNAL PASS='+$checks+' FAIL=0; synthetic snapshot only, no native qualification')
+Write-Output ('CHILD ENTRY PREAMBLE PRODUCER(STRUCTURE)+EXTERNAL(AUTHORITY) PASS='+$checks+' FAIL=0; synthetic snapshot only, no native qualification')

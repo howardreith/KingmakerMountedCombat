@@ -369,10 +369,11 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
             observations["parentPreambleMountAdmission"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>";
             // The structured handoff snapshot replaces the bare admission string as the
-            // child's qualification evidence; contradictory evidence is refused at entry.
+            // child's qualification evidence. The producer checks only its internal integrity;
+            // which admission mode and party state a child requires is the external validator's.
             var childEntryPreamble = CaptureChildEntryPreamble(pairAlreadyMounted);
             observations["childEntryPreamble"] = childEntryPreamble;
-            ChildEntryPreambleEvidence.AssertComplete(childEntryPreamble, request.Scenario, pairAlreadyMounted, RequiresIdlePartyHandoff(request.Scenario));
+            ChildEntryPreambleEvidence.AssertStructure(childEntryPreamble, request.Scenario, pairAlreadyMounted);
 
             if (IsChunk6aCombatMount) { BeginChunk6aCombatMount(); return; }
             if (IsChunk4Charge) { BeginChunk4Charge(); return; }
@@ -6245,10 +6246,12 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 6A later-turn Dismount observation", exception); }
             try { RestoreChunk6aMountOrderFixture(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A pre-encounter initiative inputs", exception); }
-            try { RestoreChunk6aActionEconomyFixture(); }
-            catch (Exception exception) { AddCleanupError("Chunk 6A action-economy fixture", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
+            // The unrelated candidate is a disposable party member whose encounter state the
+            // allocation cleanup restores; its initiative lease is released only after that.
+            try { RestoreChunk6aActionEconomyFixture(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A action-economy fixture", exception); }
             try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
             catch (Exception exception) { AddCleanupError("Automatic End input preference", exception); }
             if (ordinaryAttackTrace != null)

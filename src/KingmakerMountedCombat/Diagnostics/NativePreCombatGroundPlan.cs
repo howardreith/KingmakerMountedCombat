@@ -20,6 +20,36 @@ namespace KingmakerMountedCombat.Diagnostics
             ["nodeObject"] = nearest.node == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(nearest.node),
             ["nodeType"] = nearest.node?.GetType().FullName, ["walkable"] = nearest.node != null && nearest.node.Walkable
         };
+        // Read-only origin-side measurements for a route trace that ends at its own origin: the
+        // navmesh's own view of the origin, traces from nudged and deepened origins, and the
+        // mover's native agent state. Recorded so that a repair, if any, follows measurements.
+        private static JObject MeasureOrigin(UnitEntityData mover, Vector3 origin, Vector3 point)
+        {
+            var nudged = new JArray();
+            foreach (var step in new[] { 0.15f, 0.3f })
+                for (var index = 0; index < 8; index++)
+                {
+                    var angle = index * 45f;
+                    var from = origin + Quaternion.Euler(0, angle, 0) * Vector3.forward * step;
+                    var end = ObstacleAnalyzer.TraceAlongNavmesh(from, point);
+                    nudged.Add(new JObject { ["angle"] = angle, ["step"] = step, ["from"] = Point(from), ["fromInsideNavmesh"] = ObstacleAnalyzer.IsPointInsideNavMesh(from),
+                        ["traceEnd"] = Point(end), ["residual"] = Distance(end, point), ["returnedToStart"] = Distance(end, from) <= 0.01f });
+                }
+            var deep = ObstacleAnalyzer.GetDeepNavmeshPoint(origin, 0.3f);
+            var agent = mover.View?.AgentASP;
+            return new JObject {
+                ["originSelfTrace"] = Point(ObstacleAnalyzer.TraceAlongNavmesh(origin, origin)),
+                ["originInsideNavmesh"] = ObstacleAnalyzer.IsPointInsideNavMesh(origin), ["originArea"] = ObstacleAnalyzer.GetArea(origin),
+                ["targetInsideNavmesh"] = ObstacleAnalyzer.IsPointInsideNavMesh(point), ["targetArea"] = ObstacleAnalyzer.GetArea(point),
+                ["originDeepPoint"] = Point(deep), ["originDeepOffset"] = Distance(deep, origin),
+                ["fromDeepOrigin"] = Point(ObstacleAnalyzer.TraceAlongNavmesh(deep, point)),
+                ["nudgedOriginTraces"] = nudged,
+                ["agent"] = agent == null ? null : new JObject { ["reallyMoving"] = agent.IsReallyMoving, ["wantsToMove"] = agent.WantsToMove,
+                    ["pathFailed"] = agent.PathFailed, ["repathNeeded"] = agent.RepathNeeded, ["hasPath"] = agent.Path != null,
+                    ["connectedToObstacles"] = agent.ConnectedToObstacles, ["obstaclesGroup"] = agent.ObstaclesGroup == null ? -1 : agent.ObstaclesGroup.Count,
+                    ["corpulence"] = mover.View.Corpulence }
+            };
+        }
         internal static JObject Search(UnitEntityData mover, UnitEntityData partner, Vector3 center,
             float clearance, bool joint, Vector3? partnerPosition = null)
         {
@@ -70,7 +100,8 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["astarTarget"] = NavigationPoint(requested, nearest),
                             ["fromNativeClampedOrigin"] = Point(ObstacleAnalyzer.TraceAlongNavmesh(nativeOrigin.clampedPosition, point)),
                             ["fromAstarClampedOrigin"] = Point(ObstacleAnalyzer.TraceAlongNavmesh(astarOrigin.clampedPosition, point)),
-                            ["toNativeClampedTarget"] = Point(ObstacleAnalyzer.TraceAlongNavmesh(origin, nativePoint.clampedPosition))
+                            ["toNativeClampedTarget"] = Point(ObstacleAnalyzer.TraceAlongNavmesh(origin, nativePoint.clampedPosition)),
+                            ["originMeasurements"] = MeasureOrigin(mover, origin, point)
                         };
                     }
                     c["routeResidual"] = route; c["footprint"] = footprint; c["blockers"] = new JArray(blockers);

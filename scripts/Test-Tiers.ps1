@@ -5,7 +5,10 @@ param(
     # contract tests and the focused regression for the current defect), by script name.
     [string[]]$Focused = @(),
     [ValidateSet('Debug','Release')][string]$Configuration = 'Release',
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    # Lab root holding the immutable preview.150 evidence and ledger; when given, CANDIDATE
+    # re-evaluates those artifacts under the current reader (Test-Chunk6aImmutableReplay.ps1).
+    [string]$LabRoot = ''
 )
 # Three explicit verification tiers for Chunk 6 development (owner workflow amendment,
 # 2026-10-02). Every product, safety, restoration and final-acceptance requirement is kept;
@@ -35,12 +38,13 @@ function Invoke-Tiered([string]$Name, [scriptblock]$Body) {
     Write-Host (('{0,-4} {1} ({2}s){3}' -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $Name, [Math]::Round($sw.Elapsed.TotalSeconds, 1), $(if ($ok) { '' } else { ': ' + $detail })))
     if (-not $ok) { throw ('Tier step failed: ' + $Name) }
 }
-function Invoke-TestScript([string]$Name) {
+function Invoke-TestScript([string]$Name, [string[]]$Extra = @()) {
     $path = Join-Path $PSScriptRoot $Name
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw ('Test script is missing: ' + $Name) }
     $takesConfiguration = (Get-Command $path).Parameters.ContainsKey('Configuration')
     $arguments = @('-NoLogo','-NoProfile','-ExecutionPolicy','Bypass','-File',$path)
     if ($takesConfiguration) { $arguments += @('-Configuration',$Configuration) }
+    if ($Extra.Count -gt 0) { $arguments += $Extra }
     & powershell.exe @arguments | ForEach-Object { Write-Host ('    ' + $_) }
     if ($LASTEXITCODE -ne 0) { throw ($Name + ' exited ' + $LASTEXITCODE) }
 }
@@ -60,11 +64,18 @@ if ($Tier -ceq 'Full') {
     # names are case-insensitive and the step body resolves names dynamically).
     $fast = @('Validate-Source.ps1','Test-Chunk6aAdditionalRegistration.ps1','Test-Chunk6aRegressionBindings.ps1','Test-Chunk6aPrimaryClaims.ps1')
     foreach ($testScript in $fast) { Invoke-Tiered ('FAST ' + $testScript) { Invoke-TestScript $testScript } }
-    foreach ($testScript in @($Focused | Select-Object -Unique)) { Invoke-Tiered ('FOCUSED ' + $testScript) { Invoke-TestScript $testScript } }
+    # A -File invocation passes a comma-joined list as one string; accept both spellings.
+    $focusedScripts = @($Focused | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    foreach ($testScript in $focusedScripts) { Invoke-Tiered ('FOCUSED ' + $testScript) { Invoke-TestScript $testScript } }
     if ($Tier -ceq 'Candidate') {
         $candidate = @('Test-Harness.ps1','Test-AssemblyContracts.ps1','Test-PairedActivationContracts.ps1','Test-RuntimeArtifactManifestContract.ps1',
             'Test-Chunk6aSupportingEvidence.ps1','Test-Chunk6aRegressionReader.ps1','Test-Chunk6aRegressionArchives.ps1','Test-Chunk6aRegressionLedger.ps1','Test-Chunk6aLedgerProtocol.ps1')
         foreach ($testScript in $candidate) { Invoke-Tiered ('CANDIDATE ' + $testScript) { Invoke-TestScript $testScript } }
+        if (-not [string]::IsNullOrWhiteSpace($LabRoot)) {
+            Invoke-Tiered 'CANDIDATE Test-Chunk6aImmutableReplay.ps1' { Invoke-TestScript 'Test-Chunk6aImmutableReplay.ps1' @('-LabRoot',$LabRoot) }
+        } else {
+            Write-Host 'SKIP CANDIDATE Test-Chunk6aImmutableReplay.ps1 (no -LabRoot: the immutable preview.150 replay was not evaluated)'
+        }
     }
 }
 $elapsed = [Math]::Round(([DateTime]::UtcNow - $started).TotalMinutes, 2)
