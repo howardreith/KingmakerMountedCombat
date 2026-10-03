@@ -1,10 +1,11 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `OPENED — MEASUREMENT FIRST`. Nothing is implemented, enabled or claimed by this document. It
-opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the integration branch
-from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL QUALIFICATION
-DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5 delivery; the 87
-Chunk 6A rows are not rerun per 6B candidate; final acceptance waits for the Chunk 6 consolidation.
+Status: `OPENED — MEASURED; INCREMENT 6B.1 NEXT`. Nothing is implemented, enabled or claimed by this
+document. It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
+integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
+QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
+delivery; the 87 Chunk 6A rows are not rerun per 6B candidate; final acceptance waits for the Chunk 6
+consolidation.
 
 ## Governing contracts (unchanged by this document)
 
@@ -38,39 +39,97 @@ a straight, clear, path-valid line of at least the minimum and at most the maxim
 runs at charge speed under the charge state; the single attack carries the charge rule flag and the native
 charge modifiers; and the cost is the charge ability's own (full-round in turn-based mode, one native shell).
 
-## Measurement plan (the first increment; no product change)
+## Measurement record (2026-10-03; read-only over the pinned installed assembly)
 
-Every item is answered from the pinned installed assembly (SHA `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`,
-MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`) by read-only reflection and IL reading, and from stock
-unmounted charge observed natively through the existing Chunk 4 charge-safety scenario rows
-(`C4-CHARGE-unmounted-rider`: distance, charging state, maximum rider Standard and Move, `UnitAttack.IsCharge`).
+Assembly-CSharp SHA256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, MVID
+`07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`, read by reflection-only loading and decompilation into the lab
+scratchpad (nothing in the installation was touched); the stock unmounted charge is the immutable
+`c6a-repeated-request143-i-charge-tb` row `C4-CHARGE-unmounted-rider` (turn-based: charging observed,
+7.21 m travelled, maximum rider Standard 6 and Move 3).
 
-1. Consumers of the charge flag: which rulebook events read `RuleAttackWithWeapon.IsCharge` /
-   `UnitAttack.IsCharge` (attack bonus, armor class penalty, the stock charge buff and its duration) and
-   whether the flag is honoured on a `UnitAttack` that the pair transaction creates for the rider (the rider
-   is the attack initiator; the mount is the mover).
-2. The charge cost in both modes: what the enclosing ability shell charges (Standard, full-round, Move) at
-   `Deliver` and in `TurnBasesRoutine`, and what the native turn controller requires of the mover's movement
-   budget during the forced path.
-3. `CanTarget`: the exact admission (caster-origin distance against `GetMinRangeMeters`/`GetMaxRangeMeters`,
-   `ObstacleAnalyzer.TraceAlongNavmesh`, surrounding-unit clearance, current-turn movement) and which actor
-   each check reads, so the pair variant can evaluate the same checks from the mount's origin and footprint
-   without a broad patch.
-4. `IsEngageUnit` and the mid-path interruption semantics: what the stock routine does when the target moves,
-   dies or becomes unreachable, and how the forced path is released, so the pair variant can never strand the
-   pair (no half-charged state, no stranded forced path, no orphaned queued attack).
-5. The stock charge state on the mover (`UnitDescriptor.State.IsCharging`, `AgentASP.IsCharging`, speed
-   change) and its `Cleanup`: whether the state is applied to the caster only and whether a pair-owned
-   transaction can apply the equivalent state to the mount through native API without a patch.
+1. Consumers of the charge flag. `RuleAttackWithWeapon.IsCharge` is read in code only by
+   `AdditionalDiceOnAttack.CheckCondition` (feat and weapon components: extra dice on a charge). The +2 attack
+   and -2 armor class of a charge are not read from the flag: they are the stock buff
+   `SystemMechanics.ChargeBuff` that `Deliver` adds to the caster for one round. `UnitAttack.IsCharge` is read
+   by `TurnController.UpdateActionPredictions` (turn-based prediction), by `UnitAttack.InitAttacks` (a full
+   attack only with Pounce while surprising in turn-based mode), by `TryStartNextAttack` and
+   `ConfigureAnimations` (the first attack animates as a charge) and by `TriggerAttackRule`, which stamps the
+   rule. `UnitState.IsCharging` is read by `UnitAnimationController.TickOnUnit` and the hands-equipment
+   animation only; `UnitMovementAgent.IsCharging` selects `ChargingAvoidance` and suppresses `SlowDown`; both
+   are set and cleared only by the custom charge, fly and overrun components. Therefore the charge flag on a
+   rider-owned `UnitAttack` is honoured exactly as on any attack: it changes the rule stamp, the first-attack
+   animation, the Pounce full-attack case and the extra-dice components, nothing else.
+2. The cost in both modes. The cost is the enclosing `UnitUseAbility` shell: `AbilityData.RequireFullRoundAction`
+   is `ActionType == Standard && Blueprint.IsFullRoundAction` (`BlueprintAbility.SetIsFullRoundAction` exists),
+   `UnitUseAbility.Init` sets the three-second turn-based cast time for it, and `UnitCommand.IsFullRoundAbility`
+   reports it to the turn controller. The queued `UnitAttack` carries `IgnoreCooldown()` so the already-charged
+   Standard does not block it, and `IsFullAttackRestricted` returns false for an ignore-cooldown attack in
+   turn-based combat. The measured stock turn-based charge charged the rider Standard 6 and Move 3: the
+   full-round shell owns the cost; the forced path is not charged as a separate Move.
+3. `CanTarget`. Caster-origin distance must lie within `GetMinRangeMeters` (turn-based: five-foot-step metres
+   plus `GameConsts.MinWeaponRange` plus both corpulences; real-time: ten feet plus both corpulences) and
+   `GetMaxRangeMeters` (`caster.CombatSpeedMps * 6`); `ObstacleAnalyzer.TraceAlongNavmesh(caster, target)`
+   must reach the target; unless the caster's avoidance is disabled, every other awake unit with avoidance
+   must stay farther than `0.8 * (casterCorpulence + otherCorpulence)` from the end point a weapon reach short
+   of the target; in turn-based combat on the caster's own turn `CurrentTurn.TimeMoved` must be 0. Every check
+   reads the caster's position, speed and corpulence; the pair variant must read the mount's.
+4. `IsEngageUnit` and interruption. `IsEngageUnit` is read by `UnitUseAbility.IsInterruptible` (an engage-unit
+   process is not interruptible), by `OnAction` (an engage-unit command returns `None` and keeps running while
+   the delivery process runs) and by `OnTick` (the command force-finishes `Success` when the process ends;
+   the command also interrupts itself when `Spell.CanTarget` turns false before it acted). The stock routines
+   bound themselves: turn-based six seconds, a lost threat hand, `!State.CanMove`, a missing agent or an agent
+   that does not move after a re-forced path; real-time the maximum distance, a lost threat hand, a navmesh
+   obstacle on the straight line or `!attack.ShouldUnitApproach`; in every exit the attack is queued first
+   (`AddToQueueFirst`) with `IgnoreCooldown` and `IsCharge` only when the approach completed, and `Cleanup`
+   resets the charging state and speed. A pair variant must keep an equivalent bounded termination on the
+   mount's path and never leave the rider's command running without an ending process.
+5. The charging state and the forced path. `Deliver` sets `caster.View.AgentASP.IsCharging`, calls
+   `AgentASP.ForcePath(new ForcedPath([casterPosition, targetPosition]), 1000000f)` (force mode, destination
+   the target), adds the charge buff, sets `State.IsCharging`, creates `new UnitAttack(target)` and `Init`s it
+   on the caster; the routines raise `MaxSpeedOverride` to twice `CombatSpeedMps`; `Cleanup` clears the agent
+   charging flag, the speed override and the state flag. All of it acts on the caster's own agent. The mounted
+   rider's agent is stopped, avoidance-leased and disabled under the mount's movement authority, so the stock
+   component cannot be the carrier (the deferral evidence stands); the equivalent calls on the mount's agent
+   are plain native API already used by the stock charge, fly and overrun components.
 
-Outcome of the measurement: either a bounded design that extends the qualified pair transaction with a
-`MountedChargeTransaction` (straight path validity from the mount's origin, charge speed on the mount, the
-charge flag on the rider's single attack, the rider's native full-round cost through the ability shell, exact
-refusal reasons, interruption and cleanup through the existing terminal paths) and a focused development
-qualification (RT and TB positive cases, min/max range refusals, obstruction, target loss mid-path, cancellation,
-duplicate request, save/load across a pending charge, exact restoration), or the recorded disposition
-`DEFER — EVIDENCED` with the exact measured obstacle. In both outcomes the 6A safety boundary stays in force
-until a pair charge is qualified by the external reader.
+## Disposition
+
+The stock `AbilityCustomCharge` remains unusable for the pair (it binds mover, attacker, buff, state and cost
+to one caster). An original pair-owned charge is feasible without patching any stock charge method: a KMC
+ability created by the existing blueprint factory (`CreateAbility`, as the Mount and Dismount controls are)
+with `ActionType Standard`, `IsFullRoundAction`, enemy targets and a `MountedChargeAbilityLogic` component
+(`AbilityCustomLogic`, `IAbilityAvailabilityProvider`, `IAbilityTargetChecker`, `IAbilityMinRangeProvider`,
+`IsEngageUnit` true) whose `CanTarget` evaluates the five stock checks from the mount's position, speed and
+corpulence and whose `Deliver` routes the charge through the native primitives on the right actors: the charge
+buff and the charging state on the rider (the attacker), the charging flag, the forced straight path and the
+doubled speed on the mount (the mover, under the pair's existing movement authority), bounded termination
+identical to the stock routines, and at arrival one rider-owned `UnitAttack(target)` with `IgnoreCooldown` and
+`IsCharge` queued first on the rider, delivered through the already-qualified bounded Mammoth-origin reach.
+The native full-round shell charges the rider; nothing writes, clears or refunds a cooldown. The mission
+therefore proceeds as `PROCEED — BOUNDED`, feature default-off behind an explicit setting until qualified, with
+the 6A rejection of the stock Charge while mounted unchanged throughout.
+
+Named risks to measure before any product delivery: the mount's forced path during the rider's turn must be
+accounted by the unified mounted turn exactly like a delegated approach (no second Move charged to the mount,
+no stranded force mode on interruption); the pair's reach and admission at arrival must be the qualified ones;
+attacks of opportunity against the moving pair stay native and unpatched; save and load across a pending
+charge must restore or lawfully drop it through the existing persistence machinery.
+
+## Increment plan (each increment is its own frozen candidate with focused qualification)
+
+- 6B.1 (next): a diagnostics-only measurement of the pair forced path under the existing diagnostic lease:
+  the mount agent's `ForcePath` with doubled `MaxSpeedOverride` and `IsCharging` along a measured straight
+  line in real-time and in turn-based mode, observing the unified-turn movement accounting, avoidance, stop
+  behaviour, interruption and cleanup, with no ability, no product change and no cost; rows and an external
+  reader for the measurements.
+- 6B.2: the product ability (blueprint, availability with exact refusal reasons, mount-origin targeting) and
+  the real-time delivery through the pair transaction; focused qualification: positive charge, minimum and
+  maximum range refusals, straight-line obstruction, clearance refusal, target loss mid-path, cancellation,
+  duplicate request, the stock Charge still rejected while mounted, unmounted Charge untouched.
+- 6B.3: turn-based delivery (turn-start requirement, full-round cost, the single charge attack on the rider's
+  turn, the mount's accounting) with the same refusal rows in turn-based mode.
+- 6B.4: persistence and lifecycle (save during a pending charge, cold load, combat end, disable) on the Chunk 5
+  machinery, then the 6B development-exit record.
 
 ## Development qualification shape (focused; not the 87 6A rows)
 
