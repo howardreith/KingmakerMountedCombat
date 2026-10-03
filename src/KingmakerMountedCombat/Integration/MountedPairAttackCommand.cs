@@ -38,6 +38,9 @@ namespace KingmakerMountedCombat.Integration
         public int NativeCompletedAttackCount { get; set; }
 
         public int RepathCount { get; set; }
+        // One entry per repath: the cause that forced it (a moved target, or an unadmitted finished move with its admission state), the delegated move ticks and distance, the
+        // target distance, the rider debt and the native turn movement record (preview.155 measurement).
+        public string RepathObservations { get; set; }
 
         public bool RiderStandardCharged { get; set; }
 
@@ -193,6 +196,8 @@ namespace KingmakerMountedCombat.Integration
         private float delegatedMoveApproachRadius;
         private int delegatedMoveStartCount;
         private int delegatedMoveTickCount;
+        private Vector3 delegatedMoveOrigin;
+        private readonly List<string> repathObservations = new List<string>();
         private string delegatedMoveExecutorId;
         private bool delegatedMoveExecutorIsExactMount = true;
         private bool wrapperCommandRetainedThroughoutApproach = true;
@@ -594,7 +599,7 @@ namespace KingmakerMountedCombat.Integration
             var displacement = HorizontalDistance(targetSnapshot, attackTarget.Position);
             if (displacement > TargetRepathDistance)
             {
-                Repath();
+                Repath("target-moved;displacement=" + displacement.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
             }
 
             if (delegatedMove == null)
@@ -614,7 +619,7 @@ namespace KingmakerMountedCombat.Integration
                 ObserveNativeAdmission(finishedMoveAdmission);
                 if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted)
                 {
-                    Repath();
+                    Repath("unadmitted-after-move;admission=" + finishedMoveAdmission);
                 }
             }
         }
@@ -638,8 +643,24 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        private void Repath()
+        private string DescribeRepath(string cause)
         {
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            var turn = Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn;
+            return "repath=" + (transaction.RepathCount + 1) + ";" + cause + ";ticks=" + delegatedMoveTickCount +
+                ";moved=" + GeometryUtils.MechanicsDistance(delegatedMoveOrigin, mount.Position).ToString("0.###", culture) +
+                ";targetDistance=" + mount.DistanceTo(attackTarget).ToString("0.###", culture) +
+                ";moveResult=" + (delegatedMove == null ? "<none>" : delegatedMove.Result.ToString()) +
+                ";riderMove=" + rider.CombatState.Cooldown.MoveAction.ToString("0.###", culture) +
+                ";riderStandard=" + rider.CombatState.Cooldown.StandardAction.ToString("0.###", culture) +
+                ";mountMove=" + mount.CombatState.Cooldown.MoveAction.ToString("0.###", culture) +
+                (turn == null ? ";turn=<none>" : ";turn=" + turn.Unit.UniqueId + ";turnTimeMoved=" + turn.TimeMoved.ToString("0.###", culture) +
+                    ";turnStepMetres=" + turn.MetersMovedByFiveFootStep.ToString("0.###", culture));
+        }
+
+        private void Repath(string cause)
+        {
+            repathObservations.Add(DescribeRepath(cause));
             if (!transaction.TryRepath(attackTarget.UniqueId))
             {
                 throw new InvalidOperationException("Mounted pair command exhausted its bounded repath allowance.");
@@ -671,6 +692,7 @@ namespace KingmakerMountedCombat.Integration
                 NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
             };
             delegatedMoveStartCount++;
+            delegatedMoveOrigin = mount.Position;
             delegatedMoveDrivenByStockController =
                 !TurnBased.Controllers.CombatController.IsInTurnBasedCombat() ||
                 Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == mount;
@@ -914,6 +936,7 @@ namespace KingmakerMountedCombat.Integration
                 NativePlannedAttackCount = AllAttacks.Count,
                 NativeCompletedAttackCount = GetAttackIndex(),
                 RepathCount = transaction.RepathCount,
+                RepathObservations = string.Join(" | ", repathObservations.ToArray()),
                 RiderStandardCharged = IsActed && actionActor == rider,
                 ActionStandardCharged = IsActed,
                 NativeAttackRuleObserved = childAttack?.LastAttackRule != null,

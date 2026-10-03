@@ -35,7 +35,7 @@ function New-Native([bool]$Tb,[string]$Current){ [ordered]@{paused=$false;mode='
 function New-Foundation([string]$Relationship,[long]$Generation,[long]$Casts,[long]$Accepted,[long]$Mounts,[long]$Dismounts,[long]$Adoptions,[string]$Paired,[string]$Partner){
  [ordered]@{relationship=$Relationship;generation=$Generation;transitionInFlight=$false;transitionSettlement='ledgerInFlight=False';relationshipShells=0;castRequests=$Casts;dispatchAccepted=$Accepted;dispatchRejected=0;
   transitionCounters=[ordered]@{admittedMount=$Mounts;acceptedMount=$Mounts;admittedDismount=$Dismounts;acceptedDismount=$Dismounts;refusedVoluntary=0;forcedDetach=0;duplicateSuppressed=0;concurrentSuppressed=0};
-  pairedIdentity=$Paired;pairedSequence=1;pairedSplit=$false;pairedFinalized=$false;partnerContextActor=$Partner;adoptionCount=$Adoptions;adoptionObservation=$null;initiativeObservation='not-observed';persistenceWorldDiscards=0;lastPersistenceWorldDiscard='none';
+  pairedIdentity=$Paired;pairedSequence=1;pairedSplit=$false;pairedFinalized=$false;partnerContextActor=$Partner;adoptionCount=$Adoptions;adoptionObservation=$null;initiativeObservation='not-observed';persistenceWorldDiscards=0;lastPersistenceWorldDiscard='none';partyInCombat=$true;lifetimeRetirements=0;lifetimeRetirementsDeferred=0;lastLifetimeRetirement='none';
   riderInCombat=$true;mountInCombat=$true;riderHasMove=$true;riderHasStandard=$true;riderCommandsEmpty=$true;mountCommandsEmpty=$true;riderReallyMoving=$false;mountReallyMoving=$false;
   riderPosition=@(0.0,0.0,0.0);mountPosition=@(1.0,0.0,0.0);pairDistance=1.0;riderMoveSlot=$null}
 }
