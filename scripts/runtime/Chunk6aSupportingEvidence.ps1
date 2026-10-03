@@ -22,7 +22,11 @@ function Get-KmcBoundJson([string]$Path,[string]$ExpectedSha256) {
 # binding is validated. Nothing is inferred: a native failure, a harness failure or any error
 # outside the dedicated readers is never re-evaluated.
 function Test-KmcExternalReaderRefusal([string]$Message) {
-    [string]$Message -cmatch '^(Action economy|Child entry preamble|Additional Chunk6A binding differs|Chunk 6A foundation): '
+    # The prefixed messages are the external readers' own; the prediction-rule messages are raised at run time by
+    # Assert-KmcNativePredictionCommands (the external mirror of the compiled prediction rule). A compiled refusal of
+    # the same text never reaches a re-evaluation: the game result must be a PASS with no errors first.
+    [string]$Message -cmatch '^(Action economy|Child entry preamble|Additional Chunk6A binding differs|Chunk 6A foundation): ' -or
+    [string]$Message -cmatch '^(Missing bounded native prediction evidence\.|Prediction (lacks one actual Init|omitted an exact native clock or sequence|shares or omits command/shell identity|has another [A-Za-z]+|was not observed before the real Init|live object identity differs|executed or bound a native process|Init already bound a process|lacks its exact temporary admission|escaped temporary admission or had a native side effect)\.|Committed observation was native speculation\.|Native speculation added a resource or movement callback\.)$'
 }
 function Get-KmcChunk6aReevaluation($Result,$Game,[string]$RepoRoot) {
     if([string]$Game.status -cne 'PASS' -or [int]$Game.assertionFailCount -ne 0 -or @($Game.errors).Count -ne 0) { return $null }

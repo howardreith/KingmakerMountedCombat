@@ -24,8 +24,8 @@ function Reject([scriptblock]$Action,[string]$Expected){
  try{& $Action}catch{if($_.Exception.Message.IndexOf($Expected,[StringComparison]::Ordinal)-lt0){throw ('Unexpected refusal: '+$_.Exception.Message)};$rejected=$true}
  if(-not$rejected){throw ('Accepted: '+$Expected)};$script:checks++
 }
-foreach($prefix in @('Action economy: x','Child entry preamble: x','Additional Chunk6A binding differs: x')){if(-not(Test-KmcExternalReaderRefusal $prefix)){throw 'Reader refusal prefix not recognised'};$checks++}
-foreach($other in @('Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls.','Game reported FAIL: x','Action economy:x','')){if(Test-KmcExternalReaderRefusal $other){throw ('Non-reader message accepted as a reader refusal: '+$other)};$checks++}
+foreach($prefix in @('Action economy: x','Child entry preamble: x','Additional Chunk6A binding differs: x','Chunk 6A foundation: x','Prediction escaped temporary admission or had a native side effect.','Prediction lacks its exact temporary admission.','Native speculation added a resource or movement callback.','Missing bounded native prediction evidence.')){if(-not(Test-KmcExternalReaderRefusal $prefix)){throw 'Reader refusal prefix not recognised'};$checks++}
+foreach($other in @('Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls.','Game reported FAIL: x','Action economy:x','','Prediction escaped temporary admission or had a native side effect. extra','CM03-rider-other-action: The exact adjacent combat Mount command proof failed: ["Prediction observation: Prediction escaped temporary admission or had a native side effect."]','Prediction has another .','phase3d-horse-runtime-exception: InvalidOperationException: Prediction escaped temporary admission or had a native side effect.')){if(Test-KmcExternalReaderRefusal $other){throw ('Non-reader message accepted as a reader refusal: '+$other)};$checks++}
 # Re-evaluated native PASS transactions (overall facet refused by the preview.151 freeze reader).
 $cases=@(
  [pscustomobject]@{run='c6a-stabilization151-a-mount-spent-move';id='CM03-mount-spent-move';refusal='Action economy: mount slot end: '},

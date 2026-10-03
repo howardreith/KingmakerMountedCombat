@@ -1,4 +1,9 @@
 ﻿Set-StrictMode -Version Latest
+function Get-KmcPredictionEventField($Event,[string]$Name) {
+    if($Event -is [System.Collections.IDictionary]){ if($Event.Contains($Name)){ return $Event[$Name] } else { return $null } }
+    if($null -ne $Event.PSObject.Properties[$Name]){ return $Event.$Name }
+    return $null
+}
 function Assert-KmcNativePredictionCommands($Prediction,$Proof) {
     if($null -eq $Prediction -or $Prediction.contract -cne 'native-speculative-init-separated-from-one-committed-request' -or $null -eq $Prediction.commands -or @($Prediction.commands).Count -gt 128){throw 'Missing bounded native prediction evidence.'}
     $identity=$Proof.identity;$actual=@($Proof.samples|Where-Object boundary -CEQ 'init')
@@ -22,7 +27,17 @@ function Assert-KmcNativePredictionCommands($Prediction,$Proof) {
         if($id.processObject -ne 0 -or $id.contextObject -ne 0){throw 'Prediction Init already bound a process.'}
         $matching=@($events|Where-Object command -EQ $id.commandObject)
         if(@($matching|Where-Object boundary -CEQ 'admission-after').Count -ne 1){throw 'Prediction lacks its exact temporary admission.'}
-        foreach($e in $matching){if($e.simulatingClick -ne $true -or $e.started -ne $false -or $e.acted -ne $false -or $e.boundary -cnotin @('admission-before','admission-after','command-eligibility') -or $e.sequence -gt $actual[0].allocationSequence){throw 'Prediction escaped temporary admission or had a native side effect.'}}
+        # Since preview.152 the allocation trace also records UnitCommand.Interrupt on the rider's commands. A speculative
+        # command ends through its temporary container's disposal (UnitCommands+Temporary.Dispose, called by the native
+        # hover prediction after the simulated click has ended), still unstarted and unacted: that disposal is the native
+        # end of the speculation, not a side effect. Any other interrupt source remains an escape (preview.154 rule).
+        $temporaryDisposal=@($matching|Where-Object {[string](Get-KmcPredictionEventField $_ 'boundary') -ceq 'command-interrupt-before' -and ([string](Get-KmcPredictionEventField $_ 'detail')).Contains('UnitCommands+Temporary.Dispose')}).Count -ge 1
+        foreach($e in $matching){
+            $boundary=[string](Get-KmcPredictionEventField $e 'boundary')
+            $speculativeAdmission=(Get-KmcPredictionEventField $e 'simulatingClick') -eq $true -and $boundary -cin @('admission-before','admission-after','command-eligibility')
+            $disposalInterrupt=$temporaryDisposal -and (($boundary -ceq 'command-interrupt-before' -and ([string](Get-KmcPredictionEventField $e 'detail')).Contains('UnitCommands+Temporary.Dispose')) -or ($boundary -ceq 'command-interrupt-after' -and [string](Get-KmcPredictionEventField $e 'result') -ceq 'Interrupt' -and (Get-KmcPredictionEventField $e 'finished') -eq $true))
+            if((Get-KmcPredictionEventField $e 'started') -ne $false -or (Get-KmcPredictionEventField $e 'acted') -ne $false -or (Get-KmcPredictionEventField $e 'sequence') -gt $actual[0].allocationSequence -or -not($speculativeAdmission -or $disposalInterrupt)){throw 'Prediction escaped temporary admission or had a native side effect.'}
+        }
     }
     foreach($e in $events){
         $sim=if($e -is [System.Collections.IDictionary]){$e['simulatingClick']}elseif($e.PSObject.Properties['simulatingClick']){$e.simulatingClick}else{$null}

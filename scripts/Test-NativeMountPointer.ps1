@@ -75,6 +75,20 @@ Reject-Pointer 'prediction after real Init' {param($c)$c.proof.predictionCommand
 Reject-Pointer 'missing temporary admission' {param($c)$c.proof.resourceWindow.events=@()}
 Reject-Pointer 'actual admission of speculative command' {param($c)$c.proof.resourceWindow.events[0].simulatingClick=$false}
 Reject-Pointer 'actual proof came from simulation' {param($c)$c.proof.samples[0].simulatingClick=$true}
+# Since preview.152 the allocation trace records UnitCommand.Interrupt on the rider's commands: a speculative command
+# ends through its temporary container's disposal (UnitCommands+Temporary.Dispose), unstarted and unacted, before the
+# real Init. Producer and external rule accept exactly that pair and refuse every other interrupt shape.
+$disposalCallers='callers=MonoMod.Utils.DynamicMethodDefinition.Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt_Patch3 < Kingmaker.UnitLogic.Commands.UnitCommands.InterruptAll < Kingmaker.UnitLogic.Commands.UnitCommands+Temporary.Dispose < Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler.OnPredictClick'
+function Add-DisposalInterrupt($c,[string]$Callers=$disposalCallers,[int]$Sequence=12,[bool]$Started=$false,[bool]$Finished=$true,[bool]$WithBefore=$true,[bool]$WithAfter=$true){
+ if($WithBefore){$c.proof.resourceWindow.events+=@([pscustomobject]@{boundary='command-interrupt-before';command=102;sequence=$Sequence;simulatingClick=$false;started=$Started;acted=$false;finished=$false;result='None';detail=$Callers;state=[pscustomobject]@{actor='rider'}})}
+ if($WithAfter){$c.proof.resourceWindow.events+=@([pscustomobject]@{boundary='command-interrupt-after';command=102;sequence=($Sequence+1);simulatingClick=$false;started=$Started;acted=$false;finished=$Finished;result='Interrupt';detail=$null;state=[pscustomobject]@{actor='rider'}})}
+}
+$c=New-PointerCase;Add-DisposalInterrupt $c;Check-Pointer $c $true 'temporary container disposal interrupt pair' $true
+Reject-Pointer 'foreign interrupt caller' {param($c)Add-DisposalInterrupt $c -Callers 'callers=Kingmaker.UnitLogic.Commands.Base.UnitCommand.Interrupt < Kingmaker.Controllers.Units.UnitActionController.TickCommandTurnBased'}
+Reject-Pointer 'interrupt after without its disposal' {param($c)Add-DisposalInterrupt $c -WithBefore $false}
+Reject-Pointer 'disposal interrupt after the real Init' {param($c)Add-DisposalInterrupt $c -Sequence 21}
+Reject-Pointer 'disposal interrupt of a started speculation' {param($c)Add-DisposalInterrupt $c -Started $true}
+Reject-Pointer 'disposal interrupt not finished' {param($c)Add-DisposalInterrupt $c -Finished $false}
 foreach($actor in @('rider','mount')){foreach($boundary in @('cost-before','actor-cost-after','prepare-before','clear-before','opportunity-before','approach-movement-before','native-movement-displacement')){
  Reject-Pointer ($actor+' speculative '+$boundary) {param($c)$c.proof.resourceWindow.events+=@([pscustomobject]@{boundary=$boundary;command=0;sequence=12;simulatingClick=$true;state=[pscustomobject]@{actor=$actor}})}
 }}
