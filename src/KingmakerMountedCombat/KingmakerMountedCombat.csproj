@@ -316,6 +316,9 @@
     <Compile Include="Integration\MountedPlayerActionController.cs" />
     <Compile Include="Integration\MountedPlayerActionOverlay.cs" />
     <Compile Include="Integration\NativeMountedAbilityLogic.cs" />
+    <Compile Include="Integration\MountedChargeAbilityLogic.cs" />
+    <Compile Include="Integration\MountedChargeLease.cs" />
+    <Compile Include="Integration\MountedCombatController.Charge.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
     <Compile Include="Integration\NativeMountedApproachInterruption.cs" />
@@ -325,6 +328,7 @@
     <Compile Include="Logging\UmmLogger.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
     <Compile Include="Diagnostics\Chunk6bChargePathScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6bChargeScenario.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingRuleObserver.cs" />
     <Compile Include="Diagnostics\Chunk4NativeAreaObservation.cs" />
     <Compile Include="Diagnostics\Chunk4ObstructionScenario.cs" />
@@ -415,6 +419,7 @@
     <Compile Include="Diagnostics\Chunk4ChargePause.cs" />
     <Compile Include="Diagnostics\DiagnosticQueuedMountWindow.cs" />
     <Compile Include="Domain\MountedChargeSafetyPolicy.cs" />
+    <Compile Include="Domain\MountedChargePolicy.cs" />
     <Compile Include="Integration\MountedChargeSafetyService.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

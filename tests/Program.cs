@@ -541,6 +541,7 @@ namespace KingmakerMountedCombat.Tests
                 }
             });
             MountedChargeSafetyTests.Register(runner);
+            MountedChargePolicyTests.Register(runner);
             MountedRangedRoutineCompletionTests.Register(runner);
             OptionalPublicPropertyReaderTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);

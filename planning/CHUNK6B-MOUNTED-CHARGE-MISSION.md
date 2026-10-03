@@ -1,7 +1,7 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `INCREMENT 6B.1 CORRECTED MEASUREMENT IMPLEMENTED (0.1.0-chunk6b-preview.157) - CANDIDATE TIER, FREEZE AND
-NATIVE MEASUREMENT PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `INCREMENT 6B.1 MEASURED; INCREMENT 6B.2 REAL-TIME DELIVERY IMPLEMENTED (0.1.0-chunk6b-preview.158) -
+CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -253,3 +253,101 @@ tests 556/0. Pending, in order: the one CANDIDATE tier, freeze (package qualifie
 `20261003-chunk6b-charge-path-b` pinned to the preview.156 suite), the purity proof, then C6B-PATH-RT, C6B-PATH-TB,
 CHARGE-SAFETY-RT and CHARGE-SAFETY-TB as fresh isolated restored transactions, the offline binding and the
 measurement record. Nothing merges to main; no release, tag or HUMAN PLAY claim.
+
+## Increment 6B.1 - native measurement outcome (2026-10-03; frozen preview.157)
+
+Frozen preview.157 (commit e48d9268, committed tree 39188fce, package bba1712c, suite
+`20261003-chunk6b-charge-path-b` / 2b31abd8, DLL 2d39aeec, purity PASS `c6b-path157-a-whatif`); CANDIDATE tier
+25/0 at the candidate commit itself on a clean worktree. Lab record `measurement-preview157.json` (b49583d5),
+outcome `chunk6b-increment-6b1-outcome-preview157.json` (c7c992c1): 2 PASS / 2 FAIL of 4 stages, four fresh
+isolated restored transactions, session logs preserved.
+
+- CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS 66/0 each, unchanged.
+- **C6B-PATH-RT established the carrier.** Native rows 62/0. The mount ran 6.825 m in 0.791 s at a peak of
+  10.324 m/s against a 5.080 m/s mount combat speed (the doubled override was 10.160), arrived 2.111 m from the
+  target inside the 2.210 m pair reach, deviated 0.000 m from the straight line, charged no cooldown on either
+  actor, restored the charging flag and speed override exactly, and left force mode latched after the stop as
+  predicted. The interrupt row stopped after 1.552 m and settled in 0.012 s. The admitted delegated ground move
+  on the mount is therefore a sufficient carrier for a forced charge path, which is what 6B.1 existed to decide.
+  The external reader refused the artifact on one rule only: one attack rule initiated by the pair was observed
+  on arrival, and the artifact did not publish the opportunity split, so it could not distinguish the engine's
+  own attack of opportunity (lawful, to be observed) from an attack delivered by the measurement (forbidden).
+- **C6B-PATH-TB moved past its preview.156 cause to a product refusal that was correct.** The five-foot-step
+  entry now reads the mount-executed command, and the run then failed at the carrier with KMC's own exact
+  reason: "The mount has no movement available in this paired activation." (`WrongActionState`), from
+  `PairedActivationLifecycle.CanMovePairedMount` through `HasGrantedMovement`. The rider's five-foot-step entry
+  had already spent the pair's one granted movement for that activation. Correct product behaviour.
+
+Both causes were fixture-side and are corrected on preview.158: the measurement now publishes the compiled
+attack-rule evidence with the opportunity split and the reader requires zero *non-opportunity* pair attacks
+while recording opportunity ones; and the turn-based row issues the delegated carrier as the rider turn's first
+movement from Preparing, with no five-foot-step entry, which is also the stock charge precondition
+(`CurrentTurn.TimeMoved == 0`). No product behaviour changed for either.
+
+## Increment 6B.2 - product implementation (2026-10-03; preview.158, FAST-verified, not yet frozen)
+
+The pair-owned Mounted Charge exists, default-off, and the stock Charge is untouched. The whole feature is one
+policy, one lease, one ability component, one controller partial, one command mode and one setting.
+
+- `Domain/MountedChargePolicy.cs`: the pure availability and targeting decision. It carries the five stock
+  checks read from the **mount**, because the mount is the mover: distance within the stock minimum (turn-based
+  five-foot-step metres plus `GameConsts.MinWeaponRange` plus both corpulences; real-time ten feet plus both
+  corpulences) and the stock maximum (`mount.CombatSpeedMps * 6`), a straight navmesh route, the stock
+  clearance check one rider weapon reach short of the target (the carried rider is never an obstacle to its own
+  mount), plus pair, turn, action-budget, weapon and target preconditions. Every refusal names one existing
+  rejection code and one exact reason; no new enum values. Eight component tests, 564/0 overall.
+- `Integration/MountedChargeAbilityLogic.cs`: the component of the new ability
+  (`AbilityCustomLogic, IAbilityTargetChecker, IAbilityMinRangeProvider, IAbilityAvailabilityProvider,
+  IAbilityVisibilityProvider`). `IsEngageUnit` is deliberately false: the stock charge needs an engage-unit
+  process because one caster both moves and attacks, whereas here the mover and the attacker are two separate
+  native commands and the already-qualified pair transaction owns the bounded path and termination, so a second
+  long-lived process would only add a lifetime that could strand.
+- `NativeMountedControlService`: a fifth original KMC ability, `KMC_MountedChargeAbility`
+  (asset id `d79eaec224a7a832e738eb81baef9d49`, the md5 of its object name), `ActionType Standard` with
+  `SetIsFullRoundAction(true)`, enemy target, equipped weapons required, `AbilityRange.Unlimited` so the
+  native shell never asks the rider to approach while `CanTarget` stays the authoritative mount-origin gate.
+  Availability, targeting and delivery are three one-line branches delegating to the controller, matching the
+  four existing controls; the control is leased only while `EnableMountedCharge` is on.
+- `Integration/MountedCombatController.Charge.cs`: the admission surface. The charge is admitted as the
+  ordinary rider-melee pair transaction carrying a charge lease, so no new action kind, evaluator branch or
+  admission path is introduced. The command is queued first on the rider with `IgnoreCooldown()` rather than
+  run, exactly as `AbilityCustomCharge` queues its own attack, because the full-round shell has already paid
+  through `Spell.Spend` and `Commands.Run` would interrupt the shell that is paying.
+- `Integration/MountedChargeLease.cs`: the charge mechanics, in one removable place. On the **mount** agent,
+  the three calls the stock charge makes on its caster's agent (`IsCharging`, `MaxSpeedOverride` at twice the
+  mount combat speed, `ForcePath` on the straight line to the target, re-forced whenever force mode drops while
+  the carrier lives). On the **rider**, the stock charge buff for one round and the native charging state.
+  Restoration puts back exactly what the lease set, records the force-mode latch instead of pretending to clear
+  it, and never writes or refunds a cooldown.
+- `MountedPairAttackCommand`: a `chargeMode` flag and four call sites - apply the lease on the admitted
+  carrier, maintain it on each driven approach tick, stamp the native `IsCharge` on this command before the
+  engine evaluates the attack plan, and restore the lease on every terminal path.
+- `DiagnosticSettings.EnableMountedCharge`, default false.
+
+Diagnostics: `chunk6b-charge-rt` (schema 34, contract `chunk6b-pair-charge-delivery`) drives the player-facing
+path only, through the game's own selected-ability handler, and records what the engine did. Five rows:
+`C6B-CHARGE-default-off` (absent while the setting is off, leased once it is on), `C6B-CHARGE-positive`,
+`C6B-CHARGE-below-minimum`, `C6B-CHARGE-spent-standard` (the repeated-request family) and
+`C6B-CHARGE-stock-rejected`. `scripts/runtime/Chunk6bChargeEvidence.ps1` is the one acceptance authority;
+`scripts/Test-Chunk6bCharge.ps1` is its synthetic acceptance and refusal regression, 66/0.
+
+Named fixture limitation, recorded rather than claimed: the authorized diagnostic spawn envelope is 3 to 20 m
+while the stock maximum charge distance for this mount is 30.48 m, so a **native** beyond-maximum refusal is not
+reachable in this fixture. The artifact records `beyondMaximumReachable = false` with the envelope, and the
+maximum-range refusal is covered by the pure policy and its component tests only. Obstruction, clearance,
+target loss, cancellation, post-commitment interruption, combat end and incapacity are not in this first
+delivery pack either; they are the next 6B.2 increment, and 6B.2 is not complete until they pass.
+
+Source-inventory guard changed with intent: the Chunk 4 "charge absent" pin becomes a "charge confined and
+default-off" pin. It still forbids constructing, patching or replacing the stock charge and still pins the
+Chunk 4 mounted stock-Charge rejection; it now additionally pins that the native charge flag is stamped in
+exactly one place under charge mode, that the charge buff and charging state are written only in the lease and
+its measurement, that the lease restores exactly and writes no cooldown, and that the setting is never
+initialized true and gates the leasing.
+
+Offline verification of this change set: FAST 15/0 (lab receipt `fast-tier-preview158-1-receipt.json`),
+component tests 564/0. Pending, in order: the one CANDIDATE tier, freeze (package qualifier
+`chunk6b-charge-c`, suite `20261003-chunk6b-charge-c` pinned to the preview.157 suite), the purity proof, then
+C6B-CHARGE-RT, C6B-PATH-RT, C6B-PATH-TB, CHARGE-SAFETY-RT and CHARGE-SAFETY-TB as fresh isolated restored
+transactions. Nothing merges to main; no release, tag or HUMAN PLAY claim; 6B.2 is not qualified until its
+remaining refusal and interruption rows pass.

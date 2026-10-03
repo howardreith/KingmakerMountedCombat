@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Integration
         HandledRejected
     }
 
-    internal sealed class MountedCombatController : IDisposable
+    internal sealed partial class MountedCombatController : IDisposable
     {
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;

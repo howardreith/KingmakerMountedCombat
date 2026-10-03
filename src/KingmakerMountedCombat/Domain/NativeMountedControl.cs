@@ -8,7 +8,8 @@ namespace KingmakerMountedCombat.Domain
         MountCompanion,
         Dismount,
         RiderPrimary,
-        MountPrimary
+        MountPrimary,
+        MountedCharge
     }
 
     public sealed class NativeMountedControlAvailability
@@ -163,7 +164,8 @@ namespace KingmakerMountedCombat.Domain
             bool relationshipMounted,
             bool relationshipFaulted,
             bool unitIsRider,
-            bool unitIsMount)
+            bool unitIsMount,
+            bool mountedChargeEnabled = false)
         {
             // The escape hatch, and it comes before every feature gate. One typed
             // decision, shared by leasing, availability, targeting and delivery.
@@ -201,6 +203,13 @@ namespace KingmakerMountedCombat.Domain
                 }
 
                 return unitIsRider || unitIsMount;
+            }
+
+            if (kind == NativeMountedControlKind.MountedCharge)
+            {
+                // Chunk 6B: the pair-owned charge is default-off until qualified, so the control is not leased
+                // at all unless its own setting is on, and it belongs to the rider, who owns the native shell.
+                return mountedChargeEnabled && unitIsRider;
             }
 
             return false;

@@ -4942,31 +4942,61 @@ try {
         $productionSource = @($productionFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         # Native identity inspection and safe refusal are authorized in Chunk 4.
-        # This scope guard still forbids manufacturing Charge execution/state;
-        # the new native scenarios, not this source inventory, qualify behavior.
-        # Chunk 6B (owner decision of 2026-10-02, section F; mission disposition PROCEED - BOUNDED): the one
-        # diagnostics-only measurement, Diagnostics\Chunk6bChargePathScenario.cs, raises the mount agent's
-        # charging flag exactly once under a restored diagnostic lease. It is the only file allowed to, it
-        # may not create a charge ability, attack flag, buff, charging state or attack, and every other
-        # file stays charge-free. The stock Charge remains rejected while mounted (Chunk 4 protocol).
-        $measurementFiles = @($productionFiles | Where-Object { $_.Name -ceq 'Chunk6bChargePathScenario.cs' })
-        Assert-Test ($measurementFiles.Count -eq 1 -and $measurementFiles[0].DirectoryName.EndsWith('\Diagnostics', [StringComparison]::Ordinal)) 'the Chunk 6B measurement file is not exactly one diagnostics file'
-        $measurementSource = [IO.File]::ReadAllText($measurementFiles[0].FullName)
-        $chargeFreeSource = @($productionFiles | Where-Object { $_.Name -cne 'Chunk6bChargePathScenario.cs' } | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        # Chunk 6B increment 6B.2 (owner decision of 2026-10-02, section F; mission disposition
+        # PROCEED - BOUNDED) implements the pair-owned charge, so this guard no longer asserts that no charge
+        # surface exists. It asserts the three things that still must hold: the charge surface lives only in
+        # its own dedicated files, the feature is default-off, and the stock charge is never constructed,
+        # patched or replaced. Behaviour is qualified by the native charge rows, never by this inventory.
+        $leaseFiles = @($productionFiles | Where-Object { $_.Name -ceq 'MountedChargeLease.cs' })
+        $pathFiles = @($productionFiles | Where-Object { $_.Name -ceq 'Chunk6bChargePathScenario.cs' })
+        Assert-Test ($leaseFiles.Count -eq 1 -and $leaseFiles[0].DirectoryName.EndsWith('\Integration', [StringComparison]::Ordinal) -and
+            $pathFiles.Count -eq 1 -and $pathFiles[0].DirectoryName.EndsWith('\Diagnostics', [StringComparison]::Ordinal)) 'the Chunk 6B charge lease and measurement files are not exactly one each'
+        $leaseSource = [IO.File]::ReadAllText($leaseFiles[0].FullName)
+        $pathSource = [IO.File]::ReadAllText($pathFiles[0].FullName)
+        $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $settingsSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs'))
+        $leasePolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\NativeMountedControl.cs'))
+        $safetySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs'))
+        # The stock charge component is never constructed, patched or replaced.
         Assert-Test (-not $productionSource.Contains('new AbilityCustomCharge') -and
-            -not $productionSource.Contains('IsCharge = true') -and
-            -not $productionSource.Contains('ChargeBuff') -and
-            -not $chargeFreeSource.Contains('IsCharging = true') -and
             -not $patchSource.Contains('PatchExact(typeof(UnitAttack), "set_IsCharge"') -and
-            -not $patchSource.Contains('PatchExact(typeof(AbilityCustomCharge)')) `
-            'production enables a charge surface or patches stock charge ownership despite the default-off stretch disposition'
-        Assert-Test (([regex]::Matches($measurementSource, 'IsCharging = true')).Count -eq 1 -and
-            $measurementSource.Contains('agent.IsCharging = true; chunk6bChargingApplied = true;') -and
-            $measurementSource.Contains('if (chunk6bChargingApplied) { agent.IsCharging = false; chunk6bChargingApplied = false; }') -and
-            $measurementSource.Contains('["chargingRestored"] = agent.IsCharging == chunk6bChargingBefore,') -and
-            -not $measurementSource.Contains('State.IsCharging = ') -and
-            -not $measurementSource.Contains('new UnitAttack(')) `
-            'the Chunk 6B measurement raises the charging flag other than once on the mount agent under its restored lease, or manufactures charge state or an attack'
+            -not $patchSource.Contains('PatchExact(typeof(AbilityCustomCharge)') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitAttack), "set_IsFullAttack"')) `
+            'production constructs or patches stock charge ownership'
+        # The stock Charge stays rejected while mounted, keyed on the exact stock blueprint and component.
+        Assert-Test ($safetySource.Contains('ChargeBlueprintId = "c78506dd0e14f7c45a599990e4e65038"') -and
+            $safetySource.Contains('exactNativeChargeLogic') -and
+            $safetySource.Contains('state == RelationshipState.Mounted && belongsToPair')) `
+            'the Chunk 4 mounted stock-Charge rejection changed'
+        # The native charge rule flag is stamped in exactly one place, the qualified pair transaction, and only
+        # in charge mode.
+        $chargeFlagFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'IsCharge = true')).Count -gt 0 } | ForEach-Object Name)
+        Assert-Test ((@($chargeFlagFiles) -join '|') -ceq 'MountedPairAttackCommand.cs' -and
+            ([regex]::Matches($commandSource, 'IsCharge = true')).Count -eq 1 -and
+            $commandSource.Contains('if (chargeMode)') -and
+            $commandSource.Contains('chargeLease.Restore();')) `
+            'the native charge rule flag is stamped outside the one charge-mode pair transaction'
+        # The charge buff and the charging state live only in the charge lease; the diagnostics measurement may
+        # raise the mount agent flag once under its own restored lease and nothing else.
+        $buffFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'ChargeBuff')).Count -gt 0 } | ForEach-Object Name)
+        $chargingFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'IsCharging = true')).Count -gt 0 } | ForEach-Object Name | Sort-Object)
+        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeScenario.cs|MountedChargeLease.cs' -and
+            (@($chargingFiles) -join '|') -ceq 'Chunk6bChargePathScenario.cs|MountedChargeLease.cs' -and
+            ([regex]::Matches($leaseSource, 'IsCharging = true')).Count -eq 2 -and
+            ([regex]::Matches($pathSource, 'IsCharging = true')).Count -eq 1) `
+            'charge buff or charging state is written outside the charge lease and its measurement'
+        # The lease restores exactly what it set and refunds nothing.
+        Assert-Test ($leaseSource.Contains('agent.IsCharging = chargingBefore;') -and
+            $leaseSource.Contains('agent.MaxSpeedOverride = speedOverrideBefore;') -and
+            $leaseSource.Contains('rider.Descriptor.State.IsCharging = riderChargingBefore;') -and
+            -not $leaseSource.Contains('Cooldown.StandardAction =') -and
+            -not $leaseSource.Contains('Cooldown.MoveAction =')) `
+            'the Chunk 6B charge lease does not restore exactly, or writes a native cooldown'
+        # Default-off: the setting is never initialized true and the control is not leased without it.
+        Assert-Test (-not $settingsSource.Contains('EnableMountedCharge = true') -and
+            $settingsSource.Contains('public bool EnableMountedCharge { get; set; }') -and
+            $leasePolicySource.Contains('return mountedChargeEnabled && unitIsRider;')) `
+            'the Chunk 6B charge is not default-off behind its own setting'
     }
 
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
@@ -12728,7 +12758,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6bCharge ? 34 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
