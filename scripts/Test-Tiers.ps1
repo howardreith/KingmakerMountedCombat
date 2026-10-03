@@ -69,7 +69,7 @@ if ($Tier -ceq 'Full') {
     foreach ($testScript in $focusedScripts) { Invoke-Tiered ('FOCUSED ' + $testScript) { Invoke-TestScript $testScript } }
     if ($Tier -ceq 'Candidate') {
         $candidate = @('Test-Harness.ps1','Test-AssemblyContracts.ps1','Test-PairedActivationContracts.ps1','Test-RuntimeArtifactManifestContract.ps1',
-            'Test-Chunk6aSupportingEvidence.ps1','Test-Chunk6aRegressionReader.ps1','Test-Chunk6aRegressionArchives.ps1','Test-Chunk6aRegressionLedger.ps1','Test-Chunk6aLedgerProtocol.ps1')
+            'Test-Chunk6aSupportingEvidence.ps1','Test-Chunk6aRegressionReader.ps1','Test-Chunk6aRegressionArchives.ps1','Test-Chunk6aRegressionLedger.ps1','Test-Chunk6aLedgerProtocol.ps1','Test-Chunk6aFoundationEvidence.ps1')
         foreach ($testScript in $candidate) { Invoke-Tiered ('CANDIDATE ' + $testScript) { Invoke-TestScript $testScript } }
         if (-not [string]::IsNullOrWhiteSpace($LabRoot)) {
             Invoke-Tiered 'CANDIDATE Test-Chunk6aImmutableReplay.ps1' { Invoke-TestScript 'Test-Chunk6aImmutableReplay.ps1' @('-LabRoot',$LabRoot) }

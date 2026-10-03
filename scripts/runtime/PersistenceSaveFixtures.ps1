@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
 
 # Bounded P01 archive intake. The source must be the exact completed archive
 # from another restored owned process; no gameplay state is taken from evidence.
@@ -6,7 +7,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
@@ -31,7 +32,7 @@ function Get-KmcPersistenceSource {
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
-        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
+        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
     }elseif($NativeCase-cin @('condition','condition-preparing','suspended')){
         if($owner.scenario-cne'persistence-p03-save'-or$owner.persistenceCase-cne$NativeCase){throw 'P03 condition source case differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P03/P04/P05 source.'}
@@ -110,6 +111,7 @@ function Assert-KmcP02Snapshot {
         'between-partner-orders' { -not$r-and$m-and$Snapshot.Mount.Move-ge3 }
         'exhausted' { $r-and$m-and$Snapshot.Mount.Move-ge3 }
         'explicit-end' { $r-and$m-and$c.Paired.Activation.Ending-eq$true }
+        'combat-mount-tb' { -not$r-and-not$m }
         default { $false }
     }
     if(-not$valid-or($Checkpoint-cne'explicit-end'-and($null-eq$c.Current-or$c.Current.ActorId-cne$Snapshot.Rider.Id))){
@@ -311,6 +313,8 @@ function Assert-KmcRealtimeColdSource {
         Assert-KmcApproachColdOutcome $sourceRows $coldRows
     }elseif($Request.persistenceCase.EndsWith('-casting',[StringComparison]::Ordinal)){
         Assert-KmcCastingColdOutcome $sourceRows $coldRows
+    }elseif(Test-KmcChunk6aFoundationCase ([string]$Request.persistenceCase)){
+        Assert-KmcChunk6aFoundationColdOutcome $sourceRows $coldRows
     }else{Assert-KmcProjectileColdOutcome $sourceRows $coldRows}
 }
 
@@ -468,6 +472,11 @@ function Assert-KmcPersistenceScenarioEvidence {
     $eligibilitySave=$Request.scenario-ceq'persistence-p07-save'-and$hasCase-and$Request.persistenceCase-ceq'rider-size-change'
     $eligibilityCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-ceq'rider-size-change'
     $campaignBCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-ceq'campaign-b'
+    # The Chunk 6A foundation checkpoints have their own complete external reader (one acceptance authority).
+    if($hasCase-and(Test-KmcChunk6aFoundationCase ([string]$Request.persistenceCase))){
+        Assert-KmcChunk6aFoundationPersistenceEvidence $Request $rows $GameResult
+        return
+    }
     if($rows.Count-lt$(if($deathCold-or$eligibilityCold){2}elseif($absentKmc-or$campaignBCold){4}else{6})-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
     if($Request.scenario-ceq'persistence-p06-load'){
         Assert-KmcValidationPersistenceEvidence $Request $rows $GameResult

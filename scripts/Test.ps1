@@ -53,6 +53,8 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aInputRegistration.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aFoundationEvidence.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 foreach($inputCase in @('Stop','Hotbar')) {
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6aInputWrappers.ps1') -Case $inputCase -Configuration $Configuration
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

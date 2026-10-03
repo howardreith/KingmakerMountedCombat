@@ -345,6 +345,9 @@
     <Compile Include="Diagnostics\SustainedRoutineProgress.cs" />
     <Compile Include="Diagnostics\Chunk6aCausalEvidence.cs" />
     <Compile Include="Diagnostics\Chunk6aStopApproachScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6aLifecycleBoundaryScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6aMountLiveWindow.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceFoundationScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aReplacementApproachScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aRepeatedRequestScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aOwnershipChangeScenario.cs" />

@@ -42,6 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject CombatObservation() => new JObject
         {
             ["checkpoint"] = Checkpoint,
+            ["foundation"] = FoundationObservation(),
             ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
             ["current"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit.UniqueId,
             ["turn"] = Game.Instance.TurnBasedCombatController.CurrentTurn == null ? null :
@@ -103,7 +104,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         combat.PairedActivationIdentity == data.Combat.Paired.Activation.EncounterId + ":" +
                             data.Combat.Paired.Activation.Sequence, "P02-same-round-boundary-and-grant");
                     ValidateCheckpoint(data);
-                    if (Checkpoint != "explicit-end" && !ReactionCase && !SuspendedCase)
+                    if (FoundationCombatMount)
+                        Check((data.Combat.Paired?.Partner == null) == (combat.PairedPartnerContext == null),
+                            "P02-combat-mount-tb-partner-context-restored-as-saved");
+                    else if (Checkpoint != "explicit-end" && !ReactionCase && !SuspendedCase)
                     {
                         var movement = data.Combat.Allocations.Single(a => a.ActorId == mount.UniqueId).Movement;
                         Check(combat.PairedPartnerContext != null &&
@@ -120,7 +124,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     controls.Update(); beforeControls = controls.CaptureSnapshot();
                     Check(beforeControls.ExactFactCount == 3 && beforeControls.DuplicateFactCount == 0 &&
                         beforeControls.ManagedHotbarSlotCount == data.Slots.Length, "P02-cold-controls-once");
-                    Write(ValidationCombatCase ? "validation-combat-retry-initial" : "initial", CombatObservation());
+                    var initialObservation = CombatObservation();
+                    if (FoundationCombatMount) initialObservation["snapshot"] = JObject.FromObject(data, MountedSaveCodec.CreateSerializer());
+                    Write(ValidationCombatCase ? "validation-combat-retry-initial" : "initial", initialObservation);
                     if (HasRoundEffectFixture) ObserveColdRoundEffects();
                     if (ReactionCase) ObserveColdReaction();
                     ContinueSavedCheckpoint(); return;
@@ -129,9 +135,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!relationship.TryResolveAutomationPair(out selectedRider, out selectedMount, out error))
                     throw new InvalidOperationException(error);
                 rider = selectedRider; mount = selectedMount;
-                Check(!game.Player.IsInCombat && relationship.MountRiderOn(rider, mount).Succeeded,
-                    "P02-mounted-before-native-combat");
-                controls.Update(); BindOwnedControlSlots(); beforeControls = controls.CaptureSnapshot();
+                if (FoundationCombatMount)
+                {
+                    Check(!game.Player.IsInCombat && relationship.State == RelationshipState.Unmounted,
+                        "P02-unmounted-before-native-combat-mount");
+                    controls.Update(); beforeControls = controls.CaptureSnapshot();
+                }
+                else
+                {
+                    Check(!game.Player.IsInCombat && relationship.MountRiderOn(rider, mount).Succeeded,
+                        "P02-mounted-before-native-combat");
+                    controls.Update(); BindOwnedControlSlots(); beforeControls = controls.CaptureSnapshot();
+                }
                 if (HasRoundEffectFixture) InstallRoundEffects();
                 if (SuspendedCase) InstallDelayFixture();
                 targetService = new DiagnosticCombatTargetService(logger);
@@ -146,6 +161,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turn == null || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
                 if (turn.Unit != rider) { EndFixtureTurn(turn); return; }
                 if (!PairIdle) return;
+                if (FoundationCombatMount) { BeginFoundationActingEntry(turn); return; }
                 Check(CombatController.IsInTurnBasedCombat() && combat.PairedPartnerContext != null &&
                     rider.CombatState.Cooldown.StandardAction == 0 && mount.CombatState.Cooldown.MoveAction == 0,
                     "P02-fresh-native-paired-boundary");
@@ -178,6 +194,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else { BeginCombatAttack(rider, "setup-rider-attack"); stage = 20; }
                 return;
             }
+            if (stage >= 50 && stage <= 52) { AdvanceFoundationTurn(turn); return; }
             if (stage == 20 || stage == 21)
             {
                 if (!FinishCombatAttack()) return;
@@ -319,6 +336,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var saved = data.Combat;
             Check(saved?.Paired?.Activation != null && saved.Round >= 1 && saved.Paired.Activation.Sequence >= 1,
                 "P02-snapshot-has-native-round-and-participation");
+            if (FoundationCombatMount)
+            {
+                Check(data.Mounted && saved.Current?.ActorId == data.Rider.Id && data.Rider.Move > 0,
+                    "P02-actual-snapshot-matches-combat-mount-tb");
+                return;
+            }
             if (SuspendedCase) { ValidateSuspendedCheckpoint(data); return; }
             var riderSpent = data.Rider.Standard > 0;
             var mountSpent = data.Mount.Standard > 0;
@@ -375,6 +398,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (CommitmentCase) { ContinueCommitment(); return; }
             if (RoundEffectCase) { ContinueRoundEffects(); return; }
             if (ReactionCase) { ContinueReaction(); return; }
+            if (FoundationCombatMount) { BeginCombatAttack(rider, "attack"); stage = 8; return; }
             if (Checkpoint == "explicit-end") { stage = 32; return; }
             if (Checkpoint == "partial-movement" || Checkpoint == "rider-spent") { stage = 6; return; }
             BeginRejectedWork();

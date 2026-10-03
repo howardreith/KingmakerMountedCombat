@@ -23,7 +23,7 @@ namespace KingmakerMountedCombat.Diagnostics
         // Read-only origin-side measurements for a route trace that ends at its own origin: the
         // navmesh's own view of the origin, traces from nudged and deepened origins, and the
         // mover's native agent state. Recorded so that a repair, if any, follows measurements.
-        private static JObject MeasureOrigin(UnitEntityData mover, Vector3 origin, Vector3 point)
+        internal static JObject MeasureOrigin(UnitEntityData mover, Vector3 origin, Vector3 point)
         {
             var nudged = new JArray();
             foreach (var step in new[] { 0.15f, 0.3f })

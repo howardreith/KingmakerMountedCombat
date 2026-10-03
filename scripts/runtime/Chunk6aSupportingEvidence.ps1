@@ -2,6 +2,8 @@
 . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
 
 . (Join-Path $PSScriptRoot 'LegacyCombatProjectionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
 # Fixed same-candidate supporting-run contract for Chunk 6A qualification.
 # Original KMC ledger validation; reads only project-owned settled evidence.
 Set-StrictMode -Version Latest
@@ -20,7 +22,7 @@ function Get-KmcBoundJson([string]$Path,[string]$ExpectedSha256) {
 # binding is validated. Nothing is inferred: a native failure, a harness failure or any error
 # outside the dedicated readers is never re-evaluated.
 function Test-KmcExternalReaderRefusal([string]$Message) {
-    [string]$Message -cmatch '^(Action economy|Child entry preamble|Additional Chunk6A binding differs): '
+    [string]$Message -cmatch '^(Action economy|Child entry preamble|Additional Chunk6A binding differs|Chunk 6A foundation): '
 }
 function Get-KmcChunk6aReevaluation($Result,$Game,[string]$RepoRoot) {
     if([string]$Game.status -cne 'PASS' -or [int]$Game.assertionFailCount -ne 0 -or @($Game.errors).Count -ne 0) { return $null }
@@ -41,10 +43,13 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     $reevaluation=if($null -ne $Binding.PSObject.Properties['reevaluation']){$Binding.reevaluation}else{$null}
     $area=[string]$Binding.scenario -ceq 'chunk4-area-cleanup'
     $legacy=[string]$Binding.scenario -ceq 'mounted-mammoth-primary-hit-tb'
+    $foundation=Test-KmcChunk6aFoundationScenario ([string]$Binding.scenario)
     if($legacy) {
         if([string]$Binding.evidenceLeaf -cne 'combat-scenario-evidence.jsonl' -or @($Binding.rows).Count -ne 1 -or [string]$Binding.rows[0] -cne 'mounted-mammoth-primary-hit-tb') { throw 'Legacy Mammoth requires its exact scenario, JSONL leaf and row.' }
     } elseif($area) {
         if($Binding.evidenceLeaf-cne'boundary-scenario-evidence.jsonl'-or@($Binding.rows).Count-ne1-or$Binding.rows[0]-cne'native-area-clean-dismount'){throw 'Area requires exact scenario, JSONL and native row'}
+    } elseif($foundation) {
+        if($Binding.evidenceLeaf-cne'persistence-observations.jsonl'-or@($Binding.rows).Count-ne1){throw 'Foundation persistence requires the exact scenario, JSONL leaf and one row'}
     } elseif([string]$Binding.evidenceLeaf -cnotmatch '^[A-Za-z0-9._-]+\.json$') { throw 'Evidence must name one JSON leaf.' }
     $root=Join-Path $LabRoot ('runtime-evidence/'+$run)
     $result=Get-KmcBoundJson (Join-Path $root 'runtime-result.json') $Binding.resultSha256
@@ -52,7 +57,7 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $Binding.requestSha256
     $orchestration=Get-KmcBoundJson (Join-Path $root 'orchestration.json') $Binding.orchestrationSha256
     $transaction=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-state/run-transactions/'+$run+'.json')) $Binding.transactionSha256
-    $artifact=if($legacy){Get-KmcLegacyCombatProjection $Binding $request $game $result $root}elseif($area){Get-KmcAreaRegressionProjection $Binding $request $game $result $root}else{Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256}
+    $artifact=if($legacy){Get-KmcLegacyCombatProjection $Binding $request $game $result $root}elseif($area){Get-KmcAreaRegressionProjection $Binding $request $game $result $root}elseif($foundation){Get-KmcChunk6aFoundationProjection $Binding $request $game $result $root}else{Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256}
     foreach($item in @($result,$game,$request)) {
         if([string]$item.runId -cne $run -or [string]$item.scenario -cne [string]$Binding.scenario) { throw 'Supporting run or scenario differs.' }
         if([string]$item.commit -cne [string]$Payload.commit -or [string]$item.branch -cne [string]$Payload.branch -or
@@ -106,8 +111,9 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     if($null -ne $reevaluation) {
         # The complete scenario validator must accept the immutable bytes under the current readers.
         . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
-        if([string]$Binding.evidenceLeaf -cne 'phase3d-horse-scenario-evidence.json') { throw 'Re-evaluation is defined only for Phase 3D Horse artifacts.' }
-        Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS'
+        if([string]$Binding.evidenceLeaf -ceq 'phase3d-horse-scenario-evidence.json') { Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS' }
+        elseif(-not $foundation) { throw 'Re-evaluation is defined only for Phase 3D Horse artifacts and foundation persistence projections.' }
+        # A foundation persistence projection already re-ran the complete persistence validator above.
     }
     $rows=@($Binding.rows)
     if($rows.Count -lt 1 -or @($rows | Select-Object -Unique).Count -ne $rows.Count) { throw 'Supporting rows must be nonempty and unique.' }
@@ -195,7 +201,7 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
     if($RunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid supporting run ID.' }
     $root=Join-Path $LabRoot ('runtime-evidence/'+$RunId)
     $result=Get-Content -Raw (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
-    $leaf=if($result.scenario -ceq 'chunk4-area-cleanup'){'boundary-scenario-evidence.jsonl'}elseif($result.scenario -ceq 'mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'}
+    $leaf=if($result.scenario -ceq 'chunk4-area-cleanup'){'boundary-scenario-evidence.jsonl'}elseif($result.scenario -ceq 'mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}elseif(Test-KmcChunk6aFoundationScenario ([string]$result.scenario)){'persistence-observations.jsonl'}else{'phase3d-horse-scenario-evidence.json'}
     $game=Get-Content -Raw (Join-Path $root 'runtime-game-result.json')|ConvertFrom-Json
     $reevaluation=Get-KmcChunk6aReevaluation $result $game ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')))
     $binding=[ordered]@{role=$Role;runId=$RunId;scenario=$result.scenario;passCount=$(if($null -ne $reevaluation){$game.assertionPassCount}else{$result.assertionPassCount});failCount=$(if($null -ne $reevaluation){0}else{$result.assertionFailCount});
@@ -206,7 +212,7 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
         $binding[$pair[0]]=(Get-FileHash -LiteralPath (Join-Path $root $pair[1]) -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     $binding['transactionSha256']=(Get-FileHash -LiteralPath (Join-Path $LabRoot ('runtime-state/run-transactions/'+$RunId+'.json')) -Algorithm SHA256).Hash.ToLowerInvariant()
-    if($result.scenario -cin @('mounted-mammoth-primary-hit-tb','chunk4-area-cleanup')) {
+    if($result.scenario -cin @('mounted-mammoth-primary-hit-tb','chunk4-area-cleanup') -or (Test-KmcChunk6aFoundationScenario ([string]$result.scenario))) {
         $binding['artifactManifestSha256']=(Get-FileHash -LiteralPath (Join-Path $root 'runtime-artifacts.json')).Hash.ToLowerInvariant()
     }
     if($result.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb')) {
@@ -246,6 +252,14 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM05-after-rider-expenditure'=@('chunk6a-dismount-after-rider-expenditure-tb','CM05-after-rider-expenditure')
         'CM05-after-mount-expenditure'=@('chunk6a-dismount-after-mount-expenditure-tb','CM05-after-mount-expenditure')
         'CM05-immediately-after-mount'=@('chunk6a-dismount-immediately-after-mount-tb','CM05-immediately-after-mount')
+        'CM04-combat-end'=@('chunk6a-combat-end-approach','CM04-combat-end')
+        'CM04-disable-unload'=@('chunk6a-disable-approach','CM04-disable-unload')
+        'CM07-mount-save-rt'=@('persistence-p04-save','P04-save-combat-mount-rt')
+        'CM07-mount-load-rt'=@('persistence-p04-load','P04-load-combat-mount-rt')
+        'CM07-dismount-save'=@('persistence-p04-save','P04-save-combat-dismount-rt')
+        'CM07-dismount-load'=@('persistence-p04-load','P04-load-combat-dismount-rt')
+        'CM07-mount-save-tb'=@('persistence-p02-save','P02-save-combat-mount-tb')
+        'CM07-mount-load-tb'=@('persistence-p02-load','P02-load-combat-mount-tb')
     }
     if(-not $requirements.ContainsKey($Id)){return $false}
     $required=$requirements[$Id]
@@ -263,6 +277,12 @@ function Assert-KmcIsolatedQualification([string]$Id,$Binding,[string]$LabRoot) 
         $game=Get-KmcBoundJson (Join-Path $root 'runtime-game-result.json') $Binding.gameResultSha256
         $result=Get-KmcBoundJson (Join-Path $root 'runtime-result.json') $Binding.resultSha256
         $null=Get-KmcLegacyCombatProjection $Binding $request $game $result $root
+        return
+    }
+    if($Id -clike 'CM07-*') {
+        # The complete persistence validator already ran inside the supporting-run projection;
+        # the isolated step binds the id to its exact scenario and checkpoint.
+        Assert-KmcChunk6aFoundationIsolated $Id $Binding $LabRoot
         return
     }
     . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')

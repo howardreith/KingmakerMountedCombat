@@ -465,7 +465,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aRepeatedRequestDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aEligibilityDeadline() && !CaptureChunk6aObstructionDeadline())
+                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aLifecycleBoundaryDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aRepeatedRequestDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aEligibilityDeadline() && !CaptureChunk6aObstructionDeadline())
                         FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
@@ -6150,6 +6150,8 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 6A replacement input observer", exception); }
             try { CleanupChunk6aStopInput(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A Stop input observer", exception); }
+            try { CleanupChunk6aLifecycleBoundary(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A lifecycle boundary services", exception); }
             try { CleanupChunk6aObstruction(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A obstruction fixture", exception); }
             try { Chunk6aDisposeAdoptionFault(); }

@@ -558,6 +558,9 @@ namespace KingmakerMountedCombat.Integration
         // expected to observe; it is queried instead of argued away.
         internal bool HasUnsettledRelationshipTransition => playerAction.HasVoluntaryTransitionInFlight;
 
+        // Read-only counters of the voluntary transition ledger, for persistence observations.
+        internal MountedTransitionLedger RelationshipTransitionLedger => playerAction.TransitionLedger;
+
         internal string DescribeRelationshipTransitionSettlement() =>
             "ledgerInFlight=" + playerAction.HasVoluntaryTransitionInFlight +
             ";inFlightControl=" + (playerAction.TransitionLedger.InFlightControlIdentity ?? "<none>") +

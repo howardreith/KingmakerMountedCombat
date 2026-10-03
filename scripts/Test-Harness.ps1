@@ -5375,7 +5375,7 @@ try {
     Invoke-HarnessTest 'P04 requires an explicit RT case and exact owned cold descriptor' {
         try{
             $f=$v2Request.fixture.working
-            foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){
+            foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt')){
                 $v2Request.scenario='persistence-p04-save';$v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
@@ -5776,7 +5776,7 @@ try {
     Invoke-HarnessTest 'P02 checkpoints are bounded parameters and do not relax fixture authority' {
         try {
             $v2Request.scenario='persistence-p02-save'
-            foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end')){
+            foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb')){
                 $v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath

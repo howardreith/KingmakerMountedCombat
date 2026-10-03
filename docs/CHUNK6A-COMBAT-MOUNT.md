@@ -1525,3 +1525,81 @@ CM08-ordinary-attack-controls-tb (after the child entry and 13 of 21 subscenario
 movement did not reach legal adjacency). The next candidate adds the measurements the retained analyses
 name and the five lifecycle/persistence foundation cases; neither preview.150 nor preview.151 is accepted,
 released, fully qualified or HUMAN PLAY approved.
+
+## Preview.152: the five foundation cases and the retained-failure measurements (2026-10-03)
+
+The owner decision of 2026-10-02 (section D) asks for a minimal foundation floor before 6B on the
+existing Chunk 5 persistence and isolation machinery, with no new persistence framework. Source152
+adds exactly that, under the same one-acceptance-authority rule as preview.151: the compiled
+scenarios perform the native inputs, record facts and check structure; the only acceptance
+authority for the new cases is `scripts/runtime/Chunk6aFoundationEvidence.ps1`.
+
+### Persistence on the Chunk 5 machinery (CM07)
+
+Three checkpoints join the Chunk 5 scenarios (`RuntimePersistenceFoundationScenario.cs`), each
+saved through the unchanged owned manual archive `KMC_P01` and reopened cold in a fresh process
+through the unchanged P04/P02 cold paths:
+
+- `persistence-p04-save/load` checkpoint `combat-mount-rt`: real-time combat, the pair unmounted,
+  the registered Mount click on the horse through `SelectedAbilityHandler`, a ten-frame settlement
+  (relationship Mounted, both actors idle, no transition in flight), the hotbar binding, the save,
+  then one ordinary rider attack and the shared real-time cooldown continuation.
+- `persistence-p04-save/load` checkpoint `combat-dismount-rt`: the pair mounted before combat, the
+  registered Dismount click on the rider, settlement to two separate actors, the save, the same
+  continuation. The archive records no pair and the cold process must restore none.
+- `persistence-p02-save/load` checkpoint `combat-mount-tb`: turn-based combat, a short ordinary
+  rider ground order that enters Acting, the Mount click on the rider's own Acting turn,
+  settlement with the adopted paired activation, the save at that committed boundary, then the
+  rider attack and two later paired activations.
+
+Every row carries a `foundation` observation (relationship generation, the voluntary transition
+ledger counters, cast and dispatch counters, paired identity and adoption count, in-flight state)
+and the click and settled rows carry the actor debt before and after. The reader requires exactly
+one admitted click, one accepted transition, the generation advanced exactly once for a Mount and
+never for a Dismount, the rider's Move charged by the engine's own shell (exactly +3 in turn-based
+combat; within one Move in real time) and nothing else raised, the archive relationship and mode,
+the staged archive bytes, and on the cold side no cast, no admitted or accepted transition, no
+adoption and a constant generation across the whole process. The ledger projects one row per
+process (`P04-save-combat-mount-rt`, `P04-load-combat-mount-rt`, `P04-save-combat-dismount-rt`,
+`P04-load-combat-dismount-rt`, `P02-save-combat-mount-tb`, `P02-load-combat-mount-tb`), and a
+cold-load entry names its source save entry (`sourceEntry`) whose byte-exact write it opened
+(`Assert-KmcChunk6aFoundationLedgerPairing`). Mandatory ids: CM07-mount-save-rt,
+CM07-mount-load-rt, CM07-dismount-save, CM07-dismount-load, CM07-mount-save-tb, CM07-mount-load-tb.
+
+### Lifecycle boundaries during the exact Mount approach (CM04)
+
+`chunk6a-combat-end-approach` (CM04-combat-end) and `chunk6a-disable-approach` (CM04-disable-unload)
+share the stop-approach shape (`Chunk6aLifecycleBoundaryScenario.cs`): a non-adjacent Mount click,
+a measured approach with the shell still pending and unacted, then the boundary. For combat end
+the one enemy leaves and is removed natively and the party leaves combat on Kingmaker's own clock.
+For disable the exact registered UMM toggle disables the feature and, after the terminal and a
+ten-frame settlement, re-enables it. The scenario records the terminal, the ledger and counter
+deltas, the allocation events, the interrupts and the settled state; the reader accepts exactly
+one lawful outcome shape (an unacted Interrupt or Fail with no cost, transition or dispatch; a
+compensated attach with one refusal and one detach; or, for combat end only, a Mount delivered out
+of combat without an adoption) with no residue, no native preparation and no raised cooldown, and
+for disable the services returned exactly once without a pair or a fresh cast. The registered
+unload delegate is deliberately not invoked: outside a live owned write it disposes the
+composition root, and its refusal during such a write is the Chunk 5 P07-disable-reenable
+observation that the CM08-disable-removal-readiness composite binds.
+
+### Measurements for the two retained preview.151 failures
+
+- The allocation trace records `command-interrupt-before` and `command-interrupt-after` on
+  `UnitCommand.Interrupt` (token 0x060027AC, the one the production interrupt bridge uses) for the
+  rider and the mount, with the managed caller chain in the detail.
+- `chunk6aMountLiveWindow` samples, per frame while the exact Mount shell is live, the rider's
+  `HasMoveAction`, `IsMoveActionRestricted`, `UsedStandardAction`, cooldowns, the turn movement
+  limit and remaining native time, the shell state and the pair distance.
+- The ordinary-controls setup records `route` at dispatch (navmesh trace end and residual, origin
+  measurements, destination node, footprint, agent state) and `arrival` at the end (destination
+  residual, target distance, command result, agent state, blockers).
+
+Offline proof on source152: FOUNDATION READER 161/0 (`scripts/Test-Chunk6aFoundationEvidence.ps1`,
+synthetic acceptance and refusal of all six persistence processes, both lifecycle boundaries, the
+projection, the isolated mapping and the cold-load pairing), ISOLATED INPUT REGISTRATION 68/0,
+PRIMARY CLAIM CONTRACT 7117/0, PERSISTENCE OWNED FIXTURE 630/0, ACTION ECONOMY 715/0, component
+tests 555/0, Validate-Source 129/0. Nothing here is a native observation; the campaign plan is
+CANDIDATE once, one purity proof, then the two retained cases, the unmounted-controls partner
+role, the two lifecycle boundaries and the six persistence processes (each load after its own
+save PASS). Preview.152 is not accepted, released, fully qualified or HUMAN PLAY approved.

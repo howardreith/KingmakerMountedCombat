@@ -44,6 +44,8 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(scenario, Chunk6aHotbarScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aStopApproachScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aCombatEndApproachScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6aDisableApproachScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aReplacementApproachScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aRepeatedRequestScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aOwnershipChangeScenario, StringComparison.Ordinal) ||
@@ -737,7 +739,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : Chunk6aRiderExhaustOnly ? 50 : 13;
+                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aCombatEndOnly ? 70 : Chunk6aDisableOnly ? 72 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : Chunk6aRiderExhaustOnly ? 50 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -921,6 +923,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aStage >= 40 && chunk6aStage <= 42) { TickChunk6aLostDirectControl(); return; }
             if (chunk6aStage == 43 || chunk6aStage == 44) { TickChunk6aPendingIncapacity(); return; }
             if (chunk6aStage == 22 || chunk6aStage == 23) { TickChunk6aStopApproach(); return; }
+            if (chunk6aStage >= 70 && chunk6aStage <= 74) { TickChunk6aLifecycleBoundary(); return; }
             if (chunk6aStage == 16 || chunk6aStage == 17)
             {
                 TickChunk6aGeometryChange();
@@ -1034,6 +1037,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (approachSlot != null &&
                     ReferenceEquals(approachSlot.Spell?.Blueprint, nativeControls.MountAbility))
                 {
+                    SampleChunk6aMountLiveWindow(approachSlot, turn);
                     var approachSample = CaptureChunk6aGeometry(
                         approachSlot.IsActed ? "acted-resource-commitment" : "approach-start");
                     if (approachSlot.IsActed || chunk6aApproachClosed == null)
