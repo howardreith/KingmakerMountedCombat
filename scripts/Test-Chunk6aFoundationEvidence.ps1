@@ -368,6 +368,14 @@ foreach($scenario in @('chunk6a-combat-end-approach','chunk6a-disable-approach')
   MutateCase 'combat never ended' 'unacted-Interrupt' {param($c) $c.combatEnd.PSObject.Properties.Remove('partyLeftCombatFrame')}
   MutateCase 'party still in combat' 'unacted-Interrupt' {param($c) $c.after.partyInCombat=$true}
   MutateCase 'delivered mount adopted an encounter' 'delivered' {param($c) $c.after.adoptionCount=1}
+  # A Mount that delivers while the party is still in combat adopts the running encounter exactly once and the
+  # combat-end cleanup retires it (no activation or partner context in the after observation).
+  $a=New-LifecycleCase $scenario 'delivered';$c=$a.observations.chunk6aLifecycleBoundary;$c.after.adoptionCount=1
+  $c.commandWindow=[pscustomobject]@{samples=@([pscustomobject]@{boundary='deliver';frame=150})};$a.rows[0].evidence=$c
+  Accept ($scenario+' delivered before the party left combat') { Assert-KmcChunk6aLifecycleBoundary $scenario $a }
+  MutateCase 'in-combat delivery after the party left combat' 'delivered' {param($c) $c.after.adoptionCount=1;$c.commandWindow=[pscustomobject]@{samples=@([pscustomobject]@{boundary='deliver';frame=250})}}
+  MutateCase 'in-combat delivery with two adoptions' 'delivered' {param($c) $c.after.adoptionCount=2;$c.commandWindow=[pscustomobject]@{samples=@([pscustomobject]@{boundary='deliver';frame=150})}}
+  MutateCase 'in-combat delivery leaving its activation' 'delivered' {param($c) $c.after.adoptionCount=1;$c.after.pairedIdentity='live-activation';$c.commandWindow=[pscustomobject]@{samples=@([pscustomobject]@{boundary='deliver';frame=150})}}
   MutateCase 'delivered with two transitions' 'delivered' {param($c) $c.ledgerDelta.acceptedMount=2}
   MutateCase 'combat ended before the trigger' 'unacted-Interrupt' {param($c) $c.combatEnd.partyLeftCombatFrame=10}
  } else {

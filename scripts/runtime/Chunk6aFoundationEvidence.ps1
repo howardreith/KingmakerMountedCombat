@@ -356,7 +356,18 @@ function Assert-KmcChunk6aLifecycleBoundary([string]$Scenario,$Artifact) {
   '^delivered$' {
    if($disable){FoundationFail 'a disabled service delivered a Mount'}
    if([string]$after.relationshipState-cne'Mounted'-or$delta.acceptedMount-ne1-or$delta.admittedMount-ne1-or$delta.forcedDetach-ne0-or$delta.refusedVoluntary-ne0-or$Case.generationDelta-ne1-or$Case.dispatchAcceptedDelta-ne1-or[string]$Case.commandWindowKind-cne'positive'){FoundationFail 'the delivered outcome is not exactly one accepted transition'}
-   if($after.partyInCombat-ne$false-or$after.adoptionCount-ne$before.adoptionCount){FoundationFail 'a Mount delivered after combat end adopted an encounter'}
+   # The native encounter ends on the engine's own schedule after the target is gone, and the pending Mount
+   # may deliver on either side of that moment. Delivered after the party left combat: no encounter adoption.
+   # Delivered while the party was still in combat: exactly one real-time adoption at the delivery frame,
+   # retired by the combat-end cleanup (the residue rule above proves no activation or partner context is
+   # left) and never a fresh grant afterwards (preview.155 c6a-foundation155-a-combat-end).
+   if($after.partyInCombat-ne$false){FoundationFail 'the party was still in combat at the boundary observation'}
+   $adoptions=[long]$after.adoptionCount-[long]$before.adoptionCount
+   if($adoptions-eq1-and$combatEnd){
+    $deliver=@(@(FoundationProp (FoundationProp $Case 'commandWindow') 'samples')|Where-Object {$null-ne$_-and[string](FoundationProp $_ 'boundary')-ceq'deliver'})
+    $leftFrame=FoundationProp (FoundationProp $Case 'combatEnd') 'partyLeftCombatFrame'
+    if($deliver.Count-ne1-or$null-eq$leftFrame-or$null-eq(FoundationProp $deliver[0] 'frame')-or[long]$deliver[0].frame-ge[long]$leftFrame){FoundationFail 'a Mount delivered after combat end adopted an encounter'}
+   } elseif($adoptions-ne0){FoundationFail 'a Mount delivered after combat end adopted an encounter'}
   }
   '^acted-not-mounted$' {
    if([string]$after.relationshipState-cne'Unmounted'-or$delta.acceptedMount-ne0-or$delta.admittedMount-ne1-or$delta.refusedVoluntary-ne1-or$delta.forcedDetach-ne1-or$Case.generationDelta-ne1-or$after.compensatedMounts-ne($before.compensatedMounts+1)){FoundationFail 'the compensated outcome is not exactly one compensation'}
