@@ -54,6 +54,14 @@ namespace KingmakerMountedCombat.Domain
 
         public bool RiderHasMoveAction { get; set; }
 
+        // Native turn-based action economy: a unit that has used its Standard action has used its
+        // one Move as soon as any movement is charged (UnitEntityData.HasMoveAction is
+        // !UsedOneMoveAction once UsedStandardAction), so an approach-bearing Move-typed Mount can
+        // never start after a Standard action; only an already adjacent rider may mount then.
+        public bool TurnBasedCombat { get; set; }
+
+        public bool RiderUsedStandardAction { get; set; }
+
         public bool NativeMoveActionShellAdmitted { get; set; }
 
         // A KMC-owned voluntary relationship transition is already in flight. A
@@ -155,6 +163,10 @@ namespace KingmakerMountedCombat.Domain
 
     public static class MountedPlayerActionEvaluator
     {
+        public static string DescribeSpentStandardApproachRefusal(string mountName) =>
+            "The rider spent its Standard action this turn; its remaining Move cannot both approach " +
+            mountName + " and mount, so the pair must already be adjacent.";
+
         public static MountedPlayerActionAvailability Evaluate(MountedPlayerActionContext context)
         {
             if (context == null)
@@ -314,6 +326,14 @@ namespace KingmakerMountedCombat.Domain
                 !context.NativeMoveActionShellAdmitted)
             {
                 reasons.Add("The rider has no Move action available to mount.");
+            }
+            // Refused before any shell exists: Kingmaker charges the rider's one remaining Move at the
+            // first approach tick and then interrupts the unstarted Mount through this very
+            // availability (preview.152 CM03-rider-other-action), so the approach must not be admitted.
+            if (context.InCombat && context.TurnBasedCombat && context.RiderUsedStandardAction &&
+                !context.PairAdjacent && !context.NativeMoveActionShellAdmitted)
+            {
+                reasons.Add(DescribeSpentStandardApproachRefusal(mountName));
             }
             if (!context.SafeGameMode)
             {

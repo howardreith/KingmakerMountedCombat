@@ -92,6 +92,14 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (!Chunk6aLifecycleBoundaryOnly || Chunk6aTurnBased)
                 throw new InvalidOperationException("A lifecycle boundary case requires its isolated real-time transaction.");
+            // Both boundary scenarios enter here at the click stage; preview.152 dispatched the disable
+            // scenario to stage 72 and its first trigger-wait tick failed without a click (CM04-disable-unload).
+            if (chunk6aStage != 70 && chunk6aLifecycleEvidence == null)
+            {
+                FailCurrent(Chunk6aLifecycleRow, "The lifecycle boundary tick was entered at stage " + chunk6aStage + " before its click stage 70.");
+                BeginCleanup();
+                return;
+            }
             if (chunk6aStage == 70)
             {
                 if (!Chunk6aIdle || !nativeControls.Evaluate(NativeMountedControlKind.MountCompanion, rider).IsEnabled) return;
@@ -293,8 +301,10 @@ namespace KingmakerMountedCombat.Diagnostics
             var ledgerNow = Chunk6aLedgerCounters();
             foreach (var item in chunk6aLifecycleLedgerBefore.Properties())
                 ledgerDelta[item.Name] = (long)ledgerNow[item.Name] - (long)item.Value;
+            // NativeRelationshipShellCount is a monotonic registration counter (one increment per admitted
+            // relationship shell, never decremented): the one click of the sequence registers exactly one.
             var noResidue = !playerAction.HasVoluntaryTransitionInFlight && rider.Commands.Empty && horse.Commands.Empty &&
-                nativeControls.NativeRelationshipShellCount == chunk6aLifecycleShellsBefore &&
+                nativeControls.NativeRelationshipShellCount == chunk6aLifecycleShellsBefore + 1 &&
                 (relationship.State == RelationshipState.Mounted ||
                     combat.PairedActivationIdentity == null && combat.PairedPartnerContext == null);
             chunk6aLifecycleEvidence["commandWindowKind"] = windowKind;

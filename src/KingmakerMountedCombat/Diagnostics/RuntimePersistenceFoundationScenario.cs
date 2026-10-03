@@ -166,6 +166,23 @@ namespace KingmakerMountedCombat.Diagnostics
             stage = 40;
         }
 
+        // The native Mount/Dismount availability lawfully requires the exact single rider selection (the
+        // product's exactCasterSelected); preview.152 waited on it without selecting (CM07-mount-save-rt).
+        private JObject EnsureFoundationRiderSelection()
+        {
+            var manager = SelectionManager.Instance;
+            if (manager != null && rider?.View != null) manager.SelectUnit(rider.View, true, true, false);
+            var selected = manager?.SelectedUnits;
+            return new JObject
+            {
+                ["riderId"] = rider?.UniqueId,
+                ["selectedCount"] = selected?.Count ?? -1,
+                ["selectedIds"] = selected == null ? null : new JArray(selected.Select(u => u?.UniqueId)),
+                ["exactSingleRider"] = selected != null && selected.Count == 1 && selected[0] == rider,
+                ["frame"] = Time.frameCount
+            };
+        }
+
         private void AdvanceFoundationTransitionRequest()
         {
             var game = Game.Instance;
@@ -175,12 +192,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Foundation transition starts from " + relationship.State + " instead of " + expectedBefore + ".");
             if (!rider.Commands.Empty || !mount.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                 game.HandsEquipmentController.IsUpdateScheduledFor(rider)) return;
+            var selection = EnsureFoundationRiderSelection();
             controls.Update();
             var availability = controls.Evaluate(kind, rider);
             if (!availability.IsEnabled)
             {
                 if (foundationAvailabilityWaits++ == 0)
-                    Write("rt-foundation-availability-wait", new JObject { ["kind"] = kind.ToString(),
+                    Write("rt-foundation-availability-wait", new JObject { ["kind"] = kind.ToString(), ["selection"] = selection,
                         ["availability"] = DescribeAvailability(availability), ["actual"] = RealtimeObservation() });
                 return;
             }
@@ -326,11 +344,12 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!PairIdle || !turn.IsActing) return;
                 controls.Update();
+                var selection = EnsureFoundationRiderSelection();
                 var availability = controls.Evaluate(NativeMountedControlKind.MountCompanion, rider);
                 if (!availability.IsEnabled)
                 {
                     if (foundationAvailabilityWaits++ == 0)
-                        Write("combat-mount-availability-wait", new JObject { ["availability"] = DescribeAvailability(availability),
+                        Write("combat-mount-availability-wait", new JObject { ["selection"] = selection, ["availability"] = DescribeAvailability(availability),
                             ["combat"] = CombatObservation() });
                     return;
                 }

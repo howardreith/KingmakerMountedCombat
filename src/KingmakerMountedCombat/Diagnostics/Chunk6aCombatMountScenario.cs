@@ -739,7 +739,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aCombatEndOnly ? 70 : Chunk6aDisableOnly ? 72 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : Chunk6aRiderExhaustOnly ? 50 : 13;
+                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aCombatEndOnly ? 70 : Chunk6aDisableOnly ? 70 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : Chunk6aRiderExhaustOnly ? 50 : 13;
                 ResetLeafClock();
                 return;
             }

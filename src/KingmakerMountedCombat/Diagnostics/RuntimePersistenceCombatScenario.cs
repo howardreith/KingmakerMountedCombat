@@ -529,7 +529,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 turn.Unit.Group != rider.Group || !turn.Unit.Commands.Empty ||
                 turn.Unit.AreHandsBusyWithAnimation || !turn.CanEndTurnAndNoActing() ||
                 Game.Instance.TurnBasedCombatController.WaitingForUI) return;
-            Check(turn.Unit != mount, "P02-partner-never-owns-an-independent-native-turn");
+            // The combat-mount-tb foundation case starts Unmounted by contract: until the Mount the horse is
+            // an ordinary independent combatant and lawfully owns its own native turn (preview.152 CM07-mount-save-tb).
+            if (!(FoundationCombatMount && relationship.State == RelationshipState.Unmounted))
+                Check(turn.Unit != mount, "P02-partner-never-owns-an-independent-native-turn");
             Game.Instance.PauseBind();
             endedBoundary = turn;
         }
