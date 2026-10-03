@@ -64,6 +64,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject chunk6bAfter, chunk6bRestoration, chunk6bCosts;
         private float chunk6bProbeOriginDistance;
         private bool chunk6bProbeMoved;
+        private JObject chunk6bTurnAdvance;
+        private TurnController chunk6bTurnBefore;
+        private bool chunk6bEndTurnClicked;
+        private double chunk6bTurnAdvanceStarted;
 
         private static FieldInfo ResolveChunk6bAgentField(string name, int token, Type fieldType)
         {
@@ -257,6 +261,30 @@ namespace KingmakerMountedCombat.Diagnostics
             }
         }
 
+        // The residue probe: the next lawful pair path, which the engine completes through OnPathComplete,
+        // clearing the force mode that the stock Stop() leaves latched. A refusal is recorded, never thrown,
+        // so the external reader sees the engine exact words.
+        private void IssueChunk6bResidueProbe()
+        {
+            chunk6bProbe = new JObject { ["kind"] = "residue-probe", ["forceModeBefore"] = Chunk6bForceMode, ["before"] = CaptureChunk6bState("probe-before") };
+            if (chunk6bTurnAdvance != null) chunk6bProbe["turnAdvance"] = chunk6bTurnAdvance;
+            try
+            {
+                var probePoint = FindChunk6bProbeDestination();
+                chunk6bProbe["destination"] = CapturePosition(probePoint);
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                chunk6bProbeMove = IssueChunk6bGroundOrder(probePoint, false, chunk6bProbe);
+                chunk6bProbe["admitted"] = true;
+                chunk6bProbeOriginDistance = 0f; chunk6bLastPosition = horse.Position; chunk6bProbeMoved = false;
+                chunk6bStoppedAt = Chunk6bNow;
+            }
+            catch (InvalidOperationException exception)
+            {
+                chunk6bProbe["admitted"] = false; chunk6bProbe["refusal"] = exception.Message; chunk6bProbeMove = null;
+            }
+            chunk6bStage = chunk6bProbeMove == null ? 5 : 4; ResetLeafClock();
+        }
+
         // The stock charge's forced path on the mover's agent: the straight line from the mount to the target
         // with the stock approach radius. Re-applied whenever the agent leaves force mode, as the stock
         // runtime routine re-forces its path.
@@ -297,6 +325,7 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bRiderCommandsEmpty = true; chunk6bMountOnlyCarrier = true; chunk6bChargingThroughout = true;
             chunk6bCarrierMove = null; chunk6bProbeMove = null;
             chunk6bControlSent = false; chunk6bProbeMoved = false; chunk6bProbeOriginDistance = 0f;
+            chunk6bTurnAdvance = null; chunk6bTurnBefore = null; chunk6bEndTurnClicked = false; chunk6bTurnAdvanceStarted = 0.0;
         }
 
         private bool Chunk6bPairIdle => rider.Commands.Empty && horse.Commands.Empty && !rider.AreHandsBusyWithAnimation && !horse.View.AgentASP.IsReallyMoving;
@@ -464,23 +493,58 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["settleSeconds"] = settleSeconds, ["mountCommandsEmpty"] = horse.Commands.Empty
                 };
                 chunk6bCosts = CaptureChunk6bCosts();
-                // The residue probe: the next lawful pair path, which the engine completes through OnPathComplete.
-                chunk6bProbe = new JObject { ["kind"] = "residue-probe", ["forceModeBefore"] = Chunk6bForceMode, ["before"] = CaptureChunk6bState("probe-before") };
-                try
+                // Preview.159 measured the engine own answer to a second pair path in the same turn:
+                // "The mount has no movement available in this paired activation." Kingmaker remaining-
+                // movement rule (MountedMovementState.Remaining, the exact GetRemainingMovementTime formula)
+                // returns zero for the rest of a turn in which the actor moved in force mode, so in
+                // turn-based mode no lawful pair path exists in this activation and the latch can only be
+                // observed clearing in the rider next turn, which is where a player would meet it. Real
+                // time has no turn budget and probes at once.
+                if (Chunk6bChargePathTb) { chunk6bTurnAdvanceStarted = Chunk6bNow; chunk6bStage = 7; ResetLeafClock(); return; }
+                IssueChunk6bResidueProbe();
+                return;
+            }
+            if (chunk6bStage == 7)
+            {
+                // One native End Turn input, then the rider next turn. The engine allocates the new turn
+                // and its movement; this measurement writes nothing and only observes the latch across the
+                // boundary. The pair stays idle throughout: the rider has no queued action and the mount is
+                // under the pair movement authority.
+                if (!Chunk6bPairIdle || combat.HasActiveCommand || combat.HasActiveGroundMovement) return;
+                if (Chunk6bNow - chunk6bTurnAdvanceStarted > 90.0)
+                    throw new InvalidOperationException("The rider next turn did not arrive for the turn-based residue probe.");
+                if (!rider.IsInCombat || !horse.IsInCombat || !CombatController.IsInTurnBasedCombat())
+                    throw new InvalidOperationException("The turn-based residue probe lost its encounter before the rider next turn.");
+                if (!chunk6bEndTurnClicked)
                 {
-                    var probePoint = FindChunk6bProbeDestination();
-                    chunk6bProbe["destination"] = CapturePosition(probePoint);
+                    if (turn == null || turn.Unit != rider || !turn.CanEndTurnAndNoActing() ||
+                        controller.WaitingForUI || GetPendingNextUnit(controller) != null) return;
                     SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                    chunk6bProbeMove = IssueChunk6bGroundOrder(probePoint, false, chunk6bProbe);
-                    chunk6bProbe["admitted"] = true;
-                    chunk6bProbeOriginDistance = 0f; chunk6bLastPosition = horse.Position; chunk6bProbeMoved = false;
-                    chunk6bStoppedAt = Chunk6bNow;
+                    chunk6bTurnBefore = turn;
+                    chunk6bTurnAdvance = new JObject
+                    {
+                        ["kind"] = "turn-advance",
+                        ["reason"] = "forced movement leaves no remaining movement in the same turn",
+                        ["endedTurnUnit"] = turn.Unit?.UniqueId,
+                        ["endedTurnStatus"] = turn.Status.ToString(),
+                        ["forceModeAtEnd"] = Chunk6bForceMode,
+                        ["before"] = CaptureChunk6bState("turn-advance-before"),
+                        ["input"] = new JObject { ["method"] = "Kingmaker.Game.PauseBind", ["count"] = 1 }
+                    };
+                    chunk6bEndTurnClicked = true;
+                    Game.Instance.PauseBind();
+                    return;
                 }
-                catch (InvalidOperationException exception)
-                {
-                    chunk6bProbe["admitted"] = false; chunk6bProbe["refusal"] = exception.Message; chunk6bProbeMove = null;
-                }
-                chunk6bStage = chunk6bProbeMove == null ? 5 : 4; ResetLeafClock(); return;
+                if (turn == null || ReferenceEquals(turn, chunk6bTurnBefore) || turn.Unit != rider ||
+                    controller.WaitingForUI || GetPendingNextUnit(controller) != null) return;
+                if (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
+                chunk6bTurnAdvance["nextTurnUnit"] = turn.Unit?.UniqueId;
+                chunk6bTurnAdvance["nextTurnStatus"] = turn.Status.ToString();
+                chunk6bTurnAdvance["forceModeAtNextTurn"] = Chunk6bForceMode;
+                chunk6bTurnAdvance["waitedSeconds"] = Chunk6bNow - chunk6bTurnAdvanceStarted;
+                chunk6bTurnAdvance["after"] = CaptureChunk6bState("turn-advance-after");
+                IssueChunk6bResidueProbe();
+                return;
             }
             if (chunk6bStage == 4)
             {

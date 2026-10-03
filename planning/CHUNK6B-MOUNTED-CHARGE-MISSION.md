@@ -1,7 +1,7 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `INCREMENT 6B.2 PARTLY QUALIFIED NATIVELY ON PREVIEW.158 (3 of 5 charge rows); DELIVERY CORRECTIONS
-IMPLEMENTED (0.1.0-chunk6b-preview.159) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `INCREMENT 6B.1 CARRIER FULLY QUALIFIED IN REAL TIME ON PREVIEW.159; ONE PRODUCT DEFECT LOCATED AND
+FIXED (0.1.0-chunk6b-preview.160) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -413,3 +413,58 @@ Three fixture and reader corrections, no product change:
   instead of forced turn time.
 
 Offline verification: FAST 15/0, charge reader 66/0, carrier reader 133/0, component tests 564/0.
+
+## Preview.159 native outcome (2026-10-03; frozen preview.159, campaign closed)
+
+Frozen preview.159 (commit ea5183da, committed tree 8fab0516, package 5f9e5af7, suite
+`20261003-chunk6b-charge-d` / 583dd9f7, DLL 1aca8242 / MVID e4213e1d, purity PASS 72.8 min); CANDIDATE 26/0,
+FAST 15/0, component tests 564/0, charge reader 66/0, carrier reader 133/0. Lab record
+`measurement-preview159.json` (cb544d57), outcome `chunk6b-increment-6b2-outcome-preview159.json` (d0f7eda5):
+3 PASS / 2 FAIL of 5 stages, five fresh isolated restored transactions, session logs preserved.
+
+- **C6B-PATH-RT: PASS, 62/0.** The corrected carrier measurement is fully qualified in real time. The 6B.1
+  carrier is therefore established natively in real time on its own frozen payload.
+- **CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS, 66/0 each,** with the charge feature present in the build.
+- **C6B-CHARGE-RT: FAIL, and it located a real product defect.** The readiness correction worked: the charge
+  was available and targetable, the hover was pure, one player click admitted exactly one native full-round
+  Standard shell for the rider, and the engine cast it and spent the rider's standard action (the row measured
+  the cooldown rising to 5.971 s above its own baseline). The mod then refused its own delivery. The game's own
+  log records the reason: `Mounted charge delivery observed: ... distance=8.921; minimum=4.648; maximum=30.48;
+  straight=True; landingBlocked=False; allowed=False; reason=Mounted Charge requires the rider's standard
+  action.` `MountedChargePolicy` demanded a free standard action at delivery, which the native shell that was
+  delivering had already lawfully spent through `AbilityData.Spend`. Nothing moved, nothing attacked, no lease
+  was applied, and the external reader refused the row with "the controller did not admit the charge". The
+  fixture's own structural row said PASS, which is what that row means: the compiled side records facts and the
+  reader decides. The repeated-request row was then refused for the right reason and in the right state.
+- **C6B-PATH-TB: FAIL, and it measured a Kingmaker rule that governs 6B.3.** The carrier itself ran (the mount
+  covered the forced path and the paired movement observation advanced), but the residue probe - the next
+  lawful pair path, which must clear the force mode that the stock `Stop()` leaves latched - was refused by
+  the pair's own lifecycle with "The mount has no movement available in this paired activation." The cause is
+  the engine's own arithmetic, which this mod reproduces exactly: `MountedMovementState.Remaining` (the exact
+  `GetRemainingMovementTime` formula) returns zero for the rest of a turn in which the actor moved in force
+  mode. In turn-based mode there is therefore no second lawful pair path in the activation that carried a
+  forced path, and the latch can only be observed clearing in the rider's next turn.
+
+## Preview.160 - the delivery cost owner, and the turn-based residue probe (2026-10-03, FAST-verified)
+
+One product fix and one measurement correction.
+
+- **Product.** `MountedChargeRequest` gains one observed input, `DeliveringOwnShell`, and the policy's two
+  resource gates - the rider's standard action, and in turn-based mode the move action of the full-round
+  shell - no longer apply while that input is set. Availability, prediction and targeting are asked before the
+  cast and still require a free action, so what the player sees is unchanged. The input is proven, never
+  assumed: the controller sets it only when the live `AbilityExecutionContext` belongs to an ability carrying
+  this mod's own `MountedChargeAbilityLogic` component whose caster is this pair's rider, and it fails closed
+  to the strict requirement otherwise. Every other gate, including the turn-based rule that the turn must not
+  have moved before the charge, is untouched. KMC still writes, clears and refunds nothing: the engine remains
+  the sole cost owner, and the only change is that a resource the engine has already taken for this very action
+  stops disqualifying it. The delivery log line now carries `ownShell` and the measured cooldown.
+- **Measurement.** The turn-based carrier measurement reaches its residue probe through the rider's next turn:
+  one native End Turn input (`Kingmaker.Game.PauseBind`, the input the Chunk 6A turn scenarios use), then the
+  rider's next turn, then the probe. The reader requires exactly that in turn-based mode - one End Turn input,
+  the rider's own turn ended and resumed, the latch recorded on both sides of the boundary and unchanged
+  between the new turn and the probe - and refuses a real-time probe that advanced a turn. No existing
+  assertion is relaxed; the probe must still be an admitted mount-executed pair path that moves and clears the
+  latch at its first movement.
+
+Offline verification: FAST 15/0, component tests 565/0, charge reader 66/0, carrier reader 142/0.
