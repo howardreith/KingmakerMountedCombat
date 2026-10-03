@@ -73,8 +73,9 @@ if ($Tier -ceq 'Full') {
         foreach ($testScript in $candidate) { Invoke-Tiered ('CANDIDATE ' + $testScript) { Invoke-TestScript $testScript } }
         if (-not [string]::IsNullOrWhiteSpace($LabRoot)) {
             Invoke-Tiered 'CANDIDATE Test-Chunk6aImmutableReplay.ps1' { Invoke-TestScript 'Test-Chunk6aImmutableReplay.ps1' @('-LabRoot',$LabRoot) }
+            Invoke-Tiered 'CANDIDATE Test-Chunk6aReevaluation.ps1' { Invoke-TestScript 'Test-Chunk6aReevaluation.ps1' @('-LabRoot',$LabRoot) }
         } else {
-            Write-Host 'SKIP CANDIDATE Test-Chunk6aImmutableReplay.ps1 (no -LabRoot: the immutable preview.150 replay was not evaluated)'
+            Write-Host 'SKIP CANDIDATE Test-Chunk6aImmutableReplay.ps1 and Test-Chunk6aReevaluation.ps1 (no -LabRoot: the immutable-artifact replay and re-evaluation were not evaluated)'
         }
     }
 }

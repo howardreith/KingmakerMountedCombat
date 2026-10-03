@@ -33,7 +33,9 @@ function Get-KmcActionEconomyRows { @(Get-KmcActionEconomyVariants|ForEach-Objec
 #  - a mounted rider's attack is the product's paired attack command;
 #  - a single attack after partial movement on the same turn ends by consuming the remaining
 #    Move (the native controller writes the full Move debt at the command end);
-#  - after a split, the mount still receives the shared pre-split turn object's native end.
+#  - after a split, the mount still receives the shared pre-split turn object's native end;
+#  - the native End of an actor's own turn consumes its unused actions (cooldowns rise to at most
+#    one round) and native turn-time passage then decays them across the other actors' turns.
 function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
  function Fail($why){throw ('Action economy: '+$why)}
  function I($v){if($v-isnot[int]-and$v-isnot[long]){Fail 'integer missing'};[long]$v}
@@ -64,6 +66,9 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
  # only as a monotonic decrease after a native turn transition; an increase, or a change without
  # a transition, is refused.
  function Debt-Decayed($x,$y){$null-ne$y-and$x.Actor-ceq$y.Actor-and$x.Object-eq$y.Object-and$x.Object-ne0-and$x.Grants-eq$y.Grants-and$y.Standard-le($x.Standard+0.0001)-and$y.Move-le($x.Move+0.0001)-and$y.Swift-le($x.Swift+0.0001)}
+ # The native End of the actor's own turn consumes its unused actions (a cooldown may only rise,
+ # to at most one full round); nothing else may rise outside a cost callback.
+ function Debt-Consumed($x,$y){$null-ne$y-and$x.Actor-ceq$y.Actor-and$x.Object-eq$y.Object-and$x.Object-ne0-and$x.Grants-eq$y.Grants-and$y.Standard-ge($x.Standard-0.0001)-and$y.Move-ge($x.Move-0.0001)-and$y.Swift-ge($x.Swift-0.0001)-and$y.Standard-le6.0001-and$y.Move-le6.0001-and$y.Swift-le6.0001}
  function Replay-Debt($before,$events,[long]$start,[long]$end,[string]$actor,$allowedCommand,[string]$label){
   $current=Read-Debt $before;if($current.Actor-cne$actor-or$current.Object-eq0){Fail ($label+': baseline actor differs')}
   $pending=$null;$sequence=$start;$transition=$false
@@ -81,6 +86,7 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
     if($owned){$current=$actual;$pending=$null;continue}
    }
    if($boundary-ceq'cooldown-tick-after'){if($null-eq$pending-or-not(Debt-Matches $pending $actual)){Fail ($label+': native cooldown effect differs')};$current=$actual;$pending=$null;continue}
+   if($boundary-ceq'turn-end-after'){if($null-ne$pending-or-not(Debt-Consumed $current $actual)){Fail ($label+': '+$actor+' debt changed other than by native end-of-turn consumption at '+$boundary)};$current=$actual;$transition=$true;continue}
    if($null-ne$pending){if(-not(Debt-Matches $pending $actual)){Fail ($label+': nested native callback changed debt')}}
    elseif(-not((Debt-Matches $current $actual)-or$owned)){
     if($transition-and(Debt-Decayed $current $actual)){$current=$actual}
@@ -268,7 +274,11 @@ function Assert-KmcActionEconomy($E,$Order,$MountProof,$DismountProof){
   if((B $r.abilityAvailableForCast)-or(B $r.canTarget)){Fail 'native targeting admitted a rider without Move'}
   if((B $before.state.rider.hasMove)-or(B $after.state.rider.hasMove)){Fail 'rider held a Move at refusal'}
   $click=$r.click
-  if((B $click.clicked)-or(B $click.nativeShell.present)-or(I $click.dispatchAcceptedDelta)-ne0-or(I $click.dispatchRejectedDelta)-ne0-or(I $click.nativePrimaryShellPrepareDelta)-ne0-or(I $click.nativeCastRequestDelta)-ne(I $click.nativeRefusalDelta)-or(I $click.nativeCastRequestDelta)-gt1-or(I $click.targetSelectionStartDelta)-ne(I $click.targetSelectionEndDelta)-or(I $click.targetSelectionStartDelta)-gt1){Fail 'native click created a command, shell or dispatch'}
+  # Nothing may start: no admitted click, shell, dispatch or primary-shell preparation. At most one
+  # target selection opens and at most one cast is requested; the refusal count covers every cast
+  # request (a refusal at the targeting gate precedes any cast request, so it may exceed them) and a
+  # selection the refusal aborted need not have ended at the click.
+  if((B $click.clicked)-or(B $click.nativeShell.present)-or(I $click.dispatchAcceptedDelta)-ne0-or(I $click.dispatchRejectedDelta)-ne0-or(I $click.nativePrimaryShellPrepareDelta)-ne0-or(I $click.nativeCastRequestDelta)-gt1-or(I $click.nativeRefusalDelta)-gt1-or(I $click.nativeRefusalDelta)-lt(I $click.nativeCastRequestDelta)-or(I $click.targetSelectionStartDelta)-gt1-or(I $click.targetSelectionEndDelta)-gt(I $click.targetSelectionStartDelta)){Fail 'native click created a command, shell or dispatch'}
   $controls=$r.controls
   foreach($field in @('shellCount','processBindings','dispatchAccepted','dispatchRejected')){if((I $controls.before.$field)-ne(I $controls.after.$field)){Fail ('refusal changed native control state: '+$field)}}
   if(-not(Equal $r.ledgerBefore $r.ledgerAfter)){Fail 'refusal changed the transition ledger'}
