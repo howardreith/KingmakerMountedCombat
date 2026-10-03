@@ -1,7 +1,7 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `INCREMENT 6B.1 MEASURED; INCREMENT 6B.2 REAL-TIME DELIVERY IMPLEMENTED (0.1.0-chunk6b-preview.158) -
-CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `INCREMENT 6B.2 PARTLY QUALIFIED NATIVELY ON PREVIEW.158 (3 of 5 charge rows); DELIVERY CORRECTIONS
+IMPLEMENTED (0.1.0-chunk6b-preview.159) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -351,3 +351,65 @@ component tests 564/0. Pending, in order: the one CANDIDATE tier, freeze (packag
 C6B-CHARGE-RT, C6B-PATH-RT, C6B-PATH-TB, CHARGE-SAFETY-RT and CHARGE-SAFETY-TB as fresh isolated restored
 transactions. Nothing merges to main; no release, tag or HUMAN PLAY claim; 6B.2 is not qualified until its
 remaining refusal and interruption rows pass.
+
+## Preview.158 native outcome (2026-10-03; frozen preview.158, campaign closed)
+
+Frozen preview.158 (commit 90678e81, committed tree ef36736d, package 03a5bf9d, suite
+`20261003-chunk6b-charge-c` / f39e59e5, DLL 83b97011, purity PASS `c6b-charge158-a-whatif`); CANDIDATE 26/0,
+component tests 564/0. Lab record `measurement-preview158.json`, outcome
+`chunk6b-increment-6b2-outcome-preview158.json` (0eec3dab): 2 PASS / 3 FAIL of 5 stages, five fresh isolated
+restored transactions, session logs preserved.
+
+- CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS 66/0 each. The stock Charge stays rejected while mounted and the
+  unmounted Charge is untouched **with the new charge feature present in the build**, which is the regression
+  that mattered most for this candidate.
+- **C6B-CHARGE-RT: the charge fixture ran all five rows and three of them pass the external reader.** Native
+  rows 65/0. Offline, per row: `C6B-CHARGE-default-off` PASS (the ability is absent while
+  `EnableMountedCharge` is off and leased on the rider once it is on, with the exact asset id, Standard
+  full-round action, the KMC component and never the stock one, and the stock Charge still present and still
+  stock); `C6B-CHARGE-below-minimum` PASS (a target 3.5 m away, inside the measured 4.448 m stock minimum,
+  was refused with no shell, no movement, no cost and no attack); `C6B-CHARGE-stock-rejected` PASS.
+  `C6B-CHARGE-positive` FAIL and `C6B-CHARGE-spent-standard` FAIL, both from one fixture timing cause: the
+  fixture clicked while the rider was still waiting initiative, so `UnitCombatState.CanActInCombat`
+  (`m_InCombat && !IsWaitingInitiative`) was false and the charge was correctly refused by the mod's own
+  policy with "Mounted Charge requires a rider who can act." The repeated-request row then had no spent
+  standard action to test. **No product defect: the refusal was exact and correct for the state the fixture
+  presented.**
+- **C6B-PATH-RT: the corrected carrier measurement is now clean except one reader threshold.** Arrival at
+  6.817 m with a peak of 10.54 m/s against 5.080 m/s, 70 re-forces of the straight line, zero pair attack
+  rules of either kind, the force-mode latch cleared by the next lawful pair path, exact restoration. The only
+  refusal was my own "fewer than three samples" rule applied to the interrupt row, which is designed to stop
+  within 0.4 s and can only yield two samples.
+- **C6B-PATH-TB established how turn-based pair movement is accounted.** The carrier now admits from Preparing
+  and the mount runs the forced path (6.816 m arrival, 1.586 m interrupt), but `TurnController.TimeMoved` and
+  `TimeMovedInForceMode` stay zero while the samples' `pairMovement` observation advances
+  (`mountTime=0.011…`). KMC's movement override replaces the stock turn-based movement gate for the mount, so
+  the pair's movement is debited to the paired movement state and its per-activation grant, not to the turn
+  counters. That is the Chunk 6A-qualified paired model, not a defect, and the preview.157 refusal of a second
+  move in the same activation is the same grant being enforced. My turn-based reader rules had been written
+  from the raw-forced-path model and are recalibrated to the measured accounting.
+
+Lab correction recorded, not a re-verdict: `Qualify-Measurement158.ps1` was derived from the preview.157
+qualifier, which knows only two stage kinds, so it re-read the new delivery stage offline with the Chunk 4
+charge reader and recorded that reader's message. The verdict is unaffected (the launcher's in-transaction
+validation used the correct reader, preserved in `runtime-result.json`); `Rebind-ChargeStage158.ps1` re-read
+the immutable artifact with the correct reader and recorded the per-row result, and the qualifier now
+dispatches the delivery stage correctly.
+
+## Preview.159 - delivery corrections (2026-10-03, FAST-verified, not yet frozen)
+
+Three fixture and reader corrections, no product change:
+
+- The charge fixture waits for `CanActInCombat` and `IsAbleToAct` before clicking, the same native readiness
+  the stock charge fixture waits for.
+- Every row's economy figures become the increase that row's own attempt caused above its own baseline, so a
+  repeated request made while an earlier charge's cost still stands reports zero rather than that cost.
+- The repeated request is no longer its own case: it runs inside the lawful charge's own combat, immediately
+  after it settles, while the rider's standard action is genuinely spent. The row set is unchanged.
+- The carrier measurement samples on frame advance as well as game time and takes the peak speed from the
+  agent's own `Speed`, because the turn-based game clock barely advances across the path. The reader requires
+  three samples on the arrival row and two on the deliberately short interrupt row, and its turn-based rules
+  now assert the paired movement accounting (present, advancing, no mount cost, rider turn, no prior movement)
+  instead of forced turn time.
+
+Offline verification: FAST 15/0, charge reader 66/0, carrier reader 133/0, component tests 564/0.

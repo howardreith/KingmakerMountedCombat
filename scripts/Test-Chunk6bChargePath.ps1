@@ -13,11 +13,11 @@ function New-Order([string]$Kind,[string]$Executor){ [ordered]@{kind=$Kind;input
 function New-Row([string]$Case,[string]$Mode){
  $tb=$Mode-ceq'TB'
  $samples=@()
- for($i=0;$i-lt6;$i++){ $samples+=,([ordered]@{nativeSeconds=0.1*$i;frame=100+$i;distanceToTarget=9.0-1.4*$i;mountMoving=$true;forceMode=$true;speedMps=13.4;carrierRunning=$true;carrierStarted=$true;reforces=1;riderCommandsEmpty=$true;mountOnlyCarrier=$true;riderMove=0;riderStandard=0;mountMove=0;mountStandard=0;turnTimeMoved=$(if($tb){0.24+0.1*$i}else{$null});turnTimeForced=$(if($tb){0.1*$i}else{$null});pairMovement='mountMove=0->0';charging=$true;descriptorCharging=$false}) }
+ for($i=0;$i-lt6;$i++){ $samples+=,([ordered]@{nativeSeconds=0.1*$i;frame=100+$i;distanceToTarget=9.0-1.4*$i;mountMoving=$true;forceMode=$true;speedMps=13.4;carrierRunning=$true;carrierStarted=$true;reforces=1;riderCommandsEmpty=$true;mountOnlyCarrier=$true;riderMove=0;riderStandard=0;mountMove=0;mountStandard=0;turnTimeMoved=$(if($tb){0}else{$null});turnTimeForced=$(if($tb){0}else{$null});pairMovement='mountMove=0->0;mountTime=0.0110121;mountStepMetres=0;nativePrepared=True;round=1';charging=$true;descriptorCharging=$false}) }
  $arrival=$Case-ceq'C6B-PATH-straight-arrival'
  # The carrier is the rider turn's first movement, so nothing had moved before the path.
  $turnBefore=if($tb){New-Turn 0 0 0 $false $false}else{$null}
- $turnAfter=if($tb){New-Turn 0.5 0.5 0 $false $true}else{$null}
+ $turnAfter=if($tb){New-Turn 0 0 0 $false $true}else{$null}
  $carrier=New-Order 'delegated-ground-move' 'mount'
  $carrier['destination']=@(8,0,8);$carrier['admitted']=$true;$carrier['startedMoving']=$true;$carrier['interruptedByMeasurement']=$true;$carrier['terminal']=[ordered]@{finished=$true}
  $probe=New-Order 'residue-probe' 'mount'
@@ -122,9 +122,10 @@ foreach($mode in @('RT','TB')){
   $spent=New-Artifact $mode; $spent.rows[0].evidence.costs.riderMoveDelta=3.0
   Accept 'TB carrier spent the rider turn movement' { Assert-KmcChunk6bChargePathEvidence $request $spent 'PASS' }
   Mutate 'rider turn moved before the path' {param($a) $a.rows[0].evidence.before.turn.timeMoved=1.0}
-  Mutate 'no forced time recorded on the rider turn' {param($a) $a.rows[0].evidence.after.turn.timeMovedInForceMode=0}
-  Mutate 'movement outside force mode beyond a frame' {param($a) $a.rows[0].evidence.after.turn.timeMoved=2.0}
-  Mutate 'forced time decreased mid-path' {param($a) $a.rows[0].evidence.samples[4].turnTimeForced=0.0}
+  Mutate 'a turn-based path with no paired movement observation' {param($a) foreach($s in $a.rows[0].evidence.samples){$s.pairMovement='not-observed'}}
+  Mutate 'a paired observation whose mount time never advanced' {param($a) foreach($s in $a.rows[0].evidence.samples){$s.pairMovement='mountMove=0->0;mountTime=0;mountStepMetres=0'}}
+  Mutate 'a rider turn missing its movement counters' {param($a) $a.rows[0].evidence.after.turn.timeMovedInForceMode='unknown'}
+  Mutate 'forced time that went backwards mid-path' {param($a) $a.rows[0].evidence.samples[4].turnTimeForced=-1.0}
   Mutate 'path off the rider turn' {param($a) $a.rows[0].evidence.before.turn.isRider=$false}
   Mutate 'a mount move charged for carrying' {param($a) $a.rows[0].evidence.costs.mountMoveDelta=3.0}
  } else {
