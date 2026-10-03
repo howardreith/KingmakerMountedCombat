@@ -808,12 +808,38 @@ namespace KingmakerMountedCombat.Integration
             logger.Info("Paired split retains mount participation until the next native round: " + LastSplitObservation);
         }
 
+        // Diagnostics (preview.155 CM07-mount-load-rt measurement): every retirement of the paired activation by
+        // the lifetime maintenance is recorded with the conditions that fired it, the frame and the native load
+        // phase; the preview.154 real-time cold load lost its rebound activation here without any observation.
+        internal long PairedLifetimeRetirementCount { get; private set; }
+        internal long PairedLifetimeRetirementDeferredCount { get; private set; }
+        internal string LastPairedLifetimeRetirement { get; private set; } = "none";
+
         private void MaintainPairedLifetime()
         {
-            if (!(Game.Instance?.Player?.IsInCombat ?? false)) pendingSplitMount = null;
-            if (activationSession != null && activationSession != Game.Instance?.Player ||
-                activation != null && !(Game.Instance?.Player?.IsInCombat ?? false))
+            var player = Game.Instance?.Player;
+            var partyInCombat = player?.IsInCombat ?? false;
+            if (!partyInCombat) pendingSplitMount = null;
+            var sessionChanged = activationSession != null && activationSession != player;
+            var encounterOver = activation != null && !partyInCombat;
+            if (sessionChanged || encounterOver)
             {
+                var loading = Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance?.IsLoadingInProcess ?? false;
+                var description = ";sessionChanged=" + sessionChanged + ";partyInCombat=" + partyInCombat +
+                    ";activation=" + (activation?.Identity ?? "none") + ";frame=" + UnityEngine.Time.frameCount + ";loading=" + loading;
+                if (loading)
+                {
+                    // A rebound activation must not be judged "encounter over" while the native load is still
+                    // restoring the party: the engine recomputes the non-serialized party combat flag from the
+                    // group counters as the restored units re-enter combat. The judgement is deferred, never
+                    // skipped; the same rule applies on the first tick after the load has completed.
+                    PairedLifetimeRetirementDeferredCount++;
+                    LastPairedLifetimeRetirement = "deferred-during-load;count=" + PairedLifetimeRetirementDeferredCount + description;
+                    return;
+                }
+                PairedLifetimeRetirementCount++;
+                LastPairedLifetimeRetirement = "retired;count=" + PairedLifetimeRetirementCount + description;
+                logger.Info("Paired lifetime retirement: " + LastPairedLifetimeRetirement);
                 // Encounter participation is over. Native cooldowns continue to
                 // represent any real-time recovery; removing these supplemental
                 // references never clears or refunds those native costs.

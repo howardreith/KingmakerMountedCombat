@@ -152,6 +152,9 @@ namespace KingmakerMountedCombat.Integration
         internal string PairedInitiativeObservation => unifiedTurn.LastInitiativeObservation;
         internal long PersistenceWorldDiscardCount => unifiedTurn.PersistenceWorldDiscardCount;
         internal string LastPersistenceWorldDiscardObservation => unifiedTurn.LastPersistenceWorldDiscardObservation;
+        internal long PairedLifetimeRetirementCount => unifiedTurn.PairedLifetimeRetirementCount;
+        internal long PairedLifetimeRetirementDeferredCount => unifiedTurn.PairedLifetimeRetirementDeferredCount;
+        internal string LastPairedLifetimeRetirement => unifiedTurn.LastPairedLifetimeRetirement;
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);
         internal bool PairedActorEnded(UnitEntityData actor) => unifiedTurn.PairedActorEnded(actor);
         internal bool MayStartNativePreparationDuringSave(UnitCommand command) => unifiedTurn.MayStartNativePreparationDuringSave(command);
@@ -1585,6 +1588,7 @@ namespace KingmakerMountedCombat.Integration
                 "; reason=" + (outcome.TerminalReason ?? "<none>") +
                 "; childAttacks=" + outcome.ChildAttackStartCount +
                 "; repaths=" + outcome.RepathCount +
+                "; repathObservations=" + (string.IsNullOrEmpty(outcome.RepathObservations) ? "<none>" : outcome.RepathObservations) +
                 "; rejectionCodes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
                 "; feedback=" + LastFeedback);
             if (stockIntentOwned && !outcome.NativeRangedTailTermination &&
