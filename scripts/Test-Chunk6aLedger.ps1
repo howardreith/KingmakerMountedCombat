@@ -189,7 +189,15 @@ foreach($entry in $ledger.entries){
             $result=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
             $game=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-game-result.json')|ConvertFrom-Json
             $request=Get-Content -Raw -LiteralPath (Join-Path $root 'runtime-request.json')|ConvertFrom-Json
-            if([string]$result.runId-cne$run-or[string]$result.status-cne'PASS'-or[string]$game.status-cne'PASS'){
+            $reevaluation=Get-Field $entry 'reevaluation'
+            if($null -ne $reevaluation){
+                # Re-evaluated under the current harness: the binding carried the same record and
+                # Assert-KmcSupportingRun re-ran the complete scenario validator above.
+                $boundReevaluation=Get-Field $binding 'reevaluation'
+                if($null -eq $boundReevaluation -or (ConvertTo-Json $boundReevaluation -Depth 10 -Compress) -cne (ConvertTo-Json $reevaluation -Depth 10 -Compress)){throw "Chunk 6A entry ${id}: re-evaluation record differs from its binding."}
+                if([string](Get-Field $reevaluation 'readerDigest') -cne [string](Get-Field $harness 'readerDigest')){throw "Chunk 6A entry ${id}: re-evaluated under another harness than the ledger's."}
+                if([string]$result.runId-cne$run-or[string]$result.status-cne'FAIL'-or[string]$game.status-cne'PASS'){throw "Chunk 6A entry ${id}: run $run is not a native PASS re-evaluated from an overall reader refusal."}
+            } elseif([string]$result.runId-cne$run-or[string]$result.status-cne'PASS'-or[string]$game.status-cne'PASS'){
                 throw "Chunk 6A entry ${id}: run $run is not a PASS."
             }
             if([string]$result.scenario-cne[string](Get-Field $entry 'scenario')){throw "Chunk 6A entry ${id}: scenario differs from its run."}
@@ -197,8 +205,9 @@ foreach($entry in $ledger.entries){
                 [string]$game.dllMvid-cne$payload.dllMvid-or[string]$game.productVersion-cne$payload.version){
                 throw "Chunk 6A entry ${id}: run $run did not execute the frozen payload."
             }
-            if([int]$result.assertionPassCount-ne[int](Get-Field $entry 'passCount')-or
-                [int]$result.assertionFailCount-ne[int](Get-Field $entry 'failCount')-or
+            $facet=if($null -ne $reevaluation){$game}else{$result}
+            if([int]$facet.assertionPassCount-ne[int](Get-Field $entry 'passCount')-or
+                [int]$facet.assertionFailCount-ne[int](Get-Field $entry 'failCount')-or
                 [int](Get-Field $entry 'failCount')-ne0){
                 throw "Chunk 6A entry ${id}: assertion counts differ from the run."
             }

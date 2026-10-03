@@ -5,15 +5,40 @@
 # Fixed same-candidate supporting-run contract for Chunk 6A qualification.
 # Original KMC ledger validation; reads only project-owned settled evidence.
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk6aHarnessIdentity.ps1')
 function Get-KmcBoundJson([string]$Path,[string]$ExpectedSha256) {
     if($ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$') { throw 'Evidence requires an exact SHA-256.' }
     $actual=(Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
     if($actual -cne $ExpectedSha256) { throw "Bound evidence bytes differ: $Path" }
     Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
 }
+# The run-time overall facet is the earlier harness's verdict. When it is a FAIL whose every
+# error is a dedicated external-reader refusal while the native facet is an exact PASS, a pure
+# reader correction may re-evaluate the immutable artifact under the new harness identity:
+# the binding records the original refusal and the re-evaluating reader digest, and the complete
+# scenario validator must accept the immutable bytes under the current readers every time the
+# binding is validated. Nothing is inferred: a native failure, a harness failure or any error
+# outside the dedicated readers is never re-evaluated.
+function Test-KmcExternalReaderRefusal([string]$Message) {
+    [string]$Message -cmatch '^(Action economy|Child entry preamble|Additional Chunk6A binding differs): '
+}
+function Get-KmcChunk6aReevaluation($Result,$Game,[string]$RepoRoot) {
+    if([string]$Game.status -cne 'PASS' -or [int]$Game.assertionFailCount -ne 0 -or @($Game.errors).Count -ne 0) { return $null }
+    if([string]$Result.status -cne 'FAIL' -or [int]$Result.assertionFailCount -lt 1) { return $null }
+    $errors=@($Result.errors)
+    if($errors.Count -lt 1 -or @($errors | Where-Object { -not (Test-KmcExternalReaderRefusal ([string]$_)) }).Count -ne 0) { return $null }
+    $harness=Get-KmcChunk6aHarnessIdentity $RepoRoot
+    [pscustomobject][ordered]@{
+        contract='immutable-artifact-reevaluated-under-new-harness-identity'
+        originalOverall=[pscustomobject][ordered]@{status=[string]$Result.status;assertionPassCount=[int]$Result.assertionPassCount;assertionFailCount=[int]$Result.assertionFailCount;errors=@($errors|ForEach-Object {[string]$_})}
+        readerRevision=[string]$harness.revision
+        readerDigest=[string]$harness.readerDigest
+    }
+}
 function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     $run=[string]$Binding.runId
     if($run -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid supporting run ID.' }
+    $reevaluation=if($null -ne $Binding.PSObject.Properties['reevaluation']){$Binding.reevaluation}else{$null}
     $area=[string]$Binding.scenario -ceq 'chunk4-area-cleanup'
     $legacy=[string]$Binding.scenario -ceq 'mounted-mammoth-primary-hit-tb'
     if($legacy) {
@@ -35,19 +60,38 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
            [string]$item.dllMvid -cne [string]$Payload.dllMvid) { throw 'Supporting run executed another payload.' }
         if([string]$item.transactionToken -cne [string]$transaction.token) { throw 'Supporting transaction token differs.' }
     }
-    foreach($item in @($result,$game)) {
-        if([string]$item.status -cne 'PASS' -or [int]$item.assertionFailCount -ne 0 -or [int]$item.assertionPassCount -lt 1 -or
-           [int]$item.assertionPassCount -ne [int]$Binding.passCount -or [int]$Binding.failCount -ne 0 -or @($item.errors).Count -ne 0) {
-            throw 'Supporting native or overall run is not an exact PASS.'
+    if($null -eq $reevaluation) {
+        foreach($item in @($result,$game)) {
+            if([string]$item.status -cne 'PASS' -or [int]$item.assertionFailCount -ne 0 -or [int]$item.assertionPassCount -lt 1 -or
+               [int]$item.assertionPassCount -ne [int]$Binding.passCount -or [int]$Binding.failCount -ne 0 -or @($item.errors).Count -ne 0) {
+                throw 'Supporting native or overall run is not an exact PASS.'
+            }
         }
+    } else {
+        if([string]$reevaluation.contract -cne 'immutable-artifact-reevaluated-under-new-harness-identity') { throw 'Supporting re-evaluation contract differs.' }
+        if([string]$game.status -cne 'PASS' -or [int]$game.assertionFailCount -ne 0 -or [int]$game.assertionPassCount -lt 1 -or
+           [int]$game.assertionPassCount -ne [int]$Binding.passCount -or [int]$Binding.failCount -ne 0 -or @($game.errors).Count -ne 0) {
+            throw 'Re-evaluated supporting run is not an exact native PASS.'
+        }
+        $original=$reevaluation.originalOverall
+        if([string]$result.status -cne 'FAIL' -or [string]$original.status -cne 'FAIL' -or [int]$result.assertionPassCount -ne [int]$original.assertionPassCount -or
+           [int]$result.assertionFailCount -ne [int]$original.assertionFailCount -or [int]$result.assertionFailCount -lt 1 -or
+           (ConvertTo-Json @($result.errors|ForEach-Object {[string]$_}) -Compress) -cne (ConvertTo-Json @($original.errors|ForEach-Object {[string]$_}) -Compress)) {
+            throw 'Re-evaluated supporting run does not record its original overall refusal exactly.'
+        }
+        if(@(@($result.errors) | Where-Object { -not (Test-KmcExternalReaderRefusal ([string]$_)) }).Count -ne 0) { throw 'Re-evaluated supporting run failed outside the dedicated external readers.' }
+        $repoRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+        $current=Get-KmcChunk6aHarnessIdentity $repoRoot
+        if([string]$reevaluation.readerDigest -cne [string]$current.readerDigest -or [string]$reevaluation.readerRevision -cnotmatch '^[0-9a-f]{40}$') { throw 'Re-evaluated supporting run names another reader digest than the current harness.' }
     }
     if([string]$result.gameResultSha256 -cne [string]$Binding.gameResultSha256) { throw 'Overall result does not bind the native result.' }
     if([string]$request.qualificationSuite.suiteId -cne [string]$Payload.suiteId -or
        [string]$request.qualificationSuite.snapshotSha256 -cne [string]$Payload.suiteSha256 -or
        [string]$transaction.qualificationSuiteId -cne [string]$Payload.suiteId -or
        [string]$transaction.qualificationSuiteSnapshotSha256 -cne [string]$Payload.suiteSha256) { throw 'Supporting run used another qualification suite.' }
+    # The orchestration records the run-time overall verdict: PASS, or FAIL for a re-evaluated run whose overall facet was the earlier reader's refusal.
     if([string]$orchestration.runId -cne $run -or [string]$orchestration.scenario -cne [string]$Binding.scenario -or
-       [string]$orchestration.status -cne 'PASS' -or [string]$orchestration.stage -cne 'restored' -or
+       [string]$orchestration.status -cne $(if($null -eq $reevaluation){'PASS'}else{'FAIL'}) -or [string]$orchestration.stage -cne 'restored' -or
        [string]$transaction.runId -cne $run -or [string]$transaction.phase -cne 'restored') { throw 'Supporting transaction is not settled and restored.' }
     foreach($field in @('modsRestored','saveProtectionPassed','baselineImmutable','workingRestored','saveWriteAllowlistPassed')) {
         if($result.$field -ne $true -or $transaction.$field -ne $true) { throw "Supporting restoration failed: $field" }
@@ -59,6 +103,12 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
         if([string]$artifact.$field -cne [string]$game.$field) { throw 'Supporting artifact payload or run differs.' }
     }
     if($artifact.status -cne 'PASS' -or @($artifact.errors).Count -ne 0) { throw 'Supporting artifact is not PASS.' }
+    if($null -ne $reevaluation) {
+        # The complete scenario validator must accept the immutable bytes under the current readers.
+        . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
+        if([string]$Binding.evidenceLeaf -cne 'phase3d-horse-scenario-evidence.json') { throw 'Re-evaluation is defined only for Phase 3D Horse artifacts.' }
+        Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS'
+    }
     $rows=@($Binding.rows)
     if($rows.Count -lt 1 -or @($rows | Select-Object -Unique).Count -ne $rows.Count) { throw 'Supporting rows must be nonempty and unique.' }
     foreach($rowName in $rows) {
@@ -146,8 +196,11 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
     $root=Join-Path $LabRoot ('runtime-evidence/'+$RunId)
     $result=Get-Content -Raw (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
     $leaf=if($result.scenario -ceq 'chunk4-area-cleanup'){'boundary-scenario-evidence.jsonl'}elseif($result.scenario -ceq 'mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'}
-    $binding=[ordered]@{role=$Role;runId=$RunId;scenario=$result.scenario;passCount=$result.assertionPassCount;failCount=$result.assertionFailCount;
+    $game=Get-Content -Raw (Join-Path $root 'runtime-game-result.json')|ConvertFrom-Json
+    $reevaluation=Get-KmcChunk6aReevaluation $result $game ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')))
+    $binding=[ordered]@{role=$Role;runId=$RunId;scenario=$result.scenario;passCount=$(if($null -ne $reevaluation){$game.assertionPassCount}else{$result.assertionPassCount});failCount=$(if($null -ne $reevaluation){0}else{$result.assertionFailCount});
         rows=$Rows;evidenceLeaf=$leaf}
+    if($null -ne $reevaluation) { $binding['reevaluation']=$reevaluation }
     foreach($pair in @(@('resultSha256','runtime-result.json'),@('gameResultSha256','runtime-game-result.json'),
         @('requestSha256','runtime-request.json'),@('orchestrationSha256','orchestration.json'),@('evidenceSha256',$leaf))) {
         $binding[$pair[0]]=(Get-FileHash -LiteralPath (Join-Path $root $pair[1]) -Algorithm SHA256).Hash.ToLowerInvariant()

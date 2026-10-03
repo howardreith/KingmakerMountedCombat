@@ -465,6 +465,17 @@ foreach($name in $cases.Keys){
   Check-Economy $increase $c.order $mi $c.dp $false ($name+' debt increase without a cost')
   $noTransition=Copy-Value $decayed;$noTransition.retention.events[-2].boundary='fixture-observation'
   Check-Economy $noTransition $c.order $md $c.dp $false ($name+' decay without a turn transition')
+  # The native End of the mount's own turn consumes its unused actions (observed on preview.151:
+  # Standard 0 to 6 at turn-end-after); a cooldown that falls at that End is a refund and is refused.
+  if($v.mountSlot-ceq'ground'){
+   $consumed=Copy-Value $c.e;$mc=Copy-Value $c.mp
+   $endAfter=@($consumed.mountSlot.endEvents|Where-Object {$_.boundary-ceq'turn-end-after'})[0];$endAfter.state.standard=6.0
+   foreach($res in @($consumed.mountSlot.slotEnd.mountResources,$consumed.retention.before.mountResources,$consumed.retention.after.mountResources)){$res.standard=6.0}
+   foreach($ev in @($consumed.retention.events)){if($ev.state.actor-ceq'mount'){$ev.state.standard=6.0}}
+   $mc.preClick.state.mount.standard=6.0;$mc.samples[0].state.mount.standard=6.0;$mc.samples[0].nativeAllocation.mount.standard=6.0
+   Check-Economy $consumed $c.order $mc $c.dp $true ($name+' native end-of-turn consumption')
+  }
+  Reject {param($x,$o,$m,$d)$endAfter=@($x.mountSlot.endEvents|Where-Object {$_.boundary-ceq'turn-end-after'})[0];$endAfter.state.standard=[Math]::Max(0.0,[double]$endAfter.state.standard-1.0);$endAfter.state.move=0.0;$x.mountSlot.slotEnd.mountResources.standard=[double]$endAfter.state.standard;$x.mountSlot.slotEnd.mountResources.move=0.0;$x.retention.before.mountResources.standard=[double]$endAfter.state.standard;$x.retention.before.mountResources.move=0.0} 'refund at the native End'
   if($v.mountSlot-ceq'single-attack'){
    # A hover prediction before the native End must never be charged.
    Reject {param($x,$o,$m,$d)$ev=Find-Event $x.mountSlot.endEvents 'admission-after' 735624448;$ev.boundary='cost-after';$ev.state.standard=12.0} 'slot end prediction charged'
@@ -488,6 +499,13 @@ foreach($name in $cases.Keys){
   Reject {param($x,$o,$m,$d)$x.refusal.availability.enabled=$true} 'availability'
   Reject {param($x,$o,$m,$d)$x.refusal.availability.reason='other'} 'reason'
   Reject {param($x,$o,$m,$d)$x.refusal.click.clicked=$true} 'click admitted'
+  # Observed on preview.151: the refusal at the targeting gate precedes any cast request and the
+  # aborted selection has not ended at the click; nothing started.
+  $gate=Copy-Value $c.e;$gate.refusal.click.targetSelectionEndDelta=0;$gate.refusal.click.nativeRefusalDelta=1;$gate.refusal.click.nativeCastRequestDelta=0
+  Check-Economy $gate $c.order $c.mp $c.dp $true ($name+' refusal at the targeting gate')
+  Reject {param($x,$o,$m,$d)$x.refusal.click.nativeCastRequestDelta=1;$x.refusal.click.nativeRefusalDelta=0} 'cast requested without a refusal'
+  Reject {param($x,$o,$m,$d)$x.refusal.click.targetSelectionStartDelta=2;$x.refusal.click.targetSelectionEndDelta=2} 'two target selections'
+  Reject {param($x,$o,$m,$d)$x.refusal.click.nativePrimaryShellPrepareDelta=1} 'primary shell prepared'
   Reject {param($x,$o,$m,$d)$x.refusal.click.dispatchAcceptedDelta=1} 'dispatch'
   Reject {param($x,$o,$m,$d)$x.refusal.controls.after.shellCount=3} 'shell'
   Reject {param($x,$o,$m,$d)$x.refusal.ledgerAfter.acceptedMount=2} 'ledger'
