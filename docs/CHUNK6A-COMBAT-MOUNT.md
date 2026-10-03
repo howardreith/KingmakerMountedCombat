@@ -1496,3 +1496,32 @@ replay under `-LabRoot`), FULL deferred to the Chunk 6 consolidation. The five l
 foundation cases and the "CHUNK 6A IMPLEMENTATION STABLE / FINAL QUALIFICATION DEFERRED TO CHUNK 6
 CONSOLIDATION" record follow the preview.151 native runs; neither preview.150 nor preview.151 is
 accepted, released, fully qualified or HUMAN PLAY approved.
+
+### Preview.151 campaign outcome (2026-10-03)
+
+Purity proof PASS, then thirteen fresh isolated restored transactions on the frozen candidate
+1d02cbd07d86b56bd8c8d1085800b68ac5b0d955 (the eleven preview.150 failures first, then ORDER-MOUNT-FIRST
+and UNMOUNTED-CONTROLS). Native PASS 11/13. Two run-time overall refusals were the reader, not the
+product: the native End of the mount's own turn consumes its unused Standard (mount-spent-move) and a
+Mount refused at the targeting gate records its refusal before any cast request with the aborted
+selection still open (rider-without-move). Both facts were accepted in
+`scripts/runtime/NativeActionEconomyEvidence.ps1` only; the ledger was re-bound to the reader revision
+4127ee14248accd0ceedf0f2680c8a93f2aab576 with the product payload, package, DLL, suite and purity proof
+unchanged (`Reharness-Preview151`), and the two immutable artifacts were re-evaluated under the
+re-evaluation protocol: the binding records the original overall refusal and the re-evaluating reader
+digest, the native facet must be an exact PASS, and the complete scenario validator re-runs on the
+immutable bytes at every ledger validation (`Get-KmcChunk6aReevaluation`, `Assert-KmcSupportingRun`,
+`scripts/Test-Chunk6aReevaluation.ps1`). Native failures and refusals outside the dedicated readers are
+never re-evaluated.
+
+Ledger 800a0ff582e8bc44c371b07ff2e0417613bd08dc0911568da14a65c69afd2e2d: 12 PASS / 2 FAIL / 73 BLOCKED,
+71 retained failures. PASS on preview.151: CM03-mount-spent-move, CM03-mount-spent-standard,
+CM03-mount-spent-all, CM03-rider-without-move, CM03-unrelated-candidate-between, CM05-after-rider-expenditure,
+CM05-after-mount-expenditure, CM05-immediately-after-mount, CM03-rider-before-mount-slot,
+CM03-mount-slot-before-rider, CM03-next-round-activation, CM03-early-end-turn. Retained with their causes
+not established: CM03-rider-other-action (after the single ranged attack the Mount shell's native approach
+was interrupted at its first displacement, started false, no dispatch, then the 30 s leaf deadline) and
+CM08-ordinary-attack-controls-tb (after the child entry and 13 of 21 subscenarios the mixed-weapon setup
+movement did not reach legal adjacency). The next candidate adds the measurements the retained analyses
+name and the five lifecycle/persistence foundation cases; neither preview.150 nor preview.151 is accepted,
+released, fully qualified or HUMAN PLAY approved.
