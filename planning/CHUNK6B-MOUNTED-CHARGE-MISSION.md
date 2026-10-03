@@ -1,7 +1,6 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `INCREMENT 6B.1 IMPLEMENTED (0.1.0-chunk6b-preview.156) - CANDIDATE, FREEZE AND NATIVE MEASUREMENT
-PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `INCREMENT 6B.1 MEASURED ON PREVIEW.156 - TWO CAUSES ESTABLISHED, CORRECTED MEASUREMENT NEXT`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -144,7 +143,7 @@ charge must restore or lawfully drop it through the existing persistence machine
 - Historical failures are retained immutably; a commit, candidate, proof or targeted PASS is never
   authorization to merge main or publish a release.
 
-## Increment 6B.1 - implementation record (2026-10-03; preview.156, not yet frozen)
+## Increment 6B.1 - implementation record (2026-10-03; preview.156, frozen at commit 13b86ac0)
 
 Diagnostics only; no product behavior changed; the feature stays absent and default-off; the stock Charge stays
 rejected while mounted (Chunk 4 protocol, 472/0 in this candidate's FAST tier).
@@ -185,5 +184,44 @@ rejected while mounted (Chunk 4 protocol, 472/0 in this candidate's FAST tier).
   failed on the two source pins above (the schema pin and the charge-absent guard; no build or test defect),
   attempt 2 14/0 after the pins were updated; component tests 556/0.
 
-Native measurement outcome: pending (one CANDIDATE tier, freeze, purity proof, then the two measurement scenarios
-plus the Chunk 4 charge-safety regression as fresh isolated restored transactions).
+## Increment 6B.1 - native measurement outcome (2026-10-03; frozen preview.156)
+
+Frozen preview.156 (commit 13b86ac0, package e7494561, suite `20261003-chunk6b-charge-path-a` / ed6eacec, purity PASS
+`c6b-path156-a-whatif`); CANDIDATE tier 25/0 before the freeze. Lab record
+`analysis-cache/chunk6b-charge/measurement-preview156.json` (fef66ea0) and outcome
+`chunk6b-increment-6b1-outcome.json` (715d4bd4): 2 PASS / 2 FAIL of 4 stages, every transaction a fresh isolated
+restored transaction with session logs preserved; nothing merges to main.
+
+- CHARGE-SAFETY-RT and CHARGE-SAFETY-TB (`c6b-path156-a-charge-safety-rt`/`-tb`): PASS 66/0 each. The Chunk 4
+  rejection of the stock Charge while mounted and the untouched unmounted Charge are unchanged on this candidate.
+- C6B-PATH-RT (`c6b-path156-a-charge-path-rt`): native rows 62/0, external reader FAIL ("row
+  C6B-PATH-straight-arrival did not restore the lease exactly"); retained. Measured: after the three stock calls on
+  the mount agent the agent entered force mode and moved for exactly one movement tick (0.112 m at 10.17 m/s), then
+  stopped (stalled after 1.0 s at 8.888 m; the interrupt row likewise 0.120 m), with both command containers empty
+  throughout, no cooldown delta on either actor, charging flag and speed override restored exactly, and force mode
+  still set after the stop. Cause, established read-only from the decompiled engine: `UnitActionController.TickOnUnit`
+  stops every unit whose command container is empty on every tick (`unit.Commands.Empty` then `View.StopMoving()`);
+  the stock charge survives because its caster holds the running engage-unit `UnitUseAbility` for the whole path. A
+  forced path on the mount therefore lives only while the mount holds a live command. Second fact:
+  `UnitMovementAgent.Stop()` does not clear `m_IsInForceMode`; only the next `OnPathComplete` does, and the stock
+  charge leaves the same latch after its `Cleanup`. The row's "force mode cleared after the stop" expectation was
+  therefore not an attainable restoration; the reader refused correctly under that rule, and the rule is recalibrated
+  below to the measured semantics (latched after the stop, proven cleared by the next lawful path).
+- C6B-PATH-TB (`c6b-path156-a-charge-path-tb`): FAIL 60/2, native exception "Native ground input admitted no exact
+  player command for <rider>"; retained. The five-foot-step entry looked for the admitted command on the rider, while
+  the mounted pair's rider-turn ground movement is admitted as a mount-executed `UnitMoveTo` (session log: "Mounted
+  ground movement accepted ... executorId=<mount>; turnStatus=Preparing"). A fixture defect of the measurement scenario;
+  no forced path was measured in turn-based mode.
+
+Both causes are established and fixture-side (the diagnostics scenario and its reader); no product behavior is
+implicated and none changes. Design consequence for 6B.2/6B.3, now measured rather than assumed: the pair charge's
+mover must hold a live command of its own for the whole forced path (the mount-executed carrier the pair transaction
+already uses for its delegated approach is the candidate), while the rider's full-round shell owns the cost.
+
+Corrected measurement (increment 6B.1 continued, next candidate): the forced path runs under the pair's own admitted
+delegated ground move on the mount as its carrier (a native `UnitMoveTo` created by a native ground click, mount
+executor, created by the player: the pathway qualified in Chunk 6A); the three charge calls are applied on the mount
+agent while that command is alive and the forced path is re-applied whenever the agent leaves force mode, exactly as
+the stock runtime routine re-forces it; the interrupt row interrupts the carrier natively; every leased value is
+restored; the latched force mode is recorded and then proven cleared by the next lawful pair path (a residue probe);
+and the turn-based entry accepts the admitted five-foot-step command on the mount.
