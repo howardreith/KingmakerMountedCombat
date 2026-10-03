@@ -251,8 +251,15 @@ function Get-KmcChunk6aFoundationProjection($Binding,$Request,$Game,$Result,[str
  if(-not(Test-KmcChunk6aFoundationScenario ([string]$Binding.scenario))-or[string]$Binding.evidenceLeaf-cne'persistence-observations.jsonl'-or@($Binding.rows).Count-ne1){FoundationFail 'a foundation binding requires the persistence scenario, JSONL leaf and one row'}
  if([IO.Path]::GetFullPath([string]$Request.evidenceRoot).TrimEnd('\')-cne[IO.Path]::GetFullPath($Root).TrimEnd('\')){FoundationFail 'the request evidence root differs'}
  foreach($item in @($Request,$Game,$Result)){ if([string]$item.runId-cne[string]$Binding.runId-or[string]$item.scenario-cne[string]$Binding.scenario){FoundationFail 'the run identity differs'} }
+ # A re-evaluated binding (an immutable artifact re-read under a later harness identity) carries the
+ # earlier reader's refusal in its overall facet: that facet must then be exactly a FAIL made only of
+ # this reader's own refusals while the native facet stays an exact PASS; the supporting binder proves
+ # that the recorded original overall facet is the one re-evaluated.
+ $reevaluated=$null-ne(FoundationProp $Binding 'reevaluation')
  foreach($item in @($Game,$Result)){
-  if([string]$item.status-cne'PASS'-or-not(Test-KmcExactJsonInteger $item.assertionPassCount)-or$item.assertionPassCount-lt1-or-not(Test-KmcExactJsonInteger $item.assertionFailCount)-or$item.assertionFailCount-ne0-or$item.errors-isnot[Array]-or@($item.errors).Count-ne0){FoundationFail 'the native/overall result is not an exact PASS'}
+  if($reevaluated-and[object]::ReferenceEquals($item,$Result)){
+   if([string]$item.status-cne'FAIL'-or-not(Test-KmcExactJsonInteger $item.assertionFailCount)-or$item.assertionFailCount-lt1-or$item.errors-isnot[Array]-or@($item.errors).Count-lt1-or@($item.errors|Where-Object {[string]$_-cnotmatch'^Chunk 6A foundation: '}).Count-ne0){FoundationFail 'the re-evaluated overall result is not exactly an earlier refusal of this reader'}
+  } elseif([string]$item.status-cne'PASS'-or-not(Test-KmcExactJsonInteger $item.assertionPassCount)-or$item.assertionPassCount-lt1-or-not(Test-KmcExactJsonInteger $item.assertionFailCount)-or$item.assertionFailCount-ne0-or$item.errors-isnot[Array]-or@($item.errors).Count-ne0){FoundationFail 'the native/overall result is not an exact PASS'}
   if([string]$item.evidenceManifestSha256-cne[string]$Binding.artifactManifestSha256){FoundationFail 'the result manifest binding differs'}
  }
  Assert-KmcReadOnlyArtifactManifest -Request $Request -ExpectedSha256 $Binding.artifactManifestSha256
