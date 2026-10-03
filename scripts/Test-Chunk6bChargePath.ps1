@@ -15,8 +15,9 @@ function New-Row([string]$Case,[string]$Mode){
  $samples=@()
  for($i=0;$i-lt6;$i++){ $samples+=,([ordered]@{nativeSeconds=0.1*$i;frame=100+$i;distanceToTarget=9.0-1.4*$i;mountMoving=$true;forceMode=$true;speedMps=13.4;carrierRunning=$true;carrierStarted=$true;reforces=1;riderCommandsEmpty=$true;mountOnlyCarrier=$true;riderMove=0;riderStandard=0;mountMove=0;mountStandard=0;turnTimeMoved=$(if($tb){0.24+0.1*$i}else{$null});turnTimeForced=$(if($tb){0.1*$i}else{$null});pairMovement='mountMove=0->0';charging=$true;descriptorCharging=$false}) }
  $arrival=$Case-ceq'C6B-PATH-straight-arrival'
- $turnBefore=if($tb){New-Turn 0.24 0 0.24 $false $true}else{$null}
- $turnAfter=if($tb){New-Turn 0.74 0.5 0.24 $false $true}else{$null}
+ # The carrier is the rider turn's first movement, so nothing had moved before the path.
+ $turnBefore=if($tb){New-Turn 0 0 0 $false $false}else{$null}
+ $turnAfter=if($tb){New-Turn 0.5 0.5 0 $false $true}else{$null}
  $carrier=New-Order 'delegated-ground-move' 'mount'
  $carrier['destination']=@(8,0,8);$carrier['admitted']=$true;$carrier['startedMoving']=$true;$carrier['interruptedByMeasurement']=$true;$carrier['terminal']=[ordered]@{finished=$true}
  $probe=New-Order 'residue-probe' 'mount'
@@ -35,7 +36,9 @@ function New-Row([string]$Case,[string]$Mode){
   costsAfterProbe=[ordered]@{riderStandardDelta=0;riderMoveDelta=$(if($tb){0.4}else{0});mountStandardDelta=0;mountMoveDelta=0}
   residueProbe=$probe
   reach=[ordered]@{radius=2.0;arrivalWithinReach=$arrival;distanceNow=$(if($arrival){3.2}else{8.6})}
-  riderCommandsEmptyThroughout=$true;mountOnlyCarrierThroughout=$true;chargingObservedThroughout=$true;attackRules=0 } }
+  riderCommandsEmptyThroughout=$true;mountOnlyCarrierThroughout=$true;chargingObservedThroughout=$true
+  attackRules=0;attackRulesOpportunity=0;attackRulesNonOpportunity=0
+  attackRuleEvidence=[ordered]@{riderAttackRules=0;mountAttackRules=0;pairNonOpportunityAttackRules=0;pairOpportunityAttackRules=0;firstPairActorId=$null;attackRuleEvents=@()} } }
 }
 function New-Artifact([string]$Mode){
  $scenario=if($Mode-ceq'TB'){'chunk6b-charge-path-tb'}else{'chunk6b-charge-path-rt'}
@@ -77,7 +80,7 @@ foreach($mode in @('RT','TB')){
  Mutate 'a rider command during the path' {param($a) $a.rows[0].evidence.samples[2].riderCommandsEmpty=$false}
  Mutate 'charging flag lost mid-path' {param($a) $a.rows[0].evidence.samples[3].charging=$false}
  Mutate 'rider standard charged' {param($a) $a.rows[0].evidence.costs.riderStandardDelta=3.0}
- Mutate 'rider move charged beyond a native frame' {param($a) $a.rows[0].evidence.costs.riderMoveDelta=0.2}
+ Mutate 'a refunded rider move' {param($a) $a.rows[0].evidence.costs.riderMoveDelta=-0.5}
  Mutate 'mount move charged' {param($a) $a.rows[0].evidence.costs.mountMoveDelta=0.5}
  Mutate 'charging not restored' {param($a) $a.rows[0].evidence.restoration.chargingRestored=$false}
  Mutate 'speed override not restored' {param($a) $a.rows[0].evidence.restoration.speedOverrideRestored=$false}
@@ -92,7 +95,10 @@ foreach($mode in @('RT','TB')){
  Mutate 'residue probe never moved' {param($a) $a.rows[0].evidence.residueProbe.firstMove=$null}
  Mutate 'residue probe moved nothing' {param($a) $a.rows[0].evidence.residueProbe.movedDistance=0.1}
  Mutate 'residue probe timed out' {param($a) $a.rows[0].evidence.residueProbe.timedOut=$true}
- Mutate 'an attack rule' {param($a) $a.rows[0].evidence.attackRules=1}
+ Mutate 'a pair attack delivered by the measurement' {param($a) $a.rows[0].evidence.attackRules=1;$a.rows[0].evidence.attackRulesNonOpportunity=1}
+ Mutate 'attack-rule counts that do not reconcile' {param($a) $a.rows[0].evidence.attackRules=2;$a.rows[0].evidence.attackRulesOpportunity=1}
+ Mutate 'a negative attack-rule count' {param($a) $a.rows[0].evidence.attackRules=-1;$a.rows[0].evidence.attackRulesOpportunity=-1}
+ Mutate 'missing compiled attack-rule evidence' {param($a) $a.rows[0].evidence.attackRuleEvidence=$null}
  Mutate 'left the straight line' {param($a) $a.rows[0].evidence.stop.maximumLateralDeviation=1.2}
  Mutate 'arrival outside reach' {param($a) $a.rows[0].evidence.reach.arrivalWithinReach=$false}
  Mutate 'arrival that barely moved' {param($a) $a.rows[0].evidence.stop.movedDistance=0.5}
@@ -108,16 +114,19 @@ foreach($mode in @('RT','TB')){
  Mutate 'failure-only row claimed PASS' {param($a) $a.rows+=@([pscustomobject]@{name='phase3d-horse-runtime-exception';status='PASS';evidence=$null});$a.subscenarioPassCount=3}
  Mutate 'row counts differ' {param($a) $a.subscenarioPassCount=5}
  Mutate 'measurement contract absent' {param($a) $a.observations.chunk6bChargePath.contract='other'}
+ # A native attack of opportunity against the armed target is the engine's own reflex and is recorded, not refused.
+ $opportunity=New-Artifact $mode; $opportunity.rows[0].evidence.attackRules=1; $opportunity.rows[0].evidence.attackRulesOpportunity=1; $opportunity.rows[0].evidence.attackRuleEvidence.pairOpportunityAttackRules=1
+ Accept ($mode+' a native opportunity attack recorded during the path') { Assert-KmcChunk6bChargePathEvidence $request $opportunity 'PASS' }
  if($mode-ceq'TB'){
-  $frame=New-Artifact $mode; $frame.rows[0].evidence.costs.riderMoveDelta=0.03
-  Accept 'TB one native frame of ordinary movement before the forced path' { Assert-KmcChunk6bChargePathEvidence $request $frame 'PASS' }
+  # The carrier is an ordinary pair ground move, so the rider turn's own movement is lawfully spent in turn-based mode.
+  $spent=New-Artifact $mode; $spent.rows[0].evidence.costs.riderMoveDelta=3.0
+  Accept 'TB carrier spent the rider turn movement' { Assert-KmcChunk6bChargePathEvidence $request $spent 'PASS' }
   Mutate 'rider turn moved before the path' {param($a) $a.rows[0].evidence.before.turn.timeMoved=1.0}
-  Mutate 'path off the Acting turn' {param($a) $a.rows[0].evidence.before.turn.acting=$false}
   Mutate 'no forced time recorded on the rider turn' {param($a) $a.rows[0].evidence.after.turn.timeMovedInForceMode=0}
   Mutate 'movement outside force mode beyond a frame' {param($a) $a.rows[0].evidence.after.turn.timeMoved=2.0}
-  Mutate 'entry that was not a five-foot step' {param($a) $a.rows[0].evidence.before.turn.timeMovedByFiveFootStep=0}
   Mutate 'forced time decreased mid-path' {param($a) $a.rows[0].evidence.samples[4].turnTimeForced=0.0}
   Mutate 'path off the rider turn' {param($a) $a.rows[0].evidence.before.turn.isRider=$false}
+  Mutate 'a mount move charged for carrying' {param($a) $a.rows[0].evidence.costs.mountMoveDelta=3.0}
  } else {
   Mutate 'RT rider move charged at all' {param($a) $a.rows[0].evidence.costs.riderMoveDelta=0.03}
  }

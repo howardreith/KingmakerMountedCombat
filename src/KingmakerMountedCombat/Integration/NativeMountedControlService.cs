@@ -54,6 +54,7 @@ namespace KingmakerMountedCombat.Integration
         internal const string DismountAbilityGuid = "3af2b81f4d72bbb30501fa730fcdf36e";
         internal const string RiderPrimaryAbilityGuid = "27364df661b3c121eabb97a31aa73a83";
         internal const string MountPrimaryAbilityGuid = "f88a50d6fdbebbd709c3e323d2f52f5e";
+        internal const string MountedChargeAbilityGuid = "d79eaec224a7a832e738eb81baef9d49";
 
         private const int DisplayNameFieldToken = 0x04006955;
         private const int DescriptionFieldToken = 0x04006956;
@@ -102,6 +103,7 @@ namespace KingmakerMountedCombat.Integration
         private BlueprintAbility dismountAbility;
         private BlueprintAbility riderPrimaryAbility;
         private BlueprintAbility mountPrimaryAbility;
+        private BlueprintAbility mountedChargeAbility;
         private bool registered;
         private bool enabled;
         private bool subscribed;
@@ -132,6 +134,8 @@ namespace KingmakerMountedCombat.Integration
         internal BlueprintAbility MountAbility => mountAbility;
 
         internal BlueprintAbility DismountAbility => dismountAbility;
+
+        internal BlueprintAbility MountedChargeAbility => mountedChargeAbility;
 
         internal BlueprintAbility RiderPrimaryAbility => riderPrimaryAbility;
 
@@ -869,6 +873,8 @@ namespace KingmakerMountedCombat.Integration
                     return combat.GetNativeAbilityAvailability(combat.ResolveRiderPrimaryAction(), caster);
                 case NativeMountedControlKind.MountPrimary:
                     return combat.GetNativeAbilityAvailability(MountedCombatActionKind.MountPrimaryNatural, caster);
+                case NativeMountedControlKind.MountedCharge:
+                    return combat.EvaluateMountedCharge(caster);
                 default:
                     return new NativeMountedControlAvailability(false, false, "Unknown mounted control.");
             }
@@ -920,6 +926,8 @@ namespace KingmakerMountedCombat.Integration
                     return combat.CanNativeAbilityTarget(combat.ResolveRiderPrimaryAction(), caster, target);
                 case NativeMountedControlKind.MountPrimary:
                     return combat.CanNativeAbilityTarget(MountedCombatActionKind.MountPrimaryNatural, caster, target);
+                case NativeMountedControlKind.MountedCharge:
+                    return combat.CanMountedChargeTarget(caster, target);
                 default:
                     return false;
             }
@@ -979,6 +987,10 @@ namespace KingmakerMountedCombat.Integration
                     case NativeMountedControlKind.MountPrimary:
                         accepted = combat.TryExecuteNativeAbility(
                             MountedCombatActionKind.MountPrimaryNatural, caster, target) ==
+                            MountedCombatClickResult.HandledAccepted;
+                        break;
+                    case NativeMountedControlKind.MountedCharge:
+                        accepted = combat.TryExecuteMountedCharge(caster, target) ==
                             MountedCombatClickResult.HandledAccepted;
                         break;
                     default:
@@ -1291,7 +1303,8 @@ namespace KingmakerMountedCombat.Integration
                 MountAbilityGuid,
                 DismountAbilityGuid,
                 RiderPrimaryAbilityGuid,
-                MountPrimaryAbilityGuid
+                MountPrimaryAbilityGuid,
+                MountedChargeAbilityGuid
             })
             {
                 AssertGuidAbsent(library, guid);
@@ -1357,13 +1370,59 @@ namespace KingmakerMountedCombat.Integration
                 UnitCommand.CommandType.Free,
                 horseIcon);
 
+            mountedChargeAbility = CreateMountedChargeAbility(horseIcon);
             foreach (var ability in EnumerateBlueprints())
             {
                 library.BlueprintsByAssetId.Add(ability.AssetGuid, ability);
                 blueprintList.Add(ability);
             }
             registered = true;
-            logger.Info("Registered four original KMC native mounted-control abilities with action-bar autofill disabled.");
+            logger.Info("Registered five original KMC native mounted-control abilities with action-bar autofill disabled; the Mounted Charge shell is leased only while its setting is on.");
+        }
+
+        internal float GetMountedChargeMinimumRange(UnitEntityData caster)
+        {
+            if (disposed || !enabled || !registered)
+            {
+                return 0f;
+            }
+
+            return combat.GetMountedChargeMinimumRange(caster);
+        }
+
+        // The fifth original KMC ability: the rider's native full-round Standard charge shell. It differs from
+        // the four controls in exactly the ways the stock charge differs from an ordinary ability: a Standard
+        // full-round action, an enemy target, equipped weapons required, and a component that also provides the
+        // stock minimum charge range. The range enum stays Unlimited so the native shell never asks the rider
+        // to approach; the authoritative gate is the component's CanTarget, read from the mount.
+        private BlueprintAbility CreateMountedChargeAbility(Sprite icon)
+        {
+            var ability = CreateOwned<BlueprintAbility>("KMC_MountedChargeAbility");
+            ability.AssetGuid = MountedChargeAbilityGuid;
+            ability.Type = AbilityType.Extraordinary;
+            ability.Range = AbilityRange.Unlimited;
+            ability.CanTargetPoint = false;
+            ability.CanTargetEnemies = true;
+            ability.CanTargetFriends = false;
+            ability.CanTargetSelf = false;
+            ability.SpellResistance = false;
+            ability.LocalizedDuration = NewLocalizedString("KMC.Native.Empty");
+            ability.LocalizedSavingThrow = NewLocalizedString("KMC.Native.Empty");
+            ability.ActionBarAutoFillIgnored = true;
+            ability.Hidden = false;
+            ability.NeedEquipWeapons = true;
+            ability.ActionType = UnitCommand.CommandType.Standard;
+            ability.SetIsFullRoundAction(true);
+            ability.Animation = UnitAnimationActionCastSpell.CastAnimationStyle.Immediate;
+            ability.HasFastAnimation = true;
+            ability.DisableLog = false;
+            ability.ResourceAssetIds = new string[0];
+            DisplayNameField.SetValue(ability, NewLocalizedString("KMC.Native.MountedCharge.Name"));
+            DescriptionField.SetValue(ability, NewLocalizedString("KMC.Native.MountedCharge.Description"));
+            IconField.SetValue(ability, icon);
+            var logic = CreateOwned<MountedChargeAbilityLogic>("KMC_MountedChargeAbility_Logic");
+            ability.ComponentsArray = new BlueprintComponent[] { logic };
+            return ability;
         }
 
         private BlueprintAbility CreateAbility(
@@ -1474,7 +1533,8 @@ namespace KingmakerMountedCombat.Integration
                 mounted,
                 faulted,
                 unit == relationship.Rider,
-                unit == relationship.Mount);
+                unit == relationship.Mount,
+                settings.EnableMountedCharge);
         }
 
         private List<UnitEntityData> CollectCurrentCandidateUnits()
@@ -1928,6 +1988,7 @@ namespace KingmakerMountedCombat.Integration
             if (ReferenceEquals(ability, dismountAbility)) { return NativeMountedControlKind.Dismount; }
             if (ReferenceEquals(ability, riderPrimaryAbility)) { return NativeMountedControlKind.RiderPrimary; }
             if (ReferenceEquals(ability, mountPrimaryAbility)) { return NativeMountedControlKind.MountPrimary; }
+            if (ReferenceEquals(ability, mountedChargeAbility)) { return NativeMountedControlKind.MountedCharge; }
             return NativeMountedControlKind.None;
         }
 
@@ -1937,6 +1998,7 @@ namespace KingmakerMountedCombat.Integration
             if (dismountAbility != null) { yield return dismountAbility; }
             if (riderPrimaryAbility != null) { yield return riderPrimaryAbility; }
             if (mountPrimaryAbility != null) { yield return mountPrimaryAbility; }
+            if (mountedChargeAbility != null) { yield return mountedChargeAbility; }
         }
 
         private void RemoveRegisteredBlueprints()

@@ -320,6 +320,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (request.Scenario == Phase3dHorseScenarioTranche.Phase3gRealTimeScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario ||
                     request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk6bChargePathScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
@@ -337,7 +338,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 originalTurnBased = CombatController.IsInTurnBasedCombat();
                 originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
                 originalPairedActivationSetting = settings.EnablePairedActivation;
-                if (Phase3dHorseScenarioTranche.IsChunk6bChargePathScenario(request.Scenario) ||
+                if (Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargePathScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
@@ -1622,6 +1624,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 availability.Action == MountedPlayerActionKind.Mount)
             {
                 if (request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk6bChargePathScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||

@@ -176,6 +176,10 @@ namespace KingmakerMountedCombat.Integration
         private readonly IModLogger logger;
         private readonly Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal;
         private readonly bool allowApproach;
+        // Chunk 6B increment 6B.2: charge mode layers the stock charge mechanics on this already qualified
+        // transaction through one lease. Everything else about the transaction is unchanged.
+        private readonly bool chargeMode;
+        private MountedChargeLease chargeLease;
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
         // Compatibility name for the existing bounded evidence schema. There is
         // now one native command/sequence, not a free child under a charging shell.
@@ -242,7 +246,8 @@ namespace KingmakerMountedCombat.Integration
             IModLogger logger,
             Action<MountedPairAttackCommand, MountedPairAttackOutcome> terminal,
             bool allowApproach = true,
-            bool singleAttack = true)
+            bool singleAttack = true,
+            bool chargeMode = false)
             : base(target, rider, mount, action != MountedCombatActionKind.MountPrimaryNatural, singleAttack)
         {
             this.relationship = relationship ?? throw new ArgumentNullException(nameof(relationship));
@@ -263,6 +268,11 @@ namespace KingmakerMountedCombat.Integration
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.terminal = terminal ?? throw new ArgumentNullException(nameof(terminal));
             this.allowApproach = allowApproach;
+            this.chargeMode = chargeMode;
+            if (chargeMode && action != MountedCombatActionKind.RiderMelee)
+            {
+                throw new ArgumentOutOfRangeException(nameof(chargeMode), "A mounted charge is delivered as the rider melee pair transaction.");
+            }
             ApproachRadius = InfiniteRange;
             MaxApproachRadius = InfiniteRange;
             NeedLoS = false;
@@ -297,6 +307,16 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal bool OwnsApproachTick => !IsFinished && transaction.ChildAttackStartCount == 0;
+
+        internal bool ChargeMode => chargeMode;
+
+        // Read-only lease facts for the external charge reader; null when this transaction is not a charge.
+        internal Newtonsoft.Json.Linq.JObject CaptureChargeLeaseEvidence()
+        {
+            return chargeLease == null ? null : chargeLease.CaptureEvidence();
+        }
+
+        internal string ChargeLeaseDescription => chargeLease == null ? null : chargeLease.Describe();
 
         private bool nativeSequenceTick;
         private bool nativeMeleeTailRangeRejected;
@@ -559,6 +579,11 @@ namespace KingmakerMountedCombat.Integration
             }
             finally
             {
+                if (chargeMode && chargeLease != null)
+                {
+                    chargeLease.Restore();
+                }
+
                 base.OnEnded(raiseEvent);
                 ReportTerminalOnce();
             }
@@ -641,6 +666,11 @@ namespace KingmakerMountedCombat.Integration
                 delegatedMoveTickCount++;
                 delegatedMove.Tick();
             }
+
+            if (chargeMode && chargeLease != null)
+            {
+                chargeLease.Maintain(delegatedMove != null && !delegatedMove.IsFinished);
+            }
         }
 
         private string DescribeRepath(string cause)
@@ -705,6 +735,22 @@ namespace KingmakerMountedCombat.Integration
             finally { admittingDelegatedMove = false; }
             if (IsFinished || actionActor.Commands.Standard != this)
                 throw new InvalidOperationException("Attack owner was replaced during approach admission.");
+            if (chargeMode)
+            {
+                // Preview.156/157: a forced path lives only while the mover holds a live command, so the lease
+                // rides on this admitted carrier. A repath re-begins the carrier and the straight line is
+                // re-forced onto it, which is what the stock charge does when its target has moved.
+                if (chargeLease == null)
+                {
+                    chargeLease = new MountedChargeLease(rider, mount, attackTarget, logger);
+                    chargeLease.Apply();
+                }
+                else
+                {
+                    chargeLease.Maintain(true);
+                }
+            }
+
             delegatedMoveExecutorId = delegatedMove.Executor?.UniqueId;
             delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
             var rawMoveSlot = mount.Commands.GetCommand(UnitCommand.CommandType.Move);
@@ -776,6 +822,11 @@ namespace KingmakerMountedCombat.Integration
             // UnitAttack.OnStart re-evaluates the full attack plan against the
             // actual actor state after approach. UnitActionController observes
             // this command's first native Act and owns its sole cooldown charge.
+            if (chargeMode)
+            {
+                IsCharge = true;
+            }
+
             NeedLoS = true;
             SetTimeSinceStart(0f);
             base.OnStart();

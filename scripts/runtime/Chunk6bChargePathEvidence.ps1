@@ -3,11 +3,12 @@ Set-StrictMode -Version Latest
 # compiled scenario records facts and checks its own structure only; this reader is the one acceptance
 # authority for the two measurement rows. Read-only over the immutable artifact; no runtime mutation.
 #
-# Preview.157 rules (from the preview.156 measurement): the forced path runs under the pair's own admitted
-# delegated ground move on the mount (the carrier), the measurement re-forces the path whenever the agent
-# leaves force mode, every leased value is restored exactly, the force mode latched by the stock Stop() is
-# recorded after the stop and must be cleared by the next lawful pair path (the residue probe), and in
-# turn-based mode at most one pre-force frame of ordinary movement may be charged to the rider.
+# Preview.158 rules (from the preview.156 and preview.157 measurements): the forced path runs under the pair's
+# own admitted delegated ground move on the mount (the carrier), the measurement re-forces the path whenever the
+# agent leaves force mode, every leased value is restored exactly, the force mode latched by the stock Stop() is
+# recorded after the stop and must be cleared by the next lawful pair path (the residue probe), the pair never
+# delivers a non-opportunity attack of its own while native attacks of opportunity are recorded and allowed, and
+# in turn-based mode the carrier is the rider turn's first movement so the turn had not moved before the path.
 function Get-KmcChunk6bChargePathScenarios { @('chunk6b-charge-path-rt','chunk6b-charge-path-tb') }
 function Get-KmcChunk6bChargePathRows { @('C6B-PATH-straight-arrival','C6B-PATH-interrupt-stop') }
 function Test-KmcChunk6bChargePathScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargePathScenarios) }
@@ -54,12 +55,14 @@ function Assert-KmcChunk6bChargePathRow($Row,[string]$Mode) {
             $previousForced=[double]$forced
         }
     }
-    # No native cost of its own: the measurement is not an action. Every cooldown delta is zero on both actors,
-    # except that in turn-based mode the carrier's first native frame before the forced path may charge the
-    # rider's Move for at most one frame.
+    # The measurement is not an action of its own: neither actor may be charged a standard action, and the mount
+    # may never be charged for carrying the rider. The carrier is an ordinary pair ground move, so in turn-based
+    # mode it lawfully spends the rider turn's own movement, which is recorded rather than refused; in real time
+    # there is no turn budget and every delta must be zero.
     foreach($name in @('riderStandardDelta','mountStandardDelta','mountMoveDelta')){ $v=ChargePathProp $costs $name; if(-not(ChargePathNumber $v)-or[Math]::Abs([double]$v)-gt0.0001){ChargePathFail ('row '+$Row.name+' charged a native cooldown: '+$name)} }
     $riderMove=ChargePathProp $costs 'riderMoveDelta'
-    if(-not(ChargePathNumber $riderMove)-or[double]$riderMove-lt-0.0001-or[double]$riderMove-gt$(if($Mode-ceq'TB'){0.05}else{0.0001})){ChargePathFail ('row '+$Row.name+' charged a native cooldown: riderMoveDelta')}
+    if(-not(ChargePathNumber $riderMove)-or[double]$riderMove-lt-0.0001){ChargePathFail ('row '+$Row.name+' refunded the rider move action')}
+    if($Mode-cne'TB'-and[double]$riderMove-gt0.0001){ChargePathFail ('row '+$Row.name+' charged a native cooldown: riderMoveDelta')}
     # Exact restoration of every leased value; the carrier ended and the mount's container emptied.
     if((ChargePathProp $restoration 'chargingRestored')-ne$true-or(ChargePathProp $restoration 'speedOverrideRestored')-ne$true){ChargePathFail ('row '+$Row.name+' did not restore the lease exactly')}
     if((ChargePathProp $restoration 'carrierFinished')-ne$true-or(ChargePathProp $restoration 'mountCommandsEmpty')-ne$true){ChargePathFail ('row '+$Row.name+' the carrier did not end or left a command behind')}
@@ -71,14 +74,25 @@ function Assert-KmcChunk6bChargePathRow($Row,[string]$Mode) {
     $firstMove=ChargePathProp $probe 'firstMove'
     if($null-eq$firstMove-or(ChargePathProp $firstMove 'forceMode')-ne$false){ChargePathFail ('row '+$Row.name+' the next lawful path did not clear the latched force mode')}
     if((ChargePathProp $probe 'timedOut')-ne$false-or-not(ChargePathNumber (ChargePathProp $probe 'movedDistance'))-or[double]$probe.movedDistance-le0.25){ChargePathFail ('row '+$Row.name+' the residue probe did not move the pair')}
-    if((ChargePathProp $e 'attackRules')-ne0){ChargePathFail ('row '+$Row.name+' observed an attack rule')}
+    # The compiled probe counts only rules the rider or the mount initiated against the armed target. A native
+    # attack of opportunity is the engine's own reflex, observed and recorded and never suppressed; a
+    # non-opportunity pair attack would mean the measurement delivered an attack of its own, which it must not.
+    foreach($name in @('attackRules','attackRulesOpportunity','attackRulesNonOpportunity')){ if(-not(ChargePathNumber (ChargePathProp $e $name))){ChargePathFail ('row '+$Row.name+' attack-rule count '+$name+' is missing')} }
+    if([long]$e.attackRules-ne([long]$e.attackRulesOpportunity+[long]$e.attackRulesNonOpportunity)){ChargePathFail ('row '+$Row.name+' attack-rule counts do not reconcile')}
+    if([long]$e.attackRulesOpportunity-lt0-or[long]$e.attackRulesNonOpportunity-lt0){ChargePathFail ('row '+$Row.name+' attack-rule counts are negative')}
+    if([long]$e.attackRulesNonOpportunity-ne0){ChargePathFail ('row '+$Row.name+' the measurement delivered a pair attack of its own')}
+    $ruleEvidence=ChargePathProp $e 'attackRuleEvidence'
+    if($null-eq$ruleEvidence-or$null-eq(ChargePathProp $ruleEvidence 'pairNonOpportunityAttackRules')){ChargePathFail ('row '+$Row.name+' lacks the compiled attack-rule evidence')}
     foreach($name in @('movedDistance','maximumLateralDeviation','elapsedSeconds','peakSpeedMps','distanceToTarget','settleSeconds')){ if(-not(ChargePathNumber (ChargePathProp $stop $name))){ChargePathFail ('row '+$Row.name+' stop '+$name+' is not a finite number')} }
     if([double]$stop.maximumLateralDeviation-gt0.75){ChargePathFail ('row '+$Row.name+' left the straight line by more than 0.75 m')}
     if($Mode-ceq'TB'){
         $bt=ChargePathProp $before 'turn';$at=ChargePathProp $after 'turn'
-        if($null-eq$bt-or$null-eq$at-or(ChargePathProp $bt 'isRider')-ne$true-or(ChargePathProp $at 'isRider')-ne$true-or(ChargePathProp $bt 'acting')-ne$true){ChargePathFail ('row '+$Row.name+' did not run on the rider Acting turn')}
-        # The Acting entry is a native five-foot step (no Move action); any other movement before the path is refused.
-        if(-not(ChargePathNumber (ChargePathProp $bt 'timeMoved'))-or-not(ChargePathNumber (ChargePathProp $bt 'timeMovedByFiveFootStep'))-or[Math]::Abs([double]$bt.timeMoved-[double]$bt.timeMovedByFiveFootStep)-gt0.0001){ChargePathFail ('row '+$Row.name+' the rider turn had moved before the path other than by its five-foot step')}
+        if($null-eq$bt-or$null-eq$at-or(ChargePathProp $bt 'isRider')-ne$true-or(ChargePathProp $at 'isRider')-ne$true){ChargePathFail ('row '+$Row.name+' did not run on the rider turn')}
+        # The carrier is the rider turn's first movement, which is also the stock charge precondition: the stock
+        # CanTarget requires CurrentTurn.TimeMoved == 0 on the caster's own turn. A five-foot-step entry would
+        # have spent the pair's one granted movement for the activation (measured on preview.157).
+        if(-not(ChargePathNumber (ChargePathProp $bt 'timeMoved'))-or[double]$bt.timeMoved-gt0.0001){ChargePathFail ('row '+$Row.name+' the rider turn had already moved before the path')}
+        # Forced turn time can only accrue while the native turn is Acting, so this also proves the turn acted.
         if(-not(ChargePathNumber (ChargePathProp $at 'timeMovedInForceMode'))-or[double]$at.timeMovedInForceMode-le0){ChargePathFail ('row '+$Row.name+' the rider turn recorded no forced movement')}
         $unforced=([double]$at.timeMoved-[double]$bt.timeMoved)-[double]$at.timeMovedInForceMode
         if(-not(ChargePathNumber (ChargePathProp $at 'timeMoved'))-or$unforced-lt-0.0001-or$unforced-gt0.05){ChargePathFail ('row '+$Row.name+' the rider turn recorded movement outside force mode during the path beyond one native frame')}

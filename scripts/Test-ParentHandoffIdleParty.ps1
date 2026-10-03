@@ -59,7 +59,7 @@ foreach($name in @('unmounted-attack-controls-rt','chunk4-rider-death-tb','chunk
 
 # 2. Every child that captures the idle party is a tranche scenario family named by the predicate.
 $callers=@(Get-ChildItem (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics') -Filter '*.cs'|Where-Object{(Get-Content -Raw $_.FullName).Contains('CaptureIdleFixturePartyForCleanup();')}|ForEach-Object Name)
-$expectedCallers=@('ActorAllocationScenarios.cs','Chunk4ChargeScenario.cs','Chunk6bChargePathScenario.cs','Chunk4GroundArrivalScenario.cs','Chunk4HorseStrikeScenario.cs','Chunk4IncomingScenario.cs','Chunk4InspectionScenario.cs','Chunk4InterruptScenario.cs','Chunk4NativeLifeScenario.cs','Chunk4NativeRangedControl.cs','Chunk4ObstructionScenario.cs','Chunk4PairedPlayScenario.cs','Chunk4SessionScenario.cs','Chunk4SustainedScenario.cs','Chunk6aCombatMountScenario.cs','Phase3dHorseScenarioTranche.cs')
+$expectedCallers=@('ActorAllocationScenarios.cs','Chunk4ChargeScenario.cs','Chunk6bChargePathScenario.cs','Chunk6bChargeScenario.cs','Chunk4GroundArrivalScenario.cs','Chunk4HorseStrikeScenario.cs','Chunk4IncomingScenario.cs','Chunk4InspectionScenario.cs','Chunk4InterruptScenario.cs','Chunk4NativeLifeScenario.cs','Chunk4NativeRangedControl.cs','Chunk4ObstructionScenario.cs','Chunk4PairedPlayScenario.cs','Chunk4SessionScenario.cs','Chunk4SustainedScenario.cs','Chunk6aCombatMountScenario.cs','Phase3dHorseScenarioTranche.cs')
 Check ((@($callers|Sort-Object)-join'|')-ceq(@($expectedCallers|Sort-Object)-join'|')) 'the idle-party capture callers are exactly the known chunk4, actor-allocation, chunk6a and unmounted-controls child families'
 
 # 3. Parent engine: generalized admission wait and the bounded re-check immediately before the child.

@@ -49,7 +49,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private int chunk6bCase, chunk6bStage, chunk6bReforces;
         private bool chunk6bControlSent;
-        private JObject chunk6bGeometry, chunk6bBefore, chunk6bLease, chunk6bEntry, chunk6bCarrier, chunk6bProbe;
+        private JObject chunk6bGeometry, chunk6bBefore, chunk6bLease, chunk6bCarrier, chunk6bProbe;
         private readonly JArray chunk6bSamples = new JArray();
         private bool chunk6bChargingBefore, chunk6bChargingApplied;
         private float? chunk6bSpeedBefore;
@@ -58,9 +58,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private float chunk6bMoved, chunk6bLateral, chunk6bPeakSpeed;
         private string chunk6bStopReason;
         private bool chunk6bRiderCommandsEmpty = true, chunk6bMountOnlyCarrier = true, chunk6bChargingThroughout = true;
-        private int chunk6bAttackRulesBefore;
-        private UnitMoveTo chunk6bEntryMove, chunk6bCarrierMove, chunk6bProbeMove;
-        private TurnController chunk6bEntryTurn;
+        private int chunk6bAttackRulesBefore, chunk6bOpportunityAttackRulesBefore, chunk6bNonOpportunityAttackRulesBefore;
+        private UnitMoveTo chunk6bCarrierMove, chunk6bProbeMove;
         private JObject chunk6bAfter, chunk6bRestoration, chunk6bCosts;
         private float chunk6bProbeOriginDistance;
         private bool chunk6bProbeMoved;
@@ -198,20 +197,6 @@ namespace KingmakerMountedCombat.Diagnostics
             return direction;
         }
 
-        // A short native five-foot step along the charge line enters the rider's Acting turn without
-        // spending a Move action (preview.155 CM07-mount-save-tb); the forced path is measured on top of it.
-        private Vector3 FindChunk6bEntryDestination()
-        {
-            var direction = Chunk6bLineDirectionFromMount();
-            for (var i = 0; i < 16; i++)
-            {
-                var wanted = horse.Position + Quaternion.Euler(0f, i * 22.5f, 0f) * direction * 0.75f;
-                var actual = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, wanted);
-                if (GeometryUtils.MechanicsDistance(actual, wanted) <= 0.25f && GeometryUtils.MechanicsDistance(actual, horse.Position) > 0.25f) return actual;
-            }
-            throw new InvalidOperationException("No native walkable five-foot-step destination exists for the charge-path entry.");
-        }
-
         // The carrier's own ground destination: on the charge line, a pair reach short of the target, so the
         // native ground click never lands on the target unit. The forced path itself ends at the target position.
         private Vector3 FindChunk6bCarrierDestination()
@@ -304,12 +289,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ResetChunk6bCase()
         {
-            chunk6bGeometry = null; chunk6bBefore = null; chunk6bLease = null; chunk6bEntry = null; chunk6bCarrier = null; chunk6bProbe = null;
+            chunk6bGeometry = null; chunk6bBefore = null; chunk6bLease = null; chunk6bCarrier = null; chunk6bProbe = null;
             chunk6bAfter = null; chunk6bRestoration = null; chunk6bCosts = null;
             chunk6bSamples.Clear(); chunk6bChargingApplied = false; chunk6bSpeedBefore = null; chunk6bChargingBefore = false;
             chunk6bMoved = chunk6bLateral = chunk6bPeakSpeed = 0f; chunk6bStopReason = null; chunk6bReforces = 0;
             chunk6bRiderCommandsEmpty = true; chunk6bMountOnlyCarrier = true; chunk6bChargingThroughout = true;
-            chunk6bEntryMove = null; chunk6bCarrierMove = null; chunk6bProbeMove = null; chunk6bEntryTurn = null;
+            chunk6bCarrierMove = null; chunk6bProbeMove = null;
             chunk6bControlSent = false; chunk6bProbeMoved = false; chunk6bProbeOriginDistance = 0f;
         }
 
@@ -353,33 +338,21 @@ namespace KingmakerMountedCombat.Diagnostics
                     if (turn?.Unit != rider || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) { TryEndPhase3gFixtureTurn(turn); return; }
                     if (!Chunk6bPairIdle || !rider.CombatState.Prepared ||
                         rider.CombatState.Cooldown.StandardAction > 0.001f || rider.CombatState.Cooldown.MoveAction > 0.001f || controller.WaitingForUI) return;
-                    if (!turn.IsActing)
-                    {
-                        if (chunk6bEntryMove == null)
-                        {
-                            chunk6bEntryTurn = turn;
-                            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                            chunk6bEntry = new JObject { ["kind"] = "five-foot-step", ["before"] = CaptureChunk6bState("entry-before") };
-                            chunk6bEntryMove = IssueChunk6bGroundOrder(FindChunk6bEntryDestination(), true, chunk6bEntry);
-                            ResetLeafClock(); return;
-                        }
-                        if (!ReferenceEquals(turn, chunk6bEntryTurn)) throw new InvalidOperationException("The rider's native turn changed before its Acting entry settled.");
-                        if (!chunk6bEntryMove.IsFinished || !Chunk6bPairIdle) return;
-                        chunk6bEntry["after"] = CaptureChunk6bState("entry-after");
-                        chunk6bEntry["terminal"] = CaptureOrdinaryCommand(chunk6bEntryMove);
-                        if (!turn.IsActing)
-                        {
-                            AddRow(Chunk6bCaseId, false, "The native five-foot-step entry settled without the rider turn entering Acting; no forced path was measured.", new JObject { ["level"] = "NATIVE MEASUREMENT", ["mode"] = "TB", ["case"] = Chunk6bCaseId, ["entry"] = chunk6bEntry });
-                            chunk6bStage = 6; ResetLeafClock(); return;
-                        }
-                    }
-                    else if (chunk6bEntryMove != null && (!chunk6bEntryMove.IsFinished || !Chunk6bPairIdle)) return;
+                    // Preview.157 measured that a rider five-foot-step entry consumes the pair's one granted
+                    // movement for the activation, after which the delegated carrier is refused with the product's
+                    // own exact reason ("The mount has no movement available in this paired activation.").
+                    // The carrier is therefore the rider turn's first movement, issued from Preparing, which is
+                    // also the stock charge precondition: the stock CanTarget requires CurrentTurn.TimeMoved == 0.
+                    if (turn.TimeMoved > 0.0001f)
+                        throw new InvalidOperationException("The rider turn had already moved before the charge path was measured.");
                 }
                 else if (!Chunk6bPairIdle) return;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 chunk6bGeometry = CaptureChunk6bGeometry();
                 chunk6bBefore = CaptureChunk6bState("before");
-                chunk6bAttackRulesBefore = ruleProbe.PairAttackRuleCount;
+                    chunk6bAttackRulesBefore = ruleProbe.PairAttackRuleCount;
+                chunk6bOpportunityAttackRulesBefore = ruleProbe.PairOpportunityAttackRuleCount;
+                chunk6bNonOpportunityAttackRulesBefore = ruleProbe.PairNonOpportunityAttackRuleCount;
                 // The carrier: the pair's own admitted delegated ground move toward the charge line.
                 var carrierDestination = FindChunk6bCarrierDestination();
                 chunk6bCarrier = new JObject { ["kind"] = "delegated-ground-move", ["destination"] = CapturePosition(carrierDestination) };
@@ -532,7 +505,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     ["level"] = "NATIVE MEASUREMENT", ["mode"] = Chunk6bChargePathTb ? "TB" : "RT", ["case"] = Chunk6bCaseId,
                     ["mounted"] = relationship.State == RelationshipState.Mounted && relationship.Rider == rider && relationship.Mount == horse,
-                    ["geometry"] = chunk6bGeometry, ["entry"] = chunk6bEntry, ["carrier"] = chunk6bCarrier, ["lease"] = chunk6bLease, ["before"] = chunk6bBefore,
+                    ["geometry"] = chunk6bGeometry, ["carrier"] = chunk6bCarrier, ["lease"] = chunk6bLease, ["before"] = chunk6bBefore,
                     ["samples"] = chunk6bSamples.DeepClone(),
                     ["stop"] = new JObject
                     {
@@ -551,7 +524,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["reach"] = new JObject { ["radius"] = Chunk6bReach, ["arrivalWithinReach"] = (float)chunk6bAfter["distanceToTarget"] <= Chunk6bReach, ["distanceNow"] = distanceToTarget },
                     ["riderCommandsEmptyThroughout"] = chunk6bRiderCommandsEmpty, ["mountOnlyCarrierThroughout"] = chunk6bMountOnlyCarrier,
                     ["chargingObservedThroughout"] = chunk6bChargingThroughout,
-                    ["attackRules"] = ruleProbe.PairAttackRuleCount - chunk6bAttackRulesBefore
+                    // The probe counts only rules the rider or the mount initiated against the armed target.
+                    // A native attack of opportunity is the engine's own reflex and is recorded, never suppressed;
+                    // a non-opportunity pair attack would mean the measurement delivered an attack, which it must
+                    // never do. The external reader decides on the split, not on the total.
+                    ["attackRules"] = ruleProbe.PairAttackRuleCount - chunk6bAttackRulesBefore,
+                    ["attackRulesOpportunity"] = ruleProbe.PairOpportunityAttackRuleCount - chunk6bOpportunityAttackRulesBefore,
+                    ["attackRulesNonOpportunity"] = ruleProbe.PairNonOpportunityAttackRuleCount - chunk6bNonOpportunityAttackRulesBefore,
+                    ["attackRuleEvidence"] = ruleProbe.CapturePairEvidence()
                 };
                 // Structural integrity only: the carrier was admitted, the lease was applied and restored and the
                 // samples exist. The external reader decides whether the measured behaviour is the lawful one.
