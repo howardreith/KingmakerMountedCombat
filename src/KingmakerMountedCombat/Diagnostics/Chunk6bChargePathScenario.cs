@@ -17,11 +17,21 @@ using UnityEngine;
 namespace KingmakerMountedCombat.Diagnostics
 {
     // Chunk 6B increment 6B.1: a diagnostics-only measurement of the pair forced path under the existing
-    // diagnostic leases. No ability, no product change and no cost: the mount agent receives exactly the
-    // calls the stock charge makes on its caster's agent (the charging flag, a doubled speed override and a
-    // forced straight path to the target) while the rider agent stays under the mount's movement authority,
-    // and every leased value is restored exactly. The compiled side records facts and checks its own
-    // structure; scripts/runtime/Chunk6bChargePathEvidence.ps1 is the acceptance authority for the rows.
+    // diagnostic leases. No ability, no product change and no cost owned by this measurement: the mount agent
+    // receives exactly the calls the stock charge makes on its caster's agent (the charging flag, a doubled
+    // speed override and a forced straight path to the target) while the rider agent stays under the mount's
+    // movement authority, and every leased value is restored exactly.
+    //
+    // Preview.156 measured (and the decompiled engine confirmed, read-only) that UnitActionController stops every
+    // unit whose command container is empty on every tick, so a forced path on the mount lives only while the
+    // mount holds a live command; the stock charge's caster holds its running engage-unit ability for the whole
+    // path. The measurement therefore runs the forced path under the pair's own admitted delegated ground move
+    // (a native UnitMoveTo created by a native ground click, executed by the mount: the pathway qualified in
+    // Chunk 6A) as its carrier, and re-applies the forced path whenever the agent leaves force mode, exactly as
+    // the stock runtime routine re-forces it. UnitMovementAgent.Stop() leaves m_IsInForceMode latched until the
+    // next OnPathComplete (the stock charge leaves the same latch), so the latch is recorded after the stop and
+    // then proven cleared by the next lawful pair path (a residue probe). The compiled side records facts and
+    // checks its own structure; scripts/runtime/Chunk6bChargePathEvidence.ps1 is the acceptance authority.
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal const string Chunk6bChargePathRtScenario = "chunk6b-charge-path-rt";
@@ -35,10 +45,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private static readonly FieldInfo Chunk6bForceModeField = ResolveChunk6bAgentField("m_IsInForceMode", 0x040011AE, typeof(bool));
         private const float Chunk6bInterruptAfterMetres = 1.5f;
         private const double Chunk6bInterruptAfterSeconds = 0.4;
+        private const float Chunk6bForcedApproachRadius = 1000000f;
 
-        private int chunk6bCase, chunk6bStage;
+        private int chunk6bCase, chunk6bStage, chunk6bReforces;
         private bool chunk6bControlSent;
-        private JObject chunk6bGeometry, chunk6bBefore, chunk6bLease, chunk6bEntry;
+        private JObject chunk6bGeometry, chunk6bBefore, chunk6bLease, chunk6bEntry, chunk6bCarrier, chunk6bProbe;
         private readonly JArray chunk6bSamples = new JArray();
         private bool chunk6bChargingBefore, chunk6bChargingApplied;
         private float? chunk6bSpeedBefore;
@@ -46,10 +57,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private double chunk6bStarted, chunk6bLastSample, chunk6bLastTime, chunk6bStoppedAt;
         private float chunk6bMoved, chunk6bLateral, chunk6bPeakSpeed;
         private string chunk6bStopReason;
-        private bool chunk6bCommandsEmpty = true, chunk6bChargingThroughout = true;
+        private bool chunk6bRiderCommandsEmpty = true, chunk6bMountOnlyCarrier = true, chunk6bChargingThroughout = true;
         private int chunk6bAttackRulesBefore;
-        private UnitMoveTo chunk6bEntryMove;
+        private UnitMoveTo chunk6bEntryMove, chunk6bCarrierMove, chunk6bProbeMove;
         private TurnController chunk6bEntryTurn;
+        private JObject chunk6bAfter, chunk6bRestoration, chunk6bCosts;
+        private float chunk6bProbeOriginDistance;
+        private bool chunk6bProbeMoved;
 
         private static FieldInfo ResolveChunk6bAgentField(string name, int token, Type fieldType)
         {
@@ -131,7 +145,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["mountMoving"] = agent.IsReallyMoving, ["descriptorCharging"] = horse.Descriptor.State.IsCharging,
                 ["riderDescriptorCharging"] = rider.Descriptor.State.IsCharging, ["riderAgentCharging"] = rider.View.AgentASP.IsCharging,
                 ["riderAgentEnabled"] = rider.View.AgentASP.enabled, ["riderAgentMoving"] = rider.View.AgentASP.IsReallyMoving,
-                ["riderAvoidanceDisabled"] = rider.View.MovementAgent.AvoidanceDisabled
+                ["riderAvoidanceDisabled"] = rider.View.MovementAgent.AvoidanceDisabled,
+                ["mountAvoidanceDisabled"] = horse.View.MovementAgent.AvoidanceDisabled
             };
         }
 
@@ -146,6 +161,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["distanceToTarget"] = target == null ? (float?)null : horse.DistanceTo(target)
             };
             return state;
+        }
+
+        private JObject CaptureChunk6bCosts()
+        {
+            return new JObject
+            {
+                ["riderStandardDelta"] = rider.CombatState.Cooldown.StandardAction - (float)chunk6bBefore["rider"]["standard"],
+                ["riderMoveDelta"] = rider.CombatState.Cooldown.MoveAction - (float)chunk6bBefore["rider"]["move"],
+                ["mountStandardDelta"] = horse.CombatState.Cooldown.StandardAction - (float)chunk6bBefore["mount"]["standard"],
+                ["mountMoveDelta"] = horse.CombatState.Cooldown.MoveAction - (float)chunk6bBefore["mount"]["move"]
+            };
         }
 
         private Vector3 FindChunk6bTargetPoint()
@@ -164,13 +190,19 @@ namespace KingmakerMountedCombat.Diagnostics
             });
         }
 
-        // A short native five-foot step along the charge line enters the rider's Acting turn without
-        // spending a Move action (preview.155 CM07-mount-save-tb); the forced path is measured on top of it.
-        private Vector3 FindChunk6bEntryDestination()
+        private Vector3 Chunk6bLineDirectionFromMount()
         {
             var direction = target.Position - horse.Position; direction.y = 0f;
             if (direction.sqrMagnitude < 0.01f) throw new InvalidOperationException("The charge line is degenerate.");
             direction.Normalize();
+            return direction;
+        }
+
+        // A short native five-foot step along the charge line enters the rider's Acting turn without
+        // spending a Move action (preview.155 CM07-mount-save-tb); the forced path is measured on top of it.
+        private Vector3 FindChunk6bEntryDestination()
+        {
+            var direction = Chunk6bLineDirectionFromMount();
             for (var i = 0; i < 16; i++)
             {
                 var wanted = horse.Position + Quaternion.Euler(0f, i * 22.5f, 0f) * direction * 0.75f;
@@ -178,6 +210,79 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (GeometryUtils.MechanicsDistance(actual, wanted) <= 0.25f && GeometryUtils.MechanicsDistance(actual, horse.Position) > 0.25f) return actual;
             }
             throw new InvalidOperationException("No native walkable five-foot-step destination exists for the charge-path entry.");
+        }
+
+        // The carrier's own ground destination: on the charge line, a pair reach short of the target, so the
+        // native ground click never lands on the target unit. The forced path itself ends at the target position.
+        private Vector3 FindChunk6bCarrierDestination()
+        {
+            var direction = Chunk6bLineDirectionFromMount();
+            var wanted = target.Position - direction * Math.Max(Chunk6bReach, 1.0f);
+            var actual = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, wanted);
+            if (GeometryUtils.MechanicsDistance(actual, wanted) > 0.25f)
+                throw new InvalidOperationException("The carrier destination on the charge line is not natively reachable.");
+            return actual;
+        }
+
+        // The residue probe: a short lawful pair path away from the target, so the next OnPathComplete can be
+        // observed clearing the latched force mode.
+        private Vector3 FindChunk6bProbeDestination()
+        {
+            var back = -Chunk6bLineDirectionFromMount();
+            for (var i = 0; i < 16; i++)
+            {
+                var wanted = horse.Position + Quaternion.Euler(0f, i * 22.5f, 0f) * back * 1.5f;
+                var actual = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, wanted);
+                if (GeometryUtils.MechanicsDistance(actual, wanted) <= 0.25f && GeometryUtils.MechanicsDistance(actual, horse.Position) > 0.75f) return actual;
+            }
+            throw new InvalidOperationException("No native walkable residue-probe destination exists.");
+        }
+
+        // One native ground order for the mounted pair: the stock pointer input (cursor mode cycled natively in
+        // turn-based combat) and the command the pair admitted, read from the mount first (the mounted pair's
+        // rider-turn ground movement is a mount-executed UnitMoveTo) and otherwise from the rider.
+        private UnitMoveTo IssueChunk6bGroundOrder(Vector3 point, bool fiveFootStep, JObject record)
+        {
+            var turn = Game.Instance.TurnBasedCombatController.CurrentTurn;
+            using (var input = new NativeOrdinaryAttackInput(point))
+            {
+                input.Predict(); var cycles = 0;
+                if (Chunk6bChargePathTb && turn != null)
+                {
+                    if (fiveFootStep) { while (!turn.EnabledFiveFootStep && cycles++ < 8) { input.Click(button: 1); input.Predict(); } }
+                    else { while ((turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && cycles++ < 8) { input.Click(button: 1); input.Predict(); } }
+                    if (turn.EnabledFiveFootStep != fiveFootStep || (!fiveFootStep && turn.EnabledSingleActionMove))
+                        throw new InvalidOperationException("Native right-click did not choose the " + (fiveFootStep ? "five-foot step" : "ordinary movement") + " mode.");
+                }
+                var clicked = input.Click();
+                var command = horse.Commands.Move as UnitMoveTo ?? rider.Commands.Move as UnitMoveTo;
+                record["input"] = new JObject
+                {
+                    ["kind"] = fiveFootStep ? "five-foot-step" : "ground", ["clicked"] = clicked, ["cursorCycles"] = cycles, ["frame"] = Time.frameCount,
+                    ["fiveFootStep"] = turn?.EnabledFiveFootStep, ["singleActionMove"] = turn?.EnabledSingleActionMove,
+                    ["point"] = CapturePosition(point), ["feedback"] = combat.LastFeedback,
+                    ["rejectionCodes"] = new JArray((combat.LastRejectionCodes ?? new MountedCombatRejectionCode[0]).Select(code => code.ToString()))
+                };
+                record["admitted"] = CaptureOrdinaryCommand(command);
+                record["executor"] = command == null ? null : command.Executor == horse ? "mount" : command.Executor == rider ? "rider" : "other";
+                if (!clicked || command == null || !command.CreatedByPlayer || (command.Executor != horse && command.Executor != rider))
+                    throw new InvalidOperationException("Native ground input admitted no exact player command for the mounted pair: " + record.ToString(Newtonsoft.Json.Formatting.None));
+                return command;
+            }
+        }
+
+        // The stock charge's forced path on the mover's agent: the straight line from the mount to the target
+        // with the stock approach radius. Re-applied whenever the agent leaves force mode, as the stock
+        // runtime routine re-forces its path.
+        private void ApplyChunk6bForcedPath(string reason)
+        {
+            horse.View.AgentASP.ForcePath(new ForcedPath(new List<Vector3> { horse.Position, target.Position }), Chunk6bForcedApproachRadius);
+            chunk6bReforces++;
+            ((JArray)chunk6bLease["forcePaths"]).Add(new JObject
+            {
+                ["reason"] = reason, ["frame"] = Time.frameCount, ["nativeSeconds"] = Chunk6bNow, ["origin"] = CapturePosition(horse.Position),
+                ["forceModeAfterApply"] = Chunk6bForceMode, ["mountMoving"] = horse.View.AgentASP.IsReallyMoving
+            });
         }
 
         private void BeginChunk6bChargePath()
@@ -190,7 +295,8 @@ namespace KingmakerMountedCombat.Diagnostics
             observations["chunk6bChargePath"] = new JObject
             {
                 ["contract"] = "chunk6b-pair-forced-path-measurement", ["mode"] = Chunk6bChargePathTb ? "TB" : "RT",
-                ["cases"] = new JArray(Chunk6bChargePathCases), ["forceModeField"] = Chunk6bForceModeField.MetadataToken.ToString("X8")
+                ["cases"] = new JArray(Chunk6bChargePathCases), ["forceModeField"] = Chunk6bForceModeField.MetadataToken.ToString("X8"),
+                ["carrier"] = "delegated-ground-move"
             };
             step = Phase3dHorseStep.Phase3gControls;
             ResetLeafClock();
@@ -198,12 +304,16 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void ResetChunk6bCase()
         {
-            chunk6bGeometry = null; chunk6bBefore = null; chunk6bLease = null; chunk6bEntry = null;
+            chunk6bGeometry = null; chunk6bBefore = null; chunk6bLease = null; chunk6bEntry = null; chunk6bCarrier = null; chunk6bProbe = null;
+            chunk6bAfter = null; chunk6bRestoration = null; chunk6bCosts = null;
             chunk6bSamples.Clear(); chunk6bChargingApplied = false; chunk6bSpeedBefore = null; chunk6bChargingBefore = false;
-            chunk6bMoved = chunk6bLateral = chunk6bPeakSpeed = 0f; chunk6bStopReason = null;
-            chunk6bCommandsEmpty = true; chunk6bChargingThroughout = true; chunk6bEntryMove = null; chunk6bEntryTurn = null;
-            chunk6bControlSent = false;
+            chunk6bMoved = chunk6bLateral = chunk6bPeakSpeed = 0f; chunk6bStopReason = null; chunk6bReforces = 0;
+            chunk6bRiderCommandsEmpty = true; chunk6bMountOnlyCarrier = true; chunk6bChargingThroughout = true;
+            chunk6bEntryMove = null; chunk6bCarrierMove = null; chunk6bProbeMove = null; chunk6bEntryTurn = null;
+            chunk6bControlSent = false; chunk6bProbeMoved = false; chunk6bProbeOriginDistance = 0f;
         }
+
+        private bool Chunk6bPairIdle => rider.Commands.Empty && horse.Commands.Empty && !rider.AreHandsBusyWithAnimation && !horse.View.AgentASP.IsReallyMoving;
 
         private void TickChunk6bChargePath()
         {
@@ -241,70 +351,85 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (turn?.Unit == horse) throw new InvalidOperationException("Independent mount turn in the paired charge-path fixture.");
                     if (turn?.Unit != rider || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) { TryEndPhase3gFixtureTurn(turn); return; }
-                    if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation || !rider.CombatState.Prepared ||
+                    if (!Chunk6bPairIdle || !rider.CombatState.Prepared ||
                         rider.CombatState.Cooldown.StandardAction > 0.001f || rider.CombatState.Cooldown.MoveAction > 0.001f || controller.WaitingForUI) return;
                     if (!turn.IsActing)
                     {
                         if (chunk6bEntryMove == null)
                         {
                             chunk6bEntryTurn = turn;
+                            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                             chunk6bEntry = new JObject { ["kind"] = "five-foot-step", ["before"] = CaptureChunk6bState("entry-before") };
-                            chunk6bEntryMove = IssueChunk6aNativeGroundOrder(rider, FindChunk6bEntryDestination(), true, chunk6bEntry);
+                            chunk6bEntryMove = IssueChunk6bGroundOrder(FindChunk6bEntryDestination(), true, chunk6bEntry);
                             ResetLeafClock(); return;
                         }
                         if (!ReferenceEquals(turn, chunk6bEntryTurn)) throw new InvalidOperationException("The rider's native turn changed before its Acting entry settled.");
-                        if (!chunk6bEntryMove.IsFinished || !rider.Commands.Empty || !horse.Commands.Empty || horse.View.AgentASP.IsReallyMoving) return;
+                        if (!chunk6bEntryMove.IsFinished || !Chunk6bPairIdle) return;
                         chunk6bEntry["after"] = CaptureChunk6bState("entry-after");
                         chunk6bEntry["terminal"] = CaptureOrdinaryCommand(chunk6bEntryMove);
                         if (!turn.IsActing)
                         {
-                            AddRow(Chunk6bCaseId, false, "The native five-foot-step entry settled without the rider turn entering Acting; no forced path was measured.", new JObject { ["level"] = "NATIVE MEASUREMENT", ["entry"] = chunk6bEntry });
-                            chunk6bStage = 4; ResetLeafClock(); return;
+                            AddRow(Chunk6bCaseId, false, "The native five-foot-step entry settled without the rider turn entering Acting; no forced path was measured.", new JObject { ["level"] = "NATIVE MEASUREMENT", ["mode"] = "TB", ["case"] = Chunk6bCaseId, ["entry"] = chunk6bEntry });
+                            chunk6bStage = 6; ResetLeafClock(); return;
                         }
                     }
-                    else if (chunk6bEntryMove != null && (!chunk6bEntryMove.IsFinished || horse.View.AgentASP.IsReallyMoving)) return;
+                    else if (chunk6bEntryMove != null && (!chunk6bEntryMove.IsFinished || !Chunk6bPairIdle)) return;
                 }
-                else if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation || horse.View.AgentASP.IsReallyMoving) return;
+                else if (!Chunk6bPairIdle) return;
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 chunk6bGeometry = CaptureChunk6bGeometry();
                 chunk6bBefore = CaptureChunk6bState("before");
                 chunk6bAttackRulesBefore = ruleProbe.PairAttackRuleCount;
+                // The carrier: the pair's own admitted delegated ground move toward the charge line.
+                var carrierDestination = FindChunk6bCarrierDestination();
+                chunk6bCarrier = new JObject { ["kind"] = "delegated-ground-move", ["destination"] = CapturePosition(carrierDestination) };
+                chunk6bCarrierMove = IssueChunk6bGroundOrder(carrierDestination, false, chunk6bCarrier);
+                chunk6bCarrier["admitted"] = true;
+                chunk6bCarrier["startedMoving"] = false;
                 var agent = horse.View.AgentASP;
                 chunk6bChargingBefore = agent.IsCharging;
                 chunk6bSpeedBefore = agent.MaxSpeedOverride;
                 var speedApplied = Math.Max(chunk6bSpeedBefore ?? 0f, horse.CombatSpeedMps * 2f);
                 var riderAgentBefore = new { rider.View.AgentASP.IsCharging, rider.View.AgentASP.MaxSpeedOverride, rider.View.AgentASP.enabled };
-                // The three stock calls, on the mount agent only; nothing on the rider agent, no command, no cost.
-                agent.IsCharging = true; chunk6bChargingApplied = true;
-                agent.MaxSpeedOverride = speedApplied;
-                agent.ForcePath(new ForcedPath(new List<Vector3> { horse.Position, target.Position }), 1000000f);
-                var riderAgentTouched = rider.View.AgentASP.IsCharging != riderAgentBefore.IsCharging ||
-                    rider.View.AgentASP.MaxSpeedOverride != riderAgentBefore.MaxSpeedOverride || rider.View.AgentASP.enabled != riderAgentBefore.enabled;
                 chunk6bLease = new JObject
                 {
                     ["chargingBefore"] = chunk6bChargingBefore, ["speedOverrideBefore"] = chunk6bSpeedBefore,
                     ["chargingApplied"] = true, ["speedOverrideApplied"] = speedApplied, ["forcePathApplied"] = true,
-                    ["forceModeAfterApply"] = Chunk6bForceMode, ["riderAgentTouched"] = riderAgentTouched,
-                    ["startedFrame"] = Time.frameCount, ["startedGameSeconds"] = Chunk6bNow, ["destination"] = CapturePosition(target.Position)
+                    ["forcePaths"] = new JArray(), ["startedFrame"] = Time.frameCount, ["startedGameSeconds"] = Chunk6bNow,
+                    ["destination"] = CapturePosition(target.Position), ["approachRadius"] = Chunk6bForcedApproachRadius
                 };
+                // The three stock calls, on the mount agent only; nothing on the rider agent, no cost of its own.
+                agent.IsCharging = true; chunk6bChargingApplied = true;
+                agent.MaxSpeedOverride = speedApplied;
+                ApplyChunk6bForcedPath("initial");
+                chunk6bLease["forceModeAfterApply"] = Chunk6bForceMode;
+                chunk6bLease["riderAgentTouched"] = rider.View.AgentASP.IsCharging != riderAgentBefore.IsCharging ||
+                    rider.View.AgentASP.MaxSpeedOverride != riderAgentBefore.MaxSpeedOverride || rider.View.AgentASP.enabled != riderAgentBefore.enabled;
                 chunk6bOrigin = horse.Position; chunk6bLastPosition = horse.Position;
-                chunk6bLineDirection = (target.Position - horse.Position); chunk6bLineDirection.y = 0f; chunk6bLineDirection.Normalize();
+                chunk6bLineDirection = Chunk6bLineDirectionFromMount();
                 chunk6bStarted = chunk6bLastTime = Chunk6bNow; chunk6bLastSample = -1;
                 chunk6bStage = 2; ResetLeafClock(); return;
             }
             if (chunk6bStage == 2)
             {
                 var agent = horse.View.AgentASP;
+                var carrierRunning = chunk6bCarrierMove != null && !chunk6bCarrierMove.IsFinished;
                 var now = Chunk6bNow;
                 var elapsed = now - chunk6bStarted;
+                // Stock interplay: the carrier's own native approach replaces the path with pathfinding; the
+                // measurement re-forces the straight line exactly as the stock runtime routine does.
+                if (carrierRunning && !Chunk6bForceMode) ApplyChunk6bForcedPath("re-force");
                 var step = HorizontalDistance(horse.Position, chunk6bLastPosition);
                 var dt = now - chunk6bLastTime;
                 if (dt > 0 && step > 0) chunk6bPeakSpeed = Math.Max(chunk6bPeakSpeed, (float)(step / dt));
                 chunk6bMoved += step;
+                if (step > 0.001f) chunk6bCarrier["startedMoving"] = true;
                 var offset = horse.Position - chunk6bOrigin; offset.y = 0f;
                 var along = Vector3.Dot(offset, chunk6bLineDirection);
                 chunk6bLateral = Math.Max(chunk6bLateral, (offset - chunk6bLineDirection * along).magnitude);
                 chunk6bLastPosition = horse.Position; chunk6bLastTime = now;
-                chunk6bCommandsEmpty &= rider.Commands.Empty && horse.Commands.Empty;
+                chunk6bRiderCommandsEmpty &= rider.Commands.Empty;
+                chunk6bMountOnlyCarrier &= horse.Commands.Raw.All(command => command == null || ReferenceEquals(command, chunk6bCarrierMove)) && horse.Commands.Queue.Count == 0;
                 chunk6bChargingThroughout &= agent.IsCharging;
                 var distanceToTarget = horse.DistanceTo(target);
                 if (elapsed - chunk6bLastSample >= 0.1)
@@ -315,7 +440,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["nativeSeconds"] = elapsed, ["frame"] = Time.frameCount, ["mountPosition"] = CapturePosition(horse.Position),
                         ["riderPosition"] = CapturePosition(rider.Position), ["distanceToTarget"] = distanceToTarget,
                         ["mountMoving"] = agent.IsReallyMoving, ["forceMode"] = Chunk6bForceMode, ["speedMps"] = dt > 0 ? step / dt : 0,
-                        ["riderCommandsEmpty"] = rider.Commands.Empty, ["mountCommandsEmpty"] = horse.Commands.Empty,
+                        ["carrierRunning"] = carrierRunning, ["carrierStarted"] = chunk6bCarrierMove?.IsStarted ?? false, ["reforces"] = chunk6bReforces,
+                        ["riderCommandsEmpty"] = rider.Commands.Empty, ["mountOnlyCarrier"] = chunk6bMountOnlyCarrier,
                         ["riderMove"] = rider.CombatState.Cooldown.MoveAction, ["riderStandard"] = rider.CombatState.Cooldown.StandardAction,
                         ["mountMove"] = horse.CombatState.Cooldown.MoveAction, ["mountStandard"] = horse.CombatState.Cooldown.StandardAction,
                         ["turnTimeMoved"] = turn?.TimeMoved, ["turnTimeForced"] = turn?.TimeMovedInForceMode,
@@ -325,73 +451,119 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 var arrived = distanceToTarget <= Chunk6bReach;
                 var interrupt = chunk6bCase == 1 && (chunk6bMoved >= Chunk6bInterruptAfterMetres || elapsed >= Chunk6bInterruptAfterSeconds && chunk6bMoved > 0.1f);
-                var stalled = elapsed > 1.0 && !agent.IsReallyMoving;
+                var carrierEnded = !carrierRunning;
+                var stalled = elapsed > 1.0 && !agent.IsReallyMoving && chunk6bMoved < 0.5f;
                 var tooFar = chunk6bMoved > (float)chunk6bGeometry["maximumRange"];
                 var timedOut = elapsed > (Chunk6bChargePathTb ? 6.0 : 12.0);
-                if (!(arrived || interrupt || stalled || tooFar || timedOut)) return;
-                chunk6bStopReason = arrived ? "arrival" : interrupt ? "interrupt" : stalled ? "stalled" : tooFar ? "distance" : "timeout";
-                horse.View.StopMoving();
+                if (!(arrived || interrupt || carrierEnded || stalled || tooFar || timedOut)) return;
+                chunk6bStopReason = arrived ? "arrival" : interrupt ? "interrupt" : carrierEnded ? "carrier-ended" : stalled ? "stalled" : tooFar ? "distance" : "timeout";
+                // The measurement ends the carrier natively (the stock charge would queue its attack here).
+                if (carrierRunning) chunk6bCarrierMove.Interrupt();
+                chunk6bCarrier["interruptedByMeasurement"] = carrierRunning;
+                chunk6bCarrier["terminal"] = CaptureOrdinaryCommand(chunk6bCarrierMove);
                 chunk6bStoppedAt = now;
                 chunk6bStage = 3; ResetLeafClock(); return;
             }
             if (chunk6bStage == 3)
             {
                 var agent = horse.View.AgentASP;
-                if (agent.IsReallyMoving && Chunk6bNow - chunk6bStoppedAt < 3.0) return;
+                if ((agent.IsReallyMoving || !horse.Commands.Empty) && Chunk6bNow - chunk6bStoppedAt < 3.0) return;
                 var settleSeconds = Chunk6bNow - chunk6bStoppedAt;
-                // Restore the lease exactly: the charging counter back by the one increment, the override as found.
+                // Restore the lease exactly: the charging flag back as found, the override as found.
                 if (chunk6bChargingApplied) { agent.IsCharging = false; chunk6bChargingApplied = false; }
                 agent.MaxSpeedOverride = chunk6bSpeedBefore;
-                var after = CaptureChunk6bState("after");
-                var afterAgents = (JObject)after["agents"];
-                var restoration = new JObject
+                chunk6bAfter = CaptureChunk6bState("after");
+                chunk6bRestoration = new JObject
                 {
                     ["chargingRestored"] = agent.IsCharging == chunk6bChargingBefore,
                     ["speedOverrideRestored"] = agent.MaxSpeedOverride == chunk6bSpeedBefore,
-                    ["forceModeCleared"] = !Chunk6bForceMode
+                    ["forceModeAfterStop"] = Chunk6bForceMode,
+                    ["carrierFinished"] = chunk6bCarrierMove != null && chunk6bCarrierMove.IsFinished,
+                    ["settleSeconds"] = settleSeconds, ["mountCommandsEmpty"] = horse.Commands.Empty
                 };
-                var costs = new JObject
+                chunk6bCosts = CaptureChunk6bCosts();
+                // The residue probe: the next lawful pair path, which the engine completes through OnPathComplete.
+                chunk6bProbe = new JObject { ["kind"] = "residue-probe", ["forceModeBefore"] = Chunk6bForceMode, ["before"] = CaptureChunk6bState("probe-before") };
+                try
                 {
-                    ["riderStandardDelta"] = rider.CombatState.Cooldown.StandardAction - (float)chunk6bBefore["rider"]["standard"],
-                    ["riderMoveDelta"] = rider.CombatState.Cooldown.MoveAction - (float)chunk6bBefore["rider"]["move"],
-                    ["mountStandardDelta"] = horse.CombatState.Cooldown.StandardAction - (float)chunk6bBefore["mount"]["standard"],
-                    ["mountMoveDelta"] = horse.CombatState.Cooldown.MoveAction - (float)chunk6bBefore["mount"]["move"]
-                };
+                    var probePoint = FindChunk6bProbeDestination();
+                    chunk6bProbe["destination"] = CapturePosition(probePoint);
+                    SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                    chunk6bProbeMove = IssueChunk6bGroundOrder(probePoint, false, chunk6bProbe);
+                    chunk6bProbe["admitted"] = true;
+                    chunk6bProbeOriginDistance = 0f; chunk6bLastPosition = horse.Position; chunk6bProbeMoved = false;
+                    chunk6bStoppedAt = Chunk6bNow;
+                }
+                catch (InvalidOperationException exception)
+                {
+                    chunk6bProbe["admitted"] = false; chunk6bProbe["refusal"] = exception.Message; chunk6bProbeMove = null;
+                }
+                chunk6bStage = chunk6bProbeMove == null ? 5 : 4; ResetLeafClock(); return;
+            }
+            if (chunk6bStage == 4)
+            {
+                var agent = horse.View.AgentASP;
+                var step = HorizontalDistance(horse.Position, chunk6bLastPosition);
+                chunk6bLastPosition = horse.Position;
+                chunk6bProbeOriginDistance += step;
+                if (!chunk6bProbeMoved && agent.IsReallyMoving && step > 0.001f)
+                {
+                    chunk6bProbeMoved = true;
+                    chunk6bProbe["firstMove"] = new JObject { ["frame"] = Time.frameCount, ["forceMode"] = Chunk6bForceMode, ["nativeSeconds"] = Chunk6bNow - chunk6bStoppedAt };
+                }
+                var probeDone = chunk6bProbeMove.IsFinished && !agent.IsReallyMoving;
+                var probeTimedOut = Chunk6bNow - chunk6bStoppedAt > 6.0;
+                if (!probeDone && !probeTimedOut) return;
+                if (!chunk6bProbeMove.IsFinished) chunk6bProbeMove.Interrupt();
+                chunk6bProbe["terminal"] = CaptureOrdinaryCommand(chunk6bProbeMove);
+                chunk6bProbe["movedDistance"] = chunk6bProbeOriginDistance;
+                chunk6bProbe["timedOut"] = probeTimedOut;
+                chunk6bProbe["forceModeAfter"] = Chunk6bForceMode;
+                chunk6bProbe["after"] = CaptureChunk6bState("probe-after");
+                chunk6bStage = 5; ResetLeafClock(); return;
+            }
+            if (chunk6bStage == 5)
+            {
+                var agent = horse.View.AgentASP;
+                if (agent.IsReallyMoving) return;
                 var distanceToTarget = horse.DistanceTo(target);
+                var afterAgents = (JObject)chunk6bAfter["agents"];
                 var evidence = new JObject
                 {
                     ["level"] = "NATIVE MEASUREMENT", ["mode"] = Chunk6bChargePathTb ? "TB" : "RT", ["case"] = Chunk6bCaseId,
                     ["mounted"] = relationship.State == RelationshipState.Mounted && relationship.Rider == rider && relationship.Mount == horse,
-                    ["geometry"] = chunk6bGeometry, ["entry"] = chunk6bEntry, ["lease"] = chunk6bLease, ["before"] = chunk6bBefore,
+                    ["geometry"] = chunk6bGeometry, ["entry"] = chunk6bEntry, ["carrier"] = chunk6bCarrier, ["lease"] = chunk6bLease, ["before"] = chunk6bBefore,
                     ["samples"] = chunk6bSamples.DeepClone(),
                     ["stop"] = new JObject
                     {
-                        ["reason"] = chunk6bStopReason, ["frame"] = Time.frameCount, ["elapsedSeconds"] = chunk6bStoppedAt - chunk6bStarted,
-                        ["settleSeconds"] = settleSeconds, ["distanceToTarget"] = distanceToTarget, ["movedDistance"] = chunk6bMoved,
-                        ["maximumLateralDeviation"] = chunk6bLateral, ["peakSpeedMps"] = chunk6bPeakSpeed
+                        ["reason"] = chunk6bStopReason, ["elapsedSeconds"] = chunk6bStoppedAt > chunk6bStarted ? chunk6bStoppedAt - chunk6bStarted : 0.0,
+                        ["settleSeconds"] = chunk6bRestoration["settleSeconds"], ["distanceToTarget"] = (float)chunk6bAfter["distanceToTarget"],
+                        ["movedDistance"] = chunk6bMoved, ["maximumLateralDeviation"] = chunk6bLateral, ["peakSpeedMps"] = chunk6bPeakSpeed, ["reforces"] = chunk6bReforces
                     },
                     ["after"] = new JObject
                     {
-                        ["state"] = after, ["forceMode"] = (bool)afterAgents["forceMode"], ["mountMoving"] = (bool)afterAgents["mountMoving"],
+                        ["state"] = chunk6bAfter, ["forceMode"] = (bool)afterAgents["forceMode"], ["mountMoving"] = (bool)afterAgents["mountMoving"],
                         ["charging"] = (bool)afterAgents["charging"], ["descriptorCharging"] = (bool)afterAgents["descriptorCharging"],
-                        ["speedOverride"] = afterAgents["speedOverride"], ["turn"] = after["turn"]
+                        ["speedOverride"] = afterAgents["speedOverride"], ["turn"] = chunk6bAfter["turn"]
                     },
-                    ["restoration"] = restoration, ["costs"] = costs,
-                    ["reach"] = new JObject { ["radius"] = Chunk6bReach, ["arrivalWithinReach"] = distanceToTarget <= Chunk6bReach },
-                    ["commandsObservedEmptyThroughout"] = chunk6bCommandsEmpty, ["chargingObservedThroughout"] = chunk6bChargingThroughout,
+                    ["restoration"] = chunk6bRestoration, ["costs"] = chunk6bCosts, ["costsAfterProbe"] = CaptureChunk6bCosts(),
+                    ["residueProbe"] = chunk6bProbe,
+                    ["reach"] = new JObject { ["radius"] = Chunk6bReach, ["arrivalWithinReach"] = (float)chunk6bAfter["distanceToTarget"] <= Chunk6bReach, ["distanceNow"] = distanceToTarget },
+                    ["riderCommandsEmptyThroughout"] = chunk6bRiderCommandsEmpty, ["mountOnlyCarrierThroughout"] = chunk6bMountOnlyCarrier,
+                    ["chargingObservedThroughout"] = chunk6bChargingThroughout,
                     ["attackRules"] = ruleProbe.PairAttackRuleCount - chunk6bAttackRulesBefore
                 };
-                // Structural integrity only: the lease was applied and restored and the samples exist. The
-                // external reader decides whether the measured behaviour is the lawful one.
-                var structural = chunk6bLease != null && chunk6bSamples.Count >= 1 && (bool)restoration["chargingRestored"] &&
-                    (bool)restoration["speedOverrideRestored"];
+                // Structural integrity only: the carrier was admitted, the lease was applied and restored and the
+                // samples exist. The external reader decides whether the measured behaviour is the lawful one.
+                var structural = chunk6bLease != null && chunk6bCarrier != null && chunk6bSamples.Count >= 1 &&
+                    (bool)chunk6bRestoration["chargingRestored"] && (bool)chunk6bRestoration["speedOverrideRestored"];
                 AddRow(Chunk6bCaseId, structural,
-                    chunk6bCase == 0 ? "The mount agent followed a forced straight path at charge speed to the pair reach with no command and no cost."
-                        : "An interrupted forced path stopped at once and left no force-mode, speed or charging residue.", evidence);
+                    chunk6bCase == 0 ? "The mount agent followed a forced straight path at charge speed to the pair reach under the pair's own admitted carrier, with no cost."
+                        : "An interrupted forced path stopped at once and left no speed or charging residue; the latched force mode cleared on the next lawful path.", evidence);
                 SelectionManager.Instance.Stop();
-                chunk6bStage = 4; ResetLeafClock(); return;
+                chunk6bStage = 6; ResetLeafClock(); return;
             }
-            if (chunk6bStage == 4)
+            if (chunk6bStage == 6)
             {
                 if (combat.HasActiveCommand || horse.View.AgentASP.IsReallyMoving) return;
                 TryLeaveCombat(target); TryLeaveCombat(rider); TryLeaveCombat(horse);
