@@ -42,6 +42,11 @@ function Assert-KmcChunk6bChargeIdentity($Identity,[string]$Row,[bool]$ExpectPre
 function Assert-KmcChunk6bChargeNothingHappened($Evidence,[string]$Row) {
     $input=ChargeProp $Evidence 'input';$movement=ChargeProp $Evidence 'movement';$economy=ChargeProp $Evidence 'economy'
     if($null-eq$input-or$null-eq$movement-or$null-eq$economy){ChargeFail ('row '+$Row+' lacks a delivery section')}
+    # Refusals never reach the controller delivery: no admission, and no dispatch refusal either, because the
+    # request is refused by availability or targeting before a native shell exists.
+    $refusalDelivery=ChargeProp $Evidence 'delivery'
+    if($null-eq$refusalDelivery){ChargeFail ('row '+$Row+' recorded no post-settlement delivery section')}
+    foreach($name in @('chargeAdmitted','chargeRefused')){ if([long](ChargeProp $refusalDelivery $name)-ne0){ChargeFail ('row '+$Row+' reached the controller delivery on a refusal: '+$name)} }
     if([long](ChargeProp $input 'shellCount')-ne0){ChargeFail ('row '+$Row+' admitted a native ability shell')}
     $shell=ChargeProp $input 'shell'
     if($null-ne$shell-and(ChargeProp $shell 'present')-eq$true){ChargeFail ('row '+$Row+' admitted a native ability shell')}
@@ -81,7 +86,14 @@ function Assert-KmcChunk6bChargeRow($Row) {
             if((ChargeProp $before 'requireFullRound')-ne$true-or[string](ChargeProp $before 'commandType')-cne'Standard'){ChargeFail 'the lawful charge was not a full-round standard action'}
             if((ChargeProp $input 'clicked')-ne$true-or(ChargeProp $input 'hoverPure')-ne$true){ChargeFail 'the lawful charge was not admitted by a pure player click'}
             if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the lawful charge did not admit exactly one native shell'}
-            if([long](ChargeProp $input 'chargeAdmitted')-lt1){ChargeFail 'the controller did not admit the charge'}
+            # The native shell delivers on a later frame than the click, so admission is a post-settlement
+            # fact: exactly one admitted charge for this attempt and no dispatch refusal.
+            $delivery=ChargeProp $e 'delivery'
+            if($null-eq$delivery){ChargeFail 'the lawful charge recorded no post-settlement delivery section'}
+            if([long](ChargeProp $delivery 'chargeAdmitted')-ne1){ChargeFail 'the controller did not admit exactly one charge'}
+            if([long](ChargeProp $delivery 'chargeRefused')-ne0){ChargeFail 'the controller refused the charge it was asked to deliver'}
+            if(@(ChargeProp $delivery 'rejectionCodes').Count-ne0){ChargeFail 'the delivered charge reported a rejection code'}
+            if($null-ne(ChargeProp $delivery 'lastRefusal')){ChargeFail 'the delivered charge left a refusal reason behind'}
             if(@(ChargeProp $input 'rejectionCodes').Count-ne0){ChargeFail 'the lawful charge reported a rejection code'}
             # The mount is the mover, at charge speed, and the rider never moves under its own agent.
             if(-not(ChargeNumber (ChargeProp $movement 'mountDistance'))-or[double]$movement.mountDistance-lt1.0){ChargeFail 'the mount did not carry the charge'}
