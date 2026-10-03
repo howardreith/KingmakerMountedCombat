@@ -723,6 +723,8 @@ namespace KingmakerMountedCombat.Integration
                     ? "Dismount" : "Mount Companion",
                 turnBased, currentTurnIsExactRider, turnPreparing, turnActing);
             context.RiderHasMoveAction = rider.HasMoveAction();
+            context.TurnBasedCombat = turnBased;
+            context.RiderUsedStandardAction = rider.UsedStandardAction();
             // The qualified paired authority, decided by the one typed policy that
             // execution-time admission also asks.
             context.CombatMountAuthorityQualified = MountedAuthorityPolicy.IsQualifiedForCombatMount(

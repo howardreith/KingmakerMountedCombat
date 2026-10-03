@@ -195,14 +195,15 @@ function Build-RiderOther {
  $scenario='chunk6a-rider-other-action-tb';$base=Build-Base $true $scenario;$order=$base.order;$e=$base.e
  $riderBefore=New-Res 'rider' 101 1 0.0 0.0 0.0;$mountBefore=New-Res 'mount' 102 0 0.0 0.0 0.0
  $riderAfter=Copy-Value $riderBefore;$riderAfter.standard=6.0
- $state=New-State 'Unmounted' 7 $true $false
+ # Restated on source153: the pair is adjacent at entry (a rider that spent its Standard cannot approach and mount in one turn).
+ $state=New-State 'Unmounted' 7 $true $true
  # Observed on preview.150: five replaced predictions, then the single ranged attack ends with Interrupt and leaves the Move untouched.
  $entry=New-ActorCommand 'single-attack' 'rider' 501 1 5 $riderBefore $mountBefore $riderAfter $mountBefore $state $state 'Preparing' 'Acting' 778 100 1000000L 5 'Interrupt' $true
  $entry.kind='attack';$entry.spent.usedStandardAction=$true;$entry.spent.hasStandardAction=$false
  $afterSeq=[long]$entry.after.allocationSequence
- $preClick=[pscustomobject]@{frame=110;gameTicks=1000000L;allocationSequence=($afterSeq+3);state=[pscustomobject]@{rider=(Copy-Value $riderAfter);mount=(Copy-Value $mountBefore);geometry=[pscustomobject]@{isAdjacent=$false};generation=7;selectedIds=@('rider')}}
+ $preClick=[pscustomobject]@{frame=110;gameTicks=1000000L;allocationSequence=($afterSeq+3);state=[pscustomobject]@{rider=(Copy-Value $riderAfter);mount=(Copy-Value $mountBefore);geometry=[pscustomobject]@{isAdjacent=$true};generation=7;selectedIds=@('rider')}}
  Put $preClick.state.rider 'nativeTurnObject' 501;Put $preClick.state.rider 'nativePrepareCount' 1;Put $preClick.state.mount 'nativePrepareCount' 0
- $riderTerminal=Copy-Value $riderAfter;$riderTerminal.move=4.1;$mountTerminal=Copy-Value $mountBefore;$mountTerminal.grantSequence=1
+ $riderTerminal=Copy-Value $riderAfter;$riderTerminal.move=3.0;$mountTerminal=Copy-Value $mountBefore;$mountTerminal.grantSequence=1
  $terminal=Terminal-Sample $null (New-Boundary ($afterSeq+13) 120 1000000L 501 'rider' 'Acting' 1 $riderTerminal $mountTerminal (New-State 'Mounted' 8 $false $true)) 8
  $mp=New-CompactMountProof $order $preClick $terminal
  Put $e 'riderEntry' $entry

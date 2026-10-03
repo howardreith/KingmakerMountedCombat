@@ -15,6 +15,7 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player action refuses combat Mount when paired adoption is ambiguous", RefusesCombatMountWithoutAdoption);
             runner.Run("player action refuses a second transition while one is in flight", RefusesSecondTransitionInFlight);
             runner.Run("player action reports exact combat Mount gates", ReportsCombatMountGates);
+            runner.Run("player action refuses a turn-based approach after a spent Standard action", RefusesSpentStandardApproach);
             runner.Run("player action charges combat Dismount only on rider turn with Move", GatesCombatDismount);
             runner.Run("native Move commitment admits both combat Mount and Dismount delivery", AdmitsCommittedNativeMoveShell);
             runner.Run("admitted native Move shell preserves non-resource combat gates", CommittedNativeMoveShellPreservesOtherGates);
@@ -205,6 +206,38 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(!result.TransitionReady, "A non-adjacent pair was reported transition-ready.");
             TestRunner.True(string.Join(" ", result.TransitionDeferredReasons.ToArray()).Contains("approach"),
                 "Combat adjacency was neither blocked nor deferred.");
+        }
+
+        // Native turn-based action economy: once the Standard is used, any movement charges the one
+        // remaining Move (HasMoveAction is !UsedOneMoveAction), so an approach-bearing Mount can never
+        // start; preview.152 CM03-rider-other-action observed the engine interrupting the admitted shell
+        // at its first displacement through this very availability. The refusal must precede the shell.
+        private static void RefusesSpentStandardApproach()
+        {
+            var context = EligibleContext();
+            context.InCombat = true;
+            context.TurnBasedCombat = true;
+            context.RiderUsedStandardAction = true;
+            context.PairAdjacent = false;
+            var expected = MountedPlayerActionEvaluator.DescribeSpentStandardApproachRefusal(context.MountDisplayName);
+            var refused = MountedPlayerActionEvaluator.Evaluate(context);
+            TestRunner.True(!refused.IsEnabled && refused.UnavailableReasons.Contains(expected),
+                "A non-adjacent spent-Standard Mount was not refused up front: " + refused.Feedback);
+            context.PairAdjacent = true;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "An adjacent spent-Standard Mount was refused.");
+            context.PairAdjacent = false;
+            context.TurnBasedCombat = false;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "A real-time spent-Standard approach was refused.");
+            context.TurnBasedCombat = true;
+            context.RiderUsedStandardAction = false;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "An approach with the Standard unspent was refused.");
+            context.RiderUsedStandardAction = true;
+            context.NativeMoveActionShellAdmitted = true;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "The admitted shell's own re-evaluation was refused.");
         }
 
         private static void GatesCombatDismount()
