@@ -149,6 +149,9 @@ namespace KingmakerMountedCombat.Integration
         internal bool PairedActivationSplit => unifiedTurn.ActivationSplit;
         internal bool PairedActivationFinalized => unifiedTurn.ActivationFinalized;
         internal long PairedActivationSequence => unifiedTurn.ActivationSequence;
+        internal string PairedInitiativeObservation => unifiedTurn.LastInitiativeObservation;
+        internal long PersistenceWorldDiscardCount => unifiedTurn.PersistenceWorldDiscardCount;
+        internal string LastPersistenceWorldDiscardObservation => unifiedTurn.LastPersistenceWorldDiscardObservation;
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);
         internal bool PairedActorEnded(UnitEntityData actor) => unifiedTurn.PairedActorEnded(actor);
         internal bool MayStartNativePreparationDuringSave(UnitCommand command) => unifiedTurn.MayStartNativePreparationDuringSave(command);

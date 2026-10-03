@@ -115,7 +115,8 @@ namespace KingmakerMountedCombat.Integration
                 unifiedTurn.RestorePersistence(data.Combat, actors);
                 combatRestored = true;
                 Report("Saved native combat roster and paired participation rebound without Prepare/End; round=" +
-                    controller.RoundNumber + "; current=" + (controller.CurrentTurn?.Unit.UniqueId ?? "none") + ".");
+                    controller.RoundNumber + "; current=" + (controller.CurrentTurn?.Unit.UniqueId ?? "none") +
+                    "; activation=" + (unifiedTurn.ActivationIdentity ?? "none") + ".");
             }
             catch (Exception exception)
             {

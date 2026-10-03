@@ -81,8 +81,35 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // Diagnostics only (preview.154 CM07-mount-load-rt measurement): how often and from where the
+        // persistence world was discarded, and which activation it held at that moment. Nothing here
+        // changes behaviour; the real-time cold load lost the rebound activation without a trace.
+        internal long PersistenceWorldDiscardCount { get; private set; }
+        internal string LastPersistenceWorldDiscardObservation { get; private set; } = "none";
+
+        private static string DescribeManagedCallers()
+        {
+            var frames = new System.Diagnostics.StackTrace(2, false).GetFrames();
+            if (frames == null) return "<none>";
+            var names = new List<string>();
+            foreach (var frame in frames)
+            {
+                var method = frame.GetMethod(); var type = method?.DeclaringType;
+                if (method == null || type == null) continue;
+                var name = type.FullName + "." + method.Name;
+                if (name.StartsWith("MonoMod.", StringComparison.Ordinal) || name.Contains("DynamicMethodDefinition")) continue;
+                names.Add(name);
+                if (names.Count >= 10) break;
+            }
+            return names.Count == 0 ? "<none>" : string.Join(" < ", names.ToArray());
+        }
+
         internal void DiscardPersistenceWorld()
         {
+            PersistenceWorldDiscardCount++;
+            LastPersistenceWorldDiscardObservation = "discard;count=" + PersistenceWorldDiscardCount +
+                ";activation=" + (activation?.Identity ?? "none") + ";callers=" + DescribeManagedCallers();
+            logger.Info("Persistence world discarded: " + LastPersistenceWorldDiscardObservation);
             // World replacement is housekeeping. End/forfeit and voluntary split
             // belong to gameplay transitions and must not run during this discard.
             DisposePartnerContext();
