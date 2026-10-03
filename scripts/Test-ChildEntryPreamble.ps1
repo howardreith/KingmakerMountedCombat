@@ -98,13 +98,14 @@ foreach($mounted in @($true,$false)){
 }
 # Scenario expectations and the version gate.
 foreach($s in @('chunk6a-mount-spent-move-tb','chunk6a-combat-mount-rt','chunk6a-allocation-rider-first-tb')){if(Test-KmcChildEntryExpectsMounted $s){throw "Chunk 6A child $s must start unmounted"};$checks++}
-foreach($s in @('chunk4-rider-death-tb','unmounted-attack-controls-rt','actor-allocation-rider-first-tb','ordinary-attack-controls-tb','phase3g-native-controls-tb')){if(-not(Test-KmcChildEntryExpectsMounted $s)){throw "child $s must start mounted"};$checks++}
-foreach($s in @('chunk4-rider-death-tb','unmounted-attack-controls-rt','actor-allocation-rider-first-tb','chunk6a-rider-without-move-tb')){if(-not(Test-KmcChildEntryRequiresIdleParty $s)){throw "child $s requires the idle party"};$checks++}
+foreach($s in @('chunk4-rider-death-tb','unmounted-attack-controls-rt','actor-allocation-rider-first-tb','ordinary-attack-controls-tb','phase3g-native-controls-tb','chunk6b-charge-path-rt','chunk6b-charge-path-tb')){if(-not(Test-KmcChildEntryExpectsMounted $s)){throw "child $s must start mounted"};$checks++}
+foreach($s in @('chunk4-rider-death-tb','unmounted-attack-controls-rt','actor-allocation-rider-first-tb','chunk6a-rider-without-move-tb','chunk6b-charge-path-rt','chunk6b-charge-path-tb')){if(-not(Test-KmcChildEntryRequiresIdleParty $s)){throw "child $s requires the idle party"};$checks++}
 foreach($s in @('ordinary-attack-controls-tb','phase3g-native-controls-tb','phase3d-horse-presentation-suite')){if(Test-KmcChildEntryRequiresIdleParty $s){throw "child $s does not require the idle party"};$checks++}
 if(Test-KmcChildEntryPreambleRequired '0.1.0-chunk6a-preview.149'){throw 'preamble must not be required before preview.150'};$checks++
 if(-not(Test-KmcChildEntryPreambleRequired '0.1.0-chunk6a-preview.150')){throw 'preamble must be required from preview.150'};$checks++
 foreach($other in @('0.1.0-chunk4-preview.54','0.1.0-chunk5-preview.105','0.1.0-paired-preview.37','0.1.0-phase2b-dev.1','0.1.0-phase2a-review.2','0.0.1-feasibility','0.1.0-parser-only')){if(Test-KmcChildEntryPreambleRequired $other){throw ('only Chunk 6A candidates from preview.150 require the preamble: '+$other)};$checks++}
 if(-not(Test-KmcChildEntryPreambleRequired '0.1.0-chunk6a-preview.151')){throw 'later Chunk 6A candidates require the preamble'};$checks++
+if(-not(Test-KmcChildEntryPreambleRequired '0.1.0-chunk6b-preview.156')){throw 'Chunk 6B candidates require the preamble'};$checks++
 # Tranche source pins: captured once at child entry, structurally checked before any scenario
 # begins, with the exact admission mode and the zero-command/shell/process/dispatch facts.
 $tranche=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Phase3dHorseScenarioTranche.cs')

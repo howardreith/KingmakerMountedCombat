@@ -324,6 +324,7 @@
     <Compile Include="Logging\IModLogger.cs" />
     <Compile Include="Logging\UmmLogger.cs" />
     <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6bChargePathScenario.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingRuleObserver.cs" />
     <Compile Include="Diagnostics\Chunk4NativeAreaObservation.cs" />
     <Compile Include="Diagnostics\Chunk4ObstructionScenario.cs" />

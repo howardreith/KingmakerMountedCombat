@@ -62,11 +62,11 @@ function Assert-KmcChunk6aHarnessIdentity($Harness,[string]$RepoRoot) {
         throw ('Chunk 6A reader revision differs from the harness that qualified this ledger; re-qualify under a new harness identity: '+($differences -join '; '))
     }
 }
-# The separate identities are required of every Chunk 6A candidate from preview.150 (a frozen
+# The separate identities are required of every Chunk 6A candidate from preview.150 and of every Chunk 6B candidate (a frozen
 # payload's version is bound to its package manifest). Earlier candidates, the historical product
 # lines and parser-only synthetic ledgers predate them; a recorded identity is always validated.
 function Test-KmcChunk6aIdentitiesRequired([string]$ProductVersion) {
-    ([string]$ProductVersion -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -ge 150)
+    ([string]$ProductVersion -cmatch '^0[.]1[.]0-chunk6[ab]-preview[.]([0-9]+)$' -and [long]$Matches[1] -ge 150)
 }
 function Get-KmcChunk6aSourceTreeDigest([string]$RepoRoot,[string]$Commit) {
     if($Commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Source tree digest requires an exact commit.' }

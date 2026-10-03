@@ -1,7 +1,8 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `OPENED — MEASURED; INCREMENT 6B.1 NEXT`. Nothing is implemented, enabled or claimed by this
-document. It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
+Status: `INCREMENT 6B.1 IMPLEMENTED (0.1.0-chunk6b-preview.156) - CANDIDATE, FREEZE AND NATIVE MEASUREMENT
+PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
 delivery; the 87 Chunk 6A rows are not rerun per 6B candidate; final acceptance waits for the Chunk 6
@@ -117,7 +118,8 @@ charge must restore or lawfully drop it through the existing persistence machine
 
 ## Increment plan (each increment is its own frozen candidate with focused qualification)
 
-- 6B.1 (next): a diagnostics-only measurement of the pair forced path under the existing diagnostic lease:
+- 6B.1 (implemented as preview.156; native measurement pending): a diagnostics-only measurement of the pair
+  forced path under the existing diagnostic lease:
   the mount agent's `ForcePath` with doubled `MaxSpeedOverride` and `IsCharging` along a measured straight
   line in real-time and in turn-based mode, observing the unified-turn movement accounting, avoidance, stop
   behaviour, interruption and cleanup, with no ability, no product change and no cost; rows and an external
@@ -141,3 +143,47 @@ charge must restore or lawfully drop it through the existing persistence machine
   (`chunk4-charge-safety-rt`/`-tb`), with fresh isolated restored transactions and session logs preserved.
 - Historical failures are retained immutably; a commit, candidate, proof or targeted PASS is never
   authorization to merge main or publish a release.
+
+## Increment 6B.1 - implementation record (2026-10-03; preview.156, not yet frozen)
+
+Diagnostics only; no product behavior changed; the feature stays absent and default-off; the stock Charge stays
+rejected while mounted (Chunk 4 protocol, 472/0 in this candidate's FAST tier).
+
+- Scenarios `chunk6b-charge-path-rt` and `chunk6b-charge-path-tb` (compiled:
+  `src/KingmakerMountedCombat/Diagnostics/Chunk6bChargePathScenario.cs`, a partial of the Phase 3D horse tranche;
+  evidence schema 33; observation contract `chunk6b-pair-forced-path-measurement`). Both are mounted-handoff
+  tranche children exactly like the Chunk 4 charge children: the parent performs the exploration preamble Mount
+  with the idle disposable party, the child enters combat against a fresh target placed on a straight clear
+  line 9 m from the mount, and in turn-based mode it waits for the rider's natural turn and enters Acting
+  through a native five-foot step (no Move action).
+- Rows `C6B-PATH-straight-arrival` and `C6B-PATH-interrupt-stop`. Each row applies, on the mount agent only,
+  the three calls the stock charge makes on its caster's agent (`IsCharging`, `MaxSpeedOverride` raised to
+  twice the mount combat speed, `ForcePath(new ForcedPath([mount, target]), 1000000f)`), samples the path
+  every 0.1 s (distance, force mode, speed, both command containers, the unified-turn movement accounting, the
+  rider turn's `TimeMoved` and `TimeMovedInForceMode`), stops on arrival within the pair reach (first row)
+  or interrupts after 1.5 m or 0.4 s through the stock `StopMoving` (second row), restores every leased value
+  exactly and records costs, residue and attack rules.
+- Acceptance authority: `scripts/runtime/Chunk6bChargePathEvidence.ps1`, dispatched from the shared horse
+  evidence reader for schema 33. It refuses any non-straight or blocked geometry, a distance outside the stock
+  minimum/maximum range read from the mount, a maximum range other than six times the mount combat speed, a
+  lease that touched the rider agent, any command or lost charging flag during the path, any cooldown delta on
+  either actor, missing restoration, force-mode/movement/charging residue, an attack rule, lateral deviation
+  above 0.75 m, and in turn-based mode any rider movement before the path other than the five-foot step, no
+  forced time, or movement outside force mode. Synthetic acceptance and refusal:
+  `scripts/Test-Chunk6bChargePath.ps1`, 80/0.
+- Harness registration: the launcher allow-list, the request validator, the save-backed, registry and audit
+  lists and the horse-evidence suite list of `RuntimeHarness.Common.ps1`, the schema 33 consistency rule, the
+  child-entry preamble families (mounted handoff, idle party required, preamble required for
+  `0.1.0-chunk6b-preview.N`) and the Chunk 6A identity requirement extended to the `chunk6b` version line.
+- Source-inventory pin changed with intent: the harness test "basic mounted charge feature remains absent and
+  default-off" still forbids `new AbilityCustomCharge`, `IsCharge = true` and `ChargeBuff` everywhere and
+  `IsCharging = true` in every file except exactly one diagnostics file, which it pins to raise the mount
+  agent's charging flag once under its restored lease and to manufacture no charge state or attack.
+- Controller accessor `LastPairedMovementObservation` (read-only) for the samples; version
+  `0.1.0-chunk6b-preview.156`.
+- FAST tier (lab receipts `analysis-cache/chunk6b-charge/fast-tier-preview156-{1,2}-receipt.json`): attempt 1
+  failed on the two source pins above (the schema pin and the charge-absent guard; no build or test defect),
+  attempt 2 14/0 after the pins were updated; component tests 556/0.
+
+Native measurement outcome: pending (one CANDIDATE tier, freeze, purity proof, then the two measurement scenarios
+plus the Chunk 4 charge-safety regression as fresh isolated restored transactions).
