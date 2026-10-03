@@ -309,7 +309,7 @@ function New-LifecycleCase([string]$Scenario,[string]$Outcome){
   'acted-not-mounted' { New-LifecycleState 'after' 'Unmounted' 1 (-not$combatEnd) 1 $true 1 1 0 1 3.0 }
  }
  $ledgerDelta=switch($Outcome){
-  'unacted-Interrupt' { [ordered]@{admittedMount=1;acceptedMount=0;admittedDismount=0;acceptedDismount=0;refusedVoluntary=0;forcedDetach=0;duplicateSuppressed=0;concurrentSuppressed=0} }
+  'unacted-Interrupt' { [ordered]@{admittedMount=1;acceptedMount=0;admittedDismount=0;acceptedDismount=0;refusedVoluntary=0;forcedDetach=$(if($Scenario-ceq'chunk6a-disable-approach'){1}else{0});duplicateSuppressed=0;concurrentSuppressed=0} }
   'delivered' { [ordered]@{admittedMount=1;acceptedMount=1;admittedDismount=0;acceptedDismount=0;refusedVoluntary=0;forcedDetach=0;duplicateSuppressed=0;concurrentSuppressed=0} }
   'acted-not-mounted' { [ordered]@{admittedMount=1;acceptedMount=0;admittedDismount=0;acceptedDismount=0;refusedVoluntary=1;forcedDetach=1;duplicateSuppressed=0;concurrentSuppressed=0} }
  }
@@ -350,6 +350,7 @@ foreach($scenario in @('chunk6a-combat-end-approach','chunk6a-disable-approach')
  MutateCase 'no measured approach' 'unacted-Interrupt' {param($c) $c.trigger.riderDisplacement=0.1}
  MutateCase 'command acted at the trigger' 'unacted-Interrupt' {param($c) $c.trigger.acted=$true}
  MutateCase 'paired identity residue' 'unacted-Interrupt' {param($c) $c.after.pairedIdentity='stale-activation'}
+ MutateCase 'detach count differs from the boundary' 'unacted-Interrupt' {param($c) $c.ledgerDelta.forcedDetach=$(if($scenario-ceq'chunk6a-disable-approach'){0}else{1})}
  MutateCase 'partner context residue' 'delivered' {param($c) $c.after.partnerContextActor='stale-partner'}
  MutateCase 'second shell registered' 'unacted-Interrupt' {param($c) $c.relationshipShellsDelta=2}
  MutateCase 'no shell registered' 'delivered' {param($c) $c.relationshipShellsDelta=0}

@@ -346,7 +346,11 @@ function Assert-KmcChunk6aLifecycleBoundary([string]$Scenario,$Artifact) {
  $outcome=[string]$Case.outcome;$delta=$Case.ledgerDelta
  switch -Regex -CaseSensitive ($outcome){
   '^unacted-(Interrupt|Fail)$' {
-   if([string]$after.relationshipState-cne'Unmounted'-or$delta.acceptedMount-ne0-or$delta.forcedDetach-ne0-or$Case.generationDelta-ne0-or$Case.dispatchAcceptedDelta-ne0-or$Case.pairCostCallbacks-ne0-or$Case.terminalCommand.acted-ne$false){FoundationFail 'the unacted outcome carries a transition, cost or dispatch'}
+   # A registered disable is itself a forced-detach cleanup trigger (idempotent, no voluntary cost): its one
+   # cleanup is counted exactly once in the transition ledger even with nothing attached; the combat-end
+   # boundary detaches nothing.
+   $expectedDetach=if($disable){1}else{0}
+   if([string]$after.relationshipState-cne'Unmounted'-or$delta.acceptedMount-ne0-or$delta.forcedDetach-ne$expectedDetach-or$Case.generationDelta-ne0-or$Case.dispatchAcceptedDelta-ne0-or$Case.pairCostCallbacks-ne0-or$Case.terminalCommand.acted-ne$false){FoundationFail 'the unacted outcome carries a transition, cost or dispatch'}
    foreach($actor in @('rider','mount')){ foreach($f in @('standard','move','swift')){ if([double]$after.$actor.$f-gt([double]$before.$actor.$f+0.0001)){FoundationFail ('the unacted outcome raised '+$actor+' '+$f)} } }
   }
   '^delivered$' {
