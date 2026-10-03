@@ -160,13 +160,23 @@ function Assert-KmcChunk6aFoundationPersistenceEvidence {
   if($null-eq$snapshot){FoundationFail 'the cold process records no selected archive snapshot'}
   if($snapshot.Mounted-ne$mountCase-or$snapshot.Combat.TurnBased-ne$tb-or[string]$snapshot.CampaignId-cne[string]$Request.fixture.working.gameId){FoundationFail 'the cold snapshot differs from the checkpoint'}
   if($i.persistence.semantics-ne@($snapshot.Combat.Actors).Count-or$i.persistence.presentation-ne$(if($mountCase){1}else{0})){FoundationFail 'the cold restoration duplicated semantic or presentation state'}
+  # The fixture load itself leaves a baseline in the involuntary counters (the P02/P04 fixtures load with
+  # forcedDetach 1 and duplicateSuppressed 1 in the save process and in its cold load alike), so the cold
+  # process must replay no voluntary transition at all and must not move any counter after its initial
+  # observation; the equality of that baseline with the source process is proved by the cold outcome
+  # comparison (Assert-KmcChunk6aFoundationColdOutcome).
+  $baseline=Get-KmcChunk6aFoundationOf $i
+  if($null-eq$baseline){FoundationFail 'the cold initial row has no foundation observation'}
+  $bt=$baseline.transitionCounters
+  if([long]$baseline.castRequests-ne0-or[long]$baseline.adoptionCount-ne0-or[long]$bt.acceptedMount-ne0-or[long]$bt.admittedMount-ne0-or[long]$bt.acceptedDismount-ne0-or[long]$bt.admittedDismount-ne0-or[long]$bt.refusedVoluntary-ne0){FoundationFail 'the cold load replayed a voluntary transition before its initial observation'}
   $generations=@()
   foreach($r in $rows){
    if($r.controls.NativeCastRequestCount-ne0){FoundationFail ('the cold process cast a native control at '+$r.kind)}
    $f=Get-KmcChunk6aFoundationOf $r
    if($null-eq$f){continue}
    $t=$f.transitionCounters
-   if([long]$f.castRequests-ne0-or[long]$f.adoptionCount-ne0-or[long]$t.acceptedMount-ne0-or[long]$t.admittedMount-ne0-or[long]$t.acceptedDismount-ne0-or[long]$t.admittedDismount-ne0-or[long]$t.forcedDetach-ne0-or[long]$t.refusedVoluntary-ne0){FoundationFail ('the cold process replayed or detached a transition at '+$r.kind)}
+   if([long]$f.castRequests-ne0-or[long]$f.adoptionCount-ne0){FoundationFail ('the cold process cast or adopted at '+$r.kind)}
+   foreach($name in @('admittedMount','acceptedMount','admittedDismount','acceptedDismount','refusedVoluntary','forcedDetach','duplicateSuppressed','concurrentSuppressed')){ if([long]$t.$name-ne[long]$bt.$name){FoundationFail ('the cold process replayed or detached a transition at '+$r.kind)} }
    if($f.transitionInFlight-ne$false){FoundationFail ('a transition is in flight at '+$r.kind)}
    $generations+=[long]$f.generation
   }
@@ -204,6 +214,12 @@ function Assert-KmcChunk6aFoundationColdOutcome {
  $written=@($SourceRows|Where-Object kind -CEQ 'native-write-complete');$loaded=@($ColdRows|Where-Object kind -CEQ 'rt-cold-debt-restored')
  if($written.Count-ne1-or$loaded.Count-ne1-or$written[0].processId-eq$loaded[0].processId){FoundationFail 'the cold comparison lacks exact source/cold observations'}
  if([string]$written[0].checkpoint-cne[string]$loaded[0].checkpoint){FoundationFail 'the cold checkpoint differs from its source'}
+ # The involuntary counters of a fresh process are the fixture-load baseline; the cold load may not add to it.
+ $si=@($SourceRows|Where-Object kind -CEQ 'initial');$ci=@($ColdRows|Where-Object kind -CEQ 'initial')
+ if($si.Count-ne1-or$ci.Count-ne1){FoundationFail 'the cold comparison lacks the initial observations'}
+ $sf=Get-KmcChunk6aFoundationOf $si[0];$cf=Get-KmcChunk6aFoundationOf $ci[0]
+ if($null-eq$sf-or$null-eq$cf){FoundationFail 'the cold comparison lacks the initial foundation observations'}
+ foreach($name in @('forcedDetach','duplicateSuppressed','concurrentSuppressed')){ if([long]$sf.transitionCounters.$name-ne[long]$cf.transitionCounters.$name){FoundationFail ('the cold load moved the involuntary counter '+$name+' beyond the fixture-load baseline of its source process')} }
  $a=$written[0].detail.actual;$b=$loaded[0].detail.actual
  if([string]$a.target-cne[string]$b.target-or$a.targetDamage-ne$b.targetDamage-or$b.resolved-ne0-or$b.ordinaryAttacks-ne0-or$b.inputRequests-ne0-or$b.unresolvedProjectiles-ne$false-or[string]$a.foundation.relationship-cne[string]$b.foundation.relationship){FoundationFail 'the cold load changed native health or the relationship, or replayed delivery'}
 }
@@ -313,7 +329,11 @@ function Assert-KmcChunk6aLifecycleBoundary([string]$Scenario,$Artifact) {
  if([string]$trigger.state.relationshipState-cne'Unmounted'){FoundationFail 'the pair was already mounted at the boundary'}
  $terminal=FoundationProp $Case 'terminal';$after=FoundationProp $Case 'after'
  if($null-eq$terminal-or$null-eq$after-or$Case.terminalCommand.finished-ne$true){FoundationFail 'no terminal was observed'}
- if($after.transitionInFlight-ne$false-or$after.riderCommandsEmpty-ne$true-or$after.horseCommandsEmpty-ne$true-or$Case.relationshipShellsDelta-ne0-or$Case.noResidue-ne$true-or$Case.allocationTraceComplete-ne$true-or[int]$Case.settledFrames-lt10){FoundationFail 'residue remained after the boundary'}
+ # Residue is decided from primitives: no transition in flight, both command containers empty, no paired
+ # activation identity or partner context left behind, and exactly one relationship-shell registration for
+ # the one click (NativeRelationshipShellCount is a monotonic registration counter that is never
+ # decremented; the compiled noResidue flag expected it unchanged and is recorded, not trusted).
+ if($after.transitionInFlight-ne$false-or$after.riderCommandsEmpty-ne$true-or$after.horseCommandsEmpty-ne$true-or$null-ne(FoundationProp $after 'pairedIdentity')-or$null-ne(FoundationProp $after 'partnerContextActor')-or$Case.relationshipShellsDelta-ne1-or$Case.allocationTraceComplete-ne$true-or[int]$Case.settledFrames-lt10){FoundationFail 'residue remained after the boundary'}
  if($Case.pairPrepareCallbacks-ne0){FoundationFail 'a native preparation ran during the boundary window'}
  if($Case.castRequestDelta-ne1){FoundationFail 'the window holds other than the one native cast request'}
  $outcome=[string]$Case.outcome;$delta=$Case.ledgerDelta

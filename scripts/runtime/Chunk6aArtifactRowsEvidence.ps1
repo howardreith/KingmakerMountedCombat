@@ -2,7 +2,9 @@
 # Callers first bind raw artifact SHA and the actual native/overall payload.
 function Get-KmcChunk6aArtifactRows([string]$Path,[string]$Scenario,$Game,[switch]$PassRowsOnly) {
     if($Scenario-ceq'chunk4-area-cleanup') {Get-KmcAreaRegressionRows $Path $Game;return}
-    if(Test-KmcChunk6aFoundationScenario $Scenario) {Get-KmcChunk6aFoundationRows $Path $Scenario $Game;return}
+    # A foundation persistence run is projected from its JSONL leaf; a retained foundation failure binds the
+    # failing facet's JSON leaf (runtime-game-result.json or runtime-result.json), which the generic reader projects.
+    if((Test-KmcChunk6aFoundationScenario $Scenario) -and [IO.Path]::GetFileName($Path) -ceq 'persistence-observations.jsonl') {Get-KmcChunk6aFoundationRows $Path $Scenario $Game;return}
     if([IO.Path]::GetExtension($Path) -ceq '.jsonl') {
         if([IO.Path]::GetFileName($Path) -cne 'combat-scenario-evidence.jsonl' -or $Scenario -cne 'mounted-mammoth-primary-hit-tb' -or [string]$Game.scenario -cne $Scenario) {throw 'Legacy row reader requires the fixed Mammoth scenario and JSONL leaf.'}
         $lines=@(Get-Content -LiteralPath $Path|Where-Object {-not[string]::IsNullOrWhiteSpace([string]$_)})

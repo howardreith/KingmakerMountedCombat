@@ -219,6 +219,8 @@ Mutate 'f-mount-save-rt' 'other process' {param($r) (RowOf $r 'rt-before-save').
 Mutate 'f-mount-load-rt' 'cold cast request' {param($r) (RowOf $r 'rt-later-attack').controls.NativeCastRequestCount=1}
 Mutate 'f-mount-load-rt' 'cold adoption replay' {param($r) (RowOf $r 'rt-cold-debt-restored').detail.actual.foundation.adoptionCount=1}
 Mutate 'f-mount-load-rt' 'cold accepted mount' {param($r) (RowOf $r 'usable-continuation-complete').detail.foundation.transitionCounters.acceptedMount=1}
+Mutate 'f-mount-load-rt' 'cold forced detach after the initial observation' {param($r) (RowOf $r 'usable-continuation-complete').detail.foundation.transitionCounters.forcedDetach=1}
+Mutate 'f-mount-load-rt' 'cold voluntary transition before the initial observation' {param($r) foreach($row in $r){ $f=Get-KmcChunk6aFoundationOf $row; if($null-ne$f){ $f.transitionCounters.acceptedMount=1 } }}
 Mutate 'f-mount-load-rt' 'cold generation changed' {param($r) (RowOf $r 'usable-continuation-complete').detail.foundation.generation=2}
 Mutate 'f-mount-load-rt' 'cold presentation duplicated' {param($r) (RowOf $r 'initial').persistence.presentation=2}
 Mutate 'f-mount-load-rt' 'cold pair lost its paired ownership' {param($r) (RowOf $r 'rt-cold-debt-restored').detail.actual.foundation.pairedIdentity=$null}
@@ -247,6 +249,7 @@ Reject 'real-time checkpoint on the turn-based scenario' { $b=$built['f-mount-sa
 # Cold outcome comparison against the source.
 Accept 'cold outcome matches its source' { Assert-KmcChunk6aFoundationColdOutcome $built['f-mount-save-rt'].rows $built['f-mount-load-rt'].rows }
 Reject 'cold outcome from another checkpoint' { Assert-KmcChunk6aFoundationColdOutcome $built['f-dismount-save'].rows $built['f-mount-load-rt'].rows }
+Reject 'cold load detached beyond the source baseline' { $c=@(Clone $built['f-mount-load-rt'].rows); foreach($row in $c){ $f=Get-KmcChunk6aFoundationOf $row; if($null-ne$f){ $f.transitionCounters.forcedDetach=1 } }; Assert-KmcChunk6aFoundationColdOutcome $built['f-mount-save-rt'].rows $c }
 Reject 'cold outcome replayed delivery' { $c=@(Clone $built['f-mount-load-rt'].rows);(RowOf $c 'rt-cold-debt-restored').detail.actual.resolved=1;Assert-KmcChunk6aFoundationColdOutcome $built['f-mount-save-rt'].rows $c }
 # Id mapping, isolated binding and the cold-load pairing over the owned lab.
 $map=Get-KmcChunk6aFoundationIdMap
@@ -319,8 +322,8 @@ function New-LifecycleCase([string]$Scenario,[string]$Outcome){
   terminal=(New-LifecycleState 'terminal' $after.relationshipState $after.generation $after.partyInCombat 1 $true 1 $after.dispatchAccepted 0 $after.compensatedMounts 0.0)
   commandWindowKind=$(if($Outcome-ceq'delivered'){'positive'}else{'unacted'});commandWindow=[ordered]@{};terminalCommand=[ordered]@{finished=$true;acted=($Outcome-cne'unacted-Interrupt');result=$(if($Outcome-ceq'unacted-Interrupt'){'Interrupt'}else{'Success'})}
   after=$after;allocationEvents=@();allocationTraceComplete=$true;observerHooks=@();interrupts=@();pairCostCallbacks=$(if($Outcome-ceq'unacted-Interrupt'){0}else{4});pairPrepareCallbacks=0
-  ledgerDelta=$ledgerDelta;generationDelta=$(if($Outcome-ceq'unacted-Interrupt'){0}else{1});dispatchAcceptedDelta=$(if($Outcome-ceq'unacted-Interrupt'){0}else{1});dispatchRejectedDelta=0;castRequestDelta=1;relationshipShellsDelta=0
-  noResidue=$true;outcome=$Outcome;settledFrames=10
+  ledgerDelta=$ledgerDelta;generationDelta=$(if($Outcome-ceq'unacted-Interrupt'){0}else{1});dispatchAcceptedDelta=$(if($Outcome-ceq'unacted-Interrupt'){0}else{1});dispatchRejectedDelta=0;castRequestDelta=1;relationshipShellsDelta=1
+  noResidue=$false;outcome=$Outcome;settledFrames=10
  }
  if($combatEnd){
   $case['combatEnd']=[ordered]@{frame=121;gameTicks=1210;targetId=$targetId;targetInCombatBefore=$true;destroyRequested=$true;destroyVerified=$true;destroyVerifiedFrame=125;partyLeftCombatFrame=200;partyLeftCombatGameTicks=2000;partyLeftCombat=(New-LifecycleState 'party-left-combat' 'Unmounted' 0 $false 1 $true 1 0 0 0 0.0)}
@@ -346,8 +349,10 @@ foreach($scenario in @('chunk6a-combat-end-approach','chunk6a-disable-approach')
  MutateCase 'click delivered' 'unacted-Interrupt' {param($c) $c.click.dispatchAcceptedDelta=1}
  MutateCase 'no measured approach' 'unacted-Interrupt' {param($c) $c.trigger.riderDisplacement=0.1}
  MutateCase 'command acted at the trigger' 'unacted-Interrupt' {param($c) $c.trigger.acted=$true}
- MutateCase 'residue' 'unacted-Interrupt' {param($c) $c.noResidue=$false}
- MutateCase 'shell retained' 'unacted-Interrupt' {param($c) $c.relationshipShellsDelta=1}
+ MutateCase 'paired identity residue' 'unacted-Interrupt' {param($c) $c.after.pairedIdentity='stale-activation'}
+ MutateCase 'partner context residue' 'delivered' {param($c) $c.after.partnerContextActor='stale-partner'}
+ MutateCase 'second shell registered' 'unacted-Interrupt' {param($c) $c.relationshipShellsDelta=2}
+ MutateCase 'no shell registered' 'delivered' {param($c) $c.relationshipShellsDelta=0}
  MutateCase 'preparation ran' 'unacted-Interrupt' {param($c) $c.pairPrepareCallbacks=1}
  MutateCase 'unacted but mounted' 'unacted-Interrupt' {param($c) $c.after.relationshipState='Mounted'}
  MutateCase 'unacted with a cost' 'unacted-Interrupt' {param($c) $c.pairCostCallbacks=2}
