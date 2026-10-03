@@ -55,6 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private float? chunk6bSpeedBefore;
         private Vector3 chunk6bOrigin, chunk6bLineDirection, chunk6bLastPosition;
         private double chunk6bStarted, chunk6bLastSample, chunk6bLastTime, chunk6bStoppedAt;
+        private int chunk6bLastSampleFrame;
         private float chunk6bMoved, chunk6bLateral, chunk6bPeakSpeed;
         private string chunk6bStopReason;
         private bool chunk6bRiderCommandsEmpty = true, chunk6bMountOnlyCarrier = true, chunk6bChargingThroughout = true;
@@ -380,7 +381,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.View.AgentASP.MaxSpeedOverride != riderAgentBefore.MaxSpeedOverride || rider.View.AgentASP.enabled != riderAgentBefore.enabled;
                 chunk6bOrigin = horse.Position; chunk6bLastPosition = horse.Position;
                 chunk6bLineDirection = Chunk6bLineDirectionFromMount();
-                chunk6bStarted = chunk6bLastTime = Chunk6bNow; chunk6bLastSample = -1;
+                chunk6bStarted = chunk6bLastTime = Chunk6bNow; chunk6bLastSample = -1; chunk6bLastSampleFrame = 0;
                 chunk6bStage = 2; ResetLeafClock(); return;
             }
             if (chunk6bStage == 2)
@@ -394,7 +395,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (carrierRunning && !Chunk6bForceMode) ApplyChunk6bForcedPath("re-force");
                 var step = HorizontalDistance(horse.Position, chunk6bLastPosition);
                 var dt = now - chunk6bLastTime;
+                // Preview.158 measured that in turn-based mode the game clock barely advances across the whole
+                // path, so a step-over-time estimate reads zero. The agent's own Speed is the engine's value
+                // and is taken as well; the peak is the larger of the two.
                 if (dt > 0 && step > 0) chunk6bPeakSpeed = Math.Max(chunk6bPeakSpeed, (float)(step / dt));
+                chunk6bPeakSpeed = Math.Max(chunk6bPeakSpeed, agent.Speed);
                 chunk6bMoved += step;
                 if (step > 0.001f) chunk6bCarrier["startedMoving"] = true;
                 var offset = horse.Position - chunk6bOrigin; offset.y = 0f;
@@ -405,9 +410,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6bMountOnlyCarrier &= horse.Commands.Raw.All(command => command == null || ReferenceEquals(command, chunk6bCarrierMove)) && horse.Commands.Queue.Count == 0;
                 chunk6bChargingThroughout &= agent.IsCharging;
                 var distanceToTarget = horse.DistanceTo(target);
-                if (elapsed - chunk6bLastSample >= 0.1)
+                // Sample on either clock: game time in real time, and frame advance in turn-based mode, where
+                // the game clock advances far more slowly than the path does.
+                if (chunk6bSamples.Count < 120 &&
+                    (elapsed - chunk6bLastSample >= 0.1 || Time.frameCount - chunk6bLastSampleFrame >= 3))
                 {
                     chunk6bLastSample = elapsed;
+                    chunk6bLastSampleFrame = Time.frameCount;
                     chunk6bSamples.Add(new JObject
                     {
                         ["nativeSeconds"] = elapsed, ["frame"] = Time.frameCount, ["mountPosition"] = CapturePosition(horse.Position),

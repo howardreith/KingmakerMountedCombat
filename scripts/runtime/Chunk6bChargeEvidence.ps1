@@ -36,7 +36,9 @@ function Assert-KmcChunk6bChargeIdentity($Identity,[string]$Row,[bool]$ExpectPre
 }
 
 # Nothing happened: no shell was admitted, the pair did not move, no cooldown was spent and no pair attack
-# rule was initiated. Every refusal row requires exactly this.
+# rule was initiated. Every economy figure is the increase the row own attempt caused above its own baseline,
+# so a repeated request made while an earlier charge cost still stands reports zero rather than that cost.
+# Every refusal row requires exactly this.
 function Assert-KmcChunk6bChargeNothingHappened($Evidence,[string]$Row) {
     $input=ChargeProp $Evidence 'input';$movement=ChargeProp $Evidence 'movement';$economy=ChargeProp $Evidence 'economy'
     if($null-eq$input-or$null-eq$movement-or$null-eq$economy){ChargeFail ('row '+$Row+' lacks a delivery section')}

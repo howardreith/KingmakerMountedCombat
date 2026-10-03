@@ -35,7 +35,6 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-default-off",
             "C6B-CHARGE-positive",
             "C6B-CHARGE-below-minimum",
-            "C6B-CHARGE-spent-standard",
             "C6B-CHARGE-stock-rejected"
         };
 
@@ -55,9 +54,21 @@ namespace KingmakerMountedCombat.Diagnostics
         private float chunk6bChargeMaxMountStandard, chunk6bChargeMaxMountMove;
         private bool chunk6bChargeObservedCharging, chunk6bChargeObservedForceMode, chunk6bChargeObservedBuff;
         private int chunk6bChargeAttackRulesBefore, chunk6bChargeOpportunityRulesBefore;
+        private float chunk6bChargeBaseRiderStandard, chunk6bChargeBaseRiderMove;
+        private float chunk6bChargeBaseMountStandard, chunk6bChargeBaseMountMove;
+        private int chunk6bChargeRepeatStage;
+        private JObject chunk6bChargeRepeatBefore, chunk6bChargeRepeatInput;
+        private double chunk6bChargeRepeatStarted;
+        private Vector3 chunk6bChargeRepeatMountOrigin, chunk6bChargeRepeatRiderOrigin;
+        private float chunk6bChargeRepeatMountDistance, chunk6bChargeRepeatRiderDistance;
+        private float chunk6bChargeRepeatMaxRiderStandard, chunk6bChargeRepeatMaxRiderMove;
+        private float chunk6bChargeRepeatMaxMountStandard, chunk6bChargeRepeatMaxMountMove;
+        private int chunk6bChargeRepeatAttackRulesBefore, chunk6bChargeRepeatOpportunityRulesBefore;
         private int chunk6bChargeShellCount;
         private string chunk6bChargeFeedback;
         private JArray chunk6bChargeRejectionCodes = new JArray();
+
+        private const string Chunk6bChargeRepeatRow = "C6B-CHARGE-spent-standard";
 
         private string Chunk6bChargeCaseId => Chunk6bChargeCases[chunk6bChargeCase];
         private JObject Chunk6bChargeMeasurement => (JObject)observations["chunk6bCharge"];
@@ -120,6 +131,14 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bChargeFeedback = null;
             chunk6bChargeRejectionCodes = new JArray();
             chunk6bChargeLastSample = -1;
+            chunk6bChargeBaseRiderStandard = chunk6bChargeBaseRiderMove = 0f;
+            chunk6bChargeBaseMountStandard = chunk6bChargeBaseMountMove = 0f;
+            chunk6bChargeRepeatStage = 0;
+            chunk6bChargeRepeatBefore = null;
+            chunk6bChargeRepeatInput = null;
+            chunk6bChargeRepeatMountDistance = chunk6bChargeRepeatRiderDistance = 0f;
+            chunk6bChargeRepeatMaxRiderStandard = chunk6bChargeRepeatMaxRiderMove = 0f;
+            chunk6bChargeRepeatMaxMountStandard = chunk6bChargeRepeatMaxMountMove = 0f;
         }
 
         // The rider's own KMC charge ability fact, by exact asset id. Absent while the feature is off.
@@ -228,10 +247,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!IsCombatReady(true)) return;
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                     !rider.CombatState.Prepared || combat.HasActiveCommand) return;
-                // The spent-standard case deliberately keeps the standard action the previous charge spent, so
-                // it waits only for the pair to be idle, not for the cooldown to clear.
-                if (chunk6bChargeCase != 3 &&
-                    (rider.CombatState.Cooldown.StandardAction > 0.001f || rider.CombatState.Cooldown.MoveAction > 0.001f)) return;
+                // Preview.158 measured the rider still waiting initiative for a moment after real-time combat
+                // starts: UnitCombatState.CanActInCombat is m_InCombat && !IsWaitingInitiative, so the charge was
+                // correctly refused as "requires a rider who can act". Wait for the same native readiness the
+                // stock charge fixture waits for before it clicks.
+                if (!rider.CombatState.CanActInCombat || !rider.IsAbleToAct()) return;
+                if (rider.CombatState.Cooldown.StandardAction > 0.001f || rider.CombatState.Cooldown.MoveAction > 0.001f) return;
 
                 chunk6bChargeAbility = FindChunk6bChargeAbility();
                 if (chunk6bChargeAbility == null)
@@ -253,8 +274,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 };
                 chunk6bChargeAttackRulesBefore = ruleProbe.PairAttackRuleCount;
                 chunk6bChargeOpportunityRulesBefore = ruleProbe.PairOpportunityAttackRuleCount;
+                chunk6bChargeBaseRiderStandard = rider.CombatState.Cooldown.StandardAction;
+                chunk6bChargeBaseRiderMove = rider.CombatState.Cooldown.MoveAction;
+                chunk6bChargeBaseMountStandard = horse.CombatState.Cooldown.StandardAction;
+                chunk6bChargeBaseMountMove = horse.CombatState.Cooldown.MoveAction;
 
-                if (chunk6bChargeCase == 4)
+                if (chunk6bChargeCase == 3)
                 {
                     TickChunk6bChargeStockRejected();
                     return;
@@ -310,10 +335,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6bChargeMountDistance = Math.Max(chunk6bChargeMountDistance, HorizontalDistance(horse.Position, chunk6bChargeMountOrigin));
                 chunk6bChargeRiderDistance = Math.Max(chunk6bChargeRiderDistance, HorizontalDistance(rider.Position, chunk6bChargeRiderOrigin));
                 chunk6bChargePeakSpeed = Math.Max(chunk6bChargePeakSpeed, agent == null ? 0f : agent.Speed);
-                chunk6bChargeMaxRiderStandard = Math.Max(chunk6bChargeMaxRiderStandard, rider.CombatState.Cooldown.StandardAction);
-                chunk6bChargeMaxRiderMove = Math.Max(chunk6bChargeMaxRiderMove, rider.CombatState.Cooldown.MoveAction);
-                chunk6bChargeMaxMountStandard = Math.Max(chunk6bChargeMaxMountStandard, horse.CombatState.Cooldown.StandardAction);
-                chunk6bChargeMaxMountMove = Math.Max(chunk6bChargeMaxMountMove, horse.CombatState.Cooldown.MoveAction);
+                // The increase this attempt caused, never the absolute cooldown: a repeated request made while
+                // an earlier charge's cost still stands must report zero, not the earlier charge's cost.
+                chunk6bChargeMaxRiderStandard = Math.Max(chunk6bChargeMaxRiderStandard, rider.CombatState.Cooldown.StandardAction - chunk6bChargeBaseRiderStandard);
+                chunk6bChargeMaxRiderMove = Math.Max(chunk6bChargeMaxRiderMove, rider.CombatState.Cooldown.MoveAction - chunk6bChargeBaseRiderMove);
+                chunk6bChargeMaxMountStandard = Math.Max(chunk6bChargeMaxMountStandard, horse.CombatState.Cooldown.StandardAction - chunk6bChargeBaseMountStandard);
+                chunk6bChargeMaxMountMove = Math.Max(chunk6bChargeMaxMountMove, horse.CombatState.Cooldown.MoveAction - chunk6bChargeBaseMountMove);
                 chunk6bChargeObservedCharging |= agent != null && agent.IsCharging;
                 chunk6bChargeObservedForceMode |= combat.LastMountedChargeCommand != null &&
                     combat.LastMountedChargeCommand.ChargeMode;
@@ -348,6 +375,14 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (chunk6bChargeStage == 3)
             {
+                // The repeated request belongs to this combat, because the rider's standard action must still
+                // be spent when it is attempted.
+                if (chunk6bChargeCase == 1 && chunk6bChargeRepeatStage < 2)
+                {
+                    TickChunk6bChargeRepeat();
+                    return;
+                }
+
                 var evidence = new JObject
                 {
                     ["level"] = "NATIVE DELIVERY",
@@ -445,7 +480,6 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 0: return "The Mounted Charge control is absent while its setting is off and leased on the rider once it is on.";
                 case 1: return "One player click delivered one rider-owned full-round charge: the mount carried the forced path and the rider struck once with the native charge rule.";
                 case 2: return "A target inside the stock minimum charge distance was refused before any cost, path or attack.";
-                case 3: return "A repeated charge without the rider's standard action was refused before any cost, path or attack.";
                 default: return "The stock native Charge remained rejected while mounted.";
             }
         }
@@ -525,6 +559,121 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bChargeLastSample = -1;
             chunk6bChargeStage = 2;
             ResetLeafClock();
+        }
+
+        // The repeated request: a second charge while the rider's standard action is still spent by the first.
+        // It must be refused before any cost, path or attack, and it is measured in this combat so the spent
+        // action is real rather than reconstructed.
+        private void TickChunk6bChargeRepeat()
+        {
+            var game = Game.Instance;
+            if (chunk6bChargeRepeatStage == 0)
+            {
+                if (!rider.Commands.Empty || !horse.Commands.Empty || combat.HasActiveCommand ||
+                    rider.AreHandsBusyWithAnimation || (horse.View != null && horse.View.AgentASP.IsReallyMoving)) return;
+                chunk6bChargeRepeatAttackRulesBefore = ruleProbe.PairAttackRuleCount;
+                chunk6bChargeRepeatOpportunityRulesBefore = ruleProbe.PairOpportunityAttackRuleCount;
+                chunk6bChargeBaseRiderStandard = rider.CombatState.Cooldown.StandardAction;
+                chunk6bChargeBaseRiderMove = rider.CombatState.Cooldown.MoveAction;
+                chunk6bChargeBaseMountStandard = horse.CombatState.Cooldown.StandardAction;
+                chunk6bChargeBaseMountMove = horse.CombatState.Cooldown.MoveAction;
+                var nativeTarget = new TargetWrapper(target);
+                chunk6bChargeRepeatBefore = new JObject
+                {
+                    ["identity"] = CaptureChunk6bChargeAbilityIdentity(),
+                    ["state"] = CaptureChunk6bChargeActors("repeat-before"),
+                    ["available"] = chunk6bChargeAbility.IsAvailableForCast,
+                    ["unavailableReason"] = chunk6bChargeAbility.GetUnavailableReason(),
+                    ["canTarget"] = chunk6bChargeAbility.CanTarget(nativeTarget),
+                    ["minRangeMeters"] = chunk6bChargeAbility.MinRangeMeters,
+                    ["approachDistance"] = chunk6bChargeAbility.GetApproachDistance(target),
+                    ["requireFullRound"] = chunk6bChargeAbility.RequireFullRoundAction,
+                    ["commandType"] = chunk6bChargeAbility.ActionType.ToString(),
+                    ["pairCommandState"] = CapturePairCommandState()
+                };
+                var admittedBefore = combat.MountedChargeAdmittedCount;
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                var handler = game.SelectedAbilityHandler;
+                handler.SetAbility(chunk6bChargeAbility);
+                chunk6bChargeRepeatMountOrigin = horse.Position;
+                chunk6bChargeRepeatRiderOrigin = rider.Position;
+                var clicked = handler.OnClick(target.View.gameObject, target.Position, 0, false, false);
+                var shell = rider.Commands.Raw.Concat(rider.Commands.Queue).OfType<UnitUseAbility>()
+                    .FirstOrDefault(command => ReferenceEquals(command.Spell, chunk6bChargeAbility));
+                chunk6bChargeRepeatInput = new JObject
+                {
+                    ["clicked"] = clicked,
+                    ["hoverPure"] = true,
+                    ["frame"] = Time.frameCount,
+                    ["shell"] = CaptureNativeAbilityShell(shell),
+                    ["shellCount"] = rider.Commands.Raw.Concat(rider.Commands.Queue).OfType<UnitUseAbility>()
+                        .Count(command => ReferenceEquals(command.Spell, chunk6bChargeAbility)),
+                    ["feedback"] = combat.LastFeedback,
+                    ["rejectionCodes"] = new JArray((combat.LastRejectionCodes ?? new MountedCombatRejectionCode[0])
+                        .Select(code => code.ToString()).ToArray()),
+                    ["chargeAdmitted"] = combat.MountedChargeAdmittedCount - admittedBefore,
+                    ["chargeRefused"] = combat.MountedChargeRefusedCount,
+                    ["lastRefusal"] = combat.LastMountedChargeRefusal,
+                    ["after"] = CaptureChunk6bChargeActors("repeat-input-after")
+                };
+                chunk6bChargeRepeatStarted = game.TimeController.GameTime.TotalSeconds;
+                chunk6bChargeRepeatStage = 1;
+                return;
+            }
+
+            chunk6bChargeRepeatMountDistance = Math.Max(chunk6bChargeRepeatMountDistance, HorizontalDistance(horse.Position, chunk6bChargeRepeatMountOrigin));
+            chunk6bChargeRepeatRiderDistance = Math.Max(chunk6bChargeRepeatRiderDistance, HorizontalDistance(rider.Position, chunk6bChargeRepeatRiderOrigin));
+            chunk6bChargeRepeatMaxRiderStandard = Math.Max(chunk6bChargeRepeatMaxRiderStandard, rider.CombatState.Cooldown.StandardAction - chunk6bChargeBaseRiderStandard);
+            chunk6bChargeRepeatMaxRiderMove = Math.Max(chunk6bChargeRepeatMaxRiderMove, rider.CombatState.Cooldown.MoveAction - chunk6bChargeBaseRiderMove);
+            chunk6bChargeRepeatMaxMountStandard = Math.Max(chunk6bChargeRepeatMaxMountStandard, horse.CombatState.Cooldown.StandardAction - chunk6bChargeBaseMountStandard);
+            chunk6bChargeRepeatMaxMountMove = Math.Max(chunk6bChargeRepeatMaxMountMove, horse.CombatState.Cooldown.MoveAction - chunk6bChargeBaseMountMove);
+            if (game.TimeController.GameTime.TotalSeconds - chunk6bChargeRepeatStarted < 0.6) return;
+
+            var evidence = new JObject
+            {
+                ["level"] = "NATIVE DELIVERY",
+                ["mode"] = "RT",
+                ["case"] = Chunk6bChargeRepeatRow,
+                ["mounted"] = relationship.State == RelationshipState.Mounted &&
+                    relationship.Rider == rider && relationship.Mount == horse,
+                ["before"] = chunk6bChargeRepeatBefore,
+                ["input"] = chunk6bChargeRepeatInput,
+                ["samples"] = new JArray(),
+                ["after"] = CaptureChunk6bChargeActors("repeat-after"),
+                ["identityAfter"] = CaptureChunk6bChargeAbilityIdentity(),
+                ["movement"] = new JObject
+                {
+                    ["mountDistance"] = chunk6bChargeRepeatMountDistance,
+                    ["riderDistance"] = chunk6bChargeRepeatRiderDistance,
+                    ["peakSpeedMps"] = 0f,
+                    ["mountCombatSpeedMps"] = horse.CombatSpeedMps,
+                    ["chargingObserved"] = false,
+                    ["chargeModeObserved"] = false,
+                    ["riderChargeStateObserved"] = false
+                },
+                ["economy"] = new JObject
+                {
+                    ["riderStandardMax"] = chunk6bChargeRepeatMaxRiderStandard,
+                    ["riderMoveMax"] = chunk6bChargeRepeatMaxRiderMove,
+                    ["mountStandardMax"] = chunk6bChargeRepeatMaxMountStandard,
+                    ["mountMoveMax"] = chunk6bChargeRepeatMaxMountMove,
+                    ["riderStandardNow"] = rider.CombatState.Cooldown.StandardAction,
+                    ["riderMoveNow"] = rider.CombatState.Cooldown.MoveAction,
+                    ["mountStandardNow"] = horse.CombatState.Cooldown.StandardAction,
+                    ["mountMoveNow"] = horse.CombatState.Cooldown.MoveAction
+                },
+                ["lease"] = null,
+                ["rules"] = ruleProbe.CapturePairEvidence(),
+                ["attackRules"] = ruleProbe.PairAttackRuleCount - chunk6bChargeRepeatAttackRulesBefore,
+                ["attackRulesOpportunity"] = ruleProbe.PairOpportunityAttackRuleCount - chunk6bChargeRepeatOpportunityRulesBefore,
+                ["pairCommandState"] = CapturePairCommandState(),
+                ["terminal"] = null
+            };
+            AddRow(Chunk6bChargeRepeatRow,
+                chunk6bChargeRepeatBefore != null && chunk6bChargeRepeatInput != null,
+                "A repeated charge without the rider's standard action was refused before any cost, path or attack.",
+                evidence);
+            chunk6bChargeRepeatStage = 2;
         }
 
         private void RestoreChunk6bChargeSetting()
