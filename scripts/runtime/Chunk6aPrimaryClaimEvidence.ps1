@@ -62,10 +62,18 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM05-after-mount-expenditure','chunk6a-dismount-after-mount-expenditure-tb',@('CM05-after-mount-expenditure')),
   @('CM05-immediately-after-mount','chunk6a-dismount-immediately-after-mount-tb',@('CM05-immediately-after-mount')),
   @('CM08-area-restoration','chunk4-area-cleanup',@('native-area-clean-dismount')),
+  @('CM07-mount-save-rt','persistence-p04-save',@('P04-save-combat-mount-rt')),
+  @('CM07-mount-load-rt','persistence-p04-load',@('P04-load-combat-mount-rt')),
+  @('CM07-dismount-save','persistence-p04-save',@('P04-save-combat-dismount-rt')),
+  @('CM07-dismount-load','persistence-p04-load',@('P04-load-combat-dismount-rt')),
+  @('CM07-mount-save-tb','persistence-p02-save',@('P02-save-combat-mount-tb')),
+  @('CM07-mount-load-tb','persistence-p02-load',@('P02-load-combat-mount-tb')),
+  @('CM04-combat-end','chunk6a-combat-end-approach',@('CM04-combat-end')),
+  @('CM04-disable-unload','chunk6a-disable-approach',@('CM04-disable-unload')),
   @('CM08-mounted-mammoth-primary-hit-tb','mounted-mammoth-primary-hit-tb',@('mounted-mammoth-primary-hit-tb'))
  )
  foreach($spec in $specs) {
-  [pscustomobject]@{id=$spec[0];scenario=$spec[1];rows=@($spec[2]);evidenceLeaf=$(if($spec[0]-ceq'CM08-area-restoration'){'boundary-scenario-evidence.jsonl'}elseif($spec[0]-ceq'CM08-mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}else{'phase3d-horse-scenario-evidence.json'})}
+  [pscustomobject]@{id=$spec[0];scenario=$spec[1];rows=@($spec[2]);evidenceLeaf=$(if($spec[0]-ceq'CM08-area-restoration'){'boundary-scenario-evidence.jsonl'}elseif($spec[0]-ceq'CM08-mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}elseif($spec[0]-clike'CM07-*'){'persistence-observations.jsonl'}else{'phase3d-horse-scenario-evidence.json'})}
  }
  foreach($claimId in @(Get-KmcChunk6aRegressionClaims)) {
   foreach($role in @(Get-KmcChunk6aRegressionRoles $claimId)) {

@@ -24,6 +24,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-refused-foreign-selection", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-mount-approach", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-stop-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-combat-end-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-disable-approach", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-command-replacement", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-repeated-mount-request", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-ownership-change", StringComparison.Ordinal) ||

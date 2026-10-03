@@ -226,7 +226,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     observations["setup-" + OrdinaryCurrent.Id] = new JObject {
                         ["radius"] = ordinarySetupRadius, ["before"] = CaptureOrdinaryLiveState(),
                         ["targetPoint"] = new JArray(target.Position.x, target.Position.y, target.Position.z),
-                        ["destination"] = new JArray(destination.x, destination.y, destination.z) };
+                        ["destination"] = new JArray(destination.x, destination.y, destination.z),
+                        ["origin"] = new JArray(mover.Position.x, mover.Position.y, mover.Position.z),
+                        ["route"] = CaptureOrdinarySetupRoute(mover, destination) };
                     using (var input = new NativeOrdinaryAttackInput(destination))
                     {
                         input.Predict(); var cycles = 0;
@@ -418,6 +420,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 setup["after"] = CaptureOrdinaryLiveState();
                 setup["command"] = CaptureOrdinaryCommand(ordinaryMove);
                 setup["distance"] = mover.DistanceTo(target);
+                setup["arrival"] = CaptureOrdinarySetupArrival(mover, setup);
                 if (ordinaryMove.Result != UnitCommand.ResultType.Success || mover.DistanceTo(target) > ordinarySetupRadius)
                     throw new InvalidOperationException("Native setup movement did not reach legal mixed-weapon adjacency.");
                 ordinarySetupComplete = true; ordinaryMove = null; ordinaryStage = 1; ResetLeafClock(); return;
@@ -449,6 +452,67 @@ namespace KingmakerMountedCombat.Diagnostics
                 ordinaryCase++;
                 BeginOrdinaryCase();
             }
+        }
+
+        // Read-only route measurements for the fixture setup movement: the navmesh route trace from
+        // the mover to its destination, the origin-side navigation measurements the joint plan records
+        // and the destination node. Recorded at dispatch so a short arrival can be compared with the
+        // geometry it was given, never a changed threshold.
+        private JObject CaptureOrdinarySetupRoute(Kingmaker.EntitySystem.Entities.UnitEntityData mover, Vector3 destination)
+        {
+            var result = new JObject { ["frame"] = Time.frameCount };
+            try
+            {
+                var origin = mover.Position;
+                var traceEnd = Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(origin, destination);
+                result["traceEnd"] = new JArray(traceEnd.x, traceEnd.y, traceEnd.z);
+                result["traceResidual"] = HorizontalDistance(traceEnd, destination);
+                result["travel"] = HorizontalDistance(origin, destination);
+                result["destinationInsideNavmesh"] = Kingmaker.View.ObstacleAnalyzer.IsPointInsideNavMesh(destination);
+                result["originInsideNavmesh"] = Kingmaker.View.ObstacleAnalyzer.IsPointInsideNavMesh(origin);
+                if (global::AstarPath.active != null)
+                {
+                    var nearest = global::AstarPath.active.GetNearest(destination);
+                    result["destinationNearest"] = new JObject { ["walkable"] = nearest.node != null && nearest.node.Walkable,
+                        ["clamped"] = new JArray(nearest.clampedPosition.x, nearest.clampedPosition.y, nearest.clampedPosition.z),
+                        ["clampOffset"] = HorizontalDistance(nearest.clampedPosition, destination) };
+                }
+                result["footprint"] = NativeGroundMovementObservation.CaptureFootprint(mover, destination);
+                result["originMeasurements"] = NativePreCombatGroundPlan.MeasureOrigin(mover, origin, destination);
+                var agent = mover.View?.AgentASP;
+                result["agent"] = agent == null ? null : new JObject { ["reallyMoving"] = agent.IsReallyMoving, ["wantsToMove"] = agent.WantsToMove,
+                    ["pathFailed"] = agent.PathFailed, ["hasPath"] = agent.Path != null, ["corpulence"] = mover.View.Corpulence, ["approachRadius"] = agent.ApproachRadius };
+            }
+            catch (Exception exception) { result["error"] = exception.GetType().Name + ": " + exception.Message; }
+            return result;
+        }
+
+        private JObject CaptureOrdinarySetupArrival(Kingmaker.EntitySystem.Entities.UnitEntityData mover, JToken setup)
+        {
+            var result = new JObject { ["frame"] = Time.frameCount, ["position"] = new JArray(mover.Position.x, mover.Position.y, mover.Position.z) };
+            try
+            {
+                var destination = setup["destination"];
+                if (destination != null)
+                {
+                    var point = new Vector3((float)destination[0], (float)destination[1], (float)destination[2]);
+                    result["destinationResidual"] = HorizontalDistance(mover.Position, point);
+                }
+                result["targetDistance"] = mover.DistanceTo(target);
+                result["targetHorizontalDistance"] = HorizontalDistance(mover.Position, target.Position);
+                result["radius"] = ordinarySetupRadius;
+                result["commandResult"] = ordinaryMove?.Result.ToString();
+                result["commandFinished"] = ordinaryMove?.IsFinished;
+                result["commandApproachRadius"] = ordinaryMove?.ApproachRadius;
+                result["route"] = NativeGroundMovementObservation.Capture(mover, ordinaryMove);
+                var agent = mover.View?.AgentASP;
+                result["agent"] = agent == null ? null : new JObject { ["reallyMoving"] = agent.IsReallyMoving, ["wantsToMove"] = agent.WantsToMove,
+                    ["pathFailed"] = agent.PathFailed, ["hasPath"] = agent.Path != null, ["corpulence"] = mover.View.Corpulence, ["approachRadius"] = agent.ApproachRadius };
+                result["blockers"] = new JArray(Game.Instance.State.Units.Where(unit => unit != mover && unit.IsInState && unit.View != null &&
+                    HorizontalDistance(mover.Position, unit.Position) < mover.View.Corpulence + unit.View.Corpulence + 0.3f).Select(unit => unit.UniqueId));
+            }
+            catch (Exception exception) { result["error"] = exception.GetType().Name + ": " + exception.Message; }
+            return result;
         }
 
         private JObject CaptureOrdinaryLiveState()

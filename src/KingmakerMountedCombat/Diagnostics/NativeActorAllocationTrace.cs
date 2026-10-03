@@ -83,6 +83,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 Patch(typeof(UnitEntityData), 0x0600838F, "ActorCostBefore", "ActorCostAfter");
                 Patch(typeof(TurnController), 0x06000C5E, "CommandEndBefore", "CommandEndAfter");
                 Patch(typeof(TurnController), 0x06000C46, "TurnEndBefore", "TurnEndAfter");
+                // UnitCommand.Interrupt(bool): the pinned token the production interrupt bridge also uses.
+                // Recorded with the managed caller chain so an unexplained Interrupt names its source.
+                Patch(typeof(UnitCommand), 0x060027AC, "InterruptBefore", "InterruptAfter");
                 Patch(typeof(CombatController), 0x06000BE6, "RemoveUnitBefore", "RemoveUnitAfter");
                 Patch(typeof(UnitConfusionController), 0x06009131, "ConfusionBefore", "ConfusionAfter");
                 Patch(typeof(PairedConfusionPreparation), typeof(PairedConfusionPreparation).GetMethod("Prepare", Flags).MetadataToken,
@@ -319,6 +322,43 @@ namespace KingmakerMountedCombat.Diagnostics
             internal static void ActorCostAfter(UnitEntityData __instance, UnitCommand command) { active?.Record("actor-cost-after", __instance, command); }
             internal static void CommandEndBefore(TurnController __instance, UnitCommand command) { active?.Record("command-end-before", command?.Executor, command, __instance.Unit.UniqueId); }
             internal static void CommandEndAfter(TurnController __instance, UnitCommand command) { active?.Record("command-end-after", command?.Executor, command, __instance.Unit.UniqueId); }
+            internal static void InterruptBefore(UnitCommand __instance)
+            {
+                var p = active;
+                if (p == null || __instance == null) return;
+                var actor = __instance.Executor;
+                if (actor != p.rider && actor != p.mount) return;
+                p.Record("command-interrupt-before", actor, __instance, detail: InterruptCallers());
+            }
+            internal static void InterruptAfter(UnitCommand __instance)
+            {
+                var p = active;
+                if (p == null || __instance == null) return;
+                var actor = __instance.Executor;
+                if (actor != p.rider && actor != p.mount) return;
+                p.Record("command-interrupt-after", actor, __instance);
+            }
+            // The managed frames above the interrupt hook, outermost last. Harmony wrapper frames and
+            // this trace are skipped; the summary is observation only and never changes the call.
+            private static string InterruptCallers()
+            {
+                try
+                {
+                    var stack = new System.Diagnostics.StackTrace(1, false);
+                    var names = new List<string>();
+                    for (var index = 0; index < stack.FrameCount && names.Count < 14; index++)
+                    {
+                        var method = stack.GetFrame(index)?.GetMethod();
+                        if (method == null) continue;
+                        var name = (method.DeclaringType == null ? "" : method.DeclaringType.FullName + ".") + method.Name;
+                        if (name.StartsWith("Harmony", StringComparison.Ordinal) ||
+                            name.StartsWith("KingmakerMountedCombat.Diagnostics.NativeActorAllocationTrace", StringComparison.Ordinal)) continue;
+                        names.Add(name);
+                    }
+                    return "callers=" + string.Join(" < ", names.ToArray());
+                }
+                catch (Exception exception) { return "callers=unavailable:" + exception.GetType().Name; }
+            }
             internal static void TurnEndBefore(TurnController __instance) { active?.Record("turn-end-before", __instance.Unit); }
             internal static void TurnEndAfter(TurnController __instance) { active?.Record("turn-end-after", __instance.Unit); }
             internal static void RemoveUnitBefore(UnitEntityData unit) { active?.Record("remove-unit-before", unit); }

@@ -83,6 +83,7 @@ $payload=$ledger.payload
 . (Join-Path $PSScriptRoot 'runtime/LegacyCombatProjectionEvidence.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aArtifactRowsEvidence.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aHarnessIdentity.ps1')
+. (Join-Path $PSScriptRoot 'runtime/Chunk6aFoundationEvidence.ps1')
 Assert-KmcChunk6aFrozenPayload $payload $LabRoot
 foreach($name in @('version','commit','branch','dllSha256','dllMvid','packageSha256','manifestSha256','suiteId','suiteSha256')){
     if([string]::IsNullOrEmpty([string](Get-Field $payload $name))){throw "Chunk 6A ledger payload lacks $name."}
@@ -164,6 +165,7 @@ foreach($entry in $ledger.entries){
             Assert-KmcChunk6aPrimaryClaim $id $binding
             Assert-KmcSupportingRun $payload $binding $LabRoot
             Assert-KmcIsolatedQualification $id $binding $LabRoot
+            if($id -clike 'CM07-*') { Assert-KmcChunk6aFoundationLedgerPairing $id $entry $ids $LabRoot }
             Assert-KmcChunk6aAdditionalQualification $id $payload $binding (Get-Field $entry 'supportingRuns') $LabRoot
             if($id -cin @(Get-KmcChunk6aRegressionClaims)) {
                 $regressionRoles=@(Get-KmcChunk6aRegressionRoles $id)
