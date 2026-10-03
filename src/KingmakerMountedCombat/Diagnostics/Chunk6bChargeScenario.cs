@@ -54,6 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private float chunk6bChargeMaxMountStandard, chunk6bChargeMaxMountMove;
         private bool chunk6bChargeObservedCharging, chunk6bChargeObservedForceMode, chunk6bChargeObservedBuff;
         private int chunk6bChargeAttackRulesBefore, chunk6bChargeOpportunityRulesBefore;
+        private int chunk6bChargeAdmittedBefore, chunk6bChargeRefusedBefore;
         private float chunk6bChargeBaseRiderStandard, chunk6bChargeBaseRiderMove;
         private float chunk6bChargeBaseMountStandard, chunk6bChargeBaseMountMove;
         private int chunk6bChargeRepeatStage;
@@ -64,6 +65,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private float chunk6bChargeRepeatMaxRiderStandard, chunk6bChargeRepeatMaxRiderMove;
         private float chunk6bChargeRepeatMaxMountStandard, chunk6bChargeRepeatMaxMountMove;
         private int chunk6bChargeRepeatAttackRulesBefore, chunk6bChargeRepeatOpportunityRulesBefore;
+        private int chunk6bChargeRepeatAdmittedBefore, chunk6bChargeRepeatRefusedBefore;
         private int chunk6bChargeShellCount;
         private string chunk6bChargeFeedback;
         private JArray chunk6bChargeRejectionCodes = new JArray();
@@ -274,6 +276,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 };
                 chunk6bChargeAttackRulesBefore = ruleProbe.PairAttackRuleCount;
                 chunk6bChargeOpportunityRulesBefore = ruleProbe.PairOpportunityAttackRuleCount;
+                // The native full-round shell delivers on a later frame than the click, so the controller
+                // counters are read again once the attempt has settled; only the delta this attempt caused
+                // is published.
+                chunk6bChargeAdmittedBefore = combat.MountedChargeAdmittedCount;
+                chunk6bChargeRefusedBefore = combat.MountedChargeRefusedCount;
                 chunk6bChargeBaseRiderStandard = rider.CombatState.Cooldown.StandardAction;
                 chunk6bChargeBaseRiderMove = rider.CombatState.Cooldown.MoveAction;
                 chunk6bChargeBaseMountStandard = horse.CombatState.Cooldown.StandardAction;
@@ -417,6 +424,17 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["mountMoveNow"] = horse.CombatState.Cooldown.MoveAction
                     },
                     ["lease"] = chunk6bChargeLeaseEvidence,
+                    // What the controller did with this attempt, read after it settled rather than at the
+                    // click: the shell spends the rider action and asks for delivery on a later frame.
+                    ["delivery"] = new JObject
+                    {
+                        ["chargeAdmitted"] = combat.MountedChargeAdmittedCount - chunk6bChargeAdmittedBefore,
+                        ["chargeRefused"] = combat.MountedChargeRefusedCount - chunk6bChargeRefusedBefore,
+                        ["lastRefusal"] = combat.LastMountedChargeRefusal,
+                        ["feedback"] = combat.LastFeedback,
+                        ["rejectionCodes"] = new JArray((combat.LastRejectionCodes ?? new MountedCombatRejectionCode[0])
+                            .Select(code => code.ToString()).ToArray())
+                    },
                     ["rules"] = ruleProbe.CapturePairEvidence(),
                     ["attackRules"] = ruleProbe.PairAttackRuleCount - chunk6bChargeAttackRulesBefore,
                     ["attackRulesOpportunity"] = ruleProbe.PairOpportunityAttackRuleCount - chunk6bChargeOpportunityRulesBefore,
@@ -573,6 +591,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     rider.AreHandsBusyWithAnimation || (horse.View != null && horse.View.AgentASP.IsReallyMoving)) return;
                 chunk6bChargeRepeatAttackRulesBefore = ruleProbe.PairAttackRuleCount;
                 chunk6bChargeRepeatOpportunityRulesBefore = ruleProbe.PairOpportunityAttackRuleCount;
+                chunk6bChargeRepeatAdmittedBefore = combat.MountedChargeAdmittedCount;
+                chunk6bChargeRepeatRefusedBefore = combat.MountedChargeRefusedCount;
                 chunk6bChargeBaseRiderStandard = rider.CombatState.Cooldown.StandardAction;
                 chunk6bChargeBaseRiderMove = rider.CombatState.Cooldown.MoveAction;
                 chunk6bChargeBaseMountStandard = horse.CombatState.Cooldown.StandardAction;
@@ -663,6 +683,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["mountMoveNow"] = horse.CombatState.Cooldown.MoveAction
                 },
                 ["lease"] = null,
+                ["delivery"] = new JObject
+                {
+                    ["chargeAdmitted"] = combat.MountedChargeAdmittedCount - chunk6bChargeRepeatAdmittedBefore,
+                    ["chargeRefused"] = combat.MountedChargeRefusedCount - chunk6bChargeRepeatRefusedBefore,
+                    ["lastRefusal"] = combat.LastMountedChargeRefusal,
+                    ["feedback"] = combat.LastFeedback,
+                    ["rejectionCodes"] = new JArray((combat.LastRejectionCodes ?? new MountedCombatRejectionCode[0])
+                        .Select(code => code.ToString()).ToArray())
+                },
                 ["rules"] = ruleProbe.CapturePairEvidence(),
                 ["attackRules"] = ruleProbe.PairAttackRuleCount - chunk6bChargeRepeatAttackRulesBefore,
                 ["attackRulesOpportunity"] = ruleProbe.PairOpportunityAttackRuleCount - chunk6bChargeRepeatOpportunityRulesBefore,

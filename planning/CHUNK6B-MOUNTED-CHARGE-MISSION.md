@@ -467,4 +467,13 @@ One product fix and one measurement correction.
   assertion is relaxed; the probe must still be an admitted mount-executed pair path that moves and clears the
   latch at its first movement.
 
-Offline verification: FAST 15/0, component tests 565/0, charge reader 66/0, carrier reader 142/0.
+- **Evidence.** The charge fixture published the controller's admitted and refused counters only in its
+  click-time snapshot, where they are structurally zero: the native shell spends the rider's action and asks
+  for delivery on a later frame, which is why the preview.159 row recorded `chargeAdmitted=0` and
+  `chargeRefused=0` even though the delivery had been refused. Every measured row now also carries a
+  post-settlement `delivery` section with the admission and refusal deltas that row's own attempt caused, the
+  exact last refusal, the feedback and the rejection codes. The reader reads admission from there: the lawful
+  row must show exactly one admitted charge, no dispatch refusal, no rejection code and no refusal reason left
+  behind, and every refusal row must show that the controller delivery was never reached at all.
+
+Offline verification: FAST 15/0, component tests 565/0, charge reader 74/0, carrier reader 142/0.

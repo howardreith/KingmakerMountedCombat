@@ -77,6 +77,8 @@ function New-Row([string]$Case){
   economy=[ordered]@{riderStandardMax=$(if($refusal){0.0}else{6.0});riderMoveMax=$(if($refusal){0.0}else{3.0})
    mountStandardMax=0.0;mountMoveMax=0.0;riderStandardNow=$riderStandard;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
   lease=$(if($refusal){$null}else{New-Lease})
+  delivery=[ordered]@{chargeAdmitted=$(if($refusal){0}else{1});chargeRefused=0;lastRefusal=$null
+   feedback=$(if($Case-ceq'C6B-CHARGE-stock-rejected'){'Charge is not yet supported while mounted.'}else{'Mounted charge accepted: the Horse carries the charge.'});rejectionCodes=@()}
   rules=(New-Rules $(if($refusal){0}else{1}) 0 $true)
   attackRules=$(if($refusal){0}else{1});attackRulesOpportunity=0
   pairCommandState=[ordered]@{frame=200}
@@ -128,7 +130,15 @@ Mutate 'an impure hover' {param($a) (Row $a 'C6B-CHARGE-positive').input.hoverPu
 Mutate 'a click that was not admitted' {param($a) (Row $a 'C6B-CHARGE-positive').input.clicked=$false}
 Mutate 'two native shells' {param($a) (Row $a 'C6B-CHARGE-positive').input.shellCount=2}
 Mutate 'a rejection code on the lawful charge' {param($a) (Row $a 'C6B-CHARGE-positive').input.rejectionCodes=@('WrongTurn')}
-Mutate 'a charge the controller never admitted' {param($a) (Row $a 'C6B-CHARGE-positive').input.chargeAdmitted=0}
+Mutate 'a charge the controller never admitted' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.chargeAdmitted=0}
+Mutate 'a lawful charge with no post-settlement delivery section' {param($a) (Row $a 'C6B-CHARGE-positive').delivery=$null}
+Mutate 'a charge admitted twice' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.chargeAdmitted=2}
+Mutate 'a charge the controller refused at delivery' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.chargeRefused=1}
+Mutate 'a delivered charge carrying a rejection code' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.rejectionCodes=@('WrongActionState')}
+Mutate 'a delivered charge leaving a refusal reason behind' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.lastRefusal='Mounted Charge requires the rider standard action.'}
+Mutate 'a refusal that reached the controller delivery' {param($a) (Row $a 'C6B-CHARGE-below-minimum').delivery.chargeAdmitted=1}
+Mutate 'a refusal refused at the controller delivery' {param($a) (Row $a 'C6B-CHARGE-below-minimum').delivery.chargeRefused=1}
+Mutate 'a refusal with no post-settlement delivery section' {param($a) (Row $a 'C6B-CHARGE-below-minimum').delivery=$null}
 Mutate 'a charge where the mount never moved' {param($a) (Row $a 'C6B-CHARGE-positive').movement.mountDistance=0.2}
 Mutate 'a charge at walking speed' {param($a) (Row $a 'C6B-CHARGE-positive').movement.peakSpeedMps=5.1}
 Mutate 'a charge where the mount never charged' {param($a) (Row $a 'C6B-CHARGE-positive').movement.chargingObserved=$false}
