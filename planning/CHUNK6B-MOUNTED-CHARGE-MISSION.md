@@ -1,6 +1,7 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `INCREMENT 6B.1 MEASURED ON PREVIEW.156 - TWO CAUSES ESTABLISHED, CORRECTED MEASUREMENT NEXT`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `INCREMENT 6B.1 CORRECTED MEASUREMENT IMPLEMENTED (0.1.0-chunk6b-preview.157) - CANDIDATE TIER, FREEZE AND
+NATIVE MEASUREMENT PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -225,3 +226,30 @@ agent while that command is alive and the forced path is re-applied whenever the
 the stock runtime routine re-forces it; the interrupt row interrupts the carrier natively; every leased value is
 restored; the latched force mode is recorded and then proven cleared by the next lawful pair path (a residue probe);
 and the turn-based entry accepts the admitted five-foot-step command on the mount.
+
+## Increment 6B.1 - corrected measurement (2026-10-03; preview.157, FAST-verified, not yet frozen)
+
+Diagnostics only; no product behavior changed. `src/KingmakerMountedCombat/Diagnostics/Chunk6bChargePathScenario.cs`
+now measures the forced path under the pair's own admitted delegated ground move: a native ground click toward a
+point one pair reach short of the target creates the mount-executed `UnitMoveTo` carrier (read from the mount
+first, the rider otherwise; the KMC feedback and rejection codes are recorded), the three stock calls are applied
+on the mount agent while that command lives, the straight forced path to the target position is re-applied
+whenever the agent leaves force mode (every application recorded), the row ends the carrier natively
+(`Interrupt`) at arrival or at the interrupt point, the leased values are restored exactly, the force mode after
+the stop is recorded, and a residue probe (the next native pair ground order, 1.5 m back along the line) proves
+the latch cleared at its first movement. The turn-based five-foot-step entry uses the same helper. Costs are
+captured before the probe and again after it.
+
+`scripts/runtime/Chunk6bChargePathEvidence.ps1` (the acceptance authority) now requires the mount-executed admitted
+carrier created by a native ground click that moved and was ended by the measurement, force mode on the first
+forced path, the forced-path applications recorded exactly, no command beside the carrier, exact restoration with
+the carrier ended and the mount container empty, the recorded force mode after the stop, an admitted mount-executed
+residue probe whose first movement shows force mode cleared and that moved the pair, zero cooldown deltas (in
+turn-based mode at most one native frame, 0.05 s, of rider Move before the forced path), and the turn-based rules
+on the rider's Acting turn. Synthetic acceptance and refusal: `scripts/Test-Chunk6bChargePath.ps1`, 125/0.
+
+Offline verification of this change set: FAST 14/0 (lab receipt `fast-tier-preview157-1-receipt.json`), component
+tests 556/0. Pending, in order: the one CANDIDATE tier, freeze (package qualifier `chunk6b-charge-path-b`, suite
+`20261003-chunk6b-charge-path-b` pinned to the preview.156 suite), the purity proof, then C6B-PATH-RT, C6B-PATH-TB,
+CHARGE-SAFETY-RT and CHARGE-SAFETY-TB as fresh isolated restored transactions, the offline binding and the
+measurement record. Nothing merges to main; no release, tag or HUMAN PLAY claim.
