@@ -54,11 +54,26 @@ namespace KingmakerMountedCombat.Diagnostics
                 var matching = events.Where(e => (int?)e["command"] == (int)id["commandObject"]).ToArray();
                 if (matching.Count(e => (string)e["boundary"] == "admission-after") != 1)
                     throw new InvalidOperationException("Prediction lacks its exact temporary admission.");
+                // Since preview.152 the allocation trace also records UnitCommand.Interrupt on the rider's
+                // commands. A speculative command ends through its temporary container's disposal
+                // (UnitCommands+Temporary.Dispose, called by the native hover prediction after the simulated
+                // click has ended), still unstarted and unacted: that disposal is the native end of the
+                // speculation, not a side effect. Any other interrupt source remains an escape.
+                var temporaryDisposal = matching.Any(e => (string)e["boundary"] == "command-interrupt-before" &&
+                    ((string)e["detail"] ?? "").Contains("UnitCommands+Temporary.Dispose"));
                 foreach (var e in matching)
-                    if ((bool?)e["simulatingClick"] != true || (bool?)e["started"] != false || (bool?)e["acted"] != false ||
-                        !new[] { "admission-before", "admission-after", "command-eligibility" }.Contains((string)e["boundary"]) ||
-                        (long?)e["sequence"] > (long?)actualInit["allocationSequence"])
+                {
+                    var boundary = (string)e["boundary"] ?? "";
+                    var speculativeAdmission = (bool?)e["simulatingClick"] == true &&
+                        new[] { "admission-before", "admission-after", "command-eligibility" }.Contains(boundary);
+                    var disposalInterrupt = temporaryDisposal &&
+                        (boundary == "command-interrupt-before" && ((string)e["detail"] ?? "").Contains("UnitCommands+Temporary.Dispose") ||
+                         boundary == "command-interrupt-after" && (string)e["result"] == "Interrupt" && (bool?)e["finished"] == true);
+                    if ((bool?)e["started"] != false || (bool?)e["acted"] != false ||
+                        (long?)e["sequence"] > (long?)actualInit["allocationSequence"] ||
+                        !(speculativeAdmission || disposalInterrupt))
                         throw new InvalidOperationException("Prediction escaped temporary admission or had a native side effect.");
+                }
             }
             foreach (var e in events.Where(e => (bool?)e["simulatingClick"] == true))
                 if ((string)e["state"]?["actor"] == (string)identity["casterId"] || (string)e["state"]?["actor"] == (string)proof["mountId"])

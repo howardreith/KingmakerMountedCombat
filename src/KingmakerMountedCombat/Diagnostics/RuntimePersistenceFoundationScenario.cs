@@ -66,6 +66,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["partnerContextActor"] = combat.PairedPartnerContext?.Unit?.UniqueId,
                 ["adoptionCount"] = combat.MidEncounterAdoptionCount,
                 ["adoptionObservation"] = combat.LastPairedAdoptionObservation,
+                ["initiativeObservation"] = combat.PairedInitiativeObservation,
+                ["persistenceWorldDiscards"] = combat.PersistenceWorldDiscardCount,
+                ["lastPersistenceWorldDiscard"] = combat.LastPersistenceWorldDiscardObservation,
                 ["riderInCombat"] = rider?.IsInCombat,
                 ["mountInCombat"] = mount?.IsInCombat,
                 ["riderHasMove"] = rider?.HasMoveAction(),
@@ -298,9 +301,12 @@ namespace KingmakerMountedCombat.Diagnostics
             using (var input = new NativeOrdinaryAttackInput(destination))
             {
                 input.Predict();
-                for (var cycle = 0; (turn.EnabledFiveFootStep || turn.EnabledSingleActionMove) && cycle < 4; cycle++)
+                // A native five-foot step is free. A ground order charged about 0.24 s of Move before the
+                // Mount charged its 3 s, which crossed one Move action (UsedTwoMoveAction) and lawfully
+                // restricted the Standard the continuation attack needs (preview.153 CM07-mount-save-tb).
+                for (var cycle = 0; !turn.EnabledFiveFootStep && cycle < 8; cycle++)
                 { input.Click(button: 1); input.Predict(); }
-                Check(!turn.EnabledFiveFootStep, "P02-combat-mount-tb-native-ground-cursor-policy");
+                Check(turn.EnabledFiveFootStep, "P02-combat-mount-tb-native-step-cursor-policy");
                 Check(input.Click(), "P02-combat-mount-tb-acting-entry-input");
             }
             foundationEntryMove = rider.Commands.Move as UnitMoveTo;
@@ -310,6 +316,8 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 ["origin"] = RealtimePoint(rider),
                 ["destination"] = new JArray(destination.x, destination.y, destination.z),
+                ["fiveFootStep"] = turn.EnabledFiveFootStep,
+                ["riderMoveBefore"] = rider.CombatState.Cooldown.MoveAction,
                 ["command"] = DescribeFoundationCommand(foundationEntryMove)
             };
             Write("combat-mount-acting-entry-dispatched", observation);
