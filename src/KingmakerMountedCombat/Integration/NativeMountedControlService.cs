@@ -990,7 +990,7 @@ namespace KingmakerMountedCombat.Integration
                             MountedCombatClickResult.HandledAccepted;
                         break;
                     case NativeMountedControlKind.MountedCharge:
-                        accepted = combat.TryExecuteMountedCharge(caster, target) ==
+                        accepted = combat.TryExecuteMountedCharge(caster, target, context) ==
                             MountedCombatClickResult.HandledAccepted;
                         break;
                     default:

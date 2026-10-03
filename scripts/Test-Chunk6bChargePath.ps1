@@ -22,6 +22,9 @@ function New-Row([string]$Case,[string]$Mode){
  $carrier['destination']=@(8,0,8);$carrier['admitted']=$true;$carrier['startedMoving']=$true;$carrier['interruptedByMeasurement']=$true;$carrier['terminal']=[ordered]@{finished=$true}
  $probe=New-Order 'residue-probe' 'mount'
  $probe['forceModeBefore']=$true;$probe['admitted']=$true;$probe['firstMove']=[ordered]@{frame=140;forceMode=$false;nativeSeconds=0.05};$probe['movedDistance']=1.4;$probe['timedOut']=$false;$probe['forceModeAfter']=$false
+ # Turn-based: forced movement leaves no remaining movement in the same turn, so the next lawful pair path
+ # lives in the rider's next turn, reached by exactly one native End Turn input.
+ if($tb){ $probe['turnAdvance']=[ordered]@{kind='turn-advance';reason='forced movement leaves no remaining movement in the same turn';endedTurnUnit='rider';endedTurnStatus='Acting';forceModeAtEnd=$true;before=[ordered]@{rider=(New-Actor 'rider' 0 0);mount=(New-Actor 'mount' 0 0);turn=$turnAfter};input=[ordered]@{method='Kingmaker.Game.PauseBind';count=1};nextTurnUnit='rider';nextTurnStatus='Preparing';forceModeAtNextTurn=$true;waitedSeconds=7.2;after=[ordered]@{rider=(New-Actor 'rider' 0 0);mount=(New-Actor 'mount' 0 0);turn=$turnBefore}} }
  [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
   level='NATIVE MEASUREMENT';mode=$Mode;case=$Case;mounted=$true
   geometry=[ordered]@{distance3D=9.0;minimumRange=4.6;maximumRange=40.2336;mountCombatSpeedMps=6.7056;mountCorpulence=1.0;targetCorpulence=0.5;straightRoute=$true;landingBlocked=$false;customCanTarget=$true;mountAvoidanceDisabled=$false;riderAvoidanceDisabled=$true}
@@ -55,6 +58,7 @@ foreach($mode in @('RT','TB')){
  Accept ($mode+' re-forced path recorded exactly') { Assert-KmcChunk6bChargePathEvidence $request $reforced 'PASS' }
  # Force mode cleared already at the stop is equally lawful when the probe still runs.
  $cleared=New-Artifact $mode; $cleared.rows[0].evidence.after.forceMode=$false; $cleared.rows[0].evidence.restoration.forceModeAfterStop=$false; $cleared.rows[0].evidence.residueProbe.forceModeBefore=$false
+ if($mode-ceq'TB'){ $cleared.rows[0].evidence.residueProbe.turnAdvance.forceModeAtEnd=$false; $cleared.rows[0].evidence.residueProbe.turnAdvance.forceModeAtNextTurn=$false }
  Accept ($mode+' force mode already clear at the stop') { Assert-KmcChunk6bChargePathEvidence $request $cleared 'PASS' }
  function Mutate([string]$Name,[scriptblock]$Change){ $a=New-Artifact $mode; & $Change $a; Reject ($mode+': '+$Name) { Assert-KmcChunk6bChargePathEvidence $request $a 'PASS' } }
  Mutate 'wrong schema' {param($a) $a.schemaVersion=32}
@@ -128,8 +132,17 @@ foreach($mode in @('RT','TB')){
   Mutate 'forced time that went backwards mid-path' {param($a) $a.rows[0].evidence.samples[4].turnTimeForced=-1.0}
   Mutate 'path off the rider turn' {param($a) $a.rows[0].evidence.before.turn.isRider=$false}
   Mutate 'a mount move charged for carrying' {param($a) $a.rows[0].evidence.costs.mountMoveDelta=3.0}
+  Mutate 'a turn-based residue probe with no turn advance' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance=$null}
+  Mutate 'a turn advance that ended another actor turn' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance.endedTurnUnit='mount'}
+  Mutate 'a turn advance that resumed another actor turn' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance.nextTurnUnit='mount'}
+  Mutate 'a turn advance that was not the native End Turn input' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance.input.method='Kingmaker.Game.Pause'}
+  Mutate 'a turn advance with more than one End Turn input' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance.input.count=2}
+  Mutate 'a turn advance that did not record the latch at the turn end' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance.forceModeAtEnd='unknown'}
+  Mutate 'a latch that changed between the next turn and the probe' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance.forceModeAtNextTurn=$false}
+  Mutate 'a turn advance with no elapsed time' {param($a) $a.rows[0].evidence.residueProbe.turnAdvance.waitedSeconds='unknown'}
  } else {
   Mutate 'RT rider move charged at all' {param($a) $a.rows[0].evidence.costs.riderMoveDelta=0.03}
+  Mutate 'a real-time residue probe that advanced a turn' {param($a) $a.rows[0].evidence.residueProbe|Add-Member -MemberType NoteProperty -Name turnAdvance -Value ([pscustomobject]@{kind='turn-advance'}) -Force}
  }
  # A FAIL artifact may carry a failed row and need not be complete.
  $failed=New-Artifact $mode; $failed.status='FAIL'; $failed.rows=@($failed.rows[0]); $failed.rows[0].status='FAIL'; $failed.subscenarioPassCount=0; $failed.subscenarioFailCount=1

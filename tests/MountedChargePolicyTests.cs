@@ -21,6 +21,7 @@ namespace KingmakerMountedCombat.Tests
                 RiderCanActInCombat = true,
                 RiderStandardCooldown = 0f,
                 RiderMoveCooldown = 0f,
+                DeliveringOwnShell = false,
                 WeaponPresent = true,
                 WeaponIsRanged = false,
                 TargetValid = true,
@@ -148,6 +149,50 @@ namespace KingmakerMountedCombat.Tests
                     request.RiderTurn = false;
                 });
                 TestRunner.True(realTime.IsAllowed, "Real-time charge applied a turn-based gate: " + realTime.Reason);
+            });
+
+            runner.Run("mounted charge delivery does not re-demand the action its own shell has spent", () =>
+            {
+                // The native full-round shell spends the rider action before it asks this mod to deliver.
+                var realTime = Evaluate(request =>
+                {
+                    request.DeliveringOwnShell = true;
+                    request.RiderStandardCooldown = 6f;
+                });
+                TestRunner.True(realTime.IsAllowed, "The delivery of the charge shell was refused the action it had spent: " + realTime.Reason);
+                var turnBased = Evaluate(request =>
+                {
+                    request.DeliveringOwnShell = true;
+                    request.TurnBased = true;
+                    request.RiderStandardCooldown = 6f;
+                    request.RiderMoveCooldown = 6f;
+                });
+                TestRunner.True(turnBased.IsAllowed, "The turn-based delivery of the charge shell was refused its own full-round cost: " + turnBased.Reason);
+                // The exemption is exactly the two resources that shell pays for, and nothing else.
+                Refuses(request =>
+                {
+                    request.DeliveringOwnShell = true;
+                    request.RiderCanActInCombat = false;
+                }, MountedCombatRejectionCode.WrongActionState, "a delivering shell whose rider cannot act");
+                Refuses(request =>
+                {
+                    request.DeliveringOwnShell = true;
+                    request.TurnBased = true;
+                    request.TurnTimeMoved = 1f;
+                }, MountedCombatRejectionCode.WrongActionState, "a delivering shell after the turn had already moved");
+                Refuses(request =>
+                {
+                    request.DeliveringOwnShell = true;
+                    request.AlreadyActiveCommand = true;
+                }, MountedCombatRejectionCode.AlreadyActiveCommand, "a delivering shell over an active pair command");
+                Refuses(request =>
+                {
+                    request.DeliveringOwnShell = true;
+                    request.FeatureEnabled = false;
+                }, MountedCombatRejectionCode.FeatureDisabled, "a delivering shell while the feature is off");
+                // Without the proof of an executing shell the strict requirement still stands.
+                Refuses(request => request.RiderStandardCooldown = 6f, MountedCombatRejectionCode.WrongActionState,
+                    "a spent standard action outside its own shell");
             });
 
             runner.Run("mounted charge reads the stock charge geometry from the mount", () =>

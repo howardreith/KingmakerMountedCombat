@@ -26,6 +26,13 @@ namespace KingmakerMountedCombat.Domain
         public bool RiderCanActInCombat;
         public float RiderStandardCooldown;
         public float RiderMoveCooldown;
+
+        // True only while this mod's own full-round charge shell is the ability being delivered for this
+        // rider, observed from the live execution context. The native shell is the sole cost owner and has
+        // already spent the rider's action through AbilityData.Spend by the time it asks this policy to
+        // deliver, so the spent action must stop disqualifying the very action that spent it. Nothing is
+        // written, cleared or refunded; absent proof of the executing shell the strict requirement stands.
+        public bool DeliveringOwnShell;
         public bool WeaponPresent;
         public bool WeaponIsRanged;
         public bool TargetValid;
@@ -144,7 +151,9 @@ namespace KingmakerMountedCombat.Domain
                 return Refuse("Mounted Charge requires a rider who can act.", MountedCombatRejectionCode.WrongActionState);
             }
 
-            if (request.RiderStandardCooldown > 0.001f)
+            // Availability, prediction and targeting are asked before the cast and require a free action.
+            // Delivery is asked from inside the shell that has already paid, and must not re-demand it.
+            if (!request.DeliveringOwnShell && request.RiderStandardCooldown > 0.001f)
             {
                 return Refuse("Mounted Charge requires the rider's standard action.", MountedCombatRejectionCode.WrongActionState);
             }
@@ -156,7 +165,9 @@ namespace KingmakerMountedCombat.Domain
                     return Refuse("Charge the mounted pair during the rider's turn.", MountedCombatRejectionCode.WrongTurn);
                 }
 
-                if (request.RiderMoveCooldown > 0.001f)
+                // The full-round shell consumes both parts of the rider's round when it is cast, so the
+                // same exemption applies to the move action during the delivery of that shell.
+                if (!request.DeliveringOwnShell && request.RiderMoveCooldown > 0.001f)
                 {
                     return Refuse("Mounted Charge is a full-round action and requires the rider's move action.", MountedCombatRejectionCode.WrongActionState);
                 }

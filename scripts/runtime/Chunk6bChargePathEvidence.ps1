@@ -77,6 +77,22 @@ function Assert-KmcChunk6bChargePathRow($Row,[string]$Mode) {
     $firstMove=ChargePathProp $probe 'firstMove'
     if($null-eq$firstMove-or(ChargePathProp $firstMove 'forceMode')-ne$false){ChargePathFail ('row '+$Row.name+' the next lawful path did not clear the latched force mode')}
     if((ChargePathProp $probe 'timedOut')-ne$false-or-not(ChargePathNumber (ChargePathProp $probe 'movedDistance'))-or[double]$probe.movedDistance-le0.25){ChargePathFail ('row '+$Row.name+' the residue probe did not move the pair')}
+    # Turn-based: Kingmaker leaves no remaining movement in a turn that moved in force mode, so the next
+    # lawful pair path necessarily lives in the rider's next turn. The measurement must have reached it
+    # through exactly one native End Turn input, with the latch still set when that turn ended.
+    if($Mode-ceq'TB'){
+        $advance=ChargePathProp $probe 'turnAdvance'
+        if($null-eq$advance){ChargePathFail ('row '+$Row.name+' the turn-based residue probe recorded no native turn advance')}
+        $riderId=[string](ChargePathProp (ChargePathProp $before 'rider') 'id')
+        if([string]::IsNullOrWhiteSpace($riderId)){ChargePathFail ('row '+$Row.name+' recorded no rider identity')}
+        foreach($field in @('endedTurnUnit','nextTurnUnit')){ if([string](ChargePathProp $advance $field)-cne$riderId){ChargePathFail ('row '+$Row.name+' the turn advance did not end and resume the rider turn: '+$field)} }
+        $advanceInput=ChargePathProp $advance 'input'
+        if([string](ChargePathProp $advanceInput 'method')-cne'Kingmaker.Game.PauseBind'){ChargePathFail ('row '+$Row.name+' the turn advance was not the native End Turn input')}
+        if([long](ChargePathProp $advanceInput 'count')-ne1){ChargePathFail ('row '+$Row.name+' the turn advance was not exactly one native End Turn input')}
+        foreach($field in @('forceModeAtEnd','forceModeAtNextTurn')){ if((ChargePathProp $advance $field)-isnot[bool]){ChargePathFail ('row '+$Row.name+' the turn advance did not record '+$field)} }
+        if((ChargePathProp $advance 'forceModeAtNextTurn')-ne(ChargePathProp $probe 'forceModeBefore')){ChargePathFail ('row '+$Row.name+' the force mode changed between the rider next turn and the residue probe')}
+        if(-not(ChargePathNumber (ChargePathProp $advance 'waitedSeconds'))){ChargePathFail ('row '+$Row.name+' the turn advance recorded no elapsed time')}
+    } elseif($null-ne(ChargePathProp $probe 'turnAdvance')){ChargePathFail ('row '+$Row.name+' a real-time residue probe advanced a turn')}
     # The compiled probe counts only rules the rider or the mount initiated against the armed target. A native
     # attack of opportunity is the engine's own reflex, observed and recorded and never suppressed; a
     # non-opportunity pair attack would mean the measurement delivered an attack of its own, which it must not.

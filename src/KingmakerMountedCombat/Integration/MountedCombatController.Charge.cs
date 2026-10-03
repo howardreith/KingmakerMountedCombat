@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Blueprints;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Abilities;
@@ -75,7 +76,19 @@ namespace KingmakerMountedCombat.Integration
                 (landing - actor.Position.To2D()).magnitude < (mount.View.Corpulence + actor.View.Corpulence) * 0.8f);
         }
 
-        private MountedChargeRequest CaptureMountedChargeRequest(UnitEntityData caster, UnitEntityData target)
+        // Delivery revalidation reaches this controller only from the Deliver of this mod's own charge
+        // component, which the engine has already charged for. The fact is proven from the live execution
+        // context rather than assumed from the call site: the executing ability must carry this mod's charge
+        // component and its caster must be this pair's rider. Anything else is not a delivery of our shell.
+        private bool DeliveringOwnChargeShell(AbilityExecutionContext context, UnitEntityData caster)
+        {
+            var blueprint = context == null || context.Ability == null ? null : context.Ability.Blueprint;
+            return blueprint != null && caster != null && caster == relationship.Rider &&
+                context.Caster == caster && blueprint.GetComponent<MountedChargeAbilityLogic>() != null;
+        }
+
+        private MountedChargeRequest CaptureMountedChargeRequest(UnitEntityData caster, UnitEntityData target,
+            AbilityExecutionContext context = null)
         {
             var rider = relationship.Rider;
             var mount = relationship.Mount;
@@ -108,7 +121,8 @@ namespace KingmakerMountedCombat.Integration
                 TargetHostile = rider != null && target != null && rider.IsEnemy(target),
                 TargetAttackable = rider != null && target != null && rider.CanAttack(target),
                 AlreadyActiveCommand = HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction,
-                MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0
+                MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0,
+                DeliveringOwnShell = DeliveringOwnChargeShell(context, caster)
             };
 
             if (mount?.View != null && target?.View != null)
@@ -177,18 +191,20 @@ namespace KingmakerMountedCombat.Integration
         // Delivery from the rider's native full-round ability shell. The shell has already spent the rider's
         // action through Spell.Spend, so the pair transaction is queued first with IgnoreCooldown rather than
         // run, which is exactly what AbilityCustomCharge does with its own attack.
-        internal MountedCombatClickResult TryExecuteMountedCharge(UnitEntityData caster, UnitEntityData target)
+        internal MountedCombatClickResult TryExecuteMountedCharge(UnitEntityData caster, UnitEntityData target,
+            AbilityExecutionContext context)
         {
             if (disposed)
             {
                 return MountedCombatClickResult.NotHandled;
             }
 
-            var request = CaptureMountedChargeRequest(caster, target);
+            var request = CaptureMountedChargeRequest(caster, target, context);
             var availability = MountedChargePolicy.Evaluate(request);
             logger.Info("Mounted charge delivery observed: casterId=" + (caster?.UniqueId ?? "<none>") +
                 "; targetId=" + (target?.UniqueId ?? "<none>") +
-                "; turnBased=" + request.TurnBased +
+                "; turnBased=" + request.TurnBased + "; ownShell=" + request.DeliveringOwnShell +
+                "; riderStandardCooldown=" + request.RiderStandardCooldown.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
                 "; distance=" + request.Distance.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
                 "; minimum=" + request.MinimumRange.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
                 "; maximum=" + request.MaximumRange.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) +
