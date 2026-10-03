@@ -155,6 +155,7 @@ namespace KingmakerMountedCombat.Integration
         internal long PairedLifetimeRetirementCount => unifiedTurn.PairedLifetimeRetirementCount;
         internal long PairedLifetimeRetirementDeferredCount => unifiedTurn.PairedLifetimeRetirementDeferredCount;
         internal string LastPairedLifetimeRetirement => unifiedTurn.LastPairedLifetimeRetirement;
+        internal string LastPairedMovementObservation => unifiedTurn.LastMovementObservation;
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);
         internal bool PairedActorEnded(UnitEntityData actor) => unifiedTurn.PairedActorEnded(actor);
         internal bool MayStartNativePreparationDuringSave(UnitCommand command) => unifiedTurn.MayStartNativePreparationDuringSave(command);

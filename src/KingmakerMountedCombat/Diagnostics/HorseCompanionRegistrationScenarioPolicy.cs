@@ -9,7 +9,9 @@ namespace KingmakerMountedCombat.Diagnostics
             // The Chunk 6A rows are named literally here: this policy is shared
             // with the component test project, which cannot compile the runtime
             // tranche because that type binds Kingmaker assemblies.
-            return string.Equals(scenario, "chunk6a-combat-mount-rt", StringComparison.Ordinal) ||
+            return string.Equals(scenario, "chunk6b-charge-path-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6b-charge-path-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-combat-mount-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-combat-mount-tb", StringComparison.Ordinal) ||
                 // The narrow save-backed Mount preamble: one native selected-ability
                 // click, sixteen staged causal assertions, no mount and no combat.

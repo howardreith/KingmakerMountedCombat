@@ -4938,21 +4938,35 @@ try {
     }
 
     Invoke-HarnessTest 'basic mounted charge feature remains absent and default-off' {
-        $productionSource = @(
-            Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' |
-                Sort-Object FullName |
-                ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+        $productionFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' | Sort-Object FullName)
+        $productionSource = @($productionFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         # Native identity inspection and safe refusal are authorized in Chunk 4.
         # This scope guard still forbids manufacturing Charge execution/state;
         # the new native scenarios, not this source inventory, qualify behavior.
+        # Chunk 6B (owner decision of 2026-10-02, section F; mission disposition PROCEED - BOUNDED): the one
+        # diagnostics-only measurement, Diagnostics\Chunk6bChargePathScenario.cs, raises the mount agent's
+        # charging flag exactly once under a restored diagnostic lease. It is the only file allowed to, it
+        # may not create a charge ability, attack flag, buff, charging state or attack, and every other
+        # file stays charge-free. The stock Charge remains rejected while mounted (Chunk 4 protocol).
+        $measurementFiles = @($productionFiles | Where-Object { $_.Name -ceq 'Chunk6bChargePathScenario.cs' })
+        Assert-Test ($measurementFiles.Count -eq 1 -and $measurementFiles[0].DirectoryName.EndsWith('\Diagnostics', [StringComparison]::Ordinal)) 'the Chunk 6B measurement file is not exactly one diagnostics file'
+        $measurementSource = [IO.File]::ReadAllText($measurementFiles[0].FullName)
+        $chargeFreeSource = @($productionFiles | Where-Object { $_.Name -cne 'Chunk6bChargePathScenario.cs' } | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
         Assert-Test (-not $productionSource.Contains('new AbilityCustomCharge') -and
             -not $productionSource.Contains('IsCharge = true') -and
             -not $productionSource.Contains('ChargeBuff') -and
-            -not $productionSource.Contains('IsCharging = true') -and
+            -not $chargeFreeSource.Contains('IsCharging = true') -and
             -not $patchSource.Contains('PatchExact(typeof(UnitAttack), "set_IsCharge"') -and
             -not $patchSource.Contains('PatchExact(typeof(AbilityCustomCharge)')) `
             'production enables a charge surface or patches stock charge ownership despite the default-off stretch disposition'
+        Assert-Test (([regex]::Matches($measurementSource, 'IsCharging = true')).Count -eq 1 -and
+            $measurementSource.Contains('agent.IsCharging = true; chunk6bChargingApplied = true;') -and
+            $measurementSource.Contains('if (chunk6bChargingApplied) { agent.IsCharging = false; chunk6bChargingApplied = false; }') -and
+            $measurementSource.Contains('["chargingRestored"] = agent.IsCharging == chunk6bChargingBefore,') -and
+            -not $measurementSource.Contains('State.IsCharging = ') -and
+            -not $measurementSource.Contains('new UnitAttack(')) `
+            'the Chunk 6B measurement raises the charging flag other than once on the mount agent under its restored lease, or manufactures charge state or an attack'
     }
 
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
@@ -12714,7 +12728,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

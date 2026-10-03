@@ -51,11 +51,11 @@ function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlrea
 # other tranche child requires the mounted preamble.
 function Test-KmcChildEntryExpectsMounted([string]$Scenario){ -not ($Scenario -clike 'chunk6a-*') }
 function Test-KmcChildEntryRequiresIdleParty([string]$Scenario){
- $Scenario -clike 'chunk4-*' -or $Scenario -clike 'actor-allocation-*' -or $Scenario -clike 'chunk6a-*' -or $Scenario -ceq 'unmounted-attack-controls-rt'
+ $Scenario -clike 'chunk4-*' -or $Scenario -clike 'actor-allocation-*' -or $Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6b-*' -or $Scenario -ceq 'unmounted-attack-controls-rt'
 }
-# Required of every Chunk 6A candidate from preview.150 (the compiled producer stamps that
-# version). Earlier candidates, the historical product lines and parser-only synthetic versions
+# Required of every Chunk 6A candidate from preview.150 and of every Chunk 6B candidate (the compiled
+# producer stamps that version). Earlier candidates, the historical product lines and parser-only synthetic versions
 # predate the snapshot; a snapshot that is present is always validated.
 function Test-KmcChildEntryPreambleRequired([string]$ProductVersion){
- ([string]$ProductVersion -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -ge 150)
+ ([string]$ProductVersion -cmatch '^0[.]1[.]0-chunk6[ab]-preview[.]([0-9]+)$' -and [long]$Matches[1] -ge 150)
 }
