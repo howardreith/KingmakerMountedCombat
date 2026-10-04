@@ -137,15 +137,20 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
     switch -CaseSensitive ($name) {
         'C6B-CHARGE-positive' {
+            if($Mode-ceq'TB'){
+                # Increment 6B.3 is deferred with evidence, so a turn-based charge over a lawful geometry
+                # must be refused outright, with the exact reason, before any cost, path or attack.
+                if((ChargeProp $before 'available')-ne$false){ChargeFail 'the turn-based charge was available while increment 6B.3 is deferred'}
+                if((ChargeProp $before 'canTarget')-ne$false){ChargeFail 'the turn-based charge was targetable while increment 6B.3 is deferred'}
+                if([string](ChargeProp $before 'kmcAvailabilityReason')-cne'Mounted Charge is not yet supported in turn-based mode.'){ChargeFail ('the turn-based refusal reason differs: '+(ChargeProp $before 'kmcAvailabilityReason'))}
+                $beforeTurn=ChargeProp (ChargeProp $before 'state') 'turn'
+                if($null-eq$beforeTurn-or(ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based refusal was not recorded on the rider own turn'}
+                Assert-KmcChunk6bChargeNothingHappened $e $name
+                return
+            }
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the lawful charge was not available or targetable'}
             if((ChargeProp $before 'requireFullRound')-ne$true-or[string](ChargeProp $before 'commandType')-cne'Standard'){ChargeFail 'the lawful charge was not a full-round standard action'}
-            if($Mode-ceq'TB'){
-                $beforeTurn=ChargeProp (ChargeProp $before 'state') 'turn'
-                if($null-eq$beforeTurn){ChargeFail 'the turn-based charge recorded no turn'}
-                if((ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based charge was not cast on the rider own turn'}
-                if((ChargeProp $beforeTurn 'acting')-ne$true){ChargeFail 'the turn-based charge was not cast on an acting rider turn'}
-                if(-not(ChargeNumber (ChargeProp $beforeTurn 'timeMoved'))-or[double]$beforeTurn.timeMoved-gt0.0001){ChargeFail 'the turn-based charge was cast after the turn had already moved'}
-            }
+
             if((ChargeProp $input 'clicked')-ne$true-or(ChargeProp $input 'hoverPure')-ne$true){ChargeFail 'the lawful charge was not admitted by a pure player click'}
             if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the lawful charge did not admit exactly one native shell'}
             # The native shell delivers on a later frame than the click, so admission is a post-settlement

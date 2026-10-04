@@ -782,3 +782,80 @@ record `measurement-preview165.json` (ff281c2d), outcome
   destroy that leaves the service alive for the fixture's own cleanup.
 
 Offline verification: FAST 15/0, component tests 565/0, charge reader 101/0, carrier reader 142/0.
+
+## Preview.166 native outcome (2026-10-04; frozen preview.166, campaign closed)
+
+Frozen payload `0.1.0-chunk6b-preview.166` at commit `9bcde1db5b43c2475716d5756bab0782a8c0d4a3`, package
+sha256 `47c0ea0e1c566419b9eb364c94c3d161f463f89c02fe614cbd5326d03363cb87`, DLL sha256
+`51f2cbf3cf931290ee410e1d1ea985fab18ea3d08783c5e50bdf70d22a35d693`, MVID
+`37b14c10-6f4d-4f5b-bcbd-aa6d3e20e6fe`, suite `20261004-chunk6b-charge-k` (sha256
+`755f870855ecd837da917b605165e71d41b107079d46df0579ee0bf6cafeb507`), harness reader digest
+`d7e043483be34fd5fade7cfb037a2a72bfe17543f6de9ff9227e32d64d74c5a2`. One purity proof, then six isolated
+restored transactions. Five PASS, one FAIL. Every transaction restored the Mods tree, the working payload and
+the protected saves with no restoration error, and the baseline stayed immutable in all six.
+
+- **C6B-CHARGE-RT: PASS 67/0**, the third consecutive qualification of the real-time delivery and the first on
+  the acting-turn correction. The seven rows are unchanged from preview.163 and preview.164 - default-off,
+  positive, spent-standard, below-minimum, stock-rejected, interrupted and combat-ended - which is the
+  evidence that the correction did not disturb the qualified mode. Withdrawing the target-lost row restored
+  the row set that preview.165 had crashed.
+- **C6B-PATH-RT: PASS 62/0** and **C6B-PATH-TB: PASS 62/0.** Increment 6B.1, the mount-carried forced straight
+  path, stays qualified in both modes on this payload, turn advance and residue probe included.
+- **CHARGE-SAFETY-RT: PASS 66/0** and **CHARGE-SAFETY-TB: PASS 66/0.** The stock Charge is still rejected
+  while mounted and still unmodified, in both modes.
+- **C6B-CHARGE-TB: FAIL 61/2, and the failure is the acting-turn requirement itself.** The
+  `C6B-CHARGE-default-off` row passed, so the scenario registration added in preview.165 is sound and the
+  stage now runs. The `C6B-CHARGE-positive` row never reached its click: the fixture waited for
+  `turn.IsActing` and the rider's turn did not reach Acting, so the tranche leaf exceeded its 30-second
+  deadline at `Phase3gControls` and the remaining rows were never attempted. The retained progress record
+  names the exact state - case `C6B-CHARGE-positive`, stage 1, frame 4403, relationship `Mounted`,
+  `samples: 0`. The measurement is therefore that requiring an acting rider turn makes the mounted charge
+  **unreachable** in turn-based mode: the ability is cast out of the turn's preparation, and the turn does not
+  become Acting while the pair is idle and waiting to be told what to do.
+
+## Preview.167 - increment 6B.3 is deferred with evidence (2026-10-04, offline-verified)
+
+Two campaigns have now measured the turn-based charge from both sides, and neither establishes a lawful
+delivery:
+
+- **Preview.165** admitted the charge in `Preparing`. The lease applied exactly, the engine charged the
+  rider the whole round - 6.0 s of standard and 3.0 s of move - and charged the mount nothing, and the mount
+  carried the pair 0.193 m, because `CanDelegateMountMovement` requires an acting rider turn and the
+  delegated mount move was interrupted before its first tick on every one of five repaths.
+- **Preview.166** required an acting turn at admission. The charge then became unreachable, as above.
+
+A charge that is admitted and cannot move is worse than one that is refused: the engine has already taken the
+player's round. A charge that can never be admitted is not a feature. The honest state of the increment is
+therefore **DEFER - EVIDENCED**, and preview.167 says so in the product rather than in a document only.
+
+- **Product.** The whole turn-based branch of `MountedChargePolicy` is now a single refusal with its own
+  exact reason, "Mounted Charge is not yet supported in turn-based mode.", under
+  `MountedCombatRejectionCode.WrongTurn`. Availability, prediction, targeting and execution all pass through
+  that branch, so in turn-based mode the ability reports unavailable and untargetable and nothing is ever
+  cast. Nothing is written, cleared, refunded or synthesised; the mod simply stops asking the engine for a
+  round it cannot deliver.
+- **What was removed, and why it is recorded here.** The turn-based rules the branch is meant to carry once a
+  lawful delivery exists - the charge must be on the rider's own turn, that turn must be acting or preparing,
+  the rider's move action must be free unless the mod's own full-round shell is delivering, and the turn must
+  not have moved before the charge - could not be left in place below the refusal, because this build treats
+  unreachable code (CS0162) as an error. They are written out in full in the comment that replaces them, so
+  lifting the deferral is a restoration rather than a rediscovery. Their unit tests were removed with them for
+  the same reason, and the deferral has a unit test of its own that pins both the code and the exact reason,
+  together with the assertion that real time is unaffected.
+- **Fixture.** The turn-based charge fixture no longer waits for an acting turn. It asks for the charge from
+  the ordinary start of the rider's turn - `Preparing` or `Acting` - and records what the mod answers,
+  which is now the refusal.
+- **Reader.** On a lawful geometry in turn-based mode the charge reader requires that the charge was
+  unavailable and untargetable, that the recorded availability reason is exactly the deferral reason, that the
+  refusal was observed on the rider's own turn, and that nothing happened: no admission, no attack, no
+  movement, no cost. The earlier turn-based block, which asserted the turn facts of a delivery, is gone,
+  because a deferred mode has no delivery to assert.
+- **What this is not.** Real-time delivery is untouched and stays qualified at 67/0. The stock Charge remains
+  rejected while mounted and unmodified. The feature remains default-off behind `EnableMountedCharge`. No
+  guard, threshold, allowlist or acceptance assertion was weakened to obtain this result; the turn-based stage
+  is expected to pass as a **qualified refusal**, not as a delivery.
+
+Offline verification: FAST 15/0 (attempt 3, on this candidate's source; attempts 1 and 2 are
+retained, attempt 1 having failed to compile because the retained turn-based rules were unreachable below
+the refusal and this build treats CS0162 as an error), component tests 565/0, charge reader 102/0, carrier
+reader 142/0.

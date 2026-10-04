@@ -165,32 +165,28 @@ namespace KingmakerMountedCombat.Domain
 
             if (request.TurnBased)
             {
-                if (!request.RiderTurn || !request.TurnActingOrPreparing)
-                {
-                    return Refuse("Charge the mounted pair during the rider's turn.", MountedCombatRejectionCode.WrongTurn);
-                }
-
-                // Preview.165 measured the cost of admitting a charge during the rider's Preparing phase:
-                // the engine charged the rider the whole round, the mount's delegated move was interrupted
-                // before its first tick because the pair's movement delegation requires an acting turn, and
-                // the command exhausted its repath allowance having carried the pair 0.193 m. The charge
-                // refuses that state with its own reason rather than accepting a round it cannot deliver.
-                if (!request.TurnActing)
-                {
-                    return Refuse("Charge the mounted pair once the rider's turn is acting.", MountedCombatRejectionCode.WrongTurn);
-                }
-
-                // The full-round shell consumes both parts of the rider's round when it is cast, so the
-                // same exemption applies to the move action during the delivery of that shell.
-                if (!request.DeliveringOwnShell && request.RiderMoveCooldown > 0.001f)
-                {
-                    return Refuse("Mounted Charge is a full-round action and requires the rider's move action.", MountedCombatRejectionCode.WrongActionState);
-                }
-
-                if (request.TurnTimeMoved > 0.0001f)
-                {
-                    return Refuse("Mounted Charge requires the rider's turn before any movement.", MountedCombatRejectionCode.WrongActionState);
-                }
+                // Increment 6B.3 is deferred with evidence, and this is the whole of the turn-based
+                // decision while it stands.
+                //
+                // Preview.165 measured a turn-based charge admitted on the rider own turn in Preparing: the
+                // lease applied exactly, the engine charged the rider the whole round (6.0 s of standard and
+                // 3.0 s of move) and charged the mount nothing, and the mount carried the pair 0.193 m
+                // because its delegated move was interrupted before its first tick on every one of five
+                // repaths. Preview.166 measured the other side: requiring an acting rider turn at admission
+                // makes the charge unreachable, because the turn does not reach Acting before the charge is
+                // cast. Neither establishes a lawful turn-based delivery, so the mod refuses outright rather
+                // than let the engine charge a player a round for nothing.
+                //
+                // The rules this branch is intended to carry once a lawful delivery is established, and
+                // which were removed here only because this build treats unreachable code as an error:
+                // the charge must be on the rider own turn and that turn acting or preparing; the rider
+                // move action must be free unless the mod own full-round shell is delivering, which already
+                // paid it; and the turn must not have moved before the charge. All three are exercised by
+                // the pure policy tests of preview.166 and are recorded in
+                // planning/CHUNK6B-MOUNTED-CHARGE-MISSION.md.
+                //
+                // Real time is untouched, and the feature remains default-off.
+                return Refuse("Mounted Charge is not yet supported in turn-based mode.", MountedCombatRejectionCode.WrongTurn);
             }
 
             if (request.Distance < request.MinimumRange)

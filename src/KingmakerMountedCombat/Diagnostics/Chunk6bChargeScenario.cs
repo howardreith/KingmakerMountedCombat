@@ -355,9 +355,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (turn == null) return;
                     if (turn.Unit != rider) { TryEndPhase3gFixtureTurn(turn); return; }
-                    // The pair movement delegation engages only on an acting rider turn, and the policy now
-                    // refuses a charge during Preparing for exactly that reason, so the fixture waits for it.
-                    if (!turn.IsActing) return;
+                    // The turn-based charge is refused outright while increment 6B.3 is deferred, so the
+                    // fixture asks for it from the ordinary start of the rider turn and records the refusal.
+                    if (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
                     if (turn.TimeMoved > 0.0001f) return;
                     if (controller.WaitingForUI || GetPendingNextUnit(controller) != null) return;
                 }
@@ -384,6 +384,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["state"] = CaptureChunk6bChargeActors("before"),
                     ["available"] = chunk6bChargeAbility.IsAvailableForCast,
                     ["unavailableReason"] = chunk6bChargeAbility.GetUnavailableReason(),
+                    ["kmcAvailabilityReason"] = nativeControls.Evaluate(NativeMountedControlKind.MountedCharge, rider).Reason,
                     ["canTarget"] = chunk6bChargeAbility.CanTarget(nativeTarget),
                     ["minRangeMeters"] = chunk6bChargeAbility.MinRangeMeters,
                     ["approachDistance"] = chunk6bChargeAbility.GetApproachDistance(target),
@@ -763,6 +764,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["state"] = CaptureChunk6bChargeActors("repeat-before"),
                     ["available"] = chunk6bChargeAbility.IsAvailableForCast,
                     ["unavailableReason"] = chunk6bChargeAbility.GetUnavailableReason(),
+                    ["kmcAvailabilityReason"] = nativeControls.Evaluate(NativeMountedControlKind.MountedCharge, rider).Reason,
                     ["canTarget"] = chunk6bChargeAbility.CanTarget(nativeTarget),
                     ["minRangeMeters"] = chunk6bChargeAbility.MinRangeMeters,
                     ["approachDistance"] = chunk6bChargeAbility.GetApproachDistance(target),
