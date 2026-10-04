@@ -16,7 +16,7 @@ function Get-KmcChunk6bChargeRows([string]$Mode) {
     if([string]$Mode-ceq'TB'){
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
-        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended')
+        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line')
     }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
@@ -129,6 +129,19 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
         return
     }
 
+    # The obstructed-line row cannot be presented in a fixture area where every direction at the lawful
+    # distance offers a clear native line. That outcome is a measurement and must be explicit: the row
+    # carries the named limitation, the reachability flag and the whole placement sweep that proves it,
+    # and the sweep must show a clear line for every candidate it examined.
+    if($name-ceq'C6B-CHARGE-obstructed-line'-and$null-ne(ChargeProp $e 'limitation')){
+        if([string](ChargeProp $e 'limitation')-cne'no-obstructed-line-in-fixture-area'){ChargeFail ('the obstructed-line row names an unknown limitation: '+(ChargeProp $e 'limitation'))}
+        if((ChargeProp $e 'obstructedLineReachable')-ne$false){ChargeFail 'the obstructed-line limitation does not record the geometry as unreachable'}
+        $attempts=@(ChargeProp (ChargeProp $e 'placement') 'attempts')
+        if($attempts.Count-lt1){ChargeFail 'the obstructed-line limitation records no placement sweep'}
+        foreach($attempt in $attempts){ if((ChargeProp $attempt 'straightRoute')-ne$true){ChargeFail 'the obstructed-line limitation recorded an obstructed candidate it did not use'} }
+        return
+    }
+
     $before=ChargeProp $e 'before';$input=ChargeProp $e 'input';$after=ChargeProp $e 'after'
     $movement=ChargeProp $e 'movement';$economy=ChargeProp $e 'economy';$rules=ChargeProp $e 'rules'
     foreach($part in @($before,$input,$after,$movement,$economy,$rules)){ if($null-eq$part){ChargeFail ('row '+$name+' lacks a measurement section')} }
@@ -150,6 +163,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             }
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the lawful charge was not available or targetable'}
             if((ChargeProp $before 'requireFullRound')-ne$true-or[string](ChargeProp $before 'commandType')-cne'Standard'){ChargeFail 'the lawful charge was not a full-round standard action'}
+            if((ChargeProp (ChargeProp $before 'geometry') 'straightRoute')-ne$true){ChargeFail 'the lawful charge line was not a straight native route'}
 
             if((ChargeProp $input 'clicked')-ne$true-or(ChargeProp $input 'hoverPure')-ne$true){ChargeFail 'the lawful charge was not admitted by a pure player click'}
             if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the lawful charge did not admit exactly one native shell'}
@@ -210,6 +224,19 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             $rider=ChargeProp $state 'rider'
             if(-not(ChargeNumber (ChargeProp $rider 'standard'))-or[double]$rider.standard-le0.001){ChargeFail 'the repeated-charge row did not start with a spent standard action'}
             if((ChargeProp $before 'available')-ne$false-and(ChargeProp $before 'canTarget')-ne$false){ChargeFail 'a charge without the rider standard action was both available and targetable'}
+            Assert-KmcChunk6bChargeNothingHappened $e $name
+        }
+        'C6B-CHARGE-obstructed-line' {
+            $geometry=ChargeProp $before 'geometry'
+            if($null-eq$geometry){ChargeFail 'the obstructed-line row recorded no geometry'}
+            if((ChargeProp $geometry 'straightRoute')-ne$false){ChargeFail 'the obstructed-line row target had a clear native line'}
+            # The refusal must be attributable to the line alone, so neither the landing point nor the
+            # minimum charge distance may explain it.
+            if((ChargeProp $geometry 'landingBlocked')-ne$false){ChargeFail 'the obstructed-line row landing point was blocked as well'}
+            $state=ChargeProp $before 'state'
+            if(-not(ChargeNumber (ChargeProp $state 'distanceToTarget'))-or-not(ChargeNumber (ChargeProp $before 'minRangeMeters'))){ChargeFail 'the obstructed-line row recorded no geometry distance'}
+            if([double]$state.distanceToTarget-lt[double]$before.minRangeMeters){ChargeFail 'the obstructed-line row target was inside the minimum charge distance'}
+            if((ChargeProp $before 'canTarget')-ne$false){ChargeFail 'a target whose charge line is obstructed was targetable'}
             Assert-KmcChunk6bChargeNothingHappened $e $name
         }
         'C6B-CHARGE-stock-rejected' {

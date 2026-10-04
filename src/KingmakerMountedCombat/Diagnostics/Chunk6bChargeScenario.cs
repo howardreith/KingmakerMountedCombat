@@ -43,7 +43,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-below-minimum",
             "C6B-CHARGE-stock-rejected",
             "C6B-CHARGE-interrupted",
-            "C6B-CHARGE-combat-ended"
+            "C6B-CHARGE-combat-ended",
+            "C6B-CHARGE-obstructed-line"
         };
         private static readonly string[] Chunk6bChargeTurnBasedCases =
         {
@@ -149,6 +150,59 @@ namespace KingmakerMountedCombat.Diagnostics
                 });
                 return within && endpoint == point && !blocked;
             });
+        }
+
+        // A charge line the native navmesh trace cannot follow, for the row that must be refused before
+        // the landing check and before any cost. The sweep is written out here rather than reusing the
+        // throwing FindWalkablePoint, because "this area offers no obstructed line" is a measurement that
+        // must be recorded, not an exception to be caught - catching one would also mask a genuine failure
+        // inside the trace or the landing probe.
+        private Vector3? FindChunk6bChargeObstructedPoint(float distance)
+        {
+            var attempts = new JArray();
+            Chunk6bChargeMeasurement["placement-" + Chunk6bChargeCaseId] = new JObject
+            {
+                ["origin"] = CapturePosition(horse.Position),
+                ["wantedDistance"] = distance,
+                ["wants"] = "obstructed-straight-line",
+                ["attempts"] = attempts
+            };
+            if (global::AstarPath.active == null)
+            {
+                throw new InvalidOperationException("Active native navigation graph is unavailable.");
+            }
+
+            var baseDirection = horse.View == null ? Vector3.forward : horse.View.transform.forward;
+            baseDirection.y = 0f;
+            if (baseDirection.sqrMagnitude < 0.01f) { baseDirection = Vector3.forward; }
+            baseDirection.Normalize();
+            for (var index = 0; index < 16; index++)
+            {
+                var direction = Quaternion.Euler(0f, index * 22.5f, 0f) * baseDirection;
+                var nearest = global::AstarPath.active.GetNearest(horse.Position + direction * distance);
+                if (nearest.node == null || !nearest.node.Walkable) { continue; }
+                var point = nearest.clampedPosition;
+                var mountDistance = HorizontalDistance(horse.Position, point);
+                if (mountDistance <= 0.25f || Math.Abs(mountDistance - distance) > 0.5f) { continue; }
+                var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, point);
+                var blocked = Chunk6bLandingBlocked(point, 0.5f);
+                var riderDistance = HorizontalDistance(rider.Position, point);
+                var within = MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance);
+                var straight = endpoint == point;
+                attempts.Add(new JObject
+                {
+                    ["point"] = CapturePosition(point),
+                    ["nativeTrace"] = CapturePosition(endpoint),
+                    ["straightRoute"] = straight,
+                    ["landingBlockedEstimate"] = blocked,
+                    ["riderDistance"] = riderDistance,
+                    ["withinFixtureBounds"] = within
+                });
+                // The refusal must come from the line, so the landing must be clear and the distance lawful.
+                if (within && !straight && !blocked) { return point; }
+            }
+
+            return null;
         }
 
         // The exact geometry the policy reads, for a refusal message that explains itself.
@@ -334,6 +388,36 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(Chunk6bChargeTb);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-obstructed-line", StringComparison.Ordinal))
+                {
+                    var obstructed = FindChunk6bChargeObstructedPoint(Chunk6bChargeCaseDistance);
+                    Chunk6bChargeMeasurement["obstructedLineReachable"] = obstructed.HasValue;
+                    if (!obstructed.HasValue)
+                    {
+                        // Measured, not omitted: every direction this area offers at the lawful distance has a
+                        // clear native line, so the row cannot be presented here. Recorded in the same shape as
+                        // the unreachable maximum charge distance.
+                        AddRow(Chunk6bChargeCaseId, true, Chunk6bChargeRowClaim(), new JObject
+                        {
+                            ["level"] = "NATIVE DELIVERY",
+                            ["mode"] = Chunk6bChargeTb ? "TB" : "RT",
+                            ["case"] = Chunk6bChargeCaseId,
+                            ["limitation"] = "no-obstructed-line-in-fixture-area",
+                            ["obstructedLineReachable"] = false,
+                            ["placement"] = Chunk6bChargeMeasurement["placement-" + Chunk6bChargeCaseId]
+                        });
+                        chunk6bChargeCase++;
+                        ResetChunk6bChargeCase();
+                        chunk6bChargeStage = 0;
+                        ResetLeafClock();
+                        return;
+                    }
+
+                    BeginTarget(Chunk6bChargeCaseDistance, Chunk6bChargeCaseId, obstructed.Value);
+                    ruleProbe.Arm(target, false);
+                    chunk6bChargeStage = 1; ResetLeafClock(); return;
+                }
+
                 BeginTarget(Chunk6bChargeCaseDistance, Chunk6bChargeCaseId, FindChunk6bChargeTargetPoint(Chunk6bChargeCaseDistance));
                 ruleProbe.Arm(target, false);
                 chunk6bChargeStage = 1; ResetLeafClock(); return;
@@ -431,6 +515,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["unavailableReason"] = chunk6bChargeAbility.GetUnavailableReason(),
                     ["kmcAvailabilityReason"] = nativeControls.Evaluate(NativeMountedControlKind.MountedCharge, rider).Reason,
                     ["canTarget"] = chunk6bChargeAbility.CanTarget(nativeTarget),
+                    ["geometry"] = new JObject
+                    {
+                        ["straightRoute"] = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, target.Position) == target.Position,
+                        ["landingBlocked"] = Chunk6bLandingBlocked(target.Position, target.View == null ? 0.5f : target.View.Corpulence),
+                        ["mountDistanceToTarget"] = HorizontalDistance(horse.Position, target.Position)
+                    },
                     ["minRangeMeters"] = chunk6bChargeAbility.MinRangeMeters,
                     ["approachDistance"] = chunk6bChargeAbility.GetApproachDistance(target),
                     ["requireFullRound"] = chunk6bChargeAbility.RequireFullRoundAction,
@@ -703,6 +793,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "C6B-CHARGE-below-minimum": return "A target inside the stock minimum charge distance was refused before any cost, path or attack.";
                 case "C6B-CHARGE-stock-rejected": return "The stock native Charge remained rejected while mounted.";
                 case "C6B-CHARGE-interrupted": return "A charge interrupted after commitment stopped at once, restored every leased value, delivered no attack and kept the cost the engine had taken.";
+                case "C6B-CHARGE-obstructed-line": return "A charge whose straight line the native navmesh cannot follow was refused before any cost, path or attack.";
                 default: return "A charge whose combat ended mid-path terminated bounded, restored every leased value and delivered no attack.";
             }
         }
@@ -811,6 +902,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["unavailableReason"] = chunk6bChargeAbility.GetUnavailableReason(),
                     ["kmcAvailabilityReason"] = nativeControls.Evaluate(NativeMountedControlKind.MountedCharge, rider).Reason,
                     ["canTarget"] = chunk6bChargeAbility.CanTarget(nativeTarget),
+                    ["geometry"] = new JObject
+                    {
+                        ["straightRoute"] = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, target.Position) == target.Position,
+                        ["landingBlocked"] = Chunk6bLandingBlocked(target.Position, target.View == null ? 0.5f : target.View.Corpulence),
+                        ["mountDistanceToTarget"] = HorizontalDistance(horse.Position, target.Position)
+                    },
                     ["minRangeMeters"] = chunk6bChargeAbility.MinRangeMeters,
                     ["approachDistance"] = chunk6bChargeAbility.GetApproachDistance(target),
                     ["requireFullRound"] = chunk6bChargeAbility.RequireFullRoundAction,

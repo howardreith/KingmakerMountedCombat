@@ -981,3 +981,66 @@ nothing to do with the deferral, the product or the engine.
   added in preview.168 is still in place and will name the next blocker.
 
 Offline verification: FAST 15/0 (attempt 1), component tests 565/0, charge reader 102/0, carrier reader 142/0.
+
+## Preview.169 native outcome (2026-10-04; frozen preview.169, campaign closed) - 6 PASS / 0 FAIL
+
+Frozen payload `0.1.0-chunk6b-preview.169` at commit `b0ad65ce7d66ccc91ab7567c574f5977dbf510bf` (committed
+tree `8c0361a741289494c076112697b6049caf87f9ef`), package sha256
+`b862db2f762054bb1b7fe1d64553fffebc422644f213f9d40ad42639a4d8ed36`, DLL sha256
+`181a5384376362351bfdebdfa2a380e0581f45a120d0de467cb22b6345a13c02`, MVID
+`071ef0d8-1971-4075-88bf-57181d0c52cc`, suite `20261004-chunk6b-charge-n` (sha256
+`a80e53e0cff57a43593d64363ddc85da918a68235844cbd098f103506e45cc5d`), harness reader digest
+`f18ebd418d6c9ab961249b4c48af6fa1f4b6b760ee6e14c9d8b9a9e51bb33438`. Offline: CANDIDATE tier 26/0, component
+tests 565/0, purity proof PASS. Six isolated restored transactions, every one restored with no restoration
+error and the baseline immutable. Measurement record
+`0a889b3efc518a460d8e68ce59b51a7a109350731d1189bdd98903410ca04581`; outcome record
+`a488c9e2d0e01bbfb3c84dd34c40015c928eefaa198ccd1b8817b65e06a15927`.
+
+| stage | result |
+| --- | --- |
+| `C6B-CHARGE-RT` | PASS 67/0 |
+| `C6B-CHARGE-TB` | **PASS 64/0** |
+| `C6B-PATH-RT` | PASS 62/0 |
+| `C6B-PATH-TB` | PASS 62/0 |
+| `CHARGE-SAFETY-RT` | PASS 66/0 |
+| `CHARGE-SAFETY-TB` | PASS 66/0 |
+
+**The turn-based deferral is now natively qualified, as a refusal.** The ordering correction let the stage
+reach the rider's own turn, and its four rows recorded exactly what increment 6B.3's deferral promises: the
+setting lease, a lawful geometry refused, an inside-minimum geometry refused, and the stock Charge still
+rejected. On the lawful-geometry row the retained evidence reads `available: false`, `canTarget: false`,
+`kmcAvailabilityReason` and the native `unavailableReason` both exactly "Mounted Charge is not yet supported
+in turn-based mode.", the turn `{ isRider: true, status: Preparing, timeMoved: 0 }`, the delivery
+`{ chargeAdmitted: 0, chargeRefused: 0, lastRefusal: null }`, zero movement for mount and rider and zero cost
+on all four action resources. The engine surfaces the mod's own reason to the player through
+`GetUnavailableReason()`, which is the behaviour a deferred feature should have.
+
+## Preview.170 - the obstructed charge line, and the geometry every row records (2026-10-04, offline-verified)
+
+Increment 6B.2 owes rows, and this candidate closes one of them. No product change: the policy already
+refuses an obstructed line with its own exact reason, "The charge line to the target is obstructed."
+(`NoPath`), and the gate sits between the range gates and the landing gate.
+
+- **The geometry was known to exist before the row was written.** The retained placement record of
+  `c6b-charge169-a-charge-rt` shows that of the ten directions the lawful search swept at 9 m, **nine had a
+  native navmesh trace that stopped short of the point**, all inside the diagnostic spawn bounds and with an
+  unblocked landing; the tenth was the lawful line it accepted. The row is therefore reachable in this
+  fixture area rather than hoped for.
+- **Fixture.** A new real-time-only case `C6B-CHARGE-obstructed-line`, appended so no existing case's
+  position moves, with its own placement sweep: the same sixteen directions, accepting the first point that
+  is inside the spawn bounds, has an unblocked landing and whose native trace stops short - so the refusal is
+  attributable to the line and to nothing else. The sweep is written out rather than reusing the throwing
+  search, because "this area offers no obstructed line" is a measurement to record, and catching an exception
+  would also mask a genuine failure inside the trace or the landing probe. When no direction qualifies the
+  row is recorded as the named limitation `no-obstructed-line-in-fixture-area` with the whole sweep attached,
+  in the same shape as the already-recorded unreachable maximum charge distance.
+- **Every charge row now records the geometry the policy reads** - `straightRoute`, `landingBlocked` and the
+  mount's distance to the target - at both capture sites, the first request and the repeated one.
+- **Reader.** The obstructed-line row requires a recorded line that is not straight, a landing that is not
+  blocked, a distance at or beyond the minimum, an untargetable target, and that nothing happened. The
+  limitation shape requires the exact limitation name, the reachability flag, a non-empty sweep, and that
+  **every** candidate in that sweep had a clear line - a limitation that passed over an obstructed candidate
+  is refused. The lawful positive row now also has to show a straight native route rather than have it
+  assumed. Reader 102 -> 113 synthetic checks.
+
+Offline verification: FAST 15/0 (attempt 1), component tests 565/0, charge reader 113/0, carrier reader 142/0.
