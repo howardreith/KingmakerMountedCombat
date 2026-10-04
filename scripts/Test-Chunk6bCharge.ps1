@@ -43,7 +43,39 @@ function New-Lease{
   forcedPathCount=2;riderAgentTouched=$false;restored=$true;chargingRestoredExactly=$true;speedOverrideRestoredExactly=$true
   riderChargingRestoredExactly=$true;forceModeAtRestore=$true;riderChargingBefore=$false;observations=@('applied:x')}
 }
+function New-Intervention([string]$Kind){
+ [ordered]@{kind=$Kind;frame=130;nativeSeconds=0.4;mountDistanceAtIntervention=4.0;pairCommandActiveBefore=$true
+  riderInCombatBefore=$true;riderStandardBefore=6.0;before=(New-State 'intervention-before' 5.0 6.0 $true)
+  after=(New-State 'intervention-after' 5.0 6.0 $true);riderInCombatAfter=$($Kind-ceq'native-command-interrupt');riderStandardAfter=5.8}
+}
+function New-TerminatedRow([string]$Case,[string]$Kind){
+ [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
+  level='NATIVE DELIVERY';mode='RT';case=$Case;mounted=$true
+  before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' 9.0 0 $false)
+   available=$true;unavailableReason=$null;canTarget=$true;minRangeMeters=4.65;approachDistance=99.0
+   requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
+  input=[ordered]@{clicked=$true;hoverPure=$true;frame=110;shell=[ordered]@{present=$true};shellCount=1
+   feedback='Mounted charge accepted: the Horse carries the charge.';rejectionCodes=@();chargeAdmitted=0;chargeRefused=0;lastRefusal=$null
+   after=(New-State 'input-after' 9.0 0 $false)}
+  samples=@()
+  after=(New-State 'after' 5.0 4.0 $false)
+  identityAfter=(New-Identity $true $true)
+  movement=[ordered]@{mountDistance=4.0;riderDistance=4.0;peakSpeedMps=10.3;mountCombatSpeedMps=5.08
+   chargingObserved=$true;chargeModeObserved=$true;riderChargeStateObserved=$true}
+  economy=[ordered]@{riderStandardMax=6.0;riderMoveMax=0.0;mountStandardMax=0.0;mountMoveMax=0.0
+   riderStandardNow=4.0;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
+  lease=(New-Lease)
+  intervention=(New-Intervention $Kind)
+  delivery=[ordered]@{chargeAdmitted=1;chargeRefused=0;lastRefusal=$null;feedback='Mounted charge accepted: the Horse carries the charge.';rejectionCodes=@()}
+  rules=(New-Rules 0 0 $false)
+  attackRules=0;attackRulesOpportunity=0
+  pairCommandState=[ordered]@{frame=200}
+  terminal=[ordered]@{action='RiderMelee';actorId='rider';resourceOwnerId='rider';targetId='target';result='Interrupted';childAttackStartCount=0;singleAttackMode=$true;nativeFullAttack=$false;nativePlannedAttackCount=1;nativeCompletedAttackCount=0;repathCount=0}
+ }}
+}
 function New-Row([string]$Case){
+ if($Case-ceq'C6B-CHARGE-interrupted'){ return New-TerminatedRow $Case 'native-command-interrupt' }
+ if($Case-ceq'C6B-CHARGE-combat-ended'){ return New-TerminatedRow $Case 'native-combat-end' }
  $refusal=$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected')
  if($Case-ceq'C6B-CHARGE-default-off'){
   return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode='RT';case=$Case;mounted=$true
@@ -90,7 +122,7 @@ function New-Artifact {
  Copy-Case ([ordered]@{schemaVersion=34;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
   observations=[ordered]@{chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode='RT';cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
-  subscenarioPassCount=5;subscenarioFailCount=0;errors=@()})
+  subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
 }
 $request=[pscustomobject]@{scenario='chunk6b-charge-rt'}
 function Accept([string]$Name,[scriptblock]$Body){ & $Body; $script:checks++; Write-Host ('PASS '+$Name) }
@@ -175,6 +207,22 @@ Mutate 'a refusal that left charge state behind' {param($a) (Row $a 'C6B-CHARGE-
 Mutate 'a repeated charge with an unspent standard action' {param($a) (Row $a 'C6B-CHARGE-spent-standard').before.state.rider.standard=0}
 Mutate 'a repeated charge that was available and targetable' {param($a) (Row $a 'C6B-CHARGE-spent-standard').before.available=$true;(Row $a 'C6B-CHARGE-spent-standard').before.canTarget=$true}
 Mutate 'a stock rejection row that clicked another ability' {param($a) (Row $a 'C6B-CHARGE-stock-rejected').input.stockBlueprint=$kmc}
+Mutate 'an interrupted charge that was never admitted' {param($a) (Row $a 'C6B-CHARGE-interrupted').delivery.chargeAdmitted=0}
+Mutate 'an interrupted charge that never carried the pair' {param($a) (Row $a 'C6B-CHARGE-interrupted').movement.mountDistance=0.4}
+Mutate 'an interrupted charge at walking speed' {param($a) (Row $a 'C6B-CHARGE-interrupted').movement.peakSpeedMps=5.1}
+Mutate 'an interrupted charge that delivered an attack' {param($a) (Row $a 'C6B-CHARGE-interrupted').rules=(Json (New-Rules 1 0 $true)); (Row $a 'C6B-CHARGE-interrupted').attackRules=1}
+Mutate 'an interrupted charge whose terminal started a child attack' {param($a) (Row $a 'C6B-CHARGE-interrupted').terminal.childAttackStartCount=1}
+Mutate 'an interrupted charge that did not restore its lease' {param($a) (Row $a 'C6B-CHARGE-interrupted').lease.restored=$false}
+Mutate 'an interrupted charge that left charge residue' {param($a) (Row $a 'C6B-CHARGE-interrupted').after.mountCharging=$true}
+Mutate 'an interrupted charge with no intervention record' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention=$null}
+Mutate 'an interrupted charge whose intervention had no live pair command' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.pairCommandActiveBefore=$false}
+Mutate 'an interrupted charge that intervened before the pair moved' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.mountDistanceAtIntervention=0.2}
+Mutate 'an interrupted charge whose shell had not paid' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.riderStandardBefore=0.0}
+Mutate 'an interrupted charge that refunded the rider standard action' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.riderStandardAfter=0.0}
+Mutate 'an interrupted charge recorded as a combat end' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.kind='native-combat-end'}
+Mutate 'a combat-end charge recorded as an interrupt' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.kind='native-command-interrupt'}
+Mutate 'a combat-end charge that never started in combat' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.riderInCombatBefore=$false}
+Mutate 'a combat-end charge that charged the mount' {param($a) (Row $a 'C6B-CHARGE-combat-ended').economy.mountMoveMax=3.0}
 Mutate 'a stock Charge that stayed available and unrefused' {param($a) (Row $a 'C6B-CHARGE-stock-rejected').input.stockAvailable=$true;(Row $a 'C6B-CHARGE-stock-rejected').input.feedback='something else'}
 
 # A FAIL artifact may carry a failed row and need not be complete.

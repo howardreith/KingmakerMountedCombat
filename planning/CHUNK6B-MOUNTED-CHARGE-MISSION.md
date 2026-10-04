@@ -1,8 +1,9 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `THE PAIR-OWNED MOUNTED CHARGE DELIVERED END TO END NATIVELY ON PREVIEW.160 (measured, reader refused on
-two evidence-attribution defects); CORRECTIONS IMPLEMENTED (0.1.0-chunk6b-preview.161) - CANDIDATE TIER,
-FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `INCREMENT 6B.1 FULLY QUALIFIED NATIVELY IN BOTH MODES ON PREVIEW.161; THE CHARGE DELIVERS END TO END
+(MEASURED ON PREVIEW.160) BUT ITS ROW IS NOT YET QUALIFIED BECAUSE THE FIXTURE GEOMETRY WAS NOT DETERMINISTIC;
+DETERMINISM FIX AND TWO LIFECYCLE ROWS IMPLEMENTED (0.1.0-chunk6b-preview.162) - CANDIDATE TIER, FREEZE AND
+NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -544,3 +545,51 @@ No product change. Three corrections, all to the measurement side:
   rather than the length of a lawful round.
 
 Offline verification: FAST 15/0, component tests 565/0, charge reader 74/0, carrier reader 142/0.
+
+## Preview.161 native outcome (2026-10-04; frozen preview.161, campaign closed)
+
+Frozen preview.161 (commit f7ff02be, committed tree 744b50fe, package 5aaba8d4, suite
+`20261004-chunk6b-charge-f` / 3df37904, DLL 8456b7ac / MVID cceac98c, purity PASS 74.5 min with empty
+stderr); CANDIDATE 26/0, FAST 15/0, component tests 565/0, charge reader 74/0, carrier reader 142/0. Lab
+record `measurement-preview161.json` (f5c0b457), outcome
+`chunk6b-increment-6b2-outcome-preview161.json` (99917dd6): **4 PASS / 1 FAIL of 5 stages**, five fresh
+isolated restored transactions, session logs preserved.
+
+- **C6B-PATH-TB: PASS, 62/0. Increment 6B.1 is now qualified natively in both modes.** The turn advance
+  worked exactly as designed: one native End Turn input, the fixture actors' turns ended through the same
+  helper the Chunk 6A turn scenarios use, the rider's next turn arrived, and the next lawful pair path cleared
+  the force mode that the stock `Stop()` had left latched. The carrier therefore runs a forced straight path
+  on the mount, at charge speed, with no cost to either actor, exact restoration and no residue, in real time
+  and in turn-based mode.
+- **C6B-PATH-RT: PASS, 62/0. CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS, 66/0 each.**
+- **C6B-CHARGE-RT: FAIL, and the cause is fixture non-determinism rather than the product.** The charge
+  fixture spawned its target at a point whose straight native route from the mount did not reach it, so
+  `MountedChargePolicy` refused the target - correctly, and for exactly the reason the stock charge would
+  refuse it. The row therefore recorded `canTarget=false`, no click, no shell and no delivery, and the
+  reader refused at the first row that depends on the lawful charge having happened. Nothing in the product
+  changed between preview.160, where the same fixture happened to spawn on a clear line and the charge
+  delivered end to end, and preview.161. The carrier measurement has searched for a lawful charge geometry
+  since preview.157; the charge fixture had not.
+
+## Preview.162 - deterministic charge geometry, and two lifecycle rows (2026-10-04, offline-verified)
+
+- **Determinism.** The charge fixture now places its target the way the carrier measurement does: only at a
+  point the mount's own straight native route reaches, with a clear landing point and inside the authorized
+  diagnostic spawn envelope, publishing every attempt it considered. A case that must deliver a charge then
+  waits for the mod's own targeting to admit the target before it clicks, and if that never happens it refuses
+  with the measured geometry (distance, straight route, landing blocked, availability) rather than recording a
+  lawful click against a geometry the policy rightly refuses.
+- **Two new 6B.2 rows.** `C6B-CHARGE-interrupted` admits a charge, lets the mount carry at least a metre and
+  a half of the forced path, and then interrupts the pair command through its own native `Interrupt`.
+  `C6B-CHARGE-combat-ended` does the same and then ends the combat. Both require a bounded termination: the
+  charge admitted exactly once, the mount observed charging above walking speed, every leased value restored
+  exactly, the rider agent never touched, no attack of the pair's own, no started child attack in the
+  terminal, no residue, and - the point of the rows - **no refund**: the rider's standard action was already
+  spent at the intervention and is still spent after it, and the mount is charged nothing either way.
+
+Offline verification: FAST 15/0, component tests 565/0, charge reader 90/0, carrier reader 142/0.
+
+Increment 6B.2 remains incomplete. Still open: the straight-line obstruction refusal, the clearance
+obstruction refusal, cancellation before commitment, target loss mid-path, and rider and mount incapacity
+mid-path. The beyond-maximum refusal stays a named limitation, unreachable inside the authorized diagnostic
+spawn envelope and covered by the pure policy only.
