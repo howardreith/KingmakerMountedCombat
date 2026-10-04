@@ -68,6 +68,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private TurnController chunk6bTurnBefore;
         private bool chunk6bEndTurnClicked;
         private double chunk6bTurnAdvanceStarted;
+        private TurnController chunk6bLastSeenTurn;
 
         private static FieldInfo ResolveChunk6bAgentField(string name, int token, Type fieldType)
         {
@@ -326,6 +327,7 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bCarrierMove = null; chunk6bProbeMove = null;
             chunk6bControlSent = false; chunk6bProbeMoved = false; chunk6bProbeOriginDistance = 0f;
             chunk6bTurnAdvance = null; chunk6bTurnBefore = null; chunk6bEndTurnClicked = false; chunk6bTurnAdvanceStarted = 0.0;
+            chunk6bLastSeenTurn = null;
         }
 
         private bool Chunk6bPairIdle => rider.Commands.Empty && horse.Commands.Empty && !rider.AreHandsBusyWithAnimation && !horse.View.AgentASP.IsReallyMoving;
@@ -510,8 +512,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 // and its movement; this measurement writes nothing and only observes the latch across the
                 // boundary. The pair stays idle throughout: the rider has no queued action and the mount is
                 // under the pair movement authority.
+                // Every turn boundary is progress, so the harness leaf deadline measures a stall here
+                // rather than the length of a lawful round.
+                if (!ReferenceEquals(turn, chunk6bLastSeenTurn)) { chunk6bLastSeenTurn = turn; ResetLeafClock(); }
                 if (!Chunk6bPairIdle || combat.HasActiveCommand || combat.HasActiveGroundMovement) return;
-                if (Chunk6bNow - chunk6bTurnAdvanceStarted > 90.0)
+                if (Chunk6bNow - chunk6bTurnAdvanceStarted > 180.0)
                     throw new InvalidOperationException("The rider next turn did not arrive for the turn-based residue probe.");
                 if (!rider.IsInCombat || !horse.IsInCombat || !CombatController.IsInTurnBasedCombat())
                     throw new InvalidOperationException("The turn-based residue probe lost its encounter before the rider next turn.");
@@ -533,6 +538,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     };
                     chunk6bEndTurnClicked = true;
                     Game.Instance.PauseBind();
+                    return;
+                }
+                // Preview.160 measured the round stalling on an idle fixture party member in Preparing, so
+                // the wait ends the turns it is allowed to end, exactly as the Chunk 6A turn scenarios do:
+                // an exact idle pair or leased fixture actor only, never a foreign native turn.
+                if (turn != null && turn.Unit != rider && !ReferenceEquals(turn, chunk6bTurnBefore))
+                {
+                    TryEndPhase3gFixtureTurn(turn);
                     return;
                 }
                 if (turn == null || ReferenceEquals(turn, chunk6bTurnBefore) || turn.Unit != rider ||

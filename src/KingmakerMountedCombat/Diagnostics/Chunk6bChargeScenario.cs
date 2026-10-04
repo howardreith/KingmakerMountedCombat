@@ -55,6 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chunk6bChargeObservedCharging, chunk6bChargeObservedForceMode, chunk6bChargeObservedBuff;
         private int chunk6bChargeAttackRulesBefore, chunk6bChargeOpportunityRulesBefore;
         private int chunk6bChargeAdmittedBefore, chunk6bChargeRefusedBefore;
+        private bool chunk6bChargeAttemptAdmitted;
         private float chunk6bChargeBaseRiderStandard, chunk6bChargeBaseRiderMove;
         private float chunk6bChargeBaseMountStandard, chunk6bChargeBaseMountMove;
         private int chunk6bChargeRepeatStage;
@@ -122,6 +123,7 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bChargeBefore = null;
             chunk6bChargeInput = null;
             chunk6bChargeLeaseEvidence = null;
+            chunk6bChargeAttemptAdmitted = false;
             chunk6bChargeSamples.Clear();
             chunk6bChargeHoverPure = false;
             chunk6bChargeClicked = false;
@@ -374,7 +376,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     (agent == null || !agent.IsReallyMoving) &&
                     ruleProbe.RiderResolvedCount >= ruleProbe.RiderNonOpportunityAttackRuleCount;
                 if (!settled && elapsed < 14.0) return;
-                chunk6bChargeLeaseEvidence = combat.LastMountedChargeCommand == null
+                // The controller keeps the last admitted charge command across cases, so the lease is
+                // published only when this attempt is the one that admitted a charge. A row that admitted
+                // nothing must record no lease, not the previous row's.
+                chunk6bChargeAttemptAdmitted = combat.MountedChargeAdmittedCount - chunk6bChargeAdmittedBefore >= 1;
+                chunk6bChargeLeaseEvidence = !chunk6bChargeAttemptAdmitted || combat.LastMountedChargeCommand == null
                     ? null
                     : combat.LastMountedChargeCommand.CaptureChargeLeaseEvidence();
                 chunk6bChargeStage = 3; ResetLeafClock(); return;
@@ -439,7 +445,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["attackRules"] = ruleProbe.PairAttackRuleCount - chunk6bChargeAttackRulesBefore,
                     ["attackRulesOpportunity"] = ruleProbe.PairOpportunityAttackRuleCount - chunk6bChargeOpportunityRulesBefore,
                     ["pairCommandState"] = CapturePairCommandState(),
-                    ["terminal"] = combat.LastOutcome == null ? null : new JObject
+                    // Bound to this attempt for the same reason as the lease: LastOutcome outlives a case.
+                    ["terminal"] = !chunk6bChargeAttemptAdmitted || combat.LastOutcome == null ? null : new JObject
                     {
                         ["action"] = combat.LastOutcome.Action.ToString(),
                         ["actorId"] = combat.LastOutcome.ActorId,

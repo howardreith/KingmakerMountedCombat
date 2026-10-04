@@ -1,7 +1,8 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `INCREMENT 6B.1 CARRIER FULLY QUALIFIED IN REAL TIME ON PREVIEW.159; ONE PRODUCT DEFECT LOCATED AND
-FIXED (0.1.0-chunk6b-preview.160) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `THE PAIR-OWNED MOUNTED CHARGE DELIVERED END TO END NATIVELY ON PREVIEW.160 (measured, reader refused on
+two evidence-attribution defects); CORRECTIONS IMPLEMENTED (0.1.0-chunk6b-preview.161) - CANDIDATE TIER,
+FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -475,5 +476,71 @@ One product fix and one measurement correction.
   exact last refusal, the feedback and the rejection codes. The reader reads admission from there: the lawful
   row must show exactly one admitted charge, no dispatch refusal, no rejection code and no refusal reason left
   behind, and every refusal row must show that the controller delivery was never reached at all.
+
+Offline verification: FAST 15/0, component tests 565/0, charge reader 74/0, carrier reader 142/0.
+
+## Preview.160 native outcome (2026-10-04; frozen preview.160, campaign closed)
+
+Frozen preview.160 (commit 876afbfd, committed tree ec79e90e, package 8c6a349e, suite
+`20261003-chunk6b-charge-e` / 87d784e3, DLL ab7b11d3 / MVID b027ceb6, purity PASS 73.0 min with empty
+stderr); CANDIDATE 26/0, FAST 15/0, component tests 565/0, charge reader 74/0, carrier reader 142/0. Lab
+record `measurement-preview160.json` (68082762), outcome
+`chunk6b-increment-6b2-outcome-preview160.json` (ab7ab5b2): 3 PASS / 2 FAIL of 5 stages, five fresh isolated
+restored transactions, session logs preserved.
+
+- **C6B-PATH-RT: PASS, 62/0.** The real-time carrier measurement passed again on a changed payload.
+- **CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS, 66/0 each.** The stock Charge stays rejected while mounted
+  and the unmounted Charge is untouched, with the working charge feature present in the build.
+- **C6B-CHARGE-RT: the pair-owned Mounted Charge delivered end to end.** The delivery fix worked, and the
+  game's own log records it: `Mounted charge delivery observed: ... ownShell=True; riderStandardCooldown=5.971;
+  ... allowed=True; reason=Mounted Charge is available.` followed by `Mounted charge accepted: ...
+  queuedFirst=true; ignoreCooldown=true.` The measured row:
+
+  | Fact | Measured |
+  | --- | --- |
+  | Native shells admitted by one player click | 1, Standard, full-round, this mod's own charge component |
+  | Controller admissions / refusals for that attempt | 1 / 0, with no refusal reason |
+  | Rider standard action spent by the engine | 5.971 s above the attempt's own baseline |
+  | Mount standard and move spent | 0 and 0 |
+  | Mount distance carried | 7.243 m |
+  | Peak mount speed against a 5.08 m/s combat speed | 10.16 m/s (exactly the doubled override) |
+  | Forced path applications | 1, force mode entered, rider agent never touched |
+  | Lease restoration | charging, speed override and rider charging all restored exactly; latch cleared |
+  | Pair attacks initiated | exactly 1, rider-owned, non-opportunity, `charge: true`, `fullAttack: false` |
+  | Terminal | RiderMelee, rider owns the resource, 1 child attack, single-attack mode, 0 repaths, Success |
+  | Residue after settlement | none: not charging, not moving, no speed override, no active pair command |
+
+  The repeated-request row was then refused in the right state for the right reason, with the rider's standard
+  action genuinely spent (4.024 s still standing), and the below-minimum row refused a target 3.941 m away
+  inside the measured 4.448 m stock minimum.
+
+  **The stage still failed, on two evidence-attribution defects of my own, neither of them a product defect.**
+  First, the reader asserted that the post-settlement delivery section carried no rejection code, but
+  `LastRejectionCodes` and `LastFeedback` are the controller's shared last-values for every mounted
+  interaction: the run measured the same stale `CommandAdmissionFailure` on all four measured rows,
+  including the stock-rejection row where no charge was ever attempted. That assertion was invalid, and the
+  charge-specific counters and the charge-specific refusal reason are asserted in its place. Second, the
+  controller keeps the last admitted charge command and the last pair terminal across cases, so the
+  below-minimum row published the positive row's lease; the moment the charge started working, a refusal row
+  began carrying a lease it never applied.
+- **C6B-PATH-TB: the turn advance worked and then the round stalled.** The rider's turn ended through the one
+  native End Turn input and the engine moved on, but the next turn belonged to an idle fixture party member
+  that sat in `Preparing`, and the tranche's own 30 second leaf deadline fired while the measurement waited
+  for the rider's next turn. The offline reader accepted everything it could see; the failure is the harness
+  stalling, recorded as `phase3d-horse-leaf-deadline`.
+
+## Preview.161 - evidence attribution and the stalled round (2026-10-04, offline-verified)
+
+No product change. Three corrections, all to the measurement side:
+
+- The reader asserts the charge-specific delivery facts (exactly one admission for this attempt, no dispatch
+  refusal, no charge refusal reason) and records the controller's shared feedback and rejection codes as
+  context only, because they are provably not per-attempt facts.
+- The fixture binds the lease and the terminal to the attempt that actually admitted a charge, so a row that
+  admitted nothing records neither.
+- The turn-based residue probe ends the turns the fixture is allowed to end while it waits, exactly as the
+  Chunk 6A turn scenarios do (an exact idle pair member or a leased fixture actor only, never a foreign
+  native turn), and every turn boundary resets the stall clock so the harness deadline measures a stall
+  rather than the length of a lawful round.
 
 Offline verification: FAST 15/0, component tests 565/0, charge reader 74/0, carrier reader 142/0.
