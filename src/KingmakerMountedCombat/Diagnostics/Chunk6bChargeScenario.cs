@@ -28,10 +28,15 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class Phase3dHorseScenarioTranche
     {
         internal const string Chunk6bChargeRtScenario = "chunk6b-charge-rt";
+        internal const string Chunk6bChargeTbScenario = "chunk6b-charge-tb";
         internal static bool IsChunk6bChargeScenario(string scenario) =>
-            string.Equals(scenario, Chunk6bChargeRtScenario, StringComparison.Ordinal);
+            string.Equals(scenario, Chunk6bChargeRtScenario, StringComparison.Ordinal) ||
+            string.Equals(scenario, Chunk6bChargeTbScenario, StringComparison.Ordinal);
         private bool IsChunk6bCharge => IsChunk6bChargeScenario(request.Scenario);
-        private static readonly string[] Chunk6bChargeCases =
+        private bool Chunk6bChargeTb => string.Equals(request.Scenario, Chunk6bChargeTbScenario, StringComparison.Ordinal);
+        // Real time carries the whole 6B.2 row set. Turn-based carries the delivery and refusal core only:
+        // the two lifecycle rows intervene inside a live real-time path and are not part of 6B.3.
+        private static readonly string[] Chunk6bChargeRealTimeCases =
         {
             "C6B-CHARGE-default-off",
             "C6B-CHARGE-positive",
@@ -40,6 +45,15 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-interrupted",
             "C6B-CHARGE-combat-ended"
         };
+        private static readonly string[] Chunk6bChargeTurnBasedCases =
+        {
+            "C6B-CHARGE-default-off",
+            "C6B-CHARGE-positive",
+            "C6B-CHARGE-below-minimum",
+            "C6B-CHARGE-stock-rejected"
+        };
+        private string[] Chunk6bChargeCases =>
+            Chunk6bChargeTb ? Chunk6bChargeTurnBasedCases : Chunk6bChargeRealTimeCases;
 
         private int chunk6bChargeCase, chunk6bChargeStage;
         private bool chunk6bChargeControlSent;
@@ -61,6 +75,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chunk6bChargeAttemptAdmitted;
         private JObject chunk6bChargeIntervention;
         private bool chunk6bChargeInterventionDone;
+        private TurnController chunk6bChargeLastSeenTurn;
         private float chunk6bChargeBaseRiderStandard, chunk6bChargeBaseRiderMove;
         private float chunk6bChargeBaseMountStandard, chunk6bChargeBaseMountMove;
         private int chunk6bChargeRepeatStage;
@@ -81,15 +96,24 @@ namespace KingmakerMountedCombat.Diagnostics
         private string Chunk6bChargeCaseId => Chunk6bChargeCases[chunk6bChargeCase];
         private JObject Chunk6bChargeMeasurement => (JObject)observations["chunk6bCharge"];
 
-        private float Chunk6bChargeCaseDistance
+        private float Chunk6bChargeCaseDistance =>
+            string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-below-minimum", StringComparison.Ordinal) ? 3.5f : 9f;
+
+        // The cases that must actually deliver a charge, addressed by identity rather than by index so the
+        // real-time and turn-based case lists can differ.
+        private bool Chunk6bChargeCaseMustDeliver =>
+            string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-positive", StringComparison.Ordinal) ||
+            Chunk6bChargeCaseIntervention != null;
+
+        // The native intervention this case performs once the charge is committed, or null for a case that
+        // lets the charge run to its own end.
+        private string Chunk6bChargeCaseIntervention
         {
             get
             {
-                switch (chunk6bChargeCase)
-                {
-                    case 2: return 3.5f;
-                    default: return 9f;
-                }
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-interrupted", StringComparison.Ordinal)) return "native-command-interrupt";
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-combat-ended", StringComparison.Ordinal)) return "native-combat-end";
+                return null;
             }
         }
 
@@ -141,12 +165,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 settings.EnablePairedCommandScheduler || settings.EnableDiagnosticOverlay || playerAction.OverlayPresent)
                 throw new InvalidOperationException("Chunk 6B requires the accepted paired configuration.");
             CaptureIdleFixturePartyForCleanup();
+            if (Chunk6bChargeTb) pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
             chunk6bChargeOriginalSetting = settings.EnableMountedCharge;
             chunk6bChargeSettingCaptured = true;
             observations["chunk6bCharge"] = new JObject
             {
                 ["contract"] = "chunk6b-pair-charge-delivery",
-                ["mode"] = "RT",
+                ["mode"] = Chunk6bChargeTb ? "TB" : "RT",
                 ["cases"] = new JArray(Chunk6bChargeCases),
                 ["settingBefore"] = chunk6bChargeOriginalSetting,
                 ["abilityGuid"] = NativeMountedControlService.MountedChargeAbilityGuid,
@@ -253,7 +278,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["chargeBuffPresent"] = buff != null,
                 ["chargeBuffRounds"] = buff?.TimeLeft.TotalSeconds,
                 ["pairCommandActive"] = combat.HasActiveCommand,
-                ["pairMovement"] = combat.LastPairedMovementObservation
+                ["pairMovement"] = combat.LastPairedMovementObservation,
+                ["turn"] = Game.Instance?.TurnBasedCombatController?.CurrentTurn == null ? null : new JObject
+                {
+                    ["unit"] = Game.Instance.TurnBasedCombatController.CurrentTurn.Unit?.UniqueId,
+                    ["isRider"] = Game.Instance.TurnBasedCombatController.CurrentTurn.Unit == rider,
+                    ["status"] = Game.Instance.TurnBasedCombatController.CurrentTurn.Status.ToString(),
+                    ["acting"] = Game.Instance.TurnBasedCombatController.CurrentTurn.IsActing,
+                    ["timeMoved"] = Game.Instance.TurnBasedCombatController.CurrentTurn.TimeMoved,
+                    ["timeMovedInForceMode"] = Game.Instance.TurnBasedCombatController.CurrentTurn.TimeMovedInForceMode
+                }
             };
         }
 
@@ -263,6 +297,13 @@ namespace KingmakerMountedCombat.Diagnostics
             var controller = game.TurnBasedCombatController;
             var turn = controller.CurrentTurn;
             if (game.IsPaused) { game.IsPaused = false; return; }
+            // A turn boundary is progress, so the harness leaf deadline measures a stall here rather than
+            // the length of a lawful turn-based round.
+            if (Chunk6bChargeTb && !ReferenceEquals(turn, chunk6bChargeLastSeenTurn))
+            {
+                chunk6bChargeLastSeenTurn = turn;
+                ResetLeafClock();
+            }
             Chunk6bChargeMeasurement["progress"] = new JObject
             {
                 ["case"] = Chunk6bChargeCaseId, ["stage"] = chunk6bChargeStage, ["frame"] = Time.frameCount,
@@ -281,14 +322,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
 
-                if (chunk6bChargeCase == 0)
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-default-off", StringComparison.Ordinal))
                 {
                     TickChunk6bChargeDefaultOff();
                     return;
                 }
 
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
-                if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(false);
+                if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(Chunk6bChargeTb);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
                 BeginTarget(Chunk6bChargeCaseDistance, Chunk6bChargeCaseId, FindChunk6bChargeTargetPoint(Chunk6bChargeCaseDistance));
                 ruleProbe.Arm(target, false);
@@ -306,13 +347,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 // stock charge fixture waits for before it clicks.
                 if (!rider.CombatState.CanActInCombat || !rider.IsAbleToAct()) return;
                 if (rider.CombatState.Cooldown.StandardAction > 0.001f || rider.CombatState.Cooldown.MoveAction > 0.001f) return;
+                // Turn-based: the charge is a full-round action, so it belongs to the rider own turn and
+                // that turn must not have moved yet. While another fixture actor holds the turn, its turn is
+                // ended through the same helper the Chunk 6A turn scenarios use, which refuses a foreign
+                // native turn and ignores a unit that is not directly controllable.
+                if (Chunk6bChargeTb)
+                {
+                    if (turn == null) return;
+                    if (turn.Unit != rider) { TryEndPhase3gFixtureTurn(turn); return; }
+                    if (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
+                    if (turn.TimeMoved > 0.0001f) return;
+                    if (controller.WaitingForUI || GetPendingNextUnit(controller) != null) return;
+                }
 
                 chunk6bChargeAbility = FindChunk6bChargeAbility();
                 if (chunk6bChargeAbility == null)
                     throw new InvalidOperationException("The KMC Mounted Charge ability is not leased on the rider.");
                 // A case that must deliver a charge waits for the mod own targeting to admit the target, so a
                 // row never records a lawful click against a geometry the policy rightly refuses.
-                if (chunk6bChargeCase == 1 || chunk6bChargeCase == 4 || chunk6bChargeCase == 5)
+                if (Chunk6bChargeCaseMustDeliver)
                 {
                     if (!chunk6bChargeAbility.CanTarget(new TargetWrapper(target)))
                     {
@@ -348,7 +401,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6bChargeBaseMountStandard = horse.CombatState.Cooldown.StandardAction;
                 chunk6bChargeBaseMountMove = horse.CombatState.Cooldown.MoveAction;
 
-                if (chunk6bChargeCase == 3)
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-stock-rejected", StringComparison.Ordinal))
                 {
                     TickChunk6bChargeStockRejected();
                     return;
@@ -434,12 +487,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Cases 4 and 5 intervene through a native surface once the pair has genuinely committed:
                 // the charge was admitted, the pair command is live and the mount has carried at least a
                 // metre and a half of the forced path. Nothing is written to any actor resource.
-                if (!chunk6bChargeInterventionDone && (chunk6bChargeCase == 4 || chunk6bChargeCase == 5) &&
+                if (!chunk6bChargeInterventionDone && Chunk6bChargeCaseIntervention != null &&
                     chunk6bChargeMountDistance >= 1.5f && combat.HasActiveCommand &&
                     combat.LastMountedChargeCommand != null && !combat.LastMountedChargeCommand.IsFinished)
                 {
                     chunk6bChargeInterventionDone = true;
-                    var kind = chunk6bChargeCase == 4 ? "native-command-interrupt" : "native-combat-end";
+                    var kind = Chunk6bChargeCaseIntervention;
                     chunk6bChargeIntervention = new JObject
                     {
                         ["kind"] = kind,
@@ -451,7 +504,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["riderStandardBefore"] = rider.CombatState.Cooldown.StandardAction,
                         ["before"] = CaptureChunk6bChargeActors("intervention-before")
                     };
-                    if (chunk6bChargeCase == 4)
+                    if (string.Equals(kind, "native-command-interrupt", StringComparison.Ordinal))
                     {
                         combat.LastMountedChargeCommand.Interrupt();
                     }
@@ -484,7 +537,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 // The repeated request belongs to this combat, because the rider's standard action must still
                 // be spent when it is attempted.
-                if (chunk6bChargeCase == 1 && chunk6bChargeRepeatStage < 2)
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-positive", StringComparison.Ordinal) && !Chunk6bChargeTb && chunk6bChargeRepeatStage < 2)
                 {
                     TickChunk6bChargeRepeat();
                     return;
@@ -493,7 +546,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var evidence = new JObject
                 {
                     ["level"] = "NATIVE DELIVERY",
-                    ["mode"] = "RT",
+                    ["mode"] = Chunk6bChargeTb ? "TB" : "RT",
                     ["case"] = Chunk6bChargeCaseId,
                     ["mounted"] = relationship.State == RelationshipState.Mounted &&
                         relationship.Rider == rider && relationship.Mount == horse,
@@ -595,13 +648,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private string Chunk6bChargeRowClaim()
         {
-            switch (chunk6bChargeCase)
+            switch (Chunk6bChargeCaseId)
             {
-                case 0: return "The Mounted Charge control is absent while its setting is off and leased on the rider once it is on.";
-                case 1: return "One player click delivered one rider-owned full-round charge: the mount carried the forced path and the rider struck once with the native charge rule.";
-                case 2: return "A target inside the stock minimum charge distance was refused before any cost, path or attack.";
-                case 3: return "The stock native Charge remained rejected while mounted.";
-                case 4: return "A charge interrupted after commitment stopped at once, restored every leased value, delivered no attack and kept the cost the engine had taken.";
+                case "C6B-CHARGE-default-off": return "The Mounted Charge control is absent while its setting is off and leased on the rider once it is on.";
+                case "C6B-CHARGE-positive": return "One player click delivered one rider-owned full-round charge: the mount carried the forced path and the rider struck once with the native charge rule.";
+                case "C6B-CHARGE-below-minimum": return "A target inside the stock minimum charge distance was refused before any cost, path or attack.";
+                case "C6B-CHARGE-stock-rejected": return "The stock native Charge remained rejected while mounted.";
+                case "C6B-CHARGE-interrupted": return "A charge interrupted after commitment stopped at once, restored every leased value, delivered no attack and kept the cost the engine had taken.";
                 default: return "A charge whose combat ended mid-path terminated bounded, restored every leased value and delivered no attack.";
             }
         }
@@ -622,7 +675,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var evidence = new JObject
             {
                 ["level"] = "NATIVE DELIVERY",
-                ["mode"] = "RT",
+                ["mode"] = Chunk6bChargeTb ? "TB" : "RT",
                 ["case"] = Chunk6bChargeCaseId,
                 ["mounted"] = relationship.State == RelationshipState.Mounted,
                 ["settingOff"] = before,
@@ -756,7 +809,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var evidence = new JObject
             {
                 ["level"] = "NATIVE DELIVERY",
-                ["mode"] = "RT",
+                ["mode"] = Chunk6bChargeTb ? "TB" : "RT",
                 ["case"] = Chunk6bChargeRepeatRow,
                 ["mounted"] = relationship.State == RelationshipState.Mounted &&
                     relationship.Rider == rider && relationship.Mount == horse,
