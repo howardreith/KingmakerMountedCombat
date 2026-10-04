@@ -8,6 +8,7 @@ using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Abilities.Components;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.Utility;
+using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
@@ -35,7 +36,9 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-default-off",
             "C6B-CHARGE-positive",
             "C6B-CHARGE-below-minimum",
-            "C6B-CHARGE-stock-rejected"
+            "C6B-CHARGE-stock-rejected",
+            "C6B-CHARGE-interrupted",
+            "C6B-CHARGE-combat-ended"
         };
 
         private int chunk6bChargeCase, chunk6bChargeStage;
@@ -56,6 +59,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private int chunk6bChargeAttackRulesBefore, chunk6bChargeOpportunityRulesBefore;
         private int chunk6bChargeAdmittedBefore, chunk6bChargeRefusedBefore;
         private bool chunk6bChargeAttemptAdmitted;
+        private JObject chunk6bChargeIntervention;
+        private bool chunk6bChargeInterventionDone;
         private float chunk6bChargeBaseRiderStandard, chunk6bChargeBaseRiderMove;
         private float chunk6bChargeBaseMountStandard, chunk6bChargeBaseMountMove;
         private int chunk6bChargeRepeatStage;
@@ -86,6 +91,48 @@ namespace KingmakerMountedCombat.Diagnostics
                     default: return 9f;
                 }
             }
+        }
+
+        // A lawful charge geometry read from the mount, which is the mover: the straight native route must
+        // reach the point and the landing point must be clear. Preview.161 measured what happens without
+        // this: an obstructed line made the policy refuse the target, correctly, and the row recorded
+        // nothing. Every attempt is published so the chosen point is never a bare assertion.
+        private Vector3 FindChunk6bChargeTargetPoint(float distance)
+        {
+            var attempts = new JArray();
+            Chunk6bChargeMeasurement["placement-" + Chunk6bChargeCaseId] = new JObject
+            {
+                ["origin"] = CapturePosition(horse.Position),
+                ["wantedDistance"] = distance,
+                ["attempts"] = attempts
+            };
+            return FindWalkablePoint(horse.Position, distance, 0.5f, point =>
+            {
+                var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, point);
+                var blocked = Chunk6bLandingBlocked(point, 0.5f);
+                var riderDistance = HorizontalDistance(rider.Position, point);
+                var within = MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance);
+                attempts.Add(new JObject
+                {
+                    ["point"] = CapturePosition(point),
+                    ["nativeTrace"] = CapturePosition(endpoint),
+                    ["landingBlockedEstimate"] = blocked,
+                    ["riderDistance"] = riderDistance,
+                    ["withinFixtureBounds"] = within
+                });
+                return within && endpoint == point && !blocked;
+            });
+        }
+
+        // The exact geometry the policy reads, for a refusal message that explains itself.
+        private string DescribeChunk6bChargeGeometry()
+        {
+            var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, target.Position);
+            return "distance=" + HorizontalDistance(horse.Position, target.Position).ToString("0.###",
+                    System.Globalization.CultureInfo.InvariantCulture) +
+                "; straightRoute=" + (endpoint == target.Position) +
+                "; landingBlocked=" + Chunk6bLandingBlocked(target.Position, 0.5f) +
+                "; available=" + (chunk6bChargeAbility == null ? "<none>" : chunk6bChargeAbility.IsAvailableForCast.ToString());
         }
 
         private void BeginChunk6bCharge()
@@ -124,6 +171,8 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bChargeInput = null;
             chunk6bChargeLeaseEvidence = null;
             chunk6bChargeAttemptAdmitted = false;
+            chunk6bChargeIntervention = null;
+            chunk6bChargeInterventionDone = false;
             chunk6bChargeSamples.Clear();
             chunk6bChargeHoverPure = false;
             chunk6bChargeClicked = false;
@@ -241,7 +290,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(false);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
-                BeginTarget(Chunk6bChargeCaseDistance, Chunk6bChargeCaseId);
+                BeginTarget(Chunk6bChargeCaseDistance, Chunk6bChargeCaseId, FindChunk6bChargeTargetPoint(Chunk6bChargeCaseDistance));
                 ruleProbe.Arm(target, false);
                 chunk6bChargeStage = 1; ResetLeafClock(); return;
             }
@@ -261,6 +310,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6bChargeAbility = FindChunk6bChargeAbility();
                 if (chunk6bChargeAbility == null)
                     throw new InvalidOperationException("The KMC Mounted Charge ability is not leased on the rider.");
+                // A case that must deliver a charge waits for the mod own targeting to admit the target, so a
+                // row never records a lawful click against a geometry the policy rightly refuses.
+                if (chunk6bChargeCase == 1 || chunk6bChargeCase == 4 || chunk6bChargeCase == 5)
+                {
+                    if (!chunk6bChargeAbility.CanTarget(new TargetWrapper(target)))
+                    {
+                        if (leafClock.Elapsed.TotalSeconds < 8.0) return;
+                        throw new InvalidOperationException(
+                            "The charge fixture could not present a targetable charge geometry: " + DescribeChunk6bChargeGeometry());
+                    }
+                }
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 var nativeTarget = new TargetWrapper(target);
                 chunk6bChargeBefore = new JObject
@@ -371,6 +431,40 @@ namespace KingmakerMountedCombat.Diagnostics
                     }
                 }
 
+                // Cases 4 and 5 intervene through a native surface once the pair has genuinely committed:
+                // the charge was admitted, the pair command is live and the mount has carried at least a
+                // metre and a half of the forced path. Nothing is written to any actor resource.
+                if (!chunk6bChargeInterventionDone && (chunk6bChargeCase == 4 || chunk6bChargeCase == 5) &&
+                    chunk6bChargeMountDistance >= 1.5f && combat.HasActiveCommand &&
+                    combat.LastMountedChargeCommand != null && !combat.LastMountedChargeCommand.IsFinished)
+                {
+                    chunk6bChargeInterventionDone = true;
+                    var kind = chunk6bChargeCase == 4 ? "native-command-interrupt" : "native-combat-end";
+                    chunk6bChargeIntervention = new JObject
+                    {
+                        ["kind"] = kind,
+                        ["frame"] = Time.frameCount,
+                        ["nativeSeconds"] = elapsed,
+                        ["mountDistanceAtIntervention"] = chunk6bChargeMountDistance,
+                        ["pairCommandActiveBefore"] = true,
+                        ["riderInCombatBefore"] = rider.IsInCombat,
+                        ["riderStandardBefore"] = rider.CombatState.Cooldown.StandardAction,
+                        ["before"] = CaptureChunk6bChargeActors("intervention-before")
+                    };
+                    if (chunk6bChargeCase == 4)
+                    {
+                        combat.LastMountedChargeCommand.Interrupt();
+                    }
+                    else
+                    {
+                        TryLeaveCombat(target); TryLeaveCombat(rider); TryLeaveCombat(horse);
+                    }
+                    chunk6bChargeIntervention["after"] = CaptureChunk6bChargeActors("intervention-after");
+                    chunk6bChargeIntervention["riderInCombatAfter"] = rider.IsInCombat;
+                    chunk6bChargeIntervention["riderStandardAfter"] = rider.CombatState.Cooldown.StandardAction;
+                    return;
+                }
+
                 var settled = (chunk6bChargeShell == null || chunk6bChargeShell.IsFinished) &&
                     !combat.HasActiveCommand && rider.Commands.Empty && horse.Commands.Empty &&
                     (agent == null || !agent.IsReallyMoving) &&
@@ -430,6 +524,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["mountMoveNow"] = horse.CombatState.Cooldown.MoveAction
                     },
                     ["lease"] = chunk6bChargeLeaseEvidence,
+                    ["intervention"] = chunk6bChargeIntervention,
                     // What the controller did with this attempt, read after it settled rather than at the
                     // click: the shell spends the rider action and asks for delivery on a later frame.
                     ["delivery"] = new JObject
@@ -505,7 +600,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 case 0: return "The Mounted Charge control is absent while its setting is off and leased on the rider once it is on.";
                 case 1: return "One player click delivered one rider-owned full-round charge: the mount carried the forced path and the rider struck once with the native charge rule.";
                 case 2: return "A target inside the stock minimum charge distance was refused before any cost, path or attack.";
-                default: return "The stock native Charge remained rejected while mounted.";
+                case 3: return "The stock native Charge remained rejected while mounted.";
+                case 4: return "A charge interrupted after commitment stopped at once, restored every leased value, delivered no attack and kept the cost the engine had taken.";
+                default: return "A charge whose combat ended mid-path terminated bounded, restored every leased value and delivered no attack.";
             }
         }
 
@@ -690,6 +787,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["mountMoveNow"] = horse.CombatState.Cooldown.MoveAction
                 },
                 ["lease"] = null,
+                ["intervention"] = null,
                 ["delivery"] = new JObject
                 {
                     ["chargeAdmitted"] = combat.MountedChargeAdmittedCount - chunk6bChargeRepeatAdmittedBefore,

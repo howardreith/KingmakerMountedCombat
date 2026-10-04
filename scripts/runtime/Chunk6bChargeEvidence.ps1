@@ -10,7 +10,7 @@ Set-StrictMode -Version Latest
 # charge lease is restored exactly with no residue beyond the native buff duration.
 function Get-KmcChunk6bChargeScenarios { @('chunk6b-charge-rt') }
 function Get-KmcChunk6bChargeRows {
-    @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected')
+    @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended')
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
 function ChargeProp($Object,[string]$Name) { if($null-ne$Object-and$null-ne$Object.PSObject.Properties[$Name]){$Object.$Name}else{$null} }
@@ -55,6 +55,45 @@ function Assert-KmcChunk6bChargeNothingHappened($Evidence,[string]$Row) {
     if([long](ChargeProp $Evidence 'attackRules')-ne0){ChargeFail ('row '+$Row+' initiated a pair attack on a refusal')}
     if($null-ne(ChargeProp $Evidence 'lease')){ChargeFail ('row '+$Row+' applied a charge lease on a refusal')}
     if((ChargeProp (ChargeProp $Evidence 'after') 'mountCharging')-ne$false-or(ChargeProp (ChargeProp $Evidence 'after') 'riderStateCharging')-ne$false){ChargeFail ('row '+$Row+' left charge state behind on a refusal')}
+}
+
+# A charge that was lawfully admitted, genuinely carried and then ended through a native surface. The
+# engine keeps what it has already taken: the rider standard action stays spent, the mount is charged
+# nothing, every leased value is restored exactly and the pair delivers no attack of its own.
+function Assert-KmcChunk6bChargeBoundedTermination($Evidence,[string]$Row,[string]$Kind) {
+    $delivery=ChargeProp $Evidence 'delivery';$movement=ChargeProp $Evidence 'movement';$economy=ChargeProp $Evidence 'economy'
+    $lease=ChargeProp $Evidence 'lease';$rules=ChargeProp $Evidence 'rules';$after=ChargeProp $Evidence 'after'
+    $intervention=ChargeProp $Evidence 'intervention';$terminal=ChargeProp $Evidence 'terminal'
+    foreach($part in @($delivery,$movement,$economy,$lease,$rules,$after,$intervention,$terminal)){ if($null-eq$part){ChargeFail ('row '+$Row+' lacks a termination section')} }
+    if([long](ChargeProp $delivery 'chargeAdmitted')-ne1){ChargeFail ('row '+$Row+' did not admit exactly one charge')}
+    if([long](ChargeProp $delivery 'chargeRefused')-ne0){ChargeFail ('row '+$Row+' refused the charge it admitted')}
+    if($null-ne(ChargeProp $delivery 'lastRefusal')){ChargeFail ('row '+$Row+' left a charge refusal reason behind')}
+    # The pair committed before the intervention: the mount carried the forced path at charge speed.
+    if(-not(ChargeNumber (ChargeProp $movement 'mountDistance'))-or[double]$movement.mountDistance-lt1.0){ChargeFail ('row '+$Row+' the mount never carried the charge before the intervention')}
+    if((ChargeProp $movement 'chargingObserved')-ne$true){ChargeFail ('row '+$Row+' the mount agent was never observed charging')}
+    if(-not(ChargeNumber (ChargeProp $movement 'peakSpeedMps'))-or-not(ChargeNumber (ChargeProp $movement 'mountCombatSpeedMps'))){ChargeFail ('row '+$Row+' the charge speed was not recorded')}
+    if([double]$movement.peakSpeedMps-lt([double]$movement.mountCombatSpeedMps*1.2)){ChargeFail ('row '+$Row+' the charge never exceeded the mount walking combat speed')}
+    # The engine owns the cost and keeps it: the shell paid, nothing was refunded, the mount paid nothing.
+    if(-not(ChargeNumber (ChargeProp $economy 'riderStandardMax'))-or[double]$economy.riderStandardMax-le0.001){ChargeFail ('row '+$Row+' the rider standard action was never spent')}
+    if(-not(ChargeNumber (ChargeProp $economy 'riderStandardNow'))-or[double]$economy.riderStandardNow-lt-0.001){ChargeFail ('row '+$Row+' recorded a negative rider standard cooldown')}
+    foreach($name in @('mountStandardMax','mountMoveMax')){ if(-not(ChargeNumber (ChargeProp $economy $name))-or[double]$economy.$name-gt0.001){ChargeFail ('row '+$Row+' the mount was charged for carrying the charge: '+$name)} }
+    # Exact restoration of every leased value, and the rider agent never touched.
+    foreach($flag in @('applied','buffApplied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly')){ if((ChargeProp $lease $flag)-ne$true){ChargeFail ('row '+$Row+' the charge lease flag is not set: '+$flag)} }
+    if((ChargeProp $lease 'riderAgentTouched')-ne$false){ChargeFail ('row '+$Row+' the charge lease touched the rider agent')}
+    if([long](ChargeProp $lease 'forcedPathCount')-lt1){ChargeFail ('row '+$Row+' the charge lease forced no path')}
+    # No attack of the pair own: the intervention came before the strike.
+    if([long](ChargeProp $rules 'pairNonOpportunityAttackRules')-ne0){ChargeFail ('row '+$Row+' delivered a pair attack after the intervention')}
+    if([long](ChargeProp $rules 'mountAttackRules')-ne0){ChargeFail ('row '+$Row+' the mount initiated an attack')}
+    if([long](ChargeProp $terminal 'childAttackStartCount')-ne0){ChargeFail ('row '+$Row+' the terminal records a started child attack')}
+    # No residue of any kind.
+    foreach($flag in @('mountCharging','mountMoving','riderStateCharging','mountStateCharging','pairCommandActive')){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('row '+$Row+' left residue: '+$flag)} }
+    if($null-ne(ChargeProp $after 'mountSpeedOverride')){ChargeFail ('row '+$Row+' left a mount speed override behind')}
+    # The intervention is recorded exactly, and it really was an intervention into a live committed charge.
+    if([string](ChargeProp $intervention 'kind')-cne$Kind){ChargeFail ('row '+$Row+' recorded another intervention kind: '+(ChargeProp $intervention 'kind'))}
+    if((ChargeProp $intervention 'pairCommandActiveBefore')-ne$true){ChargeFail ('row '+$Row+' intervened with no active pair command')}
+    if(-not(ChargeNumber (ChargeProp $intervention 'mountDistanceAtIntervention'))-or[double]$intervention.mountDistanceAtIntervention-lt1.0){ChargeFail ('row '+$Row+' intervened before the charge had carried the pair')}
+    if(-not(ChargeNumber (ChargeProp $intervention 'riderStandardBefore'))-or[double]$intervention.riderStandardBefore-le0.001){ChargeFail ('row '+$Row+' the rider standard action was not already spent at the intervention')}
+    if(-not(ChargeNumber (ChargeProp $intervention 'riderStandardAfter'))-or[double]$intervention.riderStandardAfter-lt([double]$intervention.riderStandardBefore-0.2)){ChargeFail ('row '+$Row+' the intervention refunded the rider standard action')}
 }
 
 function Assert-KmcChunk6bChargeRow($Row) {
@@ -150,6 +189,18 @@ function Assert-KmcChunk6bChargeRow($Row) {
             $feedback=[string](ChargeProp $input 'feedback');$safety=[string](ChargeProp $input 'safetyFeedback')
             if((ChargeProp $input 'stockAvailable')-ne$false-and$feedback-cne$safety){ChargeFail 'the stock Charge was neither unavailable nor refused with its exact mounted reason'}
             Assert-KmcChunk6bChargeNothingHappened $e $name
+        }
+        'C6B-CHARGE-interrupted' {
+            if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the interrupted charge was not available or targetable'}
+            if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the interrupted charge did not admit exactly one native shell'}
+            Assert-KmcChunk6bChargeBoundedTermination $e $name 'native-command-interrupt'
+        }
+        'C6B-CHARGE-combat-ended' {
+            if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the combat-end charge was not available or targetable'}
+            if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the combat-end charge did not admit exactly one native shell'}
+            Assert-KmcChunk6bChargeBoundedTermination $e $name 'native-combat-end'
+            $intervention=ChargeProp $e 'intervention'
+            if((ChargeProp $intervention 'riderInCombatBefore')-ne$true){ChargeFail 'the combat-end row did not start in combat'}
         }
         default { ChargeFail ('unknown row '+$name) }
     }
