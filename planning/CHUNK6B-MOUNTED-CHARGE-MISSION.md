@@ -1,8 +1,9 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `ALL SEVEN REAL-TIME 6B.2 CHARGE ROWS ARE LAWFUL ON THE IMMUTABLE PREVIEW.162 EVIDENCE; INCREMENT 6B.1 IS
-QUALIFIED NATIVELY IN BOTH MODES; INCREMENT 6B.3 TURN-BASED DELIVERY IMPLEMENTED
-(0.1.0-chunk6b-preview.163) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `THE PAIR-OWNED MOUNTED CHARGE IS QUALIFIED NATIVELY IN REAL TIME ACROSS ALL SEVEN 6B.2 ROWS ON FROZEN
+PREVIEW.163, AND INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3 IS IMPLEMENTED BUT NOT YET
+MEASURED: ITS STAGE DID NOT RUN ON PREVIEW.163. LAUNCHER REGISTRATION ADDED (0.1.0-chunk6b-preview.164) -
+CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -655,3 +656,34 @@ pair's movement available for the forced path in turn-based mode. The answer is 
 the preview.163 native run will measure.
 
 Offline verification: FAST 15/0, component tests 565/0, charge reader 100/0, carrier reader 142/0.
+
+## Preview.163 native outcome (2026-10-04; frozen preview.163, campaign closed)
+
+Frozen preview.163 (commit 676db1f1, committed tree 2a1f3029, package 954b75b0, suite
+`20261004-chunk6b-charge-h` / 67357ef4, DLL b101e843 / MVID 37435f9d, purity PASS 74.1 min with empty
+stderr); CANDIDATE 26/0, FAST 15/0, component tests 565/0, charge reader 100/0, carrier reader 142/0. Lab
+record `measurement-preview163.json` (a3cba827), outcome
+`chunk6b-increment-6b2-outcome-preview163.json` (d24ef6d5): **5 PASS / 0 FAIL, with one stage NOT RUN**, five
+fresh isolated restored transactions, session logs preserved.
+
+- **C6B-CHARGE-RT: PASS, 67/0. The pair-owned Mounted Charge is qualified natively in real time across all
+  seven rows of increment 6B.2 that exist today.** The row set: the control is absent while the setting is off
+  and leased on the rider once it is on; one player click delivers one rider-owned full-round charge with the
+  mount carrying the forced straight path 6.75 m at 10.16 m/s against a 5.08 m/s combat speed and the rider
+  striking once with the native charge rule; a repeated request while the standard action is spent is refused
+  before any cost, path or attack; a target inside the stock minimum charge distance is refused the same way;
+  the stock native Charge stays rejected while mounted; a charge interrupted after commitment stops at once;
+  and a charge whose combat ends mid-path terminates bounded. Both interventions restored every leased value
+  exactly, delivered no attack and refunded nothing.
+- **C6B-PATH-RT and C6B-PATH-TB: PASS, 62/0 each. CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS, 66/0 each.**
+- **C6B-CHARGE-TB: NOT RUN, and it is not a pass.** The repository launcher validates its `-Scenario`
+  argument against an allowlist that did not yet include `chunk6b-charge-tb`, so the invocation failed
+  parameter binding in 0.4 seconds, before any transaction was opened. `Record-NotRun163-ChargeTb.ps1` proves
+  that nothing live was touched (no run transaction, no runtime-evidence directory, no runtime lock, Kingmaker
+  closed), records the launcher log and its hash, and marks the stage NOT RUN with that exact reason.
+  Increment 6B.3 is therefore implemented and offline-verified but **unmeasured**.
+
+## Preview.164 - launcher registration for the turn-based charge (2026-10-04, offline-verified)
+
+The turn-based charge scenario id is registered in both repository launcher allowlists, which is the only
+thing that stood between the implemented increment 6B.3 and its measurement. No product or reader change.
