@@ -10,6 +10,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // with the component test project, which cannot compile the runtime
             // tranche because that type binds Kingmaker assemblies.
             return string.Equals(scenario, "chunk6b-charge-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6b-charge-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6b-charge-path-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6b-charge-path-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-combat-mount-rt", StringComparison.Ordinal) ||
