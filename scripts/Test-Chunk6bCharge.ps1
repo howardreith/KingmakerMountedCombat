@@ -79,7 +79,8 @@ function New-TerminatedRow([string]$Case,[string]$Kind){
 function New-Row([string]$Case){
  if($Case-ceq'C6B-CHARGE-interrupted'){ return New-TerminatedRow $Case 'native-command-interrupt' }
  if($Case-ceq'C6B-CHARGE-combat-ended'){ return New-TerminatedRow $Case 'native-combat-end' }
- $refusal=$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected')
+ # Turn-based: every measured row is a refusal while increment 6B.3 is deferred.
+ $refusal=$script:fixtureMode-ceq'TB'-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected')
  if($Case-ceq'C6B-CHARGE-default-off'){
   return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
    settingOff=(New-Identity $false $false);settingOn=(New-Identity $true $true);abilityGuid=$kmc}}
@@ -99,8 +100,9 @@ function New-Row([string]$Case){
  [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
   level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
   before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' $distance $riderStandard $false)
-   available=$(if($refusal){$false}else{$true});unavailableReason=$null
-   canTarget=$(if($refusal){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
+   available=$(if($refusal-or$script:fixtureMode-ceq'TB'){$false}else{$true});unavailableReason=$null
+   kmcAvailabilityReason=$(if($script:fixtureMode-ceq'TB'){'Mounted Charge is not yet supported in turn-based mode.'}else{'Mounted Charge is available.'})
+   canTarget=$(if($refusal-or$script:fixtureMode-ceq'TB'){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
    requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
   input=$input
   samples=@()
@@ -239,12 +241,13 @@ Accept 'a failed artifact retained without a verdict' { Assert-KmcChunk6bChargeE
 # Turn-based mode: the delivery and refusal core only, on the rider own unmoved turn.
 $tbRequest=[pscustomobject]@{scenario='chunk6b-charge-tb'}
 function MutateTb([string]$Name,[scriptblock]$Change){ $a=New-Artifact 'TB'; & $Change $a; Reject ('TB: '+$Name) { Assert-KmcChunk6bChargeEvidence $tbRequest $a 'PASS' } }
-Accept 'TB lawful pair-owned mounted charge delivery' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
+Accept 'TB turn-based charge refused while increment 6B.3 is deferred' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
 MutateTb 'a turn-based artifact read as real time' {param($a) $a.observations.chunk6bCharge.mode='RT'}
 MutateTb 'a turn-based charge with no recorded turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn=$null}
 MutateTb 'a turn-based charge off the rider own turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.isRider=$false}
-MutateTb 'a turn-based charge after the turn had moved' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.timeMoved=1.0}
-MutateTb 'a turn-based charge cast on a preparing turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.acting=$false}
+MutateTb 'a turn-based charge that was still available' {param($a) (Row $a 'C6B-CHARGE-positive').before.available=$true}
+MutateTb 'a turn-based charge that was still targetable' {param($a) (Row $a 'C6B-CHARGE-positive').before.canTarget=$true}
+MutateTb 'a turn-based refusal with another reason' {param($a) (Row $a 'C6B-CHARGE-positive').before.kmcAvailabilityReason='Mounted Charge requires combat.'}
 MutateTb 'a turn-based artifact carrying a real-time only row' {param($a) $a.rows=@($a.rows)+@((Json (New-Row 'C6B-CHARGE-interrupted'))); $a.subscenarioPassCount=$a.rows.Count}
 Accept 'TB failed artifact retained without a verdict' { $f=New-Artifact 'TB'; $f.status='FAIL'; $f.rows=@($f.rows[0]); $f.rows[0].status='FAIL'; $f.subscenarioPassCount=0; $f.subscenarioFailCount=1; Assert-KmcChunk6bChargeEvidence $tbRequest $f 'FAIL' }
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

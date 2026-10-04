@@ -120,49 +120,15 @@ namespace KingmakerMountedCombat.Tests
                 }, MountedCombatRejectionCode.WrongActionState, "a spent turn-based standard action");
             });
 
-            runner.Run("turn-based mounted charge requires the rider full-round turn before movement", () =>
+            runner.Run("turn-based mounted charge is refused outright while increment 6B.3 is deferred", () =>
             {
-                Refuses(request =>
-                {
-                    request.TurnBased = true;
-                    request.RiderTurn = false;
-                }, MountedCombatRejectionCode.WrongTurn, "another actor's turn");
-                Refuses(request =>
-                {
-                    request.TurnBased = true;
-                    request.TurnActingOrPreparing = false;
-                }, MountedCombatRejectionCode.WrongTurn, "a turn that is neither preparing nor acting");
-                // The pair movement delegation needs an acting turn, so a preparing turn is refused here
-                // rather than accepted into a round the charge cannot deliver.
-                Refuses(request =>
-                {
-                    request.TurnBased = true;
-                    request.TurnActing = false;
-                }, MountedCombatRejectionCode.WrongTurn, "a preparing rider turn that cannot delegate mount movement");
-                var realTimePreparing = Evaluate(request =>
-                {
-                    request.TurnBased = false;
-                    request.TurnActing = false;
-                });
-                TestRunner.True(realTimePreparing.IsAllowed, "Real time applied the acting-turn gate: " + realTimePreparing.Reason);
-                Refuses(request =>
-                {
-                    request.TurnBased = true;
-                    request.RiderMoveCooldown = 3f;
-                }, MountedCombatRejectionCode.WrongActionState, "a spent move action for a full-round charge");
-                Refuses(request =>
-                {
-                    request.TurnBased = true;
-                    request.TurnTimeMoved = 0.25f;
-                }, MountedCombatRejectionCode.WrongActionState, "a turn that had already moved");
-                var realTime = Evaluate(request =>
-                {
-                    request.TurnBased = false;
-                    request.RiderMoveCooldown = 3f;
-                    request.TurnTimeMoved = 1f;
-                    request.RiderTurn = false;
-                });
-                TestRunner.True(realTime.IsAllowed, "Real-time charge applied a turn-based gate: " + realTime.Reason);
+                Refuses(request => request.TurnBased = true, MountedCombatRejectionCode.WrongTurn,
+                    "a turn-based charge while the increment is deferred");
+                var deferred = Evaluate(request => request.TurnBased = true);
+                TestRunner.True(deferred.Reason == "Mounted Charge is not yet supported in turn-based mode.",
+                    "The turn-based deferral did not give its exact reason: " + deferred.Reason);
+                var realTime = Evaluate(request => request.TurnBased = false);
+                TestRunner.True(realTime.IsAllowed, "Real time was refused by the turn-based deferral: " + realTime.Reason);
             });
 
             runner.Run("mounted charge delivery does not re-demand the action its own shell has spent", () =>
@@ -174,26 +140,16 @@ namespace KingmakerMountedCombat.Tests
                     request.RiderStandardCooldown = 6f;
                 });
                 TestRunner.True(realTime.IsAllowed, "The delivery of the charge shell was refused the action it had spent: " + realTime.Reason);
-                var turnBased = Evaluate(request =>
-                {
-                    request.DeliveringOwnShell = true;
-                    request.TurnBased = true;
-                    request.RiderStandardCooldown = 6f;
-                    request.RiderMoveCooldown = 6f;
-                });
-                TestRunner.True(turnBased.IsAllowed, "The turn-based delivery of the charge shell was refused its own full-round cost: " + turnBased.Reason);
+                // The turn-based equivalent is not asserted here: increment 6B.3 is deferred with evidence
+                // and the turn-based branch refuses outright, which its own test covers.
                 // The exemption is exactly the two resources that shell pays for, and nothing else.
                 Refuses(request =>
                 {
                     request.DeliveringOwnShell = true;
                     request.RiderCanActInCombat = false;
                 }, MountedCombatRejectionCode.WrongActionState, "a delivering shell whose rider cannot act");
-                Refuses(request =>
-                {
-                    request.DeliveringOwnShell = true;
-                    request.TurnBased = true;
-                    request.TurnTimeMoved = 1f;
-                }, MountedCombatRejectionCode.WrongActionState, "a delivering shell after the turn had already moved");
+                // The turn-based rule that prior movement is never exempted is unreachable while increment
+                // 6B.3 is deferred, so it is not asserted here; the deferral refusal has its own test.
                 Refuses(request =>
                 {
                     request.DeliveringOwnShell = true;
