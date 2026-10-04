@@ -1260,6 +1260,23 @@ Assert-Kmc ($sharedRowsBody.Success -and $sharedRowNames.Count -ge 20 -and
     $gameResultValidatorText -match "\`$missionScenarios \| Where-Object \{ \`$_ -ceq \[string\]\`$item\.name \}\)\.Count -ne 1") `
     'every known subscenario name is registered exactly once across the shared registry and each validator'
 
+# A row name is a registration too. The Chunk 6B charge reader decides which rows a charge artifact must
+# carry, and every one of those names has to be in the shared subscenario registry, or the run completes,
+# the native validator passes and the overall runtime-result gate then refuses the artifact for an unknown
+# subscenario. Preview.170 spent a live campaign discovering exactly that, so the chain is walked offline.
+$chargeReaderText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Chunk6bChargeEvidence.ps1')
+$chargeRowsBody = [Regex]::Match($chargeReaderText, '(?s)function Get-KmcChunk6bChargeRows.*?\n\}')
+$chargeRowNames = @([Regex]::Matches($chargeRowsBody.Value, "'(C6B-CHARGE-[A-Za-z0-9-]+)'") |
+    ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+$unregisteredChargeRows = @($chargeRowNames | Where-Object { $sharedRowNames -cnotcontains $_ })
+$chargePathReaderText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Chunk6bChargePathEvidence.ps1')
+$pathRowNames = @([Regex]::Matches($chargePathReaderText, "'(C6B-PATH-[A-Za-z0-9-]+)'") |
+    ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+$unregisteredPathRows = @($pathRowNames | Where-Object { $sharedRowNames -cnotcontains $_ })
+Assert-Kmc ($chargeRowsBody.Success -and $chargeRowNames.Count -ge 7 -and $pathRowNames.Count -ge 2 -and
+    $unregisteredChargeRows.Count -eq 0 -and $unregisteredPathRows.Count -eq 0) `
+    'every Chunk 6B charge and carrier row the readers require is in the shared subscenario registry'
+
 
 # THE REGISTRATION CHAIN. A new scenario's evidence leaf has to be registered in five
 # places, and every one of them only complains AFTER a live run has finished: the

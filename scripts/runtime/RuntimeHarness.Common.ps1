@@ -3784,7 +3784,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'CM03-mount-spent-move', 'CM03-mount-spent-standard', 'CM03-mount-spent-all', 'CM03-rider-without-move', 'CM03-rider-other-action', 'CM03-unrelated-candidate-between', 'CM05-after-rider-expenditure', 'CM05-after-mount-expenditure', 'CM05-immediately-after-mount',
         'C6B-CHARGE-default-off', 'C6B-CHARGE-positive', 'C6B-CHARGE-below-minimum',
         'C6B-CHARGE-spent-standard', 'C6B-CHARGE-stock-rejected',
-        'C6B-CHARGE-interrupted', 'C6B-CHARGE-combat-ended',
+        'C6B-CHARGE-interrupted', 'C6B-CHARGE-combat-ended', 'C6B-CHARGE-obstructed-line',
         'C6B-PATH-straight-arrival', 'C6B-PATH-interrupt-stop',
         'C4-CHARGE-mounted-rider', 'C4-CHARGE-unmounted-rider',
         'C4-CHARGE-mounted-mount', 'C4-CHARGE-unrelated-actor', 'C4-CHARGE-queued-state-change',
