@@ -1,9 +1,8 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `INCREMENT 6B.1 FULLY QUALIFIED NATIVELY IN BOTH MODES ON PREVIEW.161; THE CHARGE DELIVERS END TO END
-(MEASURED ON PREVIEW.160) BUT ITS ROW IS NOT YET QUALIFIED BECAUSE THE FIXTURE GEOMETRY WAS NOT DETERMINISTIC;
-DETERMINISM FIX AND TWO LIFECYCLE ROWS IMPLEMENTED (0.1.0-chunk6b-preview.162) - CANDIDATE TIER, FREEZE AND
-NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `ALL SEVEN REAL-TIME 6B.2 CHARGE ROWS ARE LAWFUL ON THE IMMUTABLE PREVIEW.162 EVIDENCE; INCREMENT 6B.1 IS
+QUALIFIED NATIVELY IN BOTH MODES; INCREMENT 6B.3 TURN-BASED DELIVERY IMPLEMENTED
+(0.1.0-chunk6b-preview.163) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -593,3 +592,66 @@ Increment 6B.2 remains incomplete. Still open: the straight-line obstruction ref
 obstruction refusal, cancellation before commitment, target loss mid-path, and rider and mount incapacity
 mid-path. The beyond-maximum refusal stays a named limitation, unreachable inside the authorized diagnostic
 spawn envelope and covered by the pure policy only.
+
+## Preview.162 native outcome (2026-10-04; frozen preview.162, campaign closed)
+
+Frozen preview.162 (commit e69f0087, committed tree 3ff9b4ad, package 0dd79544, suite
+`20261004-chunk6b-charge-g` / 2cc55602, DLL 2dab47e9 / MVID cd5d811a, purity PASS 73.9 min with empty
+stderr); CANDIDATE 26/0, FAST 15/0, component tests 565/0, charge reader 90/0, carrier reader 142/0. Lab
+record `measurement-preview162.json` (182f3d97), outcome
+`chunk6b-increment-6b2-outcome-preview162.json` (3cecfaa2): 4 PASS / 1 FAIL of 5 stages, five fresh isolated
+restored transactions, session logs preserved.
+
+- **C6B-PATH-RT and C6B-PATH-TB: PASS, 62/0 each. CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS, 66/0 each.**
+- **C6B-CHARGE-RT: every one of the seven rows behaved exactly as designed.** The deterministic placement
+  worked: the fixture found a lawful charge line, the charge was admitted once, and the mount carried 6.77 m.
+  The two new lifecycle rows each admitted a charge, carried the pair about 1.56 m of the forced path, applied
+  and restored the lease, and delivered no attack: the interrupt ended the pair command through its own native
+  `Interrupt` and the combat-end row ended the combat. The refusal rows admitted nothing, moved nothing and
+  applied no lease.
+
+  The stage nevertheless failed twice over, and both causes were mine on the measurement side. First, the two
+  new row names were not registered in the runtime subscenario registries, so the in-transaction validator
+  refused the game result with "Runtime game-result contains an unknown subscenario: C6B-CHARGE-interrupted"
+  before any reader rule ran. Second, with that name accepted offline, the reader refused the combat-end row
+  for "the intervention refunded the rider standard action". That rule was wrong: across the combat-end
+  intervention the rider's standard cooldown went from 5.799 s to 0 **while the rider left combat**, and
+  Kingmaker clears its own combat cooldowns on combat exit. The interrupt row, where combat continued, held
+  the cooldown at 5.798 s before and after, exactly as the rule intends.
+
+  **With the registry entries added and that rule corrected, the reader accepts all seven rows of the
+  immutable preview.162 charge artifact.** The stage verdict stays FAIL as recorded, because the verdict
+  belongs to the readers that ran in-transaction; the authoritative native PASS is the business of
+  preview.163.
+
+Lab record correction, not a re-verdict: I edited two tracked files to add the registry entries while the
+preview.162 campaign was still open, then restored them. Restoring them through git rewrote
+`scripts/runtime/RuntimeHarness.Common.ps1` in its committed line-ending form, which the long-lived working
+copy had not been carrying, so the on-disk reader digest changed while `git diff` stayed empty.
+`Rebind-Harness162.ps1` records both digests, reproduces the as-run digest from the as-run bytes to prove
+the equivalence, and re-binds the measurement record's harness identity to the canonical readers. No verdict,
+artifact, assertion or threshold changed.
+
+## Preview.163 - turn-based charge delivery (increment 6B.3) (2026-10-04, offline-verified)
+
+- **The two new subscenario names are registered** in both runtime registries, so the in-transaction
+  validator accepts the rows the fixture now emits.
+- **The combat-end cooldown rule is corrected and split by observed state.** While combat continues nothing
+  may give the spent action back. When combat itself ends, the engine clears its own combat cooldowns, so the
+  assertable fact becomes that the rider really did leave combat; the interrupt row additionally now proves
+  that it stayed in combat, which is what makes its no-refund rule binding.
+- **Increment 6B.3: the charge fixture gains a turn-based mode**, `chunk6b-charge-tb`, alongside its
+  real-time one, exactly as the carrier measurement has. Real time keeps the whole seven-row set; turn-based
+  carries the delivery and refusal core, because the repeated request and the two lifecycle interventions
+  belong to a live real-time path. The turn-based fixture asks the engine for turn-based mode, leases automatic
+  end-of-turn off, waits for the rider's own turn before that turn has moved, ends the turns it is allowed to
+  end while it waits, and resets its stall clock at each turn boundary. Every state capture now carries the
+  turn facts, and the reader requires of a turn-based delivery that it was cast on the rider's own turn with
+  the turn's movement still at zero. The case selection is addressed by case identity rather than by index so
+  the two modes can carry different row sets.
+
+This is the measurement the mission recorded as a risk: whether the full-round shell's own cost leaves the
+pair's movement available for the forced path in turn-based mode. The answer is not asserted here; it is what
+the preview.163 native run will measure.
+
+Offline verification: FAST 15/0, component tests 565/0, charge reader 100/0, carrier reader 142/0.

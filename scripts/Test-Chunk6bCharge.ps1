@@ -6,6 +6,7 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/Chunk6bChargeEvidence.ps1')
 $script:checks=0
+$script:fixtureMode='RT'
 $kmc=ChargeKmcAbilityGuid
 $stock=ChargeStockAbilityGuid
 function Copy-Case($x){ $x|ConvertTo-Json -Depth 40|ConvertFrom-Json }
@@ -24,7 +25,8 @@ function New-State([string]$Kind,[double]$Distance,[double]$RiderStandard,[bool]
   relationship='Mounted';distanceToTarget=$Distance;riderDistanceToTarget=$Distance;mountCharging=$Charging
   mountSpeedOverride=$(if($Charging){10.16}else{$null});mountMoving=$Charging;mountCombatSpeedMps=5.08
   riderStateCharging=$Charging;mountStateCharging=$false;chargeBuffPresent=$Charging;chargeBuffRounds=6.0
-  pairCommandActive=$Charging;pairMovement='mountMove=0->0'}
+  pairCommandActive=$Charging;pairMovement='mountMove=0->0'
+  turn=$(if($script:fixtureMode-ceq'TB'){[ordered]@{unit='rider';isRider=$true;status='Acting';acting=$true;timeMoved=0.0;timeMovedInForceMode=0.0}}else{$null})}
 }
 function New-Rules([int]$NonOpportunity,[int]$Opportunity,[bool]$Charge){
  $events=@()
@@ -46,11 +48,12 @@ function New-Lease{
 function New-Intervention([string]$Kind){
  [ordered]@{kind=$Kind;frame=130;nativeSeconds=0.4;mountDistanceAtIntervention=4.0;pairCommandActiveBefore=$true
   riderInCombatBefore=$true;riderStandardBefore=6.0;before=(New-State 'intervention-before' 5.0 6.0 $true)
-  after=(New-State 'intervention-after' 5.0 6.0 $true);riderInCombatAfter=$($Kind-ceq'native-command-interrupt');riderStandardAfter=5.8}
+  after=(New-State 'intervention-after' 5.0 6.0 $true);riderInCombatAfter=$($Kind-ceq'native-command-interrupt')
+  riderStandardAfter=$(if($Kind-ceq'native-command-interrupt'){5.8}else{0.0})}
 }
 function New-TerminatedRow([string]$Case,[string]$Kind){
  [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
-  level='NATIVE DELIVERY';mode='RT';case=$Case;mounted=$true
+  level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
   before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' 9.0 0 $false)
    available=$true;unavailableReason=$null;canTarget=$true;minRangeMeters=4.65;approachDistance=99.0
    requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
@@ -78,7 +81,7 @@ function New-Row([string]$Case){
  if($Case-ceq'C6B-CHARGE-combat-ended'){ return New-TerminatedRow $Case 'native-combat-end' }
  $refusal=$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected')
  if($Case-ceq'C6B-CHARGE-default-off'){
-  return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode='RT';case=$Case;mounted=$true
+  return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
    settingOff=(New-Identity $false $false);settingOn=(New-Identity $true $true);abilityGuid=$kmc}}
  }
  $distance=if($Case-ceq'C6B-CHARGE-below-minimum'){3.5}else{9.0}
@@ -94,7 +97,7 @@ function New-Row([string]$Case){
   $input['before']=(New-State 'stock-before' $distance 0 $false);$input['after']=(New-State 'stock-after' $distance 0 $false)
  }
  [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
-  level='NATIVE DELIVERY';mode='RT';case=$Case;mounted=$true
+  level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
   before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' $distance $riderStandard $false)
    available=$(if($refusal){$false}else{$true});unavailableReason=$null
    canTarget=$(if($refusal){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
@@ -117,11 +120,12 @@ function New-Row([string]$Case){
   terminal=$(if($refusal){$null}else{[ordered]@{action='RiderMelee';actorId='rider';resourceOwnerId='rider';targetId='target';result='Success';childAttackStartCount=1;singleAttackMode=$true;nativeFullAttack=$false;nativePlannedAttackCount=1;nativeCompletedAttackCount=1;repathCount=0}})
  }}
 }
-function New-Artifact {
- $rows=@(Get-KmcChunk6bChargeRows|ForEach-Object { New-Row $_ })
+function New-Artifact([string]$Mode='RT'){
+ $script:fixtureMode=$Mode
+ $rows=@(Get-KmcChunk6bChargeRows $Mode|ForEach-Object { New-Row $_ })
  Copy-Case ([ordered]@{schemaVersion=34;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
-  observations=[ordered]@{chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode='RT';cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
+  observations=[ordered]@{chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
 }
 $request=[pscustomobject]@{scenario='chunk6b-charge-rt'}
@@ -219,6 +223,9 @@ Mutate 'an interrupted charge whose intervention had no live pair command' {para
 Mutate 'an interrupted charge that intervened before the pair moved' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.mountDistanceAtIntervention=0.2}
 Mutate 'an interrupted charge whose shell had not paid' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.riderStandardBefore=0.0}
 Mutate 'an interrupted charge that refunded the rider standard action' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.riderStandardAfter=0.0}
+Mutate 'an interrupted charge that left combat instead' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.riderInCombatAfter=$false}
+Mutate 'a combat-end charge that never left combat' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.riderInCombatAfter=$true}
+Mutate 'a combat-end charge with no recorded cooldown after' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.riderStandardAfter='unknown'}
 Mutate 'an interrupted charge recorded as a combat end' {param($a) (Row $a 'C6B-CHARGE-interrupted').intervention.kind='native-combat-end'}
 Mutate 'a combat-end charge recorded as an interrupt' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.kind='native-command-interrupt'}
 Mutate 'a combat-end charge that never started in combat' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.riderInCombatBefore=$false}
@@ -229,4 +236,14 @@ Mutate 'a stock Charge that stayed available and unrefused' {param($a) (Row $a '
 $failed=New-Artifact; $failed.status='FAIL'; $failed.rows=@($failed.rows[0]); $failed.rows[0].status='FAIL'; $failed.subscenarioPassCount=0; $failed.subscenarioFailCount=1
 Accept 'a failed artifact retained without a verdict' { Assert-KmcChunk6bChargeEvidence $request $failed 'FAIL' }
 
+# Turn-based mode: the delivery and refusal core only, on the rider own unmoved turn.
+$tbRequest=[pscustomobject]@{scenario='chunk6b-charge-tb'}
+function MutateTb([string]$Name,[scriptblock]$Change){ $a=New-Artifact 'TB'; & $Change $a; Reject ('TB: '+$Name) { Assert-KmcChunk6bChargeEvidence $tbRequest $a 'PASS' } }
+Accept 'TB lawful pair-owned mounted charge delivery' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
+MutateTb 'a turn-based artifact read as real time' {param($a) $a.observations.chunk6bCharge.mode='RT'}
+MutateTb 'a turn-based charge with no recorded turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn=$null}
+MutateTb 'a turn-based charge off the rider own turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.isRider=$false}
+MutateTb 'a turn-based charge after the turn had moved' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.timeMoved=1.0}
+MutateTb 'a turn-based artifact carrying a real-time only row' {param($a) $a.rows=@($a.rows)+@((Json (New-Row 'C6B-CHARGE-interrupted'))); $a.subscenarioPassCount=$a.rows.Count}
+Accept 'TB failed artifact retained without a verdict' { $f=New-Artifact 'TB'; $f.status='FAIL'; $f.rows=@($f.rows[0]); $f.rows[0].status='FAIL'; $f.subscenarioPassCount=0; $f.subscenarioFailCount=1; Assert-KmcChunk6bChargeEvidence $tbRequest $f 'FAIL' }
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

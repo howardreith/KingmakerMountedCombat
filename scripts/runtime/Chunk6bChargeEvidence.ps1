@@ -8,9 +8,16 @@ Set-StrictMode -Version Latest
 # rider-owned attack carries the native charge rule; every refusal happens before any cost, path or attack;
 # the feature is absent while its setting is off; the stock Charge stays rejected while mounted; and the
 # charge lease is restored exactly with no residue beyond the native buff duration.
-function Get-KmcChunk6bChargeScenarios { @('chunk6b-charge-rt') }
-function Get-KmcChunk6bChargeRows {
-    @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended')
+function Get-KmcChunk6bChargeScenarios { @('chunk6b-charge-rt','chunk6b-charge-tb') }
+function Get-KmcChunk6bChargeMode([string]$Scenario) { if([string]$Scenario-ceq'chunk6b-charge-tb'){'TB'}else{'RT'} }
+# Real time carries the whole 6B.2 row set. Turn-based carries the delivery and refusal core: the
+# repeated request and the two lifecycle interventions belong to a live real-time path.
+function Get-KmcChunk6bChargeRows([string]$Mode) {
+    if([string]$Mode-ceq'TB'){
+        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
+    } else {
+        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended')
+    }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
 function ChargeProp($Object,[string]$Name) { if($null-ne$Object-and$null-ne$Object.PSObject.Properties[$Name]){$Object.$Name}else{$null} }
@@ -93,14 +100,23 @@ function Assert-KmcChunk6bChargeBoundedTermination($Evidence,[string]$Row,[strin
     if((ChargeProp $intervention 'pairCommandActiveBefore')-ne$true){ChargeFail ('row '+$Row+' intervened with no active pair command')}
     if(-not(ChargeNumber (ChargeProp $intervention 'mountDistanceAtIntervention'))-or[double]$intervention.mountDistanceAtIntervention-lt1.0){ChargeFail ('row '+$Row+' intervened before the charge had carried the pair')}
     if(-not(ChargeNumber (ChargeProp $intervention 'riderStandardBefore'))-or[double]$intervention.riderStandardBefore-le0.001){ChargeFail ('row '+$Row+' the rider standard action was not already spent at the intervention')}
-    if(-not(ChargeNumber (ChargeProp $intervention 'riderStandardAfter'))-or[double]$intervention.riderStandardAfter-lt([double]$intervention.riderStandardBefore-0.2)){ChargeFail ('row '+$Row+' the intervention refunded the rider standard action')}
+    if(-not(ChargeNumber (ChargeProp $intervention 'riderStandardAfter'))){ChargeFail ('row '+$Row+' recorded no rider standard cooldown after the intervention')}
+    # While combat continues nothing may give the spent action back. When combat itself ends, Kingmaker
+    # clears its own combat cooldowns, which preview.162 measured directly (5.799 s to 0 as the rider left
+    # combat, against 5.798 s unchanged for the interrupt), so the assertable fact there is that the rider
+    # really did leave combat rather than that the cooldown survived.
+    if((ChargeProp $intervention 'riderInCombatAfter')-eq$true){
+        if([double]$intervention.riderStandardAfter-lt([double]$intervention.riderStandardBefore-0.2)){ChargeFail ('row '+$Row+' the intervention refunded the rider standard action while combat continued')}
+    } else {
+        if((ChargeProp $intervention 'riderInCombatBefore')-ne$true){ChargeFail ('row '+$Row+' the intervention left combat without having been in combat')}
+    }
 }
 
-function Assert-KmcChunk6bChargeRow($Row) {
+function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     $e=$Row.evidence
     $name=[string]$Row.name
     if($null-eq$e){ChargeFail ('row '+$name+' has no evidence')}
-    if([string](ChargeProp $e 'level')-cne'NATIVE DELIVERY'-or[string](ChargeProp $e 'mode')-cne'RT'-or[string](ChargeProp $e 'case')-cne$name){ChargeFail ('row '+$name+' level, mode or case differs')}
+    if([string](ChargeProp $e 'level')-cne'NATIVE DELIVERY'-or[string](ChargeProp $e 'mode')-cne$Mode-or[string](ChargeProp $e 'case')-cne$name){ChargeFail ('row '+$name+' level, mode or case differs')}
     if((ChargeProp $e 'mounted')-ne$true){ChargeFail ('row '+$name+' was not the mounted pair')}
 
     if($name-ceq'C6B-CHARGE-default-off'){
@@ -123,6 +139,12 @@ function Assert-KmcChunk6bChargeRow($Row) {
         'C6B-CHARGE-positive' {
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the lawful charge was not available or targetable'}
             if((ChargeProp $before 'requireFullRound')-ne$true-or[string](ChargeProp $before 'commandType')-cne'Standard'){ChargeFail 'the lawful charge was not a full-round standard action'}
+            if($Mode-ceq'TB'){
+                $beforeTurn=ChargeProp (ChargeProp $before 'state') 'turn'
+                if($null-eq$beforeTurn){ChargeFail 'the turn-based charge recorded no turn'}
+                if((ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based charge was not cast on the rider own turn'}
+                if(-not(ChargeNumber (ChargeProp $beforeTurn 'timeMoved'))-or[double]$beforeTurn.timeMoved-gt0.0001){ChargeFail 'the turn-based charge was cast after the turn had already moved'}
+            }
             if((ChargeProp $input 'clicked')-ne$true-or(ChargeProp $input 'hoverPure')-ne$true){ChargeFail 'the lawful charge was not admitted by a pure player click'}
             if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the lawful charge did not admit exactly one native shell'}
             # The native shell delivers on a later frame than the click, so admission is a post-settlement
@@ -194,6 +216,8 @@ function Assert-KmcChunk6bChargeRow($Row) {
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the interrupted charge was not available or targetable'}
             if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the interrupted charge did not admit exactly one native shell'}
             Assert-KmcChunk6bChargeBoundedTermination $e $name 'native-command-interrupt'
+            $intervention=ChargeProp $e 'intervention'
+            if((ChargeProp $intervention 'riderInCombatAfter')-ne$true){ChargeFail 'the interrupted charge left combat instead of being interrupted inside it'}
         }
         'C6B-CHARGE-combat-ended' {
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the combat-end charge was not available or targetable'}
@@ -201,6 +225,7 @@ function Assert-KmcChunk6bChargeRow($Row) {
             Assert-KmcChunk6bChargeBoundedTermination $e $name 'native-combat-end'
             $intervention=ChargeProp $e 'intervention'
             if((ChargeProp $intervention 'riderInCombatBefore')-ne$true){ChargeFail 'the combat-end row did not start in combat'}
+            if((ChargeProp $intervention 'riderInCombatAfter')-ne$false){ChargeFail 'the combat-end row did not actually end the combat'}
         }
         default { ChargeFail ('unknown row '+$name) }
     }
@@ -208,11 +233,12 @@ function Assert-KmcChunk6bChargeRow($Row) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne34-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 34 and the chunk6b-charge-rt scenario'}
+    if([long]$Artifact.schemaVersion-ne34-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 34 and a chunk6b charge scenario'}
+    $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
-    if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne'RT'){ChargeFail 'the delivery contract or mode is absent or differs'}
+    if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}
     if([string](ChargeProp $measurement 'abilityGuid')-cne(ChargeKmcAbilityGuid)){ChargeFail 'the delivery contract names another ability'}
-    $required=Get-KmcChunk6bChargeRows
+    $required=Get-KmcChunk6bChargeRows $mode
     $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $pass=0;$fail=0
@@ -221,7 +247,7 @@ function Assert-KmcChunk6bChargeEvidence {
         if([string]$row.status-ceq'FAIL'){$fail++;continue}
         $pass++
         if([string]$row.name-cin$failureOnly){ChargeFail ('failure-only row claimed PASS: '+$row.name)}
-        Assert-KmcChunk6bChargeRow $row
+        Assert-KmcChunk6bChargeRow $row $mode
     }
     if($Status-ceq'PASS'){
         foreach($name in $required){ if(-not$names.Contains($name)){ChargeFail ('required row absent: '+$name)} }
