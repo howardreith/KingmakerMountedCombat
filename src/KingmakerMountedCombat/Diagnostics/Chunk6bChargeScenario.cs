@@ -44,7 +44,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-stock-rejected",
             "C6B-CHARGE-interrupted",
             "C6B-CHARGE-combat-ended",
-            "C6B-CHARGE-obstructed-line"
+            "C6B-CHARGE-obstructed-line",
+            "C6B-CHARGE-cancelled"
         };
         private static readonly string[] Chunk6bChargeTurnBasedCases =
         {
@@ -548,6 +549,55 @@ namespace KingmakerMountedCombat.Diagnostics
                 // The player-facing path: the real selected-ability handler. Hovering must change nothing.
                 var handler = game.SelectedAbilityHandler;
                 handler.SetAbility(chunk6bChargeAbility);
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-cancelled", StringComparison.Ordinal))
+                {
+                    // Cancellation before commitment. The selection is taken through the same surface a
+                    // player uses, hovered the same way, and then released with the native cancel
+                    // SetAbility(null). No click is issued and no attack dispatch is expected, so the
+                    // target service is left exactly as it was found.
+                    var selectedAfterSet = ReferenceEquals(handler.Ability, chunk6bChargeAbility);
+                    var beforeCancelHover = CaptureOrdinaryLiveState();
+                    var beforeCancelActor = CaptureOrdinaryActor(rider);
+                    for (var index = 0; index < 3; index++)
+                    {
+                        handler.GetPriority(target.View.gameObject, target.Position);
+                        handler.GetTarget(target.View.gameObject, target.Position, chunk6bChargeAbility);
+                    }
+
+                    chunk6bChargeHoverPure = JToken.DeepEquals(beforeCancelHover, CaptureOrdinaryLiveState()) &&
+                        JToken.DeepEquals(beforeCancelActor, CaptureOrdinaryActor(rider));
+                    chunk6bChargeMountOrigin = horse.Position;
+                    chunk6bChargeRiderOrigin = rider.Position;
+                    handler.SetAbility(null);
+                    chunk6bChargeClicked = false;
+                    chunk6bChargeShell = rider.Commands.Raw.Concat(rider.Commands.Queue).OfType<UnitUseAbility>()
+                        .FirstOrDefault(command => ReferenceEquals(command.Spell, chunk6bChargeAbility));
+                    chunk6bChargeShellCount = rider.Commands.Raw.Concat(rider.Commands.Queue).OfType<UnitUseAbility>()
+                        .Count(command => ReferenceEquals(command.Spell, chunk6bChargeAbility));
+                    chunk6bChargeFeedback = combat.LastFeedback;
+                    chunk6bChargeRejectionCodes = new JArray((combat.LastRejectionCodes ?? new MountedCombatRejectionCode[0])
+                        .Select(code => code.ToString()).ToArray());
+                    chunk6bChargeInput = new JObject
+                    {
+                        ["clicked"] = chunk6bChargeClicked,
+                        ["hoverPure"] = chunk6bChargeHoverPure,
+                        ["frame"] = Time.frameCount,
+                        ["selectedAfterSet"] = selectedAfterSet,
+                        ["selectedAfterCancel"] = handler.Ability != null,
+                        ["shell"] = CaptureNativeAbilityShell(chunk6bChargeShell),
+                        ["shellCount"] = chunk6bChargeShellCount,
+                        ["feedback"] = chunk6bChargeFeedback,
+                        ["rejectionCodes"] = chunk6bChargeRejectionCodes,
+                        ["chargeAdmitted"] = combat.MountedChargeAdmittedCount,
+                        ["chargeRefused"] = combat.MountedChargeRefusedCount,
+                        ["lastRefusal"] = combat.LastMountedChargeRefusal,
+                        ["after"] = CaptureChunk6bChargeActors("input-after")
+                    };
+                    chunk6bChargeStarted = game.TimeController.GameTime.TotalSeconds;
+                    chunk6bChargeLastSample = -1;
+                    chunk6bChargeStage = 2; ResetLeafClock(); return;
+                }
+
                 var beforeHover = CaptureOrdinaryLiveState();
                 var beforeHoverActor = CaptureOrdinaryActor(rider);
                 for (var index = 0; index < 3; index++)
@@ -794,6 +844,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "C6B-CHARGE-stock-rejected": return "The stock native Charge remained rejected while mounted.";
                 case "C6B-CHARGE-interrupted": return "A charge interrupted after commitment stopped at once, restored every leased value, delivered no attack and kept the cost the engine had taken.";
                 case "C6B-CHARGE-obstructed-line": return "A charge whose straight line the native navmesh cannot follow was refused before any cost, path or attack.";
+                case "C6B-CHARGE-cancelled": return "A charge selected over a lawful geometry and cancelled before commitment took no cost, no path and no attack.";
                 default: return "A charge whose combat ended mid-path terminated bounded, restored every leased value and delivered no attack.";
             }
         }
