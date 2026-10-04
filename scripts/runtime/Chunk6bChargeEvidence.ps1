@@ -16,7 +16,7 @@ function Get-KmcChunk6bChargeRows([string]$Mode) {
     if([string]$Mode-ceq'TB'){
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
-        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line')
+        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line','C6B-CHARGE-cancelled')
     }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
@@ -224,6 +224,19 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             $rider=ChargeProp $state 'rider'
             if(-not(ChargeNumber (ChargeProp $rider 'standard'))-or[double]$rider.standard-le0.001){ChargeFail 'the repeated-charge row did not start with a spent standard action'}
             if((ChargeProp $before 'available')-ne$false-and(ChargeProp $before 'canTarget')-ne$false){ChargeFail 'a charge without the rider standard action was both available and targetable'}
+            Assert-KmcChunk6bChargeNothingHappened $e $name
+        }
+        'C6B-CHARGE-cancelled' {
+            # Cancellation before commitment. The charge must genuinely have been on offer over a lawful
+            # geometry - otherwise the row proves nothing - the selection must have been taken through the
+            # real player surface and then released, no click may have been issued, and the engine must
+            # have taken nothing at all.
+            if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the cancelled charge was not on offer over a lawful geometry'}
+            if((ChargeProp (ChargeProp $before 'geometry') 'straightRoute')-ne$true){ChargeFail 'the cancelled charge line was not a straight native route'}
+            if((ChargeProp $input 'selectedAfterSet')-ne$true){ChargeFail 'the cancelled charge was never selected'}
+            if((ChargeProp $input 'selectedAfterCancel')-ne$false){ChargeFail 'the cancelled charge was still selected after the cancel'}
+            if((ChargeProp $input 'clicked')-ne$false){ChargeFail 'the cancelled charge was clicked after all'}
+            if((ChargeProp $input 'hoverPure')-ne$true){ChargeFail 'hovering the cancelled charge changed live state'}
             Assert-KmcChunk6bChargeNothingHappened $e $name
         }
         'C6B-CHARGE-obstructed-line' {

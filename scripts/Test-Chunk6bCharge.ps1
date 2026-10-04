@@ -80,7 +80,10 @@ function New-Row([string]$Case){
  if($Case-ceq'C6B-CHARGE-interrupted'){ return New-TerminatedRow $Case 'native-command-interrupt' }
  if($Case-ceq'C6B-CHARGE-combat-ended'){ return New-TerminatedRow $Case 'native-combat-end' }
  # Turn-based: every measured row is a refusal while increment 6B.3 is deferred.
- $refusal=$script:fixtureMode-ceq'TB'-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-obstructed-line')
+ $refusal=$script:fixtureMode-ceq'TB'-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-obstructed-line','C6B-CHARGE-cancelled')
+ # The cancellation row is on offer and then released: nothing happens, but the charge was genuinely
+ # available and targetable, which is what makes the row mean anything.
+ $offered=$Case-ceq'C6B-CHARGE-cancelled'
  if($Case-ceq'C6B-CHARGE-default-off'){
   return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
    settingOff=(New-Identity $false $false);settingOn=(New-Identity $true $true);abilityGuid=$kmc}}
@@ -92,6 +95,9 @@ function New-Row([string]$Case){
   feedback=$(if($Case-ceq'C6B-CHARGE-stock-rejected'){'Charge is not yet supported while mounted.'}else{'Mounted charge accepted: the Horse carries the charge.'})
   rejectionCodes=@();chargeAdmitted=$(if($refusal){0}else{1});chargeRefused=$(if($refusal){1}else{0});lastRefusal=$null
   after=(New-State 'input-after' $distance $riderStandard (-not$refusal))}
+ if($offered){
+  $input['selectedAfterSet']=$true;$input['selectedAfterCancel']=$false
+ }
  if($Case-ceq'C6B-CHARGE-stock-rejected'){
   $input['stockBlueprint']=$stock;$input['stockAvailable']=$false;$input['stockCanTarget']=$false
   $input['safetyFeedback']='Charge is not yet supported while mounted.'
@@ -100,9 +106,9 @@ function New-Row([string]$Case){
  [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
   level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
   before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' $distance $riderStandard $false)
-   available=$(if($refusal-or$script:fixtureMode-ceq'TB'){$false}else{$true});unavailableReason=$null
+   available=$(if(($refusal-and-not$offered)-or$script:fixtureMode-ceq'TB'){$false}else{$true});unavailableReason=$null
    kmcAvailabilityReason=$(if($script:fixtureMode-ceq'TB'){'Mounted Charge is not yet supported in turn-based mode.'}else{'Mounted Charge is available.'})
-   canTarget=$(if($refusal-or$script:fixtureMode-ceq'TB'){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
+   canTarget=$(if(($refusal-and-not$offered)-or$script:fixtureMode-ceq'TB'){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
    geometry=[ordered]@{straightRoute=$(if($Case-ceq'C6B-CHARGE-obstructed-line'){$false}else{$true});landingBlocked=$false;mountDistanceToTarget=$distance}
    requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
   input=$input
@@ -167,8 +173,8 @@ Mutate 'a setting left on' {param($a) $a.observations.chunk6bCharge.settingAfter
 Mutate 'a missing required row' {param($a) $a.rows=@($a.rows[0],$a.rows[1]);$a.subscenarioPassCount=2}
 Mutate 'a duplicate row' {param($a) $a.rows=@($a.rows[0],$a.rows[0],$a.rows[2],$a.rows[3],$a.rows[4]);$a.subscenarioPassCount=5}
 Mutate 'an unknown row' {param($a) $a.rows[1].name='C6B-CHARGE-other';$a.rows[1].evidence.case='C6B-CHARGE-other'}
-Mutate 'a failure-only row claimed PASS' {param($a) $a.rows+=@([pscustomobject]@{name='phase3d-horse-runtime-exception';status='PASS';evidence=$null});$a.subscenarioPassCount=6}
-Mutate 'row counts that differ' {param($a) $a.subscenarioPassCount=9}
+Mutate 'a failure-only row claimed PASS' {param($a) $a.rows+=@([pscustomobject]@{name='phase3d-horse-runtime-exception';status='PASS';evidence=$null});$a.subscenarioPassCount=$a.rows.Count}
+Mutate 'row counts that differ' {param($a) $a.subscenarioPassCount=$a.rows.Count+1}
 Mutate 'an unmounted row' {param($a) (Row $a 'C6B-CHARGE-positive').mounted=$false}
 Mutate 'the stock Charge replaced' {param($a) (Row $a 'C6B-CHARGE-positive').before.identity.stockChargePresent=$false}
 Mutate 'the stock Charge logic changed' {param($a) (Row $a 'C6B-CHARGE-positive').before.identity.stockChargeIsStockLogic=$false}
@@ -268,6 +274,18 @@ Mutate 'an obstructed-line row whose landing was blocked as well' {param($a) (Ro
 Mutate 'an obstructed-line row inside the minimum charge distance' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').before.state.distanceToTarget=3.0}
 Mutate 'a targetable target whose charge line is obstructed' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').before.canTarget=$true}
 Mutate 'a lawful charge whose line was not a straight native route' {param($a) (Row $a 'C6B-CHARGE-positive').before.geometry.straightRoute=$false}
+
+# Cancellation before commitment: on offer, selected, released, and nothing taken.
+Mutate 'a cancelled charge that was never on offer' {param($a) (Row $a 'C6B-CHARGE-cancelled').before.available=$false}
+Mutate 'a cancelled charge whose target was never targetable' {param($a) (Row $a 'C6B-CHARGE-cancelled').before.canTarget=$false}
+Mutate 'a cancelled charge over an obstructed line' {param($a) (Row $a 'C6B-CHARGE-cancelled').before.geometry.straightRoute=$false}
+Mutate 'a cancelled charge that was never selected' {param($a) (Row $a 'C6B-CHARGE-cancelled').input.selectedAfterSet=$false}
+Mutate 'a cancelled charge still selected after the cancel' {param($a) (Row $a 'C6B-CHARGE-cancelled').input.selectedAfterCancel=$true}
+Mutate 'a cancelled charge that was clicked after all' {param($a) (Row $a 'C6B-CHARGE-cancelled').input.clicked=$true}
+Mutate 'a cancelled charge whose hover changed live state' {param($a) (Row $a 'C6B-CHARGE-cancelled').input.hoverPure=$false}
+Mutate 'a cancelled charge that moved the pair' {param($a) (Row $a 'C6B-CHARGE-cancelled').movement.mountDistance=4.0}
+Mutate 'a cancelled charge that spent an action' {param($a) (Row $a 'C6B-CHARGE-cancelled').economy.riderStandardMax=6.0}
+Mutate 'a cancelled charge that admitted a shell' {param($a) (Row $a 'C6B-CHARGE-cancelled').input.shellCount=1}
 
 $tbRequest=[pscustomobject]@{scenario='chunk6b-charge-tb'}
 function MutateTb([string]$Name,[scriptblock]$Change){ $a=New-Artifact 'TB'; & $Change $a; Reject ('TB: '+$Name) { Assert-KmcChunk6bChargeEvidence $tbRequest $a 'PASS' } }

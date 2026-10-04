@@ -1099,3 +1099,61 @@ because "every one of them only complains AFTER a live run has finished", and it
 
 Offline verification: FAST 15/0 (attempt 1), Validate-Source 130/0, component tests 565/0, charge reader
 113/0, carrier reader 142/0.
+
+## Preview.171 native outcome (2026-10-04; frozen preview.171, campaign closed) - 6 PASS / 0 FAIL
+
+Frozen payload `0.1.0-chunk6b-preview.171` at commit `5a7e4e94bf9208ce3c784f74037772c3ed70b1d5` (committed
+tree `8bd358eb94e3da3584075b97aff76057b81491c5`), package sha256
+`baf6903e28f6a18e36dc844f6358f1debdd86480caf925f9797823ca4d8e607e`, DLL sha256
+`be7ca5770c6f11b4e44e5165bbd8dbada32f194dd645773d4c029b4930e63b4e`, MVID
+`730865d4-4dc7-443c-b7b7-fc458dd31d30`, suite `20261004-chunk6b-charge-p` (sha256
+`ae863bb2c364e17dccd6d0212bb8538fb7e56f2d451b35277c0aec69bf4d8e68`), harness reader digest
+`71c711e2e3843397e57f594f075e3e6c6ed31fdd4b320c802b991c4ba5d1e47e`. Offline: Validate-Source 130/0,
+CANDIDATE tier 26/0, component tests 565/0, purity proof PASS. Six isolated restored transactions, every one
+restored with no restoration error. Measurement record
+`5989548c98f3c4bdb95cdbfe0b7caa48cc1a99d659b20e64eca2f02f7781c22e`; outcome record
+`c8b1ed0cce911d2cc26a31aaa82004a1550747a61e75b966a55748e7c011ab8c`.
+
+| stage | result |
+| --- | --- |
+| `C6B-CHARGE-RT` | **PASS 68/0** - eight rows |
+| `C6B-CHARGE-TB` | PASS 64/0 |
+| `C6B-PATH-RT` | PASS 62/0 |
+| `C6B-PATH-TB` | PASS 62/0 |
+| `CHARGE-SAFETY-RT` | PASS 66/0 |
+| `CHARGE-SAFETY-TB` | PASS 66/0 |
+
+**Increment 6B.2's obstructed-charge-line row is qualified.** The real-time delivery stage now carries eight
+rows: the seven that had passed 67/0 on five consecutive payloads, plus `C6B-CHARGE-obstructed-line`. The row
+measured what it was built to measure - a target at 9 m, well beyond the measured 4.448 m minimum, with an
+unblocked landing and a native navmesh trace that stops short of it, untargetable, and nothing admitted,
+moved or costed - and the registration that preview.170 was missing is now in the subscenario registry both
+runtime-result gates share, with the offline contract that would have caught its absence.
+
+## Preview.172 - cancellation before commitment (2026-10-04, offline-verified)
+
+Increment 6B.2's next owed row, and again no product change: the question is whether the engine takes
+anything when a player offers the charge and then changes their mind.
+
+- **Fixture.** A new real-time case `C6B-CHARGE-cancelled` over a lawful 9 m geometry. It takes the selection
+  through the same surface a player uses, `Game.Instance.SelectedAbilityHandler.SetAbility`, proves the
+  selection was actually taken by reading `handler.Ability` back, hovers three times the way the positive row
+  does and records whether that hover changed live state, then releases the selection with the native cancel
+  `SetAbility(null)` and proves it was cleared. **No click is issued and no attack dispatch is expected**, so
+  the diagnostic target service is left exactly as it was found - which is the care the withdrawn
+  `C6B-CHARGE-target-lost` row did not take.
+- **Reader.** The row requires that the charge was genuinely on offer - `available` and `canTarget` both true
+  over a straight native route, because a row that cancels something unavailable proves nothing - that the
+  selection was taken and then cleared, that nothing was clicked, that the hover was pure, and then the full
+  nothing-happened assertion: no native shell, no controller admission or refusal, no movement for either
+  actor, no cost on any of the four action resources, no attack rule, no lease and no charge state left
+  behind. Reader 113 -> 123 synthetic checks.
+- **Two synthetic mutations were repaired.** `row counts that differ` set the count to a hard-coded 9, which
+  stopped being a mutation the moment the real-time row set reached nine rows, and
+  `a failure-only row claimed PASS` set a hard-coded 6, so it was being rejected for a count mismatch rather
+  than for the row it names. Both now derive their count from the artifact.
+- **Registration.** `C6B-CHARGE-cancelled` is in the shared subscenario registry and the mod's own list from
+  the start; the contract added in preview.171 enforces it offline.
+
+Offline verification: FAST 15/0 (attempt 1), Validate-Source 130/0, component tests 565/0, charge reader
+123/0, carrier reader 142/0.
