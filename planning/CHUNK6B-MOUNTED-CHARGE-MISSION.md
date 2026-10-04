@@ -1044,3 +1044,58 @@ refuses an obstructed line with its own exact reason, "The charge line to the ta
   assumed. Reader 102 -> 113 synthetic checks.
 
 Offline verification: FAST 15/0 (attempt 1), component tests 565/0, charge reader 113/0, carrier reader 142/0.
+
+## Preview.170 native outcome (2026-10-04; frozen preview.170, campaign closed)
+
+Frozen payload `0.1.0-chunk6b-preview.170` at commit `0c8c6134846a0e449f9bb72cf0e856f332fa0647` (committed
+tree `7096aee632d72bbf8631d601eec92373dc51cb33`), package sha256
+`58de365ab068ce38944d93b0451ade5d0a72e223b1a7a1b83119c76d519fd9ba`, DLL sha256
+`f8b553e1f6b7a49e94e3a89041082f6c6cdd173311970a73c9af109badf8a3e9`, MVID
+`26258595-cbf8-4f19-b6e9-00b9d9f447da`, suite `20261004-chunk6b-charge-o` (sha256
+`8a8d01059a354f491517d934ae1eb1c7421c171da89354591c066d71b08a900c`), harness reader digest
+`8b3d5194b53a7c93aeef9a4a89cbcd34e1aa429f3670f9e561ecd6cfa2fc6cd4`. Offline: CANDIDATE tier 26/0, component
+tests 565/0, purity proof PASS. Six isolated restored transactions, all restored with no restoration error:
+**5 PASS, 1 FAIL**. Measurement record
+`157b02d566c2c35a86e3ee888cafc368c566dccd57d6bbbf655df5bc6a6b8f05`; outcome record
+`6390018fc7e25abd55cf560814d4d61269b034acd24aa4b61bb4415f8ae778dc`.
+
+`C6B-CHARGE-TB` 64/0, `C6B-PATH-RT` 62/0, `C6B-PATH-TB` 62/0, `CHARGE-SAFETY-RT` 66/0 and
+`CHARGE-SAFETY-TB` 66/0 all hold on this payload.
+
+**`C6B-CHARGE-RT`: the row works and the registration does not.** The native validator passed **all eight
+real-time rows, 68/0**, and the external charge reader accepted the evidence artifact. The stage still failed,
+because the *overall* runtime-result gate refused it with one assertion:
+
+> Runtime game-result contains an unknown subscenario: C6B-CHARGE-obstructed-line
+
+The new row's own measurement is exactly what increment 6B.2 wanted. From the retained row evidence:
+`obstructedLineReachable: true`; geometry `{ straightRoute: false, landingBlocked: false,
+mountDistanceToTarget: 9 }` against a measured minimum charge distance of 4.448 m, so the refusal is
+attributable to the line and to nothing else; `available: true` and `canTarget: false`, which is the right
+shape because castability and targeting are different questions and the line is evaluated in targeting; and
+nothing happened - no admission, no controller refusal, no movement for mount or rider.
+
+**Classification: registration, not product and not fixture.** A row name is a registration. This one was
+registered in the fixture's case list and in the reader's row list, but not in
+`Get-KmcPhase3dHorseRuntimeRows`, the registry both runtime-result gates share. It is the same class of
+defect preview.163 and preview.164 hit with a scenario id, and it is exactly what
+`Validate-Source.ps1`'s own REGISTRATION CHAIN contract exists to prevent - that contract was written
+because "every one of them only complains AFTER a live run has finished", and it did not yet cover row names.
+
+## Preview.171 - the row name is registered, and the chain is walked offline (2026-10-04, offline-verified)
+
+- **Registration.** `C6B-CHARGE-obstructed-line` is added to `Get-KmcPhase3dHorseRuntimeRows` in
+  `scripts/runtime/RuntimeHarness.Common.ps1`, and to the mod's own list in `RuntimeProtocol.cs` so the two
+  stay in step. Nothing else about the row changes: the fixture, the geometry sweep and the reader rules are
+  the ones preview.170 already measured.
+- **The contract that would have caught it.** `Validate-Source.ps1` gains one assertion: every
+  `C6B-CHARGE-*` row name the charge reader requires, and every `C6B-PATH-*` row name the carrier reader
+  requires, must be present in the shared subscenario registry. The reader texts are read with an explicit
+  UTF-8 encoding. Validator total 129 -> 130.
+- **The contract was proved non-vacuous before it was committed.** With the registry entry removed the
+  validator fails with exactly "every Chunk 6B charge and carrier row the readers require is in the shared
+  subscenario registry" and exits 1; the file was then restored byte-identically, verified by hash and by
+  `git status`.
+
+Offline verification: FAST 15/0 (attempt 1), Validate-Source 130/0, component tests 565/0, charge reader
+113/0, carrier reader 142/0.
