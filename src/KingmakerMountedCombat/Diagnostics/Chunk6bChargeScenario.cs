@@ -378,6 +378,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 // starts: UnitCombatState.CanActInCombat is m_InCombat && !IsWaitingInitiative, so the charge was
                 // correctly refused as "requires a rider who can act". Wait for the same native readiness the
                 // stock charge fixture waits for before it clicks.
+                // Turn-based: turn ownership is resolved before the rider-readiness gates below, because
+                // those two deadlock otherwise. UnitCombatState.CanActInCombat is
+                // m_InCombat && !IsWaitingInitiative, so while another actor holds the turn the rider is
+                // waiting initiative and can never satisfy it, and the call that ends a foreign fixture
+                // turn used to sit below it and was never reached. Preview.168 measured exactly that: the
+                // stage stalled with riderCanActInCombat=false, riderPrepared=true, both queues empty, both
+                // cooldowns zero and the turn held by one of the fixture's own allocated party actors in
+                // Preparing. Preview.165 cleared this point only because the rider held the turn itself.
+                if (Chunk6bChargeTb)
+                {
+                    if (turn == null) return;
+                    if (!ReferenceEquals(turn.Unit, rider)) { TryEndPhase3gFixtureTurn(turn); return; }
+                }
                 if (!rider.CombatState.CanActInCombat || !rider.IsAbleToAct()) return;
                 if (rider.CombatState.Cooldown.StandardAction > 0.001f || rider.CombatState.Cooldown.MoveAction > 0.001f) return;
                 // Turn-based: the charge is a full-round action, so it belongs to the rider own turn and
@@ -386,8 +399,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // native turn and ignores a unit that is not directly controllable.
                 if (Chunk6bChargeTb)
                 {
-                    if (turn == null) return;
-                    if (turn.Unit != rider) { TryEndPhase3gFixtureTurn(turn); return; }
+                    // Ownership was resolved above; what remains is what the rider's own turn must satisfy.
                     // The turn-based charge is refused outright while increment 6B.3 is deferred, so the
                     // fixture asks for it from the ordinary start of the rider turn and records the refusal.
                     if (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;

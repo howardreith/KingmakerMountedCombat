@@ -915,3 +915,69 @@ unreachable. Preview.168 therefore does two things rather than guess.
   67/0, the stock Charge stays rejected while mounted, and the feature remains default-off.
 
 Offline verification: FAST 15/0 (attempt 1), component tests 565/0, charge reader 102/0, carrier reader 142/0.
+
+## Preview.168 native outcome (2026-10-04; frozen preview.168, campaign closed) - the stall is located
+
+Frozen payload `0.1.0-chunk6b-preview.168` at commit `c936ae4390024e4eb08e8ecf08612e26bedae8c6` (committed
+tree `c19d79d009fe16a633b6113f23971b7dc3b25c45`), package sha256
+`9c817488144490483b030241b6e42259b5ff9cdefac8bf97bbbfcfc1cc1b0c35`, DLL sha256
+`b73d8e80905df1baa177a92d099f06fbebdb35fa9a4d01a1c1c11cf6d6341655`, MVID
+`61039848-44c5-4f9f-9511-208ec9d56445`, suite `20261004-chunk6b-charge-m` (sha256
+`8a142b4ffe01f5d3e3128f355c241f619d44fc456aedd574eba6d4c6472ba855`), harness reader digest
+`f18ebd418d6c9ab961249b4c48af6fa1f4b6b760ee6e14c9d8b9a9e51bb33438`. Offline: CANDIDATE tier 26/0, component
+tests 565/0, purity proof PASS. Six isolated restored transactions, all restored with no restoration error:
+**5 PASS, 1 FAIL** - `C6B-CHARGE-RT` 67/0, `C6B-PATH-RT` 62/0, `C6B-PATH-TB` 62/0, `CHARGE-SAFETY-RT`
+66/0, `CHARGE-SAFETY-TB` 66/0, and `C6B-CHARGE-TB` 61/2 at the same tranche leaf deadline. Measurement
+record `8b0e87c02e01726ddaf48ef7cc49274ede578d033a7539bf6a449f8b86767144`; outcome record
+`a1bf5c9a6b04abd8e7df2f94aab37e391a5acf40a4388c45e56be5f785e373f0`.
+
+**The instrumentation did its job: the cause is now measured rather than hypothesised.** The retained progress
+record of `c6b-charge168-a-charge-tb` names the exact state at the stall - case `C6B-CHARGE-positive`,
+stage 1, frame 4624, `samples: 0`, and the gates:
+
+| gate | value |
+| --- | --- |
+| `combatReady` | true |
+| `riderCommandsEmpty` / `mountCommandsEmpty` | true / true |
+| `riderHandsBusy` | false |
+| `riderPrepared` | true |
+| `pairHasActiveCommand` | false |
+| `riderCanActInCombat` | **false** |
+| `riderAbleToAct` | true |
+| `riderStandardCooldown` / `riderMoveCooldown` | 0 / 0 |
+| `mustDeliver` | false (the preview.168 change took effect) |
+| `turnPresent` / `turnIsRider` | true / **false** |
+| `turnUnit` | `d79a4f6c-b74e-4868-95bd-533899131acb` |
+| `turnStatus` / `turnActing` / `turnTimeMoved` | Preparing / false / 0 |
+| `controllerWaitingForUi` / `controllerPendingNextUnit` | false / false |
+
+`d79a4f6c-b74e-4868-95bd-533899131acb` is one of the fixture's own allocated party actors
+(`allocationPartyCleanupIds`), not the rider (`d17c8fd0-...`), not the mount (`bbdafec2-...`) and not the
+diagnostic target (`4f78e200-...`).
+
+**Two of the fixture's own gates deadlock each other.** `UnitCombatState.CanActInCombat` is
+`m_InCombat && !IsWaitingInitiative`, so while another actor holds the turn the rider is waiting initiative
+and the gate `if (!rider.CombatState.CanActInCombat || !rider.IsAbleToAct()) return;` can never pass - and
+the call that ends a foreign fixture turn, `TryEndPhase3gFixtureTurn`, sat **below** that gate and was
+therefore never reached. Nothing advanced the turn, so nothing ever made the rider able to act. Preview.165
+cleared this point only because the rider happened to hold the turn itself; preview.166, preview.167 and
+preview.168 did not, and all three expired at the same place. This is a fixture ordering defect and it has
+nothing to do with the deferral, the product or the engine.
+
+## Preview.169 - the turn-based fixture resolves turn ownership before rider readiness (2026-10-04, offline-verified)
+
+- **The fix is the ordering the measurement names.** In turn-based mode the fixture now resolves turn
+  ownership first - the turn must exist, and a turn held by anyone but the rider is ended through
+  `TryEndPhase3gFixtureTurn`, exactly as before - and only then applies the rider-readiness gates. The two
+  ownership lines move above `CanActInCombat`; everything the rider's own turn must still satisfy (status
+  preparing or acting, no movement yet, the controller not waiting on UI and no pending next unit) stays
+  where it was. No gate is removed and no threshold is relaxed.
+- **Nothing else changes.** No product code, no reader, no new row. The charge policy still refuses every
+  turn-based charge with its exact reason, real time stays qualified at 67/0, the stock Charge stays rejected
+  while mounted and unmodified, and the feature remains default-off.
+- **What this candidate is expected to measure.** `C6B-CHARGE-TB` should now reach the rider's own turn and
+  record four qualified refusal rows: the setting lease, the lawful geometry refused with the deferral reason,
+  the inside-minimum geometry refused, and the stock Charge still rejected. If it stalls again, the gate trace
+  added in preview.168 is still in place and will name the next blocker.
+
+Offline verification: FAST 15/0 (attempt 1), component tests 565/0, charge reader 102/0, carrier reader 142/0.
