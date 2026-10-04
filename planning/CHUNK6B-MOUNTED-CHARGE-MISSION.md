@@ -1,9 +1,8 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `THE PAIR-OWNED MOUNTED CHARGE IS QUALIFIED NATIVELY IN REAL TIME ON FROZEN PREVIEW.163 AND AGAIN ON
-PREVIEW.164, AND INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3 IS IMPLEMENTED BUT STILL
-UNMEASURED: ITS STAGE DID NOT RUN ON EITHER CANDIDATE. FULL SCENARIO REGISTRATION AND THE 6B.2 TARGET-LOST ROW
-IMPLEMENTED (0.1.0-chunk6b-preview.165) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `THE PAIR-OWNED MOUNTED CHARGE IS QUALIFIED NATIVELY IN REAL TIME ON FROZEN PREVIEW.163 AND PREVIEW.164.
+INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3 IS NOW MEASURED AND LOCATED A PRODUCT
+DEFECT, FIXED IN 0.1.0-chunk6b-preview.166 - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -726,3 +725,60 @@ of times.
   combat, so the termination is attributable to the lost target rather than to combat ending.
 
 Offline verification: FAST 15/0, component tests 565/0, charge reader 105/0, carrier reader 142/0.
+
+## Preview.165 native outcome (2026-10-04; frozen preview.165, campaign closed)
+
+Frozen preview.165 (commit 417d6805, committed tree 32b15c68, package e92696a6, suite
+`20261004-chunk6b-charge-j` / a035ade0, DLL 92915d98 / MVID 82cb54aa, purity PASS 74.8 min with empty
+stderr); CANDIDATE 26/0, FAST 15/0, component tests 565/0, charge reader 105/0, carrier reader 142/0. Lab
+record `measurement-preview165.json` (ff281c2d), outcome
+`chunk6b-increment-6b2-outcome-preview165.json` (b54e7c47): 4 PASS / 2 FAIL of 6 stages.
+
+- **C6B-PATH-RT and C6B-PATH-TB: PASS, 62/0 each. CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS, 66/0 each.**
+
+- **C6B-CHARGE-TB ran at last, and it measured the answer the mission recorded as a risk.** The turn-based
+  charge was admitted lawfully on the rider's own turn with the turn's movement still at zero, and the lease
+  applied exactly as in real time: the mount's charging flag set, the speed override doubled to 10.16 m/s, the
+  forced path applied, the rider agent never touched, and every leased value restored at the end. The engine
+  charged the rider the full-round cost, 6.0 s of standard and 3.0 s of move, and charged the mount nothing.
+  **And the mount carried the pair 0.193 m.** The command ended `Interrupt` after exhausting its bounded
+  repath allowance, and its own repath observations name the cause five times over:
+
+  ```
+  repath=1;unadmitted-after-move;admission=OutsidePairRange;ticks=0;moved=0.193;targetDistance=8.807;
+  moveResult=Interrupt;riderMove=3;riderStandard=6;mountMove=0;turn=<rider>;turnTimeMoved=0
+  ```
+
+  The delegated mount move was interrupted before its first tick, every time. The reason is exact: the charge
+  was admitted while the rider's turn was `Preparing`, and the pair's movement delegation - the Chunk 6A
+  qualified authority that lets the mount move on the rider's turn - requires an **acting** rider turn.
+  `MountedCombatSpatialPolicy.CanDelegateMountMovement` takes `riderTurnIsActing` and returns false
+  otherwise, so `TryOverrideMountTurnMovement` declined, the native turn-based gate applied to a mount that is
+  not the turn owner, and the move had no movement to spend. **This is a product defect, not a fixture one:
+  the mod admitted a charge it could not deliver and let the engine charge the rider a whole round for
+  nothing.**
+
+- **C6B-CHARGE-RT: FAIL, and it is a regression this candidate introduced.** The new `C6B-CHARGE-target-lost`
+  row destroys the diagnostic target body mid-path and then disposed the target service; the tranche still
+  touches that service afterwards, so the run raised `System.ObjectDisposedException` and ended through its
+  exception path without writing its evidence artifact. The launcher recorded "Individual runtime scenario did
+  not report its own named result." The transaction was fully restored with no restoration errors.
+  `Record-Crash165-ChargeRt.ps1` and `Bind-Crash165-ChargeRt.ps1` record the crash, its cause and the
+  regression, and bind the stage FAIL. The row set had passed 67/0 on preview.163 and preview.164.
+
+## Preview.166 - the charge requires an acting rider turn (2026-10-04, offline-verified)
+
+- **Product.** `MountedChargeRequest` gains one more observed input, `TurnActing`, and the turn-based branch
+  of the policy requires it: a charge is refused during the rider's `Preparing` phase with its own exact
+  reason, "Charge the mounted pair once the rider's turn is acting." That is the narrowest correction the
+  measurement supports. It writes, clears and refunds nothing; it stops the mod from accepting a round it
+  cannot deliver. Real time is unaffected, and a unit test pins that.
+- **Fixture and reader.** The turn-based charge fixture waits for an acting rider turn before it clicks, and
+  the reader requires of a turn-based delivery that it was cast on the rider's own **acting** turn with the
+  turn's movement still at zero.
+- **The target-lost row is withdrawn**, not reworked, because leaving it in risks the real-time row set that
+  is already qualified. It is recorded here as **not built**, with its exact failure mode: a mid-path destroy
+  that disposes the diagnostic target service is unsafe while the tranche still holds it, and the row needs a
+  destroy that leaves the service alive for the fixture's own cleanup.
+
+Offline verification: FAST 15/0, component tests 565/0, charge reader 101/0, carrier reader 142/0.

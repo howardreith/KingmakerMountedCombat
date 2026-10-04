@@ -22,6 +22,11 @@ namespace KingmakerMountedCombat.Domain
         public bool TurnBased;
         public bool RiderTurn;
         public bool TurnActingOrPreparing;
+
+        // The pair's movement delegation, qualified in Chunk 6A, engages only while the rider's turn is
+        // acting. A turn-based charge admitted during Preparing costs the rider its whole round and
+        // delivers nothing, because the mount is never given movement. Observed from the live turn.
+        public bool TurnActing;
         public float TurnTimeMoved;
         public bool RiderCanActInCombat;
         public float RiderStandardCooldown;
@@ -163,6 +168,16 @@ namespace KingmakerMountedCombat.Domain
                 if (!request.RiderTurn || !request.TurnActingOrPreparing)
                 {
                     return Refuse("Charge the mounted pair during the rider's turn.", MountedCombatRejectionCode.WrongTurn);
+                }
+
+                // Preview.165 measured the cost of admitting a charge during the rider's Preparing phase:
+                // the engine charged the rider the whole round, the mount's delegated move was interrupted
+                // before its first tick because the pair's movement delegation requires an acting turn, and
+                // the command exhausted its repath allowance having carried the pair 0.193 m. The charge
+                // refuses that state with its own reason rather than accepting a round it cannot deliver.
+                if (!request.TurnActing)
+                {
+                    return Refuse("Charge the mounted pair once the rider's turn is acting.", MountedCombatRejectionCode.WrongTurn);
                 }
 
                 // The full-round shell consumes both parts of the rider's round when it is cast, so the

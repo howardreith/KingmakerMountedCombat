@@ -109,6 +109,7 @@ namespace KingmakerMountedCombat.Integration
                 RiderTurn = turn != null && turn.Unit == rider,
                 TurnActingOrPreparing = turn != null &&
                     (turn.Status == TurnController.TurnStatus.Preparing || turn.IsActing),
+                TurnActing = turn != null && turn.IsActing,
                 TurnTimeMoved = turn == null ? 0f : turn.TimeMoved,
                 RiderCanActInCombat = rider != null && rider.CombatState.CanActInCombat && rider.IsAbleToAct(),
                 RiderStandardCooldown = rider == null ? 0f : rider.CombatState.Cooldown.StandardAction,
