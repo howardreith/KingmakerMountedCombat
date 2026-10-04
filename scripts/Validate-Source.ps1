@@ -1288,10 +1288,11 @@ Assert-Kmc ($chargeRowsBody.Success -and $chargeRowNames.Count -ge 7 -and $pathR
 # requires it in real time while the fixture's real-time case array does not list it. That exact structure
 # is what this contract pins.
 $chargeScenarioText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6bChargeScenario.cs')
-function Get-KmcDeclaredCaseNames([string]$Text, [string]$ArrayName) {
+function Get-KmcDeclaredCaseNames([string]$Text, [string]$ArrayName, [string]$Prefix) {
     $body = [Regex]::Match($Text, ('(?s)string\[\] ' + [Regex]::Escape($ArrayName) + '\s*=\s*\{(.*?)\};'))
     if (-not $body.Success) { return @() }
-    @([Regex]::Matches($body.Groups[1].Value, '"(C6B-CHARGE-[A-Za-z0-9-]+)"') | ForEach-Object { $_.Groups[1].Value })
+    @([Regex]::Matches($body.Groups[1].Value, ('"(' + [Regex]::Escape($Prefix) + '[A-Za-z0-9-]+)"')) |
+        ForEach-Object { $_.Groups[1].Value })
 }
 function Get-KmcReaderRowNames([string]$Text, [string]$Mode) {
     $body = [Regex]::Match($Text, '(?s)function Get-KmcChunk6bChargeRows.*?\n\}')
@@ -1302,8 +1303,8 @@ function Get-KmcReaderRowNames([string]$Text, [string]$Mode) {
     $chosen = if ($Mode -ceq 'TB') { $branches[0] } else { $branches[1] }
     @([Regex]::Matches($chosen, "'(C6B-CHARGE-[A-Za-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value })
 }
-$fixtureRt = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeRealTimeCases')
-$fixtureTb = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeTurnBasedCases')
+$fixtureRt = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeRealTimeCases' 'C6B-CHARGE-')
+$fixtureTb = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeTurnBasedCases' 'C6B-CHARGE-')
 $readerRt = @(Get-KmcReaderRowNames $chargeReaderText 'RT')
 $readerTb = @(Get-KmcReaderRowNames $chargeReaderText 'TB')
 # The repeat row is declared once in the fixture and belongs to real time only.
@@ -1328,6 +1329,22 @@ Assert-Kmc ($fixtureRt.Count -ge 8 -and $fixtureTb.Count -ge 4 -and $repeatRow -
     $readerRt.Count -eq ($fixtureRt.Count + 1) -and $readerTb.Count -eq $fixtureTb.Count -and
     $caseListMismatches.Count -eq 0) `
     'the Chunk 6B charge fixture case arrays, its repeat row and the reader row lists agree exactly, per mode'
+
+# The carrier side of the same chain. Its fixture declares one case array used by both modes and its reader
+# one row list, so the invariant is plain set equality with no repeat row to account for.
+$pathScenarioText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6bChargePathScenario.cs')
+$fixturePathCases = @(Get-KmcDeclaredCaseNames $pathScenarioText 'Chunk6bChargePathCases' 'C6B-PATH-')
+$readerPathBody = [Regex]::Match($chargePathReaderText, '(?s)function Get-KmcChunk6bChargePathRows.*?\n?\}')
+$readerPathRows = @([Regex]::Matches($readerPathBody.Value, "'(C6B-PATH-[A-Za-z0-9-]+)'") |
+    ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+$pathListMismatches = @()
+$pathListMismatches += @($fixturePathCases | Where-Object { $readerPathRows -cnotcontains $_ } |
+    ForEach-Object { 'the carrier fixture emits ' + $_ + ' and the reader does not require it' })
+$pathListMismatches += @($readerPathRows | Where-Object { $fixturePathCases -cnotcontains $_ } |
+    ForEach-Object { 'the carrier reader requires ' + $_ + ' and the fixture does not emit it' })
+Assert-Kmc ($readerPathBody.Success -and $fixturePathCases.Count -ge 2 -and
+    $readerPathRows.Count -eq $fixturePathCases.Count -and $pathListMismatches.Count -eq 0) `
+    'the Chunk 6B carrier fixture case array and the carrier reader row list agree exactly'
 
 
 # THE REGISTRATION CHAIN. A new scenario's evidence leaf has to be registered in five

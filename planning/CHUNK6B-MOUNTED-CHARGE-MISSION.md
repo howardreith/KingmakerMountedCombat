@@ -1252,3 +1252,29 @@ unchanged, the product version stays `0.1.0-chunk6b-preview.172`, and it claims 
 was verified by the CANDIDATE tier at 23/0 with Validate-Source 131/0, the charge reader 123/0 and the
 carrier reader 142/0, and by the three refusal probes above. The last natively qualified payload remains
 frozen preview.172 at 6 PASS / 0 FAIL.
+
+### The carrier half of the same comparison (2026-10-04)
+
+The charge contract left the carrier out. Increment 6B.1's fixture declares one case array,
+`Chunk6bChargePathCases`, used by both modes, and its reader declares one row list,
+`Get-KmcChunk6bChargePathRows`, so the invariant there is plain set equality with no repeat row to account
+for. `Validate-Source.ps1` now asserts it, and the case-name extractor takes the row prefix so both sides
+share one implementation. Validator total 131 -> 132.
+
+Proved non-vacuous in both directions before committing, each probe restoring its file byte-identically
+(verified by SHA-256) and the worktree left clean:
+
+| probe | result |
+| --- | --- |
+| a carrier reader row the fixture never emits | REFUSED, exit 1 |
+| a carrier fixture case the reader never requires | REFUSED, exit 1 |
+
+**The offline registration chain is now complete for Chunk 6B.** Every link that previously only complained
+after a live run had finished is checked before one starts: the scenario id in all five of its registration
+surfaces; every charge and carrier row name in the subscenario registry both runtime-result gates share; the
+charge fixture's case arrays against the charge reader's row lists, per mode and including the repeat-row
+structure; and the carrier fixture's case array against the carrier reader's row list.
+
+Offline only, again: no product, reader or fixture code is touched, the diagnostic DLL is unchanged, the
+product version stays `0.1.0-chunk6b-preview.172`, and no native qualification is claimed. CANDIDATE tier
+23/0 with Validate-Source 132/0, charge reader 123/0 and carrier reader 142/0.
