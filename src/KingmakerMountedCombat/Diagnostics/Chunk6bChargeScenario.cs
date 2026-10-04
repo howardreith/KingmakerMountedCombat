@@ -43,7 +43,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-below-minimum",
             "C6B-CHARGE-stock-rejected",
             "C6B-CHARGE-interrupted",
-            "C6B-CHARGE-combat-ended"
+            "C6B-CHARGE-combat-ended",
+            "C6B-CHARGE-target-lost"
         };
         private static readonly string[] Chunk6bChargeTurnBasedCases =
         {
@@ -113,6 +114,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-interrupted", StringComparison.Ordinal)) return "native-command-interrupt";
                 if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-combat-ended", StringComparison.Ordinal)) return "native-combat-end";
+                if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-target-lost", StringComparison.Ordinal)) return "native-target-destroyed";
                 return null;
             }
         }
@@ -508,9 +510,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     {
                         combat.LastMountedChargeCommand.Interrupt();
                     }
-                    else
+                    else if (string.Equals(kind, "native-combat-end", StringComparison.Ordinal))
                     {
                         TryLeaveCombat(target); TryLeaveCombat(rider); TryLeaveCombat(horse);
+                    }
+                    else
+                    {
+                        // The target body is removed through the service own bounded destroy, which is the
+                        // same path the fixture cleanup uses. Nothing else is written, and the fixture stops
+                        // addressing the target from here.
+                        chunk6bChargeIntervention["targetDestroyed"] = targetService != null && targetService.DestroyAndVerify();
+                        chunk6bChargeIntervention["targetId"] = target == null ? null : target.UniqueId;
+                        if (targetService != null) { targetService.Dispose(); targetService = null; }
+                        target = null;
                     }
                     chunk6bChargeIntervention["after"] = CaptureChunk6bChargeActors("intervention-after");
                     chunk6bChargeIntervention["riderInCombatAfter"] = rider.IsInCombat;
@@ -655,6 +667,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "C6B-CHARGE-below-minimum": return "A target inside the stock minimum charge distance was refused before any cost, path or attack.";
                 case "C6B-CHARGE-stock-rejected": return "The stock native Charge remained rejected while mounted.";
                 case "C6B-CHARGE-interrupted": return "A charge interrupted after commitment stopped at once, restored every leased value, delivered no attack and kept the cost the engine had taken.";
+                case "C6B-CHARGE-target-lost": return "A charge whose target was destroyed mid-path terminated bounded, restored every leased value and delivered no attack.";
                 default: return "A charge whose combat ended mid-path terminated bounded, restored every leased value and delivered no attack.";
             }
         }

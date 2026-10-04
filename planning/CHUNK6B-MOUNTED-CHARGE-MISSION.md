@@ -1,9 +1,9 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `THE PAIR-OWNED MOUNTED CHARGE IS QUALIFIED NATIVELY IN REAL TIME ACROSS ALL SEVEN 6B.2 ROWS ON FROZEN
-PREVIEW.163, AND INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3 IS IMPLEMENTED BUT NOT YET
-MEASURED: ITS STAGE DID NOT RUN ON PREVIEW.163. LAUNCHER REGISTRATION ADDED (0.1.0-chunk6b-preview.164) -
-CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
+Status: `THE PAIR-OWNED MOUNTED CHARGE IS QUALIFIED NATIVELY IN REAL TIME ON FROZEN PREVIEW.163 AND AGAIN ON
+PREVIEW.164, AND INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3 IS IMPLEMENTED BUT STILL
+UNMEASURED: ITS STAGE DID NOT RUN ON EITHER CANDIDATE. FULL SCENARIO REGISTRATION AND THE 6B.2 TARGET-LOST ROW
+IMPLEMENTED (0.1.0-chunk6b-preview.165) - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
 diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
@@ -687,3 +687,42 @@ fresh isolated restored transactions, session logs preserved.
 
 The turn-based charge scenario id is registered in both repository launcher allowlists, which is the only
 thing that stood between the implemented increment 6B.3 and its measurement. No product or reader change.
+
+## Preview.164 native outcome (2026-10-04; frozen preview.164, campaign closed)
+
+Frozen preview.164 (commit ac43dc5b, committed tree b364c23a, package 00333484, suite
+`20261004-chunk6b-charge-i` / e6e974e1, DLL 400cf4fc / MVID cc528043, purity PASS 74.5 min with empty
+stderr); CANDIDATE 26/0, FAST 15/0, component tests 565/0, charge reader 100/0, carrier reader 142/0. Lab
+record `measurement-preview164.json` (8a1867cf), outcome
+`chunk6b-increment-6b2-outcome-preview164.json` (1e9580cd): **5 PASS / 0 FAIL, with one stage NOT RUN**.
+
+- **C6B-CHARGE-RT: PASS, 67/0 again, on a different payload.** All seven real-time rows of increment 6B.2.
+- **C6B-PATH-RT and C6B-PATH-TB: PASS, 62/0 each. CHARGE-SAFETY-RT and CHARGE-SAFETY-TB: PASS, 66/0 each.**
+- **C6B-CHARGE-TB: NOT RUN again, for a second and different registration reason.** The launcher keeps a
+  second allowlist, separate from its `-Scenario` parameter allowlist that preview.164 had corrected:
+  `Get-KmcSaveBackedRuntimeScenarios` names the scenarios permitted to run against the qualified save
+  fixture. The launcher threw "The requested scenario is outside the save-backed mission allowlist." before
+  opening a transaction. `Record-NotRun164-ChargeTb.ps1` proves nothing live was touched and marks the stage
+  NOT RUN with that exact reason.
+
+**A finding worth recording, because it cost two candidates.** Adding a runtime scenario id requires it in
+every one of these places, and failing any one of them stops the stage rather than failing it:
+the mod's own runtime protocol scenario list (twice), the launcher's `-Scenario` parameter allowlist,
+`Test-RuntimeRequest`'s list, `Get-KmcSaveBackedRuntimeScenarios`, the Phase 3D Horse evidence validator's
+scenario list, that validator's schema binding (three comparisons), and the shared registration policy the
+component tests compile. Preview.165 adds the turn-based charge to every remaining one and verifies the
+invariant directly: every file that names `chunk6b-charge-rt` now names `chunk6b-charge-tb` the same number
+of times.
+
+## Preview.165 - full scenario registration, and the target-lost row (2026-10-04, offline-verified)
+
+- **Registration.** The turn-based charge is registered in the save-backed mission allowlist, in the two
+  remaining RuntimeHarness scenario lists, in the shared registration policy, and in the Phase 3D Horse
+  schema-34 binding, which now names the charge pair exactly as the schema-33 carrier pair is already named.
+- **A new 6B.2 row, `C6B-CHARGE-target-lost`.** The charge is admitted, the mount carries at least a metre
+  and a half of the forced path, and then the diagnostic target service removes the body through its own
+  bounded destroy. The row requires the same bounded termination as the other two lifecycle rows, and
+  additionally that the body really was destroyed, that its identity was recorded, and that the pair stayed in
+  combat, so the termination is attributable to the lost target rather than to combat ending.
+
+Offline verification: FAST 15/0, component tests 565/0, charge reader 105/0, carrier reader 142/0.
