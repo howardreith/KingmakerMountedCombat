@@ -1157,3 +1157,63 @@ anything when a player offers the charge and then changes their mind.
 
 Offline verification: FAST 15/0 (attempt 1), Validate-Source 130/0, component tests 565/0, charge reader
 123/0, carrier reader 142/0.
+
+## Preview.172 native outcome (2026-10-04; frozen preview.172, campaign closed) - 6 PASS / 0 FAIL
+
+Frozen payload `0.1.0-chunk6b-preview.172` at commit `2bef622c880a341663b6f224a4c499a09b5a1620` (committed
+tree `e366c972bc0774dcd4714ae2caedc2e3cf054e71`), package sha256
+`ef943f88e1c7f3826a77b6f34e51851e4bd44ec647a6984eb43f9ad3a53b1c6d`, DLL sha256
+`89c223487e32475108e9ceabb6077050723170300cb9dee53a8aae3d4ba5befe`, MVID
+`1ae5804d-a66e-4362-8061-742d9aa413f8`, suite `20261004-chunk6b-charge-q` (sha256
+`1a73f5c6b28c7333315adc02f1914099dc0c5fd67e9ab6d05ab66fc844bbf3c0`), harness reader digest
+`6ed92dd0fe5b158133bc8e2ed9f98506265821e0007dab5b3b40ab088ef94a50`. Offline: Validate-Source 130/0,
+CANDIDATE tier 26/0, component tests 565/0, purity proof PASS. Six isolated restored transactions, every one
+restored with no restoration error. Measurement record
+`ecbc508401b496b5093d602c6e367a4efaddc11d46b6a5b58a73fbf0eb72aa69`; outcome record
+`97d0405c433470b9f8f9c0aa4dc21d84c2e8176c53c9d5f842373231a9f9c403`.
+
+`C6B-CHARGE-RT` **PASS 69/0 with nine rows**, `C6B-CHARGE-TB` PASS 64/0, `C6B-PATH-RT` PASS 62/0,
+`C6B-PATH-TB` PASS 62/0, `CHARGE-SAFETY-RT` PASS 66/0, `CHARGE-SAFETY-TB` PASS 66/0.
+
+**Cancellation before commitment is qualified.** From the retained row evidence of
+`c6b-charge172-a-charge-rt`: the charge was genuinely on offer - `available: true`, `canTarget: true`,
+geometry `{ straightRoute: true, landingBlocked: false, mountDistanceToTarget: 9.000001 }` - the selection
+was taken through the real player surface and then released (`selectedAfterSet: true`,
+`selectedAfterCancel: false`), the hover changed no live state, no click was issued, and the engine took
+nothing at all: no native shell, `chargeAdmitted: 0`, `chargeRefused: 0`, zero movement for mount and
+rider, zero on all four action resources, no attack rule and no lease.
+
+## Increment 6B.2 at the end of the autonomous window (2026-10-04)
+
+The real-time delivery stage now carries **nine qualified rows**: `C6B-CHARGE-default-off`,
+`-positive`, `-spent-standard`, `-below-minimum`, `-stock-rejected`, `-interrupted`, `-combat-ended`,
+`-obstructed-line` and `-cancelled`. The increment is **not** complete, and these rows are still owed:
+
+- **Clearance obstruction** - a corridor too narrow for the pair's footprint, as distinct from a blocked
+  line. The policy's own gate for a blocked landing point exists and is unexercised natively.
+- **Rider incapacity** and **mount incapacity** - the policy refuses both with exact reasons. The machinery
+  to induce them exists in `Chunk6aPendingIncapacityScenario`, which places an exact incapacitation window
+  with one real native `RuleDealDamage` against the death threshold and the actor's temporary hit points.
+  A charge row needs that damage path and its cleanup shared rather than duplicated, so the fixture's later
+  cases still start from a healthy rider; that is the work this row is waiting on.
+- **`C6B-CHARGE-target-lost`** - withdrawn after the preview.165 crash. A correct version needs a destroy
+  that leaves the diagnostic target service alive for the fixture's own cleanup.
+- **Beyond the maximum charge distance** - a named limitation rather than a row: the maximum is the mount's
+  `CombatSpeedMps * 6` of about 30.5 m while the authorized diagnostic spawn envelope is 3 to 20 m, so the
+  refusal is unreachable in the fixture and is covered by the pure policy only.
+
+Increment 6B.3 stays **DEFER - EVIDENCED**, with its deferral natively qualified in both modes. Increment
+6B.4, persistence and lifecycle, has not been started.
+
+### One lab-side correction worth recording
+
+The qualification-suite letter reached `p`, and `chunk6b-charge-p` is a prefix of
+`chunk6b-charge-path-rt`. The lab's script generator carried a bare substitution pair of the form
+`@('chunk6b-charge-<old>','chunk6b-charge-<new>')`, which at this turn of the chain would have rewritten
+`chunk6b-charge-path-rt` into `chunk6b-charge-qath-rt` and silently broken both carrier next-target
+invocations. The pair is now the specific `@('chunk6b-charge-p-diagnostic','chunk6b-charge-q-diagnostic')`
+form, every letter bump in the derivation is specific rather than bare, and the derivation asserts both that
+`chunk6b-charge-path-rt` survives and that no `qath` corruption appears. The preview.172 generation was
+then verified to emit `-Scenario chunk6b-charge-path-rt` and `-Scenario chunk6b-charge-path-tb` correctly.
+The generator is a lab script rather than repository source, so this correction has no product effect; it is
+recorded because a future letter may collide the same way.
