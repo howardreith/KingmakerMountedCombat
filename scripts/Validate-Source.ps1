@@ -1277,6 +1277,58 @@ Assert-Kmc ($chargeRowsBody.Success -and $chargeRowNames.Count -ge 7 -and $pathR
     $unregisteredChargeRows.Count -eq 0 -and $unregisteredPathRows.Count -eq 0) `
     'every Chunk 6B charge and carrier row the readers require is in the shared subscenario registry'
 
+# And the last link of that chain: the fixture's own case arrays and the reader's row lists must agree, per
+# mode. A row the fixture emits that the reader does not require is refused as unknown; a row the reader
+# requires that the fixture never emits is refused as missing. Both refusals arrive only after a live run
+# has finished, and the two lists live in different files and different languages, so they are compared
+# here instead.
+#
+# The two sets are deliberately not identical. The repeat row named by Chunk6bChargeRepeatRow is emitted
+# from inside the positive case rather than being a case of its own, and only in real time, so the reader
+# requires it in real time while the fixture's real-time case array does not list it. That exact structure
+# is what this contract pins.
+$chargeScenarioText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6bChargeScenario.cs')
+function Get-KmcDeclaredCaseNames([string]$Text, [string]$ArrayName) {
+    $body = [Regex]::Match($Text, ('(?s)string\[\] ' + [Regex]::Escape($ArrayName) + '\s*=\s*\{(.*?)\};'))
+    if (-not $body.Success) { return @() }
+    @([Regex]::Matches($body.Groups[1].Value, '"(C6B-CHARGE-[A-Za-z0-9-]+)"') | ForEach-Object { $_.Groups[1].Value })
+}
+function Get-KmcReaderRowNames([string]$Text, [string]$Mode) {
+    $body = [Regex]::Match($Text, '(?s)function Get-KmcChunk6bChargeRows.*?\n\}')
+    if (-not $body.Success) { return @() }
+    $branches = @([Regex]::Matches($body.Value, '(?s)@\((.*?)\)') | ForEach-Object { $_.Groups[1].Value })
+    # The function reads: if TB { <first array> } else { <second array> }.
+    if ($branches.Count -ne 2) { return @() }
+    $chosen = if ($Mode -ceq 'TB') { $branches[0] } else { $branches[1] }
+    @([Regex]::Matches($chosen, "'(C6B-CHARGE-[A-Za-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value })
+}
+$fixtureRt = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeRealTimeCases')
+$fixtureTb = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeTurnBasedCases')
+$readerRt = @(Get-KmcReaderRowNames $chargeReaderText 'RT')
+$readerTb = @(Get-KmcReaderRowNames $chargeReaderText 'TB')
+# The repeat row is declared once in the fixture and belongs to real time only.
+$repeatRow = [string]([Regex]::Match($chargeScenarioText, 'Chunk6bChargeRepeatRow\s*=\s*"(C6B-CHARGE-[A-Za-z0-9-]+)"').Groups[1].Value)
+$expectedRt = @($fixtureRt) + @($repeatRow | Where-Object { $_ })
+$expectedTb = @($fixtureTb)
+$caseListMismatches = @()
+if ($repeatRow -and $fixtureRt -ccontains $repeatRow) {
+    $caseListMismatches += 'the repeat row ' + $repeatRow + ' is also declared as a real-time case'
+}
+if ($repeatRow -and $expectedTb -ccontains $repeatRow) {
+    $caseListMismatches += 'the repeat row ' + $repeatRow + ' is declared as a turn-based case'
+}
+foreach ($pair in @(@('real time', $expectedRt, $readerRt), @('turn-based', $expectedTb, $readerTb))) {
+    $label = [string]$pair[0]; $fixtureNames = @($pair[1]); $readerNames = @($pair[2])
+    $caseListMismatches += @($fixtureNames | Where-Object { $readerNames -cnotcontains $_ } |
+        ForEach-Object { $label + ': the fixture emits ' + $_ + ' and the reader does not require it' })
+    $caseListMismatches += @($readerNames | Where-Object { $fixtureNames -cnotcontains $_ } |
+        ForEach-Object { $label + ': the reader requires ' + $_ + ' and the fixture does not emit it' })
+}
+Assert-Kmc ($fixtureRt.Count -ge 8 -and $fixtureTb.Count -ge 4 -and $repeatRow -and
+    $readerRt.Count -eq ($fixtureRt.Count + 1) -and $readerTb.Count -eq $fixtureTb.Count -and
+    $caseListMismatches.Count -eq 0) `
+    'the Chunk 6B charge fixture case arrays, its repeat row and the reader row lists agree exactly, per mode'
+
 
 # THE REGISTRATION CHAIN. A new scenario's evidence leaf has to be registered in five
 # places, and every one of them only complains AFTER a live run has finished: the
