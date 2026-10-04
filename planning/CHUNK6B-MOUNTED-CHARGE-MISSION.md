@@ -1217,3 +1217,38 @@ form, every letter bump in the derivation is specific rather than bare, and the 
 then verified to emit `-Scenario chunk6b-charge-path-rt` and `-Scenario chunk6b-charge-path-tb` correctly.
 The generator is a lab script rather than repository source, so this correction has no product effect; it is
 recorded because a future letter may collide the same way.
+
+### The last link of the row-registration chain, closed offline (2026-10-04)
+
+Preview.170 lost a whole live campaign to a row name that was registered in the fixture and in the reader but
+not in the subscenario registry both runtime-result gates share, and preview.171 added the contract for that
+link. One link was still checked only by a live run: whether the fixture's own case arrays and the reader's
+row lists agree. A disagreement either way - a row the fixture emits that the reader does not require, or a
+row the reader requires that the fixture never emits - is refused only after the run has finished, and the
+two lists live in different files and different languages.
+
+`Validate-Source.ps1` now compares them directly, per mode. Validator total 130 -> 131.
+
+**Its first run disproved its own premise, which is why it was worth writing.** The contract initially
+assumed the case array and the row list were the same set, and it failed immediately: the reader requires
+nine real-time rows while the fixture declares eight real-time cases. The ninth,
+`C6B-CHARGE-spent-standard`, is the **repeat row** - emitted from inside the positive case through
+`Chunk6bChargeRepeatRow`, and only in real time, because a repeated request needs a genuinely spent standard
+action to exist first. So the contract now pins that exact structure instead: the reader's real-time rows are
+the real-time cases **plus** the repeat row, the reader's turn-based rows are exactly the turn-based cases,
+and the repeat row must be declared as neither a real-time nor a turn-based case.
+
+The contract was proved non-vacuous in all three directions before it was committed, each probe restoring its
+file byte-identically (verified by SHA-256) and the worktree left clean:
+
+| probe | result |
+| --- | --- |
+| a reader row the fixture never emits | REFUSED, exit 1 |
+| a fixture case the reader never requires | REFUSED, exit 1 |
+| the repeat row also declared as a case | REFUSED, exit 1 |
+
+This change is **offline only**. No product, reader or fixture code is touched, the diagnostic DLL is
+unchanged, the product version stays `0.1.0-chunk6b-preview.172`, and it claims no native qualification: it
+was verified by the CANDIDATE tier at 23/0 with Validate-Source 131/0, the charge reader 123/0 and the
+carrier reader 142/0, and by the three refusal probes above. The last natively qualified payload remains
+frozen preview.172 at 6 PASS / 0 FAIL.
