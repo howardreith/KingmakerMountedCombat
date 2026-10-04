@@ -80,7 +80,7 @@ function New-Row([string]$Case){
  if($Case-ceq'C6B-CHARGE-interrupted'){ return New-TerminatedRow $Case 'native-command-interrupt' }
  if($Case-ceq'C6B-CHARGE-combat-ended'){ return New-TerminatedRow $Case 'native-combat-end' }
  # Turn-based: every measured row is a refusal while increment 6B.3 is deferred.
- $refusal=$script:fixtureMode-ceq'TB'-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected')
+ $refusal=$script:fixtureMode-ceq'TB'-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-obstructed-line')
  if($Case-ceq'C6B-CHARGE-default-off'){
   return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
    settingOff=(New-Identity $false $false);settingOn=(New-Identity $true $true);abilityGuid=$kmc}}
@@ -103,6 +103,7 @@ function New-Row([string]$Case){
    available=$(if($refusal-or$script:fixtureMode-ceq'TB'){$false}else{$true});unavailableReason=$null
    kmcAvailabilityReason=$(if($script:fixtureMode-ceq'TB'){'Mounted Charge is not yet supported in turn-based mode.'}else{'Mounted Charge is available.'})
    canTarget=$(if($refusal-or$script:fixtureMode-ceq'TB'){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
+   geometry=[ordered]@{straightRoute=$(if($Case-ceq'C6B-CHARGE-obstructed-line'){$false}else{$true});landingBlocked=$false;mountDistanceToTarget=$distance}
    requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
   input=$input
   samples=@()
@@ -130,6 +131,20 @@ function New-Artifact([string]$Mode='RT'){
   observations=[ordered]@{chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
 }
+# The obstructed-line row as it is recorded in a fixture area where every swept direction at the lawful
+# distance offered a clear native line.
+function New-ObstructedLimitationArtifact {
+ $a=New-Artifact 'RT'
+ $row=@($a.rows|Where-Object {$_.name-ceq'C6B-CHARGE-obstructed-line'})[0]
+ $row.evidence=(Json ([ordered]@{level='NATIVE DELIVERY';mode='RT';case='C6B-CHARGE-obstructed-line';mounted=$true
+  limitation='no-obstructed-line-in-fixture-area';obstructedLineReachable=$false
+  placement=[ordered]@{origin=@(0,0,0);wantedDistance=9.0;wants='obstructed-straight-line'
+   attempts=@(
+    [ordered]@{point=@(9,0,0);nativeTrace=@(9,0,0);straightRoute=$true;landingBlockedEstimate=$false;riderDistance=9.0;withinFixtureBounds=$true},
+    [ordered]@{point=@(0,0,9);nativeTrace=@(0,0,9);straightRoute=$true;landingBlockedEstimate=$false;riderDistance=9.1;withinFixtureBounds=$true})}}))
+ $a
+}
+
 $request=[pscustomobject]@{scenario='chunk6b-charge-rt'}
 function Accept([string]$Name,[scriptblock]$Body){ & $Body; $script:checks++; Write-Host ('PASS '+$Name) }
 function Reject([string]$Name,[scriptblock]$Body){ $failed=$false; try { & $Body } catch { $failed=$true }; if(-not$failed){ throw ('Invalid evidence accepted: '+$Name) }; $script:checks++; Write-Host ('PASS refuses '+$Name) }
@@ -239,6 +254,21 @@ $failed=New-Artifact; $failed.status='FAIL'; $failed.rows=@($failed.rows[0]); $f
 Accept 'a failed artifact retained without a verdict' { Assert-KmcChunk6bChargeEvidence $request $failed 'FAIL' }
 
 # Turn-based mode: the delivery and refusal core only, on the rider own unmoved turn.
+# The obstructed charge line: refused by the line alone, with neither the landing point nor the minimum
+# charge distance able to explain it.
+Accept 'the obstructed-line row recorded as an area limitation' { Assert-KmcChunk6bChargeEvidence $request (New-ObstructedLimitationArtifact) 'PASS' }
+function MutateLimitation([string]$Name,[scriptblock]$Change){ $a=New-ObstructedLimitationArtifact; & $Change $a; Reject $Name { Assert-KmcChunk6bChargeEvidence $request $a 'PASS' } }
+MutateLimitation 'an obstructed-line limitation with an unknown name' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').limitation='something-else'}
+MutateLimitation 'an obstructed-line limitation claiming the geometry was reachable' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').obstructedLineReachable=$true}
+MutateLimitation 'an obstructed-line limitation with no placement sweep' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').placement.attempts=@()}
+MutateLimitation 'an obstructed-line limitation that passed over an obstructed candidate' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').placement.attempts[0].straightRoute=$false}
+Mutate 'an obstructed-line row whose line was straight after all' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').before.geometry.straightRoute=$true}
+Mutate 'an obstructed-line row with no recorded geometry' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').before.PSObject.Properties.Remove('geometry')}
+Mutate 'an obstructed-line row whose landing was blocked as well' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').before.geometry.landingBlocked=$true}
+Mutate 'an obstructed-line row inside the minimum charge distance' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').before.state.distanceToTarget=3.0}
+Mutate 'a targetable target whose charge line is obstructed' {param($a) (Row $a 'C6B-CHARGE-obstructed-line').before.canTarget=$true}
+Mutate 'a lawful charge whose line was not a straight native route' {param($a) (Row $a 'C6B-CHARGE-positive').before.geometry.straightRoute=$false}
+
 $tbRequest=[pscustomobject]@{scenario='chunk6b-charge-tb'}
 function MutateTb([string]$Name,[scriptblock]$Change){ $a=New-Artifact 'TB'; & $Change $a; Reject ('TB: '+$Name) { Assert-KmcChunk6bChargeEvidence $tbRequest $a 'PASS' } }
 Accept 'TB turn-based charge refused while increment 6B.3 is deferred' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
