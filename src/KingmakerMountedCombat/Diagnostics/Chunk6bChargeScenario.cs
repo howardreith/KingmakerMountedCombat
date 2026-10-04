@@ -100,10 +100,13 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-below-minimum", StringComparison.Ordinal) ? 3.5f : 9f;
 
         // The cases that must actually deliver a charge, addressed by identity rather than by index so the
-        // real-time and turn-based case lists can differ.
+        // real-time and turn-based case lists can differ. No turn-based case can deliver one while
+        // increment 6B.3 is deferred: the policy refuses every turn-based charge, so a turn-based case
+        // records that refusal and must not wait for a targetable geometry it can never be offered.
         private bool Chunk6bChargeCaseMustDeliver =>
-            string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-positive", StringComparison.Ordinal) ||
-            Chunk6bChargeCaseIntervention != null;
+            !Chunk6bChargeTb &&
+            (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-positive", StringComparison.Ordinal) ||
+             Chunk6bChargeCaseIntervention != null);
 
         // The native intervention this case performs once the charge is committed, or null for a case that
         // lets the charge run to its own end.
@@ -338,7 +341,37 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (chunk6bChargeStage == 1)
             {
-                if (!IsCombatReady(true)) return;
+                // Every gate below is published before it is applied, so a stall in this stage names its
+                // own cause in the retained progress record. IsCombatReady is called exactly once a frame
+                // and its result is both recorded and used.
+                var combatReady = IsCombatReady(true);
+                var gates = new JObject
+                {
+                    ["combatReady"] = combatReady,
+                    ["riderCommandsEmpty"] = rider.Commands.Empty,
+                    ["mountCommandsEmpty"] = horse.Commands.Empty,
+                    ["riderHandsBusy"] = rider.AreHandsBusyWithAnimation,
+                    ["riderPrepared"] = rider.CombatState.Prepared,
+                    ["pairHasActiveCommand"] = combat.HasActiveCommand,
+                    ["riderCanActInCombat"] = rider.CombatState.CanActInCombat,
+                    ["riderAbleToAct"] = rider.IsAbleToAct(),
+                    ["riderStandardCooldown"] = rider.CombatState.Cooldown.StandardAction,
+                    ["riderMoveCooldown"] = rider.CombatState.Cooldown.MoveAction,
+                    ["mustDeliver"] = Chunk6bChargeCaseMustDeliver
+                };
+                if (Chunk6bChargeTb)
+                {
+                    gates["turnPresent"] = turn != null;
+                    gates["turnIsRider"] = turn != null && ReferenceEquals(turn.Unit, rider);
+                    gates["turnUnit"] = turn == null || turn.Unit == null ? null : turn.Unit.UniqueId;
+                    gates["turnStatus"] = turn == null ? null : turn.Status.ToString();
+                    gates["turnActing"] = turn != null && turn.IsActing;
+                    gates["turnTimeMoved"] = turn == null ? 0f : turn.TimeMoved;
+                    gates["controllerWaitingForUi"] = (bool)controller.WaitingForUI;
+                    gates["controllerPendingNextUnit"] = GetPendingNextUnit(controller) != null;
+                }
+                ((JObject)Chunk6bChargeMeasurement["progress"])["gates"] = gates;
+                if (!combatReady) return;
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                     !rider.CombatState.Prepared || combat.HasActiveCommand) return;
                 // Preview.158 measured the rider still waiting initiative for a moment after real-time combat

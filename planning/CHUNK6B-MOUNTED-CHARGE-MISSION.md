@@ -859,3 +859,59 @@ Offline verification: FAST 15/0 (attempt 3, on this candidate's source; attempts
 retained, attempt 1 having failed to compile because the retained turn-based rules were unreachable below
 the refusal and this build treats CS0162 as an error), component tests 565/0, charge reader 102/0, carrier
 reader 142/0.
+
+## Preview.167 native outcome (2026-10-04; frozen preview.167, campaign closed)
+
+Frozen payload `0.1.0-chunk6b-preview.167` at commit `9195747fe55d9aeda0a286a2b8bbac52d7f740cd` (committed
+tree `94800faa563c2a79f3731b2d978d92757367d79f`), package sha256
+`a63e6cc030f75872092e66bdd0997b2b69ec2b926fe1b469d2d670dc21631d82`, DLL sha256
+`870918142196f4897ff9130ddb4f002125ccf1b2f73b66b6bc9f6ecdc4d39a18`, MVID
+`be4849be-70e1-4005-8651-9c8e48dea8d4`, suite `20261004-chunk6b-charge-l` (sha256
+`11f6ae1f80520131ee2daf2b1c91af10de1cba3429c45e01e22dd916bbd36caa`), harness reader digest
+`f18ebd418d6c9ab961249b4c48af6fa1f4b6b760ee6e14c9d8b9a9e51bb33438`. Offline: CANDIDATE tier 26/0, component
+tests 565/0. Purity proof PASS - "no evidence, lock, transaction, Mods, process, game, or save mutation
+occurred". Six isolated restored transactions: **5 PASS, 1 FAIL**, every one restored with no restoration
+error and the baseline immutable. Measurement record
+`310b8af8fa8ee84f4674cf51dad94b6e21ba0ad7942b06a304d3ca4352104522`; outcome record
+`102eae5fdf2a25b9255fd8d9f44bdfef8437aeb43ac7d1abe98868fea0516b14`.
+
+- **C6B-CHARGE-RT: PASS 67/0** - the fourth consecutive qualification of the real-time delivery, and the
+  evidence that deferring the turn-based mode disturbed nothing in the mode that works.
+- **C6B-PATH-RT: PASS 62/0**, **C6B-PATH-TB: PASS 62/0**, **CHARGE-SAFETY-RT: PASS 66/0**,
+  **CHARGE-SAFETY-TB: PASS 66/0** - increment 6B.1 stays qualified in both modes, and the stock Charge stays
+  rejected while mounted and unmodified in both modes.
+- **C6B-CHARGE-TB: FAIL 61/2, at the same boundary as preview.166 but for a different reason.** The tranche
+  leaf again exceeded 30 seconds at `Phase3gControls`, with the retained progress record naming case
+  `C6B-CHARGE-positive`, stage 1, frame 4500, relationship `Mounted`, `samples: 0`. The deferral itself
+  behaved: the `C6B-CHARGE-default-off` row passed and no charge was admitted, costed or moved. What stalled
+  is the **fixture**, which still treats `C6B-CHARGE-positive` as a case that must deliver and therefore
+  waits for a targetable charge geometry the deferred policy will never offer.
+
+**The cause of the stall is not yet established, and is not claimed here.** Stage 1 holds eleven gates before
+the click and the retained evidence records none of their values, so two explanations remain open: the
+must-deliver wait described above, or an earlier gate that was already unmet in preview.166 and is unrelated
+to the deferral. Preview.165 reached the click through this same gate chain, so the chain is not inherently
+unreachable. Preview.168 therefore does two things rather than guess.
+
+## Preview.168 - the turn-based stage records the refusal, and stage 1 names its own gate (2026-10-04, offline-verified)
+
+- **The turn-based cases stop waiting for a delivery the increment has deferred.**
+  `Chunk6bChargeCaseMustDeliver` is now false in turn-based mode for every case, because the policy refuses
+  every turn-based charge: a case that cannot be delivered must record the refusal, not wait for targeting
+  that cannot be offered. The turn-based positive case then follows exactly the path the already-qualified
+  real-time `C6B-CHARGE-below-minimum` row follows - capture, click, refusal, settle - and the reader rules
+  written for preview.167 apply to it unchanged.
+- **Stage 1 publishes every gate it waits on**, into the `gates` object of the retained progress record, on
+  the frame it is read and before it is applied: combat readiness, both command queues, the rider's animation
+  hands, `CombatState.Prepared`, the pair's active command, `CanActInCombat`, `IsAbleToAct`, both rider
+  cooldowns, whether this case must deliver, and in turn-based mode the live turn's presence, owner, status,
+  acting flag and time moved together with the controller's `WaitingForUI` and pending next unit.
+  `IsCombatReady` is called exactly once a frame and its result is both recorded and used, so the
+  instrumentation changes no behaviour. A stall in this stage can no longer expire anonymously.
+- **This is the third attempt at the same boundary, and it is not an unchanged one.** The retry discipline
+  allows it because it carries the distinguishing observation the first two lacked: either the stage completes,
+  or the gate that blocks it is named in the evidence.
+- Nothing else changes. No product code is touched, the readers are unchanged, real time stays qualified at
+  67/0, the stock Charge stays rejected while mounted, and the feature remains default-off.
+
+Offline verification: FAST 15/0 (attempt 1), component tests 565/0, charge reader 102/0, carrier reader 142/0.
