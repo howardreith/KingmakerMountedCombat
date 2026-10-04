@@ -92,7 +92,13 @@ function Assert-KmcChunk6bChargeRow($Row) {
             if($null-eq$delivery){ChargeFail 'the lawful charge recorded no post-settlement delivery section'}
             if([long](ChargeProp $delivery 'chargeAdmitted')-ne1){ChargeFail 'the controller did not admit exactly one charge'}
             if([long](ChargeProp $delivery 'chargeRefused')-ne0){ChargeFail 'the controller refused the charge it was asked to deliver'}
-            if(@(ChargeProp $delivery 'rejectionCodes').Count-ne0){ChargeFail 'the delivered charge reported a rejection code'}
+            # LastRejectionCodes and LastFeedback are the controller's shared last-values for every mounted
+            # interaction, so they are recorded as context and never asserted per row: preview.160 measured
+            # the same stale code on rows where no charge was attempted at all. The charge-specific
+            # counters and the charge-specific refusal reason above are the assertable facts.
+            # An empty array cannot survive a function return in PowerShell, so the context is proven by the
+            # property's presence rather than by its value.
+            if($null-eq$delivery.PSObject.Properties['rejectionCodes']){ChargeFail 'the delivered charge recorded no rejection-code context'}
             if($null-ne(ChargeProp $delivery 'lastRefusal')){ChargeFail 'the delivered charge left a refusal reason behind'}
             if(@(ChargeProp $input 'rejectionCodes').Count-ne0){ChargeFail 'the lawful charge reported a rejection code'}
             # The mount is the mover, at charge speed, and the rider never moves under its own agent.

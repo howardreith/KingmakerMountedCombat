@@ -134,7 +134,7 @@ Mutate 'a charge the controller never admitted' {param($a) (Row $a 'C6B-CHARGE-p
 Mutate 'a lawful charge with no post-settlement delivery section' {param($a) (Row $a 'C6B-CHARGE-positive').delivery=$null}
 Mutate 'a charge admitted twice' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.chargeAdmitted=2}
 Mutate 'a charge the controller refused at delivery' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.chargeRefused=1}
-Mutate 'a delivered charge carrying a rejection code' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.rejectionCodes=@('WrongActionState')}
+Mutate 'a delivered charge with no rejection-code context' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.PSObject.Properties.Remove('rejectionCodes')}
 Mutate 'a delivered charge leaving a refusal reason behind' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.lastRefusal='Mounted Charge requires the rider standard action.'}
 Mutate 'a refusal that reached the controller delivery' {param($a) (Row $a 'C6B-CHARGE-below-minimum').delivery.chargeAdmitted=1}
 Mutate 'a refusal refused at the controller delivery' {param($a) (Row $a 'C6B-CHARGE-below-minimum').delivery.chargeRefused=1}
