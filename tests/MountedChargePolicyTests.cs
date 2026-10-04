@@ -17,6 +17,7 @@ namespace KingmakerMountedCombat.Tests
                 TurnBased = false,
                 RiderTurn = true,
                 TurnActingOrPreparing = true,
+                TurnActing = true,
                 TurnTimeMoved = 0f,
                 RiderCanActInCombat = true,
                 RiderStandardCooldown = 0f,
@@ -131,6 +132,19 @@ namespace KingmakerMountedCombat.Tests
                     request.TurnBased = true;
                     request.TurnActingOrPreparing = false;
                 }, MountedCombatRejectionCode.WrongTurn, "a turn that is neither preparing nor acting");
+                // The pair movement delegation needs an acting turn, so a preparing turn is refused here
+                // rather than accepted into a round the charge cannot deliver.
+                Refuses(request =>
+                {
+                    request.TurnBased = true;
+                    request.TurnActing = false;
+                }, MountedCombatRejectionCode.WrongTurn, "a preparing rider turn that cannot delegate mount movement");
+                var realTimePreparing = Evaluate(request =>
+                {
+                    request.TurnBased = false;
+                    request.TurnActing = false;
+                });
+                TestRunner.True(realTimePreparing.IsAllowed, "Real time applied the acting-turn gate: " + realTimePreparing.Reason);
                 Refuses(request =>
                 {
                     request.TurnBased = true;

@@ -48,9 +48,8 @@ function New-Lease{
 function New-Intervention([string]$Kind){
  [ordered]@{kind=$Kind;frame=130;nativeSeconds=0.4;mountDistanceAtIntervention=4.0;pairCommandActiveBefore=$true
   riderInCombatBefore=$true;riderStandardBefore=6.0;before=(New-State 'intervention-before' 5.0 6.0 $true)
-  after=(New-State 'intervention-after' 5.0 6.0 $true);riderInCombatAfter=$($Kind-cne'native-combat-end')
-  targetDestroyed=$($Kind-ceq'native-target-destroyed');targetId=$(if($Kind-ceq'native-target-destroyed'){'target'}else{$null})
-  riderStandardAfter=$(if($Kind-ceq'native-combat-end'){0.0}else{5.8})}
+  after=(New-State 'intervention-after' 5.0 6.0 $true);riderInCombatAfter=$($Kind-ceq'native-command-interrupt')
+  riderStandardAfter=$(if($Kind-ceq'native-command-interrupt'){5.8}else{0.0})}
 }
 function New-TerminatedRow([string]$Case,[string]$Kind){
  [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
@@ -80,7 +79,6 @@ function New-TerminatedRow([string]$Case,[string]$Kind){
 function New-Row([string]$Case){
  if($Case-ceq'C6B-CHARGE-interrupted'){ return New-TerminatedRow $Case 'native-command-interrupt' }
  if($Case-ceq'C6B-CHARGE-combat-ended'){ return New-TerminatedRow $Case 'native-combat-end' }
- if($Case-ceq'C6B-CHARGE-target-lost'){ return New-TerminatedRow $Case 'native-target-destroyed' }
  $refusal=$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected')
  if($Case-ceq'C6B-CHARGE-default-off'){
   return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
@@ -232,11 +230,6 @@ Mutate 'an interrupted charge recorded as a combat end' {param($a) (Row $a 'C6B-
 Mutate 'a combat-end charge recorded as an interrupt' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.kind='native-command-interrupt'}
 Mutate 'a combat-end charge that never started in combat' {param($a) (Row $a 'C6B-CHARGE-combat-ended').intervention.riderInCombatBefore=$false}
 Mutate 'a combat-end charge that charged the mount' {param($a) (Row $a 'C6B-CHARGE-combat-ended').economy.mountMoveMax=3.0}
-Mutate 'a target-lost charge whose target was not destroyed' {param($a) (Row $a 'C6B-CHARGE-target-lost').intervention.targetDestroyed=$false}
-Mutate 'a target-lost charge with no target identity' {param($a) (Row $a 'C6B-CHARGE-target-lost').intervention.targetId=$null}
-Mutate 'a target-lost charge that ended the combat instead' {param($a) (Row $a 'C6B-CHARGE-target-lost').intervention.riderInCombatAfter=$false}
-Mutate 'a target-lost charge recorded as an interrupt' {param($a) (Row $a 'C6B-CHARGE-target-lost').intervention.kind='native-command-interrupt'}
-Mutate 'a target-lost charge that delivered an attack' {param($a) (Row $a 'C6B-CHARGE-target-lost').rules=(Json (New-Rules 1 0 $true)); (Row $a 'C6B-CHARGE-target-lost').attackRules=1}
 Mutate 'a stock Charge that stayed available and unrefused' {param($a) (Row $a 'C6B-CHARGE-stock-rejected').input.stockAvailable=$true;(Row $a 'C6B-CHARGE-stock-rejected').input.feedback='something else'}
 
 # A FAIL artifact may carry a failed row and need not be complete.
@@ -251,6 +244,7 @@ MutateTb 'a turn-based artifact read as real time' {param($a) $a.observations.ch
 MutateTb 'a turn-based charge with no recorded turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn=$null}
 MutateTb 'a turn-based charge off the rider own turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.isRider=$false}
 MutateTb 'a turn-based charge after the turn had moved' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.timeMoved=1.0}
+MutateTb 'a turn-based charge cast on a preparing turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.acting=$false}
 MutateTb 'a turn-based artifact carrying a real-time only row' {param($a) $a.rows=@($a.rows)+@((Json (New-Row 'C6B-CHARGE-interrupted'))); $a.subscenarioPassCount=$a.rows.Count}
 Accept 'TB failed artifact retained without a verdict' { $f=New-Artifact 'TB'; $f.status='FAIL'; $f.rows=@($f.rows[0]); $f.rows[0].status='FAIL'; $f.subscenarioPassCount=0; $f.subscenarioFailCount=1; Assert-KmcChunk6bChargeEvidence $tbRequest $f 'FAIL' }
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

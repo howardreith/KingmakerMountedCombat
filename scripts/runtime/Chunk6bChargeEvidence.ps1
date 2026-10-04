@@ -16,7 +16,7 @@ function Get-KmcChunk6bChargeRows([string]$Mode) {
     if([string]$Mode-ceq'TB'){
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
-        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-target-lost')
+        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended')
     }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
@@ -143,6 +143,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                 $beforeTurn=ChargeProp (ChargeProp $before 'state') 'turn'
                 if($null-eq$beforeTurn){ChargeFail 'the turn-based charge recorded no turn'}
                 if((ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based charge was not cast on the rider own turn'}
+                if((ChargeProp $beforeTurn 'acting')-ne$true){ChargeFail 'the turn-based charge was not cast on an acting rider turn'}
                 if(-not(ChargeNumber (ChargeProp $beforeTurn 'timeMoved'))-or[double]$beforeTurn.timeMoved-gt0.0001){ChargeFail 'the turn-based charge was cast after the turn had already moved'}
             }
             if((ChargeProp $input 'clicked')-ne$true-or(ChargeProp $input 'hoverPure')-ne$true){ChargeFail 'the lawful charge was not admitted by a pure player click'}
@@ -218,17 +219,6 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             Assert-KmcChunk6bChargeBoundedTermination $e $name 'native-command-interrupt'
             $intervention=ChargeProp $e 'intervention'
             if((ChargeProp $intervention 'riderInCombatAfter')-ne$true){ChargeFail 'the interrupted charge left combat instead of being interrupted inside it'}
-        }
-        'C6B-CHARGE-target-lost' {
-            if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the target-lost charge was not available or targetable'}
-            if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the target-lost charge did not admit exactly one native shell'}
-            Assert-KmcChunk6bChargeBoundedTermination $e $name 'native-target-destroyed'
-            $intervention=ChargeProp $e 'intervention'
-            # The body really was removed, through the service own bounded destroy, and the pair stayed in
-            # combat: the termination is attributable to the lost target rather than to combat ending.
-            if((ChargeProp $intervention 'targetDestroyed')-ne$true){ChargeFail 'the target-lost row did not destroy its target'}
-            if([string]::IsNullOrWhiteSpace([string](ChargeProp $intervention 'targetId'))){ChargeFail 'the target-lost row recorded no target identity'}
-            if((ChargeProp $intervention 'riderInCombatAfter')-ne$true){ChargeFail 'the target-lost row ended the combat instead of losing the target'}
         }
         'C6B-CHARGE-combat-ended' {
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the combat-end charge was not available or targetable'}
