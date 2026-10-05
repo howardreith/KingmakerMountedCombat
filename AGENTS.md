@@ -29,9 +29,11 @@ native state, and may never write, clear, refund, synthesise or replay action re
 preparation, initiative or turn ownership to manufacture a result.
 
 **Real-time Mounted Charge is implemented and natively qualified, and remains default-off** behind
-`EnableMountedCharge`. Nine real-time rows pass 69/0 on frozen `0.1.0-chunk6b-preview.172`: default-off,
-positive, spent-standard, below-minimum, stock-rejected, interrupted, combat-ended, obstructed-line and
-cancelled. Increment 6B.1, the mount-carried forced path, is qualified in both modes at 62/0, and the
+`EnableMountedCharge`. Eleven of fifteen real-time rows pass on frozen `0.1.0-chunk6b-preview.174`: default-off,
+positive, spent-standard, below-minimum, stock-rejected, interrupted, combat-ended, obstructed-line,
+blocked-clearance, cancelled and target-moved. Increment 6B.2 still owes safe target loss, rider
+incapacity and mount incapacity, whose native charge shells the engine created and never started - an
+open known issue recorded in `planning/CHUNK6B-MOUNTED-CHARGE-MISSION.md`. Increment 6B.1, the mount-carried forced path, is qualified in both modes at 62/0, and the
 stock-Charge mounted rejection stays qualified in both modes at 66/0.
 
 **Turn-based Mounted Charge is `DEFER — EVIDENCED`.** It fails closed behind one exact, cost-free refusal,

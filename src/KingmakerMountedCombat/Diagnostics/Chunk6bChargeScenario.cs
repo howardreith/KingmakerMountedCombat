@@ -108,6 +108,9 @@ namespace KingmakerMountedCombat.Diagnostics
         // interrupt the native shell its own click created.
         private string chunk6bChargeNonDelivery;
         private bool chunk6bChargeStrandedShellInterrupted;
+        // One bounded re-click when the native shell never started, and what the second attempt did.
+        private int chunk6bChargeClickRetries;
+        private JArray chunk6bChargeClickRetryObservations = new JArray();
         private int chunk6bChargeCompensationBefore;
         // The clearance row: the landing point the policy refuses, and who was standing on it.
         private JArray chunk6bChargeLandingBlockers;
@@ -362,71 +365,6 @@ namespace KingmakerMountedCombat.Diagnostics
             return true;
         }
 
-        // A lawful charge line whose landing point one weapon reach short of the target is occupied by
-        // another awake native actor, for the row the policy must refuse through its clearance gate
-        // rather than through its line or its distance. Written out like the obstructed-line sweep and
-        // for the same reason: "this area offers no blocked landing at a lawful distance" is a
-        // measurement to record, not an exception to catch.
-        private Vector3? FindChunk6bChargeBlockedClearancePoint()
-        {
-            var attempts = new JArray();
-            Chunk6bChargeMeasurement["placement-" + Chunk6bChargeCaseId] = new JObject
-            {
-                ["origin"] = CapturePosition(horse.Position),
-                ["wants"] = "clear-straight-line-blocked-landing",
-                ["minimumSweptDistance"] = 5f,
-                ["maximumSweptDistance"] = 14f,
-                ["attempts"] = attempts
-            };
-            if (global::AstarPath.active == null)
-            {
-                throw new InvalidOperationException("Active native navigation graph is unavailable.");
-            }
-
-            var baseDirection = horse.View == null ? Vector3.forward : horse.View.transform.forward;
-            baseDirection.y = 0f;
-            if (baseDirection.sqrMagnitude < 0.01f) { baseDirection = Vector3.forward; }
-            baseDirection.Normalize();
-            for (var ring = 0; ring <= 18; ring++)
-            {
-                var wanted = 5f + ring * 0.5f;
-                for (var index = 0; index < 24; index++)
-                {
-                    var direction = Quaternion.Euler(0f, index * 15f, 0f) * baseDirection;
-                    var nearest = global::AstarPath.active.GetNearest(horse.Position + direction * wanted);
-                    if (nearest.node == null || !nearest.node.Walkable) { continue; }
-                    var point = nearest.clampedPosition;
-                    var mountDistance = HorizontalDistance(horse.Position, point);
-                    if (Math.Abs(mountDistance - wanted) > 0.6f || mountDistance < 5f) { continue; }
-                    var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, point);
-                    var straight = endpoint == point;
-                    var blockers = DescribeChunk6bChargeLandingBlockers(point, 0.5f);
-                    var riderDistance = HorizontalDistance(rider.Position, point);
-                    var within = MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance);
-                    if (attempts.Count < 200)
-                    {
-                        attempts.Add(new JObject
-                        {
-                            ["point"] = CapturePosition(point),
-                            ["wantedDistance"] = wanted,
-                            ["mountDistance"] = mountDistance,
-                            ["nativeTrace"] = CapturePosition(endpoint),
-                            ["straightRoute"] = straight,
-                            ["landingBlockerCount"] = blockers.Count,
-                            ["riderDistance"] = riderDistance,
-                            ["withinFixtureBounds"] = within
-                        });
-                    }
-
-                    // The refusal must come from the clearance gate, so the line must be clear and the
-                    // distance lawful: only the landing point may be the problem.
-                    if (within && straight && blockers.Count > 0) { return point; }
-                }
-            }
-
-            return null;
-        }
-
         // A row the fixture area cannot present, recorded in the same shape as the unreachable maximum
         // charge distance: the measurement is published and the case advances, and the row is NOT
         // claimed as delivered.
@@ -525,6 +463,8 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bChargeFaultAtClick = null;
             chunk6bChargeNonDelivery = null;
             chunk6bChargeStrandedShellInterrupted = false;
+            chunk6bChargeClickRetries = 0;
+            chunk6bChargeClickRetryObservations = new JArray();
             chunk6bChargeCompensationBefore = 0;
             chunk6bChargeLandingBlockers = null;
             chunk6bChargeBlockerEvidence = null;
@@ -821,6 +761,34 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6bChargeLifeObserver != null) { chunk6bChargeLifeObserver.Dispose(); chunk6bChargeLifeObserver = null; }
             chunk6bChargeLifeRestored = true;
             return true;
+        }
+
+        // The engine own view of a native charge shell that was created and has not started: whether it
+        // still considers the ability available and the target targetable, what reason it gives, and what
+        // either command container is doing. Every call here is a side-effect-free prediction.
+        private JObject CaptureChunk6bChargeUnstartedShell()
+        {
+            var game = Game.Instance;
+            var agent = horse.View == null ? null : horse.View.AgentASP;
+            return new JObject
+            {
+                ["available"] = chunk6bChargeAbility != null && chunk6bChargeAbility.IsAvailableForCast,
+                ["unavailableReason"] = chunk6bChargeAbility == null ? null : chunk6bChargeAbility.GetUnavailableReason(),
+                ["canTarget"] = chunk6bChargeAbility != null && target != null &&
+                    chunk6bChargeAbility.CanTarget(new TargetWrapper(target)),
+                ["kmcAvailabilityReason"] = nativeControls.Evaluate(NativeMountedControlKind.MountedCharge, rider).Reason,
+                ["riderCommandsRunning"] = rider.Commands.IsRunning(),
+                ["riderQueueCount"] = rider.Commands.Queue.Count,
+                ["riderPreviousCommand"] = rider.Commands.PreviousCommand != null,
+                ["riderHandsBusy"] = rider.AreHandsBusyWithAnimation,
+                ["mountCommandsRunning"] = horse.Commands.IsRunning(),
+                ["mountQueueCount"] = horse.Commands.Queue.Count,
+                ["mountPreviousCommand"] = horse.Commands.PreviousCommand != null,
+                ["paused"] = game != null && game.IsPaused,
+                ["riderAgentMoving"] = rider.View != null && rider.View.AgentASP != null && rider.View.AgentASP.IsReallyMoving,
+                ["mountAgentMoving"] = agent != null && agent.IsReallyMoving,
+                ["pairHasActiveCommand"] = combat.HasActiveCommand
+            };
         }
 
         // What the charge transaction itself recorded: its revalidations, its step order, its carrier
@@ -1262,6 +1230,13 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["state"] = CaptureChunk6bChargeActors("sample"),
                             ["shellRunning"] = chunk6bChargeShell != null && chunk6bChargeShell.IsRunning,
                             ["shellFinished"] = chunk6bChargeShell == null || chunk6bChargeShell.IsFinished,
+                            ["shellStarted"] = chunk6bChargeShell != null && chunk6bChargeShell.IsStarted,
+                            // Preview.173 and preview.174 both measured a native shell that was created by
+                            // the click and never started, with no DispatchStarted and so no Deliver. The
+                            // engine own answers are asked here, every sample, while that is true: they are
+                            // side-effect-free predictions and they are the next distinguishing observation.
+                            ["unstartedShell"] = chunk6bChargeShell == null || chunk6bChargeShell.IsStarted ||
+                                chunk6bChargeShell.IsFinished ? null : CaptureChunk6bChargeUnstartedShell(),
                             ["pairAttackRules"] = ruleProbe.PairAttackRuleCount - chunk6bChargeAttackRulesBefore
                         });
                     }
@@ -1357,7 +1332,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 // facts that decide it, rather than leaving the external reader to infer it from an
                 // absent lease. Preview.173 measured exactly this: the cast was requested, the native
                 // shell was created and never started, and the intervention therefore never fired.
-                if (Chunk6bChargeCaseMustDeliver && !chunk6bChargeAttemptAdmitted)
+                // The admission-fault case is the one that must NOT be admitted: it needs a lawful
+                // geometry so the charge reaches the rider queue, and then its injected fault refuses
+                // the admission on purpose. A non-delivery verdict there would refuse the row for doing
+                // exactly what it set out to do; what that row must show instead is that the seam fired
+                // and the compensation resolved every native owner, which the reader requires.
+                if (Chunk6bChargeCaseMustDeliver && !Chunk6bChargeCaseArmsAdmissionFault &&
+                    !chunk6bChargeAttemptAdmitted)
                 {
                     chunk6bChargeNonDelivery = "the charge was not admitted: clicked=" + chunk6bChargeClicked +
                         "; shell=" + (chunk6bChargeShell == null ? "<none>" : "present") +
@@ -1369,6 +1350,48 @@ namespace KingmakerMountedCombat.Diagnostics
                         "; admittedDelta=" + (combat.MountedChargeAdmittedCount - chunk6bChargeAdmittedBefore) +
                         "; refusedDelta=" + (combat.MountedChargeRefusedCount - chunk6bChargeRefusedBefore) +
                         "; lastRefusal=" + (combat.LastMountedChargeRefusal ?? "<none>");
+                }
+
+                // A shell the engine never started keeps the rider command container occupied, and no
+                // later case can run while it does. It is this fixture own input, so the fixture ends it
+                // exactly here - before the row is written, so the row can report that it had to - and
+                // then reaps finished commands the way the engine reaps its own each tick.
+                var shellNeverStarted = !string.IsNullOrEmpty(chunk6bChargeNonDelivery) &&
+                    chunk6bChargeShell != null && !chunk6bChargeShell.IsStarted && !chunk6bChargeShell.IsFinished;
+                if (shellNeverStarted)
+                {
+                    chunk6bChargeStrandedShellInterrupted = true;
+                    var stranded = new JObject
+                    {
+                        ["frame"] = Time.frameCount,
+                        ["attempt"] = chunk6bChargeClickRetries + 1,
+                        ["reason"] = chunk6bChargeNonDelivery,
+                        ["engine"] = CaptureChunk6bChargeUnstartedShell(),
+                        ["before"] = CaptureChunk6bChargeActors("stranded-shell-before")
+                    };
+                    Chunk6bChargeMeasurement["strandedShell-" + Chunk6bChargeCaseId + "-" +
+                        (chunk6bChargeClickRetries + 1)] = stranded;
+                    chunk6bChargeClickRetryObservations.Add(stranded);
+                    chunk6bChargeShell.Interrupt();
+                }
+
+                rider.Commands.RemoveFinishedAndUpdateQueue();
+                horse.Commands.RemoveFinishedAndUpdateQueue();
+                // Exactly one bounded re-click, and only for a shell the engine never started. The row
+                // still fails - the reader refuses any row that needed a retry - so this buys the
+                // intervention evidence of the case and the answer to whether the condition is
+                // transient, never a verdict.
+                if (shellNeverStarted && chunk6bChargeClickRetries == 0)
+                {
+                    chunk6bChargeClickRetries = 1;
+                    chunk6bChargeNonDelivery = null;
+                    chunk6bChargeShell = null;
+                    chunk6bChargeInput = null;
+                    chunk6bChargeBefore = null;
+                    chunk6bChargeClicked = false;
+                    chunk6bChargeSamples.Clear();
+                    chunk6bChargeLastSample = -1;
+                    chunk6bChargeStage = 1; ResetLeafClock(); return;
                 }
 
                 chunk6bChargeStage = 3; ResetLeafClock(); return;
@@ -1460,6 +1483,8 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["admissionFault"] = chunk6bChargeFaultEvidence,
                     ["nonDelivery"] = chunk6bChargeNonDelivery,
                     ["strandedShellInterrupted"] = chunk6bChargeStrandedShellInterrupted,
+                    ["clickRetries"] = chunk6bChargeClickRetries,
+                    ["clickRetryObservations"] = chunk6bChargeClickRetryObservations.DeepClone(),
                     ["landingBlockers"] = chunk6bChargeLandingBlockers,
                     ["landingBlocker"] = chunk6bChargeBlockerEvidence,
                     ["targetLoss"] = chunk6bChargeTargetLossEvidence,
@@ -1510,23 +1535,6 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (chunk6bChargeStage == 4)
             {
-                if (!chunk6bChargeStrandedShellInterrupted && chunk6bChargeShell != null &&
-                    !chunk6bChargeShell.IsStarted && !chunk6bChargeShell.IsFinished &&
-                    !string.IsNullOrEmpty(chunk6bChargeNonDelivery))
-                {
-                    // Preview.173 stalled the whole tranche here: a native shell the engine never started
-                    // keeps the rider command container occupied, and no later case can run. The shell is
-                    // this fixture own input, so the fixture ends it exactly and records that it had to.
-                    chunk6bChargeStrandedShellInterrupted = true;
-                    Chunk6bChargeMeasurement["strandedShell-" + Chunk6bChargeCaseId] = new JObject
-                    {
-                        ["frame"] = Time.frameCount,
-                        ["reason"] = chunk6bChargeNonDelivery,
-                        ["before"] = CaptureChunk6bChargeActors("stranded-shell-before")
-                    };
-                    chunk6bChargeShell.Interrupt();
-                    return;
-                }
 
                 if (combat.HasActiveCommand || !rider.Commands.Empty || !horse.Commands.Empty) return;
                 if (horse.View != null && horse.View.AgentASP.IsReallyMoving) return;
@@ -1771,6 +1779,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["admissionFault"] = null,
                 ["nonDelivery"] = null,
                 ["strandedShellInterrupted"] = false,
+                ["clickRetries"] = 0,
+                ["clickRetryObservations"] = new JArray(),
                 ["landingBlockers"] = null,
                 ["landingBlocker"] = null,
                 ["targetLoss"] = null,

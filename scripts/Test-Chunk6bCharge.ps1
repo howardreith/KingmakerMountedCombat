@@ -113,7 +113,7 @@ function New-TerminatedRow([string]$Case,[string]$Kind){
    riderStandardNow=4.0;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
   lease=(New-Lease)
   transaction=(New-Transaction $false)
-  nonDelivery=$null;strandedShellInterrupted=$false
+  nonDelivery=$null;strandedShellInterrupted=$false;clickRetries=0;clickRetryObservations=@()
   targetLoss=$(if($Kind-ceq'native-target-removed'){New-TargetLoss}else{$null})
   incapacity=$(if($Kind-cin@('native-rider-incapacity','native-mount-incapacity')){New-Incapacity $(if($Kind-ceq'native-mount-incapacity'){'mount'}else{'rider'})}else{$null})
   intervention=(New-Intervention $Kind)
@@ -147,7 +147,7 @@ function New-AdmissionFaultRow{
   economy=[ordered]@{riderStandardMax=6.0;riderMoveMax=0.0;mountStandardMax=0.0;mountMoveMax=0.0
    riderStandardNow=6.0;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
   lease=$null;transaction=$null;landingBlockers=$null;landingBlocker=$null;targetLoss=$null;targetMove=$null;incapacity=$null
-  nonDelivery=$null;strandedShellInterrupted=$false
+  nonDelivery=$null;strandedShellInterrupted=$false;clickRetries=0;clickRetryObservations=@()
   admissionFault=[ordered]@{contract='post-queue-charge-admission-fault-compensated-exactly'
    armed=$true;fired=$true;seamClearedAfterFire=$true;frame=140;compensationCount=1
    atClick=[ordered]@{frame=111;armed=$true;firedByClick=$false;seamStillArmed=$true;riderCommandsEmpty=$false
@@ -217,7 +217,7 @@ function New-Row([string]$Case){
   lease=$(if($refusal){$null}else{New-Lease})
   transaction=$(if($refusal){$null}else{New-Transaction $true})
   admissionFault=$null;landingBlockers=$null;landingBlocker=$null;targetLoss=$null;incapacity=$null
-  nonDelivery=$null;strandedShellInterrupted=$false
+  nonDelivery=$null;strandedShellInterrupted=$false;clickRetries=0;clickRetryObservations=@()
   targetMove=$(if($Case-ceq'C6B-CHARGE-target-moved'){New-TargetMove}else{$null})
   delivery=[ordered]@{chargeAdmitted=$(if($refusal){0}else{1});chargeRefused=0;lastRefusal=$null
    feedback=$(if($Case-ceq'C6B-CHARGE-stock-rejected'){'Charge is not yet supported while mounted.'}else{'Mounted charge accepted: the Horse carries the charge.'});rejectionCodes=@()}
@@ -513,14 +513,37 @@ Mutate 'a moving-target row with no target move' {param($a) (Row $a 'C6B-CHARGE-
 Mutate 'a moving-target row that never issued its move' {param($a) (Row $a 'C6B-CHARGE-target-moved').targetMove.issued=$false}
 Mutate 'a moving-target row whose target never moved' {param($a) (Row $a 'C6B-CHARGE-target-moved').targetMove.targetMovedDistance=0.2}
 Mutate 'a moving-target row naming another contract' {param($a) (Row $a 'C6B-CHARGE-target-moved').targetMove.contract='something-else'}
-MutateWith 'a moving-target charge that struck without repathing' 'struck without repathing' {param($a) (Row $a 'C6B-CHARGE-target-moved').terminal.repathCount=0}
+MutateWith 'a moving-target charge that reached its target without repathing' 'without repathing' {param($a) (Row $a 'C6B-CHARGE-target-moved').terminal.repathCount=0}
+# The third lawful outcome preview.174 measured: the charge reached, started its one native attack, and
+# the engine interrupted the strike before it resolved.
+$unresolved=New-Artifact
+(Row $unresolved 'C6B-CHARGE-target-moved').rules=(Json (New-Rules 0 0 $true))
+(Row $unresolved 'C6B-CHARGE-target-moved').attackRules=0
+(Row $unresolved 'C6B-CHARGE-target-moved').terminal.nativeCompletedAttackCount=0
+(Row $unresolved 'C6B-CHARGE-target-moved').terminal.result='Interrupt'
+Accept 'a moving-target charge whose started attack the engine interrupted' { Assert-KmcChunk6bChargeEvidence $request $unresolved 'PASS' }
+function MutateUnresolvedMoved([string]$Name,[string]$Expected,[scriptblock]$Change){
+ $a=New-Artifact
+ (Row $a 'C6B-CHARGE-target-moved').rules=(Json (New-Rules 0 0 $true))
+ (Row $a 'C6B-CHARGE-target-moved').attackRules=0
+ (Row $a 'C6B-CHARGE-target-moved').terminal.nativeCompletedAttackCount=0
+ (Row $a 'C6B-CHARGE-target-moved').terminal.result='Interrupt'
+ & $Change $a; RejectWith $Name $Expected { Assert-KmcChunk6bChargeEvidence $request $a 'PASS' }
+}
+MutateUnresolvedMoved 'an unresolved moving-target attack that produced a deliberate rule' 'still produced a deliberate attack rule' {param($a) (Row $a 'C6B-CHARGE-target-moved').rules=(Json (New-Rules 1 0 $true))}
+MutateUnresolvedMoved 'an unresolved moving-target attack that did not end interrupted' 'did not end interrupted' {param($a) (Row $a 'C6B-CHARGE-target-moved').terminal.result='Success'}
+MutateWith 'a moving-target charge that started two native attacks' 'started more than one native attack' {param($a) (Row $a 'C6B-CHARGE-target-moved').terminal.childAttackStartCount=2}
+MutateWith 'a resolved moving-target charge with no deliberate attack rule' 'exactly one deliberate attack rule' {param($a)
+ $r=(Json (New-Rules 1 0 $true));$r.pairNonOpportunityAttackRules=0;(Row $a 'C6B-CHARGE-target-moved').rules=$r}
 Mutate 'a moving-target charge with two deliberate attacks' {param($a) (Row $a 'C6B-CHARGE-target-moved').rules=(Json (New-Rules 2 0 $true))}
 Mutate 'a moving-target charge whose attack lacked the native charge rule' {param($a) (Row $a 'C6B-CHARGE-target-moved').rules=(Json (New-Rules 1 0 $false))}
-MutateWith 'a moving-target charge that neither struck nor failed a revalidation' 'neither struck nor failed a revalidation' {param($a)
+MutateWith 'a moving-target charge that neither reached its target nor failed a revalidation' 'neither reached its target nor failed a revalidation' {param($a)
  (Row $a 'C6B-CHARGE-target-moved').rules=(Json (New-Rules 0 0 $true));(Row $a 'C6B-CHARGE-target-moved').attackRules=0
+ (Row $a 'C6B-CHARGE-target-moved').terminal.childAttackStartCount=0;(Row $a 'C6B-CHARGE-target-moved').terminal.nativeCompletedAttackCount=0
  (Row $a 'C6B-CHARGE-target-moved').transaction=(Json (New-Transaction $false))}
 MutateWith 'a moving-target charge that did not name its revalidation failure' 'did not name its revalidation failure' {param($a)
  (Row $a 'C6B-CHARGE-target-moved').rules=(Json (New-Rules 0 0 $true));(Row $a 'C6B-CHARGE-target-moved').attackRules=0
+ (Row $a 'C6B-CHARGE-target-moved').terminal.childAttackStartCount=0;(Row $a 'C6B-CHARGE-target-moved').terminal.nativeCompletedAttackCount=0
  $t=(Json (New-Transaction $false));$t.revalidationFailed=$true;(Row $a 'C6B-CHARGE-target-moved').transaction=$t}
 Mutate 'a moving-target charge that charged the mount' {param($a) (Row $a 'C6B-CHARGE-target-moved').economy.mountStandardMax=6.0}
 Mutate 'a moving-target charge with no lease' {param($a) (Row $a 'C6B-CHARGE-target-moved').lease=$null}
@@ -588,6 +611,7 @@ Mutate 'a moving-target lease that never applied the native charge buff' {param(
 Mutate 'a moving-target lease that still owns the native charge buff' {param($a) (Row $a 'C6B-CHARGE-target-moved').lease.buffOutstanding=$true}
 MutateWith 'a row that records its own non-delivery' 'did not deliver' {param($a) (Row $a 'C6B-CHARGE-positive').nonDelivery='the charge was not admitted: shellStarted=False'}
 MutateWith 'a row whose stranded shell the fixture had to interrupt' 'had to interrupt itself' {param($a) (Row $a 'C6B-CHARGE-target-moved').strandedShellInterrupted=$true}
+MutateWith 'a row that needed a re-click' 're-click' {param($a) (Row $a 'C6B-CHARGE-target-moved').clickRetries=1}
 MutateWith 'an admission seam still armed after the attempt settled' 'stayed armed after the attempt settled' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.seamClearedAfterFire=$false}
 Mutate 'an admission-fault row with no state at its click' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.atClick=$null}
 MutateWith 'an admission seam already gone at the click' 'already gone at the click' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.atClick.seamStillArmed=$false}
