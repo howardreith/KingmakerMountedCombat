@@ -123,7 +123,15 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool Restored { get; private set; }
 
+        // Whether this lease ever installed the native Charge buff on the rider. It is a historical
+        // fact and stays true after the buff has been removed: the evidence readers ask "did the charge
+        // carry the native buff", and a successful removal must not erase the answer. Ownership is a
+        // separate question, asked of the retained reference below, and the cleanup ledger probes that
+        // one rather than this.
         internal bool BuffApplied { get; private set; }
+
+        // Whether the buff is still owned by this lease right now.
+        internal bool BuffOutstanding => appliedBuff != null;
 
         internal bool RiderAgentTouched { get; private set; }
 
@@ -211,14 +219,14 @@ namespace KingmakerMountedCombat.Integration
                     rider.Descriptor.State.IsCharging == riderChargingBefore;
                 Observe("apply-rolled-back", application.Describe() +
                     ";charging=" + ChargingRestoredExactly + ";speed=" + SpeedOverrideRestoredExactly +
-                    ";riderCharging=" + RiderChargingRestoredExactly + ";buff=" + BuffApplied +
+                    ";riderCharging=" + RiderChargingRestoredExactly + ";buffOutstanding=" + BuffOutstanding +
                     ";forcedPathApplied=" + ForcedPathAppliedBeforeFailure);
                 logger.Info("Mounted charge lease application rolled back: mountId=" + mount.UniqueId +
                     "; riderId=" + rider.UniqueId + "; " + application.Describe() +
                     "; charging=" + ChargingRestoredExactly +
                     "; speedOverride=" + SpeedOverrideRestoredExactly +
                     "; riderCharging=" + RiderChargingRestoredExactly +
-                    "; buffRemoved=" + !BuffApplied +
+                    "; buffRemoved=" + !BuffOutstanding +
                     "; forcedPathApplied=" + ForcedPathAppliedBeforeFailure + ".");
                 throw;
             }
@@ -301,8 +309,8 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
+            // The reference goes; BuffApplied stays, because the buff really was applied.
             appliedBuff = null;
-            BuffApplied = false;
             return true;
         }
 
@@ -505,7 +513,8 @@ namespace KingmakerMountedCombat.Integration
             // Only now: nothing is owed, every postcondition was observed.
             Restored = true;
 
-            Observe("restored", "charging=" + ChargingRestoredExactly + ";speed=" + SpeedOverrideRestoredExactly +
+            Observe("restored", "buffOutstanding=" + BuffOutstanding +
+                ";charging=" + ChargingRestoredExactly + ";speed=" + SpeedOverrideRestoredExactly +
                 ";riderCharging=" + RiderChargingRestoredExactly + ";forceModeLatched=" + ForceModeAtRestore);
             logger.Info("Mounted charge lease restored: mountId=" + mount.UniqueId +
                 "; charging=" + ChargingRestoredExactly + "; speedOverride=" + SpeedOverrideRestoredExactly +
@@ -551,6 +560,7 @@ namespace KingmakerMountedCombat.Integration
                 ["forcedPathAppliedBeforeFailure"] = ForcedPathAppliedBeforeFailure,
                 ["forcedPathOutstanding"] = ForcedPathOutstanding,
                 ["buffApplied"] = BuffApplied,
+                ["buffOutstanding"] = BuffOutstanding,
                 ["chargingBefore"] = chargingBefore,
                 ["speedOverrideBefore"] = speedOverrideBefore,
                 ["speedOverrideApplied"] = SpeedOverrideApplied,

@@ -53,7 +53,7 @@ function New-Transaction([bool]$Struck){
   repathObservations='repath=1;target-moved';finished=$true;result=$(if($Struck){'Success'}else{'Interrupted'})}
 }
 function New-Lease{
- [ordered]@{applied=$true;buffApplied=$true;chargingBefore=$false;speedOverrideBefore=$null;speedOverrideApplied=10.16
+ [ordered]@{applied=$true;buffApplied=$true;buffOutstanding=$false;chargingBefore=$false;speedOverrideBefore=$null;speedOverrideApplied=10.16
   mountCombatSpeedMps=5.08;chargingAppliedExactly=$true;chargingObservedThroughout=$true;forceModeAfterApply=$true
   forcedPathCount=2;riderAgentTouched=$false;restored=$true;chargingRestoredExactly=$true;speedOverrideRestoredExactly=$true
   riderChargingRestoredExactly=$true;forceModeAtRestore=$true;riderChargingBefore=$false;observations=@('applied:x')}
@@ -113,6 +113,7 @@ function New-TerminatedRow([string]$Case,[string]$Kind){
    riderStandardNow=4.0;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
   lease=(New-Lease)
   transaction=(New-Transaction $false)
+  nonDelivery=$null;strandedShellInterrupted=$false
   targetLoss=$(if($Kind-ceq'native-target-removed'){New-TargetLoss}else{$null})
   incapacity=$(if($Kind-cin@('native-rider-incapacity','native-mount-incapacity')){New-Incapacity $(if($Kind-ceq'native-mount-incapacity'){'mount'}else{'rider'})}else{$null})
   intervention=(New-Intervention $Kind)
@@ -145,9 +146,13 @@ function New-AdmissionFaultRow{
    chargingObserved=$false;chargeModeObserved=$false;riderChargeStateObserved=$false}
   economy=[ordered]@{riderStandardMax=6.0;riderMoveMax=0.0;mountStandardMax=0.0;mountMoveMax=0.0
    riderStandardNow=6.0;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
-  lease=$null;transaction=$null;landingBlockers=$null;targetLoss=$null;targetMove=$null;incapacity=$null
+  lease=$null;transaction=$null;landingBlockers=$null;landingBlocker=$null;targetLoss=$null;targetMove=$null;incapacity=$null
+  nonDelivery=$null;strandedShellInterrupted=$false
   admissionFault=[ordered]@{contract='post-queue-charge-admission-fault-compensated-exactly'
-   armed=$true;fired=$true;seamClearedAfterClick=$true;frame=111;compensationCount=1
+   armed=$true;fired=$true;seamClearedAfterFire=$true;frame=140;compensationCount=1
+   atClick=[ordered]@{frame=111;armed=$true;firedByClick=$false;seamStillArmed=$true;riderCommandsEmpty=$false
+    mountCommandsEmpty=$true;state=(New-State 'admission-fault-after-click' 9.0 0 $false)}
+   atSettle=(New-State 'admission-fault-at-settle' 9.0 6.0 $false)
    compensation='reason=injected;ran=True;complete=True;failures=;unmet=';compensationComplete=$true
    commandResident=$false;leaseRestored=$true;activeCommandCleared=$true;unmetPostconditions=''
    faultedCleanupOwner=$false;riderCommandsEmpty=$true;mountCommandsEmpty=$true
@@ -211,7 +216,8 @@ function New-Row([string]$Case){
    mountStandardMax=0.0;mountMoveMax=0.0;riderStandardNow=$riderStandard;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
   lease=$(if($refusal){$null}else{New-Lease})
   transaction=$(if($refusal){$null}else{New-Transaction $true})
-  admissionFault=$null;landingBlockers=$null;targetLoss=$null;incapacity=$null
+  admissionFault=$null;landingBlockers=$null;landingBlocker=$null;targetLoss=$null;incapacity=$null
+  nonDelivery=$null;strandedShellInterrupted=$false
   targetMove=$(if($Case-ceq'C6B-CHARGE-target-moved'){New-TargetMove}else{$null})
   delivery=[ordered]@{chargeAdmitted=$(if($refusal){0}else{1});chargeRefused=0;lastRefusal=$null
    feedback=$(if($Case-ceq'C6B-CHARGE-stock-rejected'){'Charge is not yet supported while mounted.'}else{'Mounted charge accepted: the Horse carries the charge.'});rejectionCodes=@()}
@@ -222,8 +228,12 @@ function New-Row([string]$Case){
  }}
  if($Case-ceq'C6B-CHARGE-blocked-clearance'){
   # The landing point one weapon reach short of the target, occupied by a named awake actor.
-  $row.evidence['landingBlockers']=@([ordered]@{actorId='party-cleric';blueprint='bp-cleric';playerFaction=$true
-   corpulence=0.5;distanceToLanding=0.42;threshold=0.8;position=@(6,0,0)})
+  $row.evidence['landingBlockers']=@([ordered]@{actorId='blocker-1';blueprint='bp-mammoth';playerFaction=$false
+   corpulence=1.75;distanceToLanding=0.11;threshold=1.8;position=@(5.25,0,0)})
+  $row.evidence['landingBlocker']=[ordered]@{contract='diagnostic-blocker-occupies-the-exact-charge-landing-point'
+   separation=3.75;weaponReach=1.5;mountCorpulence=0.5;targetCorpulence=1.75;targetPosition=@(9,0,0)
+   wantedLanding=@(5.25,0,0);placed=$true;blockerId='blocker-1';blockerPosition=@(5.25,0,0)
+   blockerCorpulence=1.75;blockerDistanceToLanding=0.11;blockerAvoidanceDisabled=$false;brainLeased=$true}
  }
  $row
 }
@@ -276,10 +286,10 @@ function New-ClearanceLimitationArtifact {
  $row=@($a.rows|Where-Object {$_.name-ceq'C6B-CHARGE-blocked-clearance'})[0]
  $row.evidence=(Json ([ordered]@{level='NATIVE DELIVERY';mode='RT';case='C6B-CHARGE-blocked-clearance';mounted=$true
   limitation='no-blocked-landing-in-fixture-area';blockedClearanceReachable=$false
-  placement=[ordered]@{origin=@(0,0,0);wants='clear-straight-line-blocked-landing';minimumSweptDistance=5.0;maximumSweptDistance=14.0
-   attempts=@(
-    [ordered]@{point=@(6,0,0);wantedDistance=6.0;mountDistance=6.0;nativeTrace=@(6,0,0);straightRoute=$true;landingBlockerCount=0;riderDistance=6.0;withinFixtureBounds=$true},
-    [ordered]@{point=@(0,0,7);wantedDistance=7.0;mountDistance=7.0;nativeTrace=@(0,0,6);straightRoute=$false;landingBlockerCount=2;riderDistance=7.1;withinFixtureBounds=$true})}}))
+  blocker=[ordered]@{contract='diagnostic-blocker-occupies-the-exact-charge-landing-point';separation=3.75
+   weaponReach=1.5;mountCorpulence=0.5;targetCorpulence=1.75;targetPosition=@(9,0,0);wantedLanding=@(5.25,0,0)
+   placed=$false;reason='the native graph offers no walkable landing point'}
+  placement=[ordered]@{origin=@(0,0,0);wantedDistance=9.0;attempts=@([ordered]@{point=@(9,0,0);straightRoute=$true})}}))
  $a
 }
 function New-IncapacityLimitationArtifact([string]$Case,[string]$Kind){
@@ -458,7 +468,7 @@ Mutate 'a clearance row whose line was obstructed as well' {param($a) (Row $a 'C
 Mutate 'a clearance row inside the minimum charge distance' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').before.state.distanceToTarget=3.0}
 Mutate 'a targetable target whose charge landing point is occupied' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').before.canTarget=$true}
 Mutate 'a clearance row that named no blocking actor' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlockers=@()}
-Mutate 'a clearance blocker standing outside the clearance threshold' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlockers[0].distanceToLanding=1.2}
+Mutate 'a clearance blocker standing outside the clearance threshold' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlockers[0].distanceToLanding=2.5}
 Mutate 'a clearance blocker with no identity' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlockers[0].actorId=''}
 Mutate 'a clearance row that moved the pair' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').movement.mountDistance=4.0}
 Mutate 'a clearance row that admitted a shell' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').input.shellCount=1}
@@ -466,15 +476,17 @@ Accept 'the clearance row recorded as an area limitation' { Assert-KmcChunk6bCha
 function MutateClearanceLimitation([string]$Name,[scriptblock]$Change){ $a=New-ClearanceLimitationArtifact; & $Change $a; Reject $Name { Assert-KmcChunk6bChargeEvidence $request $a 'PASS' } }
 MutateClearanceLimitation 'a clearance limitation with an unknown name' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').limitation='something-else'}
 MutateClearanceLimitation 'a clearance limitation claiming the geometry was reachable' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').blockedClearanceReachable=$true}
-MutateClearanceLimitation 'a clearance limitation with no placement sweep' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').placement.attempts=@()}
-MutateClearanceLimitation 'a clearance limitation that passed over a usable blocked landing' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').placement.attempts[0].landingBlockerCount=1}
+MutateClearanceLimitation 'a clearance limitation with no blocker placement attempt' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').PSObject.Properties.Remove('blocker')}
+MutateClearanceLimitation 'a clearance limitation whose blocker was placed after all' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').blocker.placed=$true}
+MutateClearanceLimitation 'a clearance limitation with no reason' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').blocker.reason=''}
+MutateClearanceLimitation 'a clearance limitation with no landing point it tried' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').blocker.PSObject.Properties.Remove('wantedLanding')}
 MutateClearanceLimitation 'the obstructed-line limitation claimed on the clearance row' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').limitation='no-obstructed-line-in-fixture-area'}
 
 # The post-queue admission fault and its compensation.
 Mutate 'an admission-fault row with no fault record' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault=$null}
 Mutate 'an admission fault that was never armed' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.armed=$false}
 Mutate 'an admission fault that never fired' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.fired=$false}
-Mutate 'an admission seam left armed after the click' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.seamClearedAfterClick=$false}
+Mutate 'an admission fault whose at-click record claims it had already fired' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.atClick.seamStillArmed=$false}
 Mutate 'an admission fault that compensated twice' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.compensationCount=2}
 MutateWith 'an admission compensation that did not complete' 'did not complete' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.compensationComplete=$false}
 MutateWith 'an admission compensation with an unmet postcondition' 'unmet postcondition' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.unmetPostconditions='lease-restored-or-absent'}
@@ -568,6 +580,23 @@ foreach($pair in @(
  (Row $dealt $row).incapacity|Add-Member -NotePropertyName nativeDamage -NotePropertyValue 32
  RejectWith ($kind+' incapacity limitation that dealt damage anyway') 'dealt damage after all' { Assert-KmcChunk6bChargeEvidence $request $dealt 'PASS' }
 }
+
+# The defects preview.173 measured, each refused by its own mutation.
+MutateWith 'a lease that still owns the native charge buff' 'still owns the native charge buff' {param($a) (Row $a 'C6B-CHARGE-positive').lease.buffOutstanding=$true}
+Mutate 'a terminated lease that still owns the native charge buff' {param($a) (Row $a 'C6B-CHARGE-interrupted').lease.buffOutstanding=$true}
+Mutate 'a moving-target lease that never applied the native charge buff' {param($a) (Row $a 'C6B-CHARGE-target-moved').lease.buffApplied=$false}
+Mutate 'a moving-target lease that still owns the native charge buff' {param($a) (Row $a 'C6B-CHARGE-target-moved').lease.buffOutstanding=$true}
+MutateWith 'a row that records its own non-delivery' 'did not deliver' {param($a) (Row $a 'C6B-CHARGE-positive').nonDelivery='the charge was not admitted: shellStarted=False'}
+MutateWith 'a row whose stranded shell the fixture had to interrupt' 'had to interrupt itself' {param($a) (Row $a 'C6B-CHARGE-target-moved').strandedShellInterrupted=$true}
+MutateWith 'an admission seam still armed after the attempt settled' 'stayed armed after the attempt settled' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.seamClearedAfterFire=$false}
+Mutate 'an admission-fault row with no state at its click' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.atClick=$null}
+MutateWith 'an admission seam already gone at the click' 'already gone at the click' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.atClick.seamStillArmed=$false}
+Mutate 'a clearance row with no placed blocker' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker=$null}
+MutateWith 'a clearance row claiming a blocked landing without placing its blocker' 'without having placed its blocker' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker.placed=$false}
+Mutate 'a clearance blocker naming another contract' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker.contract='something-else'}
+Mutate 'a placed clearance blocker with no identity' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker.blockerId=''}
+Mutate 'a clearance blocker with no weapon-reach separation' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker.separation=0}
+MutateWith 'a placed clearance blocker the gate never counted' 'not among the actors the clearance gate counted' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker.blockerId='someone-else'}
 
 $tbRequest=[pscustomobject]@{scenario='chunk6b-charge-tb'}
 function MutateTb([string]$Name,[scriptblock]$Change){ $a=New-Artifact 'TB'; & $Change $a; Reject ('TB: '+$Name) { Assert-KmcChunk6bChargeEvidence $tbRequest $a 'PASS' } }
