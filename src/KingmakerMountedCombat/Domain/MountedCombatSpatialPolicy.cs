@@ -436,18 +436,48 @@ namespace KingmakerMountedCombat.Domain
                  currentUnitIsExactRider && (riderTurnIsPreparing || riderTurnIsActing));
         }
 
+        // The acting-turn form, unchanged, for every delegator that is not the pair own charge.
         public static bool CanDelegateMountMovement(
             bool exactMountedPair,
             bool turnBasedCombat,
             bool currentUnitIsExactRider,
             bool riderTurnIsActing,
-            bool movingAgentIsExactMount)
+            bool movingAgentIsExactMount) =>
+            CanDelegateMountMovement(exactMountedPair, turnBasedCombat, currentUnitIsExactRider,
+                riderTurnIsActing, movingAgentIsExactMount, false, false);
+
+        // Chunk 6B increment 6B.3: one narrow addition, and the measurement that makes it narrow.
+        //
+        // This delegation was qualified in Chunk 6A on an acting rider turn. Its sibling below, which
+        // drives the rider own ground movement through the same mount agent and the same accounting,
+        // already accepts a preparing turn. That asymmetry - not a measured safety boundary - is what
+        // stopped a turn-based charge: preview.165 measured the mount carrying the pair 0.193 m because
+        // the delegated move was refused on every one of five repaths while the rider turn was still
+        // Preparing, and preview.166 measured the other side, that requiring an acting turn at
+        // admission makes the charge unreachable because the turn does not reach Acting before the
+        // charge is cast.
+        //
+        // So a preparing turn is admitted for exactly one delegator: the pair own charge transaction,
+        // while it is live. This is a disjunct, so no case Chunk 6A qualified can become refused and
+        // every other delegation still requires an acting turn. The authority belongs to that charge
+        // command and ends with it. Nothing is written here: the delegation only lets the mount spend
+        // the movement the engine already accounts to the rider own turn, and the charge own admission
+        // is what requires that turn not to have moved first.
+        public static bool CanDelegateMountMovement(
+            bool exactMountedPair,
+            bool turnBasedCombat,
+            bool currentUnitIsExactRider,
+            bool riderTurnIsActing,
+            bool movingAgentIsExactMount,
+            bool riderTurnIsPreparing,
+            bool exactOwnedChargeTransactionDelegating)
         {
             return exactMountedPair &&
                 turnBasedCombat &&
                 currentUnitIsExactRider &&
-                riderTurnIsActing &&
-                movingAgentIsExactMount;
+                movingAgentIsExactMount &&
+                (riderTurnIsActing ||
+                    exactOwnedChargeTransactionDelegating && riderTurnIsPreparing);
         }
 
         public static bool CanDriveRiderGroundMovement(

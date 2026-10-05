@@ -138,13 +138,15 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-below-minimum", StringComparison.Ordinal) ? 3.5f : 9f;
 
         // The cases that must actually deliver a charge, addressed by identity rather than by index so the
-        // real-time and turn-based case lists can differ. No turn-based case can deliver one while
-        // increment 6B.3 is deferred: the policy refuses every turn-based charge, so a turn-based case
-        // records that refusal and must not wait for a targetable geometry it can never be offered.
+        // real-time and turn-based case lists can differ. The positive case delivers in both modes now:
+        // increment 6B.3 opens the pair movement delegation to the charge transaction on the rider own
+        // preparing turn, so a turn-based charge is offered and cast rather than refused. Every other
+        // turn-based case is still a refusal and must not wait for a geometry it can never be offered,
+        // and the interventions and the admission-fault case remain real-time only.
         private bool Chunk6bChargeCaseMustDeliver =>
+            string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-positive", StringComparison.Ordinal) ||
             !Chunk6bChargeTb &&
-            (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-positive", StringComparison.Ordinal) ||
-             Chunk6bChargeCaseIntervention != null || Chunk6bChargeCaseArmsAdmissionFault);
+            (Chunk6bChargeCaseIntervention != null || Chunk6bChargeCaseArmsAdmissionFault);
 
         // The one case that arms the diagnostics-only admission seam. It needs a lawful geometry,
         // because the compensation it measures only exists once the charge has genuinely entered the
@@ -989,9 +991,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 // native turn and ignores a unit that is not directly controllable.
                 if (Chunk6bChargeTb)
                 {
-                    // Ownership was resolved above; what remains is what the rider's own turn must satisfy.
-                    // The turn-based charge is refused outright while increment 6B.3 is deferred, so the
-                    // fixture asks for it from the ordinary start of the rider turn and records the refusal.
+                    // Ownership was resolved above; what remains is what the rider's own turn must satisfy,
+                    // and those are exactly the conditions the turn-based branch of the policy requires:
+                    // the rider own turn, preparing or acting, with its movement not yet spent. The charge
+                    // is a full-round action, so it belongs to the ordinary start of that turn.
                     if (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
                     if (turn.TimeMoved > 0.0001f) return;
                     if (controller.WaitingForUI || GetPendingNextUnit(controller) != null) return;

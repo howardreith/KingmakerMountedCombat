@@ -105,6 +105,9 @@ function Assert-KmcChunk6bChargeIncapacityRow($Evidence,[string]$Row,[string]$Ki
     $before=ChargeProp $Evidence 'before';$input=ChargeProp $Evidence 'input'
     if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail ('row '+$Row+' was not available or targetable')}
     if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail ('row '+$Row+' did not admit exactly one native shell')}
+    # The pair was whole when the charge was cast, and the incapacity dissolved it: the row claims both.
+    if([string](ChargeProp (ChargeProp $before 'state') 'relationship')-cne'Mounted'){ChargeFail ('row '+$Row+' did not start from the mounted pair')}
+    if([string](ChargeProp (ChargeProp $Evidence 'after') 'relationship')-ceq'Mounted'){ChargeFail ('row '+$Row+' left the pair mounted after its subject was incapacitated')}
     Assert-KmcChunk6bChargeBoundedTermination $Evidence $Row $InterventionKind
     Assert-KmcChunk6bChargeTransaction $Evidence $Row $false
     $incapacity=ChargeProp $Evidence 'incapacity'
@@ -125,15 +128,22 @@ function Assert-KmcChunk6bChargeIncapacityRow($Evidence,[string]$Row,[string]$Ki
     if([long](ChargeProp $incapacity 'nativeDamageBeforeDifficulty')-ne[long]$window.requestedDamage){ChargeFail ('row '+$Row+' the native damage rule did not deal what was requested')}
     if([long](ChargeProp $incapacity 'damageAfter')-lt[long]$window.desiredDamage){ChargeFail ('row '+$Row+' the native damage did not reach the incapacity window')}
     if([long](ChargeProp $incapacity 'damageAfter')-ge[long]$window.deathThreshold){ChargeFail ('row '+$Row+' the native damage reached the death threshold')}
-    # The subject is observably unconscious and alive, and the other actor of the pair is untouched.
+    # The damage landed past the subject own hit points, in the frame of the damage rule, leaving it
+    # alive and the other actor of the pair untouched - and the pair still mounted, because the
+    # dissolution is a consequence of the incapacity and not of the damage. The life state is not
+    # asserted here: the engine UnitLifeController writes it on its own tick, not inside
+    # RuleDealDamage, so this capture still reads Conscious. Unconsciousness is asserted further down
+    # at the state the fixture waited for, and the native life event proves the transition between.
     $afterDamage=ChargeProp $incapacity 'stateAfterDamage'
     if($null-eq$afterDamage){ChargeFail ('row '+$Row+' recorded no state after its damage')}
     $otherKind=if($Kind-ceq'mount'){'rider'}else{'mount'}
     $subjectAfter=ChargeProp $afterDamage $Kind
     $otherAfter=ChargeProp $afterDamage $otherKind
     if($null-eq$subjectAfter-or$null-eq$otherAfter){ChargeFail ('row '+$Row+' recorded no pair state after its damage')}
-    if((ChargeProp $subjectAfter 'conscious')-ne$false){ChargeFail ('row '+$Row+' the subject was never unconscious')}
+    if(-not(ChargeNumber (ChargeProp $subjectAfter 'damage'))-or-not(ChargeNumber (ChargeProp $subjectAfter 'hitPoints'))){ChargeFail ('row '+$Row+' did not record the subject damage against its hit points')}
+    if([double](ChargeProp $subjectAfter 'damage')-le[double](ChargeProp $subjectAfter 'hitPoints')){ChargeFail ('row '+$Row+' the damage did not pass the subject hit points')}
     if((ChargeProp $subjectAfter 'dead')-ne$false-or(ChargeProp $subjectAfter 'finallyDead')-ne$false){ChargeFail ('row '+$Row+' the subject was killed rather than incapacitated')}
+    if([string](ChargeProp $afterDamage 'relationship')-cne'Mounted'){ChargeFail ('row '+$Row+' was no longer the mounted pair when the damage landed')}
     if((ChargeProp $otherAfter 'conscious')-ne$true-or(ChargeProp $otherAfter 'dead')-ne$false){ChargeFail ('row '+$Row+' the other actor of the pair was affected as well')}
     # Exactly one native life-state boundary for the subject, Conscious to Unconscious.
     $events=@((ChargeProp (ChargeProp $incapacity 'lifeEventsAtSettle') 'events')|Where-Object {$null-ne$_-and[string](ChargeProp $_ 'kind')-ceq'native-life-state'})
@@ -145,6 +155,19 @@ function Assert-KmcChunk6bChargeIncapacityRow($Evidence,[string]$Row,[string]$Ki
     # The fixture returns exactly the damage it dealt, and waits for the engine to confirm it.
     $restore=ChargeProp $incapacity 'restore'
     if($null-eq$restore){ChargeFail ('row '+$Row+' recorded no restoration of the damage it dealt')}
+    # The state the fixture waited for, captured just before it returned the damage: the subject is
+    # observably unconscious and still alive, its partner is untouched, and the pair has dissolved
+    # since the damage landed. This is where the life-state claim belongs.
+    $settled=ChargeProp $restore 'stateBeforeRestore'
+    if($null-eq$settled){ChargeFail ('row '+$Row+' recorded no pair state before its restoration')}
+    $subjectSettled=ChargeProp $settled $Kind
+    $otherSettled=ChargeProp $settled $otherKind
+    if($null-eq$subjectSettled-or$null-eq$otherSettled){ChargeFail ('row '+$Row+' recorded no pair state before its restoration')}
+    if((ChargeProp $subjectSettled 'conscious')-ne$false-or[string](ChargeProp $subjectSettled 'lifeState')-cne'Unconscious'){ChargeFail ('row '+$Row+' the subject was never unconscious')}
+    if((ChargeProp $subjectSettled 'dead')-ne$false-or(ChargeProp $subjectSettled 'finallyDead')-ne$false){ChargeFail ('row '+$Row+' the subject was killed rather than incapacitated')}
+    if([double](ChargeProp $subjectSettled 'damage')-ne[double](ChargeProp $subjectAfter 'damage')){ChargeFail ('row '+$Row+' the subject damage changed between the rule and the restoration')}
+    if((ChargeProp $otherSettled 'conscious')-ne$true-or(ChargeProp $otherSettled 'dead')-ne$false){ChargeFail ('row '+$Row+' the other actor of the pair was affected as well')}
+    if([string](ChargeProp $settled 'relationship')-ceq'Mounted'){ChargeFail ('row '+$Row+' still held the mounted pair when its subject was unconscious')}
     if((ChargeProp $restore 'restored')-ne$true){ChargeFail ('row '+$Row+' did not restore the damage it dealt')}
     if([long](ChargeProp $restore 'damageAfterRestore')-ne[long](ChargeProp $restore 'damageToRestore')){ChargeFail ('row '+$Row+' restored another damage value')}
     if((ChargeProp $restore 'conscious')-ne$true-or[string](ChargeProp $restore 'lifeState')-cne'Conscious'){ChargeFail ('row '+$Row+' left its subject unconscious')}
@@ -181,8 +204,13 @@ function Assert-KmcChunk6bChargeBoundedTermination($Evidence,[string]$Row,[strin
     if([long](ChargeProp $rules 'pairNonOpportunityAttackRules')-ne0){ChargeFail ('row '+$Row+' delivered a pair attack after the intervention')}
     if([long](ChargeProp $rules 'mountAttackRules')-ne0){ChargeFail ('row '+$Row+' the mount initiated an attack')}
     if([long](ChargeProp $terminal 'childAttackStartCount')-ne0){ChargeFail ('row '+$Row+' the terminal records a started child attack')}
-    # No residue of any kind.
-    foreach($flag in @('mountCharging','mountMoving','riderStateCharging','mountStateCharging','pairCommandActive')){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('row '+$Row+' left residue: '+$flag)} }
+    # No residue of any kind that the charge owns. mountMoving is deliberately not one of those for
+    # the two incapacity rows: once the incapacity has dissolved the pair the mount own agent movement
+    # belongs to the engine, and what proves the charge is over there is its restored lease and its
+    # absent command, both required above. Every fact KMC itself writes is still required gone.
+    $residue=@('mountCharging','riderStateCharging','mountStateCharging','pairCommandActive')
+    if($Row-cnotin@('C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated')){ $residue+='mountMoving' }
+    foreach($flag in $residue){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('row '+$Row+' left residue: '+$flag)} }
     if($null-ne(ChargeProp $after 'mountSpeedOverride')){ChargeFail ('row '+$Row+' left a mount speed override behind')}
     # The intervention is recorded exactly, and it really was an intervention into a live committed charge.
     if([string](ChargeProp $intervention 'kind')-cne$Kind){ChargeFail ('row '+$Row+' recorded another intervention kind: '+(ChargeProp $intervention 'kind'))}
@@ -208,7 +236,12 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     $name=[string]$Row.name
     if($null-eq$e){ChargeFail ('row '+$name+' has no evidence')}
     if([string](ChargeProp $e 'level')-cne'NATIVE DELIVERY'-or[string](ChargeProp $e 'mode')-cne$Mode-or[string](ChargeProp $e 'case')-cne$name){ChargeFail ('row '+$name+' level, mode or case differs')}
-    if((ChargeProp $e 'mounted')-ne$true){ChargeFail ('row '+$name+' was not the mounted pair')}
+    # Every row is the exact mounted pair, except the two incapacity rows: incapacitating the rider or
+    # the mount dissolves the relationship through the Chunk 5 lifecycle machinery, which is the lawful
+    # outcome those rows exist to observe, so by the time their row is written the pair is gone. They
+    # assert mounted-at-the-start and dissolved-after in their own branch, which is stronger.
+    $incapacityRow=$name-cin@('C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated')
+    if(-not$incapacityRow-and(ChargeProp $e 'mounted')-ne$true){ChargeFail ('row '+$name+' was not the mounted pair')}
     # A case that had to deliver and admitted nothing says so in its own evidence. Whatever else the
     # row contains, it did not observe what it set out to observe.
     if(-not[string]::IsNullOrEmpty([string](ChargeProp $e 'nonDelivery'))){ChargeFail ('row '+$name+' did not deliver: '+[string](ChargeProp $e 'nonDelivery'))}
@@ -274,20 +307,32 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     $movement=ChargeProp $e 'movement';$economy=ChargeProp $e 'economy';$rules=ChargeProp $e 'rules'
     foreach($part in @($before,$input,$after,$movement,$economy,$rules)){ if($null-eq$part){ChargeFail ('row '+$name+' lacks a measurement section')} }
     Assert-KmcChunk6bChargeIdentity (ChargeProp $before 'identity') $name $true
-    Assert-KmcChunk6bChargeIdentity (ChargeProp $e 'identityAfter') $name $true
+    # The KMC charge is a mounted-only ability lease. After an incapacity has dissolved the pair the
+    # ability must be gone from the rider, so those rows prove the lease followed the relationship;
+    # every other row still has it, because the pair is still whole.
+    Assert-KmcChunk6bChargeIdentity (ChargeProp $e 'identityAfter') $name (-not$incapacityRow)
 
     switch -CaseSensitive ($name) {
         'C6B-CHARGE-positive' {
             if($Mode-ceq'TB'){
-                # Increment 6B.3 is deferred with evidence, so a turn-based charge over a lawful geometry
-                # must be refused outright, with the exact reason, before any cost, path or attack.
-                if((ChargeProp $before 'available')-ne$false){ChargeFail 'the turn-based charge was available while increment 6B.3 is deferred'}
-                if((ChargeProp $before 'canTarget')-ne$false){ChargeFail 'the turn-based charge was targetable while increment 6B.3 is deferred'}
-                if([string](ChargeProp $before 'kmcAvailabilityReason')-cne'Mounted Charge is not yet supported in turn-based mode.'){ChargeFail ('the turn-based refusal reason differs: '+(ChargeProp $before 'kmcAvailabilityReason'))}
+                # Increment 6B.3's bounded seam: a turn-based charge is delivered on the rider's own
+                # turn, which must not have moved yet, and the pair movement delegation that carries it
+                # is opened for that one transaction while the turn is preparing. Those turn facts are
+                # the only thing specific to the mode; everything else a lawful charge must show is
+                # identical to real time, so this block asserts the turn and then falls through to the
+                # same contract below rather than keeping a second copy of it.
                 $beforeTurn=ChargeProp (ChargeProp $before 'state') 'turn'
-                if($null-eq$beforeTurn-or(ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based refusal was not recorded on the rider own turn'}
-                Assert-KmcChunk6bChargeNothingHappened $e $name
-                return
+                if($null-eq$beforeTurn){ChargeFail 'the turn-based charge recorded no turn'}
+                if((ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based charge was not cast on the rider own turn'}
+                if(-not(ChargeNumber (ChargeProp $beforeTurn 'timeMoved'))-or[double]$beforeTurn.timeMoved-gt0.0001){
+                    ChargeFail 'the turn-based charge was cast on a turn that had already moved'
+                }
+                if([string](ChargeProp $beforeTurn 'status')-cnotin @('Preparing','Acting')){
+                    ChargeFail ('the turn-based charge was cast on a turn that was neither preparing nor acting: '+[string](ChargeProp $beforeTurn 'status'))
+                }
+                if([string](ChargeProp $before 'kmcAvailabilityReason')-ceq'Mounted Charge is not yet supported in turn-based mode.'){
+                    ChargeFail 'the turn-based charge still reports the deferral reason'
+                }
             }
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the lawful charge was not available or targetable'}
             if((ChargeProp $before 'requireFullRound')-ne$true-or[string](ChargeProp $before 'commandType')-cne'Standard'){ChargeFail 'the lawful charge was not a full-round standard action'}
@@ -517,8 +562,16 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             if($null-eq$loss){ChargeFail 'the target-lost row recorded no target loss'}
             if([string](ChargeProp $loss 'contract')-cne'native-target-body-removed-mid-approach-shared-service-retained'){ChargeFail 'the target-lost row names another contract'}
             if([string](ChargeProp $loss 'lostTargetId')-eq''){ChargeFail 'the target-lost row did not record the body it removed'}
-            if((ChargeProp $loss 'destroyConfirmed')-ne$true){ChargeFail 'the target-lost row did not confirm the native destroy'}
+            # The body must be gone: that is the row claim, and it is directly observable. The service
+            # own bounded verification is deliberately NOT required here. DestroyAndVerify reports true
+            # only once every diagnostic lease is released - brain, durability, combat memory, party AI -
+            # and mid-approach the fixture still holds all of them, so a mid-charge destroy can remove the
+            # body and still report false. The teardown performs the verification.
             if((ChargeProp $loss 'targetEntityRemoved')-ne$true){ChargeFail 'the target-lost row body was still in state'}
+            if($null-eq$loss.PSObject.Properties['destroyConfirmed']){ChargeFail 'the target-lost row recorded no destroy result'}
+            if([string](ChargeProp $loss 'serviceState')-cnotin @('DestroyRequested','Removed','Absent')){
+                ChargeFail ('the target-lost row service is not in a destroy state: '+[string](ChargeProp $loss 'serviceState'))
+            }
             # The failure this row was withdrawn for: the shared diagnostic target service must stay
             # alive for the fixture own cleanup, because the tranche still holds it.
             if((ChargeProp $loss 'serviceRetained')-ne$true-or(ChargeProp $loss 'serviceDisposedByRow')-ne$false){ChargeFail 'the target-lost row disposed the shared diagnostic target service'}

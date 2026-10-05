@@ -748,6 +748,39 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(
                 !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, true, false),
                 "Non-pair movement agent was admitted.");
+
+            // Increment 6B.3: a preparing rider turn is admitted for exactly one delegator, the pair
+            // own live charge transaction. Everything Chunk 6A qualified must behave identically,
+            // which is why the addition is a disjunct and why the five-argument form still exists.
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true),
+                "A preparing rider turn delegated mount movement to something other than the charge.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true, true, false),
+                "A preparing rider turn delegated mount movement with no charge transaction delegating.");
+            TestRunner.True(
+                MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true, true, true),
+                "The pair own charge transaction was refused movement on a preparing rider turn.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true, false, true),
+                "A charge transaction was admitted on a turn that was neither acting nor preparing.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, false, false, true, true, true),
+                "A charge transaction was admitted on a foreign turn.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, false, true, true),
+                "A charge transaction was admitted for an agent that is not the exact mount.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, false, true, false, true, true, true),
+                "A charge transaction was admitted outside turn-based combat.");
+            TestRunner.True(
+                !MountedPairTurnPolicy.CanDelegateMountMovement(false, true, true, false, true, true, true),
+                "A charge transaction was admitted for an unmounted pair.");
+            // And the sibling that already accepted a preparing turn is untouched, which is the
+            // asymmetry this seam closes.
+            TestRunner.True(
+                MountedPairTurnPolicy.CanDriveRiderGroundMovement(true, true, true, true, false, true),
+                "Rider ground movement lost its preparing-turn admission.");
         }
 
         private static void NativeSingleAttackPrefersPrimary()

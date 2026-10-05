@@ -77,10 +77,18 @@ function New-TargetLoss{
 function New-Incapacity([string]$Kind){
  $subjectId=if($Kind-ceq'mount'){'mount'}else{'rider'}
  $otherKind=if($Kind-ceq'mount'){'rider'}else{'mount'}
+ # Two captures, as the fixture records them. In the frame of the damage rule the engine has not run
+ # its life controller yet, so the subject still reads Conscious with its damage already past its hit
+ # points; by the time the fixture restores the damage the life state is written and the incapacity
+ # has dissolved the pair. The measured preview.175 rows differ in exactly those fields.
  $state=[ordered]@{}
- $state[$Kind]=[ordered]@{id=$subjectId;conscious=$false;dead=$false;finallyDead=$false;damage=31;hitPoints=30;constitution=14;temporaryHitPoints=0;allowDyingCondition=$true;immortal=$false;essential=$false;mainCharacter=$false;lifeState='Unconscious'}
+ $state[$Kind]=[ordered]@{id=$subjectId;conscious=$true;dead=$false;finallyDead=$false;damage=31;hitPoints=30;constitution=14;temporaryHitPoints=0;allowDyingCondition=$true;immortal=$false;essential=$false;mainCharacter=$false;lifeState='Conscious'}
  $state[$otherKind]=[ordered]@{id=$otherKind;conscious=$true;dead=$false;finallyDead=$false;damage=0;hitPoints=30;constitution=14;temporaryHitPoints=0;allowDyingCondition=$true;immortal=$false;essential=$false;mainCharacter=$false;lifeState='Conscious'}
  $state['relationship']='Mounted'
+ $settledState=[ordered]@{}
+ $settledState[$Kind]=[ordered]@{id=$subjectId;conscious=$false;dead=$false;finallyDead=$false;damage=31;hitPoints=30;constitution=14;temporaryHitPoints=0;allowDyingCondition=$true;immortal=$false;essential=$false;mainCharacter=$false;lifeState='Unconscious'}
+ $settledState[$otherKind]=[ordered]@{id=$otherKind;conscious=$true;dead=$false;finallyDead=$false;damage=0;hitPoints=30;constitution=14;temporaryHitPoints=0;allowDyingCondition=$true;immortal=$false;essential=$false;mainCharacter=$false;lifeState='Conscious'}
+ $settledState['relationship']='Unmounted'
  $events=@([ordered]@{kind='native-life-state';actor=$subjectId;frame=132;lifeState='Unconscious';detail='Conscious'
    nativeSource=@([ordered]@{type='Kingmaker.Controllers.Units.UnitLifeController';method='SetLifeState';token='06009164';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})},
   [ordered]@{kind='native-command-act';actor='rider';frame=133;lifeState='Conscious';detail='Kingmaker.UnitLogic.Commands.UnitUseAbility';nativeSource=$null})
@@ -92,12 +100,13 @@ function New-Incapacity([string]$Kind){
   stateAfterDamage=$state;damageAfter=32
   lifeEventsAtSettle=[ordered]@{events=$events}
   restore=[ordered]@{contract='fixture-returns-exactly-the-damage-it-dealt';damageAtRestoreStart=32;damageToRestore=0
-   stateBeforeRestore=[ordered]@{relationship='Mounted'};frame=160;restored=$true;damageAfterRestore=0;conscious=$true
-   lifeState='Conscious';stateAfterRestore=[ordered]@{relationship='Mounted'};lifeEvents=[ordered]@{events=$events}}}
+   stateBeforeRestore=$settledState;frame=160;restored=$true;damageAfterRestore=0;conscious=$true
+   lifeState='Conscious';stateAfterRestore=[ordered]@{relationship='Unmounted'};lifeEvents=[ordered]@{events=$events}}}
 }
 function New-TerminatedRow([string]$Case,[string]$Kind){
+ $incapacity=$Kind-cin@('native-rider-incapacity','native-mount-incapacity')
  [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
-  level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
+  level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=(-not$incapacity)
   before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' 9.0 0 $false)
    available=$true;unavailableReason=$null;canTarget=$true;minRangeMeters=4.65;approachDistance=99.0
    requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
@@ -105,8 +114,8 @@ function New-TerminatedRow([string]$Case,[string]$Kind){
    feedback='Mounted charge accepted: the Horse carries the charge.';rejectionCodes=@();chargeAdmitted=0;chargeRefused=0;lastRefusal=$null
    after=(New-State 'input-after' 9.0 0 $false)}
   samples=@()
-  after=(New-State 'after' 5.0 4.0 $false)
-  identityAfter=(New-Identity $true $true)
+  after=$(if($incapacity){$s=(New-State 'after' 5.0 4.0 $false);$s['relationship']='Unmounted';$s}else{New-State 'after' 5.0 4.0 $false})
+  identityAfter=(New-Identity (-not$incapacity) $true)
   movement=[ordered]@{mountDistance=4.0;riderDistance=4.0;peakSpeedMps=10.3;mountCombatSpeedMps=5.08
    chargingObserved=$true;chargeModeObserved=$true;riderChargeStateObserved=$true}
   economy=[ordered]@{riderStandardMax=6.0;riderMoveMax=0.0;mountStandardMax=0.0;mountMoveMax=0.0
@@ -115,6 +124,7 @@ function New-TerminatedRow([string]$Case,[string]$Kind){
   transaction=(New-Transaction $false)
   nonDelivery=$null;strandedShellInterrupted=$false;clickRetries=0;clickRetryObservations=@()
   targetLoss=$(if($Kind-ceq'native-target-removed'){New-TargetLoss}else{$null})
+  # An incapacity dissolves the pair, so those rows are written after the relationship is gone.
   incapacity=$(if($Kind-cin@('native-rider-incapacity','native-mount-incapacity')){New-Incapacity $(if($Kind-ceq'native-mount-incapacity'){'mount'}else{'rider'})}else{$null})
   intervention=(New-Intervention $Kind)
   delivery=[ordered]@{chargeAdmitted=1;chargeRefused=0;lastRefusal=$null;feedback='Mounted charge accepted: the Horse carries the charge.';rejectionCodes=@()}
@@ -173,8 +183,11 @@ function New-Row([string]$Case){
  if($Case-ceq'C6B-CHARGE-rider-incapacitated'){ return New-TerminatedRow $Case 'native-rider-incapacity' }
  if($Case-ceq'C6B-CHARGE-mount-incapacitated'){ return New-TerminatedRow $Case 'native-mount-incapacity' }
  if($Case-ceq'C6B-CHARGE-exception-cleanup'-and$script:fixtureMode-cne'TB'){ return New-AdmissionFaultRow }
- # Turn-based: every measured row is a refusal while increment 6B.3 is deferred.
- $refusal=$script:fixtureMode-ceq'TB'-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled')
+ # Turn-based delivery is implemented behind increment 6B.3's bounded seam, so the turn-based positive
+ # row is a delivery like its real-time counterpart; every other turn-based row is still a refusal.
+ # One flag, read everywhere the mode used to be read, so those places cannot disagree.
+ $tbRefusal=$script:fixtureMode-ceq'TB'-and$Case-cne'C6B-CHARGE-positive'
+ $refusal=$tbRefusal-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled')
  # The cancellation row is on offer and then released: nothing happens, but the charge was genuinely
  # available and targetable, which is what makes the row mean anything.
  $offered=$Case-ceq'C6B-CHARGE-cancelled'
@@ -200,9 +213,9 @@ function New-Row([string]$Case){
  $row=[ordered]@{name=$Case;status='PASS';evidence=[ordered]@{
   level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
   before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' $distance $riderStandard $false)
-   available=$(if(($refusal-and-not$offered)-or$script:fixtureMode-ceq'TB'){$false}else{$true});unavailableReason=$null
-   kmcAvailabilityReason=$(if($script:fixtureMode-ceq'TB'){'Mounted Charge is not yet supported in turn-based mode.'}else{'Mounted Charge is available.'})
-   canTarget=$(if(($refusal-and-not$offered)-or$script:fixtureMode-ceq'TB'){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
+   available=$(if(($refusal-and-not$offered)-or$tbRefusal){$false}else{$true});unavailableReason=$null
+   kmcAvailabilityReason=$(if($tbRefusal){'Mounted Charge is not yet supported in turn-based mode.'}else{'Mounted Charge is available.'})
+   canTarget=$(if(($refusal-and-not$offered)-or$tbRefusal){$false}else{$true});minRangeMeters=4.65;approachDistance=99.0
    geometry=[ordered]@{straightRoute=$(if($Case-ceq'C6B-CHARGE-obstructed-line'){$false}else{$true});landingBlocked=$($Case-ceq'C6B-CHARGE-blocked-clearance');mountDistanceToTarget=$distance}
    requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
   input=$input
@@ -554,7 +567,14 @@ Mutate 'a moving-target charge that left charge residue' {param($a) (Row $a 'C6B
 Mutate 'a target-lost row with no loss record' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss=$null}
 Mutate 'a target-lost row naming another contract' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.contract='something-else'}
 Mutate 'a target-lost row that recorded no removed body' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.lostTargetId=''}
-Mutate 'a target-lost row that did not confirm its destroy' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.destroyConfirmed=$false}
+# A mid-charge destroy that removed the body and could not yet verify itself is lawful, because the
+# diagnostic leases are still held on purpose; preview.175 measured exactly that.
+$deferredDestroy=New-Artifact
+(Row $deferredDestroy 'C6B-CHARGE-target-lost').targetLoss.destroyConfirmed=$false
+(Row $deferredDestroy 'C6B-CHARGE-target-lost').targetLoss.serviceState='DestroyRequested'
+Accept 'a target-lost row whose destroy removed the body and deferred its verification' { Assert-KmcChunk6bChargeEvidence $request $deferredDestroy 'PASS' }
+Mutate 'a target-lost row with no destroy result at all' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.PSObject.Properties.Remove('destroyConfirmed')}
+MutateWith 'a target-lost row whose service never entered a destroy state' 'not in a destroy state' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.serviceState='Active'}
 Mutate 'a target-lost row whose body was still in state' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.targetEntityRemoved=$false}
 MutateWith 'a target-lost row that disposed the shared diagnostic target service' 'disposed the shared diagnostic target service' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.serviceRetained=$false}
 MutateWith 'a target-lost row that recorded disposing the service itself' 'disposed the shared diagnostic target service' {param($a) (Row $a 'C6B-CHARGE-target-lost').targetLoss.serviceDisposedByRow=$true}
@@ -582,9 +602,19 @@ foreach($pair in @(
  MutateWith ($kind+' incapacity whose damage rule dealt something else') 'did not deal what was requested' {param($a) (Row $a $row).incapacity.nativeDamageBeforeDifficulty=8}
  MutateWith ($kind+' incapacity that never reached the window') 'did not reach the incapacity window' {param($a) (Row $a $row).incapacity.damageAfter=10}
  MutateWith ($kind+' incapacity that reached the death threshold') 'reached the death threshold' {param($a) (Row $a $row).incapacity.damageAfter=50}
- MutateWith ($kind+' incapacity whose subject stayed conscious') 'never unconscious' {param($a) (Row $a $row).incapacity.stateAfterDamage.$kind.conscious=$true}
+ MutateWith ($kind+' incapacity whose damage never passed the hit points') 'did not pass the subject hit points' {param($a) (Row $a $row).incapacity.stateAfterDamage.$kind.damage=10}
+ MutateWith ($kind+' incapacity whose subject damage is not a number') 'damage against its hit points' {param($a) (Row $a $row).incapacity.stateAfterDamage.$kind.damage='lots'}
  MutateWith ($kind+' incapacity that killed its subject') 'killed rather than incapacitated' {param($a) (Row $a $row).incapacity.stateAfterDamage.$kind.dead=$true}
+ MutateWith ($kind+' incapacity whose pair was already dissolved when the damage landed') 'no longer the mounted pair when the damage landed' {param($a) (Row $a $row).incapacity.stateAfterDamage.relationship='Unmounted'}
  MutateWith ($kind+' incapacity that affected the other actor too') 'the other actor of the pair was affected' {param($a) (Row $a $row).incapacity.stateAfterDamage.$other.conscious=$false}
+ MutateWith ($kind+' incapacity whose subject stayed conscious') 'never unconscious' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore.$kind.conscious=$true}
+ MutateWith ($kind+' incapacity whose subject life state never changed') 'never unconscious' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore.$kind.lifeState='Conscious'}
+ MutateWith ($kind+' incapacity that killed its subject before the restoration') 'killed rather than incapacitated' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore.$kind.finallyDead=$true}
+ MutateWith ($kind+' incapacity whose subject damage drifted before the restoration') 'damage changed between the rule and the restoration' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore.$kind.damage=20}
+ MutateWith ($kind+' incapacity that affected the other actor by the restoration') 'the other actor of the pair was affected' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore.$other.dead=$true}
+ MutateWith ($kind+' incapacity that held the pair while its subject was unconscious') 'still held the mounted pair' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore.relationship='Mounted'}
+ MutateWith ($kind+' incapacity with no state before its restoration') 'no pair state before its restoration' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore=$null}
+ MutateWith ($kind+' incapacity with no subject in the state before its restoration') 'no pair state before its restoration' {param($a) (Row $a $row).incapacity.restore.stateBeforeRestore.PSObject.Properties.Remove($kind)}
  MutateWith ($kind+' incapacity with no native life-state boundary') 'exactly one native life-state boundary' {param($a) (Row $a $row).incapacity.lifeEventsAtSettle.events=@()}
  MutateWith ($kind+' incapacity whose boundary was not Conscious to Unconscious') 'not Conscious to Unconscious' {param($a) (Row $a $row).incapacity.lifeEventsAtSettle.events[0].detail='Unconscious'}
  MutateWith ($kind+' incapacity whose boundary came from elsewhere') 'native life controller' {param($a) (Row $a $row).incapacity.lifeEventsAtSettle.events[0].nativeSource=@()}
@@ -610,6 +640,17 @@ Mutate 'a terminated lease that still owns the native charge buff' {param($a) (R
 Mutate 'a moving-target lease that never applied the native charge buff' {param($a) (Row $a 'C6B-CHARGE-target-moved').lease.buffApplied=$false}
 Mutate 'a moving-target lease that still owns the native charge buff' {param($a) (Row $a 'C6B-CHARGE-target-moved').lease.buffOutstanding=$true}
 MutateWith 'a row that records its own non-delivery' 'did not deliver' {param($a) (Row $a 'C6B-CHARGE-positive').nonDelivery='the charge was not admitted: shellStarted=False'}
+MutateWith 'an incapacity row that did not start from the mounted pair' 'did not start from the mounted pair' {param($a) (Row $a 'C6B-CHARGE-rider-incapacitated').before.state.relationship='Unmounted'}
+MutateWith 'an incapacity row that left the pair mounted' 'left the pair mounted' {param($a) (Row $a 'C6B-CHARGE-mount-incapacitated').after.relationship='Mounted'}
+MutateWith 'an incapacity row that kept the mounted-only charge ability' 'presence differs from the setting' {param($a) (Row $a 'C6B-CHARGE-rider-incapacitated').identityAfter=(Json (New-Identity $true $true))}
+MutateWith 'an incapacity row that left the mount charging' 'left residue: mountCharging' {param($a) (Row $a 'C6B-CHARGE-rider-incapacitated').after.mountCharging=$true}
+MutateWith 'an incapacity row that left a speed override behind' 'left a mount speed override behind' {param($a) (Row $a 'C6B-CHARGE-mount-incapacitated').after.mountSpeedOverride=10.16}
+MutateWith 'an ordinary terminated row whose mount was still moving' 'left residue: mountMoving' {param($a) (Row $a 'C6B-CHARGE-interrupted').after.mountMoving=$true}
+$movingIncapacity=New-Artifact
+(Row $movingIncapacity 'C6B-CHARGE-rider-incapacitated').after.mountMoving=$true
+Accept 'an incapacity row whose mount was still moving under the engine' { Assert-KmcChunk6bChargeEvidence $request $movingIncapacity 'PASS' }
+MutateWith 'an ordinary row that lost the charge ability' 'presence differs from the setting' {param($a) (Row $a 'C6B-CHARGE-interrupted').identityAfter=(Json (New-Identity $false $true))}
+MutateWith 'an ordinary row that was not the mounted pair' 'was not the mounted pair' {param($a) (Row $a 'C6B-CHARGE-interrupted').mounted=$false}
 MutateWith 'a row whose stranded shell the fixture had to interrupt' 'had to interrupt itself' {param($a) (Row $a 'C6B-CHARGE-target-moved').strandedShellInterrupted=$true}
 MutateWith 'a row that needed a re-click' 're-click' {param($a) (Row $a 'C6B-CHARGE-target-moved').clickRetries=1}
 MutateWith 'an admission seam still armed after the attempt settled' 'stayed armed after the attempt settled' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault.seamClearedAfterFire=$false}
@@ -624,13 +665,25 @@ MutateWith 'a placed clearance blocker the gate never counted' 'not among the ac
 
 $tbRequest=[pscustomobject]@{scenario='chunk6b-charge-tb'}
 function MutateTb([string]$Name,[scriptblock]$Change){ $a=New-Artifact 'TB'; & $Change $a; Reject ('TB: '+$Name) { Assert-KmcChunk6bChargeEvidence $tbRequest $a 'PASS' } }
-Accept 'TB turn-based charge refused while increment 6B.3 is deferred' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
+Accept 'TB a turn-based charge delivered on the rider own turn, every other turn-based row refused' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
 MutateTb 'a turn-based artifact read as real time' {param($a) $a.observations.chunk6bCharge.mode='RT'}
 MutateTb 'a turn-based charge with no recorded turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn=$null}
 MutateTb 'a turn-based charge off the rider own turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.isRider=$false}
-MutateTb 'a turn-based charge that was still available' {param($a) (Row $a 'C6B-CHARGE-positive').before.available=$true}
-MutateTb 'a turn-based charge that was still targetable' {param($a) (Row $a 'C6B-CHARGE-positive').before.canTarget=$true}
-MutateTb 'a turn-based refusal with another reason' {param($a) (Row $a 'C6B-CHARGE-positive').before.kmcAvailabilityReason='Mounted Charge requires combat.'}
+MutateTb 'a turn-based charge that was never available' {param($a) (Row $a 'C6B-CHARGE-positive').before.available=$false}
+MutateTb 'a turn-based charge whose target was never targetable' {param($a) (Row $a 'C6B-CHARGE-positive').before.canTarget=$false}
+MutateTb 'a turn-based charge still reporting the deferral reason' {param($a) (Row $a 'C6B-CHARGE-positive').before.kmcAvailabilityReason='Mounted Charge is not yet supported in turn-based mode.'}
+MutateTb 'a turn-based charge cast on a turn that had already moved' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.timeMoved=2.5}
+MutateTb 'a turn-based charge cast on a turn that was neither preparing nor acting' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.status='Ended'}
+# The status the fixture will be in when it clicks: the charge is a full-round action taken from the
+# ordinary start of the rider own turn, which the seam admits for this transaction alone.
+$preparingTb=New-Artifact 'TB'
+(Row $preparingTb 'C6B-CHARGE-positive').before.state.turn.status='Preparing'
+(Row $preparingTb 'C6B-CHARGE-positive').before.state.turn.acting=$false
+Accept 'a turn-based charge cast from the rider own preparing turn' { Assert-KmcChunk6bChargeEvidence $tbRequest $preparingTb 'PASS' }
+MutateTb 'a turn-based charge that the mount never carried' {param($a) (Row $a 'C6B-CHARGE-positive').movement.mountDistance=0.2}
+MutateTb 'a turn-based charge that charged the mount' {param($a) (Row $a 'C6B-CHARGE-positive').economy.mountMoveMax=3.0}
+MutateTb 'a turn-based charge with no attack' {param($a) (Row $a 'C6B-CHARGE-positive').rules=(Json (New-Rules 0 0 $true));(Row $a 'C6B-CHARGE-positive').attackRules=0}
+MutateTb 'a turn-based charge whose lease was not restored' {param($a) (Row $a 'C6B-CHARGE-positive').lease.restored=$false}
 MutateTb 'a turn-based artifact carrying a real-time only row' {param($a) $a.rows=@($a.rows)+@((Json (New-Row 'C6B-CHARGE-interrupted'))); $a.subscenarioPassCount=$a.rows.Count}
 Accept 'TB failed artifact retained without a verdict' { $f=New-Artifact 'TB'; $f.status='FAIL'; $f.rows=@($f.rows[0]); $f.rows[0].status='FAIL'; $f.subscenarioPassCount=0; $f.subscenarioFailCount=1; Assert-KmcChunk6bChargeEvidence $tbRequest $f 'FAIL' }
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

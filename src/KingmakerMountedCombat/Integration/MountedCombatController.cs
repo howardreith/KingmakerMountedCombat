@@ -1213,7 +1213,12 @@ namespace KingmakerMountedCombat.Integration
                     CombatController.IsInTurnBasedCombat(),
                     turn?.Unit == relationship.Rider,
                     turn != null && turn.IsActing,
-                    agent.Unit.EntityData == relationship.Mount);
+                    agent.Unit.EntityData == relationship.Mount,
+                    turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                    // The exact owned charge transaction, live, is the only delegator a preparing
+                    // rider turn admits - and the command proves that itself. A door approach or a
+                    // finished charge still requires an acting turn.
+                    attackApproachActive && activeCommand.ChargeTransactionDelegating);
             if (!movementAdmitted)
             {
                 return false;
