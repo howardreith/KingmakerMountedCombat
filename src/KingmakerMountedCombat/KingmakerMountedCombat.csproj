@@ -318,6 +318,7 @@
     <Compile Include="Integration\NativeMountedAbilityLogic.cs" />
     <Compile Include="Integration\MountedChargeAbilityLogic.cs" />
     <Compile Include="Integration\MountedChargeLease.cs" />
+    <Compile Include="Integration\MountedChargeAdmissionFault.cs" />
     <Compile Include="Integration\MountedCombatController.Charge.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
     <Compile Include="Integration\NativeMountedControlService.cs" />
@@ -421,6 +422,7 @@
     <Compile Include="Domain\MountedChargeSafetyPolicy.cs" />
     <Compile Include="Domain\MountedChargePolicy.cs" />
     <Compile Include="Domain\MountedChargeApplicationTransaction.cs" />
+    <Compile Include="Domain\MountedChargeCompensation.cs" />
     <Compile Include="Integration\MountedChargeSafetyService.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

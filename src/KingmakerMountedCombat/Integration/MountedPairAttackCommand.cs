@@ -325,6 +325,20 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool ChargeLeaseApplicationFailed => chargeLeaseApplicationFailed;
 
+        // True when there is no lease, or the lease has returned everything it owned.
+        internal bool ChargeLeaseRestored => chargeLease == null || chargeLease.Restored;
+
+        // Compensation entry point for a charge that failed after admission. A command that never started
+        // never reaches OnEnded, so the lease is released here instead; Restore is idempotent, so a later
+        // OnEnded is harmless. Nothing else about the command is touched.
+        internal void CompensateChargeLease()
+        {
+            if (chargeMode && chargeLease != null)
+            {
+                chargeLease.Restore();
+            }
+        }
+
         internal bool ChargeLeaseRolledBackOnFailure => chargeLeaseRolledBackOnFailure;
 
         internal bool CarrierTerminatedAfterLeaseFailure => carrierTerminatedAfterLeaseFailure;

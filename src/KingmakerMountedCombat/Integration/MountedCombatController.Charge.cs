@@ -223,9 +223,11 @@ namespace KingmakerMountedCombat.Integration
 
             NativeSingleAttackWeaponSelection mountPrimary;
             CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);
+            MountedPairAttackCommand command = null;
+            var queuedOnRider = false;
             try
             {
-                var command = new MountedPairAttackCommand(
+                command = new MountedPairAttackCommand(
                     relationship,
                     relationship.Rider,
                     relationship.Mount,
@@ -256,11 +258,14 @@ namespace KingmakerMountedCombat.Integration
                 LastOutcome = null;
                 var rider = relationship.Rider;
                 rider.Commands.AddToQueueFirst(command);
+                queuedOnRider = true;
+                // The one diagnostics-only seam, for proving compensation from exactly here. Null in
+                // production; an armed hook can only throw, which drives the refusal path below.
+                MountedChargeAdmissionFault.FireAfterQueue();
                 if (command.Executor != rider || command.IsFinished ||
                     (!rider.Commands.Contains(command) && !rider.Commands.Queue.Contains(command)))
                 {
-                    pairedCommandScheduler.AbandonRegistration(command, "native charge queue admission failed");
-                    activeCommand = null;
+                    CompensateMountedChargeAdmission(command, rider, "native charge queue admission failed");
                     return RefuseMountedCharge(
                         "Mounted charge failed to enter the rider command queue.",
                         MountedCombatRejectionCode.CommandAdmissionFailure);
@@ -268,7 +273,8 @@ namespace KingmakerMountedCombat.Integration
 
                 if (schedulerRequired && !pairedCommandScheduler.ConfirmAdmission(command, out schedulerReason))
                 {
-                    activeCommand = null;
+                    CompensateMountedChargeAdmission(command, rider,
+                        "mounted pair scheduler rejected the charge admission: " + schedulerReason);
                     return RefuseMountedCharge(
                         "Mounted pair scheduler rejected the charge admission: " + schedulerReason + ".",
                         MountedCombatRejectionCode.CommandAdmissionFailure);
@@ -286,13 +292,90 @@ namespace KingmakerMountedCombat.Integration
             }
             catch (Exception exception)
             {
-                activeCommand = null;
                 logger.Exception("Mounted charge admission", exception);
+                if (command != null)
+                {
+                    // Whether or not the queue admission completed, every owner the attempt may have
+                    // acquired is resolved here before the field is cleared.
+                    CompensateMountedChargeAdmission(command, relationship.Rider,
+                        "mounted charge admission threw " + exception.GetType().Name +
+                        (queuedOnRider ? " after queue admission" : " before queue admission"));
+                }
+                else
+                {
+                    activeCommand = null;
+                }
+
                 return RefuseMountedCharge(
                     "Mounted charge admission failed: " + exception.GetType().Name + ".",
                     MountedCombatRejectionCode.CommandAdmissionFailure);
             }
         }
+
+        // One helper for every charge failure after the command entered the rider queue. Each step resolves
+        // a different native owner and every step runs even if an earlier one fails, because skipping one
+        // strands it. activeCommand is cleared only as the final step, so native ownership is always
+        // resolved first. Nothing is refunded: no cooldown, resource, preparation or turn is written here,
+        // so a native shell cost that was already committed stands exactly as the engine took it.
+        private MountedChargeCompensation CompensateMountedChargeAdmission(
+            MountedPairAttackCommand command, UnitEntityData rider, string reason)
+        {
+            var compensation = new MountedChargeCompensation(reason, new[]
+            {
+                new MountedChargeCompensationStep("abandon-scheduler",
+                    () => pairedCommandScheduler.AbandonRegistration(command, reason)),
+                new MountedChargeCompensationStep("interrupt-command", () =>
+                {
+                    if (!command.IsFinished)
+                    {
+                        command.Interrupt(false);
+                    }
+                }),
+                new MountedChargeCompensationStep("dequeue-command", () =>
+                {
+                    var commands = rider == null ? null : rider.Commands;
+                    if (commands == null)
+                    {
+                        return;
+                    }
+
+                    if (commands.Contains(command) || commands.Queue.Contains(command))
+                    {
+                        commands.RemoveFinishedAndUpdateQueue();
+                    }
+                }),
+                new MountedChargeCompensationStep("restore-lease", command.CompensateChargeLease),
+                new MountedChargeCompensationStep("clear-active-command", () => { activeCommand = null; })
+            });
+            compensation.Run();
+
+            var commandsAfter = rider == null ? null : rider.Commands;
+            LastChargeCompensation = compensation.Describe();
+            LastChargeCompensationComplete = compensation.Complete;
+            LastChargeCompensationCommandResident = commandsAfter != null &&
+                (commandsAfter.Contains(command) || commandsAfter.Queue.Contains(command));
+            LastChargeCompensationLeaseRestored = command.ChargeLeaseRestored;
+            LastChargeCompensationActiveCommandCleared = activeCommand == null;
+            ChargeCompensationCount++;
+            logger.Info("Mounted charge admission compensated: " + compensation.Describe() +
+                "; commandResident=" + LastChargeCompensationCommandResident +
+                "; leaseRestored=" + LastChargeCompensationLeaseRestored +
+                "; activeCommandCleared=" + LastChargeCompensationActiveCommandCleared +
+                "; commandFinished=" + command.IsFinished + ".");
+            return compensation;
+        }
+
+        internal int ChargeCompensationCount { get; private set; }
+
+        internal string LastChargeCompensation { get; private set; }
+
+        internal bool LastChargeCompensationComplete { get; private set; }
+
+        internal bool LastChargeCompensationCommandResident { get; private set; }
+
+        internal bool LastChargeCompensationLeaseRestored { get; private set; }
+
+        internal bool LastChargeCompensationActiveCommandCleared { get; private set; }
 
         private MountedCombatClickResult RefuseMountedCharge(string reason, MountedCombatRejectionCode code)
         {
