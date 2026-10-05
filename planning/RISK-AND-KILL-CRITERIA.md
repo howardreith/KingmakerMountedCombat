@@ -1,3 +1,16 @@
+## 2026-10-05 - preview.176 continuation audit
+
+**BLOCKED — CRITICAL at the owner's unproven-persistence stop boundary.** Frozen40c40e4 skips the old
+SaveRequest cleanup with active persistence; no production charge cleanup runs at the header event.
+Native buff/command persistence cannot be inferred safe from the custom schema. Ordinary cancellation
+clears its active reference before interruption and lacks complete cleanup-debt retention/drain.
+Preserve the transactional lease and postcondition model; establish the ownership barrier before writes.
+
+TB's bounded176 experiment is a measured deliveryFAIL (rider6/3,0.169m,zero attacks), not later-row
+action exhaustion. No further TB experiment occurred. All six transactions restored exactly, with
+human105/protected files independently equal. See [the audit](../docs/CHUNK6B-PREVIEW176-CONTINUATION-AUDIT.md).
+No historical kill criterion, guard, threshold or failure verdict was changed. Chunk6B remains IN PROGRESS.
+
 ## Chunk 6A current risk - 2026-09-27T16:51:16.485Z
 
 IN PROGRESS. Preview.114 positive approach and isolated RT compensation pass with exact action/reaction proofs. Isolated TB compensation failed before Mount because the diagnostic treated a Preparing rider as a fixture turn to end; native trace shows three such rider turns ending. Preview.115 preserves that rider turn and uses a separately measured ordinary native ground order to enter Acting within the unchanged 30-second bound. Pure waiting was rejected from pinned Tick inspection; native setup debt is carried into Mount, never reset. This remains a setup repair awaiting native qualification, not a product resource defect. Exact historical failure and restoration remain retained. [Current report](../docs/CHUNK6A-COMBAT-MOUNT.md).

@@ -1,3 +1,30 @@
+## 2026-10-05 - preview.176 continuation audit
+
+**IN PROGRESS;6B.4 BLOCKED — CRITICAL at the owner's explicit unproven-persistence boundary.**
+See [the preview.176 continuation audit](../docs/CHUNK6B-PREVIEW176-CONTINUATION-AUDIT.md) for exact
+identities, six-stage results, request hashes, restoration evidence and the complete lifecycle matrix.
+This dated entry supersedes earlier current-state descriptions below; all historical results remain.
+
+Frozen product40c40e4510c93c7c41d7656a870ccbffa34dd849/treee9d3d14ec5b87387ace38daef8ac5f3dc25bf9c4,
+preview.176/suite20261005-chunk6b-charge-u: **5 PASS / 1 FAIL**. Separate WhatIf purityPASS. RT charge75/0
+qualifies all15 registered rows (including target loss and both incapacities); path62/0 and stock safety
+66/0 qualify both modes. TB positive spends rider6/3 for0.169m and no attack. Later refusal rows have
+fresh native Preparing turns with zero debt, so no sequencing repair is supported. The failed
+experimental source admits TB when enabled; the historical blanket refusal is not current behavior.
+
+PartF compiled getter/policy/transition and field-residue checks365/0 do not qualify native movement or
+exceptional cleanup. PartG's old-save-guard premise is false with active persistence. No production
+pre-header charge barrier or complete ordinary-cancellation debt drain is established. No native pending
+save/cold load, additional TB experiment, source repair across this stop boundary or new candidate ran.
+The mission-defined save/cold-load/combat-end/disable boundaries and the owner's additional lifecycle
+postconditions remain as mapped in the audit; a custom schema with no charge field is insufficient.
+
+All six transactions restored byte-identically with empty errors. Independent audit176/0 rehashed275
+saves and358 Mods files; human105 unchanged;441 historical files pinned. Offline components618/0,
+reader323/0, source143/0 and existing persistence contracts180/0 pass. FailedFAST and175/176 failures
+remain immutable. RT15 rows do not cover the entire mission: maximum range, duplicate requests, broader
+TB and6B.4 remain open. Chunk6B is not stable. No guard/threshold change or release/HUMAN PLAY inference.
+
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
 Status: `CHUNK 6B IS ACTIVE AND IN PROGRESS. THE PAIR-OWNED MOUNTED CHARGE IS IMPLEMENTED AND QUALIFIED
