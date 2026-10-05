@@ -1278,3 +1278,37 @@ structure; and the carrier fixture's case array against the carrier reader's row
 Offline only, again: no product, reader or fixture code is touched, the diagnostic DLL is unchanged, the
 product version stays `0.1.0-chunk6b-preview.172`, and no native qualification is claimed. CANDIDATE tier
 23/0 with Validate-Source 132/0, charge reader 123/0 and carrier reader 142/0.
+
+### Every required row must carry a rule of its own (2026-10-04)
+
+One silent-weakness path remained. A row added to a reader's required list without a rule of its own would
+still be dispatched, would satisfy the generic section checks every row shares - identity, level, mode, case
+and the presence of its measurement sections - and would then pass. That is a row which looks qualified and
+asserts almost nothing about what it measured, and nothing else in the suite would notice. No such row
+exists today; `Validate-Source.ps1` now keeps it that way, for both the charge reader and the carrier
+reader. Validator total 132 -> 133.
+
+A row counts as ruled if it has a case-sensitive switch branch, or an early branch keyed on the dispatch
+variable: the charge reader legitimately rules `C6B-CHARGE-default-off` and the obstructed-line limitation
+shape that way, before the switch.
+
+**The contract's own first form was vacuous on the carrier side, and the probe caught it.** It accepted any
+incidental `-ceq'<row>'` comparison as a rule, and the carrier reader contains one for a sample threshold,
+`$Row.name-ceq'C6B-PATH-interrupt-stop'`, so removing that row's actual rule was not refused. The token is
+now the dispatch variable specifically, `$name-ceq'<row>'`, which the two real early branches use and the
+incidental comparison does not. Both probes then refused, **and only this contract refused them**, which is
+the stronger property worth having: the probe asserts that no other contract fired, so a probe that passes
+for an unrelated reason is itself a failure.
+
+| probe | result |
+| --- | --- |
+| a charge row whose rule went missing | REFUSED, and only by this contract |
+| a carrier row whose rule went missing | REFUSED, and only by this contract |
+
+Each probe relabels the row's branch to a name that is already required and already registered, so the row
+loses its rule without any new name appearing anywhere - otherwise the registry contract fires first and the
+probe proves nothing. Each file was restored byte-identically, verified by SHA-256, with the worktree left
+clean.
+
+Offline only: no product, reader or fixture code is touched, the diagnostic DLL is unchanged, the product
+version stays `0.1.0-chunk6b-preview.172`, and no native qualification is claimed.
