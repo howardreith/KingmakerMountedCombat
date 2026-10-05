@@ -1346,6 +1346,29 @@ Assert-Kmc ($readerPathBody.Success -and $fixturePathCases.Count -ge 2 -and
     $readerPathRows.Count -eq $fixturePathCases.Count -and $pathListMismatches.Count -eq 0) `
     'the Chunk 6B carrier fixture case array and the carrier reader row list agree exactly'
 
+# A row that reaches the reader's dispatch without a rule of its own would satisfy only the generic section
+# checks every row shares - identity, level, mode, case and the presence of its measurement sections - and
+# then pass. That is a row which looks qualified and asserts almost nothing about what it measured, and
+# nothing else in the suite would notice. Every row the readers require must therefore carry either a
+# case-sensitive switch branch or an early branch keyed on its own name.
+# The early branch must be the dispatch variable itself. An incidental comparison such as
+# $Row.name-ceq'<row>' is not a rule, and accepting one would make this contract vacuous.
+$ruleQuote = [char]39
+$ruleless = @()
+foreach ($rowName in @(@($readerRt) + @($readerTb) | Select-Object -Unique)) {
+    $switchBranch = $chargeReaderText -match ("(?m)^\s*'" + [Regex]::Escape($rowName) + "'\s*\{")
+    $earlyBranch = $chargeReaderText.Contains('$name-ceq' + $ruleQuote + $rowName + $ruleQuote)
+    if (-not $switchBranch -and -not $earlyBranch) { $ruleless += $rowName }
+}
+$pathRuleless = @()
+foreach ($rowName in @($readerPathRows)) {
+    $switchBranch = $chargePathReaderText -match ("(?m)^\s*'" + [Regex]::Escape($rowName) + "'\s*\{")
+    $earlyBranch = $chargePathReaderText.Contains('$name-ceq' + $ruleQuote + $rowName + $ruleQuote)
+    if (-not $switchBranch -and -not $earlyBranch) { $pathRuleless += $rowName }
+}
+Assert-Kmc ($ruleless.Count -eq 0 -and $pathRuleless.Count -eq 0) `
+    'every Chunk 6B charge and carrier row the readers require carries a rule of its own'
+
 
 # THE REGISTRATION CHAIN. A new scenario's evidence leaf has to be registered in five
 # places, and every one of them only complains AFTER a live run has finished: the
