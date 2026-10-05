@@ -180,6 +180,11 @@ namespace KingmakerMountedCombat.Integration
         // transaction through one lease. Everything else about the transaction is unchanged.
         private readonly bool chargeMode;
         private MountedChargeLease chargeLease;
+        private bool chargeLeaseApplicationFailed;
+        private bool chargeLeaseRolledBackOnFailure;
+        private bool carrierTerminatedAfterLeaseFailure;
+        private string chargeLeaseApplicationFailure;
+        private string chargeLeaseApplicationFailedStep;
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
         // Compatibility name for the existing bounded evidence schema. There is
         // now one native command/sequence, not a free child under a charging shell.
@@ -317,6 +322,16 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal string ChargeLeaseDescription => chargeLease == null ? null : chargeLease.Describe();
+
+        internal bool ChargeLeaseApplicationFailed => chargeLeaseApplicationFailed;
+
+        internal bool ChargeLeaseRolledBackOnFailure => chargeLeaseRolledBackOnFailure;
+
+        internal bool CarrierTerminatedAfterLeaseFailure => carrierTerminatedAfterLeaseFailure;
+
+        internal string ChargeLeaseApplicationFailure => chargeLeaseApplicationFailure;
+
+        internal string ChargeLeaseApplicationFailedStep => chargeLeaseApplicationFailedStep;
 
         private bool nativeSequenceTick;
         private bool nativeMeleeTailRangeRejected;
@@ -742,8 +757,33 @@ namespace KingmakerMountedCombat.Integration
                 // re-forced onto it, which is what the stock charge does when its target has moved.
                 if (chargeLease == null)
                 {
-                    chargeLease = new MountedChargeLease(rider, mount, attackTarget, logger);
-                    chargeLease.Apply();
+                    var pending = new MountedChargeLease(rider, mount, attackTarget, logger);
+                    try
+                    {
+                        pending.Apply();
+                    }
+                    catch (Exception)
+                    {
+                        // The lease has already returned every mutation it completed. The carrier it was
+                        // applied on top of is this command's to terminate exactly: it is admitted and live
+                        // on the mount's Move slot, and a forced path survives only as long as it does.
+                        chargeLease = pending;
+                        chargeLeaseApplicationFailed = true;
+                        chargeLeaseApplicationFailure = pending.ApplyFailureReason ?? "<none>";
+                        chargeLeaseApplicationFailedStep = pending.ApplyFailedStep;
+                        chargeLeaseRolledBackOnFailure = pending.ApplyRolledBack;
+                        StopDelegatedMove(false);
+                        carrierTerminatedAfterLeaseFailure = delegatedMove == null;
+                        logger.Info("Mounted charge lease application failed; carrier terminated exactly: " +
+                            "step=" + (chargeLeaseApplicationFailedStep ?? "<none>") +
+                            "; reason=" + chargeLeaseApplicationFailure +
+                            "; rolledBack=" + chargeLeaseRolledBackOnFailure +
+                            "; carrierTerminated=" + carrierTerminatedAfterLeaseFailure +
+                            "; forcedPathOutstanding=" + pending.ForcedPathOutstanding + ".");
+                        throw;
+                    }
+
+                    chargeLease = pending;
                 }
                 else
                 {

@@ -88,6 +88,10 @@
     <Compile Include="MountedStockAttackPolicyTests.cs" />
     <Compile Include="MountedChargeSafetyTests.cs" />
     <Compile Include="MountedChargePolicyTests.cs" />
+    <Compile Include="MountedChargeApplicationTransactionTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeApplicationTransaction.cs">
+      <Link>Shared\Domain\MountedChargeApplicationTransaction.cs</Link>
+    </Compile>
     <Compile Include="MountedRangedRoutineCompletionTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedRangedRoutineCompletionPolicy.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs" />

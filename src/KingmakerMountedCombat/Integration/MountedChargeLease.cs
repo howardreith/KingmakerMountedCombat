@@ -5,8 +5,10 @@ using System.Reflection;
 using Kingmaker;
 using Kingmaker.Blueprints.Root;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.UnitLogic.Buffs;
 using Kingmaker.Utility;
 using Kingmaker.View;
+using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Logging;
 using Newtonsoft.Json.Linq;
 using Pathfinding;
@@ -42,6 +44,15 @@ namespace KingmakerMountedCombat.Integration
         private float? speedOverrideBefore;
         private bool riderChargingBefore;
 
+        // Per-mutation ownership. Restore acts on these, never on Applied: a lease whose application
+        // failed part way owns exactly the mutations that completed, and must return exactly those.
+        private bool chargingOwned;
+        private bool speedOverrideOwned;
+        private bool riderChargingOwned;
+        private bool forcedPathOwned;
+        private Buff appliedBuff;
+        private MountedChargeApplicationTransaction application;
+
         internal MountedChargeLease(
             UnitEntityData rider,
             UnitEntityData mount,
@@ -66,6 +77,24 @@ namespace KingmakerMountedCombat.Integration
         }
 
         internal bool Applied { get; private set; }
+
+        // True when an application attempt failed and every completed mutation was undone. The carrier the
+        // lease rides on is the caller's to terminate exactly; this only reports that the lease itself owns
+        // nothing any more.
+        internal bool ApplyRolledBack { get; private set; }
+
+        internal string ApplyFailureReason { get; private set; }
+
+        internal string ApplyFailedStep { get; private set; }
+
+        // True when the forced straight path had already been applied when the failure happened, so the
+        // caller knows the mover was in motion and must terminate the carrier.
+        internal bool ForcedPathAppliedBeforeFailure { get; private set; }
+
+        // Whether a forced straight path is still outstanding on the mover. The caller reads this to
+        // decide whether the carrier must be terminated exactly, since a forced path lives only while the
+        // mover holds a live command.
+        internal bool ForcedPathOutstanding => forcedPathOwned;
 
         internal bool Restored { get; private set; }
 
@@ -127,25 +156,49 @@ namespace KingmakerMountedCombat.Integration
             riderChargingBefore = rider.Descriptor.State.IsCharging;
             SpeedOverrideApplied = Math.Max(speedOverrideBefore ?? 0f, mount.CombatSpeedMps * 2f);
 
-            agent.IsCharging = true;
-            agent.MaxSpeedOverride = SpeedOverrideApplied;
-            ForcePathToTarget("initial");
-            ForceModeAfterApply = ForceMode;
-            ChargingAppliedExactly = agent.IsCharging;
-
-            // The attacker's own charge state: the stock buff for one round and the native charging state.
-            // The buff's duration is native and is never shortened here; Restore clears only the state flag.
-            var chargeBuff = BlueprintRoot.Instance == null || BlueprintRoot.Instance.SystemMechanics == null
-                ? null
-                : BlueprintRoot.Instance.SystemMechanics.ChargeBuff;
-            if (chargeBuff == null)
+            // The five mutations, in order, each with the exact undo of its own field. The rider's charge
+            // buff is first because it is the one mandatory step whose failure costs nothing to undo, and
+            // the forced path is last because nothing may be in motion until everything else is in place.
+            // The buff's native duration is never shortened: only a failed application removes the fact
+            // this call added, because then no charge occurred at all.
+            application = new MountedChargeApplicationTransaction(new[]
             {
-                throw new InvalidOperationException("The stock charge buff blueprint is unavailable.");
+                new MountedChargeApplicationStep("charge-buff", ApplyChargeBuff, UndoChargeBuff),
+                new MountedChargeApplicationStep("mount-charging", ApplyMountCharging, UndoMountCharging),
+                new MountedChargeApplicationStep("mount-speed-override", ApplyMountSpeedOverride, UndoMountSpeedOverride),
+                new MountedChargeApplicationStep("rider-charging-state", ApplyRiderChargingState, UndoRiderChargingState),
+                new MountedChargeApplicationStep("forced-path", ApplyForcedPath, UndoForcedPath)
+            });
+
+            try
+            {
+                application.Apply();
+            }
+            catch (Exception)
+            {
+                ApplyRolledBack = application.RolledBack;
+                ApplyFailedStep = application.FailedStep;
+                ApplyFailureReason = application.FailureReason;
+                ChargingRestoredExactly = agent.IsCharging == chargingBefore;
+                SpeedOverrideRestoredExactly = agent.MaxSpeedOverride == speedOverrideBefore;
+                RiderChargingRestoredExactly = rider.Descriptor == null ||
+                    rider.Descriptor.State.IsCharging == riderChargingBefore;
+                Observe("apply-rolled-back", application.Describe() +
+                    ";charging=" + ChargingRestoredExactly + ";speed=" + SpeedOverrideRestoredExactly +
+                    ";riderCharging=" + RiderChargingRestoredExactly + ";buff=" + BuffApplied +
+                    ";forcedPathApplied=" + ForcedPathAppliedBeforeFailure);
+                logger.Info("Mounted charge lease application rolled back: mountId=" + mount.UniqueId +
+                    "; riderId=" + rider.UniqueId + "; " + application.Describe() +
+                    "; charging=" + ChargingRestoredExactly +
+                    "; speedOverride=" + SpeedOverrideRestoredExactly +
+                    "; riderCharging=" + RiderChargingRestoredExactly +
+                    "; buffRemoved=" + !BuffApplied +
+                    "; forcedPathApplied=" + ForcedPathAppliedBeforeFailure + ".");
+                throw;
             }
 
-            BuffApplied = rider.Buffs.AddBuff(chargeBuff, rider, 1.Rounds().Seconds) != null;
-            rider.Descriptor.State.IsCharging = true;
-
+            ForceModeAfterApply = ForceMode;
+            ChargingAppliedExactly = agent.IsCharging;
             RiderAgentTouched = riderAgent != null &&
                 (riderAgent.IsCharging != riderChargingAgentBefore ||
                  riderAgent.MaxSpeedOverride != riderSpeedAgentBefore ||
@@ -185,6 +238,127 @@ namespace KingmakerMountedCombat.Integration
             ForcePathToTarget("re-force");
         }
 
+        // The five steps. Each Apply takes exactly one mutation and records ownership of it; each Undo
+        // returns exactly that field to the value captured before the attempt.
+        private void ApplyChargeBuff()
+        {
+            var chargeBuff = BlueprintRoot.Instance == null || BlueprintRoot.Instance.SystemMechanics == null
+                ? null
+                : BlueprintRoot.Instance.SystemMechanics.ChargeBuff;
+            if (chargeBuff == null)
+            {
+                throw new InvalidOperationException("The stock charge buff blueprint is unavailable.");
+            }
+
+            appliedBuff = rider.Buffs.AddBuff(chargeBuff, rider, 1.Rounds().Seconds);
+            BuffApplied = appliedBuff != null;
+            if (!BuffApplied)
+            {
+                // No charge transaction continues when the native charge buff cannot be installed.
+                throw new InvalidOperationException("The stock charge buff could not be installed on the rider.");
+            }
+        }
+
+        private void UndoChargeBuff()
+        {
+            if (appliedBuff == null)
+            {
+                return;
+            }
+
+            var buff = appliedBuff;
+            appliedBuff = null;
+            BuffApplied = false;
+            buff.Remove();
+        }
+
+        private void ApplyMountCharging()
+        {
+            var agent = RequireMountAgent();
+            agent.IsCharging = true;
+            chargingOwned = true;
+        }
+
+        private void UndoMountCharging()
+        {
+            var agent = MountAgent;
+            if (agent != null)
+            {
+                agent.IsCharging = chargingBefore;
+            }
+
+            chargingOwned = false;
+        }
+
+        private void ApplyMountSpeedOverride()
+        {
+            var agent = RequireMountAgent();
+            agent.MaxSpeedOverride = SpeedOverrideApplied;
+            speedOverrideOwned = true;
+        }
+
+        private void UndoMountSpeedOverride()
+        {
+            var agent = MountAgent;
+            if (agent != null)
+            {
+                agent.MaxSpeedOverride = speedOverrideBefore;
+            }
+
+            speedOverrideOwned = false;
+        }
+
+        private void ApplyRiderChargingState()
+        {
+            if (rider.Descriptor == null)
+            {
+                throw new InvalidOperationException("The mounted charge lease lost the rider descriptor.");
+            }
+
+            rider.Descriptor.State.IsCharging = true;
+            riderChargingOwned = true;
+        }
+
+        private void UndoRiderChargingState()
+        {
+            if (rider.Descriptor != null)
+            {
+                rider.Descriptor.State.IsCharging = riderChargingBefore;
+            }
+
+            riderChargingOwned = false;
+        }
+
+        private void ApplyForcedPath()
+        {
+            ForcePathToTarget("initial");
+            forcedPathOwned = true;
+        }
+
+        // A forced path lives only while the mover holds a live command (preview.156/157), and the caller
+        // terminates that carrier exactly. Stopping the view here keeps the mount from travelling the
+        // charge line in the meantime; the force-mode latch is recorded at Restore, never faked.
+        private void UndoForcedPath()
+        {
+            ForcedPathAppliedBeforeFailure = true;
+            forcedPathOwned = false;
+            if (mount.View != null)
+            {
+                mount.View.StopMoving();
+            }
+        }
+
+        private UnitMovementAgent RequireMountAgent()
+        {
+            var agent = MountAgent;
+            if (agent == null)
+            {
+                throw new InvalidOperationException("The mounted charge lease lost the mount movement agent.");
+            }
+
+            return agent;
+        }
+
         internal void Restore()
         {
             if (Restored)
@@ -197,25 +371,32 @@ namespace KingmakerMountedCombat.Integration
             var agent = MountAgent;
             if (agent != null)
             {
-                if (Applied)
+                // Per-mutation ownership, not Applied: a lease whose application failed part way owns
+                // exactly what completed, and its rollback has already returned those fields.
+                if (chargingOwned)
                 {
                     agent.IsCharging = chargingBefore;
+                    chargingOwned = false;
+                }
+
+                if (speedOverrideOwned)
+                {
                     agent.MaxSpeedOverride = speedOverrideBefore;
+                    speedOverrideOwned = false;
                 }
 
                 ChargingRestoredExactly = agent.IsCharging == chargingBefore;
                 SpeedOverrideRestoredExactly = agent.MaxSpeedOverride == speedOverrideBefore;
             }
 
-            if (Applied && rider.Descriptor != null)
+            if (riderChargingOwned && rider.Descriptor != null)
             {
                 rider.Descriptor.State.IsCharging = riderChargingBefore;
-                RiderChargingRestoredExactly = rider.Descriptor.State.IsCharging == riderChargingBefore;
+                riderChargingOwned = false;
             }
-            else
-            {
-                RiderChargingRestoredExactly = true;
-            }
+
+            RiderChargingRestoredExactly = rider.Descriptor == null ||
+                rider.Descriptor.State.IsCharging == riderChargingBefore;
 
             Observe("restored", "charging=" + ChargingRestoredExactly + ";speed=" + SpeedOverrideRestoredExactly +
                 ";riderCharging=" + RiderChargingRestoredExactly + ";forceModeLatched=" + ForceModeAtRestore);
@@ -259,6 +440,12 @@ namespace KingmakerMountedCombat.Integration
             return new JObject
             {
                 ["applied"] = Applied,
+                ["applyRolledBack"] = ApplyRolledBack,
+                ["applyFailedStep"] = ApplyFailedStep,
+                ["applyFailureReason"] = ApplyFailureReason,
+                ["applyDescription"] = application == null ? null : application.Describe(),
+                ["forcedPathAppliedBeforeFailure"] = ForcedPathAppliedBeforeFailure,
+                ["forcedPathOutstanding"] = ForcedPathOutstanding,
                 ["buffApplied"] = BuffApplied,
                 ["chargingBefore"] = chargingBefore,
                 ["speedOverrideBefore"] = speedOverrideBefore,
@@ -281,7 +468,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal string Describe()
         {
-            return "applied=" + Applied + ";restored=" + Restored + ";buff=" + BuffApplied +
+            return "applied=" + Applied + ";rolledBack=" + ApplyRolledBack + ";restored=" + Restored + ";buff=" + BuffApplied +
                 ";forcedPaths=" + ForcedPathCount + ";speedOverride=" + Format(SpeedOverrideApplied) +
                 ";chargingThroughout=" + ChargingObservedThroughout +
                 ";forceModeLatched=" + ForceModeAtRestore +
