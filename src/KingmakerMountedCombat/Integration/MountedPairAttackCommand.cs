@@ -185,6 +185,12 @@ namespace KingmakerMountedCombat.Integration
         private bool carrierTerminatedAfterLeaseFailure;
         private string chargeLeaseApplicationFailure;
         private string chargeLeaseApplicationFailedStep;
+        private int chargeRevalidationCount;
+        private bool chargeRevalidationFailed;
+        private string chargeRevalidationFailurePhase;
+        private string chargeRevalidationFailureReason;
+        private string chargeRevalidationFailureCode;
+        private string chargeRevalidationPhases = string.Empty;
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
         // Compatibility name for the existing bounded evidence schema. There is
         // now one native command/sequence, not a free child under a charging shell.
@@ -331,6 +337,85 @@ namespace KingmakerMountedCombat.Integration
         // Compensation entry point for a charge that failed after admission. A command that never started
         // never reaches OnEnded, so the lease is released here instead; Restore is idempotent, so a later
         // OnEnded is harmless. Nothing else about the command is touched.
+        // The mutable charge conditions, re-read from live state at one of the three transaction
+        // boundaries. The request deliberately carries no action-cost input, so this can never refuse
+        // the charge for the Standard action the enclosing shell has already paid.
+        private MountedChargeRevalidationOutcome RevalidateCharge(MountedChargeRevalidationPhase phase)
+        {
+            var targetState = attackTarget?.Descriptor?.State;
+            var commands = mount == null ? null : mount.Commands;
+            var request = new MountedChargeRevalidationRequest
+            {
+                Phase = phase,
+                TargetValid = attackTarget != null && attackTarget.IsInState && targetState != null &&
+                    targetState.IsConscious && !targetState.IsFinallyDead,
+                TargetVisible = attackTarget != null && attackTarget.IsVisibleForPlayer,
+                TargetHostile = rider != null && attackTarget != null && rider.IsEnemy(attackTarget),
+                TargetAttackable = rider != null && attackTarget != null && rider.CanAttack(attackTarget),
+                StraightRoute = MountedChargeGeometry.StraightRoute(mount, attackTarget),
+                LandingBlocked = MountedChargeGeometry.LandingBlocked(mount, rider, attackTarget),
+                MountAvoidanceDisabled = MountedChargeGeometry.MountAvoidanceDisabled(mount),
+                Distance = mount == null || attackTarget == null
+                    ? float.MaxValue
+                    : (attackTarget.Position - mount.Position).magnitude,
+                MaximumRange = mount == null ? 0f : MountedChargeGeometry.MaximumRange(mount),
+                RelationshipMounted = relationship.State == RelationshipState.Mounted,
+                ExactPair = relationship.Rider == rider && relationship.Mount == mount,
+                LifecycleBoundary = relationship.State == RelationshipState.Faulted,
+                RiderOwnsAttackSlot = actionActor != null && actionActor.Commands.Standard == this,
+                CarrierOwnsMountMoveSlot = delegatedMove != null && commands != null &&
+                    commands.GetCommand(UnitCommand.CommandType.Move) == delegatedMove,
+                MountQueueEmpty = commands != null && commands.Queue.Count == 0
+            };
+            var outcome = MountedChargeRevalidation.Evaluate(request);
+            chargeRevalidationCount++;
+            if (chargeRevalidationPhases.Length < 512)
+            {
+                chargeRevalidationPhases += (chargeRevalidationPhases.Length == 0 ? string.Empty : "|") +
+                    phase + "=" + (outcome.IsValid ? "valid" : "invalid");
+            }
+
+            return outcome;
+        }
+
+        // True when the charge was newly invalid and this transaction has been terminated without an
+        // attack. The native shell cost, if the engine already took it, is deliberately left alone.
+        private bool TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase phase)
+        {
+            if (!chargeMode || IsFinished || transaction.IsTerminal)
+            {
+                return false;
+            }
+
+            var outcome = RevalidateCharge(phase);
+            if (outcome.IsValid)
+            {
+                return false;
+            }
+
+            chargeRevalidationFailed = true;
+            chargeRevalidationFailurePhase = phase.ToString();
+            chargeRevalidationFailureReason = outcome.Reason;
+            chargeRevalidationFailureCode = outcome.RejectionCode?.ToString();
+            logger.Info("Mounted charge revalidation failed: phase=" + phase +
+                "; reason=" + outcome.Reason + "; code=" + (chargeRevalidationFailureCode ?? "<none>") + ".");
+            transaction.Cancel("Charge revalidation at " + phase + ": " + outcome.Reason);
+            Interrupt();
+            return true;
+        }
+
+        internal int ChargeRevalidationCount => chargeRevalidationCount;
+
+        internal bool ChargeRevalidationFailed => chargeRevalidationFailed;
+
+        internal string ChargeRevalidationFailurePhase => chargeRevalidationFailurePhase;
+
+        internal string ChargeRevalidationFailureReason => chargeRevalidationFailureReason;
+
+        internal string ChargeRevalidationFailureCode => chargeRevalidationFailureCode;
+
+        internal string ChargeRevalidationPhases => chargeRevalidationPhases;
+
         internal void CompensateChargeLease()
         {
             if (chargeMode && chargeLease != null)
@@ -643,6 +728,11 @@ namespace KingmakerMountedCombat.Integration
                 {
                     StopDelegatedMove(true);
                 }
+                if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeAttackTransition))
+                {
+                    return;
+                }
+
                 if (!transaction.Arrive(attackTarget.UniqueId))
                 {
                     throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
@@ -698,6 +788,11 @@ namespace KingmakerMountedCombat.Integration
 
             if (chargeMode && chargeLease != null)
             {
+                if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+                {
+                    return;
+                }
+
                 chargeLease.Maintain(delegatedMove != null && !delegatedMove.IsFinished);
             }
         }
@@ -719,6 +814,12 @@ namespace KingmakerMountedCombat.Integration
 
         private void Repath(string cause)
         {
+            // A repath re-forces the straight charge line, so the mutable conditions are re-read first.
+            if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+            {
+                return;
+            }
+
             repathObservations.Add(DescribeRepath(cause));
             if (!transaction.TryRepath(attackTarget.UniqueId))
             {
@@ -801,6 +902,12 @@ namespace KingmakerMountedCombat.Integration
                 }
                 else
                 {
+                    // A re-force onto a newly begun carrier: the same conditions are re-read first.
+                    if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+                    {
+                        return;
+                    }
+
                     chargeLease.Maintain(true);
                 }
             }
@@ -876,6 +983,13 @@ namespace KingmakerMountedCombat.Integration
             // UnitAttack.OnStart re-evaluates the full attack plan against the
             // actual actor state after approach. UnitActionController observes
             // this command's first native Act and owns its sole cooldown charge.
+            // The last boundary: the carrier has released the mount Move slot and the native attack has
+            // not started. A charge that is no longer valid terminates here, without an attack.
+            if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeAttackStart))
+            {
+                return;
+            }
+
             if (chargeMode)
             {
                 IsCharge = true;

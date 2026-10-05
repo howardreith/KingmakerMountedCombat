@@ -90,6 +90,10 @@
     <Compile Include="MountedChargePolicyTests.cs" />
     <Compile Include="MountedChargeApplicationTransactionTests.cs" />
     <Compile Include="MountedChargeCompensationTests.cs" />
+    <Compile Include="MountedChargeRevalidationTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeRevalidation.cs">
+      <Link>Shared\Domain\MountedChargeRevalidation.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeCompensation.cs">
       <Link>Shared\Domain\MountedChargeCompensation.cs</Link>
     </Compile>

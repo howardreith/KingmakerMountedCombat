@@ -544,6 +544,7 @@ namespace KingmakerMountedCombat.Tests
             MountedChargePolicyTests.Register(runner);
             MountedChargeApplicationTransactionTests.Register(runner);
             MountedChargeCompensationTests.Register(runner);
+            MountedChargeRevalidationTests.Register(runner);
             MountedRangedRoutineCompletionTests.Register(runner);
             OptionalPublicPropertyReaderTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);

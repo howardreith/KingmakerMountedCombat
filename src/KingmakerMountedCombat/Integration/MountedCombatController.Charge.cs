@@ -53,27 +53,14 @@ namespace KingmakerMountedCombat.Integration
 
         private static float MountedChargeMaximumRange(UnitEntityData mount)
         {
-            return mount.CombatSpeedMps * 6f;
+            return MountedChargeGeometry.MaximumRange(mount);
         }
 
         // The stock clearance check, read from the mount. The carried rider is never an obstacle to its own
         // mount, and the landing point is one rider weapon reach short of the target, as the stock check is.
         private bool MountedChargeLandingBlocked(UnitEntityData mount, UnitEntityData target)
         {
-            var rider = relationship.Rider;
-            var weapon = rider?.GetFirstWeapon();
-            var separation = mount.View.Corpulence + target.View.Corpulence + (weapon == null ? 0f : weapon.AttackRange.Meters);
-            var direction = (target.Position - mount.Position).To2D().normalized;
-            var landing = target.Position.To2D() - direction * separation;
-            var state = Game.Instance?.State;
-            if (state?.AwakeUnits == null)
-            {
-                return false;
-            }
-
-            return state.AwakeUnits.Any(actor => actor != mount && actor != rider && actor != target &&
-                actor.View != null && actor.View.MovementAgent != null && !actor.View.MovementAgent.AvoidanceDisabled &&
-                (landing - actor.Position.To2D()).magnitude < (mount.View.Corpulence + actor.View.Corpulence) * 0.8f);
+            return MountedChargeGeometry.LandingBlocked(mount, relationship.Rider, target);
         }
 
         // Delivery revalidation reaches this controller only from the Deliver of this mod's own charge
