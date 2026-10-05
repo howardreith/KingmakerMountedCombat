@@ -1463,6 +1463,137 @@ Assert-Kmc ($manifestMethodBody.Success -and
     $manifestMethodBody.Value -match 'HorseCompanionUnmountedScenarioEngine\.PreambleEvidenceKind') `
     'every evidence leaf a scenario can write is recorded in the mod''s own artifact manifest'
 
+# Chunk 6B increment 6B.2 - the charge transaction ordering properties. These live in integration
+# code that the component tests cannot reach, because it calls native command, agent and buff
+# surfaces, so the order itself is pinned here. The behavioural state machine the command reports
+# its order to is covered by MountedChargeTransactionSequenceTests.
+$pairAttackText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs')
+$chargeLeaseText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeLease.cs')
+$chargeControllerText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.Charge.cs')
+
+function Get-KmcOrderedIndexes([string]$Text, [string[]]$Markers) {
+    $indexes = New-Object ('System.Collections.Generic.List[int]')
+    foreach ($marker in $Markers) {
+        $indexes.Add($Text.IndexOf($marker, [StringComparison]::Ordinal))
+    }
+
+    return $indexes
+}
+
+function Test-KmcStrictlyIncreasing($Indexes) {
+    for ($index = 0; $index -lt $Indexes.Count; $index++) {
+        if ($Indexes[$index] -lt 0) { return $false }
+        if ($index -gt 0 -and $Indexes[$index] -le $Indexes[$index - 1]) { return $false }
+    }
+
+    return $Indexes.Count -gt 0
+}
+
+# The defect this contract exists for: the transition revalidation asks whether the exact carrier
+# still owns the mount Move slot, so releasing the carrier first makes a lawful charge reject
+# itself. The boundary block must revalidate, observe the step, and only then stop the carrier.
+$boundaryStart = $pairAttackText.IndexOf('lost its delegated move at the legal attack-range boundary', [StringComparison]::Ordinal)
+$arrivedMarker = 'MountedChargeTransactionStep.Arrived'
+$boundaryEnd = $pairAttackText.IndexOf($arrivedMarker, [StringComparison]::Ordinal)
+$boundaryBlock = ''
+if ($boundaryStart -ge 0 -and $boundaryEnd -gt $boundaryStart) {
+    $boundaryBlock = $pairAttackText.Substring($boundaryStart, $boundaryEnd - $boundaryStart + $arrivedMarker.Length)
+}
+$boundaryIndexes = Get-KmcOrderedIndexes $boundaryBlock @(
+    'MountedChargeRevalidationPhase.BeforeAttackTransition',
+    'MountedChargeTransactionStep.TransitionRevalidation',
+    'StopDelegatedMove(',
+    'MountedChargeTransactionStep.CarrierReleasedForAttack',
+    'carrierReleaseProvenForAttack = delegatedMove == null',
+    'MountedChargeTransactionStep.CarrierReleaseProven',
+    'transaction.Arrive(',
+    $arrivedMarker)
+Assert-Kmc (Test-KmcStrictlyIncreasing $boundaryIndexes) 'the charge revalidates the attack transition while the exact carrier still owns the mount movement slot, and proves the release before arrival'
+
+# Item 2: a charge terminated inside an approach helper must not be followed by anything in the
+# same tick. Every call site either propagates the outcome by returning it or guards on it
+# together with the termination and carrier checks. String literals are removed first, because a
+# repath cause contains a semicolon and would otherwise truncate the statement being examined.
+$strippedPairAttack = [Regex]::Replace($pairAttackText, '"(?:[^"\\]|\\.)*"', '<literal>')
+$helperCalls = @([Regex]::Matches($strippedPairAttack,
+    '(?<![A-Za-z])(Repath|BeginDelegatedMove|DriveDelegatedMoveOnRiderTurn)\('))
+$helperDeclarations = 0
+$unguardedHelperCalls = @()
+foreach ($call in $helperCalls) {
+    $back = [Math]::Min(60, $call.Index)
+    $before = $strippedPairAttack.Substring($call.Index - $back, $back)
+    if ($before -match 'private bool $') { $helperDeclarations++; continue }
+    $after = $strippedPairAttack.Substring($call.Index, [Math]::Min(220, $strippedPairAttack.Length - $call.Index))
+    $statement = $after.Split(';')[0]
+    if ($before -match 'return $') { continue }
+    if ($statement -notmatch 'ChargeTransactionStopped\(\)' -or
+        $statement -notmatch 'delegatedMove == null') {
+        $unguardedHelperCalls += ($call.Value + ' at ' + $call.Index)
+    }
+}
+Assert-Kmc ($helperCalls.Count -ge 9 -and $helperDeclarations -eq 3 -and $unguardedHelperCalls.Count -eq 0) 'every charge approach helper call either propagates its termination outcome or returns on it immediately'
+
+# Item 3: the exact carrier is proven before a single lease mutation exists, because the lease
+# forces a path onto that carrier and a forced path lives only as long as the carrier does.
+$beginMoveBlock = [Regex]::Match($pairAttackText,
+    '(?s)private bool BeginDelegatedMove\(\).*?\n        \}')
+$ownershipMarker = 'MountedChargeTransactionStep.CarrierOwnershipProven'
+$leaseIndexes = Get-KmcOrderedIndexes $beginMoveBlock.Value @(
+    'mount.Commands.Run(delegatedMove)',
+    'MountedChargeTransactionStep.CarrierAdmitted',
+    'delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount',
+    'delegatedMoveOwnedByMountMoveSlot &=',
+    'delegatedMoveNeverQueuedOnMount &=',
+    'mountQueueEmptyThroughoutApproach &=',
+    $ownershipMarker,
+    'MountedChargeRevalidationPhase.BeforeRepath',
+    'MountedChargeTransactionStep.InitialRevalidation',
+    'new MountedChargeLease(',
+    'pending.Apply()',
+    'MountedChargeTransactionStep.LeaseApplied')
+$leaseOrdered = $beginMoveBlock.Success -and (Test-KmcStrictlyIncreasing $leaseIndexes)
+$mutationBeforeOwnership = @()
+if ($leaseOrdered) {
+    $beforeOwnership = $beginMoveBlock.Value.Substring(0, $beginMoveBlock.Value.IndexOf($ownershipMarker, [StringComparison]::Ordinal))
+    foreach ($mutation in @('new MountedChargeLease(', 'chargeLease.Apply(', 'chargeLease.Maintain(',
+        'ForcePathToTarget(', 'IsCharging = true', 'MaxSpeedOverride =')) {
+        if ($beforeOwnership.IndexOf($mutation, [StringComparison]::Ordinal) -ge 0) {
+            $mutationBeforeOwnership += $mutation
+        }
+    }
+}
+Assert-Kmc ($leaseOrdered -and $mutationBeforeOwnership.Count -eq 0) 'the charge lease is applied only after the exact carrier is proven and revalidated, and nothing is mutated before that'
+
+# Item 4: restoration is an attempt, not a declaration. Restored is set in exactly one place and
+# only after the cleanup ledger reports every mutation returned and observed returned.
+$restoredAssignments = @([Regex]::Matches($chargeLeaseText, 'Restored = true'))
+$tryRestoreBlock = [Regex]::Match($chargeLeaseText, '(?s)internal bool TryRestore\(\).*?\n        \}')
+$tryUndoMethods = @([Regex]::Matches($chargeLeaseText, 'private bool TryUndo[A-Za-z]+\(\)'))
+$restoreIndexes = Get-KmcOrderedIndexes $tryRestoreBlock.Value @(
+    'var complete = AttemptCleanup();',
+    'if (!complete)',
+    'Restored = true')
+Assert-Kmc ($tryRestoreBlock.Success -and $restoredAssignments.Count -eq 1 -and
+    (Test-KmcStrictlyIncreasing $restoreIndexes) -and $tryUndoMethods.Count -eq 5 -and
+    $chargeLeaseText -match 'internal bool ApplyRolledBack => cleanup != null && cleanup\.Complete;') 'the charge lease reports itself restored only after its cleanup ledger confirms every mutation returned'
+
+# Item 5: the controller releases its last reference to live native state only when the reference
+# is still this exact command and every native ownership postcondition holds.
+$compensationBlock = [Regex]::Match($chargeControllerText,
+    '(?s)private MountedChargeCompensation CompensateMountedChargeAdmission\(.*?\n        \}')
+$postconditions = @([Regex]::Matches($compensationBlock.Value,
+    'new MountedChargePostcondition\("([a-z-]+)"'))
+$compensationIndexes = Get-KmcOrderedIndexes $compensationBlock.Value @(
+    'compensation.Run();',
+    'compensation.ConfirmPostconditions(',
+    'ReferenceEquals(activeCommand, command) && compensation.Complete',
+    'activeCommand = null;',
+    'faultedChargeCleanupOwner = command;')
+Assert-Kmc ($compensationBlock.Success -and $postconditions.Count -ge 7 -and
+    (Test-KmcStrictlyIncreasing $compensationIndexes) -and
+    $compensationBlock.Value -match 'new MountedChargePostcondition\("no-lease-cleanup-debt"' -and
+    $compensationBlock.Value -match 'new MountedChargePostcondition\("scheduler-registration-absent"') 'post-queue charge compensation confirms native ownership postconditions before the controller releases its last reference'
+
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'

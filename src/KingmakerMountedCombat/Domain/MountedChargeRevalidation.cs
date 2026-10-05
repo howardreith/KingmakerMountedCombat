@@ -65,6 +65,11 @@ namespace KingmakerMountedCombat.Domain
         public bool RiderOwnsAttackSlot;
         public bool CarrierOwnsMountMoveSlot;
         public bool MountQueueEmpty;
+
+        // The attack boundary only: the engine's own final attack admission, which is its range and
+        // position check for the exact attacker and target. Read from the native admission observer, not
+        // recomputed, so the charge asks the engine the same question the engine will ask itself.
+        public bool FinalAttackAdmitted;
     }
 
     public sealed class MountedChargeRevalidationOutcome
@@ -167,9 +172,23 @@ namespace KingmakerMountedCombat.Domain
                         MountedCombatRejectionCode.AlreadyActiveCommand);
                 }
 
-                // Geometry is not re-read at the attack boundary beyond the target's own state: the mount has
-                // arrived, so the straight route and the landing point have already been consumed, and the
-                // distance is attack range rather than charge range.
+                // The engine's own final range and position check for this attacker and target.
+                if (!request.FinalAttackAdmitted)
+                {
+                    return Invalid("The mounted charge did not reach the native final attack range.",
+                        MountedCombatRejectionCode.OutsideSupportedRange);
+                }
+
+                // A creature that has crowded the attack position since the approach began.
+                if (request.LandingBlocked && !request.MountAvoidanceDisabled)
+                {
+                    return Invalid("Another creature blocks the charge landing point.",
+                        MountedCombatRejectionCode.NoPath);
+                }
+
+                // Deliberately not re-read here: the original minimum charge distance, which arrival is
+                // necessarily inside; the straight route and the maximum range, which the approach has
+                // already consumed; and the rider's Standard action, which the enclosing shell has paid.
                 return new MountedChargeRevalidationOutcome(true, ValidReason, null);
             }
 

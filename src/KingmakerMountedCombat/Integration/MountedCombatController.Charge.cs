@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.Blueprints;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Abilities;
+using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.Utility;
 using Kingmaker.View;
@@ -212,6 +214,10 @@ namespace KingmakerMountedCombat.Integration
             CaptureContext(MountedCombatActionKind.RiderMelee, target, out mountPrimary, false, false);
             MountedPairAttackCommand command = null;
             var queuedOnRider = false;
+            // The exact owner this admission queues onto, captured before the queue call so a later
+            // lifecycle change cannot make compensation resolve the wrong actor.
+            UnitEntityData queuedRider = null;
+            UnitCommands queuedContainer = null;
             try
             {
                 command = new MountedPairAttackCommand(
@@ -244,7 +250,9 @@ namespace KingmakerMountedCombat.Integration
                 unifiedTurn.RememberPairedMovementInput();
                 LastOutcome = null;
                 var rider = relationship.Rider;
-                rider.Commands.AddToQueueFirst(command);
+                queuedRider = rider;
+                queuedContainer = rider.Commands;
+                queuedContainer.AddToQueueFirst(command);
                 queuedOnRider = true;
                 // The one diagnostics-only seam, for proving compensation from exactly here. Null in
                 // production; an armed hook can only throw, which drives the refusal path below.
@@ -252,7 +260,8 @@ namespace KingmakerMountedCombat.Integration
                 if (command.Executor != rider || command.IsFinished ||
                     (!rider.Commands.Contains(command) && !rider.Commands.Queue.Contains(command)))
                 {
-                    CompensateMountedChargeAdmission(command, rider, "native charge queue admission failed");
+                    CompensateMountedChargeAdmission(command, queuedRider, queuedContainer,
+                        "native charge queue admission failed");
                     return RefuseMountedCharge(
                         "Mounted charge failed to enter the rider command queue.",
                         MountedCombatRejectionCode.CommandAdmissionFailure);
@@ -260,7 +269,7 @@ namespace KingmakerMountedCombat.Integration
 
                 if (schedulerRequired && !pairedCommandScheduler.ConfirmAdmission(command, out schedulerReason))
                 {
-                    CompensateMountedChargeAdmission(command, rider,
+                    CompensateMountedChargeAdmission(command, queuedRider, queuedContainer,
                         "mounted pair scheduler rejected the charge admission: " + schedulerReason);
                     return RefuseMountedCharge(
                         "Mounted pair scheduler rejected the charge admission: " + schedulerReason + ".",
@@ -284,7 +293,8 @@ namespace KingmakerMountedCombat.Integration
                 {
                     // Whether or not the queue admission completed, every owner the attempt may have
                     // acquired is resolved here before the field is cleared.
-                    CompensateMountedChargeAdmission(command, relationship.Rider,
+                    // The captured owner, not relationship.Rider: the lifecycle may have changed since.
+                    CompensateMountedChargeAdmission(command, queuedRider, queuedContainer,
                         "mounted charge admission threw " + exception.GetType().Name +
                         (queuedOnRider ? " after queue admission" : " before queue admission"));
                 }
@@ -305,8 +315,9 @@ namespace KingmakerMountedCombat.Integration
         // resolved first. Nothing is refunded: no cooldown, resource, preparation or turn is written here,
         // so a native shell cost that was already committed stands exactly as the engine took it.
         private MountedChargeCompensation CompensateMountedChargeAdmission(
-            MountedPairAttackCommand command, UnitEntityData rider, string reason)
+            MountedPairAttackCommand command, UnitEntityData rider, UnitCommands container, string reason)
         {
+            var commands = container ?? (rider == null ? null : rider.Commands);
             var compensation = new MountedChargeCompensation(reason, new[]
             {
                 new MountedChargeCompensationStep("abandon-scheduler",
@@ -320,7 +331,6 @@ namespace KingmakerMountedCombat.Integration
                 }),
                 new MountedChargeCompensationStep("dequeue-command", () =>
                 {
-                    var commands = rider == null ? null : rider.Commands;
                     if (commands == null)
                     {
                         return;
@@ -331,26 +341,66 @@ namespace KingmakerMountedCombat.Integration
                         commands.RemoveFinishedAndUpdateQueue();
                     }
                 }),
-                new MountedChargeCompensationStep("restore-lease", command.CompensateChargeLease),
-                new MountedChargeCompensationStep("clear-active-command", () => { activeCommand = null; })
+                new MountedChargeCompensationStep("restore-lease", command.CompensateChargeLease)
             });
             compensation.Run();
 
-            var commandsAfter = rider == null ? null : rider.Commands;
+            // The native facts that prove every owner is gone. "No Action threw" is not one of them.
+            compensation.ConfirmPostconditions(new[]
+            {
+                new MountedChargePostcondition("command-terminal", () => command.IsFinished),
+                new MountedChargePostcondition("standard-slot-released",
+                    () => commands == null || commands.Standard != command),
+                new MountedChargePostcondition("container-released",
+                    () => commands == null || !commands.Contains(command)),
+                new MountedChargePostcondition("queue-released",
+                    () => commands == null || !commands.Queue.Contains(command)),
+                new MountedChargePostcondition("scheduler-registration-absent",
+                    () => !pairedCommandScheduler.HasRegistration(command)),
+                new MountedChargePostcondition("lease-restored-or-absent", () => command.ChargeLeaseRestored),
+                new MountedChargePostcondition("no-lease-cleanup-debt",
+                    () => string.IsNullOrEmpty(command.ChargeCleanupDebt))
+            });
+
             LastChargeCompensation = compensation.Describe();
             LastChargeCompensationComplete = compensation.Complete;
-            LastChargeCompensationCommandResident = commandsAfter != null &&
-                (commandsAfter.Contains(command) || commandsAfter.Queue.Contains(command));
+            LastChargeCompensationCommandResident = commands != null &&
+                (commands.Contains(command) || commands.Queue.Contains(command));
             LastChargeCompensationLeaseRestored = command.ChargeLeaseRestored;
-            LastChargeCompensationActiveCommandCleared = activeCommand == null;
+            LastChargeCompensationUnmet = string.Join("|",
+                new List<string>(compensation.UnmetPostconditions).ToArray());
             ChargeCompensationCount++;
+
+            // The controller releases its last reference to this live native state only when the
+            // reference is still this exact command and every ownership postcondition holds. Otherwise a
+            // faulted cleanup owner is kept, so something still points at what was left behind.
+            if (ReferenceEquals(activeCommand, command) && compensation.Complete)
+            {
+                activeCommand = null;
+                faultedChargeCleanupOwner = null;
+            }
+            else if (!compensation.Complete)
+            {
+                faultedChargeCleanupOwner = command;
+            }
+
+            LastChargeCompensationActiveCommandCleared = activeCommand == null;
             logger.Info("Mounted charge admission compensated: " + compensation.Describe() +
                 "; commandResident=" + LastChargeCompensationCommandResident +
                 "; leaseRestored=" + LastChargeCompensationLeaseRestored +
                 "; activeCommandCleared=" + LastChargeCompensationActiveCommandCleared +
+                "; faultedCleanupOwner=" + (faultedChargeCleanupOwner != null) +
                 "; commandFinished=" + command.IsFinished + ".");
             return compensation;
         }
+
+        // Retained when compensation could not prove every owner resolved. Something must keep pointing
+        // at native state that was left behind, and a later attempt can discharge it.
+        private MountedPairAttackCommand faultedChargeCleanupOwner;
+
+        internal bool HasFaultedChargeCleanupOwner => faultedChargeCleanupOwner != null;
+
+        internal string LastChargeCompensationUnmet { get; private set; }
 
         internal int ChargeCompensationCount { get; private set; }
 

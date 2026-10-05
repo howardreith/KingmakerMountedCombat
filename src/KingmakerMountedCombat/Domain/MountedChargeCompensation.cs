@@ -34,11 +34,33 @@ namespace KingmakerMountedCombat.Domain
         public Action Run { get; }
     }
 
+    // A native fact that must be observed true for compensation to be complete. Distinct from a step: a
+    // step does something, a postcondition proves the owner is actually gone.
+    public sealed class MountedChargePostcondition
+    {
+        public MountedChargePostcondition(string name, Func<bool> satisfied)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                throw new ArgumentException("A compensation postcondition needs an exact name.", nameof(name));
+            }
+
+            Name = name;
+            Satisfied = satisfied ?? throw new ArgumentNullException(nameof(satisfied));
+        }
+
+        public string Name { get; }
+
+        public Func<bool> Satisfied { get; }
+    }
+
     public sealed class MountedChargeCompensation
     {
         private readonly List<MountedChargeCompensationStep> steps = new List<MountedChargeCompensationStep>();
         private readonly List<string> completed = new List<string>();
         private readonly List<string> failures = new List<string>();
+        private readonly List<string> unmet = new List<string>();
+        private bool postconditionsConfirmed;
 
         public MountedChargeCompensation(string reason, IEnumerable<MountedChargeCompensationStep> orderedSteps)
         {
@@ -73,8 +95,16 @@ namespace KingmakerMountedCombat.Domain
 
         public bool Ran { get; private set; }
 
-        // Every step resolved its owner without throwing.
-        public bool Complete => Ran && failures.Count == 0;
+        // Complete means every step ran cleanly AND every declared native postcondition was observed
+        // true. Until the postconditions have been confirmed, compensation is not complete whatever the
+        // steps did: the controller must not release its last reference to live native state on the
+        // strength of "nothing threw".
+        public bool Complete => Ran && postconditionsConfirmed && failures.Count == 0 && unmet.Count == 0;
+
+        public bool PostconditionsConfirmed => postconditionsConfirmed;
+
+        // Declared postconditions that were not observed true. This is what keeps a faulted cleanup owner.
+        public IList<string> UnmetPostconditions => unmet;
 
         public IList<string> CompletedSteps => completed;
 
@@ -106,11 +136,63 @@ namespace KingmakerMountedCombat.Domain
             }
         }
 
+        // Observes the native facts that prove every owner is gone. Safe to call again after a retry.
+        public void ConfirmPostconditions(IEnumerable<MountedChargePostcondition> postconditions)
+        {
+            if (postconditions == null)
+            {
+                throw new ArgumentNullException(nameof(postconditions));
+            }
+
+            if (!Ran)
+            {
+                throw new InvalidOperationException("Compensation postconditions were confirmed before it ran.");
+            }
+
+            unmet.Clear();
+            var any = false;
+            foreach (var postcondition in postconditions)
+            {
+                if (postcondition == null)
+                {
+                    throw new ArgumentException("A compensation postcondition was null.", nameof(postconditions));
+                }
+
+                any = true;
+                bool satisfied;
+                try
+                {
+                    satisfied = postcondition.Satisfied();
+                }
+                catch (Exception exception)
+                {
+                    // A postcondition that cannot be evaluated is unmet. The alternative would be to
+                    // treat an unanswerable question as a clean answer.
+                    unmet.Add(postcondition.Name + ":" + exception.GetType().Name);
+                    continue;
+                }
+
+                if (!satisfied)
+                {
+                    unmet.Add(postcondition.Name);
+                }
+            }
+
+            if (!any)
+            {
+                throw new ArgumentException("Compensation needs at least one postcondition.", nameof(postconditions));
+            }
+
+            postconditionsConfirmed = true;
+        }
+
         public string Describe()
         {
             return "reason=" + Reason + ";ran=" + Ran + ";complete=" + Complete +
+                ";postconditionsConfirmed=" + postconditionsConfirmed +
                 ";completed=" + string.Join("|", completed.ToArray()) +
-                ";failures=" + string.Join("|", failures.ToArray());
+                ";failures=" + string.Join("|", failures.ToArray()) +
+                ";unmet=" + string.Join("|", unmet.ToArray());
         }
     }
 }

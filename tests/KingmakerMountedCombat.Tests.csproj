@@ -91,6 +91,14 @@
     <Compile Include="MountedChargeApplicationTransactionTests.cs" />
     <Compile Include="MountedChargeCompensationTests.cs" />
     <Compile Include="MountedChargeRevalidationTests.cs" />
+    <Compile Include="MountedChargeTransactionSequenceTests.cs" />
+    <Compile Include="MountedChargeCleanupLedgerTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeTransactionSequence.cs">
+      <Link>Shared\Domain\MountedChargeTransactionSequence.cs</Link>
+    </Compile>
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeCleanupLedger.cs">
+      <Link>Shared\Domain\MountedChargeCleanupLedger.cs</Link>
+    </Compile>
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeRevalidation.cs">
       <Link>Shared\Domain\MountedChargeRevalidation.cs</Link>
     </Compile>

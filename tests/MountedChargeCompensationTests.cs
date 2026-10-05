@@ -17,6 +17,20 @@ namespace KingmakerMountedCombat.Tests
             return string.Join("|", new List<string>(values).ToArray());
         }
 
+        // Compensation is complete only when the native owners are observably gone, so every test that
+        // asks about Complete has to confirm postconditions the way the controller does.
+        private static void Confirm(MountedChargeCompensation compensation, params bool[] satisfied)
+        {
+            var postconditions = new List<MountedChargePostcondition>();
+            for (var index = 0; index < satisfied.Length; index++)
+            {
+                var value = satisfied[index];
+                postconditions.Add(new MountedChargePostcondition("owner-" + index, () => value));
+            }
+
+            compensation.ConfirmPostconditions(postconditions);
+        }
+
         private static MountedChargeCompensation Build(List<string> ran, params string[] faulting)
         {
             var faults = new List<string>(faulting);
@@ -47,6 +61,9 @@ namespace KingmakerMountedCombat.Tests
                 var compensation = Build(ran);
                 compensation.Run();
                 TestRunner.True(compensation.Ran, "Compensation did not report that it ran.");
+                TestRunner.True(!compensation.Complete,
+                    "Compensation was complete before its postconditions were confirmed.");
+                Confirm(compensation, true, true, true);
                 TestRunner.True(compensation.Complete, "Clean compensation was not reported complete.");
                 TestRunner.True(Join(ran) == "abandon-scheduler|interrupt-command|dequeue-command|restore-lease",
                     "The owners were resolved in the wrong order: " + Join(ran));
@@ -60,6 +77,7 @@ namespace KingmakerMountedCombat.Tests
                 var ran = new List<string>();
                 var compensation = Build(ran, "abandon-scheduler");
                 compensation.Run();
+                Confirm(compensation, true, true, true);
                 TestRunner.True(Join(ran) == "interrupt-command|dequeue-command|restore-lease",
                     "A failing first step stranded the others: " + Join(ran));
                 TestRunner.True(!compensation.Complete, "Compensation with a failure reported complete.");
@@ -72,6 +90,7 @@ namespace KingmakerMountedCombat.Tests
                 var ran = new List<string>();
                 var compensation = Build(ran, "abandon-scheduler", "interrupt-command", "dequeue-command", "restore-lease");
                 compensation.Run();
+                Confirm(compensation, true);
                 TestRunner.True(ran.Count == 0, "A fully failing compensation still resolved something.");
                 TestRunner.True(compensation.Failures.Count == 4,
                     "Not every failure was recorded: " + Join(compensation.Failures));
@@ -111,6 +130,66 @@ namespace KingmakerMountedCombat.Tests
                 TestRunner.True(ran.Count == 4, "A second run resolved owners again: " + Join(ran));
                 TestRunner.True(compensation.Reason == "injected failure after AddToQueueFirst",
                     "The compensation reason was not carried: " + compensation.Reason);
+            });
+
+            runner.Run("an unmet native postcondition keeps compensation incomplete", () =>
+            {
+                // Every step can run cleanly and an owner can still be there. This is the case the
+                // controller must never read as "safe to release my last reference".
+                var ran = new List<string>();
+                var compensation = Build(ran);
+                compensation.Run();
+                TestRunner.True(compensation.Failures.Count == 0, "A clean run recorded a failure.");
+                Confirm(compensation, true, false, true);
+                TestRunner.True(!compensation.Complete,
+                    "Compensation was complete with an owner still present.");
+                TestRunner.True(Join(compensation.UnmetPostconditions) == "owner-1",
+                    "The unmet postcondition was not named exactly: " + Join(compensation.UnmetPostconditions));
+            });
+
+            runner.Run("a postcondition that cannot be evaluated is unmet, not met", () =>
+            {
+                var ran = new List<string>();
+                var compensation = Build(ran);
+                compensation.Run();
+                compensation.ConfirmPostconditions(new[]
+                {
+                    new MountedChargePostcondition("queue-released", () => true),
+                    new MountedChargePostcondition("container-released",
+                        () => throw new InvalidOperationException("the container cannot be read"))
+                });
+                TestRunner.True(!compensation.Complete,
+                    "An unanswerable postcondition was treated as a clean answer.");
+                TestRunner.True(Join(compensation.UnmetPostconditions) == "container-released:InvalidOperationException",
+                    "The unanswerable postcondition was not recorded: " + Join(compensation.UnmetPostconditions));
+            });
+
+            runner.Run("a retry can confirm the postconditions a first attempt could not", () =>
+            {
+                var ran = new List<string>();
+                var compensation = Build(ran);
+                compensation.Run();
+                Confirm(compensation, false);
+                TestRunner.True(!compensation.Complete, "The first confirmation reported complete.");
+                Confirm(compensation, true);
+                TestRunner.True(compensation.Complete,
+                    "A later confirmation did not clear the unmet postcondition: " + compensation.Describe());
+            });
+
+            runner.Run("postconditions cannot be confirmed before compensation has run", () =>
+            {
+                var compensation = Build(new List<string>());
+                var threw = false;
+                try
+                {
+                    Confirm(compensation, true);
+                }
+                catch (InvalidOperationException)
+                {
+                    threw = true;
+                }
+
+                TestRunner.True(threw, "Postconditions were confirmed before compensation ran.");
             });
 
             runner.Run("charge compensation requires a reason and at least one step", () =>
