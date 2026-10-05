@@ -420,6 +420,7 @@
     <Compile Include="Diagnostics\DiagnosticQueuedMountWindow.cs" />
     <Compile Include="Domain\MountedChargeSafetyPolicy.cs" />
     <Compile Include="Domain\MountedChargePolicy.cs" />
+    <Compile Include="Domain\MountedChargeApplicationTransaction.cs" />
     <Compile Include="Integration\MountedChargeSafetyService.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
