@@ -30,7 +30,8 @@ namespace KingmakerMountedCombat.Tests
                 LifecycleBoundary = false,
                 RiderOwnsAttackSlot = true,
                 CarrierOwnsMountMoveSlot = phase != MountedChargeRevalidationPhase.BeforeAttackStart,
-                MountQueueEmpty = true
+                MountQueueEmpty = true,
+                FinalAttackAdmitted = true
             };
         }
 
@@ -129,15 +130,41 @@ namespace KingmakerMountedCombat.Tests
                         "A charge without its carrier stayed valid at " + phase + ".");
                 }
 
-                // At attack start the mount has arrived: the straight route and the landing point have been
-                // consumed, and the distance is attack range rather than charge range.
+                // At attack start the approach has consumed the straight route and the charge distance,
+                // so neither is re-read. A newly blocking landing actor still invalidates, and so does
+                // failing the engine's own final attack admission.
                 var arrived = Valid(MountedChargeRevalidationPhase.BeforeAttackStart);
                 arrived.StraightRoute = false;
-                arrived.LandingBlocked = true;
                 arrived.Distance = 1.2f;
                 var arrivedOutcome = MountedChargeRevalidation.Evaluate(arrived);
                 TestRunner.True(arrivedOutcome.IsValid,
                     "The attack boundary re-read consumed geometry: " + arrivedOutcome.Reason);
+
+                var crowded = Valid(MountedChargeRevalidationPhase.BeforeAttackStart);
+                crowded.LandingBlocked = true;
+                var crowdedOutcome = MountedChargeRevalidation.Evaluate(crowded);
+                TestRunner.True(!crowdedOutcome.IsValid && crowdedOutcome.RejectionCode == MountedCombatRejectionCode.NoPath,
+                    "A newly blocking landing actor was allowed at attack start: " + crowdedOutcome.Reason);
+
+                var unadmitted = Valid(MountedChargeRevalidationPhase.BeforeAttackStart);
+                unadmitted.FinalAttackAdmitted = false;
+                var unadmittedOutcome = MountedChargeRevalidation.Evaluate(unadmitted);
+                TestRunner.True(!unadmittedOutcome.IsValid &&
+                    unadmittedOutcome.RejectionCode == MountedCombatRejectionCode.OutsideSupportedRange,
+                    "A charge that never reached native attack range was allowed to attack: " + unadmittedOutcome.Reason);
+
+                // The approach phases must NOT demand the final attack admission.
+                foreach (var approach in new[]
+                {
+                    MountedChargeRevalidationPhase.BeforeRepath,
+                    MountedChargeRevalidationPhase.BeforeAttackTransition
+                })
+                {
+                    var approaching = Valid(approach);
+                    approaching.FinalAttackAdmitted = false;
+                    TestRunner.True(MountedChargeRevalidation.Evaluate(approaching).IsValid,
+                        "The approach demanded the final attack admission at " + approach + ".");
+                }
             });
 
             runner.Run("a charge must have released the mount movement slot by attack start", () =>

@@ -425,6 +425,8 @@
     <Compile Include="Domain\MountedChargeApplicationTransaction.cs" />
     <Compile Include="Domain\MountedChargeCompensation.cs" />
     <Compile Include="Domain\MountedChargeRevalidation.cs" />
+    <Compile Include="Domain\MountedChargeCleanupLedger.cs" />
+    <Compile Include="Domain\MountedChargeTransactionSequence.cs" />
     <Compile Include="Integration\MountedChargeSafetyService.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

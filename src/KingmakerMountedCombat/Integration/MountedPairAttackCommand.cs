@@ -191,6 +191,10 @@ namespace KingmakerMountedCombat.Integration
         private string chargeRevalidationFailureReason;
         private string chargeRevalidationFailureCode;
         private string chargeRevalidationPhases = string.Empty;
+        private bool chargeSequenceViolated;
+        private bool carrierReleaseProvenForAttack;
+        private string chargeCleanupDebtAtEnd = string.Empty;
+        private readonly MountedChargeTransactionSequence chargeSequence = new MountedChargeTransactionSequence();
         private readonly MountedCombatTransaction transaction = new MountedCombatTransaction();
         // Compatibility name for the existing bounded evidence schema. There is
         // now one native command/sequence, not a free child under a charging shell.
@@ -365,7 +369,12 @@ namespace KingmakerMountedCombat.Integration
                 RiderOwnsAttackSlot = actionActor != null && actionActor.Commands.Standard == this,
                 CarrierOwnsMountMoveSlot = delegatedMove != null && commands != null &&
                     commands.GetCommand(UnitCommand.CommandType.Move) == delegatedMove,
-                MountQueueEmpty = commands != null && commands.Queue.Count == 0
+                MountQueueEmpty = commands != null && commands.Queue.Count == 0,
+                // Only the attack boundary asks this, and it asks the engine rather than recomputing:
+                // the native admission observer is the engine's own range and position check for this
+                // exact attacker and target.
+                FinalAttackAdmitted = phase != MountedChargeRevalidationPhase.BeforeAttackStart ||
+                    childAttack.EvaluateCurrentNativeAdmission() == MountedPairNativeAdmissionState.Admitted
             };
             var outcome = MountedChargeRevalidation.Evaluate(request);
             chargeRevalidationCount++;
@@ -415,6 +424,70 @@ namespace KingmakerMountedCombat.Integration
         internal string ChargeRevalidationFailureCode => chargeRevalidationFailureCode;
 
         internal string ChargeRevalidationPhases => chargeRevalidationPhases;
+
+        internal string ChargeSequence => chargeSequence.Describe();
+
+        internal bool ChargeSequenceLawful => chargeSequence.Lawful;
+
+        internal bool CarrierReleaseProvenForAttack => carrierReleaseProvenForAttack;
+
+        // Non-empty when the lease could not finish returning its mutations by the end of the command.
+        internal string ChargeCleanupDebt => chargeLease == null ? string.Empty : chargeLease.UnresolvedCleanup;
+
+        internal string ChargeCleanupDebtAtEnd => chargeCleanupDebtAtEnd;
+
+        internal bool ChargeCleanupComplete => chargeLease == null || chargeLease.RollbackComplete;
+
+        // Retry entry point for the cleanup owner: discharges outstanding lease debt if it can.
+        internal bool TryDischargeChargeCleanupDebt()
+        {
+            if (chargeLease == null)
+            {
+                return true;
+            }
+
+            var complete = chargeLease.TryRestore();
+            chargeCleanupDebtAtEnd = chargeLease.UnresolvedCleanup;
+            return complete;
+        }
+
+        // True when the charge has stopped for any reason, so a caller must not continue this tick.
+        private bool ChargeTransactionStopped()
+        {
+            return IsFinished || transaction.IsTerminal || chargeRevalidationFailed || chargeSequenceViolated;
+        }
+
+        // Records one step of the charge order. A step taken out of order fails the charge: the order is
+        // what makes the revalidations mean what they say.
+        private bool ObserveChargeStep(MountedChargeTransactionStep step)
+        {
+            if (!chargeMode)
+            {
+                return false;
+            }
+
+            if (chargeSequence.Observe(step))
+            {
+                return false;
+            }
+
+            chargeSequenceViolated = true;
+            chargeRevalidationFailed = true;
+            chargeRevalidationFailurePhase = step.ToString();
+            chargeRevalidationFailureReason = "Charge transaction order violated: " + chargeSequence.Describe();
+            logger.Info("Mounted charge transaction order violated: " + chargeSequence.Describe());
+            if (!transaction.IsTerminal)
+            {
+                transaction.Cancel(chargeRevalidationFailureReason);
+            }
+
+            if (!IsFinished)
+            {
+                Interrupt();
+            }
+
+            return true;
+        }
 
         internal void CompensateChargeLease()
         {
@@ -573,7 +646,12 @@ namespace KingmakerMountedCombat.Integration
 
                 if (requiresApproach)
                 {
-                    BeginDelegatedMove();
+                    // Every call of the approach helpers consumes their outcome: a charge terminated
+                    // inside the helper must not be followed by anything in the same tick.
+                    if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null)
+                    {
+                        return;
+                    }
                 }
                 else
                 {
@@ -695,7 +773,15 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (chargeMode && chargeLease != null)
                 {
-                    chargeLease.Restore();
+                    // Restore is an attempt. If it cannot complete, the debt is retained on the lease and
+                    // recorded here, so the controller's compensation and the evidence both see it rather
+                    // than a lease that merely claims to be restored.
+                    if (!chargeLease.TryRestore())
+                    {
+                        chargeCleanupDebtAtEnd = chargeLease.UnresolvedCleanup;
+                        logger.Info("Mounted charge lease cleanup debt at command end: unresolved=" +
+                            chargeCleanupDebtAtEnd + "; failures=" + chargeLease.CleanupFailures + ".");
+                    }
                 }
 
                 base.OnEnded(raiseEvent);
@@ -716,6 +802,20 @@ namespace KingmakerMountedCombat.Integration
                         "Mounted pair command lost its delegated move at the legal attack-range boundary.");
                 }
 
+                // The transition revalidation runs WHILE the exact carrier still owns the mount Move slot,
+                // because that is one of the facts it checks. Releasing the carrier first made a lawful
+                // charge reject itself here.
+                if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeAttackTransition))
+                {
+                    return;
+                }
+
+                if (ObserveChargeStep(MountedChargeTransactionStep.TransitionRevalidation))
+                {
+                    return;
+                }
+
+                // Only now is the exact carrier stopped and removed.
                 if (!delegatedMove.IsFinished)
                 {
                     delegatedMoveStoppedAtLegalRange = true;
@@ -728,7 +828,34 @@ namespace KingmakerMountedCombat.Integration
                 {
                     StopDelegatedMove(true);
                 }
-                if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeAttackTransition))
+
+                if (ObserveChargeStep(MountedChargeTransactionStep.CarrierReleasedForAttack))
+                {
+                    return;
+                }
+
+                // The release is proven, not assumed: no carrier, an empty Move slot and an empty queue.
+                var moveSlotAfterRelease = mount.Commands == null
+                    ? null
+                    : mount.Commands.GetCommand(UnitCommand.CommandType.Move);
+                carrierReleaseProvenForAttack = delegatedMove == null && moveSlotAfterRelease == null &&
+                    mount.Commands != null && mount.Commands.Queue.Count == 0;
+                if (chargeMode && !carrierReleaseProvenForAttack)
+                {
+                    chargeRevalidationFailed = true;
+                    chargeRevalidationFailurePhase = "CarrierRelease";
+                    chargeRevalidationFailureReason =
+                        "The mounted charge could not prove the mount movement slot was released.";
+                    logger.Info("Mounted charge carrier release unproven: carrier=" +
+                        (delegatedMove == null ? "<released>" : "<live>") +
+                        "; moveSlot=" + (moveSlotAfterRelease == null ? "<empty>" : "<occupied>") +
+                        "; queue=" + (mount.Commands == null ? -1 : mount.Commands.Queue.Count) + ".");
+                    transaction.Cancel(chargeRevalidationFailureReason);
+                    Interrupt();
+                    return;
+                }
+
+                if (ObserveChargeStep(MountedChargeTransactionStep.CarrierReleaseProven))
                 {
                     return;
                 }
@@ -737,24 +864,42 @@ namespace KingmakerMountedCombat.Integration
                 {
                     throw new InvalidOperationException("Mounted pair transaction could not enter attack range.");
                 }
+
+                if (ObserveChargeStep(MountedChargeTransactionStep.Arrived))
+                {
+                    return;
+                }
+
                 return;
             }
 
             var displacement = HorizontalDistance(targetSnapshot, attackTarget.Position);
             if (displacement > TargetRepathDistance)
             {
-                Repath("target-moved;displacement=" + displacement.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture));
+                // A failed revalidation inside the repath must not be followed by anything this tick:
+                // no second repath, no new carrier, no lease application, no IsFinished dereference.
+                if (Repath("target-moved;displacement=" + displacement.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)) ||
+                    ChargeTransactionStopped() || delegatedMove == null)
+                {
+                    return;
+                }
             }
 
             if (delegatedMove == null)
             {
-                BeginDelegatedMove();
+                if (BeginDelegatedMove() || ChargeTransactionStopped() || delegatedMove == null)
+                {
+                    return;
+                }
             }
 
             if (!NativePartnerMovement && TurnBased.Controllers.CombatController.IsInTurnBasedCombat() &&
                 Kingmaker.Game.Instance?.TurnBasedCombatController?.CurrentTurn?.Unit == rider)
             {
-                DriveDelegatedMoveOnRiderTurn();
+                if (DriveDelegatedMoveOnRiderTurn() || ChargeTransactionStopped() || delegatedMove == null)
+                {
+                    return;
+                }
             }
 
             if (delegatedMove.IsFinished)
@@ -763,12 +908,17 @@ namespace KingmakerMountedCombat.Integration
                 ObserveNativeAdmission(finishedMoveAdmission);
                 if (finishedMoveAdmission != MountedPairNativeAdmissionState.Admitted)
                 {
-                    Repath("unadmitted-after-move;admission=" + finishedMoveAdmission);
+                    if (Repath("unadmitted-after-move;admission=" + finishedMoveAdmission) ||
+                        ChargeTransactionStopped() || delegatedMove == null)
+                    {
+                        return;
+                    }
                 }
             }
         }
 
-        private void DriveDelegatedMoveOnRiderTurn()
+        // Returns true when the charge was terminated inside this call.
+        private bool DriveDelegatedMoveOnRiderTurn()
         {
             delegatedMoveDrivenByRiderTurnAdapter = true;
             if (!delegatedMove.IsStarted && !delegatedMove.IsFinished)
@@ -790,11 +940,18 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
                 {
-                    return;
+                    return true;
+                }
+
+                if (ObserveChargeStep(MountedChargeTransactionStep.RepathRevalidation))
+                {
+                    return true;
                 }
 
                 chargeLease.Maintain(delegatedMove != null && !delegatedMove.IsFinished);
             }
+
+            return false;
         }
 
         private string DescribeRepath(string cause)
@@ -812,12 +969,13 @@ namespace KingmakerMountedCombat.Integration
                     ";turnStepMetres=" + turn.MetersMovedByFiveFootStep.ToString("0.###", culture));
         }
 
-        private void Repath(string cause)
+        // Returns true when the charge was terminated inside this call.
+        private bool Repath(string cause)
         {
             // A repath re-forces the straight charge line, so the mutable conditions are re-read first.
             if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
             {
-                return;
+                return true;
             }
 
             repathObservations.Add(DescribeRepath(cause));
@@ -826,11 +984,19 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("Mounted pair command exhausted its bounded repath allowance.");
             }
             StopDelegatedMove(false);
+            // A repath release is not the attack release: ownership ends and the approach cycle may
+            // legally begin again.
+            if (chargeMode)
+            {
+                chargeSequence.ObserveCarrierReleasedForRepath();
+            }
+
             targetSnapshot = attackTarget.Position;
-            BeginDelegatedMove();
+            return BeginDelegatedMove();
         }
 
-        private void BeginDelegatedMove()
+        // Returns true when the charge was terminated inside this call.
+        private bool BeginDelegatedMove()
         {
             if (childAttack == null || childAttack.DelegatedMoveApproachRadius < 0f)
             {
@@ -863,8 +1029,35 @@ namespace KingmakerMountedCombat.Integration
             admittingDelegatedMove = true;
             try { mount.Commands.Run(delegatedMove); }
             finally { admittingDelegatedMove = false; }
+            // The rider wrapper must still be the exact parent of this admission.
             if (IsFinished || actionActor.Commands.Standard != this)
                 throw new InvalidOperationException("Attack owner was replaced during approach admission.");
+            if (ObserveChargeStep(MountedChargeTransactionStep.CarrierAdmitted))
+            {
+                return true;
+            }
+
+            // Exact carrier ownership is established BEFORE any lease mutation exists, because the lease
+            // forces a path onto this carrier and a forced path lives only as long as the carrier does.
+            delegatedMoveExecutorId = delegatedMove.Executor?.UniqueId;
+            delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
+            var admittedMoveSlot = mount.Commands.GetCommand(UnitCommand.CommandType.Move);
+            delegatedMoveOwnedByMountMoveSlot &=
+                admittedMoveSlot == delegatedMove && mount.Commands.Contains(delegatedMove);
+            delegatedMoveNeverQueuedOnMount &= !mount.Commands.Queue.Contains(delegatedMove);
+            mountQueueEmptyThroughoutApproach &= mount.Commands.Queue.Count == 0;
+            if (!delegatedMoveExecutorIsExactMount || !delegatedMoveOwnedByMountMoveSlot ||
+                !delegatedMoveNeverQueuedOnMount || !mountQueueEmptyThroughoutApproach)
+            {
+                throw new InvalidOperationException(
+                    "Exact delegated mount movement did not acquire only the active Move slot.");
+            }
+
+            if (ObserveChargeStep(MountedChargeTransactionStep.CarrierOwnershipProven))
+            {
+                return true;
+            }
+
             if (chargeMode)
             {
                 // Preview.156/157: a forced path lives only while the mover holds a live command, so the lease
@@ -872,6 +1065,17 @@ namespace KingmakerMountedCombat.Integration
                 // re-forced onto it, which is what the stock charge does when its target has moved.
                 if (chargeLease == null)
                 {
+                    // The initial in-transaction revalidation, before a single mutation exists.
+                    if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
+                    {
+                        return true;
+                    }
+
+                    if (ObserveChargeStep(MountedChargeTransactionStep.InitialRevalidation))
+                    {
+                        return true;
+                    }
+
                     var pending = new MountedChargeLease(rider, mount, attackTarget, logger);
                     try
                     {
@@ -899,33 +1103,31 @@ namespace KingmakerMountedCombat.Integration
                     }
 
                     chargeLease = pending;
+                    if (ObserveChargeStep(MountedChargeTransactionStep.LeaseApplied))
+                    {
+                        return true;
+                    }
                 }
                 else
                 {
                     // A re-force onto a newly begun carrier: the same conditions are re-read first.
                     if (TerminateChargeIfRevalidationFails(MountedChargeRevalidationPhase.BeforeRepath))
                     {
-                        return;
+                        return true;
+                    }
+
+                    if (ObserveChargeStep(MountedChargeTransactionStep.RepathRevalidation))
+                    {
+                        return true;
                     }
 
                     chargeLease.Maintain(true);
                 }
             }
 
-            delegatedMoveExecutorId = delegatedMove.Executor?.UniqueId;
-            delegatedMoveExecutorIsExactMount &= delegatedMove.Executor == mount;
-            var rawMoveSlot = mount.Commands.GetCommand(UnitCommand.CommandType.Move);
-            delegatedMoveOwnedByMountMoveSlot &=
-                rawMoveSlot == delegatedMove && mount.Commands.Contains(delegatedMove);
-            delegatedMoveNeverQueuedOnMount &=
-                !mount.Commands.Queue.Contains(delegatedMove);
-            mountQueueEmptyThroughoutApproach &= mount.Commands.Queue.Count == 0;
-            if (!delegatedMoveExecutorIsExactMount || !delegatedMoveOwnedByMountMoveSlot ||
-                !delegatedMoveNeverQueuedOnMount || !mountQueueEmptyThroughoutApproach)
-            {
-                throw new InvalidOperationException(
-                    "Exact delegated mount movement did not acquire only the active Move slot.");
-            }
+            // The ownership proofs ran before the lease was applied, which is the point: nothing is
+            // mutated until the exact carrier is established.
+            return false;
         }
 
         private void StopDelegatedMove(bool requireSuccess)
@@ -990,6 +1192,11 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            if (ObserveChargeStep(MountedChargeTransactionStep.AttackStartRevalidation))
+            {
+                return;
+            }
+
             if (chargeMode)
             {
                 IsCharge = true;
@@ -997,6 +1204,11 @@ namespace KingmakerMountedCombat.Integration
 
             NeedLoS = true;
             SetTimeSinceStart(0f);
+            if (ObserveChargeStep(MountedChargeTransactionStep.AttackStarted))
+            {
+                return;
+            }
+
             base.OnStart();
             if (!childAttack.IsRunning || !transaction.TryStartSingleAttack(attackTarget.UniqueId))
             {
