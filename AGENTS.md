@@ -18,9 +18,49 @@ Harmony:      exact installed legacy Harmony12 compatibility surface
 
 It must never become part of, or a required dependency of, Kingmaker Buff Planner, Tabletop Added Rules, Gunslinger, Call of the Wild, Wrath of the Righteous, or another gameplay mod.
 
+## Active Chunk 6B: pair-owned Mounted Charge
+
+Chunk 6B is **active and in progress**. The owner's Chunk 6B mission authorizes the bounded pair-owned
+Mounted Charge on `codex/mounted-combat-phase3f-playable-core`: the rider owns target selection, the
+Standard full-round native ability shell, the Charge buff and the final rider-owned `UnitAttack` with every
+native attack rule; the mount owns the forced straight path, pathing and charge-speed movement and takes no
+extra action cost. The native engine owns every action cost — KMC may route native requests and observe
+native state, and may never write, clear, refund, synthesise or replay action resources, reactions,
+preparation, initiative or turn ownership to manufacture a result.
+
+**Real-time Mounted Charge is implemented and natively qualified, and remains default-off** behind
+`EnableMountedCharge`. Nine real-time rows pass 69/0 on frozen `0.1.0-chunk6b-preview.172`: default-off,
+positive, spent-standard, below-minimum, stock-rejected, interrupted, combat-ended, obstructed-line and
+cancelled. Increment 6B.1, the mount-carried forced path, is qualified in both modes at 62/0, and the
+stock-Charge mounted rejection stays qualified in both modes at 66/0.
+
+**Turn-based Mounted Charge is `DEFER — EVIDENCED`.** It fails closed behind one exact, cost-free refusal,
+"Mounted Charge is not yet supported in turn-based mode." under `MountedCombatRejectionCode.WrongTurn`,
+and that refusal is itself natively qualified in both modes: unavailable, untargetable, observed on the
+rider's own turn, with nothing admitted, moved or costed. Two campaigns measured the alternatives — an
+admission during `Preparing` cost the rider a whole round for 0.193 m of movement, and requiring an acting
+turn made the charge unreachable — so the refusal is authoritative until replaced by qualified
+functionality.
+
+**Increment 6B.2 is not complete.** It still owes clearance obstruction, rider incapacity, mount incapacity
+and safe target loss that does not dispose the shared diagnostic target service. **Increment 6B.4,
+persistence and lifecycle, is unstarted.** Chunk 6B is **not** stable and must not be described as such.
+
+The last natively qualified product payload is `0.1.0-chunk6b-preview.172` at **product commit**
+`2bef622c880a341663b6f224a4c499a09b5a1620`. The **harness HEAD** is
+`fce1d58eadbe9efbdd1690a4fbc90ec39ba52328`. These are **distinct identities**: the harness head is a
+legitimate descendant that adds documentation and offline-only contracts, and neither identity may be
+substituted for the other in a receipt, a package manifest or a suite snapshot.
+
+This mission does **not** authorize a `main` merge, a release, a tag, a pull request, permanent
+installation, replacing the owner's accepted `0.1.0-chunk5-preview.105` installation, protected-save
+writes, Chunk 6C production work, weakening any guard, threshold, allowlist or acceptance assertion, or
+inferring HUMAN PLAY acceptance. The frozen mission record is
+[planning/CHUNK6B-MOUNTED-CHARGE-MISSION.md](planning/CHUNK6B-MOUNTED-CHARGE-MISSION.md).
+
 ## Active Chunk 6A: legal combat Mount/Dismount
 
-The owner's Chunk 6A mission authorizes implementing legal voluntary combat Mount, requalifying voluntary combat Dismount through normal native controls, freezing the remaining Chunk 6 action contract, mapping the later native seams read-only, coherent commits on `codex/mounted-combat-phase3f-playable-core`, guarded publication to that integration branch, private diagnostic packaging with new identities, and bounded guarded native runtime campaigns on the existing isolated machinery. It supersedes the historical "Chunk 6 implementation is not authorized" limit for this bounded scope only. It does not authorize a `main` merge, a release PR or tag, a public release, replacing the owner's current preview.105 installation, human-campaign or protected-save writes, any weakened guard or threshold, force-push, or erased failed evidence. Mounted Charge, mounted casting and item use, staged moving actions and the Mounted Combat feat remain unimplemented and mapped only.
+The owner's Chunk 6A mission authorizes implementing legal voluntary combat Mount, requalifying voluntary combat Dismount through normal native controls, freezing the remaining Chunk 6 action contract, mapping the later native seams read-only, coherent commits on `codex/mounted-combat-phase3f-playable-core`, guarded publication to that integration branch, private diagnostic packaging with new identities, and bounded guarded native runtime campaigns on the existing isolated machinery. It supersedes the historical "Chunk 6 implementation is not authorized" limit for this bounded scope only. It does not authorize a `main` merge, a release PR or tag, a public release, replacing the owner's current preview.105 installation, human-campaign or protected-save writes, any weakened guard or threshold, force-push, or erased failed evidence. Mounted casting and item use, staged moving actions and the Mounted Combat feat remain unimplemented and mapped only. Mounted Charge is no longer among them: the active Chunk 6B mission above implements it, and its real-time delivery is natively qualified and default-off while turn-based delivery is deferred with evidence.
 
 Kingmaker's native Move shell is the sole cost owner: `UnitActionController.TickCommand` charges through `UpdateCooldowns` only at the command's acted transition, after approach and before KMC's custom delivery, and writes nothing at all outside combat. `TurnController.Prepare` is the per-round grant — it calls `Cooldowns.Clear` — so no relationship transition may call it. A pair created mid-encounter adopts the rider's already running native turn through bookkeeping alone and disposes of the partner's transition round from the exact positional observable in `CombatController.ChooseNextUnit`, refusing the transition when that disposition cannot be resolved. Relationship admission is an explicit typed mode (exploration, voluntary combat, saved restore), and one transition ledger keeps repeated delivery idempotent and forced cleanup free of a voluntary cost. Preserve the required paired configuration, the accepted CRPG transport preset and the exact multi-boundary mounted-Charge rejection. The frozen contract is [planning/CHUNK6-ACTION-CONTRACT.md](planning/CHUNK6-ACTION-CONTRACT.md); the current human intake is preview.105 and is the only restoration target.
 
