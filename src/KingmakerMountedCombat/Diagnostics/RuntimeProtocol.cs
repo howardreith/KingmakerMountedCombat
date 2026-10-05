@@ -704,6 +704,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-default-off", "C6B-CHARGE-positive", "C6B-CHARGE-below-minimum",
             "C6B-CHARGE-spent-standard", "C6B-CHARGE-stock-rejected",
             "C6B-CHARGE-interrupted", "C6B-CHARGE-combat-ended", "C6B-CHARGE-obstructed-line", "C6B-CHARGE-cancelled",
+            "C6B-CHARGE-blocked-clearance", "C6B-CHARGE-exception-cleanup", "C6B-CHARGE-target-moved",
+            "C6B-CHARGE-target-lost", "C6B-CHARGE-rider-incapacitated", "C6B-CHARGE-mount-incapacitated",
             "C6B-PATH-straight-arrival", "C6B-PATH-interrupt-stop",
             "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider",
             "C4-CHARGE-mounted-mount", "C4-CHARGE-unrelated-actor", "C4-CHARGE-queued-state-change",

@@ -1589,6 +1589,39 @@ $compensationIndexes = Get-KmcOrderedIndexes $compensationBlock.Value @(
     'ReferenceEquals(activeCommand, command) && compensation.Complete',
     'activeCommand = null;',
     'faultedChargeCleanupOwner = command;')
+# The one diagnostics-only charge seam. It grants nothing and relaxes nothing - an armed hook can
+# only throw - but it still has to be impossible to reach from production: exactly one firing site,
+# in the admission path immediately after the queue insertion (a seam that fired earlier would not
+# measure post-queue compensation at all), and arming only from the diagnostic fixture.
+$faultText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedChargeAdmissionFault.cs')
+$faultFireSites = 0
+$faultIntegrationArmings = 0
+$faultDiagnosticsArmings = 0
+foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration') -Filter *.cs -File)) {
+    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $faultFireSites += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.FireAfterQueue\(\)')).Count
+    if ($file.Name -cne 'MountedChargeAdmissionFault.cs') {
+        $faultIntegrationArmings += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.AfterQueue\s*=(?!=)')).Count
+    }
+}
+foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics') -Filter *.cs -File)) {
+    $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
+    $faultDiagnosticsArmings += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.AfterQueue\s*=(?!=)')).Count
+}
+$queueIndex = $chargeControllerText.IndexOf('queuedContainer.AddToQueueFirst(command);', [StringComparison]::Ordinal)
+$fireIndex = $chargeControllerText.IndexOf('MountedChargeAdmissionFault.FireAfterQueue();', [StringComparison]::Ordinal)
+$betweenQueueAndFire = ''
+if ($queueIndex -ge 0 -and $fireIndex -gt $queueIndex) {
+    $betweenQueueAndFire = $chargeControllerText.Substring($queueIndex, $fireIndex - $queueIndex)
+}
+Assert-Kmc ($faultFireSites -eq 1 -and $faultIntegrationArmings -eq 0 -and $faultDiagnosticsArmings -ge 2 -and
+    $queueIndex -ge 0 -and $fireIndex -gt $queueIndex -and
+    # Comment lines are stripped first: the guard comment between the two statements contains a
+    # semicolon of its own, and it is prose rather than a statement.
+    @([Regex]::Matches([Regex]::Replace($betweenQueueAndFire, '(?m)^\s*//.*$', ''), ';')).Count -le 2 -and
+    $faultText -match 'internal static Action AfterQueue;' -and
+    $faultText -match 'AfterQueue = null;') 'the diagnostics-only charge admission seam has one firing site immediately after the queue insertion and is armed only from Diagnostics'
+
 Assert-Kmc ($compensationBlock.Success -and $postconditions.Count -ge 7 -and
     (Test-KmcStrictlyIncreasing $compensationIndexes) -and
     $compensationBlock.Value -match 'new MountedChargePostcondition\("no-lease-cleanup-debt"' -and
