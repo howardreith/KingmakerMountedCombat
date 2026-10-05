@@ -16,7 +16,7 @@ function Get-KmcChunk6bChargeRows([string]$Mode) {
     if([string]$Mode-ceq'TB'){
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
-        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line','C6B-CHARGE-cancelled')
+        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled','C6B-CHARGE-exception-cleanup','C6B-CHARGE-target-moved','C6B-CHARGE-target-lost','C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated')
     }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
@@ -62,6 +62,92 @@ function Assert-KmcChunk6bChargeNothingHappened($Evidence,[string]$Row) {
     if([long](ChargeProp $Evidence 'attackRules')-ne0){ChargeFail ('row '+$Row+' initiated a pair attack on a refusal')}
     if($null-ne(ChargeProp $Evidence 'lease')){ChargeFail ('row '+$Row+' applied a charge lease on a refusal')}
     if((ChargeProp (ChargeProp $Evidence 'after') 'mountCharging')-ne$false-or(ChargeProp (ChargeProp $Evidence 'after') 'riderStateCharging')-ne$false){ChargeFail ('row '+$Row+' left charge state behind on a refusal')}
+}
+
+# What the charge transaction recorded about itself. The order is not cosmetic: the transition
+# revalidation asks whether the exact carrier still owns the mount Move slot, so it must have run while
+# the carrier owned it; the attack-start revalidation asks the opposite, so it must have run after the
+# release was proven; and the lease may not exist before exact carrier ownership does. A charge that
+# struck must show that whole order, and no charge may end owing cleanup.
+function Assert-KmcChunk6bChargeTransaction($Evidence,[string]$Row,[bool]$ExpectAttack) {
+    $t=ChargeProp $Evidence 'transaction'
+    if($null-eq$t){ChargeFail ('row '+$Row+' recorded no charge transaction')}
+    if((ChargeProp $t 'chargeMode')-ne$true){ChargeFail ('row '+$Row+' the admitted command was not in charge mode')}
+    if((ChargeProp $t 'sequenceLawful')-ne$true){ChargeFail ('row '+$Row+' took its charge steps out of order: '+[string](ChargeProp $t 'sequence'))}
+    $sequence=[string](ChargeProp $t 'sequence')
+    if($sequence-eq''){ChargeFail ('row '+$Row+' recorded no charge step order')}
+    if((ChargeProp $t 'leaseRestored')-ne$true){ChargeFail ('row '+$Row+' the charge lease was not restored')}
+    if((ChargeProp $t 'cleanupComplete')-ne$true){ChargeFail ('row '+$Row+' the charge lease cleanup is incomplete')}
+    foreach($field in @('cleanupDebt','cleanupDebtAtEnd')){ if([string](ChargeProp $t $field)-ne''){ChargeFail ('row '+$Row+' left charge cleanup debt: '+$field+'='+[string](ChargeProp $t $field))} }
+    if((ChargeProp $t 'leaseApplicationFailed')-ne$false){ChargeFail ('row '+$Row+' the charge lease application failed')}
+    if([long](ChargeProp $t 'revalidationCount')-lt1){ChargeFail ('row '+$Row+' the charge never revalidated its own conditions')}
+    if([string](ChargeProp $t 'revalidationPhases')-eq''){ChargeFail ('row '+$Row+' recorded no revalidation phases')}
+    if(-not$ExpectAttack){
+        if($sequence-like'*AttackStarted*'){ChargeFail ('row '+$Row+' started a native attack on a terminated charge')}
+        return
+    }
+    if((ChargeProp $t 'carrierReleaseProven')-ne$true){ChargeFail ('row '+$Row+' struck without proving the carrier release')}
+    if((ChargeProp $t 'revalidationFailed')-ne$false){ChargeFail ('row '+$Row+' struck after a failed revalidation')}
+    if([long](ChargeProp $t 'revalidationCount')-lt3){ChargeFail ('row '+$Row+' struck with fewer than three revalidations')}
+    foreach($step in @('CarrierAdmitted','CarrierOwnershipProven','InitialRevalidation','LeaseApplied','TransitionRevalidation','CarrierReleasedForAttack','CarrierReleaseProven','Arrived','AttackStartRevalidation','AttackStarted')){
+        if(-not($sequence-like('*'+$step+'*'))){ChargeFail ('row '+$Row+' the charge step order is missing '+$step)}
+    }
+    # The three orderings the repair batch exists for, read out of the recorded order itself.
+    if($sequence.IndexOf('TransitionRevalidation')-ge$sequence.IndexOf('CarrierReleasedForAttack')){ChargeFail ('row '+$Row+' released the carrier before the transition revalidation')}
+    if($sequence.IndexOf('CarrierReleaseProven')-ge$sequence.IndexOf('AttackStartRevalidation')){ChargeFail ('row '+$Row+' revalidated the attack start before proving the carrier release')}
+    if($sequence.IndexOf('CarrierOwnershipProven')-ge$sequence.IndexOf('LeaseApplied')){ChargeFail ('row '+$Row+' applied the charge lease before proving exact carrier ownership')}
+}
+
+# One real native RuleDealDamage into the exact nonlethal unconscious window, the charge terminating at
+# once without an attack, and the fixture returning exactly the damage it dealt so that no later case
+# starts from a state this row created.
+function Assert-KmcChunk6bChargeIncapacityRow($Evidence,[string]$Row,[string]$Kind,[string]$InterventionKind) {
+    $before=ChargeProp $Evidence 'before';$input=ChargeProp $Evidence 'input'
+    if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail ('row '+$Row+' was not available or targetable')}
+    if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail ('row '+$Row+' did not admit exactly one native shell')}
+    Assert-KmcChunk6bChargeBoundedTermination $Evidence $Row $InterventionKind
+    Assert-KmcChunk6bChargeTransaction $Evidence $Row $false
+    $incapacity=ChargeProp $Evidence 'incapacity'
+    if($null-eq$incapacity){ChargeFail ('row '+$Row+' recorded no incapacity')}
+    if([string](ChargeProp $incapacity 'contract')-cne'one-native-ruledeal-damage-to-incapacitation-window-mid-charge'){ChargeFail ('row '+$Row+' names another incapacity contract')}
+    if([string](ChargeProp $incapacity 'window')-cne'present'){ChargeFail ('row '+$Row+' claims a delivered incapacity without a window')}
+    if([string](ChargeProp $incapacity 'subjectKind')-cne$Kind){ChargeFail ('row '+$Row+' incapacitated the other actor')}
+    if([string](ChargeProp $incapacity 'subjectId')-eq''){ChargeFail ('row '+$Row+' did not identify its incapacity subject')}
+    if([long](ChargeProp $incapacity 'damageDispatchCount')-ne1){ChargeFail ('row '+$Row+' dispatched more than one native damage rule')}
+    if((ChargeProp $incapacity 'difficultyUnchanged')-ne$true){ChargeFail ('row '+$Row+' did not keep the native difficulty unchanged')}
+    $window=ChargeProp $incapacity 'measurement'
+    if($null-eq$window){ChargeFail ('row '+$Row+' recorded no incapacity window')}
+    foreach($field in @('difficulty','hitPoints','constitution','temporaryHitPoints','damageBefore','desiredDamage','deathThreshold','requestedDamage','projectedDamage')){
+        if(-not(ChargeNumber (ChargeProp $window $field))){ChargeFail ('row '+$Row+' incapacity window field is not a number: '+$field)}
+    }
+    if([double]$window.desiredDamage-le[double]$window.hitPoints){ChargeFail ('row '+$Row+' the requested window was not past the subject hit points')}
+    if([double]$window.desiredDamage-ge[double]$window.deathThreshold){ChargeFail ('row '+$Row+' the requested window reached the death threshold')}
+    if([long](ChargeProp $incapacity 'nativeDamageBeforeDifficulty')-ne[long]$window.requestedDamage){ChargeFail ('row '+$Row+' the native damage rule did not deal what was requested')}
+    if([long](ChargeProp $incapacity 'damageAfter')-lt[long]$window.desiredDamage){ChargeFail ('row '+$Row+' the native damage did not reach the incapacity window')}
+    if([long](ChargeProp $incapacity 'damageAfter')-ge[long]$window.deathThreshold){ChargeFail ('row '+$Row+' the native damage reached the death threshold')}
+    # The subject is observably unconscious and alive, and the other actor of the pair is untouched.
+    $afterDamage=ChargeProp $incapacity 'stateAfterDamage'
+    if($null-eq$afterDamage){ChargeFail ('row '+$Row+' recorded no state after its damage')}
+    $otherKind=if($Kind-ceq'mount'){'rider'}else{'mount'}
+    $subjectAfter=ChargeProp $afterDamage $Kind
+    $otherAfter=ChargeProp $afterDamage $otherKind
+    if($null-eq$subjectAfter-or$null-eq$otherAfter){ChargeFail ('row '+$Row+' recorded no pair state after its damage')}
+    if((ChargeProp $subjectAfter 'conscious')-ne$false){ChargeFail ('row '+$Row+' the subject was never unconscious')}
+    if((ChargeProp $subjectAfter 'dead')-ne$false-or(ChargeProp $subjectAfter 'finallyDead')-ne$false){ChargeFail ('row '+$Row+' the subject was killed rather than incapacitated')}
+    if((ChargeProp $otherAfter 'conscious')-ne$true-or(ChargeProp $otherAfter 'dead')-ne$false){ChargeFail ('row '+$Row+' the other actor of the pair was affected as well')}
+    # Exactly one native life-state boundary for the subject, Conscious to Unconscious.
+    $events=@((ChargeProp (ChargeProp $incapacity 'lifeEventsAtSettle') 'events')|Where-Object {$null-ne$_-and[string](ChargeProp $_ 'kind')-ceq'native-life-state'})
+    $subjectEvents=@($events|Where-Object {[string](ChargeProp $_ 'actor')-ceq[string](ChargeProp $incapacity 'subjectId')})
+    if($subjectEvents.Count-ne1){ChargeFail ('row '+$Row+' did not record exactly one native life-state boundary for its subject')}
+    if([string](ChargeProp $subjectEvents[0] 'detail')-cne'Conscious'-or[string](ChargeProp $subjectEvents[0] 'lifeState')-cne'Unconscious'){ChargeFail ('row '+$Row+' the native life-state boundary was not Conscious to Unconscious')}
+    $source=@(ChargeProp $subjectEvents[0] 'nativeSource')
+    if($source.Count-lt1-or[string](ChargeProp $source[0] 'type')-cne'Kingmaker.Controllers.Units.UnitLifeController'){ChargeFail ('row '+$Row+' the life-state boundary did not come from the native life controller')}
+    # The fixture returns exactly the damage it dealt, and waits for the engine to confirm it.
+    $restore=ChargeProp $incapacity 'restore'
+    if($null-eq$restore){ChargeFail ('row '+$Row+' recorded no restoration of the damage it dealt')}
+    if((ChargeProp $restore 'restored')-ne$true){ChargeFail ('row '+$Row+' did not restore the damage it dealt')}
+    if([long](ChargeProp $restore 'damageAfterRestore')-ne[long](ChargeProp $restore 'damageToRestore')){ChargeFail ('row '+$Row+' restored another damage value')}
+    if((ChargeProp $restore 'conscious')-ne$true-or[string](ChargeProp $restore 'lifeState')-cne'Conscious'){ChargeFail ('row '+$Row+' left its subject unconscious')}
 }
 
 # A charge that was lawfully admitted, genuinely carried and then ended through a native surface. The
@@ -110,6 +196,8 @@ function Assert-KmcChunk6bChargeBoundedTermination($Evidence,[string]$Row,[strin
     } else {
         if((ChargeProp $intervention 'riderInCombatBefore')-ne$true){ChargeFail ('row '+$Row+' the intervention left combat without having been in combat')}
     }
+    # A terminated charge still has to have taken its own steps in order and owed nothing at the end.
+    Assert-KmcChunk6bChargeTransaction $Evidence $Row $false
 }
 
 function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
@@ -129,16 +217,48 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
         return
     }
 
-    # The obstructed-line row cannot be presented in a fixture area where every direction at the lawful
-    # distance offers a clear native line. That outcome is a measurement and must be explicit: the row
-    # carries the named limitation, the reachability flag and the whole placement sweep that proves it,
-    # and the sweep must show a clear line for every candidate it examined.
-    if($name-ceq'C6B-CHARGE-obstructed-line'-and$null-ne(ChargeProp $e 'limitation')){
-        if([string](ChargeProp $e 'limitation')-cne'no-obstructed-line-in-fixture-area'){ChargeFail ('the obstructed-line row names an unknown limitation: '+(ChargeProp $e 'limitation'))}
-        if((ChargeProp $e 'obstructedLineReachable')-ne$false){ChargeFail 'the obstructed-line limitation does not record the geometry as unreachable'}
-        $attempts=@(ChargeProp (ChargeProp $e 'placement') 'attempts')
-        if($attempts.Count-lt1){ChargeFail 'the obstructed-line limitation records no placement sweep'}
-        foreach($attempt in $attempts){ if((ChargeProp $attempt 'straightRoute')-ne$true){ChargeFail 'the obstructed-line limitation recorded an obstructed candidate it did not use'} }
+    # A row the fixture area could not present is a measurement, and it must be explicit: the row carries
+    # a limitation from a closed set, the sweep that proves it, and nothing else. A limitation is never a
+    # delivered row, and each one has to prove the fixture did not simply pass over a usable candidate.
+    $limitation=[string](ChargeProp $e 'limitation')
+    if($limitation-ne''){
+        switch -CaseSensitive ($limitation) {
+            'no-obstructed-line-in-fixture-area' {
+                if($name-cne'C6B-CHARGE-obstructed-line'){ChargeFail ('row '+$name+' claims the obstructed-line limitation')}
+                if((ChargeProp $e 'obstructedLineReachable')-ne$false){ChargeFail 'the obstructed-line limitation does not record the geometry as unreachable'}
+                $attempts=@(ChargeProp (ChargeProp $e 'placement') 'attempts')
+                if($attempts.Count-lt1){ChargeFail 'the obstructed-line limitation records no placement sweep'}
+                foreach($attempt in $attempts){ if((ChargeProp $attempt 'straightRoute')-ne$true){ChargeFail 'the obstructed-line limitation recorded an obstructed candidate it did not use'} }
+            }
+            'no-blocked-landing-in-fixture-area' {
+                if($name-cne'C6B-CHARGE-blocked-clearance'){ChargeFail ('row '+$name+' claims the clearance limitation')}
+                if((ChargeProp $e 'blockedClearanceReachable')-ne$false){ChargeFail 'the clearance limitation does not record the geometry as unreachable'}
+                $attempts=@(ChargeProp (ChargeProp $e 'placement') 'attempts')
+                if($attempts.Count-lt1){ChargeFail 'the clearance limitation records no placement sweep'}
+                foreach($attempt in $attempts){
+                    if([long](ChargeProp $attempt 'landingBlockerCount')-gt0-and(ChargeProp $attempt 'straightRoute')-eq$true-and(ChargeProp $attempt 'withinFixtureBounds')-eq$true){
+                        ChargeFail 'the clearance limitation passed over a usable blocked landing'
+                    }
+                }
+            }
+            'blocked-landing-not-reproducible-after-spawn' {
+                if($name-cne'C6B-CHARGE-blocked-clearance'){ChargeFail ('row '+$name+' claims the clearance spawn limitation')}
+                # The body was spawned and then the landing point was clear after all, or the line was
+                # not straight: either way the row is not the clearance row and says so.
+                $blockers=@(ChargeProp $e 'landingBlockers')
+                $straight=(ChargeProp $e 'straightRouteAfterSpawn')-eq$true
+                if($blockers.Count-gt0-and$straight){ChargeFail 'the clearance spawn limitation had a usable blocked landing after all'}
+            }
+            'native-incapacity-window-absent' {
+                if($name-cnotin@('C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated')){ChargeFail ('row '+$name+' claims the incapacity-window limitation')}
+                $incapacity=ChargeProp $e 'incapacity'
+                if($null-eq$incapacity){ChargeFail 'the incapacity limitation records no measurement'}
+                if([string](ChargeProp $incapacity 'window')-cne'absent'){ChargeFail 'the incapacity limitation does not record the window as absent'}
+                if([string](ChargeProp $incapacity 'windowReason')-eq''){ChargeFail 'the incapacity limitation names no reason'}
+                if($null-ne(ChargeProp $incapacity 'nativeDamage')){ChargeFail 'the incapacity limitation dealt damage after all'}
+            }
+            default { ChargeFail ('row '+$name+' names an unknown limitation: '+$limitation) }
+        }
         return
     }
 
@@ -211,6 +331,8 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             # No residue beyond the native buff duration, which is the engine's own and is not shortened.
             foreach($flag in @('mountCharging','mountMoving','riderStateCharging','mountStateCharging','pairCommandActive')){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('the charge left residue: '+$flag)} }
             if($null-ne(ChargeProp $after 'mountSpeedOverride')){ChargeFail 'the charge left a mount speed override behind'}
+            # And the order in which it did all of that.
+            Assert-KmcChunk6bChargeTransaction $e $name $true
         }
         'C6B-CHARGE-below-minimum' {
             if((ChargeProp $before 'canTarget')-ne$false){ChargeFail 'a target inside the minimum charge distance was targetable'}
@@ -251,6 +373,122 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             if([double]$state.distanceToTarget-lt[double]$before.minRangeMeters){ChargeFail 'the obstructed-line row target was inside the minimum charge distance'}
             if((ChargeProp $before 'canTarget')-ne$false){ChargeFail 'a target whose charge line is obstructed was targetable'}
             Assert-KmcChunk6bChargeNothingHappened $e $name
+        }
+        'C6B-CHARGE-blocked-clearance' {
+            # The clearance gate, which is distinct from the line: the native route is straight and the
+            # distance lawful, and the only thing wrong is that another awake actor stands on the landing
+            # point one weapon reach short of the target.
+            $geometry=ChargeProp $before 'geometry'
+            if($null-eq$geometry){ChargeFail 'the clearance row recorded no geometry'}
+            if((ChargeProp $geometry 'landingBlocked')-ne$true){ChargeFail 'the clearance row landing point was not blocked'}
+            if((ChargeProp $geometry 'straightRoute')-ne$true){ChargeFail 'the clearance row line was obstructed as well'}
+            $state=ChargeProp $before 'state'
+            if(-not(ChargeNumber (ChargeProp $state 'distanceToTarget'))-or-not(ChargeNumber (ChargeProp $before 'minRangeMeters'))){ChargeFail 'the clearance row recorded no geometry distance'}
+            if([double]$state.distanceToTarget-lt[double]$before.minRangeMeters){ChargeFail 'the clearance row target was inside the minimum charge distance'}
+            if((ChargeProp $before 'canTarget')-ne$false){ChargeFail 'a target whose charge landing point is occupied was targetable'}
+            # Named blockers rather than a bare flag, each one actually inside the threshold the gate uses.
+            $blockers=@(ChargeProp $e 'landingBlockers')
+            if($blockers.Count-lt1){ChargeFail 'the clearance row named no blocking actor'}
+            foreach($blocker in $blockers){
+                if([string](ChargeProp $blocker 'actorId')-eq''){ChargeFail 'a clearance blocker has no identity'}
+                if(-not(ChargeNumber (ChargeProp $blocker 'distanceToLanding'))-or-not(ChargeNumber (ChargeProp $blocker 'threshold'))){ChargeFail 'a clearance blocker recorded no distance'}
+                if([double]$blocker.distanceToLanding-ge[double]$blocker.threshold){ChargeFail 'a clearance blocker stood outside the clearance threshold'}
+            }
+            Assert-KmcChunk6bChargeNothingHappened $e $name
+        }
+        'C6B-CHARGE-exception-cleanup' {
+            # A charge that failed immediately after entering the rider command queue. The compensation
+            # this row measures does not exist until the charge has genuinely been queued, so the charge
+            # must first have been on offer over a lawful geometry.
+            if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the admission-fault charge was not on offer over a lawful geometry'}
+            if((ChargeProp (ChargeProp $before 'geometry') 'straightRoute')-ne$true){ChargeFail 'the admission-fault charge line was not a straight native route'}
+            $fault=ChargeProp $e 'admissionFault'
+            if($null-eq$fault){ChargeFail 'the admission-fault row recorded no fault'}
+            if([string](ChargeProp $fault 'contract')-cne'post-queue-charge-admission-fault-compensated-exactly'){ChargeFail 'the admission-fault row names another contract'}
+            if((ChargeProp $fault 'armed')-ne$true-or(ChargeProp $fault 'fired')-ne$true){ChargeFail 'the admission fault was not armed and fired'}
+            if((ChargeProp $fault 'seamClearedAfterClick')-ne$true){ChargeFail 'the one-shot admission seam stayed armed after the click'}
+            if([long](ChargeProp $fault 'compensationCount')-ne1){ChargeFail 'the faulted admission did not compensate exactly once'}
+            if((ChargeProp $fault 'compensationComplete')-ne$true){ChargeFail ('the admission compensation did not complete: '+[string](ChargeProp $fault 'compensation'))}
+            if([string](ChargeProp $fault 'unmetPostconditions')-ne''){ChargeFail ('the admission compensation left an unmet postcondition: '+[string](ChargeProp $fault 'unmetPostconditions'))}
+            if((ChargeProp $fault 'commandResident')-ne$false){ChargeFail 'the compensated charge command was still resident on the rider'}
+            if((ChargeProp $fault 'leaseRestored')-ne$true){ChargeFail 'the compensated charge did not restore its lease'}
+            if((ChargeProp $fault 'activeCommandCleared')-ne$true){ChargeFail 'the controller kept its reference to the compensated command'}
+            if((ChargeProp $fault 'faultedCleanupOwner')-ne$false){ChargeFail 'the controller retained a faulted charge cleanup owner'}
+            foreach($flag in @('riderCommandsEmpty','mountCommandsEmpty')){ if((ChargeProp $fault $flag)-ne$true){ChargeFail ('the compensated charge left a native command behind: '+$flag)} }
+            # The charge was refused rather than admitted, and nothing of the pair own ran.
+            $delivery=ChargeProp $e 'delivery'
+            if($null-eq$delivery){ChargeFail 'the admission-fault row recorded no delivery section'}
+            if([long](ChargeProp $delivery 'chargeAdmitted')-ne0){ChargeFail 'the faulted admission admitted a charge'}
+            if([long](ChargeProp $delivery 'chargeRefused')-lt1){ChargeFail 'the faulted admission recorded no refusal'}
+            if([long](ChargeProp $e 'attackRules')-ne0){ChargeFail 'the faulted admission delivered an attack'}
+            if($null-ne(ChargeProp $e 'lease')){ChargeFail 'the faulted admission published a lease it never owned'}
+            if($null-ne(ChargeProp $e 'transaction')){ChargeFail 'the faulted admission published a transaction it never ran'}
+            if(-not(ChargeNumber (ChargeProp $movement 'mountDistance'))-or[double]$movement.mountDistance-gt1.0){ChargeFail 'the faulted admission carried the pair'}
+            foreach($field in @('mountStandardMax','mountMoveMax')){ if(-not(ChargeNumber (ChargeProp $economy $field))-or[double]$economy.$field-gt0.001){ChargeFail ('the faulted admission charged the mount: '+$field)} }
+            # Whatever the native shell already took stays taken; nothing here writes a resource back.
+            if(-not(ChargeNumber (ChargeProp $economy 'riderStandardNow'))-or[double]$economy.riderStandardNow-lt-0.001){ChargeFail 'the faulted admission recorded a negative rider standard cooldown'}
+            foreach($flag in @('mountCharging','mountMoving','riderStateCharging','mountStateCharging','pairCommandActive')){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('the faulted admission left residue: '+$flag)} }
+            if($null-ne(ChargeProp $after 'mountSpeedOverride')){ChargeFail 'the faulted admission left a mount speed override behind'}
+        }
+        'C6B-CHARGE-target-moved' {
+            if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the moving-target charge was not available or targetable'}
+            if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the moving-target charge did not admit exactly one native shell'}
+            $delivery=ChargeProp $e 'delivery'
+            if($null-eq$delivery-or[long](ChargeProp $delivery 'chargeAdmitted')-ne1){ChargeFail 'the moving-target row did not admit exactly one charge'}
+            $move=ChargeProp $e 'targetMove'
+            if($null-eq$move){ChargeFail 'the moving-target row recorded no target move'}
+            if([string](ChargeProp $move 'contract')-cne'native-target-move-forces-charge-revalidation-and-repath'){ChargeFail 'the moving-target row names another contract'}
+            if((ChargeProp $move 'issued')-ne$true){ChargeFail 'the moving-target row never issued its native move'}
+            if(-not(ChargeNumber (ChargeProp $move 'targetMovedDistance'))-or[double]$move.targetMovedDistance-lt1.0){ChargeFail 'the moving-target row target did not actually move'}
+            $terminal=ChargeProp $e 'terminal'
+            if($null-eq$terminal){ChargeFail 'the moving-target row recorded no terminal outcome'}
+            $struck=[long](ChargeProp $rules 'pairNonOpportunityAttackRules')-eq1
+            Assert-KmcChunk6bChargeTransaction $e $name $struck
+            if($struck){
+                # The happy path: the charge re-read its conditions, re-forced the straight line onto a
+                # newly admitted carrier and struck once with the native charge rule.
+                if([long](ChargeProp $terminal 'repathCount')-lt1){ChargeFail 'the moving-target charge struck without repathing'}
+                $events=@((ChargeProp $rules 'attackRuleEvents')|Where-Object {$null-ne$_-and(ChargeProp $_ 'attackOfOpportunity')-eq$false})
+                if($events.Count-ne1-or(ChargeProp $events[0] 'charge')-ne$true){ChargeFail 'the moving-target charge did not deliver exactly one native charge attack'}
+                if([long](ChargeProp $terminal 'childAttackStartCount')-ne1){ChargeFail 'the moving-target charge terminal is not one single rider attack'}
+            } else {
+                # The other lawful outcome: the changed geometry failed the charge own revalidation, so
+                # it ended without an attack and named its own reason.
+                $t=ChargeProp $e 'transaction'
+                if((ChargeProp $t 'revalidationFailed')-ne$true){ChargeFail 'the moving-target charge neither struck nor failed a revalidation'}
+                if([string](ChargeProp $t 'revalidationFailurePhase')-eq''-or[string](ChargeProp $t 'revalidationFailureReason')-eq''){ChargeFail 'the moving-target charge did not name its revalidation failure'}
+                if([long](ChargeProp $rules 'pairNonOpportunityAttackRules')-ne0){ChargeFail 'the moving-target charge delivered an attack after failing its revalidation'}
+            }
+            # Either way: the mount paid nothing, the lease came back and nothing was left behind.
+            foreach($field in @('mountStandardMax','mountMoveMax')){ if(-not(ChargeNumber (ChargeProp $economy $field))-or[double]$economy.$field-gt0.001){ChargeFail ('the moving-target charge charged the mount: '+$field)} }
+            $movedLease=ChargeProp $e 'lease'
+            if($null-eq$movedLease){ChargeFail 'the moving-target charge recorded no lease'}
+            foreach($flag in @('applied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly')){ if((ChargeProp $movedLease $flag)-ne$true){ChargeFail ('the moving-target charge lease flag is not set: '+$flag)} }
+            foreach($flag in @('mountCharging','mountMoving','riderStateCharging','mountStateCharging','pairCommandActive')){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('the moving-target charge left residue: '+$flag)} }
+            if($null-ne(ChargeProp $after 'mountSpeedOverride')){ChargeFail 'the moving-target charge left a mount speed override behind'}
+        }
+        'C6B-CHARGE-target-lost' {
+            if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the target-lost charge was not available or targetable'}
+            if([long](ChargeProp $input 'shellCount')-ne1){ChargeFail 'the target-lost charge did not admit exactly one native shell'}
+            Assert-KmcChunk6bChargeBoundedTermination $e $name 'native-target-removed'
+            $loss=ChargeProp $e 'targetLoss'
+            if($null-eq$loss){ChargeFail 'the target-lost row recorded no target loss'}
+            if([string](ChargeProp $loss 'contract')-cne'native-target-body-removed-mid-approach-shared-service-retained'){ChargeFail 'the target-lost row names another contract'}
+            if([string](ChargeProp $loss 'lostTargetId')-eq''){ChargeFail 'the target-lost row did not record the body it removed'}
+            if((ChargeProp $loss 'destroyConfirmed')-ne$true){ChargeFail 'the target-lost row did not confirm the native destroy'}
+            if((ChargeProp $loss 'targetEntityRemoved')-ne$true){ChargeFail 'the target-lost row body was still in state'}
+            # The failure this row was withdrawn for: the shared diagnostic target service must stay
+            # alive for the fixture own cleanup, because the tranche still holds it.
+            if((ChargeProp $loss 'serviceRetained')-ne$true-or(ChargeProp $loss 'serviceDisposedByRow')-ne$false){ChargeFail 'the target-lost row disposed the shared diagnostic target service'}
+            # And the termination must be attributable to the lost target rather than to combat ending.
+            if((ChargeProp $loss 'riderInCombat')-ne$true-or(ChargeProp $loss 'mountInCombat')-ne$true){ChargeFail 'the target-lost row pair had already left combat'}
+            if((ChargeProp (ChargeProp $e 'intervention') 'riderInCombatAfter')-ne$true){ChargeFail 'the target-lost row left combat instead of losing its target'}
+        }
+        'C6B-CHARGE-rider-incapacitated' {
+            Assert-KmcChunk6bChargeIncapacityRow $e $name 'rider' 'native-rider-incapacity'
+        }
+        'C6B-CHARGE-mount-incapacitated' {
+            Assert-KmcChunk6bChargeIncapacityRow $e $name 'mount' 'native-mount-incapacity'
         }
         'C6B-CHARGE-stock-rejected' {
             if([string](ChargeProp $input 'stockBlueprint')-cne(ChargeStockAbilityGuid)){ChargeFail 'the stock rejection row did not click the stock Charge'}
