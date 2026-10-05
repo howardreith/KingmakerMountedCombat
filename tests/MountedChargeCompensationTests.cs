@@ -111,6 +111,41 @@ namespace KingmakerMountedCombat.Tests
                     "The dequeue failure was not recorded exactly: " + Join(compensation.Failures));
             });
 
+            runner.Run("a failing interrupt never strands the queued command or the lease", () =>
+            {
+                // Interrupt is the step that makes the command terminal. If it fails, the dequeue and the
+                // lease still have to run, and the controller must not be told everything is resolved.
+                var ran = new List<string>();
+                var compensation = Build(ran, "interrupt-command");
+                compensation.Run();
+                TestRunner.True(Join(ran) == "abandon-scheduler|dequeue-command|restore-lease",
+                    "A failing interrupt stranded the later owners: " + Join(ran));
+                TestRunner.True(Join(compensation.Failures) == "interrupt-command:InvalidOperationException",
+                    "The interrupt failure was not recorded exactly: " + Join(compensation.Failures));
+
+                // Even with every postcondition answered, the failure alone keeps it incomplete.
+                Confirm(compensation, true, true, true, true, true, true, true);
+                TestRunner.True(!compensation.Complete,
+                    "Compensation with a failing interrupt reported complete: " + compensation.Describe());
+            });
+
+            runner.Run("a failing lease restoration is the one failure that cannot be hidden", () =>
+            {
+                // The lease owns live mutations on the mount - a charging flag, a speed override and a
+                // forced path - so a restoration that fails is exactly the case where the controller must
+                // keep a cleanup owner rather than release its last reference.
+                var ran = new List<string>();
+                var compensation = Build(ran, "restore-lease");
+                compensation.Run();
+                TestRunner.True(Join(ran) == "abandon-scheduler|interrupt-command|dequeue-command",
+                    "A failing lease restoration stranded the earlier owners: " + Join(ran));
+                TestRunner.True(Join(compensation.Failures) == "restore-lease:InvalidOperationException",
+                    "The lease failure was not recorded exactly: " + Join(compensation.Failures));
+                Confirm(compensation, true, true, true, true, true, true, true);
+                TestRunner.True(!compensation.Complete,
+                    "Compensation with an unrestored lease reported complete: " + compensation.Describe());
+            });
+
             runner.Run("charge compensation runs exactly once and names its reason", () =>
             {
                 var ran = new List<string>();
