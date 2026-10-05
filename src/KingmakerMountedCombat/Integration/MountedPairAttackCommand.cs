@@ -325,6 +325,16 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool ChargeMode => chargeMode;
 
+        // Increment 6B.3: the exact owned charge transaction, live. This is the only delegator a
+        // preparing rider turn admits for the mount movement, so the claim is deliberately the whole
+        // of it rather than "this command is a charge": the command is the pair own charge, it has not
+        // finished, its lease is applied and not yet restored, and neither the application nor a
+        // revalidation has failed. The moment any of that stops holding the delegation returns to
+        // requiring an acting turn, which is the boundary Chunk 6A qualified.
+        internal bool ChargeTransactionDelegating =>
+            chargeMode && !IsFinished && chargeLease != null && chargeLease.Applied &&
+            !chargeLease.Restored && !chargeLeaseApplicationFailed && !chargeRevalidationFailed;
+
         // Read-only lease facts for the external charge reader; null when this transaction is not a charge.
         internal Newtonsoft.Json.Linq.JObject CaptureChargeLeaseEvidence()
         {
