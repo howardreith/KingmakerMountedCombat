@@ -172,6 +172,9 @@ function Assert-KmcChunk6bChargeBoundedTermination($Evidence,[string]$Row,[strin
     foreach($name in @('mountStandardMax','mountMoveMax')){ if(-not(ChargeNumber (ChargeProp $economy $name))-or[double]$economy.$name-gt0.001){ChargeFail ('row '+$Row+' the mount was charged for carrying the charge: '+$name)} }
     # Exact restoration of every leased value, and the rider agent never touched.
     foreach($flag in @('applied','buffApplied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly')){ if((ChargeProp $lease $flag)-ne$true){ChargeFail ('row '+$Row+' the charge lease flag is not set: '+$flag)} }
+    # buffApplied is the historical fact that the native Charge buff was installed; buffOutstanding is
+    # whether the lease still owns it. A restored lease must show both: applied, and no longer owned.
+    if((ChargeProp $lease 'buffOutstanding')-ne$false){ChargeFail ('row '+$Row+' the charge lease still owns the native charge buff')}
     if((ChargeProp $lease 'riderAgentTouched')-ne$false){ChargeFail ('row '+$Row+' the charge lease touched the rider agent')}
     if([long](ChargeProp $lease 'forcedPathCount')-lt1){ChargeFail ('row '+$Row+' the charge lease forced no path')}
     # No attack of the pair own: the intervention came before the strike.
@@ -206,6 +209,10 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     if($null-eq$e){ChargeFail ('row '+$name+' has no evidence')}
     if([string](ChargeProp $e 'level')-cne'NATIVE DELIVERY'-or[string](ChargeProp $e 'mode')-cne$Mode-or[string](ChargeProp $e 'case')-cne$name){ChargeFail ('row '+$name+' level, mode or case differs')}
     if((ChargeProp $e 'mounted')-ne$true){ChargeFail ('row '+$name+' was not the mounted pair')}
+    # A case that had to deliver and admitted nothing says so in its own evidence. Whatever else the
+    # row contains, it did not observe what it set out to observe.
+    if(-not[string]::IsNullOrEmpty([string](ChargeProp $e 'nonDelivery'))){ChargeFail ('row '+$name+' did not deliver: '+[string](ChargeProp $e 'nonDelivery'))}
+    if((ChargeProp $e 'strandedShellInterrupted')-eq$true){ChargeFail ('row '+$name+' left a native shell the fixture had to interrupt itself')}
 
     if($name-ceq'C6B-CHARGE-default-off'){
         $off=ChargeProp $e 'settingOff';$on=ChargeProp $e 'settingOn'
@@ -233,13 +240,13 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             'no-blocked-landing-in-fixture-area' {
                 if($name-cne'C6B-CHARGE-blocked-clearance'){ChargeFail ('row '+$name+' claims the clearance limitation')}
                 if((ChargeProp $e 'blockedClearanceReachable')-ne$false){ChargeFail 'the clearance limitation does not record the geometry as unreachable'}
-                $attempts=@(ChargeProp (ChargeProp $e 'placement') 'attempts')
-                if($attempts.Count-lt1){ChargeFail 'the clearance limitation records no placement sweep'}
-                foreach($attempt in $attempts){
-                    if([long](ChargeProp $attempt 'landingBlockerCount')-gt0-and(ChargeProp $attempt 'straightRoute')-eq$true-and(ChargeProp $attempt 'withinFixtureBounds')-eq$true){
-                        ChargeFail 'the clearance limitation passed over a usable blocked landing'
-                    }
-                }
+                # The fixture places its own blocker, so the only lawful limitation is that the native
+                # graph or the authorized spawn envelope refused the landing point, with its exact reason.
+                $blocker=ChargeProp $e 'blocker'
+                if($null-eq$blocker){ChargeFail 'the clearance limitation records no blocker placement attempt'}
+                if((ChargeProp $blocker 'placed')-ne$false){ChargeFail 'the clearance limitation claims the blocker was placed after all'}
+                if([string](ChargeProp $blocker 'reason')-eq''){ChargeFail 'the clearance limitation names no reason'}
+                if($null-eq(ChargeProp $blocker 'wantedLanding')){ChargeFail 'the clearance limitation records no landing point it tried'}
             }
             'blocked-landing-not-reproducible-after-spawn' {
                 if($name-cne'C6B-CHARGE-blocked-clearance'){ChargeFail ('row '+$name+' claims the clearance spawn limitation')}
@@ -311,6 +318,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             $lease=ChargeProp $e 'lease'
             if($null-eq$lease){ChargeFail 'the lawful charge recorded no lease'}
             foreach($flag in @('applied','buffApplied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly','chargingObservedThroughout')){ if((ChargeProp $lease $flag)-ne$true){ChargeFail ('the charge lease flag is not set: '+$flag)} }
+            if((ChargeProp $lease 'buffOutstanding')-ne$false){ChargeFail 'the delivered charge lease still owns the native charge buff'}
             if((ChargeProp $lease 'riderAgentTouched')-ne$false){ChargeFail 'the charge lease touched the rider agent'}
             if([long](ChargeProp $lease 'forcedPathCount')-lt1){ChargeFail 'the charge lease forced no path'}
             if(-not(ChargeNumber (ChargeProp $lease 'speedOverrideApplied'))-or[double]$lease.speedOverrideApplied-lt([double]$movement.mountCombatSpeedMps*2-0.001)){ChargeFail 'the charge lease did not double the mount speed'}
@@ -389,6 +397,17 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             # Named blockers rather than a bare flag, each one actually inside the threshold the gate uses.
             $blockers=@(ChargeProp $e 'landingBlockers')
             if($blockers.Count-lt1){ChargeFail 'the clearance row named no blocking actor'}
+            # The blocker is the fixture own diagnostic body, placed on the landing point through its own
+            # service, and it must be one of the actors the gate counted.
+            $placed=ChargeProp $e 'landingBlocker'
+            if($null-eq$placed){ChargeFail 'the clearance row recorded no placed blocker'}
+            if([string](ChargeProp $placed 'contract')-cne'diagnostic-blocker-occupies-the-exact-charge-landing-point'){ChargeFail 'the clearance blocker names another contract'}
+            if((ChargeProp $placed 'placed')-ne$true){ChargeFail 'the clearance row claims a blocked landing without having placed its blocker'}
+            if([string](ChargeProp $placed 'blockerId')-eq''){ChargeFail 'the placed clearance blocker has no identity'}
+            if(-not(ChargeNumber (ChargeProp $placed 'separation'))-or[double]$placed.separation-le0){ChargeFail 'the clearance blocker recorded no weapon-reach separation'}
+            if(@($blockers|Where-Object {[string](ChargeProp $_ 'actorId')-ceq[string](ChargeProp $placed 'blockerId')}).Count-ne1){
+                ChargeFail 'the placed clearance blocker is not among the actors the clearance gate counted'
+            }
             foreach($blocker in $blockers){
                 if([string](ChargeProp $blocker 'actorId')-eq''){ChargeFail 'a clearance blocker has no identity'}
                 if(-not(ChargeNumber (ChargeProp $blocker 'distanceToLanding'))-or-not(ChargeNumber (ChargeProp $blocker 'threshold'))){ChargeFail 'a clearance blocker recorded no distance'}
@@ -406,7 +425,13 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             if($null-eq$fault){ChargeFail 'the admission-fault row recorded no fault'}
             if([string](ChargeProp $fault 'contract')-cne'post-queue-charge-admission-fault-compensated-exactly'){ChargeFail 'the admission-fault row names another contract'}
             if((ChargeProp $fault 'armed')-ne$true-or(ChargeProp $fault 'fired')-ne$true){ChargeFail 'the admission fault was not armed and fired'}
-            if((ChargeProp $fault 'seamClearedAfterClick')-ne$true){ChargeFail 'the one-shot admission seam stayed armed after the click'}
+            # The native full-round shell delivers on a later frame than the click, so the seam is read
+            # at the settle point. A row whose seam never fired measured an ordinary charge, not a
+            # compensated admission failure.
+            if((ChargeProp $fault 'seamClearedAfterFire')-ne$true){ChargeFail 'the one-shot admission seam stayed armed after the attempt settled'}
+            $atClick=ChargeProp $fault 'atClick'
+            if($null-eq$atClick){ChargeFail 'the admission-fault row recorded no state at its click'}
+            if((ChargeProp $atClick 'seamStillArmed')-ne$true){ChargeFail 'the admission seam was already gone at the click, so it could not fire during delivery'}
             if([long](ChargeProp $fault 'compensationCount')-ne1){ChargeFail 'the faulted admission did not compensate exactly once'}
             if((ChargeProp $fault 'compensationComplete')-ne$true){ChargeFail ('the admission compensation did not complete: '+[string](ChargeProp $fault 'compensation'))}
             if([string](ChargeProp $fault 'unmetPostconditions')-ne''){ChargeFail ('the admission compensation left an unmet postcondition: '+[string](ChargeProp $fault 'unmetPostconditions'))}
@@ -463,7 +488,8 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             foreach($field in @('mountStandardMax','mountMoveMax')){ if(-not(ChargeNumber (ChargeProp $economy $field))-or[double]$economy.$field-gt0.001){ChargeFail ('the moving-target charge charged the mount: '+$field)} }
             $movedLease=ChargeProp $e 'lease'
             if($null-eq$movedLease){ChargeFail 'the moving-target charge recorded no lease'}
-            foreach($flag in @('applied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly')){ if((ChargeProp $movedLease $flag)-ne$true){ChargeFail ('the moving-target charge lease flag is not set: '+$flag)} }
+            foreach($flag in @('applied','buffApplied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly')){ if((ChargeProp $movedLease $flag)-ne$true){ChargeFail ('the moving-target charge lease flag is not set: '+$flag)} }
+            if((ChargeProp $movedLease 'buffOutstanding')-ne$false){ChargeFail 'the moving-target charge lease still owns the native charge buff'}
             foreach($flag in @('mountCharging','mountMoving','riderStateCharging','mountStateCharging','pairCommandActive')){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('the moving-target charge left residue: '+$flag)} }
             if($null-ne(ChargeProp $after 'mountSpeedOverride')){ChargeFail 'the moving-target charge left a mount speed override behind'}
         }

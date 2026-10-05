@@ -102,10 +102,20 @@ namespace KingmakerMountedCombat.Diagnostics
         private JArray chunk6bChargeRejectionCodes = new JArray();
         // The admission-fault row: the one diagnostics-only seam, armed for exactly one admission.
         private JObject chunk6bChargeFaultEvidence;
-        private bool chunk6bChargeFaultArmed, chunk6bChargeFaultFired, chunk6bChargeFaultClearedAfterClick;
+        private bool chunk6bChargeFaultArmed, chunk6bChargeFaultFired, chunk6bChargeFaultClearedAfterFire;
+        private JObject chunk6bChargeFaultAtClick;
+        // Why a case that had to deliver did not, in its own words, and whether the fixture had to
+        // interrupt the native shell its own click created.
+        private string chunk6bChargeNonDelivery;
+        private bool chunk6bChargeStrandedShellInterrupted;
         private int chunk6bChargeCompensationBefore;
         // The clearance row: the landing point the policy refuses, and who was standing on it.
         private JArray chunk6bChargeLandingBlockers;
+        // The clearance row own blocker: a second diagnostic body placed on the landing point, with its
+        // own service so it is leased, observed and destroyed exactly like the target is.
+        private DiagnosticCombatTargetService chunk6bChargeBlockerService;
+        private UnitEntityData chunk6bChargeBlocker;
+        private JObject chunk6bChargeBlockerEvidence;
         // The lifecycle rows: the target body, the moved target and the two incapacity subjects.
         private JObject chunk6bChargeTargetLossEvidence, chunk6bChargeTargetMoveEvidence, chunk6bChargeLifeEvidence;
         private PairedConditionObserver chunk6bChargeLifeObserver;
@@ -273,6 +283,85 @@ namespace KingmakerMountedCombat.Diagnostics
             return blockers;
         }
 
+        // Places the clearance row own blocker on the landing point one weapon reach short of the exact
+        // spawned target, through a second diagnostic target service so the body is brain-leased,
+        // durability-leased, life-observed and destroyed under the same machinery as the target. Returns
+        // false when the native graph cannot offer a walkable point there, which is a measurement.
+        private bool PlaceChunk6bChargeLandingBlocker()
+        {
+            var weapon = rider.GetFirstWeapon();
+            var targetCorpulence = target.View == null ? 0.5f : target.View.Corpulence;
+            var separation = weapon == null
+                ? 0f
+                : horse.View.Corpulence + targetCorpulence + weapon.AttackRange.Meters;
+            var direction = target.Position - horse.Position;
+            direction.y = 0f;
+            var wanted = direction.sqrMagnitude < 0.01f
+                ? target.Position
+                : target.Position - direction.normalized * separation;
+            chunk6bChargeBlockerEvidence = new JObject
+            {
+                ["contract"] = "diagnostic-blocker-occupies-the-exact-charge-landing-point",
+                ["separation"] = separation,
+                ["weaponReach"] = weapon == null ? (float?)null : weapon.AttackRange.Meters,
+                ["mountCorpulence"] = horse.View == null ? (float?)null : horse.View.Corpulence,
+                ["targetCorpulence"] = targetCorpulence,
+                ["targetPosition"] = CapturePosition(target.Position),
+                ["wantedLanding"] = CapturePosition(wanted),
+                ["placed"] = false
+            };
+            if (global::AstarPath.active == null)
+            {
+                throw new InvalidOperationException("Active native navigation graph is unavailable.");
+            }
+
+            var nearest = global::AstarPath.active.GetNearest(wanted);
+            if (nearest.node == null || !nearest.node.Walkable)
+            {
+                chunk6bChargeBlockerEvidence["reason"] = "the native graph offers no walkable landing point";
+                return false;
+            }
+
+            var point = nearest.clampedPosition;
+            var riderDistance = HorizontalDistance(rider.Position, point);
+            chunk6bChargeBlockerEvidence["graphPoint"] = CapturePosition(point);
+            chunk6bChargeBlockerEvidence["riderDistance"] = riderDistance;
+            chunk6bChargeBlockerEvidence["withinFixtureBounds"] =
+                MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance);
+            if (!MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance))
+            {
+                chunk6bChargeBlockerEvidence["reason"] = "the landing point lies outside the authorized diagnostic spawn envelope";
+                return false;
+            }
+
+            chunk6bChargeBlockerService = new DiagnosticCombatTargetService(logger, repeatedNativeSequences: true);
+            chunk6bChargeBlocker = chunk6bChargeBlockerService.Spawn(rider, horse, point,
+                request.RunId + "-" + Chunk6bChargeCaseId + "-blocker", true, true);
+            chunk6bChargeBlockerEvidence["placed"] = true;
+            chunk6bChargeBlockerEvidence["blockerId"] = chunk6bChargeBlocker.UniqueId;
+            chunk6bChargeBlockerEvidence["blockerPosition"] = CapturePosition(chunk6bChargeBlocker.Position);
+            chunk6bChargeBlockerEvidence["blockerCorpulence"] =
+                chunk6bChargeBlocker.View == null ? (float?)null : chunk6bChargeBlocker.View.Corpulence;
+            chunk6bChargeBlockerEvidence["blockerDistanceToLanding"] =
+                HorizontalDistance(point, chunk6bChargeBlocker.Position);
+            chunk6bChargeBlockerEvidence["blockerAvoidanceDisabled"] =
+                chunk6bChargeBlocker.View != null && chunk6bChargeBlocker.View.MovementAgent.AvoidanceDisabled;
+            chunk6bChargeBlockerEvidence["brainLeased"] = chunk6bChargeBlockerService.TargetBrainLeaseAcquired;
+            return true;
+        }
+
+        // Destroys and disposes the clearance blocker through its own service. Returns false while the
+        // bounded destroy has not confirmed, so the teardown waits rather than abandoning a body.
+        private bool CleanupChunk6bChargeBlocker()
+        {
+            if (chunk6bChargeBlockerService == null) return true;
+            if (!chunk6bChargeBlockerService.DestroyAndVerify()) return false;
+            chunk6bChargeBlockerService.Dispose();
+            chunk6bChargeBlockerService = null;
+            chunk6bChargeBlocker = null;
+            return true;
+        }
+
         // A lawful charge line whose landing point one weapon reach short of the target is occupied by
         // another awake native actor, for the row the policy must refuse through its clearance gate
         // rather than through its line or its distance. Written out like the obstructed-line sweep and
@@ -432,9 +521,13 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bChargeRepeatMaxRiderStandard = chunk6bChargeRepeatMaxRiderMove = 0f;
             chunk6bChargeRepeatMaxMountStandard = chunk6bChargeRepeatMaxMountMove = 0f;
             chunk6bChargeFaultEvidence = null;
-            chunk6bChargeFaultArmed = chunk6bChargeFaultFired = chunk6bChargeFaultClearedAfterClick = false;
+            chunk6bChargeFaultArmed = chunk6bChargeFaultFired = chunk6bChargeFaultClearedAfterFire = false;
+            chunk6bChargeFaultAtClick = null;
+            chunk6bChargeNonDelivery = null;
+            chunk6bChargeStrandedShellInterrupted = false;
             chunk6bChargeCompensationBefore = 0;
             chunk6bChargeLandingBlockers = null;
+            chunk6bChargeBlockerEvidence = null;
             chunk6bChargeTargetLossEvidence = null;
             chunk6bChargeTargetMoveEvidence = null;
             chunk6bChargeLifeEvidence = null;
@@ -496,6 +589,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["rider"] = CaptureOrdinaryActor(rider),
                 ["mount"] = CaptureOrdinaryActor(horse),
                 ["relationship"] = relationship.State.ToString(),
+                // Preview.173 measured a native full-round shell that was created by the click and never
+                // started, and nothing here recorded whether the pair could act. CanActInCombat is
+                // m_InCombat && !IsWaitingInitiative, so both halves are published separately.
+                ["riderInCombat"] = rider.IsInCombat,
+                ["mountInCombat"] = horse.IsInCombat,
+                ["targetInCombat"] = target != null && target.IsInCombat,
+                ["playerInCombat"] = Game.Instance.Player.IsInCombat,
+                ["riderPrepared"] = rider.CombatState != null && rider.CombatState.Prepared,
+                ["riderCanActInCombat"] = rider.CombatState != null && rider.CombatState.CanActInCombat,
+                ["riderWaitingInitiative"] = rider.CombatState != null && rider.CombatState.IsWaitingInitiative,
+                ["riderAbleToAct"] = rider.IsAbleToAct(),
+                ["mountCanActInCombat"] = horse.CombatState != null && horse.CombatState.CanActInCombat,
                 ["distanceToTarget"] = target == null ? (float?)null : horse.DistanceTo(target),
                 ["riderDistanceToTarget"] = target == null ? (float?)null : rider.DistanceTo(target),
                 ["mountCharging"] = agent != null && agent.IsCharging,
@@ -824,25 +929,28 @@ namespace KingmakerMountedCombat.Diagnostics
 
                 if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-blocked-clearance", StringComparison.Ordinal))
                 {
-                    var clearance = FindChunk6bChargeBlockedClearancePoint();
-                    Chunk6bChargeMeasurement["blockedClearanceReachable"] = clearance.HasValue;
-                    if (!clearance.HasValue)
+                    // The target goes on an ordinary lawful geometry - clear native line, lawful distance -
+                    // and the fixture then places its own body on the landing point one weapon reach short
+                    // of it. Preview.173 measured that this area offers no natural blocker at any lawful
+                    // distance, so sweeping for one only ever produced a limitation.
+                    BeginTarget(Chunk6bChargeCaseDistance, Chunk6bChargeCaseId,
+                        FindChunk6bChargeTargetPoint(Chunk6bChargeCaseDistance));
+                    ruleProbe.Arm(target, false);
+                    var placed = PlaceChunk6bChargeLandingBlocker();
+                    Chunk6bChargeMeasurement["blockedClearanceReachable"] = placed;
+                    Chunk6bChargeMeasurement["blocker-" + Chunk6bChargeCaseId] = chunk6bChargeBlockerEvidence;
+                    if (!placed)
                     {
                         AddChunk6bChargeLimitationRow("no-blocked-landing-in-fixture-area", new JObject
                         {
-                            ["blockedClearanceReachable"] = false
+                            ["blockedClearanceReachable"] = false,
+                            ["blocker"] = chunk6bChargeBlockerEvidence
                         });
-                        chunk6bChargeCase++;
-                        ResetChunk6bChargeCase();
-                        chunk6bChargeStage = 0;
-                        ResetLeafClock();
-                        return;
+                        chunk6bChargeStage = 4; ResetLeafClock(); return;
                     }
 
-                    BeginTarget(HorizontalDistance(horse.Position, clearance.Value), Chunk6bChargeCaseId, clearance.Value);
-                    ruleProbe.Arm(target, false);
-                    // Re-measured with the spawned body own corpulence, because the sweep used an
-                    // estimate and a row may not claim a refusal the policy does not actually make.
+                    // Re-measured against the spawned bodies own corpulences: the placement used the
+                    // native graph and a row may not claim a refusal the policy does not actually make.
                     chunk6bChargeLandingBlockers = DescribeChunk6bChargeLandingBlockers(
                         target.Position, target.View == null ? 0.5f : target.View.Corpulence);
                     chunk6bChargeStage = 1; ResetLeafClock(); return;
@@ -1082,28 +1190,21 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6bChargeClicked = handler.OnClick(target.View.gameObject, target.Position, 0, false, false);
                 if (Chunk6bChargeCaseArmsAdmissionFault)
                 {
-                    // One shot: the seam clears itself before invoking, and the fixture proves that rather
-                    // than assuming it, then clears it again so an unfired arming can never leak.
-                    chunk6bChargeFaultClearedAfterClick = MountedChargeAdmissionFault.AfterQueue == null;
-                    MountedChargeAdmissionFault.AfterQueue = null;
-                    chunk6bChargeFaultEvidence = new JObject
+                    // The seam stays armed past the click on purpose. Preview.173 measured why: the
+                    // native full-round shell is created by the click and delivers on a later frame, so
+                    // clearing the hook here disarmed it before the admission path could ever fire it,
+                    // and the charge then ran to completion. The receipts are read at the settle point,
+                    // which is where the lease and the delivery counters are already read for exactly
+                    // this reason.
+                    chunk6bChargeFaultAtClick = new JObject
                     {
-                        ["contract"] = "post-queue-charge-admission-fault-compensated-exactly",
-                        ["armed"] = chunk6bChargeFaultArmed,
-                        ["fired"] = chunk6bChargeFaultFired,
-                        ["seamClearedAfterClick"] = chunk6bChargeFaultClearedAfterClick,
                         ["frame"] = Time.frameCount,
-                        ["compensationCount"] = combat.ChargeCompensationCount - chunk6bChargeCompensationBefore,
-                        ["compensation"] = combat.LastChargeCompensation,
-                        ["compensationComplete"] = combat.LastChargeCompensationComplete,
-                        ["commandResident"] = combat.LastChargeCompensationCommandResident,
-                        ["leaseRestored"] = combat.LastChargeCompensationLeaseRestored,
-                        ["activeCommandCleared"] = combat.LastChargeCompensationActiveCommandCleared,
-                        ["unmetPostconditions"] = combat.LastChargeCompensationUnmet,
-                        ["faultedCleanupOwner"] = combat.HasFaultedChargeCleanupOwner,
+                        ["armed"] = chunk6bChargeFaultArmed,
+                        ["firedByClick"] = chunk6bChargeFaultFired,
+                        ["seamStillArmed"] = MountedChargeAdmissionFault.AfterQueue != null,
                         ["riderCommandsEmpty"] = rider.Commands.Empty,
                         ["mountCommandsEmpty"] = horse.Commands.Empty,
-                        ["afterClick"] = CaptureChunk6bChargeActors("admission-fault-after-click")
+                        ["state"] = CaptureChunk6bChargeActors("admission-fault-after-click")
                     };
                 }
                 chunk6bChargeShell = rider.Commands.Raw.Concat(rider.Commands.Queue).OfType<UnitUseAbility>()
@@ -1224,6 +1325,52 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6bChargeLeaseEvidence = !chunk6bChargeAttemptAdmitted || combat.LastMountedChargeCommand == null
                     ? null
                     : combat.LastMountedChargeCommand.CaptureChargeLeaseEvidence();
+                if (Chunk6bChargeCaseArmsAdmissionFault)
+                {
+                    // One shot: the seam clears itself before invoking. The fixture proves that rather
+                    // than assuming it, and then clears it again so an unfired arming can never leak.
+                    chunk6bChargeFaultClearedAfterFire = MountedChargeAdmissionFault.AfterQueue == null;
+                    MountedChargeAdmissionFault.AfterQueue = null;
+                    chunk6bChargeFaultEvidence = new JObject
+                    {
+                        ["contract"] = "post-queue-charge-admission-fault-compensated-exactly",
+                        ["armed"] = chunk6bChargeFaultArmed,
+                        ["fired"] = chunk6bChargeFaultFired,
+                        ["seamClearedAfterFire"] = chunk6bChargeFaultClearedAfterFire,
+                        ["frame"] = Time.frameCount,
+                        ["compensationCount"] = combat.ChargeCompensationCount - chunk6bChargeCompensationBefore,
+                        ["compensation"] = combat.LastChargeCompensation,
+                        ["compensationComplete"] = combat.LastChargeCompensationComplete,
+                        ["commandResident"] = combat.LastChargeCompensationCommandResident,
+                        ["leaseRestored"] = combat.LastChargeCompensationLeaseRestored,
+                        ["activeCommandCleared"] = combat.LastChargeCompensationActiveCommandCleared,
+                        ["unmetPostconditions"] = combat.LastChargeCompensationUnmet,
+                        ["faultedCleanupOwner"] = combat.HasFaultedChargeCleanupOwner,
+                        ["riderCommandsEmpty"] = rider.Commands.Empty,
+                        ["mountCommandsEmpty"] = horse.Commands.Empty,
+                        ["atClick"] = chunk6bChargeFaultAtClick,
+                        ["atSettle"] = CaptureChunk6bChargeActors("admission-fault-at-settle")
+                    };
+                }
+
+                // A case that had to deliver and admitted nothing says so in its own row, with the
+                // facts that decide it, rather than leaving the external reader to infer it from an
+                // absent lease. Preview.173 measured exactly this: the cast was requested, the native
+                // shell was created and never started, and the intervention therefore never fired.
+                if (Chunk6bChargeCaseMustDeliver && !chunk6bChargeAttemptAdmitted)
+                {
+                    chunk6bChargeNonDelivery = "the charge was not admitted: clicked=" + chunk6bChargeClicked +
+                        "; shell=" + (chunk6bChargeShell == null ? "<none>" : "present") +
+                        "; shellStarted=" + (chunk6bChargeShell != null && chunk6bChargeShell.IsStarted) +
+                        "; shellFinished=" + (chunk6bChargeShell != null && chunk6bChargeShell.IsFinished) +
+                        "; riderInCombat=" + rider.IsInCombat +
+                        "; riderCanActInCombat=" + (rider.CombatState != null && rider.CombatState.CanActInCombat) +
+                        "; riderWaitingInitiative=" + (rider.CombatState != null && rider.CombatState.IsWaitingInitiative) +
+                        "; admittedDelta=" + (combat.MountedChargeAdmittedCount - chunk6bChargeAdmittedBefore) +
+                        "; refusedDelta=" + (combat.MountedChargeRefusedCount - chunk6bChargeRefusedBefore) +
+                        "; lastRefusal=" + (combat.LastMountedChargeRefusal ?? "<none>");
+                }
+
                 chunk6bChargeStage = 3; ResetLeafClock(); return;
             }
 
@@ -1311,7 +1458,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["lease"] = chunk6bChargeLeaseEvidence,
                     ["transaction"] = CaptureChunk6bChargeTransaction(),
                     ["admissionFault"] = chunk6bChargeFaultEvidence,
+                    ["nonDelivery"] = chunk6bChargeNonDelivery,
+                    ["strandedShellInterrupted"] = chunk6bChargeStrandedShellInterrupted,
                     ["landingBlockers"] = chunk6bChargeLandingBlockers,
+                    ["landingBlocker"] = chunk6bChargeBlockerEvidence,
                     ["targetLoss"] = chunk6bChargeTargetLossEvidence,
                     ["targetMove"] = chunk6bChargeTargetMoveEvidence,
                     ["incapacity"] = chunk6bChargeLifeEvidence,
@@ -1349,19 +1499,42 @@ namespace KingmakerMountedCombat.Diagnostics
                 };
 
                 // Structure only: the fixture asks whether it observed what it set out to observe. Whether the
-                // behaviour is lawful is decided by the external reader.
+                // behaviour is lawful is decided by the external reader. A case that had to deliver and
+                // admitted nothing did not observe what it set out to observe, so it fails here too.
                 var structural = chunk6bChargeBefore != null && chunk6bChargeInput != null &&
-                    (bool)((JObject)chunk6bChargeBefore["identity"])["kmcChargePresent"];
+                    (bool)((JObject)chunk6bChargeBefore["identity"])["kmcChargePresent"] &&
+                    string.IsNullOrEmpty(chunk6bChargeNonDelivery);
                 AddRow(Chunk6bChargeCaseId, structural, Chunk6bChargeRowClaim(), evidence);
                 chunk6bChargeStage = 4; ResetLeafClock(); return;
             }
 
             if (chunk6bChargeStage == 4)
             {
+                if (!chunk6bChargeStrandedShellInterrupted && chunk6bChargeShell != null &&
+                    !chunk6bChargeShell.IsStarted && !chunk6bChargeShell.IsFinished &&
+                    !string.IsNullOrEmpty(chunk6bChargeNonDelivery))
+                {
+                    // Preview.173 stalled the whole tranche here: a native shell the engine never started
+                    // keeps the rider command container occupied, and no later case can run. The shell is
+                    // this fixture own input, so the fixture ends it exactly and records that it had to.
+                    chunk6bChargeStrandedShellInterrupted = true;
+                    Chunk6bChargeMeasurement["strandedShell-" + Chunk6bChargeCaseId] = new JObject
+                    {
+                        ["frame"] = Time.frameCount,
+                        ["reason"] = chunk6bChargeNonDelivery,
+                        ["before"] = CaptureChunk6bChargeActors("stranded-shell-before")
+                    };
+                    chunk6bChargeShell.Interrupt();
+                    return;
+                }
+
                 if (combat.HasActiveCommand || !rider.Commands.Empty || !horse.Commands.Empty) return;
                 if (horse.View != null && horse.View.AgentASP.IsReallyMoving) return;
                 // TryLeaveCombat ignores a null or removed unit, which is what the target-lost row leaves.
-                TryLeaveCombat(target); TryLeaveCombat(rider); TryLeaveCombat(horse);
+                TryLeaveCombat(chunk6bChargeBlocker); TryLeaveCombat(target); TryLeaveCombat(rider); TryLeaveCombat(horse);
+                // The clearance blocker goes first, through its own service, before the target service is
+                // disposed: the tranche holds both and must not be left holding a body.
+                if (!CleanupChunk6bChargeBlocker()) return;
                 if (targetService != null)
                 {
                     if (!targetService.DestroyAndVerify()) return;
@@ -1596,7 +1769,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["lease"] = null,
                 ["transaction"] = null,
                 ["admissionFault"] = null,
+                ["nonDelivery"] = null,
+                ["strandedShellInterrupted"] = false,
                 ["landingBlockers"] = null,
+                ["landingBlocker"] = null,
                 ["targetLoss"] = null,
                 ["targetMove"] = null,
                 ["incapacity"] = null,
