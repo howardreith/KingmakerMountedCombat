@@ -1,3 +1,21 @@
+## 2026-10-05 - preview.176 continuation audit
+
+**BLOCKED — CRITICAL for pending-charge persistence.** At frozen preview.176/source40c40e4,
+SavePrefix bypasses the legacy SaveRequest cleanup when persistence is active; BeforeNativeHeader has
+no production charge-cleanup subscriber. Absence of custom charge fields does not establish safe native
+buff/command serialization. Ordinary Cancel clears activeCommand before interruption; terminal sweeping
+does not gate on charge debt; the retry method has no caller. Dismount catches subscriber exceptions and
+continues. A relationship cleanup PASS cannot establish the required charge ownership postconditions.
+
+The owner explicitly required stopping at an unproven persistence boundary. No pending-charge native
+write/cold load or speculative source repair across that boundary was attempted. Resolve one synchronous
+barrier and retained cleanup-debt owner with behavioral fault coverage and exact native ordering first.
+The separate TB experiment failed delivery: rider6/3 spent,0.169m,zero attacks; subsequent refusal rows
+had fresh native turns. No further TB experiment is inferred. Frozen176 is5PASS/1FAIL; WhatIf separately
+PASS. All six transactions restored exactly, errors empty, human105 and protected saves unchanged.
+See [the audit](docs/CHUNK6B-PREVIEW176-CONTINUATION-AUDIT.md) for evidence and the complete boundary matrix.
+Existing passing offline tests do not remove this blocker. Chunk6B remains IN PROGRESS, not stable.
+
 ## 2026-09-29T14:32:35.5235669Z - preview.132 complete offline PASS
 
 IN PROGRESS. Complete mandatory umbrella PASS, actual exit0 in 17.81 minutes. Log C:/Dev/KingmakerMountedCombatLab/logs/c6a-132-integrated-fourth-offline.log, SHA256 eb84dd8672268d0477eef34b47eb6552cfaa5695abd8a51384b6406aa66a92e3. DLL 693ced5ce45aac53c3313820af9fe3929c136ab51b9704319c875ad9f4adbcb0 / MVID 7bfe0272-642d-4624-94eb-540dd31684aa, 5123584 bytes. This is offline evidence only. The three earlier failed132 umbrellas remain retained with their real exit1 and original logs.

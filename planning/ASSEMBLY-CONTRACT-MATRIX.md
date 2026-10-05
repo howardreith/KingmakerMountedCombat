@@ -1,3 +1,20 @@
+## 2026-10-05 - preview.176 continuation audit
+
+At product40c40e4510c93c7c41d7656a870ccbffa34dd849, installed Kingmaker assembly SHA256
+3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb/MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7:
+the native UnitCommand.IsFinished getter was verified to be one Boolean-field read. A detached probe
+exercised the actual product ChargeTransactionDelegating getter, all six fact combinations, missing lease,
+five/seven-argument delegation and Acting-only relationship policy, with no field residue:365/0.
+Existing exact persistence assembly/storage contracts180/0 pass; they do not prove pending-charge
+cleanup ordering. No new native hook was added or certified.
+
+**BLOCKED — CRITICAL for pending-charge persistence:** active SavePrefix bypasses legacy save cleanup;
+BeforeNativeHeader raises an event with no production charge-cleanup subscriber before Capture. Custom
+schema absence cannot prove native buff/command exclusion. Ordinary Cancel/terminal sweep lacks complete
+cleanup-debt ownership/drain, and Dismount catches subscriber failures. Preserve the lease ledger and
+native force-mode latch semantics. Exact source/native findings and next contract work are in
+[the audit](../docs/CHUNK6B-PREVIEW176-CONTINUATION-AUDIT.md). No pending-charge write or new TB experiment.
+
 ## Chunk 6A combat Mount/Dismount seams - 2026-09-25
 
 ASSEMBLY CONTRACT, not native causation proof. Exact installed `Assembly-CSharp.dll` SHA-256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`, read with the installed UMM `dnlib`; no Wrath reference and no decompiled source is committed.

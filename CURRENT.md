@@ -1,3 +1,43 @@
+## 2026-10-05 - preview.176 continuation audit
+
+**IN PROGRESS; pending-charge persistence BLOCKED — CRITICAL at the owner's explicit stop boundary.**
+See [the current audit](docs/CHUNK6B-PREVIEW176-CONTINUATION-AUDIT.md). It supersedes older current-state
+summaries below without changing their historical results. Intake was clean and fetch/remote-equal at
+product commit `40c40e4510c93c7c41d7656a870ccbffa34dd849`, tree `e9d3d14ec5b87387ace38daef8ac5f3dc25bf9c4`,
+branch `codex/mounted-combat-phase3f-playable-core`. A later documentation HEAD is a distinct identity.
+
+Frozen preview.176 package `0d006d8f0096330a0ce7a1ee1fa08255c449ee8484089d220c2c6e4d3a12814a`, suite
+`20261005-chunk6b-charge-u` / `cfc9a39eb089b4d603df399ec1bfa30ea0f1bc81b39c348f6d0345af700f7c96`:
+WhatIf purity PASS; six terminal native stages **5 PASS / 1 FAIL**. RT charge75/0 (all15 registered rows),
+TB charge externalFAIL/native64/0, carriers62/0 each mode, stock safety66/0 each mode. TB positive spent
+rider6/3 for0.169029981m and zero attacks. Both later refusal rows reached fresh native Preparing turns
+with zero debt; the predicted inherited-turn failure was not confirmed. No sequencing repair was made.
+
+PartF's actual compiled six-fact getter, disjunct, legacy overload and Acting-only transition policy pass
+detached checks365/0. Native TB delivery failed and exceptional stale/debt ownership remains unproven.
+Experimental preview.176 permits TB admission when enabled; it is not the historical blanket refusal.
+PartG's draft save-guard premise is false: active persistence bypasses that guard, and there is no
+production pre-header charge cleanup subscriber. Ordinary cancellation/sweeping lacks complete debt
+ownership/drain. The owner explicitly required stopping at an unproven persistence boundary, so no
+pending-charge save/cold load, speculative repair across that boundary or further TB experiment ran.
+
+Independent audit176/0 rehashed275 save files,358 Mods files and441 immutable evidence files. All six
+transactions restored with empty errors; human preview.105 is unchanged. Components618/0, reader323/0,
+source143/0 and existing persistence contracts180/0 pass. OriginalFAST15/0 andCANDIDATE26/0 were verified
+from hashed receipts/logs, not repeated. All failed attempts, including preview.1755/1, remain retained.
+Only documentation changed: product, fixture, reader, version, package, suite and runtime evidence did not.
+
+Exact next safe command from this worktree:
+`rg -n 'SavePrefix|BeforeNativeHeader|SaveSnapshotStarting|TryDischargeChargeCleanupDebt|faultedChargeCleanupOwner' src/KingmakerMountedCombat/Integration`.
+Next mission step upon resumption: establish a synchronous charge-cleanup/postcondition barrier and a
+durable debt owner with exact native ordering and behavioral fault coverage before any persistence run.
+No merge/release/tag/PR/permanent installation/protected-save write/HUMAN PLAY authority or6B.5 work.
+Chunk6B is not stable; maximum-range/duplicate-request coverage, wider TB rows and6B.4 remain open.
+
+Final documentation HEAD/tree, remote equality, clean worktree, process and no-overwrite checks are in
+`C:/Dev/KingmakerMountedCombatLab/analysis-cache/codex-continuation-176-20261005/CODEX-CHUNK6B-PREVIEW-176-CONTINUATION-HANDOFF-2026-10-05.md`.
+The frozen product always remains40c40e4; never substitute the documentation descendant in its receipts.
+
 ## 2026-10-05 — Chunk 6B ACTIVE / IN PROGRESS; authority documents reconciled
 
 IN PROGRESS. Documentation-only reconciliation: no product candidate was created, no version was bumped and
