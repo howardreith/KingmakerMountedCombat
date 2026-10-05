@@ -1,3 +1,35 @@
+## 2026-10-05 — Chunk 6B ACTIVE / IN PROGRESS; authority documents reconciled
+
+IN PROGRESS. Documentation-only reconciliation: no product candidate was created, no version was bumped and
+no purity proof was repeated. Every exact receipt was reconciled against the artifacts on disk first — 33
+checks, 0 discrepancies — covering the package and manifest, the packaged DLL entry, the suite snapshot, the
+measurement, outcome and purity records, all six run transactions and the untouched human installation.
+
+Two distinct identities, neither substitutable for the other: the last natively qualified **product payload**
+is `0.1.0-chunk6b-preview.172` at **product commit** `2bef622c880a341663b6f224a4c499a09b5a1620` (DLL
+`89c223487e32475108e9ceabb6077050723170300cb9dee53a8aae3d4ba5befe`, MVID
+`1ae5804d-a66e-4362-8061-742d9aa413f8`), and the **harness HEAD** is
+`fce1d58eadbe9efbdd1690a4fbc90ec39ba52328` — a legitimate descendant adding this reconciliation and
+three offline-only contract commits. Branch `codex/mounted-combat-phase3f-playable-core`, remote equal,
+worktree clean.
+
+State: Chunk 6B is **active**. Real-time Mounted Charge is **implemented and natively qualified but
+default-off** behind `EnableMountedCharge` — nine RT rows 69/0 on frozen preview.172. Increment 6B.1 is
+qualified in both modes (62/0) and the stock-Charge mounted rejection in both modes (66/0). Turn-based
+Mounted Charge is **DEFER — EVIDENCED**, failing closed behind an exact cost-free refusal that is itself
+natively qualified in both modes (64/0). Increment 6B.2 still owes **clearance obstruction, rider
+incapacity, mount incapacity and safe target loss**. Increment 6B.4 is **unstarted**. Chunk 6B is **not**
+stable.
+
+No merge to `main`, release, tag, pull request, permanent installation or HUMAN PLAY acceptance authority
+exists, and none is inferred. The owner's accepted `0.1.0-chunk5-preview.105` installation is untouched and
+remains the only restoration target.
+
+Next: the owner's continuation mission, sections B through H — transactional charge-lease application,
+post-queue admission compensation, in-transaction charge geometry revalidation, the remaining RT 6B.2 batch
+in one candidate, one bounded turn-based disposition decision, increment 6B.4, then one final focused 6B
+candidate and the development exit record.
+
 ## 2026-09-29T14:32:35.5235669Z - preview.132 complete offline PASS
 
 IN PROGRESS. Complete mandatory umbrella PASS, actual exit0 in 17.81 minutes. Log C:/Dev/KingmakerMountedCombatLab/logs/c6a-132-integrated-fourth-offline.log, SHA256 eb84dd8672268d0477eef34b47eb6552cfaa5695abd8a51384b6406aa66a92e3. DLL 693ced5ce45aac53c3313820af9fe3929c136ab51b9704319c875ad9f4adbcb0 / MVID 7bfe0272-642d-4624-94eb-540dd31684aa, 5123584 bytes. This is offline evidence only. The three earlier failed132 umbrellas remain retained with their real exit1 and original logs.

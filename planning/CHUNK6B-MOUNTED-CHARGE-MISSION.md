@@ -1,9 +1,20 @@
 # Chunk 6B — Mounted Charge mission (opened 2026-10-03)
 
-Status: `THE PAIR-OWNED MOUNTED CHARGE IS QUALIFIED NATIVELY IN REAL TIME ON FROZEN PREVIEW.163 AND PREVIEW.164.
-INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3 IS NOW MEASURED AND LOCATED A PRODUCT
-DEFECT, FIXED IN 0.1.0-chunk6b-preview.166 - CANDIDATE TIER, FREEZE AND NATIVE QUALIFICATION PENDING`. No product feature is implemented, enabled or claimed by this document (increment 6B.1 is a
-diagnostics-only measurement; its record is below). It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
+Status: `CHUNK 6B IS ACTIVE AND IN PROGRESS. THE PAIR-OWNED MOUNTED CHARGE IS IMPLEMENTED AND QUALIFIED
+NATIVELY IN REAL TIME ON FROZEN 0.1.0-chunk6b-preview.172 (NINE RT ROWS, 69/0) AND REMAINS DEFAULT-OFF.
+INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3, TURN-BASED DELIVERY, IS DEFER -
+EVIDENCED AND FAILS CLOSED BEHIND AN EXACT, COST-FREE REFUSAL THAT IS ITSELF NATIVELY QUALIFIED IN BOTH
+MODES. INCREMENT 6B.2 STILL OWES CLEARANCE OBSTRUCTION, RIDER INCAPACITY, MOUNT INCAPACITY AND SAFE
+TARGET LOSS. INCREMENT 6B.4, PERSISTENCE AND LIFECYCLE, IS UNSTARTED. CHUNK 6B IS NOT STABLE`.
+
+The last natively qualified product payload is `0.1.0-chunk6b-preview.172` at **product commit**
+`2bef622c880a341663b6f224a4c499a09b5a1620`. The **harness HEAD** is `fce1d58eadbe9efbdd1690a4fbc90ec39ba52328`, a legitimate
+descendant carrying this document and three offline-only contract commits; the two are **distinct
+identities** and neither may be substituted for the other in any receipt. No merge to `main`, release,
+tag, permanent installation, pull request or HUMAN PLAY acceptance authority exists, and none is inferred.
+
+The real-time charge feature is implemented in the product and default-off behind `EnableMountedCharge`;
+increment 6B.1 remains a diagnostics-only measurement. It opens the bounded 6B mission the owner decision of 2026-10-02 (section F) names, on the
 integration branch from the stabilized Chunk 6A head (exit record: `CHUNK 6A IMPLEMENTATION STABLE / FINAL
 QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION`, docs commit b655a501). Main stays the accepted Chunk 5
 delivery; the 87 Chunk 6A rows are not rerun per 6B candidate; final acceptance waits for the Chunk 6
