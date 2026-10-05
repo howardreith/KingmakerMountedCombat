@@ -4,8 +4,10 @@ Status: `CHUNK 6B IS ACTIVE AND IN PROGRESS. THE PAIR-OWNED MOUNTED CHARGE IS IM
 NATIVELY IN REAL TIME ON FROZEN 0.1.0-chunk6b-preview.172 (NINE RT ROWS, 69/0) AND REMAINS DEFAULT-OFF.
 INCREMENT 6B.1 IS QUALIFIED NATIVELY IN BOTH MODES. INCREMENT 6B.3, TURN-BASED DELIVERY, IS DEFER -
 EVIDENCED AND FAILS CLOSED BEHIND AN EXACT, COST-FREE REFUSAL THAT IS ITSELF NATIVELY QUALIFIED IN BOTH
-MODES. INCREMENT 6B.2 STILL OWES CLEARANCE OBSTRUCTION, RIDER INCAPACITY, MOUNT INCAPACITY AND SAFE
-TARGET LOSS. INCREMENT 6B.4, PERSISTENCE AND LIFECYCLE, IS UNSTARTED. CHUNK 6B IS NOT STABLE`.
+MODES. INCREMENT 6B.2 HAS SIX MORE ROWS BUILT AND ELEVEN OF ITS FIFTEEN REAL-TIME ROWS PASSING ON
+FROZEN 0.1.0-chunk6b-preview.174; IT STILL OWES SAFE TARGET LOSS, RIDER INCAPACITY AND MOUNT
+INCAPACITY, WHOSE NATIVE SHELLS WERE NEVER STARTED BY THE ENGINE, AND THAT NON-DISPATCH IS AN OPEN
+KNOWN ISSUE. INCREMENT 6B.4, PERSISTENCE AND LIFECYCLE, IS UNSTARTED. CHUNK 6B IS NOT STABLE`.
 
 The last natively qualified product payload is `0.1.0-chunk6b-preview.172` at **product commit**
 `2bef622c880a341663b6f224a4c499a09b5a1620`. The **harness HEAD** is `fce1d58eadbe9efbdd1690a4fbc90ec39ba52328`, a legitimate
@@ -1323,3 +1325,111 @@ clean.
 
 Offline only: no product, reader or fixture code is touched, the diagnostic DLL is unchanged, the product
 version stays `0.1.0-chunk6b-preview.172`, and no native qualification is claimed.
+
+## Preview.173 native outcome (2026-10-05; frozen preview.173, campaign closed) - 5 PASS / 1 FAIL
+
+Frozen payload `0.1.0-chunk6b-preview.173` at commit `259820f7b314ce9c0bffde549fe342c89a245e18`
+(committed tree `eb42e751d6591f356016f6e9d35a1dd42b21c62b`), package sha256
+`5592457dd27a2b923d9ad4cce9cf83273404bca64fa09970f18942e7fc6bac7a`, DLL sha256
+`b6695fd0b539632517d8562f2aec2fa402ea0fc652d0a8100979e7234f45fea8`, MVID
+`27050536-0993-4c68-883a-7957a38c889d`, suite `20261005-chunk6b-charge-r` (sha256
+`f8dc990057ebdca3feff5e121603916102eac86780672cbeb974f864ca123296`). Offline: Validate-Source 139/0,
+CANDIDATE tier 26/0, component tests 617/0, charge reader 262/0, purity proof PASS. Six isolated
+restored transactions, every one restored with no restoration error. Measurement record
+`d554563309a32192ce4861061adb47b117ff9a06c4bd6a3732f4ef85cc613e48`; outcome record
+`f805188969c30b8ad6ac502c4c75112ffd67b3afac29cd0d82cfed5f3ab57eeb`.
+
+`C6B-CHARGE-TB` PASS 64/0, `C6B-PATH-RT` PASS 62/0, `C6B-PATH-TB` PASS 62/0, `CHARGE-SAFETY-RT` PASS
+66/0, `CHARGE-SAFETY-TB` PASS 66/0. **`C6B-CHARGE-RT` FAIL, retained**: 72 native assertions passed,
+2 failed, and the external reader refused the artifact.
+
+- **The repaired charge transaction order is confirmed on the engine.** The positive row recorded
+  `steps=CarrierAdmitted|CarrierOwnershipProven|InitialRevalidation|LeaseApplied|TransitionRevalidation|`
+  `CarrierReleasedForAttack|CarrierReleaseProven|Arrived|AttackStartRevalidation|AttackStarted`,
+  `revalidationPhases=BeforeRepath=valid|BeforeAttackTransition=valid|BeforeAttackStart=valid`, one
+  native charge attack, and `cleanupDebt` empty. The lease logged
+  `attempts=1;complete=True;resolved=forced-path|rider-charging-state|mount-speed-override|mount-charging|charge-buff;unresolved=;failures=`
+  on every delivered charge. That is the whole of the repair batch, measured natively.
+- **The reader refused every lease-bearing row for `buffApplied`.** Making restoration
+  postcondition-based had made a successful buff removal clear `BuffApplied`, and both the reader and
+  the lease log read that field as the historical fact that the native buff was installed.
+- **The admission seam never fired.** The native full-round shell is created by the click and delivers
+  on a later frame; the fixture read its receipts and cleared the one-shot hook immediately after the
+  click, so the seam was gone before the admission path ran and the charge completed normally.
+- **The clearance row recorded its limitation.** The sweep examined 161 candidates over 19 distances
+  and 24 directions and measured `landingBlockerCount` zero every time: this fixture area has no awake
+  actor near any lawful landing point.
+- **`C6B-CHARGE-target-moved` never delivered, and that stalled the tranche.** The cast was requested
+  and the native shell then sat in the rider Standard slot `started=false` for thirteen seconds, so the
+  intervention never fired; the teardown then waited on an empty rider command container that such a
+  shell can never give it, and the leaf deadline fired at thirty seconds. `C6B-CHARGE-target-lost` and
+  both incapacity rows never ran.
+
+One launch of this batch was **refused, not run**: the derived invocation carried
+`-TimeoutSeconds 1500` and the repository launcher validates that argument to a maximum of 900, so it
+refused during parameter binding with no game process, transaction, lock or evidence. The three
+receipts are preserved under `refused-1-*` names and recorded in
+`refused-launch-c6b-charge173-a-charge-rt.json`; preview.172 had run the same stage with nine rows in
+170.9 seconds, so 900 was never tight and the increase was unnecessary.
+
+## Preview.174 native outcome (2026-10-05; frozen preview.174, campaign closed) - 5 PASS / 1 FAIL
+
+Frozen payload `0.1.0-chunk6b-preview.174` at commit `356e29ee14f3fa76ae042fe4a1f6dad46ea645ae`
+(committed tree `6ca83b6caac95b4788b8edaf4c7a073f2c9c2969`), package sha256
+`33b2d85fb546082128cf8caeb429e52e43039e48314f9decc30e8cfafe8449c1`, DLL sha256
+`d1eb75bac521cb6bdcf740c32de5ccfcba54bae123524a46e1f165c51f27b8d1`, MVID
+`c7c99561-1452-4a42-8293-97de1f7f44c5`, suite `20261005-chunk6b-charge-s` (sha256
+`1bff1df8d0ae76e34ab82bafad567942bf15c4c55ae0aa6ae4fff81500cf23f7`). Offline: Validate-Source 139/0,
+CANDIDATE tier 26/0, component tests 617/0, charge reader 279/0, purity proof PASS.
+
+The four preview.173 causes were repaired in this one candidate. **All fifteen real-time rows ran, with
+no stall, and eleven passed.**
+
+- **`C6B-CHARGE-blocked-clearance` is delivered, not a limitation.** The fixture places its own body on
+  the landing point one weapon reach short of the target through a second diagnostic target service, so
+  the clearance gate is exercised by a named actor at a measured distance inside its own threshold.
+- **`C6B-CHARGE-target-moved` delivered.** Three repaths driven by the moving target, `forcedPaths=4`,
+  one child attack, and the command naming each displacement that forced a repath.
+- **`C6B-CHARGE-exception-cleanup` behaved exactly as increment 6B.2 specifies, and the row still
+  failed on my own rule.** The engine log reads `[Exception] Mounted charge admission:
+  InvalidOperationException - Diagnostic charge admission fault immediately after AddToQueueFirst.`
+  followed by `compensated: ran=True;complete=True;postconditionsConfirmed=True;`
+  `completed=abandon-scheduler|interrupt-command|dequeue-command|restore-lease;failures=;unmet=;`
+  `commandResident=False; leaseRestored=True; activeCommandCleared=True; faultedCleanupOwner=False`,
+  and the rider standard cooldown went 0 to 5.96 with nothing refunding it. The row failed only because
+  the new non-delivery verdict caught the one case whose purpose is to not be admitted.
+- **`C6B-CHARGE-target-lost`, `C6B-CHARGE-rider-incapacitated` and `C6B-CHARGE-mount-incapacitated` did
+  not run their interventions.** See the known issue below. These three rows are **not delivered**, so
+  increment 6B.2 is not complete.
+
+## Known issue: a native charge shell that is created and never started (open)
+
+Measured on frozen preview.173 and again on frozen preview.174, in the real-time charge stage only.
+
+The fixture clicks the rider own Mounted Charge through the real selected-ability handler. The mod
+activation observer records `TargetSelectionStarted`, `CastRequested` and `TargetSelectionEnded`, the
+native `UnitUseAbility` appears in the rider Standard slot, and then **no `DispatchStarted` ever
+follows**: the engine never calls the ability `Deliver`, so the controller is never asked to admit a
+charge. The shell stays `started=false, running=false, finished=false` for the whole settle window.
+
+What is measured at the click, and therefore is not the cause: the relationship is Mounted and exact;
+`rider.IsInCombat`, `horse.IsInCombat` and `target.IsInCombat` are all true and all three are
+`Prepared` (`IsCombatReady` gates on exactly that); `CanActInCombat` is true and
+`IsWaitingInitiative` is false, which disproves the initiative hypothesis the instrumentation was added
+to test; `IsAbleToAct` is true; both action cooldowns are zero; both command containers are otherwise
+empty; the ability reports `available` and `canTarget` true over a straight native route at a lawful
+distance; and the game is not paused.
+
+What is measured about its onset: the number of charges dispatched before it differs between runs -
+four on preview.173, five on preview.174 - so it is not a fixed cap, and the fixture case order is not
+the discriminator either. **The cause is unexplained and is not attributed to the engine, the fixture or
+the mod.** Nothing here establishes that the mod contributes nothing: the same clicks dispatch
+correctly earlier in the same run.
+
+The next distinguishing observation is instrumented rather than guessed. While a shell sits un-started
+the fixture now asks the engine itself every sample - `IsAvailableForCast`, the engine own
+`GetUnavailableReason()`, a live `CanTarget`, whether either command container is running, whether a
+previous command is pending, the party combat flag - and performs exactly one bounded re-click, which
+separates a condition transient to one activation from one persistent for the rest of the run. The
+retry is counted in the row and the reader refuses any row that needed one, so it can buy the
+intervention evidence of a case but never its verdict.

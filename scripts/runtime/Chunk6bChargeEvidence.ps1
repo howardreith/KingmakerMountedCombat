@@ -213,6 +213,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     # row contains, it did not observe what it set out to observe.
     if(-not[string]::IsNullOrEmpty([string](ChargeProp $e 'nonDelivery'))){ChargeFail ('row '+$name+' did not deliver: '+[string](ChargeProp $e 'nonDelivery'))}
     if((ChargeProp $e 'strandedShellInterrupted')-eq$true){ChargeFail ('row '+$name+' left a native shell the fixture had to interrupt itself')}
+    if([long](ChargeProp $e 'clickRetries')-ne0){ChargeFail ('row '+$name+' needed '+[string](ChargeProp $e 'clickRetries')+' re-click(s): the first native shell never started')}
 
     if($name-ceq'C6B-CHARGE-default-off'){
         $off=ChargeProp $e 'settingOff';$on=ChargeProp $e 'settingOn'
@@ -467,22 +468,37 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             if(-not(ChargeNumber (ChargeProp $move 'targetMovedDistance'))-or[double]$move.targetMovedDistance-lt1.0){ChargeFail 'the moving-target row target did not actually move'}
             $terminal=ChargeProp $e 'terminal'
             if($null-eq$terminal){ChargeFail 'the moving-target row recorded no terminal outcome'}
-            $struck=[long](ChargeProp $rules 'pairNonOpportunityAttackRules')-eq1
-            Assert-KmcChunk6bChargeTransaction $e $name $struck
-            if($struck){
-                # The happy path: the charge re-read its conditions, re-forced the straight line onto a
-                # newly admitted carrier and struck once with the native charge rule.
-                if([long](ChargeProp $terminal 'repathCount')-lt1){ChargeFail 'the moving-target charge struck without repathing'}
-                $events=@((ChargeProp $rules 'attackRuleEvents')|Where-Object {$null-ne$_-and(ChargeProp $_ 'attackOfOpportunity')-eq$false})
-                if($events.Count-ne1-or(ChargeProp $events[0] 'charge')-ne$true){ChargeFail 'the moving-target charge did not deliver exactly one native charge attack'}
-                if([long](ChargeProp $terminal 'childAttackStartCount')-ne1){ChargeFail 'the moving-target charge terminal is not one single rider attack'}
+            # Three lawful outcomes, decided by what the engine started and completed rather than by the
+            # rule count alone: the charge struck and resolved; it reached its target and started its one
+            # native attack which the engine then interrupted before the attack resolved; or it never
+            # reached, because its own revalidation refused the changed geometry.
+            $startedAttacks=[long](ChargeProp $terminal 'childAttackStartCount')
+            $completedAttacks=[long](ChargeProp $terminal 'nativeCompletedAttackCount')
+            $deliberateRules=[long](ChargeProp $rules 'pairNonOpportunityAttackRules')
+            if($startedAttacks-gt1){ChargeFail 'the moving-target charge started more than one native attack'}
+            Assert-KmcChunk6bChargeTransaction $e $name ($startedAttacks-eq1)
+            if($startedAttacks-eq1){
+                # It reached: the whole lawful order is present, and a repath really happened.
+                if([long](ChargeProp $terminal 'repathCount')-lt1){ChargeFail 'the moving-target charge reached its target without repathing'}
+                if($completedAttacks-ge1){
+                    # And it resolved: exactly one deliberate attack, carrying the native charge rule.
+                    $events=@((ChargeProp $rules 'attackRuleEvents')|Where-Object {$null-ne$_-and(ChargeProp $_ 'attackOfOpportunity')-eq$false})
+                    if($events.Count-ne1-or(ChargeProp $events[0] 'charge')-ne$true){ChargeFail 'the moving-target charge did not deliver exactly one native charge attack'}
+                    if($deliberateRules-ne1){ChargeFail 'the resolved moving-target charge did not record exactly one deliberate attack rule'}
+                } else {
+                    # Or the engine interrupted the strike before it resolved. Then there must be no
+                    # deliberate attack rule at all, and the terminal must say it was interrupted: a
+                    # charge that quietly produced a rule without completing would be a different thing.
+                    if($deliberateRules-ne0){ChargeFail 'an unresolved moving-target charge attack still produced a deliberate attack rule'}
+                    if([string](ChargeProp $terminal 'result')-cne'Interrupt'){ChargeFail ('an unresolved moving-target charge attack did not end interrupted: '+[string](ChargeProp $terminal 'result'))}
+                }
             } else {
-                # The other lawful outcome: the changed geometry failed the charge own revalidation, so
-                # it ended without an attack and named its own reason.
+                # It never reached: the changed geometry failed the charge own revalidation, so it ended
+                # without starting an attack and named its own reason.
                 $t=ChargeProp $e 'transaction'
-                if((ChargeProp $t 'revalidationFailed')-ne$true){ChargeFail 'the moving-target charge neither struck nor failed a revalidation'}
+                if((ChargeProp $t 'revalidationFailed')-ne$true){ChargeFail 'the moving-target charge neither reached its target nor failed a revalidation'}
                 if([string](ChargeProp $t 'revalidationFailurePhase')-eq''-or[string](ChargeProp $t 'revalidationFailureReason')-eq''){ChargeFail 'the moving-target charge did not name its revalidation failure'}
-                if([long](ChargeProp $rules 'pairNonOpportunityAttackRules')-ne0){ChargeFail 'the moving-target charge delivered an attack after failing its revalidation'}
+                if($deliberateRules-ne0){ChargeFail 'the moving-target charge delivered an attack after failing its revalidation'}
             }
             # Either way: the mount paid nothing, the lease came back and nothing was left behind.
             foreach($field in @('mountStandardMax','mountMoveMax')){ if(-not(ChargeNumber (ChargeProp $economy $field))-or[double]$economy.$field-gt0.001){ChargeFail ('the moving-target charge charged the mount: '+$field)} }
