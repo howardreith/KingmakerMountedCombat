@@ -98,6 +98,31 @@ public static class ChargeOwnershipProbe {
   Check(Call(persistence,"DrainForTeardown",0).ToString()=="Clear","released pre-enumeration fence permits ordinary teardown");
   var faults=mod.GetType("KingmakerMountedCombat.Integration.MountedChargeAdmissionFault",true);
   var faultHook=faults.GetField("BeforeCleanupStep",F);
+  var targetActorType=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+  var combatStateType=native.GetType("Kingmaker.Controllers.Combat.UnitCombatState",true);
+  var targetRider=Blank(targetActorType);var chargeTarget=Blank(targetActorType);var laterTarget=Blank(targetActorType);
+  var targetState=Blank(combatStateType);Set(targetRider,"<CombatState>k__BackingField",targetState);
+  var targetProperty=combatStateType.GetProperty("ManualTarget",F);
+  var targetOwner=Call(controller,"CreateChargeOwner",targetRider,null,chargeTarget,riderCommands,mountCommands,shell,17L,0);
+  Set(controller,"chargeOwner",targetOwner);Call(controller,"OwnChargeManualTarget",targetRider,chargeTarget);
+  Check((bool)Get(targetOwner,"ManualTargetOwned")&&Object.ReferenceEquals(targetProperty.GetValue(targetState,null),chargeTarget),
+   "charge retains exact native manual-target ownership before one-shot delivery");
+  faultHook.SetValue(null,new Action<string>(step=>{if(step=="release-manual-target")throw new InvalidOperationException("target release fault");}));
+  try{
+   Check(!(bool)Call(controller,"AcquireChargeSaveFence",first)&&Object.ReferenceEquals(Get(controller,"chargeOwner"),targetOwner)&&
+    Object.ReferenceEquals(targetProperty.GetValue(targetState,null),chargeTarget),"failed target cleanup retains exact owner and refuses capture");
+  }finally{faultHook.SetValue(null,null);}
+  var replacementState=Blank(combatStateType);targetProperty.SetValue(replacementState,laterTarget,null);
+  Set(targetRider,"<CombatState>k__BackingField",replacementState);
+  Check((bool)Call(controller,"AcquireChargeSaveFence",first)&&Get(controller,"chargeOwner")==null&&
+   targetProperty.GetValue(targetState,null)==null&&Object.ReferenceEquals(targetProperty.GetValue(replacementState,null),laterTarget),
+   "retry drains retained original native attack intent without touching replacement state");
+  Call(controller,"ReleaseChargeSaveFence",first);
+  targetOwner=Call(controller,"CreateChargeOwner",targetRider,null,chargeTarget,riderCommands,mountCommands,shell,17L,0);
+  Set(controller,"chargeOwner",targetOwner);Call(controller,"OwnChargeManualTarget",targetRider,chargeTarget);
+  targetProperty.SetValue(replacementState,laterTarget,null);
+  Check((bool)Call(controller,"TryDrainChargeOwnership","later independent target")&&
+   Object.ReferenceEquals(targetProperty.GetValue(replacementState,null),laterTarget),"charge cleanup preserves a later independent manual target");
   foreach(var boundary in new[]{"rider-remove","abandon-scheduler","shell-remove"}){
    raw.SetValue(command,1);add.Invoke(queue,new[]{command});
    var retained=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,17L,0);
@@ -308,6 +333,28 @@ public static class ChargeOwnershipProbe {
    Check(notifications==0,"skipped native mode body does not emit KMC completion");
    methods.GetMethod("ChargeModeBoundaryPostfix",F).Invoke(null,new object[]{true,true});
    Check(notifications==1,"admitted native mode body emits one KMC completion");
+   // Native Activate refreshes this handler on controller reactivation. Its
+   // Enable/Disable bodies return before any mutation when m_Enabled already
+   // equals the request. Execute that exact no-op body in both directions.
+   var heldModeOwner=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,17L,0);
+   Set(heldModeOwner,"NativeActionInProgress",true);
+   Set(controller,"chargeOwner",heldModeOwner);Set(controller,"activeCommand",command);
+   var modeAttempts=Call(controller,"get_ChargeCleanupAttemptCount");
+   foreach(var enabled in new[]{false,true}){
+    Set(nativeController,"m_Enabled",enabled);
+    var arguments=new object[]{nativeController,enabled,false};var ran=false;Exception modeError=null;
+    try{ran=(bool)methods.GetMethod("ChargeModeBoundaryPrefix",F).Invoke(null,arguments);}
+    catch(TargetInvocationException e){modeError=e.InnerException;}
+    Check(modeError==null&&ran&&!(bool)arguments[2]&&Object.ReferenceEquals(Get(controller,"chargeOwner"),heldModeOwner)&&
+     Object.ReferenceEquals(Get(controller,"activeCommand"),command)&&Object.Equals(modeAttempts,Call(controller,"get_ChargeCleanupAttemptCount")),
+     "native unchanged mode refresh retains exact command/charge ownership without a cleanup attempt: "+enabled+"; error="+(modeError==null?"none":modeError.GetType().Name));
+    Call(nativeController,"HandleTurnBasedModeStateChanged",enabled);
+    methods.GetMethod("ChargeModeBoundaryPostfix",F).Invoke(null,new object[]{enabled,arguments[2]});
+    Check(notifications==1&&(bool)Get(nativeController,"m_Enabled")==enabled&&
+     Object.ReferenceEquals(Get(controller,"chargeOwner"),heldModeOwner)&&!(bool)Call(controller,"get_ChargeNativeBoundaryPending"),
+     "actual native no-op body preserves mode and owner without lifecycle cancellation or deferred work: "+enabled);
+   }
+   Set(controller,"chargeOwner",null);Set(controller,"activeCommand",null);
    Call(boundaries,"Enqueue",modeKind,nativeController,new Func<bool>(()=>true),new Action(()=>{}));
    foreach(var tickName in new[]{"ChargeTransitionTickPrefix","CombatControllerTickPrefix"})
     Check(!(bool)methods.GetMethod(tickName,F).Invoke(null,null),"actual pending native notification fences "+tickName);

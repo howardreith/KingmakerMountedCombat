@@ -1,4 +1,62 @@
-# 2026-10-06 preview180 dispatch repair; CANDIDATE PASS, native pending
+# 2026-10-06 preview181 repair tranche; frozen180 campaign closed
+
+Phase6B IN PROGRESS on codex/mounted-combat-phase3f-playable-core. HEAD
+5b958b319b747dba20ef94fa38cf78af5fe8be13, tree543e7bc0e50e5b3517a1155bf974dc7a99e7f668,
+fetched remote equal;40c40e4 remains an ancestor. Known working181 changes fix
+unchanged native mode refreshes, exact manual-target cleanup and attributable
+fixture/reader evidence. The coherent tranche passes FAST18/0 and CANDIDATE30/0.
+No181 package/suite/proof/run exists at this source checkpoint. Next is one
+coherent guarded publication/freeze; do not package each small correction.
+
+Frozen180 package7a107f0a23ab748cc5c1d02bf793f3007fdee482072b603d8fc68b945ee1184c,
+suite20261006-chunk6b-charge-y/98cb3f5925405f935bcdcbaa5fd31841135e589c6056e3b78d49f72674ae259e.
+Purity PASS, receipt17c1ae117d98677ceb1480c888c53536de1024c64287f16c3ba4157ccc85896c.
+Campaign CLOSED FAIL:4 PASS (unmounted RT, exact TB charge refusal, both carriers),
+2 FAIL (RT charge and stock safety RT),20 NOT RUN after a shared mode-refresh
+regression was established. All six loaded successfully, exited normally0 and
+restored all transactions byte-identically with empty errors. Human105 unchanged;
+275 saves digest511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426,
+358 Mods digestc4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c.
+No live game or mutable transaction, no recovery. Immutable closure at09:09:01Z:
+lab analysis-cache/chunk6-continuation/20261005-6br/preview180-campaign-closure.json,
+SHA2f2cf4734d9fc5cab7112dae006809e9d1b7bb42511b2279f717e20d375ee4fc.
+Its six rows bind every original result, exit receipt, session log and restoration.
+
+Native Activate refreshes the mode handler even when m_Enabled is unchanged.
+The6B-R postfix incorrectly canceled ordinary commands after that native no-op.
+181 preserves the exact no-op and retains barriers for real changes; regression
+fails on180. The coherent source now also owns the native ManualTarget assignment
+through cleanup, including failed release/save/retry and replacement-state tests.
+The180 ordinary AI attack evidence exposed that product residue; the initial AI
+lease-ordering hypothesis was not established and no AI fixture rewrite was made.
+Input now carries exact native activation records, and the landing blocker observer
+waits for actual AwakeUnits admission. The loaded Beast Shape fixture pins five base
+components plus eight native immunity listeners added by inspected COTW060004B3.
+Build181-4, components681/0, compiled ownership88/0, surface60/0, assets54/0,
+charge reader373/0, persistence reader156/0, native assembly687/0 and source143/0
+pass. FAST181-1 passed18/0. CANDIDATE181-1 stopped at a stale schema36 source pin
+in Test-Harness (269/1); the exact pin now requires37. Its failed log/receipt remain
+immutable. CANDIDATE181-2 passed30/0 in10.76min (harness270/0). Its lab log and
+process receipt bind the full offline run. Original RT evidence remains FAIL;21 collected rows pass
+the unchanged reader individually,3 reject, and view/death rows were not reached.
+No acceptance rule has been weakened. Preserve all failed probes and campaigns.
+
+Retained181 failures: charge-reader1 synthetic settlement frame, ownership2 local
+test variable collision, buff-assets1 bounded prefab offset, CANDIDATE1 stale schema
+pin, and readonly view
+surface probes180-1/2 (CLR HashSet metadata restriction, then explicitly reported
+13 unavailable bodies while discovering the exact cleanup method). No failed record
+was replaced. Schema37 requires exact new request/ownership/fixture observations.
+
+Next: coherent guarded publication/freeze as181/charge-z, one purity and ready26-stage
+batch. Continue6C-6F after6B; all phase exits remain incomplete. User authorized a
+native Lesser Quicken rod only in the disposable6C Druid fixture; none added yet.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+Exact post-publication identities and runtime state belong in lab
+analysis-cache/chunk6-continuation/20261005-6br/candidate181-freeze.json and new
+181 receipts. No documentation-only product commit during the frozen campaign.
+
+## Previous preview180 source checkpoint
 
 Phase6B IN PROGRESS, branch codex/mounted-combat-phase3f-playable-core. Published
 HEAD f1675762ee435125475b12e31f10ccf3fce4725e, tree83737c5a31b0a84c3eb38df1cb470ff69461945f

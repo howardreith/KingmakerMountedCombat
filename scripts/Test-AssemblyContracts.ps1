@@ -32,6 +32,23 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
     return $false
 }
 if($Target-eq'Kingmaker'){
+    $modeEnabled=@(Find-Token 'TurnBased.Controllers.CombatController' 0x04000649)
+    Assert-Contract ($modeEnabled.Count-eq1-and$modeEnabled[0].Name-ceq'm_Enabled'-and$modeEnabled[0].FieldType.FullName-ceq'System.Boolean') 'mode refresh reads exact native enabled state'
+    foreach($boundary in @(@(0x06000BE9,0x2C,'Enable'),@(0x06000BEA,0x2D,'Disable'))){
+        $body=$assembly.ManifestModule.ResolveMethod($boundary[0]).GetMethodBody().GetILAsByteArray()
+        $expected=[byte[]]@(0x02,0x7B,0x49,0x06,0x00,0x04,$boundary[1],0x01,0x2A)
+        Assert-Contract (($body[0..8]-join',')-ceq($expected-join',')) ('native '+$boundary[2]+' returns unchanged before any mode mutation')
+    }
+    $activate=$assembly.ManifestModule.ResolveMethod(0x06000BD4)
+    Assert-Contract (Test-MethodIlContainsToken $activate 0x06000BF5) 'native controller activation refreshes current mode without a setting transition'
+    $manualGet=$assembly.ManifestModule.ResolveMethod(0x06009381).GetMethodBody().GetILAsByteArray()
+    $manualSet=$assembly.ManifestModule.ResolveMethod(0x06009382).GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($manualGet-join',')-ceq'2,123,160,94,0,4,42'-and($manualSet-join',')-ceq'2,3,125,160,94,0,4,42') 'manual attack target is exact native intent storage with no resource or turn side effects'
+    $immunity=$assembly.GetType('Kingmaker.UnitLogic.FactLogic.SpecificBuffImmunity',$true)
+    Assert-Contract ($immunity.GetField('Buff').MetadataToken-eq0x04001A01-and
+        $immunity.GetField('Buff').FieldType.FullName-ceq'Kingmaker.UnitLogic.Buffs.Blueprints.BlueprintBuff'-and
+        @($immunity.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance,DeclaredOnly')|Where-Object Name -in @('OnTurnOn','OnTurnOff','OnFactActivate','OnFactDeactivate')).Count-eq0-and
+        $immunity.GetMethod('OnEventAboutToTrigger').MetadataToken-eq0x060025F9) 'view fixture immunity components are native rule listeners without an independent activation mutation'
     foreach($expected in @(
         @(0x06000BF5,'HandleTurnBasedModeStateChanged','System.Boolean',$true),
         @(0x06000BED,'HandlePartyCombatStateChanged','System.Boolean',$true),

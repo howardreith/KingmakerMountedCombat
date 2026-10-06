@@ -1,4 +1,17 @@
-## 2026-10-06 - preview180 dispatch repair; CANDIDATE PASS
+## 2026-10-06 - preview181 repair tranche IN PROGRESS
+
+Published180 HEAD5b958b319b747dba20ef94fa38cf78af5fe8be13 is fetched remote equal.
+Frozen180 purity PASS; campaign closed4 PASS/2 FAIL/20 NOT RUN. Six normal exits,
+all transactions restored, empty errors, human105/protected files unchanged.
+181 repairs native unchanged-mode refresh cancellation, owns manual-target cleanup,
+and corrects request/blocker/view evidence as one tranche. Components681/0,
+ownership88/0, FAST18/0 and CANDIDATE30/0 pass; attempt1's stale schema-pin failure
+is retained. No181 package or native run exists at this source checkpoint.
+Next: guarded publication/freeze, purity and all26 ready stages.
+See [active record](docs/CHUNK6-CONTINUATION.md) and newest
+resume for exact immutable evidence. All6B-6F phase exits remain incomplete.
+
+## Previous preview180 source checkpoint
 
 Published179 f1675762ee435125475b12e31f10ccf3fce4725e is preserved. Its purity PASS
 is immutable. Charge RT and unmounted RT both crashed during Working load before

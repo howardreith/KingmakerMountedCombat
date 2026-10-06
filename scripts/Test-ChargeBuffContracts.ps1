@@ -22,6 +22,14 @@ Check ((Get-FileHash -LiteralPath $scripts).Hash.ToLowerInvariant()-ceq'633c82b4
 $reader=[IO.BinaryReader]::new([IO.File]::OpenRead($assets))
 $mono=[IO.BinaryReader]::new([IO.File]::OpenRead($scripts))
 try {
+ Check (PtrAt $reader (158494840+16) 1 2948) 'view stimulus is the exact native buff asset'
+ [void]$reader.BaseStream.Seek(158494840+28,[IO.SeekOrigin]::Begin)
+ Check ((UnityString $reader)-ceq'BeastShapeIBuff') 'view stimulus authored identity'
+ Check ((IntAt $reader (158494840+60))-eq5) 'view stimulus has five base components before the inspected COTW augmentation'
+ $viewPaths=@(371081,335338,325685,348700,216106)
+ for($i=0;$i-lt5;$i++){Check (PtrAt $reader (158494840+64+12*$i) 0 $viewPaths[$i]) ('view stimulus exact base component '+$i)}
+ [void]$reader.BaseStream.Seek(206371704+92,[IO.SeekOrigin]::Begin)
+ Check ((UnityString $reader)-ceq'0dc0f602a83a2034ba5842f73c0012c1') 'view stimulus exact authored native replacement prefab'
  Check (PtrAt $reader (157852952+16632) 0 92567) 'BlueprintRoot SystemMechanics references exact ChargeBuff object'
  Check (PtrAt $reader (158237792+16) 1 2948) 'ChargeBuff managed script pointer'
  [void]$reader.BaseStream.Seek(158237792+28,[IO.SeekOrigin]::Begin)

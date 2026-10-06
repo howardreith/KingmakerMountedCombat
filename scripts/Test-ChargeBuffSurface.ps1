@@ -279,10 +279,28 @@ public static class ChargeBuffSurfaceProbe {
  }
  static Action nativeFxBody;
  static void SimulatedNativeFxBody(){nativeFxBody();}
+ static void ViewSurface(){
+  var validate=mod.GetType("KingmakerMountedCombat.Diagnostics.NativeChargeViewLease",true).GetMethod("MatchesLoadedComponents",F);
+  var values=new System.Collections.Generic.List<object>();
+  foreach(var name in new[]{"Kingmaker.UnitLogic.Buffs.Polymorph","Kingmaker.Blueprints.Classes.Spells.SpellDescriptorComponent",
+   "Kingmaker.Designers.Mechanics.Buffs.BuffMovementSpeed","Kingmaker.Designers.Mechanics.Buffs.ReplaceAsksList","Kingmaker.Designers.Mechanics.Facts.ReplaceSourceBone"})values.Add(N(name));
+  Func<bool> matches=()=>{var array=Array.CreateInstance(native.GetType("Kingmaker.Blueprints.BlueprintComponent",true),values.Count);for(int i=0;i<values.Count;i++)array.SetValue(values[i],i);return (bool)validate.Invoke(null,new object[]{array});};
+  Check(!matches(),"view fixture refuses the incomplete five-component base asset in the pinned augmented environment");
+  foreach(var id in new[]{"4f139d125bb602f48bfaec3d3e1937cb","b0793973c61a19744a8630468e8f4174","c84fbb4414925f344b894e9511626296","17206974f2a2c164db26d1af7fac57d5",
+   "3fca5d38053677044a7ffd9a872d3a0a","4ce640f9800d444418779a214598d0a3","6ba82f2c8a7146e6b4880cbe7f8534e8","c5d35ba066ae4a079a7d86a316d3ef38"}){
+   var immunity=N("Kingmaker.UnitLogic.FactLogic.SpecificBuffImmunity");Set(immunity,"Buff",Buff(id));values.Add(immunity);
+  }
+  Check(matches(),"view fixture accepts exactly five authored components and eight inspected native immunity listeners");
+  var exact=values[5];var other=N("Kingmaker.UnitLogic.FactLogic.SpecificBuffImmunity");Set(other,"Buff",Buff("foreign"));values[5]=other;
+  Check(!matches(),"view fixture refuses an uninspected immunity target");values[5]=values[6];
+  Check(!matches(),"view fixture refuses duplicated immunity ownership");values[5]=exact;values.Add(N("Kingmaker.UnitLogic.FactLogic.AddCondition"));
+  Check(!matches(),"view fixture refuses an extra uninspected component");
+ }
  public static void Run(string managed,string optional,string dll){
   AppDomain.CurrentDomain.AssemblyResolve+=(s,a)=>{var leaf=new AssemblyName(a.Name).Name+".dll";foreach(var dir in new[]{managed,Path.Combine(managed,"UnityModManager"),Path.GetDirectoryName(optional)}){var p=Path.Combine(dir,leaf);if(File.Exists(p))return Assembly.LoadFrom(p);}return null;};
   native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));cotw=Assembly.LoadFrom(optional);mod=Assembly.LoadFrom(dll);
   Check(native.ManifestModule.ModuleVersionId.ToString()=="07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"&&cotw.ManifestModule.ModuleVersionId.ToString()=="8caab254-aacf-4811-8093-44b9184e6e53","exact native and optional module identities");
+  ViewSurface();
   var root=Root(false);Check(Read(root)!=null,"base three-component native surface is accepted");
   root=Root(true);var surface=Read(root);Check(surface!=null,"complete inspected COTW six-component surface is accepted without executing or replacing its actions");
   Check(((Array)surface.GetType().GetProperty("Children",F).GetValue(surface,null)).Length==3&&((Array)surface.GetType().GetProperty("Enchantments",F).GetValue(surface,null)).Length==2,"validated lifetime inventory includes exact three children and two potential enchantments");

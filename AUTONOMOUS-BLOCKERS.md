@@ -1,4 +1,16 @@
-## 2026-10-06 - shared179 startup failure; bounded180 repair
+## 2026-10-06 - attributable180 mode refresh and fixture defects
+
+180 loaded successfully in six runs, resolving the179 startup boundary. Campaign
+closed4 PASS/2 FAIL/20 NOT RUN after a shared6B-R mode refresh canceled ordinary
+commands. All restoration passed.181 preserves native unchanged-mode no-ops;
+the behavioral regression fails on180 and passes on181. Exact manual-target
+ownership closes a product residue gap; no AI-isolation rewrite was needed.
+Request identity, blocker timing and loaded view-surface evidence are repaired.
+FAST18/0 and CANDIDATE30/0 pass; the earlier stale schema-pin failure is retained.
+Native requalification remains open. No human-only blocker or active runtime
+transaction. Next: one coherent181 freeze/purity and all26 ready6B stages.
+
+## Previous preview180 source checkpoint
 
 Two fully restored launches crashed before rows at the same Mono address. Native
 results are absent; no Charge behavior verdict is inferred. No further179 launch.

@@ -296,7 +296,7 @@ namespace KingmakerMountedCombat.Integration
                         MountedCombatRejectionCode.CommandAdmissionFailure);
                 }
 
-                rider.CombatState.ManualTarget = target;
+                OwnChargeManualTarget(rider, target);
                 LastMountedChargeCommand = command;
                 MountedChargeAdmittedCount++;
                 LastMountedChargeRefusal = null;

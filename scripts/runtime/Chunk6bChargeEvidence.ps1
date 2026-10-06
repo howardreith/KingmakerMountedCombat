@@ -434,7 +434,22 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             # property's presence rather than by its value.
             if($null-eq$delivery.PSObject.Properties['rejectionCodes']){ChargeFail 'the delivered charge recorded no rejection-code context'}
             if($null-ne(ChargeProp $delivery 'lastRefusal')){ChargeFail 'the delivered charge left a refusal reason behind'}
-            if(@(ChargeProp $input 'rejectionCodes').Count-ne0){ChargeFail 'the lawful charge reported a rejection code'}
+            if($null-eq$input.PSObject.Properties['rejectionCodes']){ChargeFail 'the charge input omitted shared rejection-code context'}
+            $window=ChargeProp $input 'requestWindow';$records=@(ChargeProp $window 'records')
+            if($null-eq$window-or$window.beforeSequence-lt0-or$window.afterSequence-le$window.beforeSequence-or
+                $records.Count-ne($window.afterSequence-$window.beforeSequence)){ChargeFail 'the charge input lacks its complete native activation window'}
+            $casts=@($records|Where-Object phase -CEQ 'CastRequested')
+            if($casts.Count-ne1-or$casts[0].activationId-le0-or$casts[0].kind-cne'MountedCharge'-or
+                $casts[0].ability-cne(ChargeKmcAbilityGuid)-or$casts[0].caster-cne$before.state.rider.id-or
+                $casts[0].target-cne$input.shell.targetId-or$casts[0].frame-ne$input.frame-or
+                $input.shell.abilityGuid-cne(ChargeKmcAbilityGuid)-or$input.shell.executorId-cne$casts[0].caster-or
+                $input.shell.present-ne$true){ChargeFail 'the charge input did not request its exact rider/target native shell once'}
+            for($i=0;$i-lt$records.Count;$i++){
+                $record=$records[$i]
+                if($record.sequence-ne($window.beforeSequence+$i+1)-or$record.activationId-ne$casts[0].activationId-or
+                    $record.kind-cne'MountedCharge'-or$record.ability-cne(ChargeKmcAbilityGuid)-or$record.caster-cne$casts[0].caster-or
+                    $record.phase-ceq'CastRefused'-or$record.accepted-eq$false){ChargeFail 'the exact charge request was refused, mixed or incompletely observed'}
+            }
             # The mount is the mover, at charge speed, and the rider never moves under its own agent.
             if(-not(ChargeNumber (ChargeProp $movement 'mountDistance'))-or[double]$movement.mountDistance-lt1.0){ChargeFail 'the mount did not carry the charge'}
             if(-not(ChargeNumber (ChargeProp $movement 'mountCombatSpeedMps'))-or-not(ChargeNumber (ChargeProp $movement 'peakSpeedMps'))){ChargeFail 'the charge speed was not recorded'}
@@ -537,9 +552,14 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                 $v=$boundary.nativeView
                 $types=@('Kingmaker.UnitLogic.Buffs.Polymorph','Kingmaker.Blueprints.Classes.Spells.SpellDescriptorComponent',
                     'Kingmaker.Designers.Mechanics.Buffs.BuffMovementSpeed','Kingmaker.Designers.Mechanics.Buffs.ReplaceAsksList','Kingmaker.Designers.Mechanics.Facts.ReplaceSourceBone')
+                $types+=@('Kingmaker.UnitLogic.FactLogic.SpecificBuffImmunity')*8
+                $immunities=@('4f139d125bb602f48bfaec3d3e1937cb','b0793973c61a19744a8630468e8f4174','c84fbb4414925f344b894e9511626296',
+                    '17206974f2a2c164db26d1af7fac57d5','3fca5d38053677044a7ffd9a872d3a0a','4ce640f9800d444418779a214598d0a3',
+                    '6ba82f2c8a7146e6b4880cbe7f8534e8','c5d35ba066ae4a079a7d86a316d3ef38')
                 if($boundary.relationshipAfter-cne'Unmounted'-or$boundary.presentationResidue-ne$false-or$v.actor-cne$before.state.rider.id-or
                     $v.blueprint-cne'00d8fbe9cf61dc24298be8d95500c84b'-or$v.name-cne'BeastShapeIBuff'-or$v.prefab-cne'0dc0f602a83a2034ba5842f73c0012c1'-or
-                    @($v.components).Count-ne5-or(@($v.components|Sort-Object)-join'|')-cne(@($types|Sort-Object)-join'|')-or
+                    @($v.components).Count-ne13-or(@($v.components|Sort-Object)-join'|')-cne(@($types|Sort-Object)-join'|')-or
+                    @($v.sizeImmunities).Count-ne8-or(@($v.sizeImmunities|Sort-Object)-join'|')-cne(@($immunities|Sort-Object)-join'|')-or
                     $v.applyCalls-ne1-or$v.removeCalls-ne1-or$v.restored-ne$true-or$v.factDisposed-ne$true-or$v.listenersRemaining-ne0-or
                     $v.originalRetired-ne$true-or$v.replacementRetired-ne$true){ChargeFail 'native view replacement identity or cleanup differs'}
                 if($v.before.buffCount-ne0-or$v.before.polymorph-ne$false-or$v.before.bound-ne$true-or$v.before.view-eq0-or
@@ -583,6 +603,8 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                     $tx.revalidationFailurePhase-cnotin@('BeforeRepath','BeforeAttackTransition')){ChargeFail 'new blocker did not cause exact pre-release landing refusal'}
                 $placed=$boundary.blocker;$blockers=@($boundary.blockersAfter)
                 if($placed.placed-ne$true-or[string]::IsNullOrEmpty($placed.blockerId)-or
+                    $boundary.awakeBlocker-cne$placed.blockerId-or$boundary.spawnFrame-ne$e.intervention.frame-or
+                    $boundary.awakeFrame-le$boundary.spawnFrame-or$boundary.awakeFrame-gt$after.frame-or
                     $placed.contract-cne'diagnostic-blocker-occupies-the-exact-charge-landing-point'-or
                     @($blockers|Where-Object actorId -CEQ $placed.blockerId).Count-ne1){ChargeFail 'new blocker identity differs from measured landing obstruction'}
                 foreach($blocker in $blockers){
@@ -831,7 +853,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne36-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 36 and a chunk6b charge scenario'}
+    if([long]$Artifact.schemaVersion-ne37-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 37 and a chunk6b charge scenario'}
     $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}

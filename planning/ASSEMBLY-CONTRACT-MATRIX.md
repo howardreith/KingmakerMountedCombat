@@ -1,3 +1,28 @@
+# 2026-10-06 preview181: native mode refresh, manual intent and loaded view fixture
+
+Pinned native MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7 is unchanged.
+CombatController.Activate06000BD4 refreshes HandleTurnBasedModeStateChanged06000BF5
+with the current setting. Enable06000BE9/Disable06000BEA return at IL0008 when
+m_Enabled04000649 matches.181 preserves that no-op; actual compiled prefix/native
+body/postfix tests cover both values with retained ownership and no cleanup or
+lifecycle notification. Real changes retain the existing ownership barrier.
+
+Charge assigned native ManualTarget without cleanup ownership.180's relationship
+invalidation drained Charge then recorded four ordinary AI attacks at that retained
+target.181 retains the original native combat state before assigning its intent
+and releases only the exact target through the durable owner. Native accessors
+06009381/82 directly read/write04005EA0 without action/turn side effects. Failed
+release blocks save, retry drains the original state, foreign targets are preserved.
+
+BeastShapeIBuff00d8fbe9cf61dc24298be8d95500c84b has five authored components.
+Installed COTW MVID8caab254-aacf-4811-8093-44b9184e6e53 CleanUp060004B3 adds eight
+native SpecificBuffImmunity listeners to every polymorph buff (predicate0600228A).
+The fixture now pins thirteen components and all eight immunity GUIDs. Native
+04001A01 names the immune buff;060025F9/FA only observe rules. Restoration still
+requires every retained listener absent, both replaced views retired and all
+baseline effects unchanged. Bounded read-only identities/IL and original180 failures
+remain in lab analysis-cache/chunk6-continuation/20261005-6br/. Native181 is pending.
+
 ## 2026-10-06 - exact native fact acquisition dispatch
 
 Same pinned Kingmaker SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb,

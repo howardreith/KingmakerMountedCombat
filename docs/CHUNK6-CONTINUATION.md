@@ -1,6 +1,29 @@
 # Chunk 6 continuation — 2026-10-05
 
-## Newest checkpoint: preview180 native dispatch repair, 2026-10-06
+## Newest checkpoint: preview181 repair tranche, 2026-10-06
+
+Frozen180 campaign closed4 PASS/2 FAIL/20 NOT RUN; all six game processes exited0
+and all transactions restored byte-identically with empty errors, human105 and
+275 protected saves unchanged. All six passed the former179 startup crash boundary.
+The shared6B-R mode hook canceled ordinary commands after a native unchanged-mode
+refresh.181 now preserves that no-op; the regression fails on180 and passes on181
+(compiled ownership84/0, build PASS). Real transitions retain the ownership barrier.
+The coherent tranche also owns the exact native manual attack target through
+cleanup, fixes RT blocker observation timing, and pins the loaded Beast Shape
+surface (five base components plus eight COTW-added native immunity listeners).
+Request-specific admission evidence replaces the stale shared feedback assertion.
+No AI lease rewrite was made: the inspected gap was product-owned target residue.
+Focused build/components681/0, ownership88/0, surface60/0, assets54/0, charge reader
+373/0 and persistence reader156/0 pass. FAST18/0 passes. CANDIDATE attempt1 retained
+one stale schema36 source pin (harness269/1); exact schema37 pin corrected.
+CANDIDATE attempt2 passes30/0 (harness270/0). No181 freeze exists at this source
+checkpoint. Next: guarded publication, one181/charge-z freeze/purity and all26
+ready native stages. Record exact identities in the lab freeze receipt.
+The immutable180 closure,
+source/package/suite identities and exact next steps are in the [resume](../AUTONOMOUS-RESUME.md).
+No phase is stable; continue6B then6C-6F. Historical failures remain unchanged.
+
+## Previous preview180 source checkpoint
 
 179 source f1675762ee435125475b12e31f10ccf3fce4725e was published/frozen and proved
 WhatIf-pure. Charge RT and ordinary unmounted RT then crashed during Working load,

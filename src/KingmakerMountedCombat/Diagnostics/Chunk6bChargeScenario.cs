@@ -1093,6 +1093,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
 
                 // The player-facing path: the real selected-ability handler. Hovering must change nothing.
+                var activationBefore = nativeControls.SnapshotAbilityActivations().LastOrDefault()?.Sequence ?? 0;
                 var handler = game.SelectedAbilityHandler;
                 handler.SetAbility(chunk6bChargeAbility);
                 if (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-cancelled", StringComparison.Ordinal))
@@ -1134,6 +1135,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         ["shellCount"] = chunk6bChargeShellCount,
                         ["feedback"] = chunk6bChargeFeedback,
                         ["rejectionCodes"] = chunk6bChargeRejectionCodes,
+                        ["requestWindow"] = CaptureChargeInputWindow(activationBefore),
                         ["chargeAdmitted"] = combat.MountedChargeAdmittedCount,
                         ["chargeRefused"] = combat.MountedChargeRefusedCount,
                         ["lastRefusal"] = combat.LastMountedChargeRefusal,
@@ -1174,6 +1176,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     };
                 }
 
+                activationBefore = nativeControls.SnapshotAbilityActivations().LastOrDefault()?.Sequence ?? 0;
                 chunk6bChargeClicked = handler.OnClick(target.View.gameObject, target.Position, 0, false, false);
                 if (Chunk6bChargeCaseArmsAdmissionFault)
                 {
@@ -1210,6 +1213,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["shellCount"] = chunk6bChargeShellCount,
                     ["feedback"] = chunk6bChargeFeedback,
                     ["rejectionCodes"] = chunk6bChargeRejectionCodes,
+                    ["requestWindow"] = CaptureChargeInputWindow(activationBefore),
                     ["chargeAdmitted"] = combat.MountedChargeAdmittedCount,
                     ["chargeRefused"] = combat.MountedChargeRefusedCount,
                     ["lastRefusal"] = combat.LastMountedChargeRefusal,
@@ -1222,6 +1226,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (chunk6bChargeStage == 2)
             {
+                ObserveChargeLandingBlocker();
                 var agent = horse.View == null ? null : horse.View.AgentASP;
                 var elapsed = game.TimeController.GameTime.TotalSeconds - chunk6bChargeStarted;
                 chunk6bChargeMountDistance = Math.Max(chunk6bChargeMountDistance, HorizontalDistance(horse.Position, chunk6bChargeMountOrigin));
@@ -1710,6 +1715,19 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6bChargeLastSample = -1;
             chunk6bChargeStage = 2;
             ResetLeafClock();
+        }
+
+        private JObject CaptureChargeInputWindow(long before)
+        {
+            var records = nativeControls.SnapshotAbilityActivations();
+            return new JObject { ["beforeSequence"] = before,
+                ["afterSequence"] = records.LastOrDefault()?.Sequence ?? before,
+                ["records"] = new JArray(records.Where(record => record.Sequence > before).Select(record => new JObject {
+                    ["sequence"] = record.Sequence, ["activationId"] = record.ActivationId,
+                    ["phase"] = record.Phase.ToString(), ["kind"] = record.Kind.ToString(),
+                    ["ability"] = record.AbilityGuid, ["caster"] = record.CasterId,
+                    ["target"] = record.TargetId, ["frame"] = record.Frame,
+                    ["accepted"] = record.DispatchAccepted, ["reason"] = record.TerminalResult })) };
         }
 
         // The repeated request: a second charge while the rider's standard action is still spent by the first.

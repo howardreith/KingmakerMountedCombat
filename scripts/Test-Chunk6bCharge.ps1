@@ -223,6 +223,10 @@ function New-Row([string]$Case){
    applyCalls=1;removeCalls=1;restored=$true;factDisposed=$true;listenersRemaining=0;originalRetired=$true;replacementRetired=$true;effectsBefore=$effects;
    before=@{frame=100;view=10;bound=$true;polymorph=$false;buffCount=0;effects=$effects};afterApply=@{frame=130;view=11;bound=$true;polymorph=$true;buffCount=1};
    afterRestore=@{frame=160;view=12;bound=$true;polymorph=$false;buffCount=0;effects=$effects};attachments=@()}
+  $v.components+=@('Kingmaker.UnitLogic.FactLogic.SpecificBuffImmunity')*8
+  $v['sizeImmunities']=@('4f139d125bb602f48bfaec3d3e1937cb','b0793973c61a19744a8630468e8f4174','c84fbb4414925f344b894e9511626296',
+   '17206974f2a2c164db26d1af7fac57d5','3fca5d38053677044a7ffd9a872d3a0a','4ce640f9800d444418779a214598d0a3',
+   '6ba82f2c8a7146e6b4880cbe7f8534e8','c5d35ba066ae4a079a7d86a316d3ef38')
   foreach($i in 0..1){$token=if($i-eq0){'06002a08'}else{'06002a09'};$v.attachments+=@{frame=130+$i;actor='rider';view=11+$i;nativeSource=@(@{token=$token;assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},@{token='06007e9d';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},@{token='0600835c';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})}}
   $r.evidence['boundary']=@{kind='native-view-replacement';ownerBefore=@{owned=$true;identity=17};ownerAfter=@{owned=$false};lastDrained=(New-DrainedOwner);relationshipAfter='Unmounted';presentationResidue=$false;nativeView=$v}
   return $r
@@ -274,6 +278,10 @@ function New-Row([string]$Case){
    $r.evidence.boundary['landingClearBefore']=$true
    $r.evidence.boundary['blocker']=@{placed=$true;blockerId='blocker-1';contract='diagnostic-blocker-occupies-the-exact-charge-landing-point'}
    $r.evidence.boundary['blockersAfter']=@(@{actorId='blocker-1';distanceToLanding=0.1;threshold=1.8})
+   $r.evidence.boundary['spawnFrame']=$r.evidence.intervention.frame
+   $r.evidence.boundary['awakeFrame']=$r.evidence.intervention.frame+1
+   $r.evidence.boundary['awakeBlocker']='blocker-1'
+   $r.evidence.after.frame=160
   }
   return $r
  }
@@ -298,7 +306,8 @@ function New-Row([string]$Case){
  $distance=if($Case-ceq'C6B-CHARGE-beyond-maximum'){18.0}elseif($Case-ceq'C6B-CHARGE-below-minimum'){3.5}else{9.0}
  $riderStandard=if($Case-ceq'C6B-CHARGE-spent-standard'){6.0}else{0.0}
  $input=[ordered]@{clicked=(-not$refusal);hoverPure=$true;frame=110
-  shell=[ordered]@{present=(-not$refusal)};shellCount=$(if($refusal){0}else{1})
+  shell=[ordered]@{present=(-not$refusal);abilityGuid=$kmc;executorId='rider';targetId='target'};shellCount=$(if($refusal){0}else{1})
+  requestWindow=@{beforeSequence=10;afterSequence=11;records=@(@{sequence=11;activationId=7;phase='CastRequested';kind='MountedCharge';ability=$kmc;caster='rider';target='target';frame=110;accepted=$null;reason='native-cast-requested'})}
   feedback=$(if($Case-ceq'C6B-CHARGE-stock-rejected'){'Charge is not yet supported while mounted.'}else{'Mounted charge accepted: the Horse carries the charge.'})
   rejectionCodes=@();chargeAdmitted=$(if($refusal){0}else{1});chargeRefused=$(if($refusal){1}else{0});lastRefusal=$null
   after=(New-State 'input-after' $distance $riderStandard (-not$refusal))}
@@ -357,7 +366,7 @@ function New-Row([string]$Case){
  }
  $row
 }
-function New-DrainedOwner { [ordered]@{identity=17;state='FullyDrained';attempts=1;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;lease=(New-Lease);shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;debt=''} }
+function New-DrainedOwner { [ordered]@{identity=17;state='FullyDrained';attempts=1;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;lease=(New-Lease);shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;manualTargetOwned=$false;manualTargetReleased=$true;debt=''} }
 function New-DeathFacts([string]$Kind){
  $states=@{}
  foreach($phase in @('before','afterDamage','terminated','encounterExit','afterPolicyRestore')){
@@ -402,7 +411,7 @@ function New-Artifact([string]$Mode='RT'){
    $row.evidence['ownership']=@{owned=$false};$row.evidence['lastDrainedOwnership']=New-DrainedOwner
   }
  }
- Copy-Case ([ordered]@{schemaVersion=36;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
+ Copy-Case ([ordered]@{schemaVersion=37;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
   observations=[ordered]@{initialSelection=@('main');cleanup=@{selectionRestored=$true;equipmentSetRestored=$true;settingRestored=$true;pairedSchedulerSettingRestored=$true;targetClean=$true;chunk4OtherTargetReleased=$true;modeRestored=$true;unmountedHorseAiLeaseRestored=$true;combatMountRiderAiLeaseRestored=$true;relationshipState='Unmounted';playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false;nativeFinalDeathSelectionExclusion=$(if($Mode-ceq'RT'){'rider'}else{$null});expectedSelection=@('main');actualSelection=@('main')};chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
@@ -490,7 +499,20 @@ Mutate 'a default-off row that started with the setting on' {param($a) (Row $a '
 Mutate 'an impure hover' {param($a) (Row $a 'C6B-CHARGE-positive').input.hoverPure=$false}
 Mutate 'a click that was not admitted' {param($a) (Row $a 'C6B-CHARGE-positive').input.clicked=$false}
 Mutate 'two native shells' {param($a) (Row $a 'C6B-CHARGE-positive').input.shellCount=2}
-Mutate 'a rejection code on the lawful charge' {param($a) (Row $a 'C6B-CHARGE-positive').input.rejectionCodes=@('WrongTurn')}
+Accept 'stale shared feedback cannot reject an exact accepted native request' {$a=New-Artifact;(Row $a 'C6B-CHARGE-positive').input.rejectionCodes=@('WrongTurn');Assert-KmcChunk6bChargeEvidence $request $a 'PASS'}
+Mutate 'an exact refused native charge request' {param($a) (Row $a 'C6B-CHARGE-positive').input.requestWindow.records[0].phase='CastRefused'}
+Mutate 'missing native charge request window' {param($a) (Row $a 'C6B-CHARGE-positive').input.requestWindow=$null}
+Mutate 'an incomplete native charge request window' {param($a) (Row $a 'C6B-CHARGE-positive').input.requestWindow.beforeSequence=9}
+Mutate 'a foreign native charge request actor' {param($a) (Row $a 'C6B-CHARGE-positive').input.requestWindow.records[0].caster='foreign'}
+Mutate 'a stale native charge request frame' {param($a) (Row $a 'C6B-CHARGE-positive').input.requestWindow.records[0].frame=109}
+Mutate 'another native charge shell target' {param($a) (Row $a 'C6B-CHARGE-positive').input.shell.targetId='foreign'}
+Mutate 'a charge with two input activations' {param($a) $w=(Row $a 'C6B-CHARGE-positive').input.requestWindow;$w.afterSequence=12;$w.records+=Copy-Case $w.records[0];$w.records[1].sequence=12;$w.records[1].activationId=8}
+Mutate 'a blocker not admitted to the native awake collection' {param($a) (Row $a 'C6B-CHARGE-new-landing-blocker').boundary.awakeBlocker='foreign'}
+Mutate 'a blocker observed only before native spawn returned' {param($a) $b=(Row $a 'C6B-CHARGE-new-landing-blocker').boundary;$b.awakeFrame=$b.spawnFrame}
+Mutate 'a cleaned charge retaining its native manual attack intent' {param($a) (Row $a 'C6B-CHARGE-relationship-invalidated').boundary.lastDrained.manualTargetOwned=$true}
+Mutate 'a view fixture omitting loaded native immunity listeners' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.components=@('Kingmaker.UnitLogic.Buffs.Polymorph')}
+Mutate 'a view fixture with another size immunity' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.sizeImmunities[0]='foreign'}
+Mutate 'a view fixture retaining a native listener' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.listenersRemaining=1}
 Mutate 'a charge the controller never admitted' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.chargeAdmitted=0}
 Mutate 'a lawful charge with no post-settlement delivery section' {param($a) (Row $a 'C6B-CHARGE-positive').delivery=$null}
 Mutate 'a charge admitted twice' {param($a) (Row $a 'C6B-CHARGE-positive').delivery.chargeAdmitted=2}
