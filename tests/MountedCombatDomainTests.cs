@@ -759,8 +759,8 @@ namespace KingmakerMountedCombat.Tests
                 !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true, true, false),
                 "A preparing rider turn delegated mount movement with no charge transaction delegating.");
             TestRunner.True(
-                MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true, true, true),
-                "The pair own charge transaction was refused movement on a preparing rider turn.");
+                !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true, true, true),
+                "The deferred charge experiment still admitted preparing-turn movement.");
             TestRunner.True(
                 !MountedPairTurnPolicy.CanDelegateMountMovement(true, true, true, false, true, false, true),
                 "A charge transaction was admitted on a turn that was neither acting nor preparing.");

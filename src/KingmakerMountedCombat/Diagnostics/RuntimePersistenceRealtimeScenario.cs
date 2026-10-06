@@ -55,6 +55,7 @@ namespace KingmakerMountedCombat.Diagnostics
             ["riderPosition"] = RealtimePoint(rider), ["mountPosition"] = RealtimePoint(mount),
             ["approach"] = RealtimeApproachObservation(), ["casting"] = CastingObservation(), ["inputRequests"] = realtimeInputRequests,
             ["foundation"] = FoundationObservation(),
+            ["charge"] = ChargePersistenceObservation(),
             ["riderWeapon"] = rider?.GetFirstWeapon()?.Blueprint?.AssetGuid,
             ["riderRanged"] = rider?.GetFirstWeapon()?.Blueprint?.IsRanged,
             ["projectiles"] = new JArray(NativeSaveEffectBoundary.CaptureUnresolvedProjectiles(Game.Instance.ProjectileController)
@@ -82,9 +83,11 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AdvanceRealtime()
         {
+            if (ChargeLifecycleCase && stage == 70) { AdvanceChargeLifecycle(); return; }
             if (clock.Elapsed.TotalSeconds > 150)
                 throw new InvalidOperationException("P04 " + Checkpoint + " timed out at " + stage + ": " + persistence.Feedback);
             var game = Game.Instance;
+            ObserveChargeSaveWait();
             if (LoadingProcess.Instance.IsLoadingInProcess ||
                 (game.CurrentMode != Kingmaker.GameModes.GameModeType.Default &&
                  game.CurrentMode != Kingmaker.GameModes.GameModeType.Pause)) return;
@@ -164,7 +167,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (RealtimeSourceMounted) BindOwnedControlSlots();
                 beforeControls = controls.CaptureSnapshot();
                 targetService = new DiagnosticCombatTargetService(logger);
-                combatTarget = targetService.Spawn(rider, mount, FindDestination(RealtimeApproach ? 12f : 7f), request.RunId, true, false, true);
+                combatTarget = targetService.Spawn(rider, mount, FindDestination(RealtimeApproach || RealtimeCharge ? 12f : 7f), request.RunId, true, false, true);
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
                     targetService.QueueBidirectionalCombatMemory(rider, combatTarget), "RT-native-unmounted-or-mounted-control-combat");
                 BindRealtimeObservers();
@@ -176,6 +179,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!game.Player.IsInCombat || !rider.CombatState.CanActInCombat) return;
                 Check(!CombatController.IsInTurnBasedCombat(), "RT-native-combat-mode");
                 if (RealtimeFoundation) { BeginFoundationTransition(); return; }
+                if (RealtimeCharge) { BeginChargePersistenceInput(); return; }
                 if (RealtimeCasting) { BeginNativeCastingInput(); return; }
                 Check(targetService.PrepareForPlayerClick(combatTarget) &&
                     targetService.BeginExpectedAttackDispatch(combatTarget), "RT-owned-target-native-input-ready");
@@ -193,6 +197,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 stage = RealtimeActiveSave ? 20 : 3; return;
             }
             if (stage == 30) { AdvanceCastingRequest(); return; }
+            if (stage == 60) { AdvanceChargePersistenceRequest(); return; }
             if (stage == 31) { AdvanceCastingContinuation(); return; }
             if (stage == 21) { AdvanceApproachRequest(); return; }
             if (stage == 22) { AdvanceApproachContinuation(); return; }

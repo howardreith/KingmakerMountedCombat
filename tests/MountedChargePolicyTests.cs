@@ -120,86 +120,28 @@ namespace KingmakerMountedCombat.Tests
                 }, MountedCombatRejectionCode.WrongActionState, "a spent turn-based standard action");
             });
 
-            runner.Run("a turn-based mounted charge is allowed on the rider own unmoved turn", () =>
+            runner.Run("turn-based mounted charge refuses every turn and delivery state without affecting real time", () =>
             {
-                // Increment 6B.3: the blanket refusal is replaced by the four rules it was holding the
-                // place of. The delegation seam these depend on is opened for this transaction alone,
-                // and only while the rider own turn has not moved - which is what the third rule is.
-                var preparing = Evaluate(request =>
+                foreach (var own in new[] { false, true })
+                foreach (var acting in new[] { false, true })
+                foreach (var preparing in new[] { false, true })
+                foreach (var delivering in new[] { false, true })
                 {
-                    request.TurnBased = true;
-                    request.RiderTurn = true;
-                    request.TurnActingOrPreparing = true;
-                    request.TurnActing = false;
-                    request.TurnTimeMoved = 0f;
-                });
-                TestRunner.True(preparing.IsAllowed,
-                    "A turn-based charge on the rider own unmoved preparing turn was refused: " + preparing.Reason);
-
-                var acting = Evaluate(request =>
-                {
-                    request.TurnBased = true;
-                    request.RiderTurn = true;
-                    request.TurnActingOrPreparing = true;
-                    request.TurnActing = true;
-                    request.TurnTimeMoved = 0f;
-                });
-                TestRunner.True(acting.IsAllowed,
-                    "A turn-based charge on the rider own acting turn was refused: " + acting.Reason);
-
-                var realTime = Evaluate(request => request.TurnBased = false);
-                TestRunner.True(realTime.IsAllowed, "Real time was refused: " + realTime.Reason);
-            });
-
-            runner.Run("each turn-based charge condition refuses with its own exact reason", () =>
-            {
-                void TurnBased(MountedChargeRequest request)
-                {
-                    request.TurnBased = true;
-                    request.RiderTurn = true;
-                    request.TurnActingOrPreparing = true;
-                    request.TurnActing = false;
-                    request.TurnTimeMoved = 0f;
+                    var result = Evaluate(request =>
+                    {
+                        request.TurnBased = true;
+                        request.RiderTurn = own;
+                        request.TurnActing = acting;
+                        request.TurnActingOrPreparing = preparing || acting;
+                        request.DeliveringOwnShell = delivering;
+                        request.RiderStandardCooldown = delivering ? 6f : 0f;
+                        request.RiderMoveCooldown = delivering ? 3f : 0f;
+                    });
+                    TestRunner.True(!result.IsAllowed && result.RejectionCode == MountedCombatRejectionCode.WrongTurn &&
+                        result.Reason == "Mounted Charge is not yet supported in turn-based mode.", "Unsafe TB admission: " + result.Reason);
                 }
-
-                var foreign = Evaluate(request => { TurnBased(request); request.RiderTurn = false; });
-                TestRunner.True(!foreign.IsAllowed && foreign.RejectionCode == MountedCombatRejectionCode.WrongTurn &&
-                    foreign.Reason == "Mounted Charge belongs to the rider's own turn.",
-                    "A foreign turn was not refused with its own reason: " + foreign.Reason);
-
-                var neither = Evaluate(request => { TurnBased(request); request.TurnActingOrPreparing = false; });
-                TestRunner.True(!neither.IsAllowed && neither.RejectionCode == MountedCombatRejectionCode.WrongTurn &&
-                    neither.Reason == "Mounted Charge requires the rider's own acting or preparing turn.",
-                    "A turn that was neither acting nor preparing was not refused with its own reason: " + neither.Reason);
-
-                var moved = Evaluate(request => { TurnBased(request); request.TurnTimeMoved = 1.5f; });
-                TestRunner.True(!moved.IsAllowed && moved.RejectionCode == MountedCombatRejectionCode.WrongTurn &&
-                    moved.Reason == "Mounted Charge requires a turn that has not moved yet.",
-                    "A turn that had already moved was not refused with its own reason: " + moved.Reason);
-
-                var spentMove = Evaluate(request =>
-                {
-                    TurnBased(request);
-                    request.RiderMoveCooldown = 3f;
-                    request.DeliveringOwnShell = false;
-                });
-                TestRunner.True(!spentMove.IsAllowed && spentMove.RejectionCode == MountedCombatRejectionCode.WrongActionState &&
-                    spentMove.Reason == "Mounted Charge requires the rider's move action.",
-                    "A spent move action was not refused with its own reason: " + spentMove.Reason);
-
-                // The mod own full-round shell has already paid that move action by the time it
-                // delivers, so delivery must not re-demand it.
-                var delivering = Evaluate(request =>
-                {
-                    TurnBased(request);
-                    request.RiderMoveCooldown = 3f;
-                    request.RiderStandardCooldown = 6f;
-                    request.DeliveringOwnShell = true;
-                });
-                TestRunner.True(delivering.IsAllowed,
-                    "Turn-based delivery re-demanded the actions its own shell had spent: " + delivering.Reason);
+                TestRunner.True(Evaluate(request => request.TurnBased = false).IsAllowed, "RT charge was disabled.");
             });
-
             runner.Run("mounted charge delivery does not re-demand the action its own shell has spent", () =>
             {
                 // The native full-round shell spends the rider action before it asks this mod to deliver.

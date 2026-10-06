@@ -536,6 +536,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             get
             {
+                if (IsChunk6bCharge) return ChargeFinalDeathSubject;
                 if (!IsChunk4NativeLife || Chunk4LifeIncapacitation || chunk4LifeEvidence == null ||
                     (int?)chunk4LifeEvidence["damageDispatches"] != 1 || ((int?)chunk4LifeEvidence["nativeDamage"] ?? 0) <= 0) return null;
                 var subject = Chunk4LifeSubject;

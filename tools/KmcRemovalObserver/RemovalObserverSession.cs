@@ -53,6 +53,7 @@ namespace KmcRemovalObserver
         private UnitEntityData mover;
         private Vector3 origin, destination;
         private string archivePath, archiveSha256Before;
+        private ChargeAbsenceProbe chargeProbe;
 
         private RemovalObserverSession(UnityModManager.ModEntry modEntry, ObserverRequest request, string requestSha256, string evidenceRoot)
         {
@@ -118,11 +119,14 @@ namespace KmcRemovalObserver
             }
         }
 
+        private JObject chargeMovementFirstPending;
+
         private void Arm()
         {
             // Routing first: from here every native save-root resolution in this
             // process lands inside the owned profile, before any menu exists.
             NativeSaveRouting.Install(request.ProfileRoot);
+            if (request.ChargeSource != null) chargeProbe = new ChargeAbsenceProbe(request.ChargeSource, request.KmcBlueprintGuids);
             Application.logMessageReceived += HandleLog;
             observations["routing"] = new JObject { ["savePath"] = NativeSaveRouting.SavesRoot, ["stashFolder"] = NativeSaveRouting.StashFolder };
             Write("armed", new JObject { ["savePath"] = NativeSaveRouting.SavesRoot, ["stashFolder"] = NativeSaveRouting.StashFolder,
@@ -154,6 +158,12 @@ namespace KmcRemovalObserver
                     var moved = GeometryUtils.MechanicsDistance(mover.Position, origin);
                     if (moved < 1.5f || !mover.Commands.Empty)
                     { if (++frames > 1200) Fail("The main character never moved without KMC: " + moved + " m."); return; }
+                    if (chargeProbe != null && !chargeProbe.PairCommandsSettled)
+                    {
+                        if (chargeMovementFirstPending == null) chargeMovementFirstPending = chargeProbe.Capture();
+                        if (++frames > 1200) Fail("Exact source actors did not settle after ordinary observer movement.");
+                        return;
+                    }
                     CompleteMovement(game, moved);
                     return;
             }
@@ -232,6 +242,7 @@ namespace KmcRemovalObserver
             Check(party.Length >= 1 && kmcUnits.Length == 0, "the-world-holds-a-party-and-no-KMC-blueprint-unit");
             Check(loadWindowExceptions == 0, "the-engine-raised-no-exception-while-loading-without-KMC");
             Check(kmcRelatedLog.Count == 0, "the-engine-logged-nothing-about-KMC-or-its-save-member");
+            if (chargeProbe != null) observations["chargeLoaded"] = chargeProbe.Capture();
             Write("loaded", new JObject { ["world"] = observations["world"].DeepClone(), ["loadWindowErrors"] = loadWindowErrors, ["loadWindowExceptions"] = loadWindowExceptions });
             if (errors.Count != 0) { Complete("FAIL"); return; }
             if (game.IsPaused) game.IsPaused = false;
@@ -246,6 +257,11 @@ namespace KmcRemovalObserver
 
         private void CompleteMovement(Game game, float moved)
         {
+            if (chargeProbe != null)
+            {
+                observations["chargeSettled"] = chargeProbe.Capture();
+                observations["chargeSettled"]["movementFirstPending"] = chargeMovementFirstPending;
+            }
             observations["movement"] = new JObject { ["mover"] = mover.UniqueId, ["displacement"] = moved,
                 ["origin"] = new JArray(origin.x, origin.y, origin.z), ["destination"] = new JArray(destination.x, destination.y, destination.z),
                 ["inCombat"] = game.Player.IsInCombat, ["mode"] = game.CurrentMode.ToString() };
@@ -270,6 +286,7 @@ namespace KmcRemovalObserver
             if (completed) return;
             completed = true;
             Application.logMessageReceived -= HandleLog;
+            chargeProbe?.Dispose();
             observations["log"] = new JObject { ["errors"] = logErrors, ["exceptions"] = logExceptions, ["loadWindowErrors"] = loadWindowErrors,
                 ["loadWindowExceptions"] = loadWindowExceptions, ["first"] = new JArray(firstLogErrors), ["kmcRelated"] = new JArray(kmcRelatedLog) };
             var passed = checks.Count(c => (bool)c["passed"]);

@@ -90,6 +90,12 @@
     <Compile Include="MountedChargePolicyTests.cs" />
     <Compile Include="MountedChargeApplicationTransactionTests.cs" />
     <Compile Include="MountedChargeCompensationTests.cs" />
+    <Compile Include="MountedChargeOwnershipTests.cs" />
+    <Compile Include="MountedChargeBoundaryTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeBoundaryQueue.cs" />
+    <Compile Include="MountedChargeFactOwnershipTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeFactOwnership.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeOwnership.cs" />
     <Compile Include="MountedChargeRevalidationTests.cs" />
     <Compile Include="MountedChargeTransactionSequenceTests.cs" />
     <Compile Include="MountedChargeCleanupLedgerTests.cs" />

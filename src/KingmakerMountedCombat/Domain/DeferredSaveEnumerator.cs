@@ -22,6 +22,7 @@ namespace KingmakerMountedCombat.Domain
         private readonly Action tickWait;
         private readonly Action endWait;
         private readonly double maximumWait;
+        private readonly Action terminal;
         private Action startSerialization;
         private double beganAt;
         private bool activated;
@@ -34,7 +35,7 @@ namespace KingmakerMountedCombat.Domain
         internal bool FailedAfterNativeCleanup { get; private set; }
 
         internal DeferredSaveEnumerator(IEnumerator<T> inner, Func<bool> ready, Func<double> elapsed,
-            Action beginWait, Action tickWait, Action endWait, double maximumWait)
+            Action beginWait, Action tickWait, Action endWait, double maximumWait, Action terminal = null)
         {
             this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
             this.ready = ready ?? throw new ArgumentNullException(nameof(ready));
@@ -45,6 +46,7 @@ namespace KingmakerMountedCombat.Domain
             if (double.IsNaN(maximumWait) || double.IsInfinity(maximumWait) || maximumWait <= 0)
                 throw new ArgumentOutOfRangeException(nameof(maximumWait));
             this.maximumWait = maximumWait;
+            this.terminal = terminal;
         }
 
         // Called when the native queue selects this exact enumerator, before it
@@ -135,6 +137,7 @@ namespace KingmakerMountedCombat.Domain
                 if (failure != null) throw new AggregateException(failure, exception);
                 throw;
             }
+            finally { terminal?.Invoke(); }
             if (failure != null) throw failure;
         }
 

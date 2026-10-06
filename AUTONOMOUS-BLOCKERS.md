@@ -1,3 +1,16 @@
+## 2026-10-05 - authorized 6B ownership repair: native qualification pending
+
+The owner's continuation mission supersedes the earlier stop-at-persistence
+instruction for this repair. Preview.177 source now retains exact charge ownership,
+drains postconditions and fences the active save path before enumeration/capture.
+Focused fault coverage and components662/0 pass; CANDIDATE4 passed28/0.
+The ready RT/lifecycle/persistence/removal fixtures and external readers are included.
+No new native charge or persistence run has occurred; the blocker is not claimed
+natively resolved. Package/suite/purity and the full ready6B batch are next.
+TB delivery remains DEFER - EVIDENCED with the exact refusal restored in source;
+native refusal qualification is pending. See docs/CHUNK6-CONTINUATION.md.
+All failed attempts remain immutable. No major phase is complete or stable.
+
 ## 2026-10-05 - preview.176 continuation audit
 
 **BLOCKED — CRITICAL for pending-charge persistence.** At frozen preview.176/source40c40e4,

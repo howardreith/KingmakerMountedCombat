@@ -1,3 +1,125 @@
+## 2026-10-05 - preview.177 source complete, CANDIDATE28/0
+
+Integration branch codex/mounted-combat-phase3f-playable-core; precommit HEAD
+56d4f1110191a555cb4c592e6cc620117d89afe3, tree
+dd2ab3d367959abd6f1d4052056300619635bca6, fetched upstream equal. All staged changes
+belong to the sole executor's coherent6B-R/6B-C tranche. Frozen176 is preserved.
+Preview.177/observer.2 are not yet packaged; no new native run or transaction exists.
+
+Durable charge ownership, exact postconditions, active serialization fence and
+shared lifecycle barriers are source-complete. RT26 rows, TB exact refusal,
+five source/cold persistence cases, four lifecycle cases and no-DLL removal are
+ready for native qualification. Native view replacement and separate voluntary
+Dismount cost evidence are included. No TB delivery experiment is being repeated.
+
+Components8 662/0; ownership15 58/0; charge reader11 350/0; charge persistence6
+117/0; persistence4 187/0; fixtures3 630/0; causal1 241/0; source10 143/0.
+CANDIDATE4 actual exit0,28/0,10.4min including current FAST/focused, harness270/0,
+assembly contracts and immutable historical replay. CANDIDATE1/2 source/harness
+assertion failures and CANDIDATE3 duplicate-Path process-environment failure remain
+retained; the latter was corrected only in the temporary launcher after exact
+value comparison. Logs: analysis-cache/chunk6-continuation/20261005-6br/.
+
+Next: coherent commit and repository-owned guarded push, fetch/remote equality,
+then scripts/Package.ps1 -ArtifactQualifier chunk6b-charge-v and matching observer,
+new suite, required purity, entire ready native batch. Exact freeze identities
+will be recorded lab-locally without a documentation-only commit during the run.
+Native Charge buff inventory and every new boundary still require actual proof.
+No phase is stable; continue6B then6C-6F. No merge/PR/tag/release/permanent install,
+protected-save write, foreign-mod change or HUMAN PLAY authority occurred.
+
+## 2026-10-05 - resumed 6B source checkpoint after interruption
+
+HEAD 56d4f1110191a555cb4c592e6cc620117d89afe3, tree
+ dd2ab3d367959abd6f1d4052056300619635bca6, branch
+codex/mounted-combat-phase3f-playable-core. All working changes are the sole
+executor's retained 6B-R/6B-C tranche; preview.177 and observer.2 are not frozen.
+No new package, suite, purity, native run or runtime transaction. Frozen176 and
+human105 remain unchanged. No Kingmaker/dotnet/MSBuild process after interruption.
+
+Build23 PASS; components8 662/0; ownership adapters15 58/0; charge reader9 337/0.
+Persistence reader6 117/0, persistence contracts4 187/0, fixtures3 630/0,
+assembly3 631/0 and source8 143/0 precede the last death/cleanup reader changes.
+FAST2 completed 15/0 before those changes; CANDIDATE has not run. All attempts
+remain immutable in analysis-cache/chunk6-continuation/20261005-6br, including
+adapter14's missing-settings test-fixture failure, repaired and rerun as15.
+
+Native death rows now retain their allocation/life witness and validate final
+selection restoration externally. The true unexpected view-loss fixture is
+under bounded read-only review by view_loss_review; native polymorph replacement
+is a possible exact seam, not yet accepted or implemented. Root alone mutates.
+Next safe command: Get-Content docs/CHUNK6-CONTINUATION.md
+Finish that coverage decision, rerun focused checks, stage owned files, then
+CANDIDATE before commit/guarded publication and one coherent candidate campaign.
+No major phase is complete; continue 6B then 6C-6F. No merge, PR, release, permanent
+install, protected-save write, foreign-mod mutation or HUMAN PLAY acceptance.
+## 2026-10-05 - active Chunk 6 continuation checkpoint (6B-R / 6B-C source WIP)
+
+Sole mutating executor owns all current uncommitted source, harness, test and
+current-document changes. Integration branch HEAD is still
+56d4f1110191a555cb4c592e6cc620117d89afe3, tree
+dd2ab3d367959abd6f1d4052056300619635bca6. No new candidate, package, suite, purity,
+game launch or runtime transaction. Human105 and frozen176 remain untouched.
+
+Durable owner, exact postconditions, acquisition/callback debt, pre-enumeration
+save barrier, lifecycle barriers and native mode/combat/removal notification
+retry are implemented in working source. TB exact refusal restored; no further
+TB delivery hypothesis. Five P04 source/cold cases, four P07 lifecycle cases,
+charge-specific no-DLL removal observer, and expanded RT edge rows are source WIP.
+Actual mount death/native recovery and permanent rider death rows are being added.
+All are UNQUALIFIED until their frozen candidate native batch completes.
+
+Latest completed checks: build20 PASS; component6 659/0 (two newer boundary tests
+not run yet); charge-persistence4 99/0; persistence-fixtures3 630/0. Earlier owner12
+44/0, source6 143/0, persistence3 187/0, charge-reader7 316/0, assembly1 625/0,
+FAST1 10/0 predate later edits and must rerun. CANDIDATE not run. Preserve every
+attempt in analysis-cache/chunk6-continuation/20261005-6br, including failures.
+Read-only reviewers cleanup_review and persistence_review inspect current diff;
+root alone edits/builds/owns runtime. No runtime process or transaction active.
+
+Next command: Get-Content src/KingmakerMountedCombat/Diagnostics/Chunk6bChargeDeathScenario.cs
+Finish death evidence/reader fault tests, new pinned assembly hooks and registration
+checks; complete focused/component/source/FAST/CANDIDATE before one coherent freeze.
+Continue 6B then 6C-6F under the newest owner mission; no major phase complete yet.
+No merge, release, permanent installation or protected-save write occurred.
+## 2026-10-05 - current source checkpoint: 6B-R / 6B-C IN PROGRESS
+
+HEAD remains 56d4f1110191a555cb4c592e6cc620117d89afe3; tree
+dd2ab3d367959abd6f1d4052056300619635bca6 on the integration branch. All current
+uncommitted changes belong to this sole executor. No new package, suite, purity,
+game launch or runtime transaction exists. Frozen176 and human105 remain intact.
+Latest completed offline checks: build13 PASS, components4 650/0, source4 143/0,
+charge-owner9 36/0, persistence3 187/0, charge-reader3 316/0,
+charge-persistence1 53/0. These precede further edits and are not qualification.
+All failed logs remain under analysis-cache/chunk6-continuation/20261005-6br.
+FAST/CANDIDATE not yet run. Five P04 charge cases and six additional RT rows are
+source WIP, not native PASS. TB disposition remains exact cost-free refusal.
+
+Immediate safety review found native buff acquisition/removal callback ambiguity:
+retain exact acquisition identity and unconfirmed callback debt; collection absence
+alone must not release ownership. Also strengthen cold archive/snapshot identity,
+distinct actor/process/cost checks, and new fixture geometry/input identity. No
+pending-save experiment before all mandatory offline gates. Next command:
+`Get-Content src/KingmakerMountedCombat/Integration/MountedChargeLease.cs`
+Continue this coherent source tranche, then candidate gates and guarded publication.
+
+## 2026-10-05 - autonomous Chunk 6 continuation: phase 6B-R IN PROGRESS
+
+The owner's new mission authorizes resolving the persistence blocker and continuing
+through 6B-6F; the earlier persistence stop and 6B-only scope below are historical.
+Current concise record: [docs/CHUNK6-CONTINUATION.md](docs/CHUNK6-CONTINUATION.md).
+Intake HEAD 56d4f1110191a555cb4c592e6cc620117d89afe3, tree
+dd2ab3d367959abd6f1d4052056300619635bca6, integration branch, fetched remote equal.
+Working changes implement retained charge ownership and pre-enumeration save fencing;
+no new product candidate, package, suite, purity or game run exists. Frozen176 stays
+5 PASS / 1 FAIL; historical evidence and human105/protected saves are unchanged.
+TB implementation disposition: DEFER - EVIDENCED; exact refusal restored in working
+source, native requalification TODO. All six development phases remain incomplete.
+Next command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Test-PersistenceContracts.ps1
+Complete focused adapter/fence fault coverage and ready6B fixture tranche before
+CANDIDATE/freeze. Latest work logs: lab analysis-cache/chunk6-continuation/20261005-6br/.
+One mutating executor, read-only reviewers. No merge/PR/tag/release/permanent install,
+protected-save write, foreign-mod mutation or HUMAN PLAY acceptance is authorized.
 ## 2026-10-05 - preview.176 continuation audit
 
 **IN PROGRESS; pending-charge persistence BLOCKED — CRITICAL at the owner's explicit stop boundary.**

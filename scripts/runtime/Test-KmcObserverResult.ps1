@@ -49,7 +49,7 @@ Assert-NoDuplicateJsonObjectProperties $ObserverResultPath 'observer result'
 $result = Read-KmcJson $ObserverResultPath
 $request = Read-KmcJson $RequestPath
 $observerRequest = Read-KmcJson $ObserverRequestPath
-if ([string]$request.scenario -cne 'persistence-p07-load' -or [string]$request.persistenceCase -cne 'removal-no-dll') { throw 'The observer result belongs only to the no-DLL removal case.' }
+if ([string]$request.scenario -cne 'persistence-p07-load' -or [string]$request.persistenceCase -cnotin @('removal-no-dll','mounted-charge-removal-no-dll')) { throw 'The observer result belongs only to the no-DLL removal case.' }
 Assert-KmcExactProperties $result @('schemaVersion','evidenceKind','runId','transactionToken','processId','startedAtUtc','completedAtUtc','status',
     'observerVersion','observerAssembly','requestSha256','stage','checks','checkPassCount','checkFailCount','errors','observations') 'observer result'
 $started = [DateTimeOffset]::MinValue; $completed = [DateTimeOffset]::MinValue
@@ -86,7 +86,16 @@ else {
     if ($names.Count -ne $required.Count) { throw 'Observer PASS carries checks outside its declared set.' }
     $checks++
     $o = $result.observations
-    Assert-KmcExactProperties $o @('routing','absence','descriptor','world','movement','archive','log') 'observer observations'
+    $chargeAbsent=$request.persistenceCase-ceq'mounted-charge-removal-no-dll'
+    $observationFields=@('routing','absence','descriptor','world','movement','archive','log')
+    if($chargeAbsent){$observationFields+=@('chargeLoaded','chargeSettled')}
+    Assert-KmcExactProperties $o $observationFields 'observer observations'
+    if($chargeAbsent){
+        Assert-KmcChargeAbsentFacts $observerRequest $o
+        $proof=Get-KmcChargeRemovalSourceProof $observerRequest.chargeSource.runId $request.persistenceLoad.sha256 $request.commit $request.dllSha256
+        if((ConvertTo-KmcChargeCanonical ([pscustomobject]$proof))-cne(ConvertTo-KmcChargeCanonical $observerRequest.chargeSource)){throw 'No-DLL charge proof differs from its exact immutable source.'}
+        $checks++
+    }
     $a = $o.absence
     if ($a.kmcAssemblyLoaded -ne $false -or $a.kmcModsDirectoryPresent -ne $false -or @($a.kmcModsDirectories).Count -ne 0 -or @($a.kmcDllFiles).Count -ne 0 -or
         @($a.kmcAssemblies).Count -ne 0 -or @($a.kmcModEntries).Count -ne 0 -or $a.observerModEntryPresent -ne $true -or @($a.kmcHarmonyOwners).Count -ne 0 -or

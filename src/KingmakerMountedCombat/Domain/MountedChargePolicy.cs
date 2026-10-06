@@ -166,41 +166,10 @@ namespace KingmakerMountedCombat.Domain
 
             if (request.TurnBased)
             {
-                // Increment 6B.3 is no longer a blanket refusal. The four rules below are the ones
-                // preview.167 wrote out in the comment that replaced them, restored unchanged, and the
-                // delegation seam they depend on is opened for exactly this transaction and only while
-                // the rider own turn has not moved. Nothing is written, cleared, refunded or
-                // synthesised; a turn-based charge that cannot satisfy these is refused with its own
-                // exact reason and costs the player nothing.
-                if (!request.RiderTurn)
-                {
-                    return Refuse("Mounted Charge belongs to the rider's own turn.",
-                        MountedCombatRejectionCode.WrongTurn);
-                }
-
-                if (!request.TurnActingOrPreparing)
-                {
-                    return Refuse("Mounted Charge requires the rider's own acting or preparing turn.",
-                        MountedCombatRejectionCode.WrongTurn);
-                }
-
-                // The charge carries the pair across the field, so the turn must still have its
-                // movement: a turn that has already moved cannot buy the approach.
-                if (request.TurnTimeMoved > 0.0001f)
-                {
-                    return Refuse("Mounted Charge requires a turn that has not moved yet.",
-                        MountedCombatRejectionCode.WrongTurn);
-                }
-
-                // As with the standard action, the mod own full-round shell has already paid the move
-                // action by the time it asks this policy to deliver, so delivery must not re-demand it.
-                if (!request.DeliveringOwnShell && request.RiderMoveCooldown > 0.001f)
-                {
-                    return Refuse("Mounted Charge requires the rider's move action.",
-                        MountedCombatRejectionCode.WrongActionState);
-                }
+                // The final bounded preview.176 experiment spent a round but delivered no
+                // attack. Cleanup ownership does not change that movement failure mechanism.
+                return Refuse("Mounted Charge is not yet supported in turn-based mode.", MountedCombatRejectionCode.WrongTurn);
             }
-
             if (request.Distance < request.MinimumRange)
             {
                 return Refuse("The charge target is nearer than the minimum charge distance of " + Metres(request.MinimumRange) + ".", MountedCombatRejectionCode.OutsideSupportedRange);

@@ -1,12 +1,18 @@
 using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using Kingmaker;
 using Kingmaker.Blueprints.Root;
+using Kingmaker.Blueprints;
+using Kingmaker.EntitySystem.Stats;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Buffs;
+using Kingmaker.UnitLogic;
+using Kingmaker.UnitLogic.Mechanics;
+using Kingmaker.UnitLogic.FactLogic;
 using Kingmaker.Utility;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
@@ -33,6 +39,7 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedChargeLease
     {
         private static readonly FieldInfo ForceModeField = ResolveForceModeField();
+        private static readonly FieldInfo ChargingCounterField = ResolveChargingCounterField();
         private const float ForcedApproachRadius = 1000000f;
 
         private readonly UnitEntityData rider;
@@ -42,16 +49,28 @@ namespace KingmakerMountedCombat.Integration
         private readonly List<string> observations = new List<string>();
 
         private bool chargingBefore;
+        private int chargingCounterBefore;
         private float? speedOverrideBefore;
         private bool riderChargingBefore;
 
         // Per-mutation ownership. Restore acts on these, never on Applied: a lease whose application
         // failed part way owns exactly the mutations that completed, and must return exactly those.
         private bool chargingOwned;
+        private bool chargingReleaseObserved;
         private bool speedOverrideOwned;
         private bool riderChargingOwned;
         private bool forcedPathOwned;
-        private Buff appliedBuff;
+        private readonly MountedChargeFactOwnership<Buff> buffOwnership = new MountedChargeFactOwnership<Buff>();
+        private BuffCollection appliedBuffCollection;
+        private MechanicsContext buffAcquisitionContext;
+        private ModifiableValue[] buffStats = new ModifiableValue[0];
+        private readonly List<ModifiableValue.Modifier> buffModifiers = new List<ModifiableValue.Modifier>();
+        private readonly List<GameLogicComponent> buffComponents = new List<GameLogicComponent>();
+        private string[] buffComponentTypes = new string[0];
+        [ThreadStatic] private static MountedChargeLease acquiringBuffLease;
+        private UnitMovementAgent appliedMountAgent;
+        private UnitEntityView appliedMountView;
+        private UnitState appliedRiderState;
         private MountedChargeApplicationTransaction application;
         private MountedChargeCleanupLedger cleanup;
 
@@ -78,6 +97,14 @@ namespace KingmakerMountedCombat.Integration
             return field;
         }
 
+        private static FieldInfo ResolveChargingCounterField()
+        {
+            var field = typeof(UnitMovementAgent).GetField("m_ChargingCounter", BindingFlags.Instance | BindingFlags.NonPublic);
+            if (field == null || field.MetadataToken != 0x040011B2 || field.FieldType != typeof(int))
+                throw new MissingFieldException(typeof(UnitMovementAgent).FullName, "m_ChargingCounter");
+            return field;
+        }
+
         internal bool Applied { get; private set; }
 
         // True when an application attempt failed and every completed mutation was undone. The carrier the
@@ -85,18 +112,18 @@ namespace KingmakerMountedCombat.Integration
         // nothing any more.
         // Strict: no ownership left, no failures in the last attempt, postconditions observed. Never
         // merely "the undo loop ran".
-        internal bool ApplyRolledBack => cleanup != null && cleanup.Complete;
+        internal bool ApplyRolledBack => RollbackComplete;
 
         internal bool RollbackAttempted => cleanup != null && cleanup.Attempted;
 
-        internal bool RollbackComplete => cleanup != null && cleanup.Complete;
+        internal bool RollbackComplete => cleanup != null && cleanup.Complete && FinalCleanupPostconditions();
 
         internal int CleanupAttemptCount => cleanup == null ? 0 : cleanup.AttemptCount;
 
         // The cleanup debt: mutations still owned because their native undo has not yet succeeded.
-        internal string UnresolvedCleanup => cleanup == null
-            ? string.Empty
-            : string.Join("|", new List<string>(cleanup.Unresolved).ToArray());
+        internal string UnresolvedCleanup => cleanup == null ? string.Empty :
+            string.Join("|", new List<string>(cleanup.Unresolved).ToArray()) +
+            (FinalCleanupPostconditions() ? string.Empty : "|native-postconditions");
 
         internal string CleanupFailures => cleanup == null
             ? string.Empty
@@ -106,7 +133,7 @@ namespace KingmakerMountedCombat.Integration
 
         // True while any mutation is still owned. The command and the controller treat this as debt.
         internal bool HasCleanupDebt => chargingOwned || speedOverrideOwned || riderChargingOwned ||
-            forcedPathOwned || appliedBuff != null;
+            forcedPathOwned || buffOwnership.Outstanding || cleanup != null && !FinalCleanupPostconditions();
 
         internal string ApplyFailureReason { get; private set; }
 
@@ -131,7 +158,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool BuffApplied { get; private set; }
 
         // Whether the buff is still owned by this lease right now.
-        internal bool BuffOutstanding => appliedBuff != null;
+        internal bool BuffOutstanding => buffOwnership.Outstanding;
 
         internal bool RiderAgentTouched { get; private set; }
 
@@ -153,7 +180,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool RiderChargingRestoredExactly { get; private set; }
 
-        private UnitMovementAgent MountAgent => mount.View == null ? null : mount.View.AgentASP;
+        private UnitMovementAgent MountAgent => appliedMountAgent;
 
         internal bool ForceMode
         {
@@ -173,11 +200,14 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("The mounted charge lease was applied twice.");
             }
 
-            var agent = MountAgent;
+            var agent = mount.View == null ? null : mount.View.AgentASP;
             if (agent == null || rider.View == null || rider.Descriptor == null)
             {
                 throw new InvalidOperationException("The mounted charge lease requires the exact live pair views.");
             }
+            appliedMountAgent = agent;
+            appliedMountView = mount.View;
+            appliedRiderState = rider.Descriptor.State;
 
             var riderAgent = rider.View.AgentASP;
             var riderChargingAgentBefore = riderAgent != null && riderAgent.IsCharging;
@@ -185,6 +215,7 @@ namespace KingmakerMountedCombat.Integration
             var riderAgentEnabledBefore = riderAgent != null && riderAgent.enabled;
 
             chargingBefore = agent.IsCharging;
+            chargingCounterBefore = (int)ChargingCounterField.GetValue(agent);
             speedOverrideBefore = agent.MaxSpeedOverride;
             riderChargingBefore = rider.Descriptor.State.IsCharging;
             SpeedOverrideApplied = Math.Max(speedOverrideBefore ?? 0f, mount.CombatSpeedMps * 2f);
@@ -192,8 +223,8 @@ namespace KingmakerMountedCombat.Integration
             // The five mutations, in order, each with the exact undo of its own field. The rider's charge
             // buff is first because it is the one mandatory step whose failure costs nothing to undo, and
             // the forced path is last because nothing may be in motion until everything else is in place.
-            // The buff's native duration is never shortened: only a failed application removes the fact
-            // this call added, because then no charge occurred at all.
+            // The exact installed buff is owned through every cleanup boundary, including successful
+            // terminal delivery. Pre-existing buffs and ambiguous callback failures cannot be adopted.
             application = new MountedChargeApplicationTransaction(new[]
             {
                 new MountedChargeApplicationStep("charge-buff", ApplyChargeBuff, () => RequireUndo("charge-buff", TryUndoChargeBuff)),
@@ -281,58 +312,95 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("The stock charge buff blueprint is unavailable.");
             }
 
-            appliedBuff = rider.Buffs.AddBuff(chargeBuff, rider, 1.Rounds().Seconds);
-            BuffApplied = appliedBuff != null;
-            if (!BuffApplied)
+            appliedBuffCollection = rider.Buffs;
+            if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff))
+                throw new InvalidOperationException("An existing Charge buff cannot be adopted by this transaction.");
+            buffComponentTypes = chargeBuff.ComponentsArray.Select(component => component == null ? "<null>" : component.GetType().FullName).ToArray();
+            if (chargeBuff.ComponentsArray.Length == 0 ||
+                chargeBuff.ComponentsArray.Any(component => component == null || component.GetType() != typeof(AddStatBonus)))
+                throw new InvalidOperationException("Charge buff cleanup requires the pinned native AddStatBonus-only surface: " + string.Join("|", buffComponentTypes));
+            buffStats = rider.Descriptor.Stats.GetList().ToArray();
+            buffAcquisitionContext = new MechanicsContext(rider, rider.Descriptor, chargeBuff);
+            var previous = acquiringBuffLease;
+            acquiringBuffLease = this;
+            try
             {
-                // No charge transaction continues when the native charge buff cannot be installed.
-                throw new InvalidOperationException("The stock charge buff could not be installed on the rider.");
+                buffOwnership.Acquire(() => appliedBuffCollection.AddBuff(chargeBuff, buffAcquisitionContext, 1.Rounds().Seconds));
+                BuffApplied = true;
             }
+            finally { acquiringBuffLease = previous; CaptureBuffResidue(); }
         }
 
-        // The buff reference is retained until Remove has succeeded AND the fact is observably gone from
-        // the rider. Clearing it first would lose the only handle to a live fact.
+        // The CreateFact postfix runs before AddFact inserts/activates the fact. Match the unique
+        // parent context as well as the original collection; reentrant unrelated facts are ignored.
+        internal static void ObserveChargeBuffCreated(BuffCollection collection, Buff buff)
+        {
+            var lease = acquiringBuffLease;
+            if (lease != null && ReferenceEquals(collection, lease.appliedBuffCollection) && buff != null &&
+                ReferenceEquals(buff.Context?.ParentContext, lease.buffAcquisitionContext))
+                lease.buffOwnership.CaptureCreated(buff);
+        }
+
+        // Native RemoveFact unlinks before callbacks; Dispose catches some failures. Inspect retained
+        // native residue and keep explicit callback exceptions as debt even after collection absence.
         private bool TryUndoChargeBuff()
         {
-            if (appliedBuff == null)
-            {
-                return true;
-            }
+            if (!buffOwnership.Outstanding) return true;
+            MountedChargeAdmissionFault.FireCleanup("charge-buff");
+            CaptureBuffResidue();
+            return buffOwnership.TryRemove(buff => buff.Remove(), BuffCleanupPostcondition);
+        }
 
-            var buff = appliedBuff;
-            buff.Remove();
-            var stillPresent = rider.Descriptor != null && rider.Descriptor.Buffs != null &&
-                rider.Descriptor.Buffs.Enumerable != null &&
-                rider.Descriptor.Buffs.Enumerable.Any(fact => ReferenceEquals(fact, buff));
-            if (stillPresent)
-            {
-                return false;
-            }
+        private void CaptureBuffResidue()
+        {
+            var buff = buffOwnership.Fact;
+            if (buff == null) return;
+            foreach (var modifier in buffStats.SelectMany(stat => stat.Modifiers).Where(item => ReferenceEquals(item.Source, buff)))
+                if (!buffModifiers.Contains(modifier)) buffModifiers.Add(modifier);
+            var components = typeof(Buff).Module.ResolveField(0x0400695A).GetValue(buff) as IEnumerable;
+            if (components != null)
+                foreach (GameLogicComponent component in components)
+                    if (!buffComponents.Any(item => ReferenceEquals(item, component))) buffComponents.Add(component);
+        }
 
-            // The reference goes; BuffApplied stays, because the buff really was applied.
-            appliedBuff = null;
-            return true;
+        private bool BuffCleanupPostcondition(Buff buff) => appliedBuffCollection != null &&
+            !appliedBuffCollection.Enumerable.Any(fact => ReferenceEquals(fact, buff)) &&
+            !buff.Active && buff.IsDisposed && NativeFactListEmpty(buff, 0x04001B6D) &&
+            NativeFactListEmpty(buff, 0x04001B6E) && NativeFactListEmpty(buff, 0x0400695A) &&
+            typeof(Buff).Module.ResolveField(0x0400695B).GetValue(buff) == null &&
+            buffComponents.All(component => !ReferenceEquals(component, null) && !component.IsListeningEvents) &&
+            buffStats.All(stat => !stat.Modifiers.Any(modifier => ReferenceEquals(modifier.Source, buff))) &&
+            buffModifiers.All(modifier => ReferenceEquals(modifier.AppliedTo, null) &&
+                buffStats.All(stat => !stat.Modifiers.Any(item => ReferenceEquals(item, modifier))));
+
+        private static bool NativeFactListEmpty(Buff buff, int token)
+        {
+            var field = typeof(Buff).Module.ResolveField(token);
+            var items = field.GetValue(buff) as IEnumerable;
+            return items == null || !items.Cast<object>().Any();
         }
 
         private void ApplyMountCharging()
         {
             var agent = RequireMountAgent();
-            agent.IsCharging = true;
             chargingOwned = true;
+            agent.IsCharging = true;
         }
 
         // Ownership is retained when the agent is unavailable: the flag may still be live on an agent
         // that comes back, and reporting it restored would be a guess.
         private bool TryUndoMountCharging()
         {
+            MountedChargeAdmissionFault.FireCleanup("mount-charging");
             var agent = MountAgent;
             if (agent == null)
             {
                 return false;
             }
 
-            agent.IsCharging = chargingBefore;
-            if (agent.IsCharging != chargingBefore)
+            // IsCharging is a native reference counter, not a Boolean assignment. Observe
+            // first: a setter that decremented then threw must never be decremented twice.
+            if (!TryRestoreChargingCounter(agent, chargingCounterBefore, ref chargingReleaseObserved))
             {
                 return false;
             }
@@ -341,15 +409,30 @@ namespace KingmakerMountedCombat.Integration
             return true;
         }
 
+        private static bool TryRestoreChargingCounter(UnitMovementAgent agent, int before, ref bool released)
+        {
+            var counter = (int)ChargingCounterField.GetValue(agent);
+            if (!released)
+            {
+                // An external owner's decrement is not proof that KMC released its increment.
+                // An ambiguous count retains debt without overwriting native state.
+                if (counter != before + 1) return false;
+                try { agent.IsCharging = false; }
+                finally { released = (int)ChargingCounterField.GetValue(agent) == before; }
+            }
+            return released && (int)ChargingCounterField.GetValue(agent) == before && agent.IsCharging == (before > 0);
+        }
+
         private void ApplyMountSpeedOverride()
         {
             var agent = RequireMountAgent();
-            agent.MaxSpeedOverride = SpeedOverrideApplied;
             speedOverrideOwned = true;
+            agent.MaxSpeedOverride = SpeedOverrideApplied;
         }
 
         private bool TryUndoMountSpeedOverride()
         {
+            MountedChargeAdmissionFault.FireCleanup("mount-speed-override");
             var agent = MountAgent;
             if (agent == null)
             {
@@ -373,19 +456,20 @@ namespace KingmakerMountedCombat.Integration
                 throw new InvalidOperationException("The mounted charge lease lost the rider descriptor.");
             }
 
-            rider.Descriptor.State.IsCharging = true;
             riderChargingOwned = true;
+            appliedRiderState.IsCharging = true;
         }
 
         private bool TryUndoRiderChargingState()
         {
-            if (rider.Descriptor == null)
+            MountedChargeAdmissionFault.FireCleanup("rider-charging-state");
+            if (appliedRiderState == null)
             {
                 return false;
             }
 
-            rider.Descriptor.State.IsCharging = riderChargingBefore;
-            if (rider.Descriptor.State.IsCharging != riderChargingBefore)
+            appliedRiderState.IsCharging = riderChargingBefore;
+            if (appliedRiderState.IsCharging != riderChargingBefore)
             {
                 return false;
             }
@@ -396,8 +480,9 @@ namespace KingmakerMountedCombat.Integration
 
         private void ApplyForcedPath()
         {
-            ForcePathToTarget("initial");
             forcedPathOwned = true;
+            ForcePathToTarget("initial");
+            MountedChargeAdmissionFault.FireAfterLeaseAcquired();
         }
 
         // A forced path lives only while the mover holds a live command (preview.156/157), and the caller
@@ -407,13 +492,15 @@ namespace KingmakerMountedCombat.Integration
         // native and is recorded rather than faked, exactly as Restore has always recorded it.
         private bool TryUndoForcedPath()
         {
+            MountedChargeAdmissionFault.FireCleanup("forced-path");
             ForcedPathAppliedBeforeFailure = true;
-            if (mount.View == null)
+            if (appliedMountView == null || appliedMountAgent == null)
             {
                 return false;
             }
 
-            mount.View.StopMoving();
+            appliedMountAgent.Stop();
+            if (appliedMountAgent.Path != null || appliedMountAgent.IsReallyMoving) return false;
             forcedPathOwned = false;
             return true;
         }
@@ -436,7 +523,7 @@ namespace KingmakerMountedCombat.Integration
                 new MountedChargeCleanupStep("rider-charging-state", () => riderChargingOwned, TryUndoRiderChargingState),
                 new MountedChargeCleanupStep("mount-speed-override", () => speedOverrideOwned, TryUndoMountSpeedOverride),
                 new MountedChargeCleanupStep("mount-charging", () => chargingOwned, TryUndoMountCharging),
-                new MountedChargeCleanupStep("charge-buff", () => appliedBuff != null, TryUndoChargeBuff)
+                new MountedChargeCleanupStep("charge-buff", () => buffOwnership.Outstanding, TryUndoChargeBuff)
             }));
         }
 
@@ -453,31 +540,35 @@ namespace KingmakerMountedCombat.Integration
             logger.Info("Mounted charge lease cleanup: mountId=" + mount.UniqueId + "; " + ledger.Describe() +
                 "; charging=" + ChargingRestoredExactly + "; speedOverride=" + SpeedOverrideRestoredExactly +
                 "; riderCharging=" + RiderChargingRestoredExactly + "; forceModeLatched=" + ForceMode + ".");
-            return ledger.Complete;
+            return ledger.Complete && FinalCleanupPostconditions();
         }
+
+        private bool FinalCleanupPostconditions() => ChargingPostcondition() && SpeedOverridePostcondition() &&
+            RiderChargingPostcondition() && !forcedPathOwned && !buffOwnership.Outstanding;
 
         private bool ChargingPostcondition()
         {
             var agent = MountAgent;
-            return !chargingOwned && (agent == null || agent.IsCharging == chargingBefore);
+            return !chargingOwned && (ReferenceEquals(agent, null) || agent.IsCharging == chargingBefore &&
+                (int)ChargingCounterField.GetValue(agent) == chargingCounterBefore);
         }
 
         private bool SpeedOverridePostcondition()
         {
             var agent = MountAgent;
-            return !speedOverrideOwned && (agent == null || agent.MaxSpeedOverride == speedOverrideBefore);
+            return !speedOverrideOwned && (ReferenceEquals(agent, null) || agent.MaxSpeedOverride == speedOverrideBefore);
         }
 
         private bool RiderChargingPostcondition()
         {
             return !riderChargingOwned &&
-                (rider.Descriptor == null || rider.Descriptor.State.IsCharging == riderChargingBefore);
+                (appliedRiderState == null || appliedRiderState.IsCharging == riderChargingBefore);
         }
 
         private UnitMovementAgent RequireMountAgent()
         {
             var agent = MountAgent;
-            if (agent == null)
+            if (agent == null || mount.View != appliedMountView || mount.View.AgentASP != agent)
             {
                 throw new InvalidOperationException("The mounted charge lease lost the mount movement agent.");
             }
@@ -561,7 +652,12 @@ namespace KingmakerMountedCombat.Integration
                 ["forcedPathOutstanding"] = ForcedPathOutstanding,
                 ["buffApplied"] = BuffApplied,
                 ["buffOutstanding"] = BuffOutstanding,
+                ["buffAcquisitionObserved"] = buffOwnership.Fact != null,
+                ["buffCallbackDebt"] = buffOwnership.Fault,
+                ["buffComponentTypes"] = new JArray(buffComponentTypes),
                 ["chargingBefore"] = chargingBefore,
+                ["chargingCounterBefore"] = chargingCounterBefore,
+                ["chargingCounterAfter"] = appliedMountAgent == null ? (int?)null : (int)ChargingCounterField.GetValue(appliedMountAgent),
                 ["speedOverrideBefore"] = speedOverrideBefore,
                 ["speedOverrideApplied"] = SpeedOverrideApplied,
                 ["mountCombatSpeedMps"] = mount.CombatSpeedMps,

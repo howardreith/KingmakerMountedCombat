@@ -137,6 +137,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // Cross-area cases declare their destination up front so the isolated
         // save authority can pin post-transition writes to that exact area.
+        internal static bool IsChargeLifecycleCase(string persistenceCase) => Array.IndexOf(new[] {
+            "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal" }, persistenceCase) >= 0;
+
         internal static bool IsCrossAreaCase(string persistenceCase) =>
             persistenceCase == "area-cross-entry" || persistenceCase == "area-cross-exit";
 
@@ -324,19 +327,19 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "absent-kmc", "removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
+            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
-                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting", "combat-mount-rt", "combat-dismount-rt" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
+                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting", "combat-mount-rt", "combat-dismount-rt", "mounted-charge-pending", "mounted-charge-settled", "mounted-charge-cancelled", "mounted-charge-failed", "mounted-charge-drained" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
                 Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end", "combat-mount-tb" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");
             // Removal preparation and disable-during-load write and probe a live
             // world; the integration-absent case only ever opens a cleanup archive.
-            if (Scenario == "persistence-p07-load" && (PersistenceCase == "prepare-removal" || PersistenceCase == "disable-during-load"))
+            if (Scenario == "persistence-p07-load" && (PersistenceCase == "prepare-removal" || PersistenceCase == "disable-during-load" || IsChargeLifecycleCase(PersistenceCase)))
                 errors.Add("A removal or disable-during-load case is save-only.");
-            if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll"))
+            if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll")))
                 errors.Add("The integration-absent and no-DLL cases are cold-load only.");
             if (Scenario == "persistence-p07-load" || Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load" || p06)
             {
@@ -347,7 +350,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         IsTransitionAutoCase(PersistenceCase);
                     // The integration-absent cold load opens the cleanup archive a
                     // prepare-removal run wrote, under that archive's own name.
-                    var cleanup = Scenario == "persistence-p07-load" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll");
+                    var cleanup = Scenario == "persistence-p07-load" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll"));
                     // A death cold load opens the no-pair archive a death run wrote.
                     var death = Scenario == "persistence-p07-load" && IsDeathCase(PersistenceCase);
                     // An eligibility cold load opens the no-pair archive a size-change run wrote.

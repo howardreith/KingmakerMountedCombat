@@ -6123,6 +6123,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            if (IsChunk6bCharge)
+            {
+                MountedChargeAdmissionFault.AfterQueue = null;
+                MountedChargeAdmissionFault.BeforeCleanupStep = null;
+                try { RestoreChunk6bChargeSetting(); }
+                catch (Exception exception) { AddCleanupError("Chunk 6B owned setting/condition/mode", exception); }
+            }
             try { CleanupChunk6aPreCombatPositioning(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A pre-combat ground fixture", exception); }
             try { CleanupChunk6aNativePointer(); }
@@ -6323,7 +6330,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["relationship"] = relationship.State.ToString(),
                     ["mountCommandsEmpty"] = horse.Commands.Empty, ["riderCommandsEmpty"] = rider.Commands.Empty,
                     ["mountControllable"] = horse.IsDirectlyControllable, ["riderControllable"] = rider.IsDirectlyControllable };
-                if ((IsPairedAllocation || IsChunk4NativeLife || IsChunk4Obstruction || IsChunk6aCombatMount) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
+                if ((IsPairedAllocation || IsChunk4NativeLife || IsChunk4Obstruction || IsChunk6aCombatMount || IsChunk6bCharge) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     cleanupError = true;
                     if (IsChunk4NativeLife)

@@ -17,6 +17,15 @@ namespace KingmakerMountedCombat.Integration
         internal int AreaResumeCount { get; private set; }
         internal int RefusedAreaTransferCount { get; private set; }
 
+        internal bool AdmitChargeAreaTransition()
+        {
+            if (!HasActiveSaveScope && !combat.ChargeAdmissionFenced &&
+                combat.TryDrainChargeOwnership("area transition admission")) return true;
+            RefusedAreaTransferCount++;
+            Report("Area change refused: mounted charge cleanup is still pending.");
+            return false;
+        }
+
         internal void BeginAreaTransition(BlueprintArea area, SaveInfo saveInfo)
         {
             var world = Game.Instance?.Player;
@@ -62,6 +71,8 @@ namespace KingmakerMountedCombat.Integration
             if (transfer.Suspended) return true;
             try
             {
+                if (!combat.TryDrainChargeOwnership("area suspension"))
+                    throw new InvalidOperationException("Area suspension retained charge cleanup ownership.");
                 // No End, preparation or resource writes: native area departure
                 // owns encounter shutdown; this only releases process-local leases.
                 unifiedTurn.DiscardPersistenceWorld();

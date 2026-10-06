@@ -72,7 +72,7 @@ namespace KingmakerMountedCombat.Integration
         private bool DeliveringOwnChargeShell(AbilityExecutionContext context, UnitEntityData caster)
         {
             var blueprint = context == null || context.Ability == null ? null : context.Ability.Blueprint;
-            return blueprint != null && caster != null && caster == relationship.Rider &&
+            return OwnsChargeDelivery(context) && blueprint != null && caster != null && caster == relationship.Rider &&
                 context.Caster == caster && blueprint.GetComponent<MountedChargeAbilityLogic>() != null;
         }
 
@@ -92,7 +92,8 @@ namespace KingmakerMountedCombat.Integration
                 ExactPair = rider != null && mount != null && caster == rider &&
                     target != null && target != rider && target != mount,
                 RiderDirectlyControllable = rider != null && rider.IsDirectlyControllable,
-                LifecycleBoundary = relationship.State == RelationshipState.Faulted,
+                LifecycleBoundary = relationship.State == RelationshipState.Faulted || ChargeAdmissionFenced || ChargeNativeWorldLoading ||
+                    chargeOwner?.Ownership.CleanupRequested == true,
                 InCombat = rider != null && rider.IsInCombat,
                 TurnBased = turnBased,
                 RiderTurn = turn != null && turn.Unit == rider,
@@ -110,7 +111,8 @@ namespace KingmakerMountedCombat.Integration
                 TargetVisible = target != null && target.IsVisibleForPlayer,
                 TargetHostile = rider != null && target != null && rider.IsEnemy(target),
                 TargetAttackable = rider != null && target != null && rider.CanAttack(target),
-                AlreadyActiveCommand = HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction,
+                AlreadyActiveCommand = HasActiveCommand || HasActiveGroundMovement || HasActiveDoorInteraction ||
+                    chargeOwner != null && context != null && !OwnsChargeDelivery(context),
                 MountCommandsIdle = mount?.Commands != null && mount.Commands.Empty && mount.Commands.Queue.Count == 0,
                 DeliveringOwnShell = DeliveringOwnChargeShell(context, caster)
             };
@@ -169,6 +171,9 @@ namespace KingmakerMountedCombat.Integration
             return MountedChargePolicy.Evaluate(CaptureMountedChargeRequest(caster, target)).IsAllowed;
         }
 
+        internal MountedChargeAvailability ObserveMountedChargeTarget(UnitEntityData caster, UnitEntityData target) =>
+            MountedChargePolicy.Evaluate(CaptureMountedChargeRequest(caster, target));
+
         internal string LastMountedChargeRefusal { get; private set; }
 
         internal int MountedChargeAdmittedCount { get; private set; }
@@ -189,6 +194,11 @@ namespace KingmakerMountedCombat.Integration
                 return MountedCombatClickResult.NotHandled;
             }
 
+            if (!OwnsChargeDelivery(context) || !ReferenceEquals(target, chargeOwner.Target) ||
+                !ReferenceEquals(caster, chargeOwner.Rider))
+                return RefuseMountedCharge("Mounted Charge has no live exact native shell ownership.",
+                    MountedCombatRejectionCode.CommandAdmissionFailure);
+
             var request = CaptureMountedChargeRequest(caster, target, context);
             var availability = MountedChargePolicy.Evaluate(request);
             logger.Info("Mounted charge delivery observed: casterId=" + (caster?.UniqueId ?? "<none>") +
@@ -207,7 +217,8 @@ namespace KingmakerMountedCombat.Integration
 
             if (HasStockAttackIntent)
             {
-                Cancel("mounted charge replaced stock attack intent");
+                ClearStockAttackIntent("mounted charge replaced stock attack intent", true);
+                ClearObservedStockRequest();
             }
 
             NativeSingleAttackWeaponSelection mountPrimary;
@@ -234,6 +245,7 @@ namespace KingmakerMountedCombat.Integration
                     true,
                     true);
                 command.NativePartnerMovement = settings.EnablePairedActivation;
+                chargeOwner.Command = command;
                 // The enclosing full-round shell owns the cost; the queued transaction must not be refused for
                 // the action the shell has already spent, and must never be given an action of its own.
                 command.IgnoreCooldown();
@@ -317,88 +329,17 @@ namespace KingmakerMountedCombat.Integration
         private MountedChargeCompensation CompensateMountedChargeAdmission(
             MountedPairAttackCommand command, UnitEntityData rider, UnitCommands container, string reason)
         {
-            var commands = container ?? (rider == null ? null : rider.Commands);
-            var compensation = new MountedChargeCompensation(reason, new[]
-            {
-                new MountedChargeCompensationStep("abandon-scheduler",
-                    () => pairedCommandScheduler.AbandonRegistration(command, reason)),
-                new MountedChargeCompensationStep("interrupt-command", () =>
-                {
-                    if (!command.IsFinished)
-                    {
-                        command.Interrupt(false);
-                    }
-                }),
-                new MountedChargeCompensationStep("dequeue-command", () =>
-                {
-                    if (commands == null)
-                    {
-                        return;
-                    }
-
-                    if (commands.Contains(command) || commands.Queue.Contains(command))
-                    {
-                        commands.RemoveFinishedAndUpdateQueue();
-                    }
-                }),
-                new MountedChargeCompensationStep("restore-lease", command.CompensateChargeLease)
-            });
-            compensation.Run();
-
-            // The native facts that prove every owner is gone. "No Action threw" is not one of them.
-            compensation.ConfirmPostconditions(new[]
-            {
-                new MountedChargePostcondition("command-terminal", () => command.IsFinished),
-                new MountedChargePostcondition("standard-slot-released",
-                    () => commands == null || commands.Standard != command),
-                new MountedChargePostcondition("container-released",
-                    () => commands == null || !commands.Contains(command)),
-                new MountedChargePostcondition("queue-released",
-                    () => commands == null || !commands.Queue.Contains(command)),
-                new MountedChargePostcondition("scheduler-registration-absent",
-                    () => !pairedCommandScheduler.HasRegistration(command)),
-                new MountedChargePostcondition("lease-restored-or-absent", () => command.ChargeLeaseRestored),
-                new MountedChargePostcondition("no-lease-cleanup-debt",
-                    () => string.IsNullOrEmpty(command.ChargeCleanupDebt))
-            });
-
-            LastChargeCompensation = compensation.Describe();
-            LastChargeCompensationComplete = compensation.Complete;
-            LastChargeCompensationCommandResident = commands != null &&
-                (commands.Contains(command) || commands.Queue.Contains(command));
-            LastChargeCompensationLeaseRestored = command.ChargeLeaseRestored;
-            LastChargeCompensationUnmet = string.Join("|",
-                new List<string>(compensation.UnmetPostconditions).ToArray());
+            if (chargeOwner == null || !ReferenceEquals(chargeOwner.Command, command))
+                throw new InvalidOperationException("Charge admission lost its exact durable owner.");
             ChargeCompensationCount++;
-
-            // The controller releases its last reference to this live native state only when the
-            // reference is still this exact command and every ownership postcondition holds. Otherwise a
-            // faulted cleanup owner is kept, so something still points at what was left behind.
-            if (ReferenceEquals(activeCommand, command) && compensation.Complete)
-            {
-                activeCommand = null;
-                faultedChargeCleanupOwner = null;
-            }
-            else if (!compensation.Complete)
-            {
-                faultedChargeCleanupOwner = command;
-            }
-
-            LastChargeCompensationActiveCommandCleared = activeCommand == null;
-            logger.Info("Mounted charge admission compensated: " + compensation.Describe() +
-                "; commandResident=" + LastChargeCompensationCommandResident +
-                "; leaseRestored=" + LastChargeCompensationLeaseRestored +
-                "; activeCommandCleared=" + LastChargeCompensationActiveCommandCleared +
-                "; faultedCleanupOwner=" + (faultedChargeCleanupOwner != null) +
-                "; commandFinished=" + command.IsFinished + ".");
-            return compensation;
+            chargeOwner.AdmissionCompensation = true;
+            var owner = chargeOwner;
+            TryDrainChargeOwnership(reason);
+            return owner.Ownership.LastAttempt;
         }
-
         // Retained when compensation could not prove every owner resolved. Something must keep pointing
         // at native state that was left behind, and a later attempt can discharge it.
-        private MountedPairAttackCommand faultedChargeCleanupOwner;
-
-        internal bool HasFaultedChargeCleanupOwner => faultedChargeCleanupOwner != null;
+        internal bool HasFaultedChargeCleanupOwner => chargeOwner != null && chargeOwner.Ownership.CleanupRequested;
 
         internal string LastChargeCompensationUnmet { get; private set; }
 
