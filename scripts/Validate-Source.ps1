@@ -415,10 +415,10 @@ $abilityLogicText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\King
 Assert-Kmc ($abilityLogicText -match 'service\.TryDispatch\(Kind, context\?\.Caster, target\?\.Unit, context\)') `
     'Deliver passes its own exact execution context into the relationship dispatch'
 $patchText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
-Assert-Kmc ($patchText -match 'PatchExact\(typeof\(UnitUseAbility\), "OnAction", 0x06002737, Type\.EmptyTypes, nameof\(PatchMethods\.NativeAbilityActionPrefix\), nameof\(PatchMethods\.NativeAbilityActionPostfix\)\)' -and
-    $patchText -match 'CompleteChargeNativeAction\(__instance\)' -and $patchText -match 'BeginChargeNativeAction\(__instance\)' -and
+Assert-Kmc ($patchText -match 'PatchExact\(typeof\(UnitUseAbility\), "OnAction", 0x06002737, Type\.EmptyTypes, null,\s+nameof\(PatchMethods\.NativeAbilityActionPostfix\), nameof\(PatchMethods\.NativeAbilityActionTranspiler\)\)' -and
+    $patchText -match 'NativeChargeActionBoundary\.Wrap\(' -and $patchText -match 'BeginChargeNativeAction\(__instance\)' -and
     $patchText -match 'internal static void NativeAbilityActionPostfix\(UnitUseAbility __instance\)[\s\S]{0,200}BindNativeRelationshipProcess\(__instance\)') `
-    'the exact OnAction boundary retains charge registration and establishes the relationship process binding'
+    'the exact OnAction body closes charge registration on every exit and preserves the relationship process binding'
 
 # The typed shell lifecycle ledger: every early return names its failed predicate.
 $prepareBody = [Regex]::Match($nativeControlsText, '(?s)internal void PrepareNativeMountApproach\(UnitUseAbility command\).*?\n        \}\r?\n')
@@ -1600,16 +1600,20 @@ $faultText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot '
 $faultFireSites = 0
 $faultIntegrationArmings = 0
 $faultDiagnosticsArmings = 0
+$actionFaultIntegrationArmings = 0
+$actionFaultDiagnosticsArmings = 0
 foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration') -Filter *.cs -File)) {
     $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
     $faultFireSites += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.FireAfterQueue\(\)')).Count
     if ($file.Name -cne 'MountedChargeAdmissionFault.cs') {
         $faultIntegrationArmings += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.AfterQueue\s*=(?!=)')).Count
+        $actionFaultIntegrationArmings += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.NativeAction\s*=(?!=)')).Count
     }
 }
 foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics') -Filter *.cs -File)) {
     $text = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName
     $faultDiagnosticsArmings += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.AfterQueue\s*=(?!=)')).Count
+    $actionFaultDiagnosticsArmings += @([Regex]::Matches($text, 'MountedChargeAdmissionFault\.NativeAction\s*=(?!=)')).Count
 }
 $queueIndex = $chargeControllerText.IndexOf('queuedContainer.AddToQueueFirst(command);', [StringComparison]::Ordinal)
 $fireIndex = $chargeControllerText.IndexOf('MountedChargeAdmissionFault.FireAfterQueue();', [StringComparison]::Ordinal)
@@ -1624,6 +1628,11 @@ Assert-Kmc ($faultFireSites -eq 1 -and $faultIntegrationArmings -eq 0 -and $faul
     @([Regex]::Matches([Regex]::Replace($betweenQueueAndFire, '(?m)^\s*//.*$', ''), ';')).Count -le 2 -and
     $faultText -match 'internal static Action AfterQueue;' -and
     $faultText -match 'AfterQueue = null;') 'the diagnostics-only charge admission seam has one firing site immediately after the queue insertion and is armed only from Diagnostics'
+Assert-Kmc ($actionFaultIntegrationArmings-eq0-and$actionFaultDiagnosticsArmings-ge3-and
+    $faultText.Contains('internal static Action<string> NativeAction = null;')-and
+    $patchText.Contains('if (owned) MountedChargeAdmissionFault.FireNativeAction("before-rule");')-and
+    $patchText.Contains('if (owned) MountedChargeAdmissionFault.FireNativeAction("after-rule");')) `
+    'native action faults are absent in production and armed only by the exact diagnostic charge fixture'
 
 # 6B-R replaces the admission-only compensation owner with one lifetime owner.
 $ownershipText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.ChargeCleanup.cs')

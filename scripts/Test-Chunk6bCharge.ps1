@@ -194,6 +194,27 @@ function New-AdmissionFaultRow{
  }}
 }
 function New-Row([string]$Case){
+ if($Case-cin@('C6B-CHARGE-action-failed-before-rule','C6B-CHARGE-action-failed-after-rule')){
+  $registered=$Case-ceq'C6B-CHARGE-action-failed-after-rule'
+  $r=New-AdmissionFaultRow;$r.name=$Case;$e=$r.evidence;$e.case=$Case
+  $e.delivery.chargeAdmitted=0;$e.delivery.chargeRefused=$(if($registered){1}else{0})
+  $e['ownership']=@{owned=$false};$owner=New-DrainedOwner;$owner.lease=$null;$owner.committed=$false
+  $owner['rider']='rider';$owner['mount']='mount';$owner['target']='target';$owner['processObservationError']=$null
+  $e.economy.riderStandardMax=0;$e.economy.riderStandardNow=0
+  $owner['nativeActionFailed']=$true;$owner['nativeActionInProgress']=$false;$owner['processObservationPending']=$false
+  $owner['processObserved']=$registered;$owner['processCount']=$(if($registered){1}else{0});$owner['shellProcessAssigned']=$false
+  $e['lastDrainedOwnership']=$owner
+  $e['nativeActionFault']=@{armed=$true;fired=$true;seamCleared=$true;boundary=$(if($registered){'after-rule'}else{'before-rule'});ownerAtFault=@{
+   identity=17;rider='rider';mount='mount';target='target';owned=$true;committed=$false;nativeActionInProgress=$true;nativeRuleObserved=$true;nativeExecutorObserved=$true;
+   shellProcessAssigned=$false;ruleProcessAssigned=$registered;processObserved=$registered;processCount=$(if($registered){1}else{0})}}
+  $e.nativeActionFault['shellAtFault']=@{present=$true;abilityGuid=$kmc;executorId='rider';targetId='target'}
+  $live=$e.nativeActionFault.ownerAtFault
+  foreach($field in @('shellIdentity','ruleIdentity','executorIdentity','contextIdentity')){$live[$field]=123;$owner[$field]=123}
+  $live['processes']=@();$owner['processes']=@()
+  if($registered){$live.processes=@(@{identity=124;contextIdentity=123;ended=$false});$owner.processes=@(@{identity=124;contextIdentity=123;ended=$true})}
+  $e.after['riderCommandsEmpty']=$true;$e.after['mountCommandsEmpty']=$true
+  return $r
+ }
  if($Case-ceq'C6B-CHARGE-child-cleanup'){
   $r=New-TerminatedRow $Case 'native-child-fact-cleanup';$owner=New-DrainedOwner;$lease=$owner.lease
   $lease.buffComponentTypes=@('Kingmaker.UnitLogic.Mechanics.Components.AddFactContextActions')+@($lease.buffComponentTypes)+@('Kingmaker.UnitLogic.FactLogic.AddContextStatBonus','Kingmaker.UnitLogic.Mechanics.Components.ContextRankConfig')
@@ -411,7 +432,7 @@ function New-Artifact([string]$Mode='RT'){
    $row.evidence['ownership']=@{owned=$false};$row.evidence['lastDrainedOwnership']=New-DrainedOwner
   }
  }
- Copy-Case ([ordered]@{schemaVersion=37;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
+ Copy-Case ([ordered]@{schemaVersion=38;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
   observations=[ordered]@{initialSelection=@('main');cleanup=@{selectionRestored=$true;equipmentSetRestored=$true;settingRestored=$true;pairedSchedulerSettingRestored=$true;targetClean=$true;chunk4OtherTargetReleased=$true;modeRestored=$true;unmountedHorseAiLeaseRestored=$true;combatMountRiderAiLeaseRestored=$true;relationshipState='Unmounted';playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false;nativeFinalDeathSelectionExclusion=$(if($Mode-ceq'RT'){'rider'}else{$null});expectedSelection=@('main');actualSelection=@('main')};chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
@@ -885,4 +906,22 @@ Mutate 'in-flight native rule dispatch after positive delivery' {param($a) (Row 
 Mutate 'condition remains after interrupted charge' {param($a) (Row $a 'C6B-CHARGE-interrupted').lease.buffCondition.contributions=1}
 Mutate 'lease application rollback omits condition cleanup' {param($a) (Row $a 'C6B-CHARGE-lease-application-failed').lastDrainedOwnership.lease.buffCondition.operations[1].mutationObserved=$false}
 Mutate 'old unqualified preview177 schema' {param($a) $a.schemaVersion=34}
+Mutate 'old preview181 action-fence schema' {param($a) $a.schemaVersion=37}
+Mutate 'replaced process after native action failure' {param($a) (Row $a 'C6B-CHARGE-action-failed-after-rule').lastDrainedOwnership.processes[0].identity=999}
+Mutate 'different process context after native action failure' {param($a) (Row $a 'C6B-CHARGE-action-failed-after-rule').lastDrainedOwnership.processes[0].contextIdentity=999}
+Mutate 'false terminal process after native action failure' {param($a) (Row $a 'C6B-CHARGE-action-failed-after-rule').lastDrainedOwnership.processes[0].ended=$false}
+foreach($faultRow in @('C6B-CHARGE-action-failed-before-rule','C6B-CHARGE-action-failed-after-rule')){
+ Mutate ($faultRow+' lost action owner') {param($a) (Row $a $faultRow).nativeActionFault.ownerAtFault.identity=99}
+ Mutate ($faultRow+' another target') {param($a) (Row $a $faultRow).nativeActionFault.ownerAtFault.target='foreign'}
+ Mutate ($faultRow+' pretended commitment') {param($a) (Row $a $faultRow).lastDrainedOwnership.committed=$true}
+ Mutate ($faultRow+' stuck native action fence') {param($a) (Row $a $faultRow).lastDrainedOwnership.nativeActionInProgress=$true}
+ Mutate ($faultRow+' observation debt discarded') {param($a) (Row $a $faultRow).lastDrainedOwnership.processObservationPending=$true}
+ Mutate ($faultRow+' stale observation error') {param($a) (Row $a $faultRow).lastDrainedOwnership.processObservationError='unresolved'}
+ Mutate ($faultRow+' live process discarded') {param($a) (Row $a $faultRow).lastDrainedOwnership.processEnded=$false}
+ Mutate ($faultRow+' process count unobserved') {param($a) (Row $a $faultRow).lastDrainedOwnership.processCount='0'}
+ Mutate ($faultRow+' replaced shell process') {param($a) (Row $a $faultRow).lastDrainedOwnership.shellProcessAssigned=$true}
+ Mutate ($faultRow+' stranded shell') {param($a) (Row $a $faultRow).lastDrainedOwnership.shellContainerReleased=$false}
+ Mutate ($faultRow+' fabricated cost') {param($a) (Row $a $faultRow).economy.riderStandardMax=6}
+ Mutate ($faultRow+' string boolean') {param($a) (Row $a $faultRow).lastDrainedOwnership.nativeActionInProgress='false'}
+}
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

@@ -23,6 +23,8 @@ public static class ChargeOwnershipProbe {
  static Action observeCreation;
  static object acquiredFact;
  static T ObserveThenReturn<T>() where T:class {observeCreation();return (T)acquiredFact;}
+ static bool NativeUnavailable(ref bool __result){__result=false;return false;}
+ static bool SkipExternalInterruptFx(){return false;}
  static void Check(bool ok,string text){if(!ok)throw new InvalidOperationException(text);passed++;Console.WriteLine("PASS "+text);}
  static object Blank(Type t){return FormatterServices.GetUninitializedObject(t);}
  static FieldInfo Field(Type t,string name){for(;t!=null;t=t.BaseType){var f=t.GetField(name,F);if(f!=null)return f;}throw new MissingFieldException(name);}
@@ -82,10 +84,125 @@ public static class ChargeOwnershipProbe {
   Check((bool)Call(controller,"AdmitChargeCommand",riderCommands,foreign),"ordinary action admission resumes after debt drains");
   var inAction=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,17L,0);
   Set(controller,"chargeOwner",inAction);
-  Call(controller,"BeginChargeNativeAction",shell);
+  var actionScope=(Action<bool>)Call(controller,"BeginChargeNativeAction",shell);
   Check(!(bool)Call(controller,"TryDrainChargeOwnership","reentrant save before process assignment")&&Object.ReferenceEquals(Get(controller,"chargeOwner"),inAction),"native action registration window retains owner before shell process assignment");
-  Call(controller,"CompleteChargeNativeAction",shell);
+  actionScope(true);
   Check((bool)Call(controller,"TryDrainChargeOwnership","native action returned"),"normal action return permits observed process settlement without advancing it");
+  // Exercise the actual Harmony12-patched native body, not a method-shape proxy.
+  var actionPatches=mod.GetType("KingmakerMountedCombat.Integration.MountedPatchController",true);
+  var actionBridge=actionPatches.GetNestedType("PatchBridge",F);
+  var actionMethods=actionPatches.GetNestedType("PatchMethods",F);
+  var actionCombat=actionBridge.GetField("Combat",F);var actionControls=actionBridge.GetField("NativeControls",F);
+  var actionOldCombat=actionCombat.GetValue(null);var actionOldControls=actionControls.GetValue(null);
+  var actionBoundary=mod.GetType("KingmakerMountedCombat.Integration.NativeChargeActionBoundary",true);
+  var codeInstruction=actionBoundary.GetMethod("Wrap",F).GetParameters()[0].ParameterType.GetGenericArguments()[0];
+  var harmonyAssembly=codeInstruction.Assembly;
+  var harmonyType=harmonyAssembly.GetType("Harmony12.HarmonyInstance",true);
+  var harmonyMethod=harmonyAssembly.GetType("Harmony12.HarmonyMethod",true);
+  var actionHarmony=harmonyType.GetMethod("Create",F).Invoke(null,new object[]{"KMC.detached.charge-action-exit"});
+  var actionTranspiler=Activator.CreateInstance(harmonyMethod,new object[]{actionMethods.GetMethod("NativeAbilityActionTranspiler",F)});
+  var actionPostfix=Activator.CreateInstance(harmonyMethod,new object[]{actionMethods.GetMethod("NativeAbilityActionPostfix",F)});
+  var nativeAction=native.ManifestModule.ResolveMethod(0x06002737);
+  var unavailablePrefix=Activator.CreateInstance(harmonyMethod,new object[]{typeof(ChargeOwnershipProbe).GetMethod("NativeUnavailable",F)});
+  var noFxPrefix=Activator.CreateInstance(harmonyMethod,new object[]{typeof(ChargeOwnershipProbe).GetMethod("SkipExternalInterruptFx",F)});
+  harmonyType.GetMethod("Patch",F).Invoke(actionHarmony,new object[]{native.ManifestModule.ResolveMethod(0x06002B48),unavailablePrefix,null,null});
+  harmonyType.GetMethod("Patch",F).Invoke(actionHarmony,new object[]{native.ManifestModule.ResolveMethod(0x06002713),unavailablePrefix,null,null});
+  harmonyType.GetMethod("Patch",F).Invoke(actionHarmony,new object[]{native.ManifestModule.ResolveMethod(0x06002733),noFxPrefix,null,null});
+  harmonyType.GetMethod("Patch",F).Invoke(actionHarmony,new object[]{nativeAction,null,actionPostfix,actionTranspiler});
+  try {
+   actionCombat.SetValue(null,controller);actionControls.SetValue(null,null);
+   var throwingOwner=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,19L,0);
+   Set(controller,"chargeOwner",throwingOwner);
+   Exception nativeActionError=null;
+   // Absent external Spell causes the real native body to throw before mutation.
+   try{nativeAction.Invoke(shell,null);}catch(TargetInvocationException error){nativeActionError=error.InnerException;}
+   Check(nativeActionError is NullReferenceException&&!(bool)Get(throwingOwner,"NativeActionInProgress")&&
+    (bool)Get(throwingOwner,"NativeActionFailed"),"real native exceptional exit closes action scope and retires delivery without swallowing its exception");
+   Check((bool)Call(controller,"TryDrainChargeOwnership","native action exception before registration")&&Get(controller,"chargeOwner")==null,
+    "actual exceptional exit with no process drains exact ownership instead of stranding the save fence");
+   var returningOwner=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,19L,0);
+   Set(controller,"chargeOwner",returningOwner);Set(shell,"Spell",Blank(native.GetType("Kingmaker.UnitLogic.Abilities.AbilityData",true)));
+   var nativeResult=nativeAction.Invoke(shell,null);
+   Check(Convert.ToInt32(nativeResult)==1&&!(bool)Get(returningOwner,"NativeActionInProgress")&&
+    !(bool)Get(returningOwner,"NativeActionFailed")&&!(bool)commandType.GetProperty("IsActed").GetValue(shell,null),
+    "actual native early return preserves its result and closes scope without committing or fabricating an action");
+   Check((bool)Call(controller,"TryDrainChargeOwnership","native early return settled"),"normal native return drains before any process acquisition");
+   Set(shell,"Spell",null);
+   var independentShell=Blank(shell.GetType());nativeActionError=null;
+   try{nativeAction.Invoke(independentShell,null);}catch(TargetInvocationException error){nativeActionError=error.InnerException;}
+   Check(nativeActionError is NullReferenceException&&Get(controller,"chargeOwner")==null,
+    "unowned native action preserves the original exception without acquiring charge state");
+  }finally{actionCombat.SetValue(null,actionOldCombat);actionControls.SetValue(null,actionOldControls);}
+  // Real native Execute registers before either returned-field assignment. No
+  // native process is ticked in this detached probe; its end is an external input.
+  var executionType=native.GetType("Kingmaker.Controllers.AbilityExecutionController",true);
+  var processType=native.GetType("Kingmaker.Controllers.AbilityExecutionProcess",true);
+  var executionContextType=native.GetType("Kingmaker.UnitLogic.Abilities.AbilityExecutionContext",true);
+  var ruleType=native.GetType("Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell",true);
+  var executor=Blank(executionType);
+  var processList=Activator.CreateInstance(Field(executionType,"m_Abilities").FieldType);
+  Set(executor,"m_Abilities",processList);
+  var orphanContext=Blank(executionContextType);var orphanRule=Blank(ruleType);Set(orphanRule,"Context",orphanContext);
+  var registeredOwner=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,20L,0);
+  Set(controller,"chargeOwner",registeredOwner);
+  var registeredScope=(Action<bool>)Call(controller,"BeginChargeNativeAction",shell);
+  Check((bool)Call(controller,"CaptureChargeNativeRule",shell,orphanRule,executor),"owned action retains exact rule context and original executor before registration");
+  var process=native.ManifestModule.ResolveMethod(0x06008FCA).Invoke(executor,new[]{orphanContext});
+  Check(Get(shell,"<ExecutionProcess>k__BackingField")==null&&Get(orphanRule,"<ExecutionProcess>k__BackingField")==null,
+   "real native registration precedes rule and shell process assignment");
+  var actionSave=new object();
+  Check(!(bool)Call(controller,"AcquireChargeSaveFence",actionSave)&&Object.ReferenceEquals(Get(controller,"chargeOwner"),registeredOwner),
+   "save requested inside native action refuses before capture while exact registered process remains live");
+  registeredScope(false);
+  Check(Object.ReferenceEquals(Get(registeredOwner,"Process"),process)&&!(bool)Get(registeredOwner,"NativeActionInProgress")&&
+   !(bool)Call(controller,"TryDrainChargeOwnership","native action failed after registration"),
+   "exceptional scope retains original executor process even though both native result fields were never assigned");
+  var unrelatedContext=Blank(executionContextType);
+  var unrelatedProcess=native.ManifestModule.ResolveMethod(0x06008FCA).Invoke(executor,new[]{unrelatedContext});
+  Check((int)Get(registeredOwner,"Processes").GetType().GetProperty("Count").GetValue(Get(registeredOwner,"Processes"),null)==1,
+   "charge owner does not acquire unrelated native context");
+  // Only simulate the inaccessible native completion observation, never invoke
+  // a command, tick a coroutine, or change any action/resource state.
+  Set(process,"<IsEnded>k__BackingField",true);
+  var observeFault=mod.GetType("KingmakerMountedCombat.Integration.MountedChargeAdmissionFault",true).GetField("BeforeCleanupStep",F);
+  observeFault.SetValue(null,new Action<string>(step=>{if(step=="observe-process")throw new InvalidOperationException("observer unavailable");}));
+  try{
+   Check(!(bool)Call(controller,"AcquireChargeSaveFence",actionSave)&&(bool)Get(registeredOwner,"ProcessObservationPending")&&
+    Object.ReferenceEquals(Get(controller,"chargeOwner"),registeredOwner),"completed process cannot bypass an unresolved observation fault at save");
+  }finally{observeFault.SetValue(null,null);}
+  Check((bool)Call(controller,"AcquireChargeSaveFence",actionSave)&&Get(controller,"chargeOwner")==null&&
+   !(bool)processType.GetProperty("IsEnded",F).GetValue(unrelatedProcess,null),
+   "second exact observation drains retained debt without ending unrelated process or refunding the action");
+  Call(controller,"ReleaseChargeSaveFence",actionSave);
+  var failedObservationOwner=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,21L,0);
+  Set(controller,"chargeOwner",failedObservationOwner);
+  var failedObservationScope=(Action<bool>)Call(controller,"BeginChargeNativeAction",shell);
+  observeFault.SetValue(null,new Action<string>(step=>{if(step=="observe-process")throw new InvalidOperationException("finally observation fault");}));
+  try{
+   failedObservationScope(false);
+   Check(!(bool)Get(failedObservationOwner,"NativeActionInProgress")&&(bool)Get(failedObservationOwner,"ProcessObservationPending")&&
+    (string)Get(failedObservationOwner,"ProcessObservationError")=="InvalidOperationException: finally observation fault"&&
+    !(bool)Call(controller,"TryDrainChargeOwnership","exceptional observation failed"),
+    "finally observation failure closes only the action scope, retains exact debt and cannot mask the native failure");
+  }finally{observeFault.SetValue(null,null);}
+  Check((bool)Call(controller,"TryDrainChargeOwnership","finally observation retry"),"later bounded observation drains the same retained failed owner");
+  var replacementContext=Blank(executionContextType);var replacementRule=Blank(ruleType);Set(replacementRule,"Context",replacementContext);
+  var replacementOwner=Call(controller,"CreateChargeOwner",null,null,null,riderCommands,mountCommands,shell,22L,0);
+  Set(controller,"chargeOwner",replacementOwner);
+  var replacementScope=(Action<bool>)Call(controller,"BeginChargeNativeAction",shell);
+  Call(controller,"CaptureChargeNativeRule",shell,replacementRule,executor);
+  var originalProcess=native.ManifestModule.ResolveMethod(0x06008FCA).Invoke(executor,new[]{replacementContext});
+  var extraProcess=native.ManifestModule.ResolveMethod(0x06008FCA).Invoke(executor,new[]{replacementContext});
+  replacementScope(true);
+  Check((int)Get(replacementOwner,"Processes").GetType().GetProperty("Count").GetValue(Get(replacementOwner,"Processes"),null)==2&&
+   !(bool)Call(controller,"TryDrainChargeOwnership","unexpected same-context process"),
+   "unexpected same-context replacement retires delivery and retains both exact native processes");
+  Set(originalProcess,"<IsEnded>k__BackingField",true);
+  Check(!(bool)Call(controller,"TryDrainChargeOwnership","only original process ended")&&Object.ReferenceEquals(Get(controller,"chargeOwner"),replacementOwner),
+   "finishing the original process cannot discard a still-live replacement");
+  Set(extraProcess,"<IsEnded>k__BackingField",true);
+  Check((bool)Call(controller,"TryDrainChargeOwnership","both original and replacement ended"),
+   "all retained native process postconditions must pass before ownership drains");
   var first=new object();var second=new object();
   Check((bool)Call(controller,"AcquireChargeSaveFence",first),"settled save acquires exact operation fence");
   Call(controller,"ReleaseChargeSaveFence",second);

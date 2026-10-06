@@ -51,6 +51,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-blocked-clearance",
             "C6B-CHARGE-cancelled",
             "C6B-CHARGE-exception-cleanup",
+            "C6B-CHARGE-action-failed-before-rule",
+            "C6B-CHARGE-action-failed-after-rule",
             "C6B-CHARGE-lease-application-failed",
             "C6B-CHARGE-target-moved",
             "C6B-CHARGE-target-lost",
@@ -157,7 +159,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool Chunk6bChargeCaseMustDeliver =>
             !Chunk6bChargeTb &&
             (string.Equals(Chunk6bChargeCaseId, "C6B-CHARGE-positive", StringComparison.Ordinal) ||
-             Chunk6bChargeCaseIntervention != null || Chunk6bChargeCaseArmsAdmissionFault || ChargeLeaseFaultCase);
+             Chunk6bChargeCaseIntervention != null || Chunk6bChargeCaseArmsAdmissionFault || ChargeLeaseFaultCase || ChargeNativeActionFaultCase);
 
         // The one case that arms the diagnostics-only admission seam. It needs a lawful geometry,
         // because the compensation it measures only exists once the charge has genuinely entered the
@@ -541,6 +543,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativeSeconds"] = Game.Instance.TimeController.GameTime.TotalSeconds,
                 ["rider"] = CaptureOrdinaryActor(rider),
                 ["mount"] = CaptureOrdinaryActor(horse),
+                ["riderCommandsEmpty"] = rider.Commands.Empty,
+                ["mountCommandsEmpty"] = horse.Commands.Empty,
                 ["relationship"] = relationship.State.ToString(),
                 // Preview.173 measured a native full-round shell that was created by the click and never
                 // started, and nothing here recorded whether the pair could act. CanActInCombat is
@@ -1361,7 +1365,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // the admission on purpose. A non-delivery verdict there would refuse the row for doing
                 // exactly what it set out to do; what that row must show instead is that the seam fired
                 // and the compensation resolved every native owner, which the reader requires.
-                if (Chunk6bChargeCaseMustDeliver && !Chunk6bChargeCaseArmsAdmissionFault &&
+                if (Chunk6bChargeCaseMustDeliver && !Chunk6bChargeCaseArmsAdmissionFault && !ChargeNativeActionFaultCase &&
                     !chunk6bChargeAttemptAdmitted)
                 {
                     chunk6bChargeNonDelivery = "the charge was not admitted: clicked=" + chunk6bChargeClicked +
@@ -1523,8 +1527,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["boundary"] = chargeBoundaryFacts,
                     ["rangeFixture"] = chargeSlowFacts,
                     ["leaseFault"] = chargeLeaseFaultFacts,
+                    ["nativeActionFault"] = chargeNativeActionFaultFacts,
                     ["ownership"] = combat.CaptureChargeOwnership(),
-                    ["lastDrainedOwnership"] = chunk6bChargeAttemptAdmitted ? combat.LastDrainedChargeOwnership?.DeepClone() : null,
+                    ["lastDrainedOwnership"] = chunk6bChargeAttemptAdmitted || ChargeNativeActionFaultCase ? combat.LastDrainedChargeOwnership?.DeepClone() : null,
                     // What the controller did with this attempt, read after it settled rather than at the
                     // click: the shell spends the rider action and asks for delivery on a later frame.
                     ["delivery"] = new JObject
@@ -1623,6 +1628,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "C6B-CHARGE-duplicate": return "A repeated player charge request during delivery acquired no second transaction or cost and the original completed once.";
                 case "C6B-CHARGE-new-landing-blocker": return "A newly occupied landing point during approach prevented the rider attack and drained ownership.";
                 case "C6B-CHARGE-lease-application-failed": return "A fault after acquisition of every charge lease mutation retained the exact owner until rollback and all native postconditions completed.";
+                case "C6B-CHARGE-action-failed-before-rule": return "A native action exception before rule delivery closed the action fence and drained the exact admitted shell without a process or action refund.";
+                case "C6B-CHARGE-action-failed-after-rule": return "A native action exception after rule registration retained its exact process before shell assignment, retired delivery and drained through native completion.";
                 case "C6B-CHARGE-relationship-invalidated": return "Native reciprocal ownership loss during charge drained the exact old pair's transaction before the fixture restored its original ownership.";
                 case "C6B-CHARGE-view-replaced": return "Native Beast Shape I replaced the rider view during charge; the transaction and attachment drained before native buff removal restored stock appearance without action refund.";
                 case "C6B-CHARGE-stock-rejected": return "The stock native Charge remained rejected while mounted.";

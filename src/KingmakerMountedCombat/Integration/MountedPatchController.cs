@@ -96,7 +96,8 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
                     nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
-                PatchExact(typeof(UnitUseAbility), "OnAction", 0x06002737, Type.EmptyTypes, nameof(PatchMethods.NativeAbilityActionPrefix), nameof(PatchMethods.NativeAbilityActionPostfix));
+                PatchExact(typeof(UnitUseAbility), "OnAction", 0x06002737, Type.EmptyTypes, null,
+                    nameof(PatchMethods.NativeAbilityActionPostfix), nameof(PatchMethods.NativeAbilityActionTranspiler));
                 PatchExact(typeof(UnitEntityView), "OnMovementInterrupted", 0x0600184F, new[] { typeof(UnityEngine.Vector3) },
                     nameof(PatchMethods.NativeMountMovementInterruptedPrefix), nameof(PatchMethods.NativeMountMovementInterruptedPostfix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsSuitableForAutoUse", 0x06002B30,
@@ -511,14 +512,28 @@ namespace KingmakerMountedCombat.Integration
             // completed and left the Move slot.
             internal static void NativeAbilityActionPostfix(UnitUseAbility __instance)
             {
-                PatchBridge.Combat?.CompleteChargeNativeAction(__instance);
                 PatchBridge.NativeControls?.BindNativeRelationshipProcess(__instance);
             }
 
-            // Execute registers a process before Rulebook returns it to shell.ExecutionProcess.
-            // Reentrant lifecycle callbacks in that interval must retain the exact shell owner.
-            internal static void NativeAbilityActionPrefix(UnitUseAbility __instance) =>
+            internal static Action<bool> BeginNativeChargeAction(UnitUseAbility __instance) =>
                 PatchBridge.Combat?.BeginChargeNativeAction(__instance);
+
+            internal static IEnumerable<CodeInstruction> NativeAbilityActionTranspiler(IEnumerable<CodeInstruction> instructions,
+                ILGenerator generator, MethodBase original) => NativeChargeActionBoundary.Wrap(instructions, generator, original,
+                    typeof(PatchMethods).GetMethod(nameof(BeginNativeChargeAction), BindingFlags.Static | BindingFlags.NonPublic),
+                    typeof(PatchMethods).GetMethod(nameof(TriggerNativeChargeRule), BindingFlags.Static | BindingFlags.NonPublic));
+
+            internal static Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell TriggerNativeChargeRule(
+                Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell rule, UnitUseAbility shell)
+            {
+                var combat = PatchBridge.Combat;
+                var owned = combat?.OwnsChargeNativeAction(shell) == true;
+                if (owned) combat.CaptureChargeNativeRule(shell, rule, Kingmaker.Game.Instance?.AbilityExecutor);
+                if (owned) MountedChargeAdmissionFault.FireNativeAction("before-rule");
+                var result = Kingmaker.RuleSystem.Rulebook.Trigger(rule);
+                if (owned) MountedChargeAdmissionFault.FireNativeAction("after-rule");
+                return result;
+            }
 
             internal static void NativeMountMovementInterruptedPrefix(UnitEntityView __instance, out UnitUseAbility __state)
             {
