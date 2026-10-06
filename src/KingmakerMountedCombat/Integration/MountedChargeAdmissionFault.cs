@@ -18,6 +18,18 @@ namespace KingmakerMountedCombat.Integration
     {
         // Armed by the diagnostic charge fixture for exactly one admission, and cleared by it afterwards.
         internal static Action AfterQueue;
+        // Diagnostics may only make cleanup harder. The retained owner and postconditions
+        // remain authoritative; faults cannot report a step complete or grant resources.
+        internal static Action<string> BeforeCleanupStep = null;
+        internal static Action AfterLeaseAcquired = null;
+
+        internal static void FireCleanup(string step) => BeforeCleanupStep?.Invoke(step);
+        internal static void FireAfterLeaseAcquired()
+        {
+            var hook = AfterLeaseAcquired;
+            AfterLeaseAcquired = null;
+            hook?.Invoke();
+        }
 
         internal static void FireAfterQueue()
         {

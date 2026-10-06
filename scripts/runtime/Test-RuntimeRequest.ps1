@@ -92,16 +92,16 @@ elseif ($schemaVersion -eq 2) {
     $validation=$request.scenario-ceq'persistence-p06-load'
     $hasPersistenceCase=@($request.PSObject.Properties.Name)-ccontains'persistenceCase'
     if($request.scenario-cin @('persistence-p07-save','persistence-p07-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
-        if($request.persistenceCase-cin @('prepare-removal','disable-during-load')-and$request.scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
-        if($request.persistenceCase-cin @('absent-kmc','removal-no-dll')-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent and no-DLL cases are cold-load only.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
+        if($request.persistenceCase-cin @('prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal')-and$request.scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
+        if($request.persistenceCase-cin @('absent-kmc','removal-no-dll','mounted-charge-removal-no-dll')-and$request.scenario-cne'persistence-p07-load'){throw 'The integration-absent and no-DLL cases are cold-load only.'}
     }elseif($validation){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','foreign-header-campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load')){throw 'P06 requires its exact validation variant.'}
     }elseif($request.scenario-cin @('persistence-p05-save','persistence-p05-load')){
         $slotCases=if($request.scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
     }elseif($request.scenario-cin @('persistence-p04-save','persistence-p04-load')){
-        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt')){throw 'P04 requires its exact native RT checkpoint.'}
+        if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained')){throw 'P04 requires its exact native RT checkpoint.'}
     }elseif($request.scenario-cin @('persistence-p03-save','persistence-p03-load')){
         if(-not$hasPersistenceCase-or$request.persistenceCase-cnotin @('step','conversion','round-effect','reaction','condition','condition-preparing','suspended')){throw 'P03 requires its exact native commitment case.'}
     }elseif($hasPersistenceCase-and($request.scenario-cnotin @('persistence-p02-save','persistence-p02-load')-or
@@ -132,7 +132,7 @@ elseif ($schemaVersion -eq 2) {
         $nativeSlot=($request.scenario-ceq'persistence-p05-load'-and$request.persistenceCase-cin @('quick','auto'))-or$transitionAuto
         # The failed-load derivative is the only P06 variant that edits a native
         # member, so it owns its own leaf instead of the metadata-only one.
-        $cleanupCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-cin @('absent-kmc','removal-no-dll')
+        $cleanupCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-cin @('absent-kmc','removal-no-dll','mounted-charge-removal-no-dll')
         $deathCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-cin @('rider-death','mount-death')
         $sizeCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'rider-size-change'
         $campaignBCold=$request.scenario-ceq'persistence-p07-load'-and$hasPersistenceCase-and$request.persistenceCase-ceq'campaign-b'

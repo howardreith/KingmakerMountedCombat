@@ -4,7 +4,17 @@ param()
 # (scripts/runtime/Chunk6bChargeEvidence.ps1). Never launches the game; no native qualification.
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 . (Join-Path $PSScriptRoot 'runtime/Chunk6bChargeEvidence.ps1')
+# Reuse the historical native relationship proof fixture without executing its tests.
+$tokens=$null;$parseErrors=$null
+$causalAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Test-Chunk6aCausalProtocol.ps1'),[ref]$tokens,[ref]$parseErrors)
+if($parseErrors.Count-ne0){throw 'Causal fixture parse failed'}
+foreach($name in @('Copy-Value','Put-Value','New-CommandProof')){
+ $definition=@($causalAst.FindAll({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-ceq$name},$true))
+ if($definition.Count-ne1){throw 'Causal fixture function differs'}
+ . ([scriptblock]::Create($definition[0].Extent.Text))
+}
 $script:checks=0
 $script:fixtureMode='RT'
 $kmc=ChargeKmcAbilityGuid
@@ -109,7 +119,7 @@ function New-TerminatedRow([string]$Case,[string]$Kind){
   level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=(-not$incapacity)
   before=[ordered]@{identity=(New-Identity $true $true);state=(New-State 'before' 9.0 0 $false)
    available=$true;unavailableReason=$null;canTarget=$true;minRangeMeters=4.65;approachDistance=99.0
-   requireFullRound=$true;commandType='Standard';pairCommandState=[ordered]@{frame=100}}
+   requireFullRound=$true;commandType='Standard';geometry=@{straightRoute=$true;landingBlocked=$false};pairCommandState=[ordered]@{frame=100}}
   input=[ordered]@{clicked=$true;hoverPure=$true;frame=110;shell=[ordered]@{present=$true};shellCount=1
    feedback='Mounted charge accepted: the Horse carries the charge.';rejectionCodes=@();chargeAdmitted=0;chargeRefused=0;lastRefusal=$null
    after=(New-State 'input-after' 9.0 0 $false)}
@@ -177,6 +187,70 @@ function New-AdmissionFaultRow{
  }}
 }
 function New-Row([string]$Case){
+ if($Case-ceq'C6B-CHARGE-view-replaced'){
+  $r=New-TerminatedRow $Case 'native-view-replacement'
+  $r.evidence.mounted=$false;$r.evidence.after.relationship='Unmounted';$r.evidence.identityAfter=New-Identity $false $true
+  $effects=@{size=4;speed=5.08;stats=@(10,12,14);facts=@('f');bodyPolymorphed=$false;inspectionOverride=$false;asksOverride=$false;
+   sourceBones=@();boneReplaced=$false;boneDefault=$false;handSet=0;equipment=@(@{primary=@{identity=1;blueprint='w'};secondary=$null});limbs=@();stockLimbs=@();polymorphHands=$false;polymorphLimbs=$false}
+  $v=@{actor='rider';blueprint='00d8fbe9cf61dc24298be8d95500c84b';name='BeastShapeIBuff';prefab='0dc0f602a83a2034ba5842f73c0012c1';
+   components=@('Kingmaker.UnitLogic.Buffs.Polymorph','Kingmaker.Blueprints.Classes.Spells.SpellDescriptorComponent','Kingmaker.Designers.Mechanics.Buffs.BuffMovementSpeed','Kingmaker.Designers.Mechanics.Buffs.ReplaceAsksList','Kingmaker.Designers.Mechanics.Facts.ReplaceSourceBone');
+   applyCalls=1;removeCalls=1;restored=$true;factDisposed=$true;listenersRemaining=0;originalRetired=$true;replacementRetired=$true;effectsBefore=$effects;
+   before=@{frame=100;view=10;bound=$true;polymorph=$false;buffCount=0;effects=$effects};afterApply=@{frame=130;view=11;bound=$true;polymorph=$true;buffCount=1};
+   afterRestore=@{frame=160;view=12;bound=$true;polymorph=$false;buffCount=0;effects=$effects};attachments=@()}
+  foreach($i in 0..1){$token=if($i-eq0){'06002a08'}else{'06002a09'};$v.attachments+=@{frame=130+$i;actor='rider';view=11+$i;nativeSource=@(@{token=$token;assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},@{token='06007e9d';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},@{token='0600835c';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})}}
+  $r.evidence['boundary']=@{kind='native-view-replacement';ownerBefore=@{owned=$true;identity=17};ownerAfter=@{owned=$false};lastDrained=(New-DrainedOwner);relationshipAfter='Unmounted';presentationResidue=$false;nativeView=$v}
+  return $r
+ }
+ if($Case-cin@('C6B-CHARGE-mount-dead','C6B-CHARGE-rider-dead')){
+  $kind=if($Case-ceq'C6B-CHARGE-mount-dead'){'mount'}else{'rider'}
+  $r=New-TerminatedRow $Case ('native-'+$kind+'-death')
+  $r.evidence.mounted=$false;$r.evidence.after.relationship='Unmounted';$r.evidence.identityAfter=New-Identity $false $true
+  $r.evidence['death']=New-DeathFacts $kind
+  return $r
+ }
+ if($Case-ceq'C6B-CHARGE-lease-application-failed'){
+  $r=New-TerminatedRow $Case 'injected-lease-fault'
+  $r.evidence['leaseFault']=@{armed=$true;fired=$true;seamCleared=$true;ownerAtFault=@{committed=$true;identity=17};stateAtFault=(New-State 'fault' 9 6 $true)}
+  $r.evidence.lease.applied=$false;$r.evidence.lease['applyRolledBack']=$true;$r.evidence.lease['applyFailedStep']='forced-path';$r.evidence.lease['forcedPathAppliedBeforeFailure']=$true
+  $r.evidence.transaction.leaseApplicationFailed=$true;$r.evidence.transaction.leaseApplicationFailedStep='forced-path';$r.evidence.transaction.leaseRolledBackOnFailure=$true
+  return $r
+ }
+ if($Case-ceq'C6B-CHARGE-relationship-invalidated'){
+  $r=New-TerminatedRow $Case 'native-ownership-loss'
+  $original=@{riderPetId='mount';masterId='rider';mountIsPet=$true}
+  $r.evidence.mounted=$false;$r.evidence.after.relationship='Unmounted';$r.evidence.identityAfter=New-Identity $false $true
+  $r.evidence['boundary']=@{kind='native-ownership-loss';ownerBefore=@{owned=$true;identity=17};ownerAfter=@{owned=$false};lastDrained=(New-DrainedOwner);relationshipAfter='Unmounted';nativeOwnership=@{before=$original;detached=@{riderPetId=$null;masterId=$null;mountIsPet=$false};method=@{token='06001F17';method='SetMaster';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'};restoration=@{pass=$true;count=1;vacantReciprocalReferences=$true;inputsUnchanged=$true;after=$original}}}
+  return $r
+ }
+ if($Case-cin @('C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-new-landing-blocker')){
+  $kinds=@{'C6B-CHARGE-feature-disabled'='feature-disabled';'C6B-CHARGE-dismounted'='native-dismount-request';'C6B-CHARGE-mode-changed'='native-mode-change';'C6B-CHARGE-new-landing-blocker'='native-new-landing-blocker'}
+  $r=New-TerminatedRow $Case $kinds[$Case]
+  $r.evidence['boundary']=[ordered]@{kind=$kinds[$Case];ownerBefore=@{owned=$true;identity=17};ownerAfter=@{owned=$false};lastDrained=(New-DrainedOwner);controlAfter=(New-Identity $false $false);nativeSettingAfter=$true;tbInitialized=$true;modeRestored=$true;clicked=$true;relationshipAfter='Unmounted';placed=$true}
+  if($Case-ceq'C6B-CHARGE-feature-disabled'){$r.evidence.identityAfter=New-Identity $false $false}
+  if($Case-ceq'C6B-CHARGE-dismounted'){
+   $r.evidence.mounted=$false;$r.evidence.after.relationship='Unmounted';$r.evidence.identityAfter=New-Identity $false $true
+   $proof=New-CommandProof $true $false 0
+   foreach($identity in @($proof.identity)+@($proof.samples|ForEach-Object{$_.identity})){$identity.targetId='rider';$identity.abilityGuid='3af2b81f4d72bbb30501fa730fcdf36e'}
+   foreach($state in @($proof.preClick.state)+@($proof.samples|ForEach-Object{$_.state})){
+    $state.rider.standard=6.0;$state.rider.move=0.0;$state.rider.swift=0.0
+    $state.mount.standard=0.0;$state.mount.move=0.0;$state.mount.swift=0.0
+   }
+   $terminal=@($proof.samples|Where-Object boundary -CEQ 'terminal')[0]
+   $terminal.state.rider.standard=4.0;$terminal.state.rider.move=1.75
+   foreach($event in $proof.resourceWindow.events){$event.state.standard=5.0;$event.state.swift=0.0}
+   $r.evidence.boundary['dismountProof']=$proof
+   $r.evidence.boundary['beforeRequest']=New-State 'before-dismount' 8 6 $true
+   $r.evidence.economy.riderMoveMax=2.75;$r.evidence.economy.riderMoveNow=1.75
+  }
+  if($Case-ceq'C6B-CHARGE-new-landing-blocker'){
+   $r.evidence.transaction.revalidationFailed=$true
+   $r.evidence.transaction.revalidationFailureCode='NoPath';$r.evidence.transaction.revalidationFailureReason='Another creature blocks the charge landing point.';$r.evidence.transaction.revalidationFailurePhase='BeforeAttackTransition'
+   $r.evidence.boundary['landingClearBefore']=$true
+   $r.evidence.boundary['blocker']=@{placed=$true;blockerId='blocker-1';contract='diagnostic-blocker-occupies-the-exact-charge-landing-point'}
+   $r.evidence.boundary['blockersAfter']=@(@{actorId='blocker-1';distanceToLanding=0.1;threshold=1.8})
+  }
+  return $r
+ }
  if($Case-ceq'C6B-CHARGE-interrupted'){ return New-TerminatedRow $Case 'native-command-interrupt' }
  if($Case-ceq'C6B-CHARGE-combat-ended'){ return New-TerminatedRow $Case 'native-combat-end' }
  if($Case-ceq'C6B-CHARGE-target-lost'){ return New-TerminatedRow $Case 'native-target-removed' }
@@ -186,8 +260,8 @@ function New-Row([string]$Case){
  # Turn-based delivery is implemented behind increment 6B.3's bounded seam, so the turn-based positive
  # row is a delivery like its real-time counterpart; every other turn-based row is still a refusal.
  # One flag, read everywhere the mode used to be read, so those places cannot disagree.
- $tbRefusal=$script:fixtureMode-ceq'TB'-and$Case-cne'C6B-CHARGE-positive'
- $refusal=$tbRefusal-or$Case-cin @('C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled')
+ $tbRefusal=$script:fixtureMode-ceq'TB'
+ $refusal=$tbRefusal-or$Case-cin @('C6B-CHARGE-beyond-maximum','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled')
  # The cancellation row is on offer and then released: nothing happens, but the charge was genuinely
  # available and targetable, which is what makes the row mean anything.
  $offered=$Case-ceq'C6B-CHARGE-cancelled'
@@ -195,7 +269,7 @@ function New-Row([string]$Case){
   return [ordered]@{name=$Case;status='PASS';evidence=[ordered]@{level='NATIVE DELIVERY';mode=$script:fixtureMode;case=$Case;mounted=$true
    settingOff=(New-Identity $false $false);settingOn=(New-Identity $true $true);abilityGuid=$kmc}}
  }
- $distance=if($Case-ceq'C6B-CHARGE-below-minimum'){3.5}else{9.0}
+ $distance=if($Case-ceq'C6B-CHARGE-beyond-maximum'){18.0}elseif($Case-ceq'C6B-CHARGE-below-minimum'){3.5}else{9.0}
  $riderStandard=if($Case-ceq'C6B-CHARGE-spent-standard'){6.0}else{0.0}
  $input=[ordered]@{clicked=(-not$refusal);hoverPure=$true;frame=110
   shell=[ordered]@{present=(-not$refusal)};shellCount=$(if($refusal){0}else{1})
@@ -225,7 +299,7 @@ function New-Row([string]$Case){
   movement=[ordered]@{mountDistance=$(if($refusal){0.0}else{6.8});riderDistance=$(if($refusal){0.0}else{6.8})
    peakSpeedMps=$(if($refusal){0.0}else{10.3});mountCombatSpeedMps=5.08;chargingObserved=(-not$refusal)
    chargeModeObserved=(-not$refusal);riderChargeStateObserved=(-not$refusal)}
-  economy=[ordered]@{riderStandardMax=$(if($refusal){0.0}else{6.0});riderMoveMax=$(if($refusal){0.0}else{3.0})
+  economy=[ordered]@{riderStandardMax=$(if($refusal){0.0}else{6.0});riderMoveMax=$(if($refusal-or$script:fixtureMode-ceq'RT'){0.0}else{3.0})
    mountStandardMax=0.0;mountMoveMax=0.0;riderStandardNow=$riderStandard;riderMoveNow=0.0;mountStandardNow=0.0;mountMoveNow=0.0}
   lease=$(if($refusal){$null}else{New-Lease})
   transaction=$(if($refusal){$null}else{New-Transaction $true})
@@ -248,7 +322,44 @@ function New-Row([string]$Case){
    wantedLanding=@(5.25,0,0);placed=$true;blockerId='blocker-1';blockerPosition=@(5.25,0,0)
    blockerCorpulence=1.75;blockerDistanceToLanding=0.11;blockerAvoidanceDisabled=$false;brainLeased=$true}
  }
+ if($Case-ceq'C6B-CHARGE-beyond-maximum'){
+  $row.evidence.before['targetCode']='OutsideSupportedRange';$row.evidence.before['targetReason']='The charge target is farther than the maximum charge distance of 15.24 m.'
+  $row.evidence['rangeFixture']=@{applied=@{actor='mount';present=$true;slowed=$true;nativeComponent='Kingmaker.UnitLogic.FactLogic.AddCondition';blueprint='own-slow';speedBefore=5.08;speedNow=2.54;maximumNow=15.24};beforeRestore=@{blueprint='own-slow'};afterRestore=@{actor='mount';blueprint='own-slow';restored=$true;present=$false;slowed=$false;speedNow=5.08}}
+ }
+ if($Case-ceq'C6B-CHARGE-duplicate'){
+  $row.evidence['boundary']=@{kind='native-duplicate-request';availableBefore=$false;admittedBefore=1;admittedAfter=1;ownerBefore=@{owned=$true;state='Active';identity=17;target='target'};ownerAfterRequest=@{identity=17;state='Active'};lastDrained=(New-DrainedOwner);input=@{abilityGuid=$kmc;clickedTargetId='target';resolvedTargetId='target';dispatchAcceptedDelta=0}}
+ }
  $row
+}
+function New-DrainedOwner { [ordered]@{identity=17;state='FullyDrained';attempts=1;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;debt=''} }
+function New-DeathFacts([string]$Kind){
+ $states=@{}
+ foreach($phase in @('before','afterDamage','terminated','encounterExit','afterPolicyRestore')){
+  $s=[ordered]@{frame=130;gameTicks=100000000;relationship='Unmounted';presentationResidue=$false;ownership=@{owned=$false};lastDrained=(New-DrainedOwner)
+   boundaries=@{pending=$false};playerInCombat=$false;riderInCombat=$false;mountInCombat=$false;controllerInitialized=$false;trackedAllocations=0;pairedIdentity=$false;partnerContext=$false;riderGrants=0;mountGrants=0}
+  foreach($actor in @('rider','mount')){
+   $s[$actor]=[ordered]@{id=$actor;conscious=$true;dead=$false;finallyDead=$false;directlyControllable=$true;inState=$true;enabledRenderers=1;commandsEmpty=$true;hp=30;constitution=14;damage=0;characterLevel=5;nonLethalDamage=0}
+  }
+  if($phase-cin@('before','afterDamage')){$s.relationship='Mounted';$s.ownership=@{owned=$true;identity=17};$s.playerInCombat=$true;$s.riderInCombat=$true;$s.mountInCombat=$true}
+  if($phase-cne'before'){$s[$Kind].damage=46}
+  if($phase-cin@('terminated','encounterExit','afterPolicyRestore')){
+   $s.frame=132;$s[$Kind].dead=$true;$s[$Kind].conscious=$false;$s[$Kind].finallyDead=($Kind-ceq'rider');$s[$Kind].directlyControllable=$false
+  }
+  if($phase-cin@('encounterExit','afterPolicyRestore')){
+   $s.frame=140
+   if($Kind-ceq'mount'){$s.mount.dead=$false;$s.mount.conscious=$true;$s.mount.directlyControllable=$true;$s.mount.damage=25}
+  }
+  if($phase-ceq'afterPolicyRestore'){$s.frame=150;$s.gameTicks=103000000}
+  $states[$phase]=$s
+ }
+ $policy=[ordered]@{trueDeath=$false;damageToParty=1.0;riseAfterCombat=@{persisted='true'};deathDoor=@{persisted='false'}}
+ $effective=Json $policy;$effective.trueDeath=($Kind-ceq'rider')
+ $events=@(@{kind='native-life-state';actor=$Kind;lifeState='Dead';frame=132;nativeSource=@(@{token='06009164';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})})
+ if($Kind-ceq'mount'){$events+=@(@{kind='native-life-state';actor=$Kind;lifeState='Conscious';frame=138;nativeSource=@('0600918e','06009191','06009164'|ForEach-Object {@{token=$_;assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}})})}
+ [ordered]@{subjectKind=$Kind;subject=$Kind;source='target';damageDispatches=1;requestedDamage=46;nativeDamage=46;nativeDamageBeforeDifficulty=46;damageToParty=1.0;deathThreshold=44
+  before=$states.before;afterDamage=$states.afterDamage;terminated=$states.terminated;encounterExit=$states.encounterExit;afterPolicyRestore=$states.afterPolicyRestore
+  enemyDamageDispatches=1;enemyDamageSource='main';enemyBefore=@{id='target';dead=$false};enemyAfter=@{id='target';dead=$true};enemyLifeTransitions=1;enemyDamageFrame=133;enemyNativeDamage=60
+  allocationTrace=@{dropped=0;observationErrors=0;observerHooks=@('exact')};policy=@{permanentDeathFixture=($Kind-ceq'rider');before=$policy;effective=$effective;restoration=@{restored=$true;state=$policy}};lifeEvents=@{events=$events}}
 }
 # The native target move that changes the charge geometry mid-approach.
 function New-TargetMove{
@@ -260,9 +371,14 @@ function New-TargetMove{
 function New-Artifact([string]$Mode='RT'){
  $script:fixtureMode=$Mode
  $rows=@(Get-KmcChunk6bChargeRows $Mode|ForEach-Object { New-Row $_ })
+ foreach($row in $rows){
+  if($row.evidence.Contains('delivery')-and$row.evidence.delivery.chargeAdmitted-gt0){
+   $row.evidence['ownership']=@{owned=$false};$row.evidence['lastDrainedOwnership']=New-DrainedOwner
+  }
+ }
  Copy-Case ([ordered]@{schemaVersion=34;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
-  observations=[ordered]@{chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
+  observations=[ordered]@{initialSelection=@('main');cleanup=@{selectionRestored=$true;equipmentSetRestored=$true;settingRestored=$true;pairedSchedulerSettingRestored=$true;targetClean=$true;chunk4OtherTargetReleased=$true;modeRestored=$true;unmountedHorseAiLeaseRestored=$true;combatMountRiderAiLeaseRestored=$true;relationshipState='Unmounted';playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false;nativeFinalDeathSelectionExclusion=$(if($Mode-ceq'RT'){'rider'}else{$null});expectedSelection=@('main');actualSelection=@('main')};chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
 }
 # The obstructed-line row as it is recorded in a fixture area where every swept direction at the lawful
@@ -663,27 +779,47 @@ Mutate 'a placed clearance blocker with no identity' {param($a) (Row $a 'C6B-CHA
 Mutate 'a clearance blocker with no weapon-reach separation' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker.separation=0}
 MutateWith 'a placed clearance blocker the gate never counted' 'not among the actors the clearance gate counted' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').landingBlocker.blockerId='someone-else'}
 
+foreach($kind in @('mount','rider')){
+ $deathRow='C6B-CHARGE-'+$kind+'-dead'
+ Mutate ($kind+' death without exact damage') {param($a) (Row $a $deathRow).death.damageDispatches=2}
+ Mutate ($kind+' death without native life attribution') {param($a) (Row $a $deathRow).death.lifeEvents.events[0].nativeSource=@()}
+ Mutate ($kind+' death stranded charge owner') {param($a) (Row $a $deathRow).death.terminated.ownership.owned=$true}
+ Mutate ($kind+' death replayed preparation') {param($a) (Row $a $deathRow).death.afterPolicyRestore.riderGrants=1}
+ Mutate ($kind+' death unrestored policy') {param($a) (Row $a $deathRow).death.policy.restoration.restored=$false}
+ Mutate ($kind+' death changed survivor') {param($a) $other=if($kind-ceq'rider'){'mount'}else{'rider'};(Row $a $deathRow).death.afterPolicyRestore.$other.damage=1}
+}
+Mutate 'mount recovery from wrong native source' {param($a) (Row $a 'C6B-CHARGE-mount-dead').death.lifeEvents.events[1].nativeSource=@()}
+Mutate 'mount resurrected before encounter completion' {param($a) (Row $a 'C6B-CHARGE-mount-dead').death.lifeEvents.events[1].frame=130}
+Mutate 'permanent rider death resurrected' {param($a) (Row $a 'C6B-CHARGE-rider-dead').death.afterPolicyRestore.rider.conscious=$true}
+Mutate 'death disappeared into a new owner' {param($a) (Row $a 'C6B-CHARGE-mount-dead').death.terminated.lastDrained.identity=18}
+Mutate 'final death cleanup excluded another actor' {param($a) $a.observations.cleanup.nativeFinalDeathSelectionExclusion='foreign'}
+Mutate 'view fixture used another authored buff' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.blueprint='foreign'}
+Mutate 'view replacement was a fabricated lifecycle event' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.attachments[0].nativeSource=@()}
+Mutate 'view restoration did not replace the view' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.afterRestore.view=11}
+Mutate 'view restoration left an obsolete view alive' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.originalRetired=$false}
+Mutate 'view restoration left a native listener' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.listenersRemaining=1}
+Mutate 'view restoration left a source bone' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.afterRestore.effects.sourceBones=@('Locator_HeadCenterFX_00')}
+Mutate 'view restoration changed an equipped item' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.afterRestore.effects.equipment[0].primary.identity=2}
+Mutate 'view restoration retained the KMC anchor' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.presentationResidue=$true}
+Mutate 'Dismount with no exact native cost proof' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.dismountProof=$null}
+Mutate 'Dismount proof naming another action' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.dismountProof.identity.abilityGuid='foreign'}
+Mutate 'Dismount native Move billed twice' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.dismountProof.resourceWindow.events[1].state.move=5.75}
+Mutate 'Dismount refunded the charge Standard' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.dismountProof.resourceWindow.events[1].state.standard=0}
+Mutate 'Dismount charged movement before the separate action' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.beforeRequest.rider.move=3}
+Mutate 'final death cleanup lost its witness' {param($a) $a.observations.cleanup.nativeFinalDeathSelectionExclusion=$null}
+Mutate 'final death cleanup selection differs' {param($a) $a.observations.cleanup.actualSelection=@('rider')}
+Accept 'final death native surviving main selection fallback' {$a=New-Artifact;$a.observations.initialSelection=@('rider');Assert-KmcChunk6bChargeEvidence $request $a 'PASS'}
+Accept 'charge cleanup timeout remains a truthful failure artifact' {$a=New-Artifact;$a.rows=@();$a.rows+=@{name='phase3d-horse-tranche-cleanup-deadline';status='FAIL';evidence=@{}};$a.subscenarioPassCount=0;$a.subscenarioFailCount=1;Assert-KmcChunk6bChargeEvidence $request $a 'FAIL'}
+
 $tbRequest=[pscustomobject]@{scenario='chunk6b-charge-tb'}
 function MutateTb([string]$Name,[scriptblock]$Change){ $a=New-Artifact 'TB'; & $Change $a; Reject ('TB: '+$Name) { Assert-KmcChunk6bChargeEvidence $tbRequest $a 'PASS' } }
-Accept 'TB a turn-based charge delivered on the rider own turn, every other turn-based row refused' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
+Accept 'TB turn-based charge refused while increment 6B.3 is deferred' { Assert-KmcChunk6bChargeEvidence $tbRequest (New-Artifact 'TB') 'PASS' }
 MutateTb 'a turn-based artifact read as real time' {param($a) $a.observations.chunk6bCharge.mode='RT'}
 MutateTb 'a turn-based charge with no recorded turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn=$null}
 MutateTb 'a turn-based charge off the rider own turn' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.isRider=$false}
-MutateTb 'a turn-based charge that was never available' {param($a) (Row $a 'C6B-CHARGE-positive').before.available=$false}
-MutateTb 'a turn-based charge whose target was never targetable' {param($a) (Row $a 'C6B-CHARGE-positive').before.canTarget=$false}
-MutateTb 'a turn-based charge still reporting the deferral reason' {param($a) (Row $a 'C6B-CHARGE-positive').before.kmcAvailabilityReason='Mounted Charge is not yet supported in turn-based mode.'}
-MutateTb 'a turn-based charge cast on a turn that had already moved' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.timeMoved=2.5}
-MutateTb 'a turn-based charge cast on a turn that was neither preparing nor acting' {param($a) (Row $a 'C6B-CHARGE-positive').before.state.turn.status='Ended'}
-# The status the fixture will be in when it clicks: the charge is a full-round action taken from the
-# ordinary start of the rider own turn, which the seam admits for this transaction alone.
-$preparingTb=New-Artifact 'TB'
-(Row $preparingTb 'C6B-CHARGE-positive').before.state.turn.status='Preparing'
-(Row $preparingTb 'C6B-CHARGE-positive').before.state.turn.acting=$false
-Accept 'a turn-based charge cast from the rider own preparing turn' { Assert-KmcChunk6bChargeEvidence $tbRequest $preparingTb 'PASS' }
-MutateTb 'a turn-based charge that the mount never carried' {param($a) (Row $a 'C6B-CHARGE-positive').movement.mountDistance=0.2}
-MutateTb 'a turn-based charge that charged the mount' {param($a) (Row $a 'C6B-CHARGE-positive').economy.mountMoveMax=3.0}
-MutateTb 'a turn-based charge with no attack' {param($a) (Row $a 'C6B-CHARGE-positive').rules=(Json (New-Rules 0 0 $true));(Row $a 'C6B-CHARGE-positive').attackRules=0}
-MutateTb 'a turn-based charge whose lease was not restored' {param($a) (Row $a 'C6B-CHARGE-positive').lease.restored=$false}
+MutateTb 'a turn-based charge that was still available' {param($a) (Row $a 'C6B-CHARGE-positive').before.available=$true}
+MutateTb 'a turn-based charge that was still targetable' {param($a) (Row $a 'C6B-CHARGE-positive').before.canTarget=$true}
+MutateTb 'a turn-based refusal with another reason' {param($a) (Row $a 'C6B-CHARGE-positive').before.kmcAvailabilityReason='Mounted Charge requires combat.'}
 MutateTb 'a turn-based artifact carrying a real-time only row' {param($a) $a.rows=@($a.rows)+@((Json (New-Row 'C6B-CHARGE-interrupted'))); $a.subscenarioPassCount=$a.rows.Count}
 Accept 'TB failed artifact retained without a verdict' { $f=New-Artifact 'TB'; $f.status='FAIL'; $f.rows=@($f.rows[0]); $f.rows[0].status='FAIL'; $f.subscenarioPassCount=0; $f.subscenarioFailCount=1; Assert-KmcChunk6bChargeEvidence $tbRequest $f 'FAIL' }
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

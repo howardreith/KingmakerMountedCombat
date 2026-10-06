@@ -77,6 +77,7 @@ namespace KingmakerMountedCombat.Integration
         public TransitionResult LastTransition { get; private set; }
 
         internal event Action<CleanupTrigger> Dismounting;
+        internal Func<CleanupTrigger, bool> ChargeCleanupBarrier { get; set; }
 
         internal event Action<UnitEntityData, UnitEntityData> MountedPairActivated;
 
@@ -398,6 +399,11 @@ namespace KingmakerMountedCombat.Integration
             {
                 return new TransitionResult(true, coordinator.State, trigger, new string[0], false, false);
             }
+
+            // Refuse before subscribers can release turn, view, or relationship ownership.
+            if (ChargeCleanupBarrier != null && !ChargeCleanupBarrier(trigger))
+                return Record(new TransitionResult(false, coordinator.State, trigger,
+                    new[] { "Mounted charge cleanup is incomplete; exact native ownership is retained." }, false, false));
 
             try
             {

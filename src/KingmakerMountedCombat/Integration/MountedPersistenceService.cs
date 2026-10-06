@@ -16,6 +16,7 @@ namespace KingmakerMountedCombat.Integration
     {
         private readonly GameMountedRelationshipService relationship;
         private readonly NativeMountedControlService controls;
+        private readonly MountedCombatController combat;
         private readonly DiagnosticSettings settings;
         private readonly IModLogger logger;
         private SaveScope activeSave;
@@ -110,18 +111,20 @@ namespace KingmakerMountedCombat.Integration
 
         internal MountedPersistenceService(GameMountedRelationshipService relationship,
             NativeMountedControlService controls, UnifiedMountedTurnCoordinator unifiedTurn,
-            DiagnosticSettings settings, IModLogger logger)
+            DiagnosticSettings settings, IModLogger logger, MountedCombatController combat)
         {
             this.relationship = relationship;
             this.controls = controls;
             this.unifiedTurn = unifiedTurn;
             this.settings = settings;
             this.logger = logger;
+            this.combat = combat ?? throw new ArgumentNullException(nameof(combat));
         }
 
         internal IEnumerator<object> WrapSaveRoutine(IEnumerator<object> routine, SaveInfo requestedSave)
         {
             var scope = new SaveScope { Requested = requestedSave, RequestedPath = requestedSave?.FolderName };
+            scope.BeforeNativeStep = () => RequireChargeSaveBarrier(scope);
             var scoped = new ScopedEnumerator<object>(TrackNativeSave(routine, scope), () =>
             {
                 if (activeSave != null) throw new InvalidOperationException("Overlapping native save enumerations.");
@@ -135,6 +138,7 @@ namespace KingmakerMountedCombat.Integration
                 activeSave = scope;
             }, () =>
             {
+                scope.EnumerationRetired = true;
                 // A native StopAll disposes this wrapper without the archive
                 // worker having finished, and disposal never reaches the
                 // completion path's wait. Releasing here would resume AI,
@@ -159,7 +163,7 @@ namespace KingmakerMountedCombat.Integration
                 ReleaseSaveScope(scope);
             });
             var fault = diagnosticWait?.TryClaim(requestedSave) == true ? diagnosticWait : null;
-            var operation = Enabled ? DeferNativeSave(scoped, fault) : scoped;
+            var operation = Enabled ? DeferNativeSave(scoped, fault, scope) : scoped;
             // The object handed to the native queue is the key a retired failure
             // comes back with, so its outcome is described from its own scope.
             ScopesByOperation.Add(operation, scope);
@@ -281,18 +285,21 @@ namespace KingmakerMountedCombat.Integration
         // ones the caller passed.
         internal bool DeferResetToMainMenu(string message, Kingmaker.Blueprints.Area.BlueprintAreaPreset preset)
         {
-            if (!ActiveSaveWorkerRunning) return false;
+            if (activeSave == null && drainingSave == null && combat?.ChargeAdmissionFenced != true &&
+                (combat == null || combat.TryDrainChargeOwnership("return-to-main-menu"))) return false;
             resetPending = true;
             resetMessage = message;
             resetPreset = preset;
             ResetToMainMenuDeferredCount++;
-            NotifySaveStatus("Finishing the save before leaving; the main menu opens once it is written.");
+            NotifySaveStatus("Finishing pending mounted cleanup and save work before leaving for the main menu.");
             return true;
         }
 
         private void ReplayDeferredResetIfSettled()
         {
-            if (!resetPending || ActiveSaveWorkerRunning || activeSave != null || drainingSave != null) return;
+            if (!resetPending || ActiveSaveWorkerRunning || activeSave != null || drainingSave != null ||
+                combat?.ChargeAdmissionFenced == true ||
+                (combat != null && !combat.TryDrainChargeOwnership("deferred-return-to-main-menu"))) return;
             resetPending = false;
             var message = resetMessage; var preset = resetPreset;
             resetMessage = null; resetPreset = null;
@@ -346,6 +353,8 @@ namespace KingmakerMountedCombat.Integration
             {
                 while (true)
                 {
+                    // Outside SaveRoutine's swallowed header catch, before even ISaver.Clear.
+                    scope.BeforeNativeStep?.Invoke();
                     NativeSaveWorkerBoundary.RestoreCompletedPlayerReference(routine, scope.World, scope.PartyState);
                     // The step itself publishes the worker, so the cache is
                     // refreshed on BOTH sides of it. Reading only before MoveNext
@@ -439,6 +448,7 @@ namespace KingmakerMountedCombat.Integration
                     activeSave = null;
                 }
                 if (ReferenceEquals(drainingSave, scope)) drainingSave = null;
+                combat?.ReleaseChargeSaveFence(scope);
             }
         }
 
@@ -455,7 +465,21 @@ namespace KingmakerMountedCombat.Integration
         // decision is testable on a bare service; the caller reports.
         internal OwnedWorkerTeardownVerdict DrainForTeardown(int milliseconds)
         {
+            if (activeSave == null && drainingSave == null && combat?.ChargeAdmissionFenced == true)
+            {
+                LastTeardownDrainSettled = false;
+                return OwnedWorkerTeardownVerdict.Refused;
+            }
             var scope = activeSave ?? drainingSave;
+            // A native iterator paused before publishing its worker can still write on its next
+            // frame. A settled worker also does not retire that iterator. Only its wrapper's
+            // terminal/disposal callback establishes that it can never resume after unpatching.
+            if (scope != null && scope.Began && !scope.EnumerationRetired)
+            {
+                TeardownDrainCount++;
+                LastTeardownDrainSettled = false;
+                return OwnedWorkerTeardownVerdict.Refused;
+            }
             System.Threading.Tasks.Task worker = null;
             var established = scope != null && ResolveWorker(scope, out worker);
             if (scope != null) TeardownDrainCount++;
@@ -540,11 +564,13 @@ namespace KingmakerMountedCombat.Integration
             var scope = activeSave;
             if (scope == null || name != "header" || !ReferenceEquals(scope.Prepared?.Saver, saver)) return;
             if (scope.Json != null) throw new InvalidOperationException("A native save crossed the snapshot barrier twice.");
+            RequireChargeSaveBarrier(scope);
             // This call is in SaveRoutine's game-thread header block, before
             // TurnOff/PreSave or any entity serialization worker is started.
             scope.World = Game.Instance.Player;
             scope.PartyState = scope.World.CrossSceneState;
             SaveSnapshotStarting?.Invoke();
+            RequireChargeSaveBarrier(scope);
             if (loaded != null && loaded.Kind != MountedSaveReadKind.Current && loaded.Kind != MountedSaveReadKind.Missing)
             {
                 if (loaded.OriginalJson == null)
@@ -784,6 +810,7 @@ namespace KingmakerMountedCombat.Integration
 
         private sealed class SaveScope
         {
+            internal Action BeforeNativeStep;
             internal SaveInfo Prepared;
             // The descriptor the native routine was asked to write. The engine
             // works on a copy (Prepared) and, for a first-ever save, this one
@@ -806,6 +833,7 @@ namespace KingmakerMountedCombat.Integration
             // commit of ITS own from any other, and say whether a previous
             // archive existed at all rather than promising one that never did.
             internal bool Began;
+            internal bool EnumerationRetired;
             internal int CommitsAtStart;
             internal string RequestedPath;
             internal bool PreviousExisted;

@@ -50,7 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal RuntimeSubscenarioResult Result { get; private set; }
         private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
         private int completedSlotWrites;
-        private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load";
+        private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load" || ChargeLifecycleCase;
         private bool Cold => request.Scenario == "persistence-p07-load" || ValidationCase || request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
         private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load";
         private readonly MountedCombatController combat;
@@ -67,6 +67,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.persistence = persistence; this.combat = combat; this.settings = settings; this.logger = logger;
             this.removal = removal; this.horseCompanion = horseCompanion; this.integrationDetached = integrationDetached;
             evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
+            BindChargePersistence();
             if (RealtimeCase && (RealtimeApproach || RealtimeCasting) && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
             if (CrossAreaCase) persistence.SaveSnapshotStaged += ObserveAreaTransitionSnapshot;
         }
@@ -508,6 +509,7 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
+            DisposeChargePersistence();
             recoveryFault?.Dispose(); recoveryFault = null;
             recoveryArchiveLock?.Dispose(); recoveryArchiveLock = null;
             // A held worker must never outlive its scenario, including a failure.

@@ -179,6 +179,12 @@ namespace KingmakerMountedCombat.Integration
         // Chunk 6B increment 6B.2: charge mode layers the stock charge mechanics on this already qualified
         // transaction through one lease. Everything else about the transaction is unchanged.
         private readonly bool chargeMode;
+        private bool chargeCleanupRequested;
+        private bool chargeCarrierMotionOwned;
+        private Kingmaker.View.UnitEntityView chargeCarrierView;
+        private Kingmaker.View.UnitMovementAgent chargeCarrierAgent;
+        private readonly List<KeyValuePair<UnitCommands, UnitMoveTo>> chargeCarriers =
+            new List<KeyValuePair<UnitCommands, UnitMoveTo>>();
         private MountedChargeLease chargeLease;
         private bool chargeLeaseApplicationFailed;
         private bool chargeLeaseRolledBackOnFailure;
@@ -325,15 +331,8 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool ChargeMode => chargeMode;
 
-        // Increment 6B.3: the exact owned charge transaction, live. This is the only delegator a
-        // preparing rider turn admits for the mount movement, so the claim is deliberately the whole
-        // of it rather than "this command is a charge": the command is the pair own charge, it has not
-        // finished, its lease is applied and not yet restored, and neither the application nor a
-        // revalidation has failed. The moment any of that stops holding the delegation returns to
-        // requiring an acting turn, which is the boundary Chunk 6A qualified.
-        internal bool ChargeTransactionDelegating =>
-            chargeMode && !IsFinished && chargeLease != null && chargeLease.Applied &&
-            !chargeLease.Restored && !chargeLeaseApplicationFailed && !chargeRevalidationFailed;
+        // The bounded Preparing-turn experiment is deferred with immutable native evidence.
+        internal bool ChargeTransactionDelegating => false;
 
         // Read-only lease facts for the external charge reader; null when this transaction is not a charge.
         internal Newtonsoft.Json.Linq.JObject CaptureChargeLeaseEvidence()
@@ -461,10 +460,58 @@ namespace KingmakerMountedCombat.Integration
             return complete;
         }
 
+        internal void RequestChargeCleanup()
+        {
+            if (!chargeMode) return;
+            chargeCleanupRequested = true;
+            if (!transaction.IsTerminal) transaction.Cancel("Charge ownership cleanup requested");
+        }
+
+        internal bool ChargeCarrierDrained => !chargeCarrierMotionOwned && chargeCarriers.All(pair => pair.Value.IsFinished &&
+            pair.Key != null && pair.Key.GetCommand(CommandType.Move) != pair.Value &&
+            !pair.Key.Contains(pair.Value) && !pair.Key.Queue.Contains(pair.Value));
+
+        internal bool OwnsChargeCarrier(UnitCommand command) => chargeCarriers.Any(pair => ReferenceEquals(pair.Value, command));
+
+        internal void TryDrainChargeCarrier()
+        {
+            var steps = new List<MountedChargeCompensationStep>();
+            foreach (var pair in chargeCarriers)
+            {
+                var carrier = pair.Value;
+                var container = pair.Key;
+                steps.Add(new MountedChargeCompensationStep("interrupt-carrier", () =>
+                {
+                    MountedChargeAdmissionFault.FireCleanup("carrier-interrupt");
+                    if (!carrier.IsFinished) carrier.Interrupt(false);
+                }));
+                steps.Add(new MountedChargeCompensationStep("remove-carrier", () =>
+                {
+                    MountedChargeAdmissionFault.FireCleanup("mount-remove");
+                    container.InterruptAll(command => ReferenceEquals(command, carrier));
+                }));
+            }
+            if (steps.Count == 0) return;
+            steps.Add(new MountedChargeCompensationStep("stop-carrier-path", () =>
+            {
+                if (!chargeCarrierMotionOwned) return;
+                if (chargeCarrierView == null || chargeCarrierAgent == null) return;
+                chargeCarrierAgent.Stop();
+                if (chargeCarrierAgent.Path == null && !chargeCarrierAgent.IsReallyMoving)
+                    chargeCarrierMotionOwned = false;
+            }));
+            var attempt = new MountedChargeCompensation("charge carrier cleanup", steps);
+            attempt.Run();
+            attempt.ConfirmPostconditions(new[] { new MountedChargePostcondition("carriers-released", () => ChargeCarrierDrained) });
+            if (!attempt.Complete) throw new InvalidOperationException(attempt.Describe());
+            delegatedMove = null;
+            mountMoveSlotRestoredAfterApproach = true;
+        }
+
         // True when the charge has stopped for any reason, so a caller must not continue this tick.
         private bool ChargeTransactionStopped()
         {
-            return IsFinished || transaction.IsTerminal || chargeRevalidationFailed || chargeSequenceViolated;
+            return chargeCleanupRequested || IsFinished || transaction.IsTerminal || chargeRevalidationFailed || chargeSequenceViolated;
         }
 
         // Records one step of the charge order. A step taken out of order fails the charge: the order is
@@ -629,6 +676,7 @@ namespace KingmakerMountedCombat.Integration
 
         protected override void OnStart()
         {
+            if (chargeCleanupRequested) { Interrupt(false); return; }
             try
             {
                 RequireLiveExactPair();
@@ -678,6 +726,7 @@ namespace KingmakerMountedCombat.Integration
 
         protected override void OnTick()
         {
+            if (chargeCleanupRequested) { Interrupt(false); return; }
             try
             {
                 RequireLiveExactPair();
@@ -767,6 +816,29 @@ namespace KingmakerMountedCombat.Integration
 
         protected override void OnEnded(bool raiseEvent = true)
         {
+            if (chargeMode)
+            {
+                // Interrupt stamps Result before invoking OnEnded and cannot be replayed after an
+                // exception. Always reach native base termination, independently of cleanup debt.
+                chargeCleanupRequested = true;
+                try
+                {
+                    try { TryDrainChargeCarrier(); }
+                    catch (Exception exception) { logger.Exception("Charge carrier cleanup retained", exception); }
+                    try { TryDischargeChargeCleanupDebt(); }
+                    catch (Exception exception) { logger.Exception("Charge lease cleanup retained", exception); }
+                    if (Result == ResultType.Success && LastAttackRule != null &&
+                        GetAttackIndex() == AllAttacks.Count && AllAttacks.Count > 0)
+                        transaction.Complete(attackTarget.UniqueId);
+                    if (!transaction.IsTerminal) transaction.Cancel(Result.ToString());
+                }
+                finally
+                {
+                    try { base.OnEnded(raiseEvent); }
+                    finally { ReportTerminalOnce(); }
+                }
+                return;
+            }
             try
             {
                 NativeRangedTailTermination = nativeSequenceTick && nativeMeleeTailRangeRejected && IsNativeRangedTailTermination();
@@ -1027,6 +1099,13 @@ namespace KingmakerMountedCombat.Integration
                 ShowTargetMarker = false,
                 NeedLoS = MountedCombatSpatialPolicy.DelegatedPointMoveRequiresLineOfSight
             };
+            if (chargeMode)
+            {
+                chargeCarriers.Add(new KeyValuePair<UnitCommands, UnitMoveTo>(mount.Commands, delegatedMove));
+                chargeCarrierView = mount.View;
+                chargeCarrierAgent = mount.View?.AgentASP;
+                chargeCarrierMotionOwned = true;
+            }
             delegatedMoveStartCount++;
             delegatedMoveOrigin = mount.Position;
             delegatedMoveDrivenByStockController =
@@ -1147,6 +1226,16 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
 
+            if (chargeMode)
+            {
+                var result = delegatedMove.Result;
+                if (requireSuccess && result != ResultType.Success)
+                    throw new InvalidOperationException("Exact charge carrier did not finish successfully.");
+                delegatedMoveFinishedSuccessfully |= result == ResultType.Success;
+                TryDrainChargeCarrier();
+                return;
+            }
+
             var exactMove = delegatedMove;
             var commands = mount.Commands;
             var rawMoveSlot = commands?.GetCommand(UnitCommand.CommandType.Move);
@@ -1180,6 +1269,7 @@ namespace KingmakerMountedCombat.Integration
 
         private void StartChildAttack()
         {
+            if (chargeCleanupRequested) { Interrupt(false); return; }
             if (!childAttack.TryPrepareNativeStartAdmission())
             {
                 throw new InvalidOperationException("Native child attack failed the bounded Mammoth-origin admission bridge.");

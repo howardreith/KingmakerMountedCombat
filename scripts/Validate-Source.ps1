@@ -415,9 +415,10 @@ $abilityLogicText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\King
 Assert-Kmc ($abilityLogicText -match 'service\.TryDispatch\(Kind, context\?\.Caster, target\?\.Unit, context\)') `
     'Deliver passes its own exact execution context into the relationship dispatch'
 $patchText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs')
-Assert-Kmc ($patchText -match 'PatchExact\(typeof\(UnitUseAbility\), "OnAction", 0x06002737, Type\.EmptyTypes, null, nameof\(PatchMethods\.NativeAbilityActionPostfix\)\)' -and
+Assert-Kmc ($patchText -match 'PatchExact\(typeof\(UnitUseAbility\), "OnAction", 0x06002737, Type\.EmptyTypes, nameof\(PatchMethods\.NativeAbilityActionPrefix\), nameof\(PatchMethods\.NativeAbilityActionPostfix\)\)' -and
+    $patchText -match 'CompleteChargeNativeAction\(__instance\)' -and $patchText -match 'BeginChargeNativeAction\(__instance\)' -and
     $patchText -match 'internal static void NativeAbilityActionPostfix\(UnitUseAbility __instance\)[\s\S]{0,200}BindNativeRelationshipProcess\(__instance\)') `
-    'the exact OnAction boundary is patched once to establish the process binding'
+    'the exact OnAction boundary retains charge registration and establishes the relationship process binding'
 
 # The typed shell lifecycle ledger: every early return names its failed predicate.
 $prepareBody = [Regex]::Match($nativeControlsText, '(?s)internal void PrepareNativeMountApproach\(UnitUseAbility command\).*?\n        \}\r?\n')
@@ -1575,7 +1576,9 @@ $restoreIndexes = Get-KmcOrderedIndexes $tryRestoreBlock.Value @(
     'Restored = true')
 Assert-Kmc ($tryRestoreBlock.Success -and $restoredAssignments.Count -eq 1 -and
     (Test-KmcStrictlyIncreasing $restoreIndexes) -and $tryUndoMethods.Count -eq 5 -and
-    $chargeLeaseText -match 'internal bool ApplyRolledBack => cleanup != null && cleanup\.Complete;') 'the charge lease reports itself restored only after its cleanup ledger confirms every mutation returned'
+    $chargeLeaseText -match 'internal bool ApplyRolledBack => RollbackComplete;' -and
+    $chargeLeaseText -match 'RollbackComplete => cleanup != null && cleanup\.Complete && FinalCleanupPostconditions\(\)' -and
+    $chargeLeaseText -match 'return ledger\.Complete && FinalCleanupPostconditions\(\);') 'the charge lease reports itself restored only after its cleanup ledger and final native postconditions confirm every mutation returned'
 
 # Item 5: the controller releases its last reference to live native state only when the reference
 # is still this exact command and every native ownership postcondition holds.
@@ -1622,46 +1625,28 @@ Assert-Kmc ($faultFireSites -eq 1 -and $faultIntegrationArmings -eq 0 -and $faul
     $faultText -match 'internal static Action AfterQueue;' -and
     $faultText -match 'AfterQueue = null;') 'the diagnostics-only charge admission seam has one firing site immediately after the queue insertion and is armed only from Diagnostics'
 
-Assert-Kmc ($compensationBlock.Success -and $postconditions.Count -ge 7 -and
-    (Test-KmcStrictlyIncreasing $compensationIndexes) -and
-    $compensationBlock.Value -match 'new MountedChargePostcondition\("no-lease-cleanup-debt"' -and
-    $compensationBlock.Value -match 'new MountedChargePostcondition\("scheduler-registration-absent"') 'post-queue charge compensation confirms native ownership postconditions before the controller releases its last reference'
-
-# Chunk 6B increment 6B.3: the bounded turn-based movement seam. Each of these pins one half of the
-# argument that the seam is narrow rather than a relaxation of a qualified boundary.
+# 6B-R replaces the admission-only compensation owner with one lifetime owner.
+$ownershipText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.ChargeCleanup.cs')
+$ownershipDomain = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeOwnership.cs')
 $spatialText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedCombatSpatialPolicy.cs')
 $pairCommandText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs')
 $pairControllerText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedCombatController.cs')
 $chargePolicyText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargePolicy.cs')
-# 1. The preparing admission is a DISJUNCT of the acting form, so no delegation Chunk 6A qualified can
-#    become refused, and the five-argument form still asks for exactly the old boundary.
-Assert-Kmc ($spatialText -match 'public static bool CanDelegateMountMovement\(\s*\r?\n\s*bool exactMountedPair,\s*\r?\n\s*bool turnBasedCombat,\s*\r?\n\s*bool currentUnitIsExactRider,\s*\r?\n\s*bool riderTurnIsActing,\s*\r?\n\s*bool movingAgentIsExactMount\) =>\s*\r?\n\s*CanDelegateMountMovement\(exactMountedPair, turnBasedCombat, currentUnitIsExactRider,\s*\r?\n\s*riderTurnIsActing, movingAgentIsExactMount, false, false\);' -and
-    $spatialText -match 'return exactMountedPair &&\s*\r?\n\s*turnBasedCombat &&\s*\r?\n\s*currentUnitIsExactRider &&\s*\r?\n\s*movingAgentIsExactMount &&\s*\r?\n\s*\(riderTurnIsActing \|\|\s*\r?\n\s*exactOwnedChargeTransactionDelegating && riderTurnIsPreparing\);' -and
-    ([Regex]::Matches($spatialText, 'bool CanDelegateMountMovement\(').Count -eq 2)) `
-    'the preparing-turn mount delegation is a disjunct of the qualified acting form and the five-argument form keeps the old boundary'
-# 2. A preparing rider turn admits exactly one delegator, and the command proves the whole claim: the
-#    pair own charge, unfinished, lease applied and not restored, no application or revalidation failure.
-Assert-Kmc ($pairCommandText -match 'internal bool ChargeTransactionDelegating =>\s*\r?\n\s*chargeMode && !IsFinished && chargeLease != null && chargeLease\.Applied &&\s*\r?\n\s*!chargeLease\.Restored && !chargeLeaseApplicationFailed && !chargeRevalidationFailed;' -and
-    $pairControllerText -match 'turn != null && turn\.Status == TurnController\.TurnStatus\.Preparing,[\s\S]{0,320}attackApproachActive && activeCommand\.ChargeTransactionDelegating\);' -and
-    ([Regex]::Matches($pairControllerText, 'ChargeTransactionDelegating').Count -eq 1)) `
-    'a preparing rider turn delegates the mount movement to the exact live owned charge transaction and to nothing else'
-# 3. The restored turn-based charge branch carries its four conditions, each with its own exact reason,
-#    and the blanket deferral refusal is gone from the policy rather than left reachable beside them.
-$turnBasedBranch = [Regex]::Match($chargePolicyText, '(?s)if \(request\.TurnBased\)\s*\r?\n\s*\{.*?\r?\n            \}')
-Assert-Kmc ($turnBasedBranch.Success -and
-    $turnBasedBranch.Value -match '!request\.RiderTurn[\s\S]{0,200}Mounted Charge belongs to the rider.s own turn\.' -and
-    $turnBasedBranch.Value -match '!request\.TurnActingOrPreparing[\s\S]{0,200}Mounted Charge requires the rider.s own acting or preparing turn\.' -and
-    $turnBasedBranch.Value -match 'request\.TurnTimeMoved > 0\.0001f[\s\S]{0,200}Mounted Charge requires a turn that has not moved yet\.' -and
-    $turnBasedBranch.Value -match '!request\.DeliveringOwnShell && request\.RiderMoveCooldown > 0\.001f[\s\S]{0,200}Mounted Charge requires the rider.s move action\.' -and
-    $chargePolicyText -notmatch 'not yet supported in turn-based mode') `
-    'the turn-based charge branch refuses each of its four conditions with its own exact reason and keeps no blanket deferral'
-# 4. The seam is the charge only: a turn-based relationship transition still requires an acting turn,
-#    and the delegation is still the sole mount-movement admission the controller consults.
+$requiredChargeFacts = @('command-terminal','standard-slot-released','container-released','scheduler-registration-absent','carrier-terminal-and-removed','lease-restored-or-absent','no-lease-cleanup-debt','shell-terminal','shell-container-released','execution-process-ended')
+Assert-Kmc (@($requiredChargeFacts | Where-Object { $ownershipText -notmatch ('new MountedChargePostcondition\("' + $_ + '"') }).Count -eq 0 -and
+    $ownershipDomain -match 'LastAttempt.Run\(\);\s*LastAttempt.ConfirmPostconditions\(postconditions\);' -and
+    $ownershipText -match 'if \(!complete\) return false;[\s\S]{0,300}chargeOwner = null;' -and
+    $compensationBlock.Value -match 'TryDrainChargeOwnership\(reason\)') 'one durable charge owner confirms every native shell, carrier, command, scheduler and lease postcondition before release'
+Assert-Kmc ($spatialText -match 'movingAgentIsExactMount &&\s*riderTurnIsActing;' -and
+    $spatialText -notmatch 'exactOwnedChargeTransactionDelegating && riderTurnIsPreparing' -and
+    ([Regex]::Matches($spatialText, 'bool CanDelegateMountMovement\(').Count -eq 2)) 'both delegation overloads retain Acting-only admission after the failed Preparing experiment'
+Assert-Kmc ($pairCommandText -match 'internal bool ChargeTransactionDelegating => false;' -and
+    $ownershipText -match 'TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\) \|\| ChargeNativeWorldLoading\) return false;' -and
+    $ownershipText -match '!TurnBased.Controllers.CombatController.IsInTurnBasedCombat\(\) && !ChargeNativeWorldLoading &&') 'the deferred charge experiment exposes no Preparing or TB shell admission'
+Assert-Kmc ($chargePolicyText -match 'return Refuse\("Mounted Charge is not yet supported in turn-based mode\.", MountedCombatRejectionCode.WrongTurn\);') 'turn-based charge retains the exact qualified cost-free refusal'
 Assert-Kmc ($evaluatorText -match 'return !turnBasedCombat \|\| currentTurnIsExactRider && turnActing;' -and
     ([Regex]::Matches($pairControllerText, 'MountedPairTurnPolicy\.CanDelegateMountMovement\(').Count -eq 1) -and
-    $spatialText -match 'public static bool CanDriveRiderGroundMovement\(') `
-    'increment 6B.3 widens nothing outside the charge: the relationship transition keeps its acting-turn boundary'
-
+    $spatialText -match 'public static bool CanDriveRiderGroundMovement\(') 'charge deferral preserves relationship Acting eligibility and ordinary movement policies'
 $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLowerInvariant() -in @('.cs','.ps1','.md','.json','.xml','.props','.csproj','.sln','.gitignore') })
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'

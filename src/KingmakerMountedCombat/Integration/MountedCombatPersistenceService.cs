@@ -158,6 +158,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void BeginLoadHousekeeping()
         {
+            if (!combat.TryDrainChargeOwnership("load world replacement"))
+                throw new InvalidOperationException("Load refused: charge cleanup ownership is unresolved.");
             CancelAreaTransition();
             NativeSaveEffectBoundary.Clear();
             unifiedTurn.DiscardPersistenceWorld();

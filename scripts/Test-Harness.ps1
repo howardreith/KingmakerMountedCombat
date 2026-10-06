@@ -4937,7 +4937,7 @@ try {
             'production synthesizes mounted opportunities or patches broad engagement ownership despite the default-off stretch disposition'
     }
 
-    Invoke-HarnessTest 'basic mounted charge feature remains absent and default-off' {
+    Invoke-HarnessTest 'mounted charge remains scoped and default-off with retained cleanup ownership' {
         $productionFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' | Sort-Object FullName)
         $productionSource = @($productionFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
@@ -4980,15 +4980,17 @@ try {
         # raise the mount agent flag once under its own restored lease and nothing else.
         $buffFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'ChargeBuff')).Count -gt 0 } | ForEach-Object Name)
         $chargingFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'IsCharging = true')).Count -gt 0 } | ForEach-Object Name | Sort-Object)
-        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeScenario.cs|MountedChargeLease.cs' -and
+        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeScenario.cs|MountedChargeLease.cs|MountedPatchController.cs|RuntimePersistenceChargeScenario.cs' -and
             (@($chargingFiles) -join '|') -ceq 'Chunk6bChargePathScenario.cs|MountedChargeLease.cs' -and
             ([regex]::Matches($leaseSource, 'IsCharging = true')).Count -eq 2 -and
             ([regex]::Matches($pathSource, 'IsCharging = true')).Count -eq 1) `
             'charge buff or charging state is written outside the charge lease and its measurement'
         # The lease restores exactly what it set and refunds nothing.
-        Assert-Test ($leaseSource.Contains('agent.IsCharging = chargingBefore;') -and
+        Assert-Test ($leaseSource.Contains('TryRestoreChargingCounter(agent, chargingCounterBefore, ref chargingReleaseObserved)') -and
+            $leaseSource.Contains('agent.IsCharging = false;') -and
+            $leaseSource.Contains('released && (int)ChargingCounterField.GetValue(agent) == before') -and
             $leaseSource.Contains('agent.MaxSpeedOverride = speedOverrideBefore;') -and
-            $leaseSource.Contains('rider.Descriptor.State.IsCharging = riderChargingBefore;') -and
+            $leaseSource.Contains('appliedRiderState.IsCharging = riderChargingBefore;') -and
             -not $leaseSource.Contains('Cooldown.StandardAction =') -and
             -not $leaseSource.Contains('Cooldown.MoveAction =')) `
             'the Chunk 6B charge lease does not restore exactly, or writes a native cooldown'

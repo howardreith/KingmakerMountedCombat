@@ -89,7 +89,7 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
                     nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
-                PatchExact(typeof(UnitUseAbility), "OnAction", 0x06002737, Type.EmptyTypes, null, nameof(PatchMethods.NativeAbilityActionPostfix));
+                PatchExact(typeof(UnitUseAbility), "OnAction", 0x06002737, Type.EmptyTypes, nameof(PatchMethods.NativeAbilityActionPrefix), nameof(PatchMethods.NativeAbilityActionPostfix));
                 PatchExact(typeof(UnitEntityView), "OnMovementInterrupted", 0x0600184F, new[] { typeof(UnityEngine.Vector3) },
                     nameof(PatchMethods.NativeMountMovementInterruptedPrefix), nameof(PatchMethods.NativeMountMovementInterruptedPostfix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsSuitableForAutoUse", 0x06002B30,
@@ -145,10 +145,14 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, nameof(PatchMethods.CombatControllerTickPrefix), nameof(PatchMethods.CombatControllerTickPostfix));
                 PatchExact(typeof(CombatController), "ChooseNextUnit", 0x06000BD2, Type.EmptyTypes, null, nameof(PatchMethods.ChooseNextUnitPostfix), nameof(PatchMethods.PairedSelectorTranspiler));
                 PatchExact(typeof(CombatController), "HandleCombatStart", 0x06000BE2, new[] { typeof(bool) }, nameof(PatchMethods.PairedEncounterPrefix), nameof(PatchMethods.PairedEncounterPostfix));
+                PatchExact(typeof(CombatController), "HandleTurnBasedModeStateChanged", 0x06000BF5, new[] { typeof(bool) }, nameof(PatchMethods.ChargeModeBoundaryPrefix), nameof(PatchMethods.ChargeModeBoundaryPostfix));
+                PatchExact(typeof(CombatController), "HandlePartyCombatStateChanged", 0x06000BED, new[] { typeof(bool) }, nameof(PatchMethods.ChargeCombatBoundaryPrefix));
                 PatchExact(typeof(CombatController), "Disable", 0x06000BEA, Type.EmptyTypes, nameof(PatchMethods.PairedModeExitPrefix));
                 PatchExact(typeof(CombatController), "RemoveUnit", 0x06000BE6, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.PairedActorRemovalPrefix));
                 PatchExact(typeof(BuffCollection), "Tick", 0x06002A02, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedBuffTimerTranspiler));
-                PatchExact(typeof(CombatController), "TickTime", 0x06000BD6, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
+                PatchExact(typeof(BuffCollection), "CreateFact", 0x060029F9, null,
+                    null, nameof(PatchMethods.ChargeBuffCreatedPostfix));
+                PatchExact(typeof(CombatController), "TickTime", 0x06000BD6, Type.EmptyTypes, nameof(PatchMethods.ChargeTransitionTickPrefix), null, nameof(PatchMethods.PairedReadinessTranspiler));
                 PatchExact(typeof(CombatController).GetNestedType("<>c", BindingFlags.NonPublic), "<HandleCombatStart>b__79_2",
                     0x0600A2BE, null, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
                 PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, nameof(PatchMethods.TurnPreparePrefix), nameof(PatchMethods.TurnPreparePostfix), nameof(PatchMethods.PairedPreparationTranspiler));
@@ -314,6 +318,9 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
+            internal static void ChargeBuffCreatedPostfix(BuffCollection __instance, Kingmaker.Blueprints.Facts.Fact __result) =>
+                MountedChargeLease.ObserveChargeBuffCreated(__instance, __result as Buff);
+
             internal static void ChargeTargetPostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
             {
                 // The installed native-target extension replaces this method in
@@ -345,9 +352,10 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            internal static bool ChargeAdmissionPrefix(UnitCommand cmd) =>
+            internal static bool ChargeAdmissionPrefix(UnitCommands __instance, UnitCommand cmd) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 PatchBridge.Persistence?.ActiveSaveWorkerRunning != true &&
+                (PointerController.SimulatingClick || PatchBridge.Combat?.AdmitChargeCommand(__instance, cmd) != false) &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
 
             // Game.ResetToMainMenu, the only gameplay caller of StopAll. Deferred
@@ -378,7 +386,8 @@ namespace KingmakerMountedCombat.Integration
                 NativeDeferredSave.AbandonOwned(__instance, error => PatchBridge.Persistence?.ReportAbandonedSave(error));
 
             internal static bool ChargeExecutionPrefix(UnitCommand __instance) =>
-                PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance);
+                (PatchBridge.Combat?.AllowChargeExecution(__instance) != false) &&
+                (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance));
 
             internal static void NativeMovementUpdatePrefix() => PatchBridge.Service?.BeginNativeMovementUpdate();
 
@@ -410,6 +419,7 @@ namespace KingmakerMountedCombat.Integration
                 // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
                 // must stay entirely native; routing one can cancel a real pair order or move its mount.
                 if (PointerController.SimulatingClick) { return true; }
+                if (PatchBridge.Combat?.AdmitChargeCommand(__instance, cmd) == false) return false;
                 if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
                 if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
                 {
@@ -434,8 +444,14 @@ namespace KingmakerMountedCombat.Integration
             // completed and left the Move slot.
             internal static void NativeAbilityActionPostfix(UnitUseAbility __instance)
             {
+                PatchBridge.Combat?.CompleteChargeNativeAction(__instance);
                 PatchBridge.NativeControls?.BindNativeRelationshipProcess(__instance);
             }
+
+            // Execute registers a process before Rulebook returns it to shell.ExecutionProcess.
+            // Reentrant lifecycle callbacks in that interval must retain the exact shell owner.
+            internal static void NativeAbilityActionPrefix(UnitUseAbility __instance) =>
+                PatchBridge.Combat?.BeginChargeNativeAction(__instance);
 
             internal static void NativeMountMovementInterruptedPrefix(UnitEntityView __instance, out UnitUseAbility __state)
             {
@@ -548,7 +564,19 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
             internal static void PairedEncounterPostfix() => PatchBridge.Persistence?.TryRestoreCombat();
-            internal static bool CombatControllerTickPrefix() => PatchBridge.Persistence?.BeforeCombatTick() ?? true;
+            internal static bool ChargeModeBoundaryPrefix(CombatController __instance, bool enabled, out bool __state)
+            {
+                __state = PatchBridge.Combat?.AdmitChargeNativeBoundary(__instance, MountedChargeBoundaryKind.Mode, enabled) ?? true;
+                return __state;
+            }
+            internal static void ChargeModeBoundaryPostfix(bool enabled, bool __state)
+            {
+                if (__state) PatchBridge.Combat?.CompleteChargeNativeMode(enabled);
+            }
+            internal static bool ChargeCombatBoundaryPrefix(CombatController __instance, bool inCombat) =>
+                PatchBridge.Combat?.AdmitChargeNativeBoundary(__instance, MountedChargeBoundaryKind.PartyCombat, inCombat) ?? true;
+            internal static bool ChargeTransitionTickPrefix() => PatchBridge.Combat?.ChargeNativeBoundaryPending != true;
+            internal static bool CombatControllerTickPrefix() => ChargeTransitionTickPrefix() && (PatchBridge.Persistence?.BeforeCombatTick() ?? true);
             internal static void PairedWaitingPostfix(TurnController __instance, ref bool __result) =>
                 PatchBridge.UnifiedTurn?.ExtendPairedWaiting(__instance, ref __result);
             internal static void PairedForfeitPrefix(TurnController __instance, bool setCooldowns) => PatchBridge.UnifiedTurn?.ForfeitPairedActivation(__instance, setCooldowns);
@@ -556,7 +584,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (PatchBridge.Persistence?.LoadingWorld != true) PatchBridge.UnifiedTurn?.BeforeNativeModeExit(__instance);
             }
-            internal static void PairedActorRemovalPrefix(UnitEntityData unit) => PatchBridge.UnifiedTurn?.BeforePairedActorRemoval(unit);
+            internal static bool PairedActorRemovalPrefix(CombatController __instance, UnitEntityData unit)
+            {
+                if (PatchBridge.Combat?.AdmitChargeActorRemoval(__instance, unit) == false) return false;
+                PatchBridge.UnifiedTurn?.BeforePairedActorRemoval(unit);
+                return true;
+            }
             internal static void PairedTickPrefix(TurnController __instance) => PatchBridge.UnifiedTurn?.TickPairedNativeState(__instance);
             internal static bool PairedInputPredictionPrefix(TurnController __instance) =>
                 PatchBridge.UnifiedTurn?.PrepareNativeInputPrediction(__instance) ?? true;
@@ -913,8 +946,12 @@ namespace KingmakerMountedCombat.Integration
                         PatchBridge.NativeControls == null ? __result : PatchBridge.NativeControls.WrapSaveRoutine(__result);
             }
 
-            internal static void AreaTransitionPrefix(Kingmaker.Blueprints.Area.BlueprintArea area, SaveInfo saveInfo) =>
+            internal static bool AreaTransitionPrefix(Kingmaker.Blueprints.Area.BlueprintArea area, SaveInfo saveInfo)
+            {
+                if (PatchBridge.Persistence?.AdmitChargeAreaTransition() == false) return false;
                 PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo);
+                return true;
+            }
             internal static void AreaEntitiesReadyPostfix() => PatchBridge.Persistence?.RestoreAreaPair();
 
             internal static bool GameLoadAdmissionPrefix(SaveInfo saveInfo)

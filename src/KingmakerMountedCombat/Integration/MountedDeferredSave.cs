@@ -72,7 +72,18 @@ namespace KingmakerMountedCombat.Integration
                 !NativeSaveEffectBoundary.HasUnresolvedAbilities();
         }
 
-        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault)
+        private void RequireChargeSaveBarrier(SaveScope scope)
+        {
+            if (scope.Released || scope.EnumerationRetired)
+                throw new InvalidOperationException("A retired save operation cannot resume native serialization.");
+            // After this exact scope captured its header, queued lifecycle notifications
+            // must wait for serialization to finish. They must not abort its worker or
+            // start cleanup against the live graph. New captures still require no queue.
+            if (!(scope.Json == null ? combat.AcquireChargeSaveFence(scope) : combat.ContinueChargeSaveFence(scope)))
+                throw new InvalidOperationException("Save deferred: charge cleanup ownership is unresolved.");
+        }
+
+        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault, SaveScope scope)
         {
             var timer = Stopwatch.StartNew();
             Player world = null;
@@ -90,7 +101,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (world != null && !ReferenceEquals(Game.Instance?.Player, world))
                     throw new InvalidOperationException("Save was not written: its native world was replaced.");
-                return fault?.Active != true && SaveEffectsReady();
+                return combat.AcquireChargeSaveFence(scope) && fault?.Active != true && SaveEffectsReady();
             };
             return new DeferredSaveEnumerator<object>(routine, ready, () => timer.Elapsed.TotalSeconds,
                 () =>
@@ -103,7 +114,13 @@ namespace KingmakerMountedCombat.Integration
                 {
                     if (restorePause && ReferenceEquals(Game.Instance?.Player, world)) Game.Instance.IsPaused = true;
                     world = null;
-                }, 30d);
+                }, 30d, () =>
+                {
+                    // ready() precedes the inner scope's begin. Cancellation/timeout there
+                    // still releases this exact operation's fence. A started worker retains it
+                    // through ReleaseSaveScope/the existing deferred-worker drain.
+                    if (!scope.Began) combat.ReleaseChargeSaveFence(scope);
+                });
         }
 
         // The ordinary completion path's failure report. What is said depends on

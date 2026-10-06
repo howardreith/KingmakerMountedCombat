@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'Chunk6bPersistenceEvidence.ps1')
 # Chunk 6B increment 6B.2: the real-time delivery of the pair-owned Mounted Charge (chunk6b-charge-rt).
 # The compiled scenario records facts and checks its own structure only; this reader is the one acceptance
 # authority for the five delivery rows. Read-only over the immutable artifact; no runtime mutation.
@@ -16,7 +17,8 @@ function Get-KmcChunk6bChargeRows([string]$Mode) {
     if([string]$Mode-ceq'TB'){
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
-        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled','C6B-CHARGE-exception-cleanup','C6B-CHARGE-target-moved','C6B-CHARGE-target-lost','C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated')
+        @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled','C6B-CHARGE-exception-cleanup','C6B-CHARGE-target-moved','C6B-CHARGE-target-lost','C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated',
+          'C6B-CHARGE-beyond-maximum','C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-duplicate','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-lease-application-failed','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced','C6B-CHARGE-mount-dead','C6B-CHARGE-rider-dead')
     }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
@@ -69,7 +71,7 @@ function Assert-KmcChunk6bChargeNothingHappened($Evidence,[string]$Row) {
 # the carrier owned it; the attack-start revalidation asks the opposite, so it must have run after the
 # release was proven; and the lease may not exist before exact carrier ownership does. A charge that
 # struck must show that whole order, and no charge may end owing cleanup.
-function Assert-KmcChunk6bChargeTransaction($Evidence,[string]$Row,[bool]$ExpectAttack) {
+function Assert-KmcChunk6bChargeTransaction($Evidence,[string]$Row,[bool]$ExpectAttack,[bool]$ExpectedLeaseFailure=$false) {
     $t=ChargeProp $Evidence 'transaction'
     if($null-eq$t){ChargeFail ('row '+$Row+' recorded no charge transaction')}
     if((ChargeProp $t 'chargeMode')-ne$true){ChargeFail ('row '+$Row+' the admitted command was not in charge mode')}
@@ -79,7 +81,10 @@ function Assert-KmcChunk6bChargeTransaction($Evidence,[string]$Row,[bool]$Expect
     if((ChargeProp $t 'leaseRestored')-ne$true){ChargeFail ('row '+$Row+' the charge lease was not restored')}
     if((ChargeProp $t 'cleanupComplete')-ne$true){ChargeFail ('row '+$Row+' the charge lease cleanup is incomplete')}
     foreach($field in @('cleanupDebt','cleanupDebtAtEnd')){ if([string](ChargeProp $t $field)-ne''){ChargeFail ('row '+$Row+' left charge cleanup debt: '+$field+'='+[string](ChargeProp $t $field))} }
-    if((ChargeProp $t 'leaseApplicationFailed')-ne$false){ChargeFail ('row '+$Row+' the charge lease application failed')}
+    if($ExpectedLeaseFailure){
+        if($Row-cne'C6B-CHARGE-lease-application-failed'-or$ExpectAttack-or$t.leaseApplicationFailed-ne$true-or
+            $t.leaseApplicationFailedStep-cne'forced-path'-or$t.leaseRolledBackOnFailure-ne$true){ChargeFail 'lease fault did not roll back its exact acquired path step'}
+    }elseif((ChargeProp $t 'leaseApplicationFailed')-ne$false){ChargeFail ('row '+$Row+' the charge lease application failed')}
     if([long](ChargeProp $t 'revalidationCount')-lt1){ChargeFail ('row '+$Row+' the charge never revalidated its own conditions')}
     if([string](ChargeProp $t 'revalidationPhases')-eq''){ChargeFail ('row '+$Row+' recorded no revalidation phases')}
     if(-not$ExpectAttack){
@@ -231,6 +236,68 @@ function Assert-KmcChunk6bChargeBoundedTermination($Evidence,[string]$Row,[strin
     Assert-KmcChunk6bChargeTransaction $Evidence $Row $false
 }
 
+function Assert-KmcChargeDeath($Evidence,[string]$Row,[string]$Kind) {
+    Assert-KmcChunk6bChargeBoundedTermination $Evidence $Row ('native-'+$Kind+'-death')
+    $d=ChargeProp $Evidence 'death';$other=if($Kind-ceq'rider'){'mount'}else{'rider'}
+    if($null-eq$d-or$d.subjectKind-cne$Kind-or[string]::IsNullOrEmpty($d.subject)-or$d.subject-cne$d.before.$Kind.id-or
+        $d.subject-ceq$d.before.$other.id-or$d.source-cne$Evidence.terminal.targetId-or$d.damageDispatches-ne1-or
+        $d.nativeDamage-le0-or$d.nativeDamageBeforeDifficulty-ne$d.requestedDamage-or$d.damageToParty-le0-or
+        $d.before.$Kind.conscious-ne$true-or$d.before.$Kind.dead-ne$false-or$d.before.relationship-cne'Mounted'-or
+        $d.before.ownership.owned-ne$true-or$d.before.ownership.identity-ne$Evidence.lastDrainedOwnership.identity-or
+        $d.deathThreshold-ne($d.before.$Kind.hp+$d.before.$Kind.constitution)-or$d.afterDamage.$Kind.damage-le$d.deathThreshold){ChargeFail 'native death lacks exact live subject and single native damage dispatch'}
+    foreach($number in @($d.requestedDamage,$d.nativeDamage,$d.damageToParty,$d.enemyNativeDamage)){
+        if(-not(ChargeNumber $number)-or[double]$number-le0){ChargeFail 'native death has invalid damage measurement'}
+    }
+    $ended=$d.terminated
+    if($null-eq$ended-or$ended.$Kind.dead-ne$true-or$ended.$Kind.conscious-ne$false-or$ended.relationship-cne'Unmounted'-or
+        $ended.ownership.owned-ne$false-or$ended.presentationResidue-ne$false-or$ended.rider.commandsEmpty-ne$true-or
+        $ended.mount.commandsEmpty-ne$true-or$ended.frame-lt$d.afterDamage.frame){ChargeFail 'death did not terminate and detach the exact charge before encounter completion'}
+    Assert-KmcChargeDrained $ended.lastDrained
+    if($ended.lastDrained.identity-ne$d.before.ownership.identity-or$d.enemyDamageDispatches-ne1-or
+        [string]::IsNullOrEmpty($d.enemyDamageSource)-or$d.enemyDamageSource-cin@($d.subject,$d.source)-or
+        $d.enemyBefore.id-cne$d.source-or$d.enemyAfter.id-cne$d.source-or$d.enemyBefore.dead-ne$false-or
+        $d.enemyAfter.dead-ne$true-or$d.enemyLifeTransitions-lt1-or$d.enemyDamageFrame-lt$ended.frame){ChargeFail 'death encounter exit lacks its exact later native enemy defeat'}
+    foreach($state in @($d.encounterExit,$d.afterPolicyRestore)){
+        if($null-eq$state-or$state.relationship-cne'Unmounted'-or$state.presentationResidue-ne$false-or
+            $state.playerInCombat-ne$false-or$state.riderInCombat-ne$false-or$state.mountInCombat-ne$false-or
+            $state.controllerInitialized-ne$false-or$state.boundaries.pending-ne$false-or$state.trackedAllocations-ne0-or
+            $state.pairedIdentity-ne$false-or$state.partnerContext-ne$false-or$state.ownership.owned-ne$false-or
+            $state.rider.commandsEmpty-ne$true-or$state.mount.commandsEmpty-ne$true-or
+            $state.$other.id-cne$d.before.$other.id-or$state.$other.conscious-ne$true-or$state.$other.inState-ne$true-or
+            $state.$other.enabledRenderers-lt1-or$state.$other.damage-ne$d.before.$other.damage-or
+            $state.riderGrants-ne$d.before.riderGrants-or$state.mountGrants-ne$d.before.mountGrants){ChargeFail 'death exit left ownership, replayed preparation or changed the survivor'}
+        Assert-KmcChargeDrained $state.lastDrained
+    }
+    if($d.afterPolicyRestore.gameTicks-$d.encounterExit.gameTicks-lt2500000){ChargeFail 'death policy restoration lacks settled native observation'}
+    if($d.allocationTrace.dropped-ne0-or$d.allocationTrace.observationErrors-ne0-or@($d.allocationTrace.observerHooks).Count-lt1){ChargeFail 'death allocation trace is incomplete'}
+    $policy=$d.policy
+    if($null-eq$policy-or$policy.permanentDeathFixture-ne($Kind-ceq'rider')-or$policy.effective.trueDeath-ne($Kind-ceq'rider')-or
+        $policy.restoration.restored-ne$true-or(ConvertTo-Json $policy.before -Depth 30 -Compress)-cne(ConvertTo-Json $policy.restoration.state -Depth 30 -Compress)-or
+        $policy.before.damageToParty-ne$d.damageToParty-or$policy.effective.damageToParty-ne$d.damageToParty){ChargeFail 'death difficulty policy was not bounded and restored exactly'}
+    foreach($setting in @('riseAfterCombat','deathDoor')){
+        if($policy.before.$setting.persisted-cne$policy.effective.$setting.persisted){ChargeFail 'death fixture wrote persisted settings'}
+    }
+    $events=@($d.lifeEvents.events|Where-Object {$_.kind-ceq'native-life-state'-and$_.actor-ceq$d.subject})
+    $dead=@($events|Where-Object {$_.lifeState-ceq'Dead'})
+    $conscious=@($events|Where-Object {$_.lifeState-ceq'Conscious'})
+    if($dead.Count-ne1-or$dead[0].frame-lt$d.before.frame-or$dead[0].frame-gt$ended.frame-or
+        @($dead[0].nativeSource|Where-Object {$_.token-ceq'06009164'-and$_.assemblyMvid-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}).Count-ne1){ChargeFail 'death lacks its exact native life controller witness'}
+    if($Kind-ceq'rider'){
+        if($conscious.Count-ne0-or$d.terminated.rider.finallyDead-ne$true-or$d.afterPolicyRestore.rider.finallyDead-ne$true-or
+            $d.afterPolicyRestore.rider.dead-ne$true-or$d.afterPolicyRestore.rider.conscious-ne$false-or
+            $d.afterPolicyRestore.rider.directlyControllable-ne$false){ChargeFail 'permanent rider death was resurrected or lost'}
+    }else{
+        $actor=$d.afterPolicyRestore.mount
+        $expected=[Math]::Max(0,$actor.hp-[Math]::Max(1,$actor.characterLevel)-$actor.nonLethalDamage)
+        if($conscious.Count-ne1-or$d.terminated.mount.finallyDead-ne$false-or$actor.conscious-ne$true-or$actor.dead-ne$false-or
+            $actor.finallyDead-ne$false-or$actor.damage-ne$expected-or$conscious[0].frame-lt$d.enemyDamageFrame-or
+            $conscious[0].frame-gt$d.encounterExit.frame){ChargeFail 'mount recovery lacks exact native health and encounter ordering'}
+        foreach($token in @('0600918e','06009191','06009164')){
+            if(@($conscious[0].nativeSource|Where-Object {$_.token-ceq$token-and$_.assemblyMvid-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}).Count-ne1){ChargeFail 'mount was not recovered by the exact native controller'}
+        }
+    }
+}
+
 function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     $e=$Row.evidence
     $name=[string]$Row.name
@@ -241,7 +308,8 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     # outcome those rows exist to observe, so by the time their row is written the pair is gone. They
     # assert mounted-at-the-start and dissolved-after in their own branch, which is stronger.
     $incapacityRow=$name-cin@('C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated')
-    if(-not$incapacityRow-and(ChargeProp $e 'mounted')-ne$true){ChargeFail ('row '+$name+' was not the mounted pair')}
+    $dismountRow=$name-cin@('C6B-CHARGE-dismounted','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced','C6B-CHARGE-mount-dead','C6B-CHARGE-rider-dead')
+    if(-not$incapacityRow-and-not$dismountRow-and(ChargeProp $e 'mounted')-ne$true){ChargeFail ('row '+$name+' was not the mounted pair')}
     # A case that had to deliver and admitted nothing says so in its own evidence. Whatever else the
     # row contains, it did not observe what it set out to observe.
     if(-not[string]::IsNullOrEmpty([string](ChargeProp $e 'nonDelivery'))){ChargeFail ('row '+$name+' did not deliver: '+[string](ChargeProp $e 'nonDelivery'))}
@@ -310,29 +378,40 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
     # The KMC charge is a mounted-only ability lease. After an incapacity has dissolved the pair the
     # ability must be gone from the rider, so those rows prove the lease followed the relationship;
     # every other row still has it, because the pair is still whole.
-    Assert-KmcChunk6bChargeIdentity (ChargeProp $e 'identityAfter') $name (-not$incapacityRow)
+    $expectsAbility=-not$incapacityRow-and$name-cne'C6B-CHARGE-feature-disabled'-and(-not$dismountRow-or(ChargeProp $e 'mounted')-eq$true)
+    Assert-KmcChunk6bChargeIdentity (ChargeProp $e 'identityAfter') $name $expectsAbility
+    if([long](ChargeProp (ChargeProp $e 'delivery') 'chargeAdmitted')-gt0){
+        if((ChargeProp (ChargeProp $e 'ownership') 'owned')-ne$false){ChargeFail 'admitted charge retained ownership at settlement'}
+        Assert-KmcChargeDrained (ChargeProp $e 'lastDrainedOwnership')
+        if($Mode-ceq'RT'-and(-not(ChargeNumber $economy.riderStandardMax)-or$economy.riderStandardMax-gt6.001-or
+            $economy.riderMoveMax-gt$(if($name-ceq'C6B-CHARGE-dismounted'){3.001}else{0.001}))){ChargeFail 'RT native shell charged excessive or duplicate action debt'}
+    }
 
-    switch -CaseSensitive ($name) {
+    $dispatchName=$name
+    if($name-ceq'C6B-CHARGE-duplicate'){
+        $duplicate=ChargeProp $e 'boundary'
+        if($null-eq$duplicate-or$duplicate.kind-cne'native-duplicate-request'-or$duplicate.availableBefore-ne$false-or
+            $duplicate.ownerBefore.owned-ne$true-or$duplicate.ownerBefore.state-cne'Active'-or$null-eq$duplicate.ownerBefore.identity-or
+            $duplicate.admittedAfter-ne$duplicate.admittedBefore-or$duplicate.ownerBefore.identity-ne$duplicate.ownerAfterRequest.identity-or
+            $duplicate.ownerAfterRequest.state-cne'Active'-or$duplicate.lastDrained.identity-ne$duplicate.ownerBefore.identity){ChargeFail 'duplicate request changed the live transaction'}
+        if($duplicate.input.abilityGuid-cne(ChargeKmcAbilityGuid)-or
+            [string]::IsNullOrEmpty($duplicate.input.clickedTargetId)-or$duplicate.input.clickedTargetId-cne$duplicate.ownerBefore.target-or
+            $duplicate.input.resolvedTargetId-cne$duplicate.ownerBefore.target-or$duplicate.input.dispatchAcceptedDelta-ne0){ChargeFail 'duplicate request lacks exact native input/refusal evidence'}
+        $dispatchName='C6B-CHARGE-positive'
+    }
+
+    switch -CaseSensitive ($dispatchName) {
         'C6B-CHARGE-positive' {
             if($Mode-ceq'TB'){
-                # Increment 6B.3's bounded seam: a turn-based charge is delivered on the rider's own
-                # turn, which must not have moved yet, and the pair movement delegation that carries it
-                # is opened for that one transaction while the turn is preparing. Those turn facts are
-                # the only thing specific to the mode; everything else a lawful charge must show is
-                # identical to real time, so this block asserts the turn and then falls through to the
-                # same contract below rather than keeping a second copy of it.
+                # Increment 6B.3 is deferred with evidence, so a turn-based charge over a lawful geometry
+                # must be refused outright, with the exact reason, before any cost, path or attack.
+                if((ChargeProp $before 'available')-ne$false){ChargeFail 'the turn-based charge was available while increment 6B.3 is deferred'}
+                if((ChargeProp $before 'canTarget')-ne$false){ChargeFail 'the turn-based charge was targetable while increment 6B.3 is deferred'}
+                if([string](ChargeProp $before 'kmcAvailabilityReason')-cne'Mounted Charge is not yet supported in turn-based mode.'){ChargeFail ('the turn-based refusal reason differs: '+(ChargeProp $before 'kmcAvailabilityReason'))}
                 $beforeTurn=ChargeProp (ChargeProp $before 'state') 'turn'
-                if($null-eq$beforeTurn){ChargeFail 'the turn-based charge recorded no turn'}
-                if((ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based charge was not cast on the rider own turn'}
-                if(-not(ChargeNumber (ChargeProp $beforeTurn 'timeMoved'))-or[double]$beforeTurn.timeMoved-gt0.0001){
-                    ChargeFail 'the turn-based charge was cast on a turn that had already moved'
-                }
-                if([string](ChargeProp $beforeTurn 'status')-cnotin @('Preparing','Acting')){
-                    ChargeFail ('the turn-based charge was cast on a turn that was neither preparing nor acting: '+[string](ChargeProp $beforeTurn 'status'))
-                }
-                if([string](ChargeProp $before 'kmcAvailabilityReason')-ceq'Mounted Charge is not yet supported in turn-based mode.'){
-                    ChargeFail 'the turn-based charge still reports the deferral reason'
-                }
+                if($null-eq$beforeTurn-or(ChargeProp $beforeTurn 'isRider')-ne$true){ChargeFail 'the turn-based refusal was not recorded on the rider own turn'}
+                Assert-KmcChunk6bChargeNothingHappened $e $name
+                return
             }
             if((ChargeProp $before 'available')-ne$true-or(ChargeProp $before 'canTarget')-ne$true){ChargeFail 'the lawful charge was not available or targetable'}
             if((ChargeProp $before 'requireFullRound')-ne$true-or[string](ChargeProp $before 'commandType')-cne'Standard'){ChargeFail 'the lawful charge was not a full-round standard action'}
@@ -394,6 +473,125 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             if(-not(ChargeNumber (ChargeProp $state 'distanceToTarget'))-or-not(ChargeNumber (ChargeProp $before 'minRangeMeters'))){ChargeFail 'the minimum-range row recorded no geometry'}
             if([double]$state.distanceToTarget-ge[double]$before.minRangeMeters){ChargeFail 'the minimum-range row target was not inside the minimum charge distance'}
             Assert-KmcChunk6bChargeNothingHappened $e $name
+        }
+        'C6B-CHARGE-beyond-maximum' {
+            $range=ChargeProp $e 'rangeFixture'
+            foreach($field in @('speedBefore','speedNow','maximumNow')){
+                if(-not(ChargeNumber (ChargeProp (ChargeProp $range 'applied') $field))){ChargeFail 'maximum-range fixture has nonfinite speed/range'}
+            }
+            if($null-eq$range-or$range.applied.present-ne$true-or$range.applied.slowed-ne$true-or
+                $range.applied.actor-cne$before.state.mount.id-or$range.afterRestore.actor-cne$range.applied.actor-or
+                [string]::IsNullOrEmpty($range.applied.blueprint)-or
+                $range.applied.nativeComponent-cne'Kingmaker.UnitLogic.FactLogic.AddCondition'-or
+                $range.applied.speedNow-le0-or[Math]::Abs($range.applied.speedNow*2-$range.applied.speedBefore)-gt0.001-or
+                [Math]::Abs($range.applied.maximumNow-$range.applied.speedNow*6)-gt0.001-or
+                $range.beforeRestore.blueprint-cne$range.applied.blueprint-or$range.afterRestore.blueprint-cne$range.applied.blueprint-or
+                $range.afterRestore.restored-ne$true-or$range.afterRestore.present-ne$false-or$range.afterRestore.slowed-ne$false-or
+                [Math]::Abs($range.afterRestore.speedNow-$range.applied.speedBefore)-gt0.001){ChargeFail 'maximum-range native slow fixture did not apply and restore exactly'}
+            $distance=[double](ChargeProp (ChargeProp $before 'state') 'distanceToTarget')
+            if($distance-le[double]$range.applied.maximumNow-or$distance-gt20-or$distance-lt3-or(ChargeProp $before 'canTarget')-ne$false-or
+                [string](ChargeProp $before 'targetCode')-cne'OutsideSupportedRange'-or
+                -not([string](ChargeProp $before 'targetReason')).StartsWith('The charge target is farther than the maximum charge distance of ',[StringComparison]::Ordinal)){ChargeFail 'maximum-range row did not refuse a bounded beyond-maximum target'}
+            Assert-KmcChunk6bChargeNothingHappened $e $name
+        }
+        {$_-cin@('C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced')} {
+            $boundary=ChargeProp $e 'boundary'
+            $kinds=@{'C6B-CHARGE-feature-disabled'='feature-disabled';'C6B-CHARGE-dismounted'='native-dismount-request';'C6B-CHARGE-mode-changed'='native-mode-change';'C6B-CHARGE-new-landing-blocker'='native-new-landing-blocker';'C6B-CHARGE-relationship-invalidated'='native-ownership-loss';'C6B-CHARGE-view-replaced'='native-view-replacement'}
+            $kind=$kinds[$name]
+            if($null-eq$boundary-or$boundary.kind-cne$kind-or$boundary.ownerBefore.owned-ne$true-or$boundary.ownerAfter.owned-ne$false){ChargeFail 'lifecycle boundary lacks exact before/after ownership'}
+            Assert-KmcChargeDrained $boundary.lastDrained
+            if($boundary.lastDrained.identity-ne$boundary.ownerBefore.identity){ChargeFail 'lifecycle drained another owner'}
+            Assert-KmcChunk6bChargeBoundedTermination $e $name $kind
+            if($name-ceq'C6B-CHARGE-feature-disabled'-and$boundary.controlAfter.kmcChargePresent-ne$false){ChargeFail 'disabled charge control remained exposed'}
+            if($name-ceq'C6B-CHARGE-mode-changed'-and($boundary.nativeSettingAfter-ne$true-or$boundary.tbInitialized-ne$true-or$boundary.modeRestored-ne$true)){ChargeFail 'native mode transition or exact restoration absent'}
+            if($name-ceq'C6B-CHARGE-dismounted'-and($boundary.clicked-ne$true-or$boundary.relationshipAfter-cne'Unmounted')){ChargeFail 'native voluntary Dismount did not complete'}
+            if($name-ceq'C6B-CHARGE-dismounted'){
+                # Dismount has its own native Move owner. The charge still costs
+                # only its Standard shell; reuse the qualified relationship cost reader.
+                $p=$boundary.dismountProof;$b=$boundary.beforeRequest
+                if($p.identity.casterId-cne$before.state.rider.id-or$p.identity.targetId-cne$before.state.rider.id-or
+                    $p.mountId-cne$before.state.mount.id-or$p.identity.abilityGuid-cne'3af2b81f4d72bbb30501fa730fcdf36e'-or
+                    $b.rider.move-gt0.001-or$b.mount.move-gt0.001-or$b.mount.standard-gt0.001-or$b.relationship-cne'Mounted'-or
+                    $b.rider.standard-le0.001-or$p.preClick.state.rider.move-gt0.001-or$p.preClick.state.mount.move-gt0.001-or
+                    $p.preClick.state.mount.standard-gt0.001){ChargeFail 'Dismount lacks a separate exact native Move owner after the committed charge'}
+                Assert-KmcRelationshipCommandProof $p $true $false 0 $false 0 $true
+            }
+            if($name-ceq'C6B-CHARGE-view-replaced'){
+                $v=$boundary.nativeView
+                $types=@('Kingmaker.UnitLogic.Buffs.Polymorph','Kingmaker.Blueprints.Classes.Spells.SpellDescriptorComponent',
+                    'Kingmaker.Designers.Mechanics.Buffs.BuffMovementSpeed','Kingmaker.Designers.Mechanics.Buffs.ReplaceAsksList','Kingmaker.Designers.Mechanics.Facts.ReplaceSourceBone')
+                if($boundary.relationshipAfter-cne'Unmounted'-or$boundary.presentationResidue-ne$false-or$v.actor-cne$before.state.rider.id-or
+                    $v.blueprint-cne'00d8fbe9cf61dc24298be8d95500c84b'-or$v.name-cne'BeastShapeIBuff'-or$v.prefab-cne'0dc0f602a83a2034ba5842f73c0012c1'-or
+                    @($v.components).Count-ne5-or(@($v.components|Sort-Object)-join'|')-cne(@($types|Sort-Object)-join'|')-or
+                    $v.applyCalls-ne1-or$v.removeCalls-ne1-or$v.restored-ne$true-or$v.factDisposed-ne$true-or$v.listenersRemaining-ne0-or
+                    $v.originalRetired-ne$true-or$v.replacementRetired-ne$true){ChargeFail 'native view replacement identity or cleanup differs'}
+                if($v.before.buffCount-ne0-or$v.before.polymorph-ne$false-or$v.before.bound-ne$true-or$v.before.view-eq0-or
+                    $v.afterApply.buffCount-ne1-or$v.afterApply.polymorph-ne$true-or$v.afterApply.bound-ne$true-or$v.afterApply.view-eq0-or
+                    $v.afterApply.view-eq$v.before.view-or$v.afterRestore.view-eq0-or$v.afterRestore.view-in@($v.before.view,$v.afterApply.view)-or
+                    $v.afterRestore.bound-ne$true-or$v.afterRestore.buffCount-ne0-or$v.afterRestore.polymorph-ne$false-or
+                    $v.afterApply.frame-lt$v.before.frame-or$v.afterRestore.frame-lt$v.afterApply.frame){ChargeFail 'native view replacement and stock restoration were not observed'}
+                foreach($field in @('bodyPolymorphed','inspectionOverride','asksOverride','polymorphHands','polymorphLimbs')){
+                    if($v.effectsBefore.$field-ne$false-or$v.afterRestore.effects.$field-ne$false){ChargeFail ('view fixture retained '+$field)}
+                }
+                foreach($field in @('stats','facts','sourceBones','equipment','limbs','stockLimbs')){
+                    if($null-eq$v.effectsBefore.$field-or$null-eq$v.afterRestore.effects.$field){ChargeFail ('view fixture omitted '+$field)}
+                }
+                if((ConvertTo-KmcChargeCanonical $v.effectsBefore)-cne(ConvertTo-KmcChargeCanonical $v.before.effects)-or
+                    (ConvertTo-KmcChargeCanonical $v.effectsBefore)-cne(ConvertTo-KmcChargeCanonical $v.afterRestore.effects)){ChargeFail 'native view effect residue differs from intake'}
+                $attachments=@($v.attachments)
+                if($attachments.Count-ne2){ChargeFail 'native view fixture lacks exactly two attachments'}
+                for($i=0;$i-lt2;$i++){
+                    $event=$attachments[$i];$token=if($i-eq0){'06002a08'}else{'06002a09'}
+                    $view=if($i-eq0){$v.afterApply.view}else{$v.afterRestore.view}
+                    if($event.actor-cne$v.actor-or$event.view-ne$view-or$event.frame-lt$v.before.frame-or$event.frame-gt$v.afterRestore.frame){ChargeFail 'view attachment names a foreign actor or view'}
+                    foreach($required in @($token,'06007e9d','0600835c')){
+                        if(@($event.nativeSource|Where-Object{$_.token-ceq$required-and$_.assemblyMvid-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}).Count-ne1){ChargeFail 'view attachment lacks its exact native polymorph source'}
+                    }
+                }
+            }
+            if($name-ceq'C6B-CHARGE-relationship-invalidated'){
+                $o=$boundary.nativeOwnership
+                if($boundary.relationshipAfter-cne'Unmounted'-or$o.method.token-cne'06001F17'-or
+                    $o.method.method-cne'SetMaster'-or$o.method.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'-or
+                    $null-ne$o.detached.riderPetId-or$null-ne$o.detached.masterId-or$o.detached.mountIsPet-ne$false-or
+                    $o.restoration.pass-ne$true-or$o.restoration.count-ne1-or$o.restoration.vacantReciprocalReferences-ne$true-or
+                    $o.restoration.inputsUnchanged-ne$true-or
+                    (ConvertTo-KmcChargeCanonical $o.before)-cne(ConvertTo-KmcChargeCanonical $o.restoration.after)){ChargeFail 'native relationship invalidation/restoration identity differs'}
+            }
+            if($name-ceq'C6B-CHARGE-new-landing-blocker'){
+                $tx=ChargeProp $e 'transaction'
+                if($boundary.placed-ne$true-or$boundary.landingClearBefore-ne$true-or$before.geometry.landingBlocked-ne$false-or
+                    $tx.revalidationFailed-ne$true-or$tx.revalidationFailureCode-cne'NoPath'-or
+                    $tx.revalidationFailureReason-cne'Another creature blocks the charge landing point.'-or
+                    $tx.revalidationFailurePhase-cnotin@('BeforeRepath','BeforeAttackTransition')){ChargeFail 'new blocker did not cause exact pre-release landing refusal'}
+                $placed=$boundary.blocker;$blockers=@($boundary.blockersAfter)
+                if($placed.placed-ne$true-or[string]::IsNullOrEmpty($placed.blockerId)-or
+                    $placed.contract-cne'diagnostic-blocker-occupies-the-exact-charge-landing-point'-or
+                    @($blockers|Where-Object actorId -CEQ $placed.blockerId).Count-ne1){ChargeFail 'new blocker identity differs from measured landing obstruction'}
+                foreach($blocker in $blockers){
+                    if(-not(ChargeNumber $blocker.distanceToLanding)-or-not(ChargeNumber $blocker.threshold)-or
+                        $blocker.distanceToLanding-lt0-or$blocker.threshold-le0-or$blocker.distanceToLanding-ge$blocker.threshold){ChargeFail 'new blocker stood outside landing clearance threshold'}
+                }
+            }
+        }
+        'C6B-CHARGE-lease-application-failed' {
+            $fault=ChargeProp $e 'leaseFault';$lease=ChargeProp $e 'lease';$live=ChargeProp $fault 'stateAtFault'
+            if($before.available-ne$true-or$before.canTarget-ne$true-or$input.clicked-ne$true-or$input.shellCount-ne1-or
+                $e.delivery.chargeAdmitted-ne1-or$e.delivery.chargeRefused-ne0-or$economy.riderStandardMax-le0.001-or
+                $fault.armed-ne$true-or$fault.fired-ne$true-or$fault.seamCleared-ne$true-or$fault.ownerAtFault.committed-ne$true-or
+                $fault.ownerAtFault.identity-ne$e.lastDrainedOwnership.identity){ChargeFail 'lease application fault did not occur in its exact committed transaction'}
+            if($live.mountCharging-ne$true-or$live.riderStateCharging-ne$true-or$live.chargeBuffPresent-ne$true-or
+                -not(ChargeNumber $live.mountSpeedOverride)-or$live.mountSpeedOverride-le0){ChargeFail 'lease fault fired before native mutations were acquired'}
+            if($lease.applied-ne$false-or$lease.applyRolledBack-ne$true-or$lease.applyFailedStep-cne'forced-path'-or
+                $lease.forcedPathCount-lt1-or$lease.forcedPathAppliedBeforeFailure-ne$true-or$lease.buffOutstanding-ne$false-or
+                $lease.restored-ne$true-or$lease.chargingRestoredExactly-ne$true-or$lease.speedOverrideRestoredExactly-ne$true-or
+                $lease.riderChargingRestoredExactly-ne$true){ChargeFail 'partial lease application did not restore all owned mutations'}
+            if($rules.pairNonOpportunityAttackRules-ne0-or$rules.mountAttackRules-ne0-or$economy.mountStandardMax-gt0.001-or$economy.mountMoveMax-gt0.001){ChargeFail 'lease fault delivered an attack or charged the mount'}
+            foreach($field in @('mountCharging','mountMoving','riderStateCharging','pairCommandActive','chargeBuffPresent')){
+                if((ChargeProp $after $field)-ne$false){ChargeFail ('lease application left residue '+$field)}
+            }
+            if($null-ne$after.mountSpeedOverride){ChargeFail 'lease application left speed override'}
+            Assert-KmcChunk6bChargeTransaction $e $name $false $true
         }
         'C6B-CHARGE-spent-standard' {
             $state=ChargeProp $before 'state'
@@ -585,6 +783,8 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
         'C6B-CHARGE-mount-incapacitated' {
             Assert-KmcChunk6bChargeIncapacityRow $e $name 'mount' 'native-mount-incapacity'
         }
+        'C6B-CHARGE-mount-dead' { Assert-KmcChargeDeath $e $name 'mount' }
+        'C6B-CHARGE-rider-dead' { Assert-KmcChargeDeath $e $name 'rider' }
         'C6B-CHARGE-stock-rejected' {
             if([string](ChargeProp $input 'stockBlueprint')-cne(ChargeStockAbilityGuid)){ChargeFail 'the stock rejection row did not click the stock Charge'}
             $feedback=[string](ChargeProp $input 'feedback');$safety=[string](ChargeProp $input 'safetyFeedback')
@@ -618,7 +818,7 @@ function Assert-KmcChunk6bChargeEvidence {
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}
     if([string](ChargeProp $measurement 'abilityGuid')-cne(ChargeKmcAbilityGuid)){ChargeFail 'the delivery contract names another ability'}
     $required=Get-KmcChunk6bChargeRows $mode
-    $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
+    $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-tranche-cleanup-deadline','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $pass=0;$fail=0
     foreach($row in @($Artifact.rows)){
@@ -633,6 +833,21 @@ function Assert-KmcChunk6bChargeEvidence {
         if($fail-ne0){ChargeFail 'a PASS artifact carries a failed row'}
         # The mod setting the fixture turned on is restored exactly, or the artifact is not a PASS.
         if((ChargeProp $measurement 'settingRestored')-ne$true-or(ChargeProp $measurement 'settingAfter')-ne(ChargeProp $measurement 'settingBefore')){ChargeFail 'the Mounted Charge setting was not restored exactly'}
+        $cleanup=ChargeProp $Artifact.observations 'cleanup'
+        foreach($flag in @('selectionRestored','equipmentSetRestored','settingRestored','pairedSchedulerSettingRestored','targetClean','chunk4OtherTargetReleased','modeRestored','unmountedHorseAiLeaseRestored','combatMountRiderAiLeaseRestored')){
+            if((ChargeProp $cleanup $flag)-ne$true){ChargeFail ('charge fixture cleanup did not restore '+$flag)}
+        }
+        if($cleanup.relationshipState-cne'Unmounted'-or$cleanup.playerInCombat-ne$false-or$cleanup.nativeTurnBased-ne$false-or$cleanup.nativeControllerInitialized-ne$false-or@($Artifact.errors).Count-ne0){ChargeFail 'charge fixture did not settle its native encounter'}
+        $original=@(ChargeProp $Artifact.observations 'initialSelection')
+        $expected=$original
+        if($mode-ceq'RT'){
+            $death=@($Artifact.rows|Where-Object name -CEQ 'C6B-CHARGE-rider-dead')[0].evidence.death
+            if($cleanup.nativeFinalDeathSelectionExclusion-cne$death.subject){ChargeFail 'cleanup excluded another or unproven native death subject'}
+            $expected=@($original|Where-Object {$_-cne$death.subject})
+            if($expected.Count-eq0-and$original-ccontains$death.subject){$expected=@($death.enemyDamageSource)}
+        }elseif($null-ne$cleanup.nativeFinalDeathSelectionExclusion){ChargeFail 'TB refusal excluded an actor from restored selection'}
+        if((@($cleanup.expectedSelection|Sort-Object)-join'|')-cne(@($expected|Sort-Object)-join'|')-or
+           (@($cleanup.actualSelection|Sort-Object)-join'|')-cne(@($expected|Sort-Object)-join'|')){ChargeFail 'exact native selection restoration differs'}
     }
     if([long]$Artifact.subscenarioPassCount-ne$pass-or[long]$Artifact.subscenarioFailCount-ne$fail){ChargeFail 'row counts differ from the artifact summary'}
 }

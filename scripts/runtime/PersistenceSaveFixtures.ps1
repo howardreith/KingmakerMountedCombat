@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6bPersistenceEvidence.ps1')
 
 # Bounded P01 archive intake. The source must be the exact completed archive
 # from another restored owned process; no gameplay state is taken from evidence.
@@ -7,7 +8,7 @@ function Get-KmcPersistenceSource {
     param([Parameter(Mandatory=$true)][string]$SourceRunId,
         [Parameter(Mandatory=$true)][string]$ExpectedSha256,
         [Parameter(Mandatory=$true)]$Fixture,
-        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt','condition','condition-preparing','suspended')][string]$NativeCase,
+        [AllowNull()][ValidateSet('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','manual','quick','auto','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','condition','condition-preparing','suspended')][string]$NativeCase,
         [ValidatePattern('^[0-9a-f]{32}$')][string]$ExpectedArea,
         # A cross-area source run produces two distinct artifacts: the separate
         # destination manual archive and the engine's own transition autosave.
@@ -28,18 +29,19 @@ function Get-KmcPersistenceSource {
         $owner.transactionToken-cnotmatch'^[0-9a-f]{64}$'-or$owner.transactionToken-cne$result.transactionToken){throw 'Source is not a completed restored P01 save process.'}
     $isSlot=$owner.scenario-ceq'persistence-p05-save'
     if($owner.scenario-ceq'persistence-p07-save'){
-        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
+        if($NativeCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit')-or$owner.persistenceCase-cne$NativeCase){throw 'P07 source recovery case differs.'}
     }elseif($isSlot){
         if([string]::IsNullOrEmpty($NativeCase)-or$owner.persistenceCase-cne$NativeCase){throw 'Source native slot category differs.'}
     }elseif($owner.scenario-ceq'persistence-p04-save'){
-        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
+        if($NativeCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained')-or$owner.persistenceCase-cne$NativeCase){throw 'P04 source RT checkpoint differs.'}
     }elseif($NativeCase-cin @('condition','condition-preparing','suspended')){
         if($owner.scenario-cne'persistence-p03-save'-or$owner.persistenceCase-cne$NativeCase){throw 'P03 condition source case differs.'}
     }elseif(-not[string]::IsNullOrEmpty($NativeCase)){throw 'Declared native case requires an exact P03/P04/P05 source.'}
     if($Alternate-and$NativeCase-cne'alternating'){throw 'Second archive is restricted to the exact alternating source.'}
+    if($NativeCase-ceq'mounted-charge-removal'-and$ArtifactRole-cne'cleanup-manual'){throw 'Charge removal exports only its exact cleanup archive.'}
     $type=if($ArtifactRole-ceq'transition-auto'){'Auto'}elseif($NativeCase-ceq'quick'){'Quick'}elseif($NativeCase-ceq'auto'){'Auto'}else{'Manual'}
     if($ArtifactRole-ceq'transition-auto'-and$NativeCase-cnotin @('area-cross-entry','area-cross-exit')){throw 'Only a cross-area source run produces a transition autosave.'}
-    if($ArtifactRole-ceq'cleanup-manual'-and($NativeCase-cne'prepare-removal'-or$Alternate)){throw 'Only a prepare-removal source run produces a cleanup archive.'}
+    if($ArtifactRole-ceq'cleanup-manual'-and($NativeCase-cnotin @('prepare-removal','mounted-charge-removal')-or$Alternate)){throw 'Only a prepare-removal source run produces a cleanup archive.'}
     if($ArtifactRole-ceq'death-manual'-and($NativeCase-cnotin @('rider-death','mount-death')-or$Alternate)){throw 'Only a death source run produces a no-pair death archive.'}
     if($ArtifactRole-ceq'eligibility-manual'-and($NativeCase-cne'rider-size-change'-or$Alternate)){throw 'Only an eligibility source run produces a no-pair size archive.'}
     if($ArtifactRole-ceq'campaign-b-manual'-and($NativeCase-cne'campaign-b'-or$Alternate)){throw 'Only a campaign-b source run produces B own manual archive.'}
@@ -305,7 +307,11 @@ function Assert-KmcRealtimeColdSource {
     }
     $sourceRows=@(Get-Content -LiteralPath $path|ForEach-Object{$_|ConvertFrom-Json})
     $coldRows=@(Get-Content -LiteralPath (Join-Path $Request.evidenceRoot 'persistence-observations.jsonl')|ForEach-Object{$_|ConvertFrom-Json})
-    if($Request.persistenceCase-ceq'suspended'){
+    if(Test-KmcChargePersistenceCase ([string]$Request.persistenceCase)){
+        Assert-KmcChargeColdOutcome $sourceRows $coldRows $Request.persistenceLoad
+        $chargeWrite=(ChargeSaveRow $sourceRows 'native-write-complete').detail
+        Assert-KmcChargeArchiveSnapshot $chargeWrite.path $chargeWrite.sha256 $chargeWrite.length $chargeWrite.snapshot
+    }elseif($Request.persistenceCase-ceq'suspended'){
         Assert-KmcSuspendedColdOutcome $sourceRows $coldRows
     }elseif($Request.persistenceCase-cin @('condition','condition-preparing')){
         Assert-KmcConditionColdOutcome $sourceRows $coldRows
@@ -444,7 +450,7 @@ function Assert-KmcAlternatingPersistenceEvidence {
 
 function Assert-KmcPersistenceScenarioEvidence {
     param($Request,$Manifest,[string]$Status,$GameResult)
-    if($Request.scenario-ceq'persistence-p07-load'-and(Get-KmcOptionalMember $Request 'persistenceCase')-ceq'removal-no-dll'){
+    if($Request.scenario-ceq'persistence-p07-load'-and(Get-KmcOptionalMember $Request 'persistenceCase')-cin @('removal-no-dll','mounted-charge-removal-no-dll')){
         # The genuine no-DLL load: KMC wrote nothing in that process. The removal
         # observer's own result was validated by Test-KmcObserverResult during the
         # run and composed into this game result; the binding is re-checked here.
@@ -456,6 +462,12 @@ function Assert-KmcPersistenceScenarioEvidence {
             (Get-KmcSha256 (Join-Path $Request.evidenceRoot 'observer-result.json'))-cne[string]$GameResult.observerResultSha256-or
             [int]$GameResult.checkFailCount-ne0-or[int]$GameResult.checkPassCount-lt12){
             throw 'The no-DLL observation is not a genuine bound removal-observer result.'
+        }
+        if($Request.persistenceCase-ceq'mounted-charge-removal-no-dll'){
+            $observerRequest=Read-KmcJson (Join-Path $Request.evidenceRoot 'observer-request.json')
+            Assert-KmcChargeAbsentFacts $observerRequest $GameResult.observations
+            $proof=Get-KmcChargeRemovalSourceProof $observerRequest.chargeSource.runId $Request.persistenceLoad.sha256 $Request.commit $Request.dllSha256
+            if((ConvertTo-KmcChargeCanonical ([pscustomobject]$proof))-cne(ConvertTo-KmcChargeCanonical $observerRequest.chargeSource)){throw 'No-DLL charge source proof changed.'}
         }
         return
     }
@@ -473,6 +485,14 @@ function Assert-KmcPersistenceScenarioEvidence {
     $eligibilityCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-ceq'rider-size-change'
     $campaignBCold=$Request.scenario-ceq'persistence-p07-load'-and$hasCase-and$Request.persistenceCase-ceq'campaign-b'
     # The Chunk 6A foundation checkpoints have their own complete external reader (one acceptance authority).
+    if($hasCase-and(Test-KmcChargeLifecycleCase ([string]$Request.persistenceCase))){
+        Assert-KmcChargeLifecycleEvidence $Request $rows $GameResult
+        return
+    }
+    if($hasCase-and(Test-KmcChargePersistenceCase ([string]$Request.persistenceCase))){
+        Assert-KmcChargePersistenceEvidence $Request $rows $GameResult
+        return
+    }
     if($hasCase-and(Test-KmcChunk6aFoundationCase ([string]$Request.persistenceCase))){
         Assert-KmcChunk6aFoundationPersistenceEvidence $Request $rows $GameResult
         return
@@ -509,7 +529,7 @@ function Assert-KmcPersistenceScenarioEvidence {
     $isDisable=$checkpoint-ceq'disable-reenable'
     # Every case whose walk legitimately leaves A's pair for a while: rows
     # outside A carry no actor at all, and every mounted row names A's exact two.
-    $isCampaignB=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-cin @('campaign-b','prepare-removal','disable-during-load','rider-death','mount-death','rider-size-change')
+    $isCampaignB=$Request.scenario-ceq'persistence-p07-save'-and$checkpoint-cin @('campaign-b','prepare-removal','mounted-charge-removal','disable-during-load','rider-death','mount-death','rider-size-change')
     if($absentKmc-or$deathCold-or$eligibilityCold-or$campaignBCold){$isCampaignB=$true}
     foreach($row in $rows){
         if($row.runId-cne$Request.runId-or$row.scenario-cne$Request.scenario-or$row.source-cne$Request.commit-or

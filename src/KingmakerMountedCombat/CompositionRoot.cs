@@ -71,7 +71,8 @@ namespace KingmakerMountedCombat
                     settings,
                     lifecycleLedger,
                     logger);
-                persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger);
+                persistence = new MountedPersistenceService(relationship, nativeControls, unifiedTurn, settings, logger, combat);
+                combat.ChargeArchiveWorkerRunning = () => persistence.ActiveSaveWorkerRunning;
                 lifecycle = new MountedLifecycleSubscriber(relationship, lifecycleLedger, combat, unifiedTurn, persistence);
                 removal = new MountedRemovalPreparation(relationship, persistence, combat, horseCompanion, lifecycle.HandleModDisable, logger);
                 patches = new MountedPatchController(relationship, playerAction, combat, unifiedTurn, nativeControls, persistence, animation, dollRoomIk, saveAuthorization, lifecycleLedger, logger);
@@ -190,7 +191,7 @@ namespace KingmakerMountedCombat
             // disable instead of mutating the write in flight; the save always
             // settles, and its drain keeps running because persistence.Update
             // is deliberately not gated on IsEnabled.
-            if (persistence.SaveSuspended)
+            if (persistence.SaveSuspended || combat.ChargeAdmissionFenced)
             {
                 logger.Error("Diagnostic services cannot be disabled while a mounted save is still being written; " +
                     "retry once it finishes.");
@@ -286,6 +287,8 @@ namespace KingmakerMountedCombat
             ThrowIfDisposed();
             horseCompanion.Update();
             persistence.Update();
+            // Debt retries precede the ordinary disabled/save/area/restore update gates.
+            if (!persistence.ActiveSaveWorkerRunning) combat.UpdateChargeCleanup();
             removal.Update();
             // A latched update-failure cleanup runs on the first frame after the
             // owned save that deferred it has settled.

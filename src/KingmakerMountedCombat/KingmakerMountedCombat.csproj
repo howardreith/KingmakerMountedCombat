@@ -189,6 +189,8 @@
     <Compile Include="Diagnostics\RuntimePersistenceScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceAlternatingScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceRealtimeScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceChargeScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceChargeLifecycle.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceApproachScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceCastingScenario.cs" />
     <Compile Include="Diagnostics\RuntimePersistenceConditionScenario.cs" />
@@ -331,6 +333,10 @@
     <Compile Include="Diagnostics\Chunk4ChargeScenario.cs" />
     <Compile Include="Diagnostics\Chunk6bChargePathScenario.cs" />
     <Compile Include="Diagnostics\Chunk6bChargeScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6bChargeLifecycleScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6bChargeDeathScenario.cs" />
+    <Compile Include="Diagnostics\NativeChargeSlowLease.cs" />
+    <Compile Include="Diagnostics\NativeChargeViewLease.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingRuleObserver.cs" />
     <Compile Include="Diagnostics\Chunk4NativeAreaObservation.cs" />
     <Compile Include="Diagnostics\Chunk4ObstructionScenario.cs" />
@@ -424,6 +430,11 @@
     <Compile Include="Domain\MountedChargePolicy.cs" />
     <Compile Include="Domain\MountedChargeApplicationTransaction.cs" />
     <Compile Include="Domain\MountedChargeCompensation.cs" />
+    <Compile Include="Domain\MountedChargeOwnership.cs" />
+    <Compile Include="Domain\MountedChargeBoundaryQueue.cs" />
+    <Compile Include="Domain\MountedChargeFactOwnership.cs" />
+    <Compile Include="Integration\MountedCombatController.ChargeCleanup.cs" />
+    <Compile Include="Integration\MountedCombatController.ChargeBoundaries.cs" />
     <Compile Include="Domain\MountedChargeRevalidation.cs" />
     <Compile Include="Domain\MountedChargeCleanupLedger.cs" />
     <Compile Include="Domain\MountedChargeTransactionSequence.cs" />
