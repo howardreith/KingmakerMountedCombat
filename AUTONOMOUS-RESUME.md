@@ -1,3 +1,36 @@
+# 2026-10-05 preview.177 retired before native execution; preview.178 repair IN PROGRESS
+
+HEAD `225cf2d932e27d0a2fc3e9e735867959fa548f9d`, tree
+`7ba903864b97f4960e709eff5771b2f9e6a686e1`, integration branch, guarded-pushed and
+fetched remote equal before this working repair. CANDIDATE177 passed28/0 but the
+subsequent exact asset review found its AddStatBonus-only Charge buff guard false:
+native Charge also owns AddCondition(StealthForbidden40) and an AoO listener.
+Preview177 is immutable and unqualified. Its owned read-only purity worker5076
+was stopped after recording the confirmed defect; exit-1 is ABORTED, no verdict.
+No native transaction ran. Retirement verification passed:275 saves and358 Mods
+files byte-identical, human105 unchanged, game/worker closed, zero transactions
+and empty restorationErrors. Exact receipts are in lab
+`analysis-cache/chunk6-continuation/20261005-6br/preview177-proof-retirement.json`
+and `preview177-retirement-restoration.json`; partial proof and all failures stay.
+
+Working178 repairs the complete native buff contract using exact component
+mutation observations and rule-dispatch settlement. No native counter/action
+state may be written or decrements replayed. Finish behavioral and compiled
+adapter/assembly/reader checks before FAST/CANDIDATE and a new coherent freeze.
+The ready26-stage6B batch and all6C-6F phases remain TODO; no stable claim.
+Components669/0, ownership73/0, asset36/0, source143/0, persistence187/0,
+charge reader354/0, persistence reader129/0, assembly653/0 andFAST17/0 pass.
+Read-only review found no remaining confirmed blocker after the wrong-thread
+native removal guard was fixed. Native Harmony callback order is still unproven.
+CANDIDATE178-1 passed29/0 after10.69 minutes; its log/process receipt remain in
+the same lab directory. Next: coherent commit using `commit-preview178.txt`,
+repository-owned guarded push, then `powershell.exe -NoProfile -ExecutionPolicy
+Bypass -File scripts/Package.ps1 -ArtifactQualifier chunk6b-charge-w` and the
+same-commit observer package; new178 suite/purity precede any native batch.
+Postcommit HEAD/tree/freeze identities belong in new lab receipts. Do not make
+a documentation-only product commit during the frozen campaign.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY authority.
+
 ## 2026-10-05 - preview.177 source complete, CANDIDATE28/0
 
 Integration branch codex/mounted-combat-phase3f-playable-core; precommit HEAD

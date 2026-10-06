@@ -64,6 +64,11 @@ function New-Transaction([bool]$Struck){
 }
 function New-Lease{
  [ordered]@{applied=$true;buffApplied=$true;buffOutstanding=$false;chargingBefore=$false;speedOverrideBefore=$null;speedOverrideApplied=10.16
+  buffAcquisitionStarted=$true;buffAcquisitionObserved=$true;buffCallbackDebt=$null;buffRuleDispatchSettled=$true
+  buffComponentTypes=@('Kingmaker.UnitLogic.FactLogic.AddStatBonus','Kingmaker.UnitLogic.FactLogic.AddCondition','Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus')
+  buffCondition=@{componentObserved=$true;condition=40;additions=1;removals=1;contributions=0;nativeExceptions=0;fault=$null;drained=$true;operations=@(
+   @{addition=$true;before=2;after=3;mutationObserved=$true;completed=$true;returnedNormally=$true},
+   @{addition=$false;before=6;after=5;mutationObserved=$true;completed=$true;returnedNormally=$true})}
   mountCombatSpeedMps=5.08;chargingAppliedExactly=$true;chargingObservedThroughout=$true;forceModeAfterApply=$true
   forcedPathCount=2;riderAgentTouched=$false;restored=$true;chargingRestoredExactly=$true;speedOverrideRestoredExactly=$true
   riderChargingRestoredExactly=$true;forceModeAtRestore=$true;riderChargingBefore=$false;observations=@('applied:x')}
@@ -331,7 +336,7 @@ function New-Row([string]$Case){
  }
  $row
 }
-function New-DrainedOwner { [ordered]@{identity=17;state='FullyDrained';attempts=1;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;debt=''} }
+function New-DrainedOwner { [ordered]@{identity=17;state='FullyDrained';attempts=1;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;lease=(New-Lease);shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;debt=''} }
 function New-DeathFacts([string]$Kind){
  $states=@{}
  foreach($phase in @('before','afterDamage','terminated','encounterExit','afterPolicyRestore')){
@@ -376,7 +381,7 @@ function New-Artifact([string]$Mode='RT'){
    $row.evidence['ownership']=@{owned=$false};$row.evidence['lastDrainedOwnership']=New-DrainedOwner
   }
  }
- Copy-Case ([ordered]@{schemaVersion=34;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
+ Copy-Case ([ordered]@{schemaVersion=35;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
   observations=[ordered]@{initialSelection=@('main');cleanup=@{selectionRestored=$true;equipmentSetRestored=$true;settingRestored=$true;pairedSchedulerSettingRestored=$true;targetClean=$true;chunk4OtherTargetReleased=$true;modeRestored=$true;unmountedHorseAiLeaseRestored=$true;combatMountRiderAiLeaseRestored=$true;relationshipState='Unmounted';playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false;nativeFinalDeathSelectionExclusion=$(if($Mode-ceq'RT'){'rider'}else{$null});expectedSelection=@('main');actualSelection=@('main')};chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
@@ -822,4 +827,8 @@ MutateTb 'a turn-based charge that was still targetable' {param($a) (Row $a 'C6B
 MutateTb 'a turn-based refusal with another reason' {param($a) (Row $a 'C6B-CHARGE-positive').before.kmcAvailabilityReason='Mounted Charge requires combat.'}
 MutateTb 'a turn-based artifact carrying a real-time only row' {param($a) $a.rows=@($a.rows)+@((Json (New-Row 'C6B-CHARGE-interrupted'))); $a.subscenarioPassCount=$a.rows.Count}
 Accept 'TB failed artifact retained without a verdict' { $f=New-Artifact 'TB'; $f.status='FAIL'; $f.rows=@($f.rows[0]); $f.rows[0].status='FAIL'; $f.subscenarioPassCount=0; $f.subscenarioFailCount=1; Assert-KmcChunk6bChargeEvidence $tbRequest $f 'FAIL' }
+Mutate 'in-flight native rule dispatch after positive delivery' {param($a) (Row $a 'C6B-CHARGE-positive').lease.buffRuleDispatchSettled=$false}
+Mutate 'condition remains after interrupted charge' {param($a) (Row $a 'C6B-CHARGE-interrupted').lease.buffCondition.contributions=1}
+Mutate 'lease application rollback omits condition cleanup' {param($a) (Row $a 'C6B-CHARGE-lease-application-failed').lastDrainedOwnership.lease.buffCondition.operations[1].mutationObserved=$false}
+Mutate 'old unqualified preview177 schema' {param($a) $a.schemaVersion=34}
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

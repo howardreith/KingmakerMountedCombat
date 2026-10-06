@@ -1,5 +1,63 @@
 # Chunk 6 continuation — 2026-10-05
 
+## Newest checkpoint: preview177 retired, preview178 working repair
+
+Published HEAD `225cf2d932e27d0a2fc3e9e735867959fa548f9d`, tree
+`7ba903864b97f4960e709eff5771b2f9e6a686e1`, guarded-pushed and fetched equal on
+the integration branch. Its immutable177 package is
+`aaad1bbca12643e19bb58370f5e6d79c44e40e5ceb93361bab862068bf824569`;
+suite20261005-chunk6b-charge-v is
+`41779a4aa048ae2325ba34320e6dc16e14dae16d67ec681901aa924d43185e23`.
+**177 is unqualified: native NOT RUN; purity ABORTED, no verdict.** A read-only
+review during the proof established that its AddStatBonus-only admission guard
+rejects the actual ChargeBuff. The exact owned proof process5076 was stopped
+after recording the defect, exit-1; its partial log and process receipt remain.
+No native/install/save transaction existed. Retirement verification passed:
+275 save files digest511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426
+and358 Mods digestc4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c
+are unchanged; human105 intact, game/worker absent, restorationErrors empty.
+Receipts: lab analysis-cache/chunk6-continuation/20261005-6br/
+`candidate177-freeze.json`, `preview177-proof-retirement.json`,
+`preview177-retirement-restoration.json`, `purity177-v1.log.process.json`.
+
+Working178 keeps the architecture and ready26-stage batch below. The actual
+ChargeBuff f36da144a379d534cad8e21667079066 owns AddStatBonus(AC-2),
+AddCondition(StealthForbidden40), and AttackOfOpportunityAttackBonus with its
+authored non-opportunity +2 context value. The new bounded installed-asset test
+binds their ordered PPtrs, managed MonoScripts and values to both asset hashes.
+Compiled admission requires that exact surface. Token-pinned component call-site
+wrappers execute native AddCondition/RemoveCondition once, preserving exceptions
+and closing observation scopes in finally. A read-only UpdateStatusEffect entry
+observes each mutation before callbacks. Expiry remains observed until the exact
+owner drains. Foreign contributions may change the shared signed-byte counter;
+no counter assignment, restoration-to-intake or blind decrement is permitted.
+
+Fact removal is never replayed while awaiting residue. Exact component/listener,
+modifier/list disposal, condition deltas and current native rule stack settlement
+are required before release. The buff removal itself refuses a foreign thread.
+Rule context is resolved afresh because native outer dispatch replaces it; no
+new rule-dispatch hook is required. Schema35 charge artifacts and the persistence
+reader require these raw observations, including partial-application cleanup.
+
+Focused progress: components669/0; actual asset36/0; compiled ownership73/0;
+charge reader354/0; persistence reader129/0; Kingmaker assembly653/0. These are
+offline proofs, not native qualification. Source143/0 and persistence
+contracts187/0 pass. FAST178-1 passed17/0 after2.17 minutes, including all
+directly affected readers and registration. CANDIDATE178-1 passed29/0 after
+10.69 minutes, including harness270/0 and immutable regression checks. Its log
+and immutable process receipt are `candidate178-1.log` and `.log.process.json`
+in the same lab evidence directory. Retained178 failures:
+build1 (IEnumerable Count syntax), ownership1 (Unity fake-null comparison),
+ownership2 (detached Game singleton requires Unity), assembly1 (test array
+separator). Corrected against native identity; originals remain in the log root.
+This source checkpoint precedes package/suite/proof178. Next: coherent commit
+and guarded push, immutable178 freeze/proof and complete6B batch. Record exact
+freeze/campaign identities in new lab receipts without a documentation-only
+product commit during the frozen campaign.
+No phase stability, merge/release/install/protected-save write or HUMAN PLAY claim.
+
+## Earlier source177 checkpoint (historical)
+
 **IN PROGRESS — phase 6B-R.** The owner's autonomous Chunk 6 continuation authorizes
 repair of the preview.176 persistence blocker, then stable 6B, 6C casting/items,
 6D staged actions, bounded 6E reaction feasibility, and final 6F consolidation.

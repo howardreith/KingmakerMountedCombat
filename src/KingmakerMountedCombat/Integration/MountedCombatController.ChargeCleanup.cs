@@ -58,6 +58,7 @@ namespace KingmakerMountedCombat.Integration
                 ["schedulerAbsent"] = owner.Command == null || !pairedCommandScheduler.HasRegistration(owner.Command),
                 ["carrierDrained"] = owner.Command == null || owner.Command.ChargeCarrierDrained,
                 ["leaseDrained"] = owner.Command == null || owner.Command.ChargeCleanupComplete,
+                ["lease"] = owner.Command?.CaptureChargeLeaseEvidence(),
                 ["debt"] = owner.Command?.ChargeCleanupDebt,
                 ["shellTerminal"] = owner.Shell == null || owner.Shell.IsFinished,
                 ["shellContainerReleased"] = Absent(owner.RiderCommands, owner.Shell),

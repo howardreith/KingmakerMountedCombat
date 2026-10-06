@@ -54,6 +54,29 @@ function Assert-KmcChargeAbsentFacts($ObserverRequest,$Observations) {
  if($Observations.chargeSettled.gameTicks-lt$Observations.chargeLoaded.gameTicks){ChargeSaveFail 'no-DLL observation clock reversed'}
 }
 function ChargeSaveFail([string]$Message) { throw ('Charge persistence: '+$Message) }
+function Assert-KmcChargeBuffDrained($Lease) {
+ if($null-eq$Lease-or$Lease.buffAcquisitionStarted-ne$true-or$Lease.buffAcquisitionObserved-ne$true-or
+    $Lease.buffOutstanding-ne$false-or$null-ne$Lease.buffCallbackDebt-or$Lease.buffRuleDispatchSettled-ne$true){ChargeSaveFail 'native Charge buff acquisition or dispatch cleanup is unproven'}
+ $types=@('Kingmaker.UnitLogic.FactLogic.AddStatBonus','Kingmaker.UnitLogic.FactLogic.AddCondition','Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus')
+ if((@($Lease.buffComponentTypes)-join'|')-cne($types-join'|')){ChargeSaveFail 'native Charge buff component inventory differs'}
+ $condition=$Lease.buffCondition
+ foreach($field in @('condition','contributions','additions','removals','nativeExceptions')){
+  if($null-eq$condition-or($condition.$field-isnot[int]-and$condition.$field-isnot[long])){ChargeSaveFail 'condition summary lacks exact integers'}
+ }
+ if($null-eq$condition-or$condition.componentObserved-ne$true-or$condition.condition-ne40-or$condition.drained-ne$true-or
+    $condition.contributions-ne0-or$null-ne$condition.fault-or$condition.additions-lt1-or$condition.additions-ne$condition.removals){ChargeSaveFail 'owned native condition contribution was not drained'}
+ $operations=@($condition.operations);$adds=0;$removes=0;$exceptions=0
+ if($operations.Count-lt2-or$operations.Count-gt16){ChargeSaveFail 'condition mutation observations are missing or unbounded'}
+ foreach($operation in $operations){
+  if($operation.addition-isnot[bool]-or$operation.returnedNormally-isnot[bool]-or$operation.completed-ne$true-or$operation.mutationObserved-ne$true-or
+     ($operation.before-isnot[int]-and$operation.before-isnot[long])-or($operation.after-isnot[int]-and$operation.after-isnot[long])-or
+     $operation.before-lt0-or$operation.before-gt127-or$operation.after-lt0-or$operation.after-gt127){ChargeSaveFail 'condition mutation marker or native counter is unproven'}
+  if($operation.addition){$adds++;if($operation.after-ne($operation.before+1)){ChargeSaveFail 'native condition acquisition delta differs'}}
+  else{$removes++;if($operation.after-ne($operation.before-1)-or$removes-gt$adds){ChargeSaveFail 'native condition release delta or ownership differs'}}
+  if(-not$operation.returnedNormally){$exceptions++}
+ }
+ if($adds-ne$condition.additions-or$removes-ne$condition.removals-or$exceptions-ne$condition.nativeExceptions){ChargeSaveFail 'condition mutation summary differs from raw facts'}
+}
 function Assert-KmcChargeLifecycleRows($Request,$Rows,$GameResult) {
  if($Request.scenario-cne'persistence-p07-save'-or-not(Test-KmcChargeLifecycleCase $Request.persistenceCase)-or$Rows.Count-lt10-or$Rows.Count-gt28){ChargeSaveFail 'lifecycle case or bounded observations differ'}
  $initial=ChargeSaveRow $Rows 'initial'
@@ -198,6 +221,12 @@ function Assert-KmcChargeDrained($Owner) {
   if($Owner.$fact-ne$true){ChargeSaveFail ('unresolved owner postcondition '+$fact)}
  }
  if(-not[string]::IsNullOrEmpty([string]$Owner.debt)){ChargeSaveFail 'retained lease debt'}
+ if($null-eq$Owner.PSObject.Properties['lease']){ChargeSaveFail 'drained owner omitted exact lease facts'}
+ if($null-ne$Owner.lease){
+  if($Owner.lease.buffAcquisitionStarted-eq$true){Assert-KmcChargeBuffDrained $Owner.lease}
+  elseif($Owner.lease.buffAcquisitionStarted-ne$false-or$Owner.lease.buffApplied-ne$false-or$Owner.lease.buffAcquisitionObserved-ne$false-or
+         $Owner.lease.buffOutstanding-ne$false-or$null-ne$Owner.lease.buffCondition){ChargeSaveFail 'unstarted buff acquisition has unexplained native ownership'}
+ }
 }
 function Assert-KmcChargeCommitment($Cost) {
  foreach($field in @('riderStandard','riderMove','mountStandard','mountMove')){

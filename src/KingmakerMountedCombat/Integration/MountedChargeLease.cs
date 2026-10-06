@@ -10,9 +10,11 @@ using Kingmaker.Blueprints;
 using Kingmaker.EntitySystem.Stats;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Buffs;
+using Kingmaker.UnitLogic.Buffs.Blueprints;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Mechanics;
 using Kingmaker.UnitLogic.FactLogic;
+using Kingmaker.Designers.Mechanics.Facts;
 using Kingmaker.Utility;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
@@ -67,6 +69,8 @@ namespace KingmakerMountedCombat.Integration
         private readonly List<ModifiableValue.Modifier> buffModifiers = new List<ModifiableValue.Modifier>();
         private readonly List<GameLogicComponent> buffComponents = new List<GameLogicComponent>();
         private string[] buffComponentTypes = new string[0];
+        private MountedChargeConditionObserver buffCondition;
+        private int buffOwnerThread;
         [ThreadStatic] private static MountedChargeLease acquiringBuffLease;
         private UnitMovementAgent appliedMountAgent;
         private UnitEntityView appliedMountView;
@@ -316,10 +320,9 @@ namespace KingmakerMountedCombat.Integration
             if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff))
                 throw new InvalidOperationException("An existing Charge buff cannot be adopted by this transaction.");
             buffComponentTypes = chargeBuff.ComponentsArray.Select(component => component == null ? "<null>" : component.GetType().FullName).ToArray();
-            if (chargeBuff.ComponentsArray.Length == 0 ||
-                chargeBuff.ComponentsArray.Any(component => component == null || component.GetType() != typeof(AddStatBonus)))
-                throw new InvalidOperationException("Charge buff cleanup requires the pinned native AddStatBonus-only surface: " + string.Join("|", buffComponentTypes));
+            RequireChargeBuffSurface(chargeBuff);
             buffStats = rider.Descriptor.Stats.GetList().ToArray();
+            buffOwnerThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
             buffAcquisitionContext = new MechanicsContext(rider, rider.Descriptor, chargeBuff);
             var previous = acquiringBuffLease;
             acquiringBuffLease = this;
@@ -331,6 +334,24 @@ namespace KingmakerMountedCombat.Integration
             finally { acquiringBuffLease = previous; CaptureBuffResidue(); }
         }
 
+        private static void RequireChargeBuffSurface(BlueprintBuff chargeBuff)
+        {
+            if (chargeBuff.AssetGuid != "f36da144a379d534cad8e21667079066" || chargeBuff.ComponentsArray.Length != 3 ||
+                chargeBuff.ComponentsArray[0]?.GetType() != typeof(AddStatBonus) ||
+                chargeBuff.ComponentsArray[1]?.GetType() != typeof(AddCondition) ||
+                ((AddCondition)chargeBuff.ComponentsArray[1]).Condition != UnitCondition.StealthForbidden ||
+                chargeBuff.ComponentsArray[2]?.GetType() != typeof(AttackOfOpportunityAttackBonus))
+                throw new InvalidOperationException("Charge buff differs from the pinned three-component native surface.");
+            var armor = (AddStatBonus)chargeBuff.ComponentsArray[0];
+            var attack = (AttackOfOpportunityAttackBonus)chargeBuff.ComponentsArray[2];
+            if ((int)armor.Descriptor != 0 || armor.Stat != StatType.AC || armor.Value != -2 || armor.ScaleByBasicAttackBonus ||
+                !attack.NotAttackOfOpportunity || attack.AttackBonus != 1 || (int)attack.Descriptor != 0 ||
+                attack.Value == null || (int)attack.Value.ValueType != 0 || attack.Value.Value != 2 ||
+                (int)attack.Value.ValueRank != 0 || (int)attack.Value.ValueShared != 0 ||
+                (int)attack.Value.Property != 0 || !ReferenceEquals(attack.Value.CustomProperty, null))
+                throw new InvalidOperationException("Charge buff native component configuration differs.");
+        }
+
         // The CreateFact postfix runs before AddFact inserts/activates the fact. Match the unique
         // parent context as well as the original collection; reentrant unrelated facts are ignored.
         internal static void ObserveChargeBuffCreated(BuffCollection collection, Buff buff)
@@ -338,7 +359,10 @@ namespace KingmakerMountedCombat.Integration
             var lease = acquiringBuffLease;
             if (lease != null && ReferenceEquals(collection, lease.appliedBuffCollection) && buff != null &&
                 ReferenceEquals(buff.Context?.ParentContext, lease.buffAcquisitionContext))
+            {
                 lease.buffOwnership.CaptureCreated(buff);
+                lease.buffCondition = new MountedChargeConditionObserver(buff, lease.appliedRiderState);
+            }
         }
 
         // Native RemoveFact unlinks before callbacks; Dispose catches some failures. Inspect retained
@@ -346,9 +370,12 @@ namespace KingmakerMountedCombat.Integration
         private bool TryUndoChargeBuff()
         {
             if (!buffOwnership.Outstanding) return true;
+            if (System.Threading.Thread.CurrentThread.ManagedThreadId != buffOwnerThread) return false;
             MountedChargeAdmissionFault.FireCleanup("charge-buff");
             CaptureBuffResidue();
-            return buffOwnership.TryRemove(buff => buff.Remove(), BuffCleanupPostcondition);
+            var complete = buffOwnership.TryRemove(buff => buff.Remove(), BuffCleanupPostcondition);
+            if (complete) buffCondition.Release();
+            return complete;
         }
 
         private void CaptureBuffResidue()
@@ -363,7 +390,14 @@ namespace KingmakerMountedCombat.Integration
                     if (!buffComponents.Any(item => ReferenceEquals(item, component))) buffComponents.Add(component);
         }
 
-        private bool BuffCleanupPostcondition(Buff buff) => appliedBuffCollection != null &&
+        private bool BuffCleanupPostcondition(Buff buff) => BuffResiduePostcondition(buff,
+            Game.Instance?.Rulebook?.Context, System.Threading.Thread.CurrentThread.ManagedThreadId);
+
+        // Only resolution of the native singleton is outside the detached adapter probe.
+        // The actual current context, thread, components and modifier lists are checked here.
+        private bool BuffResiduePostcondition(Buff buff, Kingmaker.RuleSystem.RulebookEventContext context, int thread) =>
+            appliedBuffCollection != null && buffCondition != null && buffCondition.Drained &&
+            ChargeRuleDispatchSettled(context, thread) &&
             !appliedBuffCollection.Enumerable.Any(fact => ReferenceEquals(fact, buff)) &&
             !buff.Active && buff.IsDisposed && NativeFactListEmpty(buff, 0x04001B6D) &&
             NativeFactListEmpty(buff, 0x04001B6E) && NativeFactListEmpty(buff, 0x0400695A) &&
@@ -372,6 +406,11 @@ namespace KingmakerMountedCombat.Integration
             buffStats.All(stat => !stat.Modifiers.Any(modifier => ReferenceEquals(modifier.Source, buff))) &&
             buffModifiers.All(modifier => ReferenceEquals(modifier.AppliedTo, null) &&
                 buffStats.All(stat => !stat.Modifiers.Any(item => ReferenceEquals(item, modifier))));
+
+        private bool ChargeRuleDispatchSettled(Kingmaker.RuleSystem.RulebookEventContext context, int thread)
+        {
+            return thread == buffOwnerThread && context != null && !context.EventStack.Any();
+        }
 
         private static bool NativeFactListEmpty(Buff buff, int token)
         {
@@ -653,8 +692,12 @@ namespace KingmakerMountedCombat.Integration
                 ["buffApplied"] = BuffApplied,
                 ["buffOutstanding"] = BuffOutstanding,
                 ["buffAcquisitionObserved"] = buffOwnership.Fact != null,
+                ["buffAcquisitionStarted"] = buffOwnership.Started,
                 ["buffCallbackDebt"] = buffOwnership.Fault,
                 ["buffComponentTypes"] = new JArray(buffComponentTypes),
+                ["buffCondition"] = buffCondition?.CaptureEvidence(),
+                ["buffRuleDispatchSettled"] = ChargeRuleDispatchSettled(Game.Instance?.Rulebook?.Context,
+                    System.Threading.Thread.CurrentThread.ManagedThreadId),
                 ["chargingBefore"] = chargingBefore,
                 ["chargingCounterBefore"] = chargingCounterBefore,
                 ["chargingCounterAfter"] = appliedMountAgent == null ? (int?)null : (int)ChargingCounterField.GetValue(appliedMountAgent),

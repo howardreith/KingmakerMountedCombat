@@ -138,9 +138,32 @@ public static class ChargeOwnershipProbe {
   agentType.GetProperty("MaxSpeedOverride",F).SetValue(agent,null,null);
   Check((bool)Call(lease,"get_RollbackComplete")&&!(bool)Call(lease,"get_HasCleanupDebt"),"final observed native postconditions drain only after residue is gone");
   var buffType=native.GetType("Kingmaker.UnitLogic.Buffs.Buff",true);
+  var blueprint=Blank(native.GetType("Kingmaker.UnitLogic.Buffs.Blueprints.BlueprintBuff",true));
+  Set(blueprint,"m_AssetGuid","f36da144a379d534cad8e21667079066");
+  var armor=Blank(native.GetType("Kingmaker.UnitLogic.FactLogic.AddStatBonus",true));
+  Set(armor,"Value",-2);Set(armor,"Stat",Enum.Parse(Field(armor.GetType(),"Stat").FieldType,"AC"));
+  var configuredCondition=Blank(native.GetType("Kingmaker.UnitLogic.FactLogic.AddCondition",true));
+  Set(configuredCondition,"Condition",Enum.Parse(Field(configuredCondition.GetType(),"Condition").FieldType,"StealthForbidden"));
+  var attackBonus=Blank(native.GetType("Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus",true));
+  Set(attackBonus,"NotAttackOfOpportunity",true);Set(attackBonus,"AttackBonus",1);
+  var configuredValue=Blank(native.GetType("Kingmaker.UnitLogic.Mechanics.ContextValue",true));Set(configuredValue,"Value",2);Set(attackBonus,"Value",configuredValue);
+  var configuredComponents=Array.CreateInstance(native.GetType("Kingmaker.Blueprints.BlueprintComponent",true),3);
+  configuredComponents.SetValue(armor,0);configuredComponents.SetValue(configuredCondition,1);configuredComponents.SetValue(attackBonus,2);
+  Set(blueprint,"Components",configuredComponents);var validateSurface=leaseType.GetMethod("RequireChargeBuffSurface",F);
+  validateSurface.Invoke(null,new[]{blueprint});Check(true,"compiled charge admission accepts all three exact authored native components and their configuration");
+  Set(configuredValue,"Value",3);var shapeRefused=false;try{validateSurface.Invoke(null,new[]{blueprint});}catch(TargetInvocationException e){shapeRefused=e.InnerException is InvalidOperationException;}
+  Check(shapeRefused,"compiled charge admission refuses changed native buff consequences");Set(configuredValue,"Value",2);
+  var incomplete=Array.CreateInstance(native.GetType("Kingmaker.Blueprints.BlueprintComponent",true),1);incomplete.SetValue(armor,0);Set(blueprint,"Components",incomplete);
+  shapeRefused=false;try{validateSurface.Invoke(null,new[]{blueprint});}catch(TargetInvocationException e){shapeRefused=e.InnerException is InvalidOperationException;}
+  Check(shapeRefused,"incomplete preview177 AddStatBonus-only assumption cannot qualify the native buff");
   var buffCollectionType=native.GetType("Kingmaker.UnitLogic.Buffs.BuffCollection",true);
   var contextType=native.GetType("Kingmaker.UnitLogic.Mechanics.MechanicsContext",true);
   var buff=Blank(buffType);var wrongBuff=Blank(buffType);var originalBuffs=Blank(buffCollectionType);var foreignBuffs=Blank(buffCollectionType);
+  var stateType=native.GetType("Kingmaker.UnitLogic.UnitState",true);var state=Blank(stateType);
+  var conditionType=native.GetType("Kingmaker.UnitLogic.UnitCondition",true);var condition=Enum.Parse(conditionType,"StealthForbidden");
+  var conditionCounters=new sbyte[128];conditionCounters[40]=2;
+  native.ManifestModule.ResolveField(0x040015F9).SetValue(state,conditionCounters);Set(lease,"appliedRiderState",state);
+  Set(lease,"buffOwnerThread",System.Threading.Thread.CurrentThread.ManagedThreadId);
   var parent=Blank(contextType);var child=Blank(contextType);var otherChild=Blank(contextType);
   native.ManifestModule.ResolveField(0x04001707).SetValue(child,parent);
   native.ManifestModule.ResolveField(0x04001B6F).SetValue(buff,child);
@@ -162,12 +185,36 @@ public static class ChargeOwnershipProbe {
    Call(factOwner,"Acquire",callback);
   }finally{activeAcquisition.SetValue(null,previousAcquisition);observeCreation=null;acquiredFact=null;}
   Check((bool)Call(factOwner,"get_Acquired"),"exact observed native buff return completes acquisition");
+  Set(lease,"buffOwnerThread",System.Threading.Thread.CurrentThread.ManagedThreadId+1);
+  Check(!(bool)Call(lease,"TryUndoChargeBuff")&&!(bool)Call(factOwner,"get_RemovalAttempted")&&(bool)Call(factOwner,"get_Outstanding"),
+   "wrong-thread buff cleanup retains ownership without invoking native removal or reading native residue");
+  Set(lease,"buffOwnerThread",System.Threading.Thread.CurrentThread.ManagedThreadId);
+  var conditionObserver=Get(lease,"buffCondition");var observerType=conditionObserver.GetType();
+  var conditionComponent=Blank(native.GetType("Kingmaker.UnitLogic.FactLogic.AddCondition",true));
+  native.ManifestModule.ResolveField(0x0400607B).SetValue(conditionComponent,buff);Set(conditionComponent,"Condition",condition);
+  var invokeCondition=observerType.GetMethod("Invoke",F);var observeMutation=observerType.GetMethod("ObserveMutation",F);
+  var nativeConditionCalls=0;
+  Action addCondition=()=>{nativeConditionCalls++;conditionCounters[40]++;observeMutation.Invoke(null,new[]{state,condition,buff});};
+  invokeCondition.Invoke(null,new object[]{state,condition,buff,conditionComponent,true,addCondition});
+  Check(nativeConditionCalls==1&&conditionCounters[40]==3&&!(bool)Call(conditionObserver,"get_Drained"),"compiled observer retains exact native shared-counter acquisition without replay");
+  conditionCounters[40]+=3; // Detached native boundary: unrelated owners acquire their contributions.
+  Action removeCondition=()=>{nativeConditionCalls++;conditionCounters[40]--;observeMutation.Invoke(null,new[]{state,condition,null});throw new InvalidOperationException("callback after decrement");};
+  var propagated=false;try{invokeCondition.Invoke(null,new object[]{state,condition,null,conditionComponent,false,removeCondition});}
+  catch(TargetInvocationException e){propagated=e.InnerException is InvalidOperationException;}
+  Check(propagated&&nativeConditionCalls==2&&conditionCounters[40]==5&&(bool)Call(conditionObserver,"get_Drained"),"compiled observer propagates callback failure after exact decrement and preserves all foreign contributions; propagated="+propagated+";calls="+nativeConditionCalls+";counter="+conditionCounters[40]+";facts="+Call(conditionObserver,"CaptureEvidence"));
+  Check(observerType.GetField("current",F).GetValue(null)==null,"throwing native component callback closes its observation scope in finally");
+  observeMutation.Invoke(null,new[]{state,condition,null});
+  Check((bool)Call(conditionObserver,"get_Drained"),"later unrelated mutation cannot inherit a throwing component scope");
+  var ruleContextType=native.GetType("Kingmaker.RuleSystem.RulebookEventContext",true);var ruleContext=Blank(ruleContextType);
+  var stackField=native.ManifestModule.ResolveField(0x04004A3D);var stack=(System.Collections.IList)Activator.CreateInstance(stackField.FieldType);
+  stackField.SetValue(ruleContext,stack);
+  Func<bool> buffSettled=()=>(bool)Call(lease,"BuffResiduePostcondition",buff,ruleContext,System.Threading.Thread.CurrentThread.ManagedThreadId);
   var nativeFacts=native.ManifestModule.ResolveField(0x04006075);nativeFacts.SetValue(originalBuffs,Activator.CreateInstance(nativeFacts.FieldType));
   native.ManifestModule.ResolveField(0x04006961).SetValue(buff,true);
   var component=Blank(native.GetType("Kingmaker.UnitLogic.FactLogic.AddStatBonus",true));
   ((System.Collections.IList)Get(lease,"buffComponents")).Add(component);
   var listening=native.ManifestModule.ResolveField(0x0400607C);listening.SetValue(component,true);
-  Check(!(bool)Call(lease,"BuffCleanupPostcondition",buff),"removed disposed buff with retained native event listener remains cleanup debt");
+  Check(!buffSettled(),"removed disposed buff with retained native event listener remains cleanup debt");
   listening.SetValue(component,false);
   var statType=native.GetType("Kingmaker.EntitySystem.Stats.ModifiableValue",true);var stat=Blank(statType);
   var modifiersField=native.ManifestModule.ResolveField(0x0400536A);modifiersField.SetValue(stat,Activator.CreateInstance(modifiersField.FieldType));
@@ -175,9 +222,37 @@ public static class ChargeOwnershipProbe {
   var modifier=Blank(native.GetType("Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier",true));
   ((System.Collections.IList)Get(lease,"buffModifiers")).Add(modifier);
   var appliedTo=native.ManifestModule.ResolveField(0x04008C66);appliedTo.SetValue(modifier,stat);
-  Check(!(bool)Call(lease,"BuffCleanupPostcondition",buff),"removed disposed buff with modifier AppliedTo retained remains cleanup debt");
+  Check(!buffSettled(),"removed disposed buff with modifier AppliedTo retained remains cleanup debt");
   appliedTo.SetValue(modifier,null);
-  Check((bool)Call(lease,"BuffCleanupPostcondition",buff),"exact native listeners lists and modifiers all drained establishes buff residue postcondition");
+  stack.Add(Blank(native.GetType("Kingmaker.RuleSystem.Rules.RuleAttackRoll",true)));
+  Check(!buffSettled(),"removed buff retains ownership during an in-flight native rule dispatch");
+  stack.Clear();Set(lease,"buffOwnerThread",System.Threading.Thread.CurrentThread.ManagedThreadId+1);
+  Check(!buffSettled(),"a foreign thread cannot establish native rule dispatch settlement");
+  Set(lease,"buffOwnerThread",System.Threading.Thread.CurrentThread.ManagedThreadId);
+  Check(buffSettled(),"exact native listeners lists and modifiers all drained establishes buff residue postcondition");
+  var nextContext=Blank(ruleContextType);stackField.SetValue(nextContext,Activator.CreateInstance(stackField.FieldType));
+  ruleContext=nextContext;
+  Check(buffSettled(),"native outer-event context replacement does not pin a stale context at acquisition");
+  ruleContext=null;
+  Check(!buffSettled(),"missing native rule context cannot prove settlement");
+  Call(conditionObserver,"Release");
+  var modern=Assembly.LoadFrom(Path.Combine(managed,"UnityModManager/0Harmony.dll"));
+  var read=modern.GetType("HarmonyLib.PatchProcessor",true).GetMethods(F).Single(m=>m.Name=="GetOriginalInstructions"&&m.GetParameters().Length==2&&!m.GetParameters()[1].ParameterType.IsByRef);
+  var legacyAssembly=observerType.GetMethod("Wrap",F).GetParameters()[0].ParameterType.GetGenericArguments()[0].Assembly;
+  var instructionType=legacyAssembly.GetType("Harmony12.CodeInstruction",true);
+  var listType=typeof(System.Collections.Generic.List<>).MakeGenericType(instructionType);
+  foreach(var token in new[]{0x06002448,0x06002449,0x0600244A}){
+   var original=native.ManifestModule.ResolveMethod(token);var input=(System.Collections.IList)Activator.CreateInstance(listType);
+   foreach(var instruction in (System.Collections.IEnumerable)read.Invoke(null,new object[]{original,null})){
+    var type=instruction.GetType();input.Add(Activator.CreateInstance(instructionType,new[]{type.GetField("opcode").GetValue(instruction),type.GetField("operand").GetValue(instruction)}));
+   }
+   var output=(System.Collections.IEnumerable)observerType.GetMethod("Wrap",F).Invoke(null,new object[]{input,original});var wrappers=0;var nativeCalls=0;
+   foreach(var instruction in output){var operand=instructionType.GetField("operand").GetValue(instruction) as MethodBase;if(operand==null)continue;
+    if(operand.DeclaringType==observerType)wrappers++;
+    if(operand.DeclaringType==stateType&&(operand.MetadataToken==0x06001FB7||operand.MetadataToken==0x06001FB9))nativeCalls++;
+   }
+   Check(wrappers==1&&nativeCalls==0,"compiled transformer wraps exactly the pinned native condition mutation in "+original.Name);
+  }
   var boundaryType=mod.GetType("KingmakerMountedCombat.Domain.MountedChargeBoundaryQueue",true);
   var kindType=mod.GetType("KingmakerMountedCombat.Domain.MountedChargeBoundaryKind",true);
   var boundaries=Activator.CreateInstance(boundaryType,true);Set(controller,"chargeBoundaries",boundaries);

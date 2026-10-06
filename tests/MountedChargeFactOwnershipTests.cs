@@ -44,6 +44,8 @@ namespace KingmakerMountedCombat.Tests
                 Action<Fact> remove = item => { calls++; native.Remove(item); item.Disposed = true; };
                 Func<Fact, bool> settled = item => !native.Contains(item) && item.Disposed && item.Residue == 0;
                 TestRunner.True(!owner.TryRemove(remove, settled) && owner.Outstanding, "Swallowed native residue was considered complete.");
+                TestRunner.True(!owner.TryRemove(remove, settled) && calls == 1 && owner.Outstanding,
+                    "Waiting for in-flight native callbacks replayed fact removal.");
                 fact.Residue = 0;
                 TestRunner.True(owner.TryRemove(remove, settled) && !owner.Outstanding && calls == 1 && native.Contains(foreign), "Observed settlement replayed removal or touched a foreign fact.");
             });

@@ -203,6 +203,7 @@ function Assert-KmcChunk6bChargeBoundedTermination($Evidence,[string]$Row,[strin
     # buffApplied is the historical fact that the native Charge buff was installed; buffOutstanding is
     # whether the lease still owns it. A restored lease must show both: applied, and no longer owned.
     if((ChargeProp $lease 'buffOutstanding')-ne$false){ChargeFail ('row '+$Row+' the charge lease still owns the native charge buff')}
+    Assert-KmcChargeBuffDrained $lease
     if((ChargeProp $lease 'riderAgentTouched')-ne$false){ChargeFail ('row '+$Row+' the charge lease touched the rider agent')}
     if([long](ChargeProp $lease 'forcedPathCount')-lt1){ChargeFail ('row '+$Row+' the charge lease forced no path')}
     # No attack of the pair own: the intervention came before the strike.
@@ -444,6 +445,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             if($null-eq$lease){ChargeFail 'the lawful charge recorded no lease'}
             foreach($flag in @('applied','buffApplied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly','chargingObservedThroughout')){ if((ChargeProp $lease $flag)-ne$true){ChargeFail ('the charge lease flag is not set: '+$flag)} }
             if((ChargeProp $lease 'buffOutstanding')-ne$false){ChargeFail 'the delivered charge lease still owns the native charge buff'}
+            Assert-KmcChargeBuffDrained $lease
             if((ChargeProp $lease 'riderAgentTouched')-ne$false){ChargeFail 'the charge lease touched the rider agent'}
             if([long](ChargeProp $lease 'forcedPathCount')-lt1){ChargeFail 'the charge lease forced no path'}
             if(-not(ChargeNumber (ChargeProp $lease 'speedOverrideApplied'))-or[double]$lease.speedOverrideApplied-lt([double]$movement.mountCombatSpeedMps*2-0.001)){ChargeFail 'the charge lease did not double the mount speed'}
@@ -586,6 +588,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                 $lease.forcedPathCount-lt1-or$lease.forcedPathAppliedBeforeFailure-ne$true-or$lease.buffOutstanding-ne$false-or
                 $lease.restored-ne$true-or$lease.chargingRestoredExactly-ne$true-or$lease.speedOverrideRestoredExactly-ne$true-or
                 $lease.riderChargingRestoredExactly-ne$true){ChargeFail 'partial lease application did not restore all owned mutations'}
+            Assert-KmcChargeBuffDrained $lease
             if($rules.pairNonOpportunityAttackRules-ne0-or$rules.mountAttackRules-ne0-or$economy.mountStandardMax-gt0.001-or$economy.mountMoveMax-gt0.001){ChargeFail 'lease fault delivered an attack or charged the mount'}
             foreach($field in @('mountCharging','mountMoving','riderStateCharging','pairCommandActive','chargeBuffPresent')){
                 if((ChargeProp $after $field)-ne$false){ChargeFail ('lease application left residue '+$field)}
@@ -749,6 +752,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
             if($null-eq$movedLease){ChargeFail 'the moving-target charge recorded no lease'}
             foreach($flag in @('applied','buffApplied','restored','chargingRestoredExactly','speedOverrideRestoredExactly','riderChargingRestoredExactly')){ if((ChargeProp $movedLease $flag)-ne$true){ChargeFail ('the moving-target charge lease flag is not set: '+$flag)} }
             if((ChargeProp $movedLease 'buffOutstanding')-ne$false){ChargeFail 'the moving-target charge lease still owns the native charge buff'}
+            Assert-KmcChargeBuffDrained $movedLease
             foreach($flag in @('mountCharging','mountMoving','riderStateCharging','mountStateCharging','pairCommandActive')){ if((ChargeProp $after $flag)-ne$false){ChargeFail ('the moving-target charge left residue: '+$flag)} }
             if($null-ne(ChargeProp $after 'mountSpeedOverride')){ChargeFail 'the moving-target charge left a mount speed override behind'}
         }
@@ -812,7 +816,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne34-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 34 and a chunk6b charge scenario'}
+    if([long]$Artifact.schemaVersion-ne35-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 35 and a chunk6b charge scenario'}
     $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}

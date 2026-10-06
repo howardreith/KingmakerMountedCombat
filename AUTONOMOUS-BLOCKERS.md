@@ -1,3 +1,15 @@
+## 2026-10-05 - attributable preview177 buff assumption, replacement178 in progress
+
+Exact installed ChargeBuff has AddStatBonus, AddCondition(StealthForbidden40)
+and AttackOfOpportunityAttackBonus. Frozen177 accepts only AddStatBonus and
+cannot qualify. It never ran natively; its owned read-only purity was ABORTED,
+all bytes restored/unchanged, no active worker/transaction. Working178 retains
+exact native add/remove observations, never rewrites or replays shared condition
+debt, and waits for current game-thread rule dispatch settlement. Focused checks,
+FAST17/0 andCANDIDATE29/0 pass; freeze/purity/native qualification follow. This repair is
+within the owner's authority; no human-only boundary has been encountered.
+Native safety and the complete6B phase exit remain unproven, not stable.
+
 ## 2026-10-05 - authorized 6B ownership repair: native qualification pending
 
 The owner's continuation mission supersedes the earlier stop-at-persistence

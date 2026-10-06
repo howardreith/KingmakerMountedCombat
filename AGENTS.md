@@ -1,3 +1,17 @@
+## 2026-10-05 - preview.178 native buff ownership repair IN PROGRESS
+
+Published HEAD225cf2d932e27d0a2fc3e9e735867959fa548f9d is preserved. Frozen177
+package/suite exist but are unqualified: read-only purity ABORTED after exact
+native asset review disproved its AddStatBonus-only buff assumption. Zero native
+runs/transactions; retirement receipt proves275 saves/358 Mods unchanged and
+human105 intact. Working178 observes all three actual Charge buff components,
+exact condition contributions and native rule settlement. Components669/0,
+FAST17/0 andCANDIDATE29/0 pass. Next is coherent178 publication/freeze and its
+own purity/native campaign; no native178 result exists. Details and immutable
+failure paths: [current continuation](docs/CHUNK6-CONTINUATION.md).
+Continue the owner's6B-6F mission after the source/gate/freeze/native sequence;
+all phase exits remain incomplete. Existing safety limits and one mutator apply.
+
 ## 2026-10-05 - autonomous Chunk 6 continuation: phase 6B-R IN PROGRESS
 
 The owner's new mission authorizes resolving the persistence blocker and continuing
