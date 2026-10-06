@@ -1,6 +1,43 @@
 # Chunk 6 continuation — 2026-10-05
 
-## Newest checkpoint: preview177 retired, preview178 working repair
+## Newest checkpoint: preview179 loaded-buff repair, 2026-10-06
+
+Published HEAD `aff3995b228e68b266368b2f3fd03f491b014c55`, tree
+`12445990d831e56242f34089c90e83d9cea5b3bc` was guarded-pushed/fetched equal.
+Frozen178 purity PASS, native NOTRUN: its three-component guard rejects the
+installed enabled COTW augmentation. Its package/suite/receipt are immutable.
+See the newest [resume](../AUTONOMOUS-RESUME.md) for exact closure identities.
+
+Working179 extends the existing charge lease with a finite lifetime graph for
+the inspected COTW children, two native weapon enchantments and Flaming FX.
+It preserves the native actions and target consequences. Exact acquisition,
+callback scope and postcondition observations retain debt through partial
+activation, removal, fade and pool return. A stale native FX reference cannot
+destroy another pool user's generation. No action/turn/resource state is written.
+The new RT child-cleanup fixture also exercises the window before parent storage.
+Schema36 and the single external validator require the raw native cleanup facts.
+
+Focused build PASS; components681/0, compiled surface47/0, persistence reader155/0.
+These are offline evidence only. Full source/affected assembly/asset gates,
+FAST18/0 and CANDIDATE179-2 30/0 pass. A final reviewed FX capacity guard now
+reserves slots before nested callbacks and refuses acquisition after a fault;
+CANDIDATE179-3 passed30/0 on the complete source at2026-10-06T05:11:54.7490982Z
+(10.54 minutes). Log SHA256:
+e2766212124b1090aa1616cf15bd9d43ec710e3a6c183adad86f8a8a5680c99e.
+Next is coherent publication, one freeze/purity and the ready26-stage6B native
+batch. RT now27 rows; TB retains the exact defer refusal. Post-commit product and
+harness identities will be recorded in lab candidate179-freeze.json and later
+immutable receipts, without changing HEAD during qualification.
+All failed attempts remain in lab analysis-cache/chunk6-continuation/20261005-6br/,
+including179 build2/4/8/9, detached surface4 Unity ECall limitation and source1's
+missing shared row registration (repaired). Also retain FAST1 version metadata,
+CANDIDATE1 exact source inventory and surface8/10/11 detached test failures.
+No179 package exists yet.
+No live game/transaction, external write or recovery. Last closure rehashed275
+saves/358 Mods unchanged with human105 intact and empty restorationErrors.
+No Chunk6 phase is stable; no merge/release/permanent install/HUMAN PLAY claim.
+
+## Previous preview177 retirement and preview178 source checkpoint
 
 Published HEAD `225cf2d932e27d0a2fc3e9e735867959fa548f9d`, tree
 `7ba903864b97f4960e709eff5771b2f9e6a686e1`, guarded-pushed and fetched equal on

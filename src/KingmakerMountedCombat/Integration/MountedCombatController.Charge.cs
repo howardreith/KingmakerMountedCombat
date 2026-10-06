@@ -157,7 +157,7 @@ namespace KingmakerMountedCombat.Integration
             request.Distance = request.MinimumRange;
             request.StraightRoute = true;
             request.LandingBlocked = false;
-            var availability = MountedChargePolicy.Evaluate(request);
+            var availability = EvaluateMountedChargeRequest(request, caster);
             return new NativeMountedControlAvailability(true, availability.IsAllowed, availability.Reason);
         }
 
@@ -168,11 +168,19 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            return MountedChargePolicy.Evaluate(CaptureMountedChargeRequest(caster, target)).IsAllowed;
+            return EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster).IsAllowed;
         }
 
         internal MountedChargeAvailability ObserveMountedChargeTarget(UnitEntityData caster, UnitEntityData target) =>
-            MountedChargePolicy.Evaluate(CaptureMountedChargeRequest(caster, target));
+            EvaluateMountedChargeRequest(CaptureMountedChargeRequest(caster, target), caster);
+
+        private static MountedChargeAvailability EvaluateMountedChargeRequest(MountedChargeRequest request, UnitEntityData caster)
+        {
+            var result = MountedChargePolicy.Evaluate(request);
+            if (!result.IsAllowed) return result;
+            var reason = MountedChargeLease.BuffAvailabilityReason(caster);
+            return reason == null ? result : new MountedChargeAvailability(false, reason, MountedCombatRejectionCode.LifecycleBoundary);
+        }
 
         internal string LastMountedChargeRefusal { get; private set; }
 
@@ -200,7 +208,7 @@ namespace KingmakerMountedCombat.Integration
                     MountedCombatRejectionCode.CommandAdmissionFailure);
 
             var request = CaptureMountedChargeRequest(caster, target, context);
-            var availability = MountedChargePolicy.Evaluate(request);
+            var availability = EvaluateMountedChargeRequest(request, caster);
             logger.Info("Mounted charge delivery observed: casterId=" + (caster?.UniqueId ?? "<none>") +
                 "; targetId=" + (target?.UniqueId ?? "<none>") +
                 "; turnBased=" + request.TurnBased + "; ownShell=" + request.DeliveringOwnShell +

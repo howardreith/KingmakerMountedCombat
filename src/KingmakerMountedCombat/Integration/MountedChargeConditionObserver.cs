@@ -46,7 +46,10 @@ namespace KingmakerMountedCombat.Integration
             owners.Add(this);
         }
 
-        internal bool Drained => !ReferenceEquals(component, null) && ownership.Additions > 0 && ownership.Drained;
+        // Zero operations is possible when activation failed before AddCondition.
+        // The lease also proves that activation returned and all listeners/facts
+        // are gone, so an unacquired contribution need not be manufactured.
+        internal bool Drained => ownership.Drained;
 
         internal void Release()
         {

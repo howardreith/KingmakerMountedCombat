@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Harmony12;
+using Kingmaker.Blueprints;
+using Kingmaker.Blueprints.Facts;
+using Kingmaker.Blueprints.Items.Ecnchantments;
 using Kingmaker.Controllers;
 using Kingmaker.Controllers.Clicks;
 using Kingmaker.Controllers.Combat;
@@ -15,11 +18,15 @@ using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Buffs;
+using Kingmaker.UnitLogic.Buffs.Blueprints;
+using Kingmaker.UnitLogic.Mechanics;
+using Kingmaker.UnitLogic.Mechanics.Actions;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using Kingmaker.Visual.Animation;
 using Kingmaker.Visual.Animation.Kingmaker;
 using Kingmaker.Visual.CharacterSystem;
+using Kingmaker.Visual.Particles;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Logging;
@@ -152,6 +159,26 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(BuffCollection), "Tick", 0x06002A02, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedBuffTimerTranspiler));
                 PatchExact(typeof(BuffCollection), "CreateFact", 0x060029F9, null,
                     null, nameof(PatchMethods.ChargeBuffCreatedPostfix));
+                PatchExact(typeof(BuffCollection), "AddBuffInternal", 0x060029F7, null,
+                    nameof(PatchMethods.ChargeChildAdmissionPrefix), null, nameof(PatchMethods.ChargeChildAcquisitionTranspiler));
+                PatchExact(typeof(ItemEnchantmentCollection), "AddEnchantment", 0x060099B8, null,
+                    null, null, nameof(PatchMethods.ChargeChildAcquisitionTranspiler));
+                PatchExact(typeof(ItemEnchantmentCollection), "CreateFact", 0x060099B7, null,
+                    null, nameof(PatchMethods.ChargeEnchantmentCreatedPostfix));
+                PatchExact(typeof(FactCollection), "RemoveFact", 0x06009699, new[] { typeof(Fact) }, nameof(PatchMethods.ChargeFactRemovalPrefix));
+                PatchExact(typeof(FactCollection), "RemoveFact", 0x06009698, new[] { typeof(BlueprintFact) }, nameof(PatchMethods.ChargeBlueprintRemovalPrefix));
+                PatchExact(typeof(Fact), "Activate", 0x06009A50, Type.EmptyTypes, nameof(PatchMethods.ChargeFactLifecyclePrefix));
+                PatchExact(typeof(Fact), "Deactivate", 0x06009A52, Type.EmptyTypes, nameof(PatchMethods.ChargeFactLifecyclePrefix));
+                PatchExact(typeof(Fact), "Dispose", 0x06009A5A, Type.EmptyTypes, nameof(PatchMethods.ChargeFactLifecyclePrefix));
+                PatchExact(typeof(ContextActionRemoveBuff), "RunAction", 0x06002394, Type.EmptyTypes, nameof(PatchMethods.ChargeChildRemovalPrefix));
+                PatchExact(typeof(ItemEnchantment), "RespawnFx", 0x060099AB, Type.EmptyTypes,
+                    null, null, nameof(PatchMethods.ChargeFxRespawnTranspiler));
+                PatchExact(typeof(GameObjectsPool), "Claim", 0x060010BD, null, null, null, nameof(PatchMethods.ChargeFxAcquisitionTranspiler));
+                PatchExact(typeof(PooledGameObject), "CreateInstance", 0x06001109, null, null, null, nameof(PatchMethods.ChargeFxAcquisitionTranspiler));
+                PatchExact(typeof(SnapControllerBase), "Init", 0x0600111A, Type.EmptyTypes, null, null, nameof(PatchMethods.ChargeFxAcquisitionTranspiler));
+                PatchExact(typeof(GameObjectsPool), "Release", 0x060010BE, null, null, nameof(PatchMethods.ChargeFxReleasePostfix), nameof(PatchMethods.ChargeFxRespawnTranspiler));
+                PatchExact(typeof(Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment), "DestroyFx", 0x060099AF,
+                    Type.EmptyTypes, null, null, nameof(PatchMethods.ChargeFxDestructionTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnTurnOn", 0x06002448, Type.EmptyTypes,
                     null, null, nameof(PatchMethods.ChargeConditionTranspiler));
                 PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnTurnOff", 0x06002449, Type.EmptyTypes,
@@ -326,8 +353,33 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
-            internal static void ChargeBuffCreatedPostfix(BuffCollection __instance, Kingmaker.Blueprints.Facts.Fact __result) =>
+            internal static void ChargeBuffCreatedPostfix(BuffCollection __instance, Fact __result)
+            {
                 MountedChargeLease.ObserveChargeBuffCreated(__instance, __result as Buff);
+                MountedChargeBuffChildren.Created(__instance, __result);
+            }
+
+            internal static void ChargeEnchantmentCreatedPostfix(ItemEnchantmentCollection __instance, Fact __result) =>
+                MountedChargeBuffChildren.Created(__instance, __result);
+            internal static void ChargeChildAdmissionPrefix(BuffCollection __instance, BlueprintBuff blueprint, MechanicsContext context) =>
+                MountedChargeBuffChildren.BeforeAddBuff(__instance, blueprint, context);
+            internal static void ChargeFactRemovalPrefix(FactCollection __instance, Fact fact) => MountedChargeBuffChildren.BeforeRemove(__instance, fact);
+            internal static void ChargeBlueprintRemovalPrefix(FactCollection __instance, BlueprintFact blueprint) => MountedChargeBuffChildren.BeforeRemoveBlueprint(__instance, blueprint);
+            internal static void ChargeFactLifecyclePrefix(Fact __instance) => MountedChargeBuffChildren.BeforeFactLifecycle(__instance);
+            internal static bool ChargeChildRemovalPrefix(ContextActionRemoveBuff __instance) => MountedChargeBuffChildren.RemoveAction(__instance);
+            internal static IEnumerable<CodeInstruction> ChargeChildAcquisitionTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
+                MountedChargeBuffChildren.WrapAddFact(instructions, __originalMethod);
+            internal static IEnumerable<CodeInstruction> ChargeFxAcquisitionTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator, MethodBase __originalMethod)
+            {
+                var output = MountedChargeEnchantmentFx.WrapAcquisition(instructions, __originalMethod);
+                return __originalMethod.MetadataToken == 0x0600111A ?
+                    MountedChargeEnchantmentFx.WrapRespawn(output, generator, __originalMethod) : output;
+            }
+            internal static IEnumerable<CodeInstruction> ChargeFxRespawnTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator, MethodBase __originalMethod) =>
+                MountedChargeEnchantmentFx.WrapRespawn(instructions, generator, __originalMethod);
+            internal static void ChargeFxReleasePostfix(UnityEngine.GameObject instance) => MountedChargeEnchantmentFx.ObserveRelease(instance);
+            internal static IEnumerable<CodeInstruction> ChargeFxDestructionTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
+                MountedChargeEnchantmentFx.WrapDestruction(instructions, __originalMethod);
 
             internal static IEnumerable<CodeInstruction> ChargeConditionTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
                 MountedChargeConditionObserver.Wrap(instructions, __originalMethod);

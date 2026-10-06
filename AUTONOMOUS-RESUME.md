@@ -1,4 +1,92 @@
-# 2026-10-05 preview.177 retired before native execution; preview.178 repair IN PROGRESS
+# 2026-10-06 preview179 source complete; CANDIDATE PASS, native pending
+
+Sole mutating executor continues phase6B on codex/mounted-combat-phase3f-playable-core.
+HEAD aff3995b228e68b266368b2f3fd03f491b014c55, tree
+12445990d831e56242f34089c90e83d9cea5b3bc. Known working changes extend the existing
+charge lease to the exact installed COTW child/enchantment/Flaming FX lifetimes;
+they preserve all earlier ownership barriers, native costs and TB refusal.
+No179 package/suite/purity/native transaction exists. Source version is179 for
+the coherent candidate gate. Frozen178 remains unqualified/native NOTRUN;
+its PASS purity receipt and all historical evidence below are immutable.
+
+The repair now captures child facts before activation/parent storage, retains native
+callback scopes, and requires exact listener/modifier/context/visual postconditions.
+FX ownership captures pool generations before setup and pool return before fallible
+residue reads. The exact native DestroyFx call cannot destroy a returned/reused
+generation; native reference cleanup remains intact. Unknown custody fails closed.
+Failure history remains after observed settlement; ambiguous identity remains debt.
+A new native child-cleanup row exercises three children, two enchantments and an
+unstored child, with mandatory actual Flaming FX acquisition. This is a lifetime
+stimulus, not qualification of COTW feat eligibility or attack consequences.
+
+Latest focused results: build179-18 PASS; components179-3 681/0; surface179-12 47/0;
+persistence-reader179-3 155/0; charge-reader179-4 360/0; assembly179-1 705/0;
+buff-assets179-1 45/0; source179-2 143/0. Earlier ownership179-2 80/0.
+Native callback order is still unqualified.
+FAST179-2 passed18/0; CANDIDATE179-2 passed30/0 before final FX capacity fencing.
+The final guard reserves capacity across nested native callbacks and rejects new
+acquisition after a fault. Final CANDIDATE179-3 passed30/0 in10.54 minutes,
+completed2026-10-06T05:11:54.7490982Z. Its immutable log SHA256 is
+e2766212124b1090aa1616cf15bd9d43ec710e3a6c183adad86f8a8a5680c99e.
+Retain failed CANDIDATE179-1 (exact source inventory needed the new owned files),
+surface179-10/11 (Unity copy body cannot JIT in detached CLR; actual production
+capacity preflight is now separately executed), and failed build179-2/4/8/9,
+surface179-4 detached Unity ECall failure, surface179-8 probe MethodBase cast,
+FAST179-1 version metadata mismatch and source179-1 missing row registration.
+These were corrected without changing any safety rule. No failed artifact
+was replaced. Logs are lab analysis-cache/chunk6-continuation/20261005-6br/.
+Next: coherent179 commit/guarded push/freeze; required purity then the full ready26-stage6B batch
+(RT now27 rows). Exact post-commit HEAD/tree, package and suite identities belong
+in new lab candidate179-freeze.json and terminal proof/campaign receipts; do not
+make documentation-only product commits during that frozen campaign. Package
+qualifier chunk6b-charge-x; suite20261006-chunk6b-charge-x. Do not create a package
+per tiny repair.
+
+No Kingmaker or runtime/install transaction is active. Last external closure at
+2026-10-06T03:08:45.974Z rehashed275 saves/358 Mods byte-identical, human105 unchanged,
+empty restorationErrors. No external writes have followed. All6B-6F exits remain
+incomplete; no merge/PR/tag/release/permanent install/protected-save write/foreign-mod
+change/HUMAN PLAY acceptance occurred. Continue6B then6C-6F after qualification.
+
+## Previous preview178 proof closure
+
+Integration HEAD aff3995b228e68b266368b2f3fd03f491b014c55, tree
+12445990d831e56242f34089c90e83d9cea5b3bc was guarded-pushed/fetched equal and
+clean through proof closure. Frozen178 package de8e2b552b405499e11d9f0f42d1990e17aa8cda2bebec87bffa808f83c0159c,
+suite20261005-chunk6b-charge-w SHA b38a998bf105fe3e97d967307b3fa57f1fc5a625d61d48ff985a671467d47bfe.
+Read-only proof exited0 at2026-10-06T03:07:41.0755867Z; log SHA
+ddd15c68544b0978f62ba4de8272aff3868a1aa075e4668134dc806ad38df0b9.
+Closure audit:275 saves/358 Mods unchanged, human105 unchanged, no game/worker
+or transaction, empty restorationErrors. Exact immutable receipts are under lab
+analysis-cache/chunk6-continuation/20261005-6br: preview178-proof-closure.json,
+preview178-compatibility-blocker.json and candidate178-freeze.json.
+
+178 is unqualified and its26-stage native plan remains NOTRUN. Its base-asset
+three-component guard rejects the installed enabled COTW startup augmentation:
+expected six root components, three conditional same-rider child buffs, up to
+two actually acquired weapon enchantments. Do not launch178 or mutate its frozen
+package/suite/evidence. Bounded original metadata and native ordering are in
+COTW-CHARGE-OWNERSHIP-AUDIT-178.md and CHARGE-BUFF-REPAIR-SCOPE-178.md in that
+lab directory. Preserve lawful target damage/debuff outcomes and foreign facts.
+
+Sole executor's working repair began only after proof closure. Acquiring fact
+ownership now refuses reentrant cleanup and records automatic native removal
+attempts; actual native activation/deactivation/recalculation scopes block
+cleanup until return. Focused behavioral fact tests8/0; compiled scope probes
+added, not yet run. Loaded-buff surface/tree/FX ownership integration remains
+IN PROGRESS, not source-complete; no179 candidate or package exists. Next:
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Build-Local.ps1 -SkipSourceValidation`,
+then focused compiled ownership tests and finish the complete bounded repair
+before CANDIDATE/freeze. Do not repeat an expensive candidate/proof for each edit.
+
+Owner confirmed no alternate Swift-spell fixture and authorized adding a rod or
+XP to a disposable KMC fixture. Prefer a suitable native quicken rod through
+existing guarded fixture preparation; prove real Swift cost/spell/rod spending.
+6C-FIXTURE-AUTHORIZATION-20261005.md records this; no fixture was changed.
+All6B-6F exits remain incomplete. No merge/PR/tag/release/permanent install,
+protected-save write, foreign-mod change or HUMAN PLAY acceptance occurred.
+
+## Earlier preview177 retirement and preview178 prefreeze checkpoint
 
 HEAD `225cf2d932e27d0a2fc3e9e735867959fa548f9d`, tree
 `7ba903864b97f4960e709eff5771b2f9e6a686e1`, integration branch, guarded-pushed and

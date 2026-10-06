@@ -70,6 +70,7 @@ namespace KingmakerMountedCombat.Integration
         private readonly List<GameLogicComponent> buffComponents = new List<GameLogicComponent>();
         private string[] buffComponentTypes = new string[0];
         private MountedChargeConditionObserver buffCondition;
+        private MountedChargeBuffChildren buffChildren;
         private int buffOwnerThread;
         [ThreadStatic] private static MountedChargeLease acquiringBuffLease;
         private UnitMovementAgent appliedMountAgent;
@@ -137,7 +138,7 @@ namespace KingmakerMountedCombat.Integration
 
         // True while any mutation is still owned. The command and the controller treat this as debt.
         internal bool HasCleanupDebt => chargingOwned || speedOverrideOwned || riderChargingOwned ||
-            forcedPathOwned || buffOwnership.Outstanding || cleanup != null && !FinalCleanupPostconditions();
+            forcedPathOwned || BuffOutstanding || cleanup != null && !FinalCleanupPostconditions();
 
         internal string ApplyFailureReason { get; private set; }
 
@@ -162,7 +163,7 @@ namespace KingmakerMountedCombat.Integration
         internal bool BuffApplied { get; private set; }
 
         // Whether the buff is still owned by this lease right now.
-        internal bool BuffOutstanding => buffOwnership.Outstanding;
+        internal bool BuffOutstanding => buffOwnership.Outstanding || buffChildren != null && !buffChildren.Drained;
 
         internal bool RiderAgentTouched { get; private set; }
 
@@ -320,10 +321,13 @@ namespace KingmakerMountedCombat.Integration
             if (appliedBuffCollection.Enumerable.Any(buff => buff.Blueprint == chargeBuff))
                 throw new InvalidOperationException("An existing Charge buff cannot be adopted by this transaction.");
             buffComponentTypes = chargeBuff.ComponentsArray.Select(component => component == null ? "<null>" : component.GetType().FullName).ToArray();
-            RequireChargeBuffSurface(chargeBuff);
+            var surface = RequireAvailableBuffSurface(chargeBuff, rider);
             buffStats = rider.Descriptor.Stats.GetList().ToArray();
             buffOwnerThread = System.Threading.Thread.CurrentThread.ManagedThreadId;
             buffAcquisitionContext = new MechanicsContext(rider, rider.Descriptor, chargeBuff);
+            buffChildren = new MountedChargeBuffChildren(surface, rider, appliedBuffCollection,
+                () => buffOwnership.Fact, () => buffOwnership.Acquiring,
+                () => buffOwnership.ObserveNativeRemoval(buffOwnership.Fact), CaptureBuffResidue);
             var previous = acquiringBuffLease;
             acquiringBuffLease = this;
             try
@@ -336,20 +340,28 @@ namespace KingmakerMountedCombat.Integration
 
         private static void RequireChargeBuffSurface(BlueprintBuff chargeBuff)
         {
-            if (chargeBuff.AssetGuid != "f36da144a379d534cad8e21667079066" || chargeBuff.ComponentsArray.Length != 3 ||
-                chargeBuff.ComponentsArray[0]?.GetType() != typeof(AddStatBonus) ||
-                chargeBuff.ComponentsArray[1]?.GetType() != typeof(AddCondition) ||
-                ((AddCondition)chargeBuff.ComponentsArray[1]).Condition != UnitCondition.StealthForbidden ||
-                chargeBuff.ComponentsArray[2]?.GetType() != typeof(AttackOfOpportunityAttackBonus))
-                throw new InvalidOperationException("Charge buff differs from the pinned three-component native surface.");
-            var armor = (AddStatBonus)chargeBuff.ComponentsArray[0];
-            var attack = (AttackOfOpportunityAttackBonus)chargeBuff.ComponentsArray[2];
-            if ((int)armor.Descriptor != 0 || armor.Stat != StatType.AC || armor.Value != -2 || armor.ScaleByBasicAttackBonus ||
-                !attack.NotAttackOfOpportunity || attack.AttackBonus != 1 || (int)attack.Descriptor != 0 ||
-                attack.Value == null || (int)attack.Value.ValueType != 0 || attack.Value.Value != 2 ||
-                (int)attack.Value.ValueRank != 0 || (int)attack.Value.ValueShared != 0 ||
-                (int)attack.Value.Property != 0 || !ReferenceEquals(attack.Value.CustomProperty, null))
-                throw new InvalidOperationException("Charge buff native component configuration differs.");
+            MountedChargeBuffSurface.Read(chargeBuff);
+        }
+
+        private static MountedChargeBuffSurface RequireAvailableBuffSurface(BlueprintBuff chargeBuff, UnitEntityData rider)
+        {
+            RequireChargeBuffSurface(chargeBuff);
+            var surface = MountedChargeBuffSurface.Read(chargeBuff);
+            foreach (var enchantment in surface.Enchantments) MountedChargeEnchantmentFx.ValidatePrefab(enchantment);
+            if (rider?.Buffs == null || rider.Buffs.Enumerable.Any(buff => ReferenceEquals(buff.Blueprint, chargeBuff) ||
+                surface.Children.Any(child => ReferenceEquals(child, buff.Blueprint))))
+                throw new InvalidOperationException("An existing Charge lifetime buff cannot be replaced or adopted.");
+            return surface;
+        }
+
+        internal static string BuffAvailabilityReason(UnitEntityData rider)
+        {
+            try
+            {
+                RequireAvailableBuffSurface(BlueprintRoot.Instance?.SystemMechanics?.ChargeBuff, rider);
+                return null;
+            }
+            catch (Exception error) { return "Mounted Charge cannot safely own the loaded Charge buff: " + error.Message; }
         }
 
         // The CreateFact postfix runs before AddFact inserts/activates the fact. Match the unique
@@ -365,16 +377,20 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
-        // Native RemoveFact unlinks before callbacks; Dispose catches some failures. Inspect retained
-        // native residue and keep explicit callback exceptions as debt even after collection absence.
+        // Exact RemoveFact deactivates before unlinking; blueprint-wide removal unlinks first.
+        // Both can leave residue after caught callbacks. Observe exact state rather than infer
+        // completion from absence, and never clean inside a resumable acquisition/lifecycle scope.
         private bool TryUndoChargeBuff()
         {
-            if (!buffOwnership.Outstanding) return true;
+            if (!BuffOutstanding) return true;
             if (System.Threading.Thread.CurrentThread.ManagedThreadId != buffOwnerThread) return false;
+            if (buffOwnership.Acquiring || !BuffLifecycleSettled(buffOwnership.Fact) || buffChildren != null && !buffChildren.ScopeSettled) return false;
             MountedChargeAdmissionFault.FireCleanup("charge-buff");
             CaptureBuffResidue();
+            try { buffOwnership.TryRemove(buff => buff.Remove(), BuffCleanupPostcondition); }
+            finally { buffChildren?.TryDrain(); }
             var complete = buffOwnership.TryRemove(buff => buff.Remove(), BuffCleanupPostcondition);
-            if (complete) buffCondition.Release();
+            if (complete) { buffCondition.Release(); buffChildren?.Release(); }
             return complete;
         }
 
@@ -397,6 +413,8 @@ namespace KingmakerMountedCombat.Integration
         // The actual current context, thread, components and modifier lists are checked here.
         private bool BuffResiduePostcondition(Buff buff, Kingmaker.RuleSystem.RulebookEventContext context, int thread) =>
             appliedBuffCollection != null && buffCondition != null && buffCondition.Drained &&
+            (buffChildren == null || buffChildren.Drained) &&
+            !buffOwnership.Acquiring && BuffLifecycleSettled(buff) &&
             ChargeRuleDispatchSettled(context, thread) &&
             !appliedBuffCollection.Enumerable.Any(fact => ReferenceEquals(fact, buff)) &&
             !buff.Active && buff.IsDisposed && NativeFactListEmpty(buff, 0x04001B6D) &&
@@ -406,6 +424,16 @@ namespace KingmakerMountedCombat.Integration
             buffStats.All(stat => !stat.Modifiers.Any(modifier => ReferenceEquals(modifier.Source, buff))) &&
             buffModifiers.All(modifier => ReferenceEquals(modifier.AppliedTo, null) &&
                 buffStats.All(stat => !stat.Modifiers.Any(item => ReferenceEquals(item, modifier))));
+
+        private static bool BuffLifecycleSettled(Buff buff)
+        {
+            if (buff == null) return false;
+            // Exact native Fact scopes: their finally blocks clear these flags. Reading
+            // false proves return from the scope, never successful cleanup by itself.
+            foreach (var token in new[] { 0x04006962, 0x04006963, 0x04006964 })
+                if ((bool)typeof(Buff).Module.ResolveField(token).GetValue(buff)) return false;
+            return true;
+        }
 
         private bool ChargeRuleDispatchSettled(Kingmaker.RuleSystem.RulebookEventContext context, int thread)
         {
@@ -562,7 +590,7 @@ namespace KingmakerMountedCombat.Integration
                 new MountedChargeCleanupStep("rider-charging-state", () => riderChargingOwned, TryUndoRiderChargingState),
                 new MountedChargeCleanupStep("mount-speed-override", () => speedOverrideOwned, TryUndoMountSpeedOverride),
                 new MountedChargeCleanupStep("mount-charging", () => chargingOwned, TryUndoMountCharging),
-                new MountedChargeCleanupStep("charge-buff", () => buffOwnership.Outstanding, TryUndoChargeBuff)
+                new MountedChargeCleanupStep("charge-buff", () => BuffOutstanding, TryUndoChargeBuff)
             }));
         }
 
@@ -583,7 +611,7 @@ namespace KingmakerMountedCombat.Integration
         }
 
         private bool FinalCleanupPostconditions() => ChargingPostcondition() && SpeedOverridePostcondition() &&
-            RiderChargingPostcondition() && !forcedPathOwned && !buffOwnership.Outstanding;
+            RiderChargingPostcondition() && !forcedPathOwned && !BuffOutstanding;
 
         private bool ChargingPostcondition()
         {
@@ -693,9 +721,12 @@ namespace KingmakerMountedCombat.Integration
                 ["buffOutstanding"] = BuffOutstanding,
                 ["buffAcquisitionObserved"] = buffOwnership.Fact != null,
                 ["buffAcquisitionStarted"] = buffOwnership.Started,
-                ["buffCallbackDebt"] = buffOwnership.Fault,
+                ["buffCallbackDebt"] = buffOwnership.Outstanding ? buffOwnership.Fault : null,
+                ["buffCallbackFailureHistory"] = buffOwnership.Fault,
                 ["buffComponentTypes"] = new JArray(buffComponentTypes),
                 ["buffCondition"] = buffCondition?.CaptureEvidence(),
+                ["buffChildren"] = buffChildren?.CaptureEvidence(),
+                ["buffNative"] = MountedChargeBuffChildren.CaptureNativeFact(buffOwnership.Fact, appliedBuffCollection, buffComponents, buffStats, buffModifiers),
                 ["buffRuleDispatchSettled"] = ChargeRuleDispatchSettled(Game.Instance?.Rulebook?.Context,
                     System.Threading.Thread.CurrentThread.ManagedThreadId),
                 ["chargingBefore"] = chargingBefore,

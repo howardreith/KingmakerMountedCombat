@@ -230,6 +230,15 @@ public static class ChargeOwnershipProbe {
   Check(!buffSettled(),"a foreign thread cannot establish native rule dispatch settlement");
   Set(lease,"buffOwnerThread",System.Threading.Thread.CurrentThread.ManagedThreadId);
   Check(buffSettled(),"exact native listeners lists and modifiers all drained establishes buff residue postcondition");
+  foreach(var lifecycleToken in new[]{0x04006962,0x04006963,0x04006964}){
+   var scopeFlag=native.ManifestModule.ResolveField(lifecycleToken);scopeFlag.SetValue(buff,true);
+   Check(!buffSettled(),"native fact lifecycle scope retains cleanup debt: "+scopeFlag.Name);
+   var beforeAttempt=(bool)Call(factOwner,"get_RemovalAttempted");
+   Check(!(bool)Call(lease,"TryUndoChargeBuff")&&(bool)Call(factOwner,"get_RemovalAttempted")==beforeAttempt,
+    "reentrant cleanup never removes a fact during "+scopeFlag.Name);
+   scopeFlag.SetValue(buff,false);
+  }
+  Check(buffSettled(),"native lifecycle return permits later observed settlement without state fabrication");
   var nextContext=Blank(ruleContextType);stackField.SetValue(nextContext,Activator.CreateInstance(stackField.FieldType));
   ruleContext=nextContext;
   Check(buffSettled(),"native outer-event context replacement does not pin a stale context at acquisition");

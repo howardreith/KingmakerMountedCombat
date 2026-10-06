@@ -65,6 +65,8 @@ function New-Transaction([bool]$Struck){
 function New-Lease{
  [ordered]@{applied=$true;buffApplied=$true;buffOutstanding=$false;chargingBefore=$false;speedOverrideBefore=$null;speedOverrideApplied=10.16
   buffAcquisitionStarted=$true;buffAcquisitionObserved=$true;buffCallbackDebt=$null;buffRuleDispatchSettled=$true
+  buffNative=@{identity=100;collection=200;inCollection=$false;active=$false;disposed=$true;turnedOn=$false;activating=$false;deactivating=$false;recalculating=$false;listening=0;statModifiers=0;attachedModifiers=0;componentCount=0;componentData=$false;storedFacts=0;storedModifiers=0;parentContext=$false;currentContext=$false}
+  buffChildren=@{schema=1;rider='rider';rootIdentity=100;rootCollection=200;surface='native-base';retiring=$true;scopeSettled=$true;drained=$true;fault=$null;failures=@();facts=@()}
   buffComponentTypes=@('Kingmaker.UnitLogic.FactLogic.AddStatBonus','Kingmaker.UnitLogic.FactLogic.AddCondition','Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus')
   buffCondition=@{componentObserved=$true;condition=40;additions=1;removals=1;contributions=0;nativeExceptions=0;fault=$null;drained=$true;operations=@(
    @{addition=$true;before=2;after=3;mutationObserved=$true;completed=$true;returnedNormally=$true},
@@ -192,6 +194,25 @@ function New-AdmissionFaultRow{
  }}
 }
 function New-Row([string]$Case){
+ if($Case-ceq'C6B-CHARGE-child-cleanup'){
+  $r=New-TerminatedRow $Case 'native-child-fact-cleanup';$owner=New-DrainedOwner;$lease=$owner.lease
+  $lease.buffComponentTypes=@('Kingmaker.UnitLogic.Mechanics.Components.AddFactContextActions')+@($lease.buffComponentTypes)+@('Kingmaker.UnitLogic.FactLogic.AddContextStatBonus','Kingmaker.UnitLogic.Mechanics.Components.ContextRankConfig')
+  $lease.buffChildren.surface='native-cotw-1.14.4c-2.1'
+  $guids=@('6683a35444eb42ddbd21f87c3441a50a','b0439659723f4a8da680965c78a8fbf5','30f90becaaac51f41bf56641966c4121','3f032a3cd54e57649a0cdad0434bf221','61aff33f69d84391b49782fb976cf870')
+  $nodes=@();$children=@()
+  for($i=0;$i-lt5;$i++){
+   $ench=$i-in@(2,3);$kind=if($ench){'enchantment'}else{'buff'};$native=Copy-Case $lease.buffNative;$native.identity=101+$i
+   if($ench){$native.collection=300;$native.componentCount=1;$native.disposed=$false}
+   $fx=$null
+   if($ench){$fx=@{scopes=0;pendingRoots=0;pendingCopies=0;retiring=$true;attached=$false;drained=$true;fault=$null;failures=@();roots=0;copies=0;rootFacts=@();acquisitions=@()}}
+   if($i-eq2){$fx.roots=1;$fx.copies=2;$fx.rootFacts=@(@{generation=1;returned=$true;custodyUncertain=$false;controllerResidueAbsent=$true});$fx.acquisitions=@(1,2,3|ForEach-Object{@{generation=$_;returned=$true;completionRequested=$true;failure=$null}})}
+   $nodes+=@{id=($i+1);parent=$(if($ench){2}else{0});blueprint=$guids[$i];kind=$kind;created=$true;acquiring=$false;acquired=$true;identityUncertain=$false;removalAttempted=$true;fault=$null;settled=$true;drained=$true;native=$native;visuals=$fx}
+   if(-not$ench){$children+=@{blueprint=$guids[$i];identity=$native.identity;storedByParent=($i-lt4);active=$true;sameContextParent=$true}}
+  }
+  $lease.buffChildren.facts=$nodes;$r.evidence.lease=$lease;$r.evidence['lastDrainedOwnership']=$owner
+  $r.evidence['boundary']=@{kind='native-child-fact-cleanup';ownerBefore=@{owned=$true;identity=17};ownerAfter=@{owned=$false};lastDrained=$owner;childStimulus=@{contract='native-lifetime-stimulus-no-feat-or-action-grant';rider='rider';rootIdentity=100;allAcquired=$true;children=$children;ownerWithChildren=@{identity=17}}}
+  return $r
+ }
  if($Case-ceq'C6B-CHARGE-view-replaced'){
   $r=New-TerminatedRow $Case 'native-view-replacement'
   $r.evidence.mounted=$false;$r.evidence.after.relationship='Unmounted';$r.evidence.identityAfter=New-Identity $false $true
@@ -381,7 +402,7 @@ function New-Artifact([string]$Mode='RT'){
    $row.evidence['ownership']=@{owned=$false};$row.evidence['lastDrainedOwnership']=New-DrainedOwner
   }
  }
- Copy-Case ([ordered]@{schemaVersion=35;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
+ Copy-Case ([ordered]@{schemaVersion=36;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
   observations=[ordered]@{initialSelection=@('main');cleanup=@{selectionRestored=$true;equipmentSetRestored=$true;settingRestored=$true;pairedSchedulerSettingRestored=$true;targetClean=$true;chunk4OtherTargetReleased=$true;modeRestored=$true;unmountedHorseAiLeaseRestored=$true;combatMountRiderAiLeaseRestored=$true;relationshipState='Unmounted';playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false;nativeFinalDeathSelectionExclusion=$(if($Mode-ceq'RT'){'rider'}else{$null});expectedSelection=@('main');actualSelection=@('main')};chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
@@ -615,6 +636,17 @@ MutateClearanceLimitation 'a clearance limitation whose blocker was placed after
 MutateClearanceLimitation 'a clearance limitation with no reason' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').blocker.reason=''}
 MutateClearanceLimitation 'a clearance limitation with no landing point it tried' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').blocker.PSObject.Properties.Remove('wantedLanding')}
 MutateClearanceLimitation 'the obstructed-line limitation claimed on the clearance row' {param($a) (Row $a 'C6B-CHARGE-blocked-clearance').limitation='no-obstructed-line-in-fixture-area'}
+
+# Native child acquisition before parent storage and exact lifetime cleanup.
+Mutate 'child cleanup stimulus acquired no children' {param($a) (Row $a 'C6B-CHARGE-child-cleanup').boundary.childStimulus.allAcquired=$false}
+Mutate 'child cleanup stimulus names a different rider' {param($a) (Row $a 'C6B-CHARGE-child-cleanup').boundary.childStimulus.rider='other'}
+Mutate 'child cleanup stimulus loses the unstored child window' {param($a) (Row $a 'C6B-CHARGE-child-cleanup').boundary.childStimulus.children[2].storedByParent=$true}
+Mutate 'child cleanup stimulus names a different native acquisition' {param($a) (Row $a 'C6B-CHARGE-child-cleanup').boundary.childStimulus.children[0].identity=999}
+Mutate 'child cleanup retains uncertain FX custody' {param($a) (Row $a 'C6B-CHARGE-child-cleanup').boundary.lastDrained.lease.buffChildren.facts[2].visuals.rootFacts[0].custodyUncertain=$true}
+Mutate 'child cleanup exercised no native FX acquisition' {param($a)
+ $fx=(Row $a 'C6B-CHARGE-child-cleanup').boundary.lastDrained.lease.buffChildren.facts[2].visuals
+ $fx.roots=0;$fx.copies=0;$fx.rootFacts=@();$fx.acquisitions=@()
+}
 
 # The post-queue admission fault and its compensation.
 Mutate 'an admission-fault row with no fault record' {param($a) (Row $a 'C6B-CHARGE-exception-cleanup').admissionFault=$null}

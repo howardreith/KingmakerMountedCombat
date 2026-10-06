@@ -94,6 +94,8 @@
     <Compile Include="MountedChargeBoundaryTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeBoundaryQueue.cs" />
     <Compile Include="MountedChargeFactOwnershipTests.cs" />
+    <Compile Include="MountedChargeVisualOwnershipTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeVisualOwnership.cs" />
     <Compile Include="MountedChargeConditionOwnershipTests.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeConditionOwnership.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Domain\MountedChargeFactOwnership.cs" />

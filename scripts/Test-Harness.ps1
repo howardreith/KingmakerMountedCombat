@@ -4976,15 +4976,15 @@ try {
             $commandSource.Contains('if (chargeMode)') -and
             $commandSource.Contains('chargeLease.Restore();')) `
             'the native charge rule flag is stamped outside the one charge-mode pair transaction'
-        # The charge buff and the charging state live only in the charge lease; the diagnostics measurement may
-        # raise the mount agent flag once under its own restored lease and nothing else.
+        # Charge buff references stay in the exact lease/lifetime adapters and diagnostics.
+        # Charging-state writes remain restricted to the lease and the restored path measurement.
         $buffFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'ChargeBuff')).Count -gt 0 } | ForEach-Object Name)
         $chargingFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'IsCharging = true')).Count -gt 0 } | ForEach-Object Name | Sort-Object)
-        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeScenario.cs|MountedChargeLease.cs|MountedPatchController.cs|RuntimePersistenceChargeScenario.cs' -and
+        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeLifecycleScenario.cs|Chunk6bChargeScenario.cs|MountedChargeBuffChildren.cs|MountedChargeBuffSurface.cs|MountedChargeEnchantmentFx.cs|MountedChargeLease.cs|MountedPatchController.cs|RuntimePersistenceChargeScenario.cs' -and
             (@($chargingFiles) -join '|') -ceq 'Chunk6bChargePathScenario.cs|MountedChargeLease.cs' -and
             ([regex]::Matches($leaseSource, 'IsCharging = true')).Count -eq 2 -and
             ([regex]::Matches($pathSource, 'IsCharging = true')).Count -eq 1) `
-            'charge buff or charging state is written outside the charge lease and its measurement'
+            'charge buff references or charging-state writes escaped their exact owned surfaces'
         # The lease restores exactly what it set and refunds nothing.
         Assert-Test ($leaseSource.Contains('TryRestoreChargingCounter(agent, chargingCounterBefore, ref chargingReleaseObserved)') -and
             $leaseSource.Contains('agent.IsCharging = false;') -and
@@ -12760,7 +12760,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6bCharge ? 35 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6bCharge ? 36 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

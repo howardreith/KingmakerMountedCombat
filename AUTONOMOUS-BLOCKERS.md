@@ -1,3 +1,22 @@
+## 2026-10-06 - preview179 CANDIDATE passed; native ownership proof pending
+
+Frozen178 purity PASS, native NOTRUN: installed enabled COTW expands ChargeBuff
+beyond its base-only guard. Working179 handles the exact inspected child facts,
+enchantments and FX lifetimes inside the existing lease/debt owner. It retains
+partial acquisition/removal debt and guards pooled generations against stale
+native references. The new RT child-cleanup row requires actual native effects.
+Build/components681/0, compiled surface47/0, charge reader360/0, persistence155/0,
+assembly705/0 and assets45/0 pass. FAST179-2 passed18/0 before the final narrow
+uncertain-custody observer guard. CANDIDATE179-2 passed30/0. Final capacity fencing
+reserves slots across nested native callbacks; final CANDIDATE179-3 passed30/0
+at2026-10-06T05:11:54.7490982Z, binding the complete source tranche.
+No human-only blocker, no native game/transaction, no external mutation. Full6B
+native lifecycle/persistence qualification remains required before stability.
+Retained179 failures include FAST1 version-metadata mismatch, surface8 probe
+MethodBase cast, surface4 detached Unity ECall restriction, source1 registration,
+and build2/4/8/9. CANDIDATE1's exact source inventory and surface10/11's detached
+Unity copy-body failure are also retained. Corrections preserve every safety rule.
+
 ## 2026-10-05 - attributable preview177 buff assumption, replacement178 in progress
 
 Exact installed ChargeBuff has AddStatBonus, AddCondition(StealthForbidden40)
