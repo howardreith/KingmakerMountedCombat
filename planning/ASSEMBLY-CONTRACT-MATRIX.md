@@ -1,3 +1,32 @@
+## 2026-10-06: exceptional native charge action ownership (preview182)
+
+Pinned Kingmaker SHA3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb,
+MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. UnitUseAbility.OnAction06002737
+has three inner finally handlers and no catch. Rulebook.Trigger<RuleCastSpell>
+2B0004A1 at01CB precedes rule process getter06007431 at01DF and shell setter
+06002715 at01E4. Rule.Context04004C00 identifies registration even if the rule
+or shell result was not assigned. AbilityExecutionController.Execute06008FCA
+constructs06008FD5, adds to m_Abilities04005D50 and immediately returns.
+The constructor captures context04005D53 and creates an iterator, without
+advancing it. IsEnded06008FD1 reads04005D52; Context06008FD3 is pure storage.
+
+UnitCommand.Tick060027A7 calls OnAction0175, stores Result017A, sets IsActed0181.
+UnitActionController.TickCommand0600911E charges the false-to-true transition
+through UpdateCooldowns06009120 at00C5. Exceptions inside OnAction therefore
+precede commitment. Do not call them post-commit faults or manufacture cost.
+The post-queue diagnostic fault remains a distinct post-commit experiment.
+
+Narrow seam: retain one original charge owner through an exception-safe outer
+finally around the unchanged native action body and exact native rule call.
+Read original executor/context processes on completion and bounded cleanup;
+unobservable work retains debt. Never tick, end or serialize an owned process.
+Harmony12 has no exception finalizer. The normal relationship-binding postfix
+is preserved. Actual compiled native exception/early-return and native Execute
+behavior are tested offline; native gameplay qualification remains pending.
+Proprietary bounded IL stays in lab analysis-cache/chunk6-continuation/20261005-6br/
+native-action-exit181-1.txt, native-rule-registration182-1.txt,
+native-process-acquisition182-1.txt and native-action-commit182-2.txt.
+
 # 2026-10-06 preview181: native mode refresh, manual intent and loaded view fixture
 
 Pinned native MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7 is unchanged.

@@ -22,6 +22,9 @@ namespace KingmakerMountedCombat.Integration
         // remain authoritative; faults cannot report a step complete or grant resources.
         internal static Action<string> BeforeCleanupStep = null;
         internal static Action AfterLeaseAcquired = null;
+        internal static Action<string> NativeAction = null;
+
+        internal static void FireNativeAction(string boundary) => NativeAction?.Invoke(boundary);
 
         internal static void FireCleanup(string step) => BeforeCleanupStep?.Invoke(step);
         internal static void FireAfterLeaseAcquired()

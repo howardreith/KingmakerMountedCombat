@@ -1,4 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using Kingmaker.Controllers;
+using Kingmaker.RuleSystem.Rules.Abilities;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Commands;
@@ -29,6 +33,12 @@ namespace KingmakerMountedCombat.Integration
             internal int AdmissionFrame;
             internal bool AdmissionCompensation;
             internal bool NativeActionInProgress;
+            internal bool NativeActionFailed;
+            internal RuleCastSpell NativeRule;
+            internal AbilityExecutionController NativeExecutor;
+            internal readonly List<AbilityExecutionProcess> Processes = new List<AbilityExecutionProcess>();
+            internal bool ProcessObservationPending;
+            internal string ProcessObservationError;
             internal bool Committed => Shell != null && Shell.IsActed;
         }
 
@@ -51,6 +61,16 @@ namespace KingmakerMountedCombat.Integration
             {
                 ["owned"] = true, ["fenced"] = ChargeAdmissionFenced,
                 ["identity"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(owner),
+                ["shellIdentity"] = owner.Shell == null ? (int?)null : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(owner.Shell),
+                ["ruleIdentity"] = owner.NativeRule == null ? (int?)null : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(owner.NativeRule),
+                ["executorIdentity"] = owner.NativeExecutor == null ? (int?)null : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(owner.NativeExecutor),
+                ["contextIdentity"] = owner.Context == null ? (int?)null : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(owner.Context),
+                ["processes"] = new JArray(owner.Processes.Select(p => new JObject
+                {
+                    ["identity"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(p),
+                    ["contextIdentity"] = p.Context == null ? (int?)null : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(p.Context),
+                    ["ended"] = p.IsEnded
+                })),
                 ["rider"] = owner.Rider?.UniqueId, ["mount"] = owner.Mount?.UniqueId, ["target"] = owner.Target?.UniqueId,
                 ["generation"] = owner.Generation, ["state"] = owner.Ownership.State.ToString(),
                 ["cleanupRequested"] = owner.Ownership.CleanupRequested, ["attempts"] = owner.Ownership.AttemptCount,
@@ -65,9 +85,17 @@ namespace KingmakerMountedCombat.Integration
                 ["shellTerminal"] = owner.Shell == null || owner.Shell.IsFinished,
                 ["shellContainerReleased"] = Absent(owner.RiderCommands, owner.Shell),
                 ["processObserved"] = owner.Process != null, ["nativeActionInProgress"] = owner.NativeActionInProgress,
+                ["nativeActionFailed"] = owner.NativeActionFailed,
+                ["processCount"] = owner.Processes.Count,
+                ["nativeRuleObserved"] = owner.NativeRule != null,
+                ["nativeExecutorObserved"] = owner.NativeExecutor != null,
+                ["shellProcessAssigned"] = owner.Shell?.ExecutionProcess != null,
+                ["ruleProcessAssigned"] = owner.NativeRule?.ExecutionProcess != null,
+                ["processObservationPending"] = owner.ProcessObservationPending,
+                ["processObservationError"] = owner.ProcessObservationError,
                 ["manualTargetOwned"] = owner.ManualTargetOwned,
                 ["manualTargetReleased"] = !owner.ManualTargetOwned,
-                ["processEnded"] = !owner.NativeActionInProgress && (owner.ProcessEnded == null || owner.ProcessEnded()),
+                ["processEnded"] = ChargeProcessesEnded(owner),
                 ["attempt"] = owner.Ownership.LastAttempt?.Describe()
             };
         }
@@ -125,29 +153,89 @@ namespace KingmakerMountedCombat.Integration
                 relationship.Mount.Commands, shell, relationship.MountedPairGeneration, Time.frameCount);
         }
 
-        internal void BeginChargeNativeAction(UnitUseAbility shell)
+        internal Action<bool> BeginChargeNativeAction(UnitUseAbility shell)
         {
-            if (chargeOwner != null && ReferenceEquals(chargeOwner.Shell, shell)) chargeOwner.NativeActionInProgress = true;
+            var owner = chargeOwner;
+            if (owner == null || !ReferenceEquals(owner.Shell, shell)) return null;
+            if (owner.NativeActionInProgress) throw new InvalidOperationException("Reentered exact charge action.");
+            Action<bool> complete = returned => CompleteChargeNativeAction(owner, returned);
+            owner.NativeActionInProgress = true;
+            owner.ProcessObservationPending = true;
+            return complete;
         }
 
-        internal void CompleteChargeNativeAction(UnitUseAbility shell)
+        // Runs from the native body's finally, including exceptions before the shell
+        // receives ExecutionProcess. Never replace the original native exception.
+        private void CompleteChargeNativeAction(ChargeOwner owner, bool returned)
         {
-            ObserveChargeProcess(shell);
-            if (chargeOwner != null && ReferenceEquals(chargeOwner.Shell, shell)) chargeOwner.NativeActionInProgress = false;
+            if (!returned)
+            {
+                owner.NativeActionFailed = true;
+                owner.Ownership.Retire();
+            }
+            try { ObserveChargeProcesses(owner); }
+            catch (Exception error) { RetainChargeProcessObservation(owner, error); }
+            finally { owner.NativeActionInProgress = false; }
         }
+
+        internal bool CaptureChargeNativeRule(UnitUseAbility shell, RuleCastSpell rule, AbilityExecutionController executor)
+        {
+            var owner = chargeOwner;
+            if (owner == null || !ReferenceEquals(owner.Shell, shell)) return false;
+            if (!owner.NativeActionInProgress || owner.NativeRule != null || rule == null || rule.Context == null || executor == null)
+                throw new InvalidOperationException("Charge native rule requires one exact live action scope.");
+            owner.NativeRule = rule;
+            owner.Context = rule.Context;
+            owner.NativeExecutor = executor;
+            owner.ProcessObservationPending = true;
+            return true;
+        }
+
+        internal bool OwnsChargeNativeAction(UnitUseAbility shell) => chargeOwner != null &&
+            ReferenceEquals(chargeOwner.Shell, shell) && chargeOwner.NativeActionInProgress;
 
         internal void ObserveChargeProcess(UnitUseAbility shell)
         {
             var owner = chargeOwner;
             if (owner == null || !ReferenceEquals(owner.Shell, shell)) return;
-            var process = shell.ExecutionProcess;
-            if (process == null) return;
-            if (owner.Process != null && !ReferenceEquals(owner.Process, process))
-                throw new InvalidOperationException("An exact charge shell changed its native execution process.");
-            owner.Process = process;
-            owner.Context = process.Context;
-            owner.ProcessEnded = () => process.IsEnded;
+            try { ObserveChargeProcesses(owner); }
+            catch (Exception error) { RetainChargeProcessObservation(owner, error); }
         }
+
+        private static void RetainChargeProcessObservation(ChargeOwner owner, Exception error)
+        {
+            owner.ProcessObservationPending = true;
+            owner.ProcessObservationError = error.GetType().Name + ": " + error.Message;
+            owner.Ownership.Retire();
+        }
+
+        private static void ObserveChargeProcesses(ChargeOwner owner)
+        {
+            owner.ProcessObservationPending = true;
+            MountedChargeAdmissionFault.FireCleanup("observe-process");
+            RetainChargeProcess(owner, owner.Shell?.ExecutionProcess);
+            RetainChargeProcess(owner, owner.NativeRule?.ExecutionProcess);
+            if (owner.NativeExecutor != null)
+                foreach (var process in NativeSaveEffectBoundary.CaptureAbilities(owner.NativeExecutor, owner.Context))
+                    RetainChargeProcess(owner, process);
+            owner.ProcessObservationError = null;
+            owner.ProcessObservationPending = false;
+        }
+
+        private static void RetainChargeProcess(ChargeOwner owner, AbilityExecutionProcess process)
+        {
+            if (process == null) return;
+            // Retain even an unexpected replacement before refusing further delivery.
+            if (!owner.Processes.Contains(process)) owner.Processes.Add(process);
+            owner.ProcessEnded = () => owner.Processes.All(p => p.IsEnded);
+            if (owner.Process == null) owner.Process = process;
+            if (owner.Context == null) owner.Context = process.Context;
+            if (!ReferenceEquals(owner.Process, process) || !ReferenceEquals(owner.Context, process.Context))
+                owner.Ownership.Retire();
+        }
+
+        private static bool ChargeProcessesEnded(ChargeOwner owner) => !owner.NativeActionInProgress &&
+            !owner.ProcessObservationPending && (owner.ProcessEnded == null || owner.ProcessEnded());
 
         internal bool AllowChargeExecution(UnitCommand command)
         {
@@ -164,6 +252,8 @@ namespace KingmakerMountedCombat.Integration
             if (owner != null) ObserveChargeProcess(owner.Shell);
             return owner != null && context != null && ReferenceEquals(owner.Context, context) &&
                 !owner.Ownership.CleanupRequested && !ChargeAdmissionFenced && !ChargeNativeWorldLoading &&
+                !owner.ProcessObservationPending && !owner.NativeActionFailed &&
+                (owner.Shell == null || owner.Shell.Result != UnitCommand.ResultType.Interrupt) &&
                 owner.Command == null && owner.Generation == relationship.MountedPairGeneration &&
                 ReferenceEquals(owner.Rider, relationship.Rider) && ReferenceEquals(owner.Mount, relationship.Mount);
         }
@@ -189,7 +279,7 @@ namespace KingmakerMountedCombat.Integration
                 new MountedChargeCompensationStep("restore-lease", () => owner.Command?.TryDischargeChargeCleanupDebt()),
                 new MountedChargeCompensationStep("interrupt-shell", () => InterruptExact(owner.Shell)),
                 new MountedChargeCompensationStep("dequeue-shell", () => RemoveExact(owner.RiderCommands, owner.Shell)),
-                new MountedChargeCompensationStep("observe-process", () => ObserveChargeProcess(owner.Shell))
+                new MountedChargeCompensationStep("observe-process", () => ObserveChargeProcesses(owner))
             }, new[]
             {
                 new MountedChargePostcondition("command-terminal", () => owner.Command == null || owner.Command.IsFinished),
@@ -204,8 +294,7 @@ namespace KingmakerMountedCombat.Integration
                 new MountedChargePostcondition("shell-container-released", () => Absent(owner.RiderCommands, owner.Shell)),
                 // No native process cancel API exists. Retired delivery refuses and the process
                 // must finish through its ordinary native tick; no manual coroutine advancement.
-                new MountedChargePostcondition("execution-process-ended", () => !owner.NativeActionInProgress &&
-                    (owner.ProcessEnded == null || owner.ProcessEnded()))
+                new MountedChargePostcondition("execution-process-ended", () => ChargeProcessesEnded(owner))
             });
             return owner;
         }
@@ -313,6 +402,7 @@ namespace KingmakerMountedCombat.Integration
                 owner.Generation != relationship.MountedPairGeneration || owner.Rider != relationship.Rider || owner.Mount != relationship.Mount ||
                 owner.Command != null && owner.Command.IsFinished ||
                 owner.Command == null && owner.ProcessEnded != null && owner.ProcessEnded() ||
+                owner.Command == null && owner.Shell != null && owner.Shell.Result == UnitCommand.ResultType.Interrupt ||
                 owner.Command == null && owner.Process == null && Time.frameCount > owner.AdmissionFrame && Absent(owner.RiderCommands, owner.Shell))
                 TryDrainChargeOwnership("bounded-update");
             ResumeChargeNativeBoundaries();

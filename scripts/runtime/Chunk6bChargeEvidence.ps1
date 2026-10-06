@@ -18,7 +18,7 @@ function Get-KmcChunk6bChargeRows([string]$Mode) {
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled','C6B-CHARGE-exception-cleanup','C6B-CHARGE-target-moved','C6B-CHARGE-target-lost','C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated',
-          'C6B-CHARGE-beyond-maximum','C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-duplicate','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-lease-application-failed','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced','C6B-CHARGE-mount-dead','C6B-CHARGE-rider-dead','C6B-CHARGE-child-cleanup')
+          'C6B-CHARGE-beyond-maximum','C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-duplicate','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-lease-application-failed','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced','C6B-CHARGE-mount-dead','C6B-CHARGE-rider-dead','C6B-CHARGE-child-cleanup','C6B-CHARGE-action-failed-before-rule','C6B-CHARGE-action-failed-after-rule')
     }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
@@ -297,6 +297,27 @@ function Assert-KmcChargeDeath($Evidence,[string]$Row,[string]$Kind) {
             if(@($conscious[0].nativeSource|Where-Object {$_.token-ceq$token-and$_.assemblyMvid-ceq'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}).Count-ne1){ChargeFail 'mount was not recovered by the exact native controller'}
         }
     }
+}
+
+function Assert-KmcChargeActionFailureRow($e,[bool]$registered) {
+    $before=$e.before;$input=$e.input;$after=$e.after;$economy=$e.economy;$movement=$e.movement;$rules=$e.rules
+            $fault=ChargeProp $e 'nativeActionFault';$owner=ChargeProp $e 'lastDrainedOwnership'
+            Assert-KmcChargeActionFailure $fault $owner $registered
+            $shell=$fault.shellAtFault
+            if($owner.rider-cne$before.state.rider.id-or$owner.mount-cne$before.state.mount.id-or
+                $shell.present-ne$true-or$shell.abilityGuid-cne(ChargeKmcAbilityGuid)-or$shell.executorId-cne$owner.rider-or
+                $shell.targetId-cne$owner.target){ChargeFail 'native action fault does not belong to the exact input pair and shell'}
+            if($before.available-ne$true-or$before.canTarget-ne$true-or$input.clicked-ne$true-or$input.shellCount-ne1-or
+                $e.ownership.owned-ne$false-or$e.delivery.chargeAdmitted-ne0-or$null-ne$e.lease-or$null-ne$e.transaction-or
+                $e.attackRules-ne0-or$rules.pairNonOpportunityAttackRules-ne0-or$rules.mountAttackRules-ne0){ChargeFail 'native action fault admitted a charge or attack'}
+            foreach($cost in @('riderStandardMax','riderMoveMax','mountStandardMax','mountMoveMax')){
+                if(-not(ChargeNumber $economy.$cost)-or$economy.$cost-lt0-or$economy.$cost-gt0.001){ChargeFail 'native action exception crossed the native commitment boundary'}
+            }
+            foreach($field in @('mountDistance','riderDistance')){if(-not(ChargeNumber $movement.$field)-or$movement.$field-gt0.25){ChargeFail 'native action fault moved the pair'}}
+            foreach($field in @('mountCharging','mountMoving','riderStateCharging','pairCommandActive','chargeBuffPresent')){
+                if((ChargeProp $after $field)-ne$false){ChargeFail ('native action fault left residue '+$field)}
+            }
+            if($null-ne$after.mountSpeedOverride-or$after.riderCommandsEmpty-ne$true-or$after.mountCommandsEmpty-ne$true){ChargeFail 'native action fault left commands or speed override'}
 }
 
 function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
@@ -613,6 +634,8 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                 }
             }
         }
+        'C6B-CHARGE-action-failed-before-rule' { Assert-KmcChargeActionFailureRow $e $false }
+        'C6B-CHARGE-action-failed-after-rule' { Assert-KmcChargeActionFailureRow $e $true }
         'C6B-CHARGE-lease-application-failed' {
             $fault=ChargeProp $e 'leaseFault';$lease=ChargeProp $e 'lease';$live=ChargeProp $fault 'stateAtFault'
             if($before.available-ne$true-or$before.canTarget-ne$true-or$input.clicked-ne$true-or$input.shellCount-ne1-or
@@ -853,7 +876,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne37-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 37 and a chunk6b charge scenario'}
+    if([long]$Artifact.schemaVersion-ne38-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 38 and a chunk6b charge scenario'}
     $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}

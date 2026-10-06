@@ -1,3 +1,34 @@
+## 2026-10-06 - preview182 exceptional native action cleanup IN PROGRESS
+
+Published181 HEAD beb42edc05e95cb54cadb4cb12e7d8619e200f15/tree
+2dbe350450015bae12910e5171001a7feec3c743 is preserved, remote equal at intake.
+181 remains immutable UNQUALIFIED: purity ABORTED - NO VERDICT, native0/26.
+The actual native/Harmony12 exception probe stranded its action fence. Closure
+23e36ae6c81d86a6449a832dd6586276f1514d6aac3ebaa49366adcf529607ce
+proved275 saves/358 Mods unchanged, human105 intact, no process/transaction,
+empty restorationErrors and no recovery. All prior failed evidence is retained.
+
+Candidate182 source closes the pinned native OnAction scope in finally. The existing
+charge owner retains the exact rule, original executor, shell and registered
+process through exceptions before native field assignment. Observation failure
+remains retryable debt; delivery retires before native completion. No action,
+turn, preparation or native process state is fabricated. Real compiled native
+exception/return and process-registration fault probes pass ownership105/0;
+components681/0, affected assembly693/0 and charge reader401/0 pass. FAST18/0 and CANDIDATE30/0 pass; candidate gate includes affected Both assembly717/0, harness270/0, persistence reader156/0 and source144/0. Final gate completed 2026-10-06T11:39:58.9555535Z. No182 package/suite/purity/run.
+
+The native Tick commits IsActed and charges cooldowns AFTER OnAction returns.
+Two new RT fault rows therefore require zero pre-commit cost, exact registered
+process ownership where applicable, terminal drain and no later attack. Existing
+post-queue failure/P04 save-cold rows retain their separate post-commit contract.
+Ready batch:26 stages,29 RT charge rows, exact TB refusal; no extra TB experiment.
+Lab detail: analysis-cache/chunk6-continuation/20261005-6br/
+PREVIEW182-ACTION-EXIT-REPAIR-20261006.md. Next: coherent
+guarded publication, one182 freeze/purity, entire ready6B native batch, then6C-6F.
+All phase exits remain incomplete. Authorized native Lesser Quicken rod for the
+disposable6C Druid remains uncreated. No merge/PR/tag/release/permanent install,
+protected-save write, foreign-mod mutation or HUMAN PLAY acceptance. One mutator.
+
+## Previous preview181 source checkpoint
 ## 2026-10-06 - preview181 repair tranche IN PROGRESS
 
 Published180 HEAD5b958b319b747dba20ef94fa38cf78af5fe8be13 is fetched remote equal.

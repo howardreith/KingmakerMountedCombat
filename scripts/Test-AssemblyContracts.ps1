@@ -64,6 +64,18 @@ if($Target-eq'Kingmaker'){
     $processes=@(Find-Token 'Kingmaker.Controllers.AbilityExecutionController' 0x04005D50)
     Assert-Contract ($processes.Count-eq1-and$processes[0]-is[Reflection.FieldInfo]-and$processes[0].Name-ceq'm_Abilities'-and
         $processes[0].FieldType.IsGenericType-and$processes[0].FieldType.GetGenericArguments()[0].FullName-ceq'Kingmaker.Controllers.AbilityExecutionProcess') 'no-DLL observer reads the exact native ability process collection'
+    $nativeAction=$assembly.ManifestModule.ResolveMethod(0x06002737)
+    $nativeCommandTick=$assembly.ManifestModule.ResolveMethod(0x060027A7)
+    Assert-Contract (@($nativeAction.GetMethodBody().ExceptionHandlingClauses|Where-Object Flags -NE ([Reflection.ExceptionHandlingClauseOptions]::Finally)).Count-eq0-and
+        (Test-MethodIlContainsToken $nativeAction 0x2B0004A1)-and(Test-MethodIlContainsToken $nativeAction 0x06002715)) 'native action has only finally handlers and assigns its process after the exact RuleCastSpell trigger'
+    $tickBytes=$nativeCommandTick.GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($tickBytes[0x173..0x185]-join',')-ceq'2,2,111,177,39,0,6,40,91,39,0,6,2,23,40,100,39,0,6') 'native commitment follows OnAction return; exceptions before return cannot synthesize IsActed'
+    $executeBytes=$assembly.ManifestModule.ResolveMethod(0x06008FCA).GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($executeBytes-join',')-ceq'3,115,213,143,0,6,10,2,123,80,93,0,4,6,111,121,51,0,10,6,42') 'native Execute publishes one new process and returns without ticking it or invoking callbacks after registration'
+    foreach($expected in @(@(0x06007431,0x04004C01),@(0x06008FD1,0x04005D52),@(0x06008FD3,0x04005D53))){
+        $getter=$assembly.ManifestModule.ResolveMethod($expected[0]);$body=$getter.GetMethodBody().GetILAsByteArray()
+        Assert-Contract ($body.Length-eq7-and$body[0]-eq2-and$body[1]-eq123-and[BitConverter]::ToInt32($body,2)-eq$expected[1]-and$body[6]-eq42) ('charge process observation is pure exact storage '+$getter.Name)
+    }
     # Charge buff custody is captured before native insertion/activation. Its residue
     # proof covers the actual pinned AddStatBonus, AddCondition and AoO listener.
     foreach($expected in @(

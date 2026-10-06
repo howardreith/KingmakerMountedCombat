@@ -20,10 +20,30 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chargeFeatureDisabled;
         private bool chargeOwnershipChanged;
         private JObject chargeLeaseFaultFacts;
+        private JObject chargeNativeActionFaultFacts;
+        private bool ChargeNativeActionFaultCase => Chunk6bChargeCaseId == "C6B-CHARGE-action-failed-before-rule" ||
+            Chunk6bChargeCaseId == "C6B-CHARGE-action-failed-after-rule";
         private bool ChargeLeaseFaultCase => Chunk6bChargeCaseId == "C6B-CHARGE-lease-application-failed";
 
         private void ArmAdditionalChargeFault()
         {
+            if (ChargeNativeActionFaultCase)
+            {
+                var expected = Chunk6bChargeCaseId == "C6B-CHARGE-action-failed-before-rule" ? "before-rule" : "after-rule";
+                chargeNativeActionFaultFacts = new JObject { ["armed"] = true, ["fired"] = false, ["boundary"] = expected };
+                MountedChargeAdmissionFault.NativeAction = boundary =>
+                {
+                    if (boundary != expected) return;
+                    MountedChargeAdmissionFault.NativeAction = null;
+                    chargeNativeActionFaultFacts["fired"] = true;
+                    chargeNativeActionFaultFacts["frame"] = UnityEngine.Time.frameCount;
+                    combat.ObserveChargeProcess(combat.OwnedChargeShell);
+                    chargeNativeActionFaultFacts["ownerAtFault"] = combat.CaptureChargeOwnership();
+                    chargeNativeActionFaultFacts["shellAtFault"] = CaptureNativeAbilityShell(combat.OwnedChargeShell);
+                    chargeNativeActionFaultFacts["stateAtFault"] = CaptureChunk6bChargeActors("native-action-before-exception");
+                    throw new InvalidOperationException("Diagnostic native charge action failure at " + boundary + ".");
+                };
+            }
             if (!ChargeLeaseFaultCase) return;
             chargeLeaseFaultFacts = new JObject { ["armed"] = true, ["fired"] = false };
             MountedChargeAdmissionFault.AfterLeaseAcquired = () =>
@@ -214,6 +234,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 chargeLeaseFaultFacts["seamCleared"] = MountedChargeAdmissionFault.AfterLeaseAcquired == null;
                 MountedChargeAdmissionFault.AfterLeaseAcquired = null;
             }
+            if (chargeNativeActionFaultFacts != null)
+            {
+                chargeNativeActionFaultFacts["seamCleared"] = MountedChargeAdmissionFault.NativeAction == null;
+                MountedChargeAdmissionFault.NativeAction = null;
+            }
         }
 
         private bool RestoreChargeViewWhenSettled()
@@ -250,6 +275,7 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var errors = new List<Exception>();
             MountedChargeAdmissionFault.AfterLeaseAcquired = null;
+            MountedChargeAdmissionFault.NativeAction = null;
             try { chargeDismount?.Dispose(); chargeDismount = null; } catch (Exception e) { errors.Add(e); }
             try { chargeView?.Dispose(); chargeView = null; } catch (Exception e) { errors.Add(e); }
             try { CleanupChargeDeath(); } catch (Exception e) { errors.Add(e); }
@@ -265,6 +291,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (errors.Count != 0) throw new AggregateException("Additional charge fixture restoration remains owned.", errors);
             chargeBoundaryFacts = null; chargeSlowFacts = null;
             chargeLeaseFaultFacts = null;
+            chargeNativeActionFaultFacts = null;
         }
     }
 }

@@ -5,6 +5,7 @@ using Kingmaker;
 using Kingmaker.Controllers;
 using Kingmaker.Controllers.Projectiles;
 using Kingmaker.UnitLogic.Commands;
+using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.UnitLogic.Parts;
 
@@ -55,6 +56,11 @@ namespace KingmakerMountedCombat.Integration
         internal static bool HasUnresolvedAbilities() => HasUnresolvedAbilities(Game.Instance?.AbilityExecutor);
         internal static bool HasUnresolvedAbilities(AbilityExecutionController controller) =>
             controller != null && ((List<AbilityExecutionProcess>)Abilities.GetValue(controller)).Any(p => !p.IsEnded);
+
+        // The exact original executor may own a process before RuleCastSpell or
+        // UnitUseAbility receives it. Read only; no tick, removal or state write.
+        internal static AbilityExecutionProcess[] CaptureAbilities(AbilityExecutionController controller, AbilityExecutionContext context) =>
+            ((List<AbilityExecutionProcess>)Abilities.GetValue(controller)).Where(p => ReferenceEquals(p.Context, context)).ToArray();
 
         internal static bool CommandNeedsSettlement(UnitCommand command) =>
             command != null && !command.IsFinished && command.GetType() != typeof(UnitMoveContiniously) &&

@@ -271,8 +271,8 @@ function Assert-KmcChargeNativeRemainder($Before,$After,[double]$Elapsed) {
   if([double]::IsNaN($a)-or[double]::IsInfinity($a)-or[double]::IsNaN($b)-or[double]::IsInfinity($b)-or$b-gt$a+0.001-or$b+$Elapsed+$slack-lt$a){ChargeSaveFail ('native action debt changed outside clock: '+$field)}
  }
 }
-function Assert-KmcChargeDrained($Owner) {
- if($null-eq$Owner-or$Owner.state-cne'FullyDrained'-or$Owner.attempts-lt1-or$Owner.committed-ne$true){ChargeSaveFail 'no committed, fully drained exact owner'}
+function Assert-KmcChargeDrained($Owner,[bool]$Committed=$true) {
+ if($null-eq$Owner-or$Owner.state-cne'FullyDrained'-or$Owner.attempts-lt1-or$Owner.committed-isnot[bool]-or$Owner.committed-ne$Committed){ChargeSaveFail 'no fully drained exact owner with expected native commitment'}
  foreach($fact in @('commandTerminal','riderSlotReleased','riderContainerReleased','schedulerAbsent','carrierDrained','leaseDrained','shellTerminal','shellContainerReleased','processEnded','manualTargetReleased')){
   if($Owner.$fact-ne$true){ChargeSaveFail ('unresolved owner postcondition '+$fact)}
  }
@@ -284,6 +284,40 @@ function Assert-KmcChargeDrained($Owner) {
   elseif($Owner.lease.buffAcquisitionStarted-ne$false-or$Owner.lease.buffApplied-ne$false-or$Owner.lease.buffAcquisitionObserved-ne$false-or
          $Owner.lease.buffOutstanding-ne$false-or$null-ne$Owner.lease.buffCondition){ChargeSaveFail 'unstarted buff acquisition has unexplained native ownership'}
  }
+}
+function Assert-KmcChargeActionFailure($Fault,$Owner,[bool]$Registered) {
+ $live=$Fault.ownerAtFault
+ foreach($field in @('owned','committed','nativeActionInProgress','nativeRuleObserved','nativeExecutorObserved','shellProcessAssigned','ruleProcessAssigned','processObserved')){
+  if($live.$field-isnot[bool]){ChargeSaveFail ('native action fault omitted boolean '+$field)}
+ }
+ foreach($field in @('nativeActionFailed','nativeActionInProgress','processObservationPending','processObserved','shellProcessAssigned')){
+  if($Owner.$field-isnot[bool]){ChargeSaveFail ('drained native action omitted boolean '+$field)}
+ }
+ foreach($field in @('rider','mount','target')){
+  if([string]::IsNullOrEmpty([string]$Owner.$field)-or$live.$field-cne$Owner.$field){ChargeSaveFail 'native action fault changed its original actors'}
+ }
+ if($live.identity-isnot[int]-or$Owner.identity-isnot[int]-or$live.processCount-isnot[int]-or$Owner.processCount-isnot[int]-or$null-ne$Owner.lease){ChargeSaveFail 'native action fault acquired unexpected charge ownership'}
+ foreach($field in @('shellIdentity','ruleIdentity','executorIdentity','contextIdentity')){
+  if($live.$field-isnot[int]-or$Owner.$field-isnot[int]-or$live.$field-ne$Owner.$field){ChargeSaveFail ('native action changed exact '+$field)}
+ }
+ $beforeProcesses=@($live.processes);$afterProcesses=@($Owner.processes)
+ if($beforeProcesses.Count-ne$live.processCount-or$afterProcesses.Count-ne$Owner.processCount){ChargeSaveFail 'native action omitted registered process identities'}
+ if($Registered-and($beforeProcesses.Count-ne1-or$beforeProcesses[0].identity-isnot[int]-or$afterProcesses[0].identity-isnot[int]-or
+    $beforeProcesses[0].identity-ne$afterProcesses[0].identity-or$beforeProcesses[0].contextIdentity-ne$live.contextIdentity-or
+    $afterProcesses[0].contextIdentity-ne$Owner.contextIdentity-or$beforeProcesses[0].ended-ne$false-or$afterProcesses[0].ended-ne$true)){
+  ChargeSaveFail 'native action process identity, context or completion changed'
+ }
+ if($Fault.armed-ne$true-or$Fault.fired-ne$true-or$Fault.seamCleared-ne$true-or
+    $Fault.boundary-cne$(if($Registered){'after-rule'}else{'before-rule'})-or
+    $live.identity-ne$Owner.identity-or$live.owned-ne$true-or$live.committed-ne$false-or
+    $live.nativeActionInProgress-ne$true-or$live.nativeRuleObserved-ne$true-or$live.nativeExecutorObserved-ne$true-or
+    $live.shellProcessAssigned-ne$false-or$live.ruleProcessAssigned-ne$Registered-or
+    $live.processObserved-ne$Registered-or$live.processCount-ne$(if($Registered){1}else{0})-or
+    $Owner.nativeActionFailed-ne$true-or$Owner.nativeActionInProgress-ne$false-or
+    $Owner.processObservationPending-ne$false-or$Owner.processObserved-ne$Registered-or
+    $Owner.processCount-ne$(if($Registered){1}else{0})-or$Owner.shellProcessAssigned-ne$false-or
+    -not[string]::IsNullOrEmpty([string]$Owner.processObservationError)){ChargeSaveFail 'exceptional native action ownership or registration boundary differs'}
+ Assert-KmcChargeDrained $Owner $false
 }
 function Assert-KmcChargeCommitment($Cost) {
  foreach($field in @('riderStandard','riderMove','mountStandard','mountMove')){
