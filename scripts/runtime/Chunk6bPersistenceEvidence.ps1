@@ -215,6 +215,8 @@ function Assert-KmcChargeLifecycleRows($Request,$Rows,$GameResult) {
    if($held.detail.resetPending-ne$true-or$held.detail.resetDeferred-lt1-or$held.detail.request.method-cne'Game.ResetToMainMenu:06000CDD'-or
       $null-ne$done.detail.area-or$done.detail.resetPending-ne$false-or$done.detail.relationship-cne'Unmounted'-or
       $done.detail.fixtureReleased-ne$true-or$done.detail.snapshotCount-ne0-or$null-ne$done.rider-or$null-ne$done.mount){ChargeSaveFail 'native session departure did not defer and settle without a world or charge'}
+   if($done.detail.charge.leaseNativeObserved-ne$false-or$null-ne$done.detail.charge.lease-or
+      $cleanupComplete.detail.charge.leaseNativeObserved-ne$true-or$null-eq$cleanupComplete.detail.charge.lease){ChargeSaveFail 'session lease evidence confuses the drained old world with a live post-departure actor'}
   }
   'mounted-charge-disable' {
    $disabled=ChargeSaveRow $Rows 'charge-lifecycle-disabled'

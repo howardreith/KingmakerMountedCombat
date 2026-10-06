@@ -41,6 +41,12 @@ namespace KmcRemovalObserver
         [JsonProperty("riderId")] public string RiderId { get; set; }
         [JsonProperty("mountId")] public string MountId { get; set; }
         [JsonProperty("chargeBuffGuid")] public string ChargeBuffGuid { get; set; }
+
+        internal Newtonsoft.Json.Linq.JObject CaptureEvidence() => new Newtonsoft.Json.Linq.JObject
+        {
+            ["runId"] = RunId, ["observationsSha256"] = ObservationsSha256,
+            ["riderId"] = RiderId, ["mountId"] = MountId, ["chargeBuffGuid"] = ChargeBuffGuid
+        };
     }
 
     // Written by the launcher next to the run's evidence; bound to the process

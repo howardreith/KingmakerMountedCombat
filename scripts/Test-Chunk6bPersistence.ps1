@@ -112,7 +112,7 @@ function LifecycleFixture([string]$Case){
  }
  $rows[1].rider.Standard=0
  $c=CopyJson (ChargeSaveRow $base.rows 'native-write-complete').detail.actual.charge
- foreach($entry in @{riderCommandsEmpty=$true;mountCommandsEmpty=$true;mountMoving=$false;mountPathPresent=$false;nativeBoundaries=@{pending=$false;fault=$null}}.GetEnumerator()){
+ foreach($entry in @{riderCommandsEmpty=$true;mountCommandsEmpty=$true;mountMoving=$false;mountPathPresent=$false;leaseNativeObserved=$true;lease=(BuffProof);nativeBoundaries=@{pending=$false;fault=$null}}.GetEnumerator()){
   $c|Add-Member -NotePropertyName $entry.Key -NotePropertyValue $entry.Value
  }
  $d=[ordered]@{case=$Case;riderId='rider';mountId='mount';sameWorld=$true;sourceArea='area';area='area';loading=$false;loadingObserved=$false;relationship='Mounted';charge=$c;
@@ -133,7 +133,7 @@ function LifecycleFixture([string]$Case){
  AddLife 'charge-lifecycle-cleanup-complete' $d
  AddLife 'charge-lifecycle-drained' $d
  if($Case-ceq'mounted-charge-area'){AddLife 'charge-lifecycle-area-retry' $d;$d.loadingObserved=$true;$d.relationship='Unmounted'}
- if($Case-ceq'mounted-charge-session'){$d.resetPending=$false;$d.area=$null;$d.relationship='Unmounted';$d.fixtureReleased=$true}
+ if($Case-ceq'mounted-charge-session'){$d.resetPending=$false;$d.area=$null;$d.relationship='Unmounted';$d.fixtureReleased=$true;$d.charge.leaseNativeObserved=$false;$d.charge.lease=$null}
  if($Case-ceq'mounted-charge-disable'){$d.enabled=$false;$d.relationship='Unmounted';AddLife 'charge-lifecycle-disabled' $d;$d.enabled=$true}
  if($Case-ceq'mounted-charge-removal'){AddLife 'charge-removal-opening-write' @{path='opening';sha256=('b'*64);length=50};$d.removalState='Ready';$d.cleanupSaves=1;$d.snapshotCount=2;$d.relationship='Unmounted';$d.fixtureReleased=$true}
  AddLife 'charge-lifecycle-complete' $d
@@ -164,6 +164,9 @@ MutateLife 'native action refunded while fault held' {param($f)(ChargeSaveRow $f
 MutateLife 'area transfer never loaded' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-complete').detail.loadingObserved=$false} 'mounted-charge-area'
 MutateLife 'session request never deferred' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-held').detail.resetPending=$false} 'mounted-charge-session'
 MutateLife 'menu departure still has a world' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-complete').detail.area='area'} 'mounted-charge-session'
+MutateLife 'historical lease claimed as current after world destruction' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-complete').detail.charge.lease=(BuffProof)} 'mounted-charge-session'
+MutateLife 'disposed actor reported as live native observation' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-complete').detail.charge.leaseNativeObserved=$true} 'mounted-charge-session'
+MutateLife 'no old-world lease observation before departure' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-cleanup-complete').detail.charge.leaseNativeObserved=$false} 'mounted-charge-session'
 MutateLife 'removal accepted during live charge' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-held').detail.request.removalAccepted=$true} 'mounted-charge-removal'
 MutateLife 'cleanup archive carries KMC reference' {param($f)(ChargeSaveRow $f.rows 'charge-lifecycle-complete').detail.cleanupReferences=@('charge-blueprint')} 'mounted-charge-removal'
 function AbsenceFixture {

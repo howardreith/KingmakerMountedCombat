@@ -1,5 +1,6 @@
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'Chunk6bPersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6bFixtureEvidence.ps1')
 # Chunk 6B increment 6B.2: the real-time delivery of the pair-owned Mounted Charge (chunk6b-charge-rt).
 # The compiled scenario records facts and checks its own structure only; this reader is the one acceptance
 # authority for the five delivery rows. Read-only over the immutable artifact; no runtime mutation.
@@ -876,7 +877,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne38-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 38 and a chunk6b charge scenario'}
+    if([long]$Artifact.schemaVersion-ne39-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 39 and a chunk6b charge scenario'}
     $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}
@@ -891,6 +892,9 @@ function Assert-KmcChunk6bChargeEvidence {
         $pass++
         if([string]$row.name-cin$failureOnly){ChargeFail ('failure-only row claimed PASS: '+$row.name)}
         Assert-KmcChunk6bChargeRow $row $mode
+        if($mode-ceq'RT'-and$row.name-cne'C6B-CHARGE-default-off'){
+            Assert-KmcChargeFixtureReturn (ChargeProp $measurement ('positioning-'+$row.name)) (ChargeProp $measurement 'fixtureOrigin') $row.name
+        }
     }
     if($Status-ceq'PASS'){
         foreach($name in $required){ if(-not$names.Contains($name)){ChargeFail ('required row absent: '+$name)} }

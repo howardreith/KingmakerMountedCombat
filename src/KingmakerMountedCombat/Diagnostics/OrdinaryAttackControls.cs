@@ -127,6 +127,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     if (!ordinaryControlSent)
                     {
+                        // The preceding native control may still own RT recovery
+                        // debt. Empty command slots do not grant another Move.
+                        // Observe real availability before issuing the fixture's
+                        // setup input; native clocks/turns retain every cost.
+                        nativeControls.Update();
+                        var availability = nativeControls.Evaluate(OrdinaryMounted
+                            ? NativeMountedControlKind.MountCompanion : NativeMountedControlKind.Dismount, rider);
+                        observations["ordinary-pair-readiness-" + OrdinaryCurrent.Id] = new JObject
+                        {
+                            ["enabled"] = availability.IsEnabled, ["reason"] = availability.Reason,
+                            ["state"] = CaptureOrdinaryLiveState(), ["frame"] = Time.frameCount
+                        };
+                        if (!availability.IsEnabled) return;
                         ordinaryControlSent = TryNativeAbilityTargetClick(OrdinaryMounted ? nativeControls.MountAbility :
                             nativeControls.DismountAbility, OrdinaryMounted ? horse : rider, "ordinary-fixture-pair-control");
                         if (!ordinaryControlSent) throw new InvalidOperationException("Native fixture Mount/Dismount input refused.");

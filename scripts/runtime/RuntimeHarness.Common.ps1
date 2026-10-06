@@ -6766,9 +6766,9 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L) -or
-        ($phase3dSchemaVersion -in @(34L,35L,36L,37L,38L) -and [string]$Request.scenario -cnotin @('chunk6b-charge-rt','chunk6b-charge-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-tb') -and $phase3dSchemaVersion -ne 38L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L) -or
+        ($phase3dSchemaVersion -in @(34L,35L,36L,37L,38L,39L) -and [string]$Request.scenario -cnotin @('chunk6b-charge-rt','chunk6b-charge-tb')) -or
+        ([string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-tb') -and $phase3dSchemaVersion -ne 39L) -or
         ($phase3dSchemaVersion -eq 33L -and [string]$Request.scenario -cnotin @('chunk6b-charge-path-rt','chunk6b-charge-path-tb')) -or
         ([string]$Request.scenario -cin @('chunk6b-charge-path-rt','chunk6b-charge-path-tb') -and $phase3dSchemaVersion -ne 33L) -or
         ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb')) -or
@@ -6834,7 +6834,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         }
         return
     }
-    if ($phase3dSchemaVersion -eq 38L -or [string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-tb')) {
+    if ($phase3dSchemaVersion -eq 39L -or [string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-tb')) {
         Assert-KmcChunk6bChargeEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
@@ -14228,7 +14228,9 @@ function New-KmcRuntimeResultV2 {
         $fixture = $ValidatedGameResult.fixture
     }
     else {
-        $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
+        $fallbackName = if ([string]$Request.scenario -cin @('persistence-p07-save','persistence-p07-load')) {
+            [string]$Request.scenario
+        } elseif (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
             [string]$Request.scenario -notin @('fixture-intake','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite')) {
             [string]$Request.scenario
         } else { 'observe-mount-diagnostic-availability' }
