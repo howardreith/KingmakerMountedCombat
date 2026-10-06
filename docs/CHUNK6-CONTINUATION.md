@@ -1,3 +1,29 @@
+## 2026-10-06 - preview183 closed 22 PASS / 4 FAIL; coherent184 fixture/observer repair
+
+Phase6B IN PROGRESS. Frozen183 source672ea70f2cab947651c1906227cd90f1c7a18048,
+tree27428f1aaa756401a2327c8f11603a740ca753f8, purity PASS, all26 stages terminal.
+All26 transactions restored byte-identically with empty restorationErrors;
+human105,275 protected save files and358 Mods unchanged, no game/transaction live.
+Five independent P04 save/cold pairs PASS; area, disable and removal PASS. TB exact
+cost-free refusal PASS64/0; delivery remains DEFER - EVIDENCED. RT full-stage FAIL
+is accumulated fixture geometry; ordinary TB setup prematurely requests Dismount;
+session observer reads a disposed actor; no-DLL observer source JSON gains $id.
+The coherent184 repair is source-complete: normal native return movement isolates
+RT rows; ordinary controls wait for native availability; disposed session actors
+are not re-read; observer3 emits the exact source identity without serializer metadata.
+Product action/cleanup policy is unchanged. No phase stable or184 native credit yet.
+Offline184 PASS: components682/0, charge reader407/0, persistence reader159/0,
+fixture reader30/0, compiled fixture contracts8/0, ownership111/0, source144/0,
+FAST21/0 and CANDIDATE33/0. Both tier receipts prove inputs unchanged.
+Closure e8c65ed6e7f777aa482bc011abb4d1467bdf8b62830eefb73025e86b763f3531;
+full receipts: lab analysis-cache/chunk6-continuation/20261005-6br/.
+Handoff: CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-06-PREVIEW183-CLOSED.md
+under lab analysis-cache/chunk6-continuation. Earlier183 freeze gates682/0 components,
+404/0 reader,111/0 ownership,FAST18/0,CANDIDATE30/0 are historical exact183 gates.
+Next: guarded publication, exact184/observer3 freeze, new suite/purity and the ready
+26-stage native batch. Continue6B then6C-6F; no rod before6B closes.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
 ## 2026-10-06 - preview182 closed at shared observer failure; coherent183 repair
 
 Phase6B IN PROGRESS. Frozen182 source220ed73b9f17e86e564ae8277bbed8bfa2594ec0,

@@ -58,7 +58,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["shellFullRound"] = persistenceChargeShell?.Spell?.RequireFullRoundAction,
                 ["shellProcessEnded"] = persistenceChargeShell?.ExecutionProcess == null || persistenceChargeShell.ExecutionProcess.IsEnded,
                 ["command"] = DescribeFoundationCommand(persistenceChargeCommand),
-                ["lease"] = persistenceChargeCommand?.CaptureChargeLeaseEvidence(),
+                ["lease"] = CaptureChargePersistenceLease(),
+                ["leaseNativeObserved"] = rider != null && mount != null && persistenceChargeCommand != null,
                 ["riderStandardSlot"] = DescribeFoundationCommand(rider?.Commands?.Standard),
                 ["mountMoveSlot"] = DescribeFoundationCommand(mount?.Commands?.Move),
                 ["riderCommandsEmpty"] = rider?.Commands.Empty, ["mountCommandsEmpty"] = mount?.Commands.Empty,
@@ -82,6 +83,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["native"] = JObject.FromObject(MountedPersistenceService.CaptureActor(actor), MountedSaveCodec.CreateSerializer())
                 }))
             };
+        }
+
+        private JObject CaptureChargePersistenceLease()
+        {
+            // Session departure has already recorded the exact drained owner in
+            // the old world. Its retained command is evidence, not a live actor
+            // handle: native speed and buff getters cannot run after disposal.
+            // Keep the current observation absent; lastDrained remains explicitly
+            // historical. A failure while both actors are live still propagates.
+            if (rider == null || mount == null) return null;
+            return persistenceChargeCommand?.CaptureChargeLeaseEvidence();
         }
 
         private void BeginChargePersistenceInput()

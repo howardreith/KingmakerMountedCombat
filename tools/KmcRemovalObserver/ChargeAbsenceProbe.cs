@@ -75,7 +75,10 @@ namespace KmcRemovalObserver
         }
         internal JObject Capture() => new JObject
         {
-            ["source"] = JObject.FromObject(source), ["rider"] = Actor(source.RiderId), ["mount"] = Actor(source.MountId),
+            // The game's global serializer preserves references and injects $id
+            // into FromObject. Emit the exact five source facts independently of
+            // those settings; the external reader still requires exact identity.
+            ["source"] = source.CaptureEvidence(), ["rider"] = Actor(source.RiderId), ["mount"] = Actor(source.MountId),
             ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
             ["processes"] = new JArray(((List<AbilityExecutionProcess>)processes.GetValue(Game.Instance.AbilityExecutor))
                 .Where(process => Pair(process.Context?.Caster?.UniqueId)).Select(process => new JObject

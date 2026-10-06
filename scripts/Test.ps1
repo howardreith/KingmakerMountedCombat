@@ -275,3 +275,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-FullTbDismountEnvelope.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-ChargeFixtureContracts.ps1') -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'Test-Chunk6bFixture.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

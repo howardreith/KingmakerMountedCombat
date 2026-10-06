@@ -5040,6 +5040,17 @@ try {
         Assert-Test ($manifest.artifacts -is [Array] -and @($manifest.artifacts).Count -eq 0) 'fallback orchestration manifest is not an exact empty artifact array'
     }
 
+    Invoke-HarnessTest 'P07 observer rejection retains exact scenario and original failure without a fabricated game result' {
+        foreach($scenario in @('persistence-p07-save','persistence-p07-load')) {
+            $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot ('observer-fallback-'+$scenario)
+            $fallbackRequest=[pscustomobject]@{runId=('fallback-'+$scenario);scenario=$scenario;branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion=$currentProductVersion;dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+            $errorText='Charge persistence: no-DLL process resumed a charge or changed source identity'
+            $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @($errorText)
+            Assert-Test ($final.status-ceq'FAIL'-and$final.subscenarioTotal-eq1-and$final.subscenarioResults[0].name-ceq$scenario-and$final.assertionPassCount-eq0-and$final.assertionFailCount-eq1-and$final.errors[0]-ceq$errorText-and[string]::IsNullOrEmpty($final.gameResultSha256)) 'P07 fallback relabeled, masked or normalized the missing/failed observer result'
+            Assert-Test (-not(Test-Path (Join-Path $fallbackEvidence 'runtime-game-result.json'))) 'P07 fallback fabricated a native game result'
+        }
+    }
+
     Invoke-HarnessTest 'combat fallback preserves original launcher error without weakening strict evidence validation' {
         $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot 'combat-fallback-evidence'
         $fallbackFixture = [ordered]@{
@@ -12760,7 +12771,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6bCharge ? 38 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6bCharge ? 39 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and

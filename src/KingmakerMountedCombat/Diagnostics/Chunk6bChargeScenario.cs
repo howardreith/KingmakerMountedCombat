@@ -893,6 +893,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (rider.IsInCombat || horse.IsInCombat || !PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(Chunk6bChargeTb);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
+                if (!TickChargeFixturePositioning()) return;
                 PrepareChargeRangeCase();
                 if (Chunk6bChargeCaseId == "C6B-CHARGE-view-replaced" && chargeView == null)
                     chargeView = new NativeChargeViewLease(rider);
@@ -1608,8 +1609,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!RestoreCombatMountRiderAiIsolation() || !RestoreUnmountedHorseAiIsolation())
                     throw new InvalidOperationException("Charge fixture AI restoration failed.");
                 combatMountRiderAiLease = null; unmountedHorseAiLease = null; unmountedHorseAiSettleRequested = false;
+                var completedCase = Chunk6bChargeCaseId;
                 chunk6bChargeCase++;
                 ResetChunk6bChargeCase();
+                RetireChargeRowAllocationTrace(completedCase);
                 chunk6bChargeStage = 0;
                 ResetLeafClock();
                 if (chunk6bChargeCase >= Chunk6bChargeCases.Length)
