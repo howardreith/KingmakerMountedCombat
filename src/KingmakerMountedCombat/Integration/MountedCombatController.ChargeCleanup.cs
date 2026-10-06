@@ -21,6 +21,8 @@ namespace KingmakerMountedCombat.Integration
             internal UnitUseAbility Shell;
             internal object Process;
             internal AbilityExecutionContext Context;
+            internal Kingmaker.Controllers.Combat.UnitCombatState ManualTargetState;
+            internal bool ManualTargetOwned;
             internal Func<bool> ProcessEnded;
             internal MountedPairAttackCommand Command;
             internal MountedChargeOwnership Ownership;
@@ -63,6 +65,8 @@ namespace KingmakerMountedCombat.Integration
                 ["shellTerminal"] = owner.Shell == null || owner.Shell.IsFinished,
                 ["shellContainerReleased"] = Absent(owner.RiderCommands, owner.Shell),
                 ["processObserved"] = owner.Process != null, ["nativeActionInProgress"] = owner.NativeActionInProgress,
+                ["manualTargetOwned"] = owner.ManualTargetOwned,
+                ["manualTargetReleased"] = !owner.ManualTargetOwned,
                 ["processEnded"] = !owner.NativeActionInProgress && (owner.ProcessEnded == null || owner.ProcessEnded()),
                 ["attempt"] = owner.Ownership.LastAttempt?.Describe()
             };
@@ -173,6 +177,7 @@ namespace KingmakerMountedCombat.Integration
             owner.Ownership = new MountedChargeOwnership(owner, new[]
             {
                 new MountedChargeCompensationStep("retire-command", () => owner.Command?.RequestChargeCleanup()),
+                new MountedChargeCompensationStep("release-manual-target", () => ReleaseChargeManualTarget(owner)),
                 new MountedChargeCompensationStep("abandon-scheduler", () =>
                 {
                     MountedChargeAdmissionFault.FireCleanup("abandon-scheduler");
@@ -188,6 +193,7 @@ namespace KingmakerMountedCombat.Integration
             }, new[]
             {
                 new MountedChargePostcondition("command-terminal", () => owner.Command == null || owner.Command.IsFinished),
+                new MountedChargePostcondition("manual-target-released", () => !owner.ManualTargetOwned),
                 new MountedChargePostcondition("standard-slot-released", () => owner.Command == null || owner.RiderCommands.Standard != owner.Command),
                 new MountedChargePostcondition("container-released", () => Absent(owner.RiderCommands, owner.Command)),
                 new MountedChargePostcondition("scheduler-registration-absent", () => owner.Command == null || !pairedCommandScheduler.HasRegistration(owner.Command)),
@@ -202,6 +208,30 @@ namespace KingmakerMountedCombat.Integration
                     (owner.ProcessEnded == null || owner.ProcessEnded()))
             });
             return owner;
+        }
+
+        private void OwnChargeManualTarget(UnitEntityData rider, UnitEntityData target)
+        {
+            var owner = chargeOwner;
+            if (owner == null || !ReferenceEquals(owner.Rider, rider) || !ReferenceEquals(owner.Target, target) ||
+                owner.Ownership.CleanupRequested || owner.ManualTargetOwned)
+                throw new InvalidOperationException("Charge manual target requires its exact live owner.");
+            owner.ManualTargetState = rider.CombatState;
+            owner.ManualTargetOwned = true; // retain custody before the native mutation
+            owner.ManualTargetState.ManualTarget = target;
+        }
+
+        private static void ReleaseChargeManualTarget(ChargeOwner owner)
+        {
+            if (!owner.ManualTargetOwned) return;
+            MountedChargeAdmissionFault.FireCleanup("release-manual-target");
+            // A later independent input is not ours. Never restore a previous attack intent:
+            // this one-shot charge must not restart ordinary native AI after cancellation.
+            if (ReferenceEquals(owner.ManualTargetState.ManualTarget, owner.Target))
+                owner.ManualTargetState.ManualTarget = null;
+            if (ReferenceEquals(owner.ManualTargetState.ManualTarget, owner.Target))
+                throw new InvalidOperationException("Charge manual target remains owned.");
+            owner.ManualTargetOwned = false;
         }
 
         private static void InterruptExact(UnitCommand command)

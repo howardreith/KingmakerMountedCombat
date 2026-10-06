@@ -13,6 +13,8 @@ namespace KingmakerMountedCombat.Integration
 {
     internal sealed partial class MountedCombatController
     {
+        private static readonly FieldInfo NativeModeEnabled = NativeCombatActorPersistence.Field(
+            typeof(CombatController), "m_Enabled", 0x04000649, typeof(bool));
         private readonly MountedChargeBoundaryQueue chargeBoundaries = new MountedChargeBoundaryQueue();
         private bool replayingChargeBoundary;
         private CombatController chargeBoundaryPermitController;
@@ -25,6 +27,12 @@ namespace KingmakerMountedCombat.Integration
         private static bool ChargeNativeWorldLoading => LoadingProcess.Instance.IsLoadingInProcess || LoadingProcess.Instance.QueuedNames.Any();
         internal event Action<bool> ChargeNativeModeResumed;
         internal void CompleteChargeNativeMode(bool enabled) => ChargeNativeModeResumed?.Invoke(enabled);
+
+        // Native Activate refreshes the current setting through the same handler
+        // as a real mode change. Enable/Disable return immediately when this
+        // exact native field already matches; that refresh owns no transition.
+        internal static bool NativeModeChanges(CombatController controller, bool enabled) =>
+            (bool)NativeModeEnabled.GetValue(controller) != enabled;
 
         internal bool AdmitChargeNativeBoundary(CombatController controller, MountedChargeBoundaryKind kind, bool value)
         {

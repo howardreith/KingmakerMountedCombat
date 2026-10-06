@@ -1,4 +1,17 @@
-## 2026-10-06 - preview180 native dispatch repair IN PROGRESS
+## 2026-10-06 - preview181 repair tranche IN PROGRESS
+
+Frozen180 campaign closed4 PASS/2 FAIL/20 NOT RUN, all six transactions restored
+byte-identically, empty errors, normal game exits0. Human105/saves unchanged.
+181 repairs a native unchanged-mode refresh incorrectly treated as a lifecycle
+transition, retains the exact native manual-target ownership, and corrects RT
+request/blocker/view evidence. Components681/0, ownership88/0, FAST18/0 and
+CANDIDATE30/0 pass. CANDIDATE attempt1's stale schema pin failure is retained.
+Next: coherent publication, one181 package/suite/purity and all26 ready6B stages.
+No181 package/suite/run exists at this source checkpoint.
+Continue the authorized6B-6F mission; one mutator and all current safety limits.
+No phase stability claim. [Active record](docs/CHUNK6-CONTINUATION.md).
+
+## Previous preview180 source checkpoint
 
 Frozen179 f1675762ee435125475b12e31f10ccf3fce4725e and receipts are immutable.
 Purity PASS; two startup crashes before rows,24 stages NOTRUN. Both fully restored;

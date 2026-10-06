@@ -633,6 +633,8 @@ namespace KingmakerMountedCombat.Integration
             internal static void PairedEncounterPostfix() => PatchBridge.Persistence?.TryRestoreCombat();
             internal static bool ChargeModeBoundaryPrefix(CombatController __instance, bool enabled, out bool __state)
             {
+                __state = false;
+                if (!MountedCombatController.NativeModeChanges(__instance, enabled)) return true;
                 __state = PatchBridge.Combat?.AdmitChargeNativeBoundary(__instance, MountedChargeBoundaryKind.Mode, enabled) ?? true;
                 return __state;
             }

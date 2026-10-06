@@ -19,7 +19,7 @@ function Fixture([string]$Case,[bool]$Cold=$false){
  $scenario=if($Cold){'persistence-p04-load'}else{'persistence-p04-save'}
  $process=if($Cold){102}else{101}
  $request=[ordered]@{runId='owned-run';scenario=$scenario;persistenceCase=$Case;commit='source';dllSha256='dll';fixture=@{working=@{gameId='campaign';area='area'}}}
- $owner=[ordered]@{identity=17;rider='rider';mount='mount';target='target';state='FullyDrained';attempts=2;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;lease=(BuffProof);shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;processObserved=$true;debt=''}
+ $owner=[ordered]@{identity=17;rider='rider';mount='mount';target='target';state='FullyDrained';attempts=2;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;lease=(BuffProof);shellTerminal=$true;shellContainerReleased=$true;manualTargetOwned=$false;manualTargetReleased=$true;processEnded=$true;processObserved=$true;debt=''}
  $shell=@{acted=$true;finished=$true;type='UnitUseAbility';abilityGuid='d79eaec224a7a832e738eb81baef9d49';executor='rider';target='target'}
  $charge=[ordered]@{owner=@{owned=$false};lastDrained=$owner;shell=$shell;shellActionType='Standard';shellFullRound=$true;command=@{finished=$true};admitted=1;refused=0;mountCharging=$false;riderCharging=$false;mountSpeedOverride=$null;chargeBuffCount=0;riderStandardSlot=$null;mountMoveSlot=$null;shellProcessEnded=$true;faultFired=$Case-cin@('mounted-charge-failed','mounted-charge-drained');faultObserved=$Case-ceq'mounted-charge-drained';nativeStopSent=$Case-ceq'mounted-charge-cancelled';costMax=@{riderStandard=6;riderMove=0;mountStandard=0;mountMove=0};straightRoute=$true;landingBlocked=$false;workerRunning=$false;callback=$false;
   actors=@(@{id='rider';prepared=$true;inCombat=$true;native=(Actor 'rider' 5)},@{id='mount';prepared=$true;inCombat=$true;native=(Actor 'mount')});
@@ -60,7 +60,7 @@ foreach($case in (Get-KmcChargePersistenceCases)){
  Accept ($case+' cold facts') {Run (Fixture $case $true)}
 }
 function Mutate([string]$Label,[scriptblock]$Change){$f=Fixture 'mounted-charge-drained'; & $Change $f; Refuse $Label {Run $f}}
-foreach($post in @('commandTerminal','riderSlotReleased','riderContainerReleased','schedulerAbsent','carrierDrained','leaseDrained','shellTerminal','shellContainerReleased','processEnded')){
+foreach($post in @('commandTerminal','riderSlotReleased','riderContainerReleased','schedulerAbsent','carrierDrained','leaseDrained','shellTerminal','shellContainerReleased','processEnded','manualTargetReleased')){
  Mutate ('unresolved '+$post) {param($f) (ChargeSaveRow $f.rows 'native-write-complete').detail.actual.charge.lastDrained.$post=$false}
 }
 Mutate 'cleanup owner exchanged' {param($f) (ChargeSaveRow $f.rows 'native-write-complete').detail.actual.charge.lastDrained.identity=18}

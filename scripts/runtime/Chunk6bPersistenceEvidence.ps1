@@ -273,9 +273,10 @@ function Assert-KmcChargeNativeRemainder($Before,$After,[double]$Elapsed) {
 }
 function Assert-KmcChargeDrained($Owner) {
  if($null-eq$Owner-or$Owner.state-cne'FullyDrained'-or$Owner.attempts-lt1-or$Owner.committed-ne$true){ChargeSaveFail 'no committed, fully drained exact owner'}
- foreach($fact in @('commandTerminal','riderSlotReleased','riderContainerReleased','schedulerAbsent','carrierDrained','leaseDrained','shellTerminal','shellContainerReleased','processEnded')){
+ foreach($fact in @('commandTerminal','riderSlotReleased','riderContainerReleased','schedulerAbsent','carrierDrained','leaseDrained','shellTerminal','shellContainerReleased','processEnded','manualTargetReleased')){
   if($Owner.$fact-ne$true){ChargeSaveFail ('unresolved owner postcondition '+$fact)}
  }
+ if($Owner.manualTargetOwned-isnot[bool]-or$Owner.manualTargetOwned-ne$false-or$Owner.manualTargetReleased-isnot[bool]){ChargeSaveFail 'native manual attack target remains owned or unobserved'}
  if(-not[string]::IsNullOrEmpty([string]$Owner.debt)){ChargeSaveFail 'retained lease debt'}
  if($null-eq$Owner.PSObject.Properties['lease']){ChargeSaveFail 'drained owner omitted exact lease facts'}
  if($null-ne$Owner.lease){

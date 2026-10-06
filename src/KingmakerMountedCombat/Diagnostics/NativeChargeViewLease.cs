@@ -10,6 +10,7 @@ using Kingmaker.PubSubSystem;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Buffs;
 using Kingmaker.UnitLogic.Buffs.Blueprints;
+using Kingmaker.UnitLogic.FactLogic;
 using Kingmaker.UnitLogic.Parts;
 using Kingmaker.View;
 using Newtonsoft.Json.Linq;
@@ -27,6 +28,25 @@ namespace KingmakerMountedCombat.Diagnostics
             "Kingmaker.UnitLogic.Buffs.Polymorph", "Kingmaker.Blueprints.Classes.Spells.SpellDescriptorComponent",
             "Kingmaker.Designers.Mechanics.Buffs.BuffMovementSpeed", "Kingmaker.Designers.Mechanics.Buffs.ReplaceAsksList",
             "Kingmaker.Designers.Mechanics.Facts.ReplaceSourceBone" };
+        // Installed COTW CleanUp.fixPolymorphSizeChangesStacking adds one native
+        // rule listener for each of these exact eight size buffs. No foreign
+        // assembly reference or mutation is needed to observe their loaded form.
+        private static readonly string[] SizeImmunityIds = {
+            "4f139d125bb602f48bfaec3d3e1937cb", "b0793973c61a19744a8630468e8f4174",
+            "c84fbb4414925f344b894e9511626296", "17206974f2a2c164db26d1af7fac57d5",
+            "3fca5d38053677044a7ffd9a872d3a0a", "4ce640f9800d444418779a214598d0a3",
+            "6ba82f2c8a7146e6b4880cbe7f8534e8", "c5d35ba066ae4a079a7d86a316d3ef38" };
+
+        private static bool MatchesLoadedComponents(BlueprintComponent[] values)
+        {
+            if (values == null || values.Any(item => ReferenceEquals(item, null))) return false;
+            return values.Select(item => item.GetType().FullName).OrderBy(item => item, StringComparer.Ordinal)
+                .SequenceEqual(ComponentTypes.Concat(Enumerable.Repeat(typeof(SpecificBuffImmunity).FullName, 8))
+                    .OrderBy(item => item, StringComparer.Ordinal)) &&
+                values.OfType<SpecificBuffImmunity>().Select(item => ReferenceEquals(item.Buff, null) ? null : item.Buff.AssetGuid)
+                    .OrderBy(item => item, StringComparer.Ordinal)
+                    .SequenceEqual(SizeImmunityIds.OrderBy(item => item, StringComparer.Ordinal));
+        }
         private readonly UnitEntityData actor;
         private readonly BlueprintBuff blueprint;
         private readonly UnitEntityView originalView;
@@ -46,16 +66,24 @@ namespace KingmakerMountedCombat.Diagnostics
             if (actor?.View == null || actor.GetActivePolymorph() != null || actor.Body.IsPolymorphed ||
                 actor.Descriptor.OverrideAsks != null || actor.Descriptor.ReplaceBlueprintForInspection != null ||
                 blueprint == null || blueprint.name != "BeastShapeIBuff" ||
-                !blueprint.ComponentsArray.Select(item => item.GetType().FullName).OrderBy(item => item, StringComparer.Ordinal)
-                    .SequenceEqual(ComponentTypes.OrderBy(item => item, StringComparer.Ordinal)) ||
+                !MatchesLoadedComponents(blueprint.ComponentsArray) ||
                 blueprint.GetComponent<Polymorph>().Prefab.AssetId != PrefabId ||
                 actor.Buffs.Enumerable.Any(item => item.Blueprint == blueprint))
-                throw new InvalidOperationException("Charge view fixture requires the exact unowned native Beast Shape I and stock rider.");
+                throw new InvalidOperationException("Charge view fixture requires the exact unowned loaded Beast Shape I and stock rider: " +
+                    new JObject { ["view"] = actor?.View != null, ["polymorph"] = actor?.GetActivePolymorph() != null,
+                        ["bodyPolymorphed"] = actor?.Body?.IsPolymorphed, ["asksOverride"] = actor?.Descriptor?.OverrideAsks != null,
+                        ["inspectionOverride"] = actor?.Descriptor?.ReplaceBlueprintForInspection != null,
+                        ["name"] = blueprint == null ? null : blueprint.name,
+                        ["prefab"] = blueprint?.GetComponent<Polymorph>()?.Prefab?.AssetId,
+                        ["components"] = blueprint == null ? null : new JArray(blueprint.ComponentsArray.Select(item => item?.GetType().FullName))
+                    }.ToString(Newtonsoft.Json.Formatting.None));
             originalView = actor.View;
             baseline = CaptureEffects();
             evidence = new JObject { ["actor"] = actor.UniqueId, ["blueprint"] = BlueprintId,
                 ["name"] = blueprint.name, ["prefab"] = PrefabId,
-                ["components"] = new JArray(ComponentTypes), ["before"] = Capture(), ["effectsBefore"] = baseline.DeepClone() };
+                ["components"] = new JArray(blueprint.ComponentsArray.Select(item => item.GetType().FullName)),
+                ["sizeImmunities"] = new JArray(blueprint.GetComponents<SpecificBuffImmunity>().Select(item => item.Buff.AssetGuid)),
+                ["before"] = Capture(), ["effectsBefore"] = baseline.DeepClone() };
             subscription = EventBus.Subscribe(this);
         }
 

@@ -113,9 +113,11 @@ namespace KingmakerMountedCombat.Diagnostics
                     break;
                 case "native-new-landing-blocker":
                     chargeBoundaryFacts["landingClearBefore"] = !MountedChargeGeometry.LandingBlocked(horse, rider, target);
+                    chargeBoundaryFacts["spawnFrame"] = UnityEngine.Time.frameCount;
                     chargeBoundaryFacts["placed"] = PlaceChunk6bChargeLandingBlocker();
                     chargeBoundaryFacts["blocker"] = chunk6bChargeBlockerEvidence;
-                    chargeBoundaryFacts["blockersAfter"] = DescribeChunk6bChargeLandingBlockers(target.Position, target.View.Corpulence);
+                    // Spawn returns before State admits the entity to AwakeUnits. Observe
+                    // the engine's later admission; never insert it into that collection.
                     break;
                 case "native-ownership-loss":
                     chunk6aOwnershipOriginal = CaptureChunk6aOwnership();
@@ -133,6 +135,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     break;
             }
             return true;
+        }
+
+        private void ObserveChargeLandingBlocker()
+        {
+            if (chargeBoundaryFacts == null || (string)chargeBoundaryFacts["kind"] != "native-new-landing-blocker" ||
+                chargeBoundaryFacts["blockersAfter"] != null || chunk6bChargeBlocker == null ||
+                !Game.Instance.State.AwakeUnits.Any(actor => ReferenceEquals(actor, chunk6bChargeBlocker))) return;
+            chargeBoundaryFacts["awakeFrame"] = UnityEngine.Time.frameCount;
+            chargeBoundaryFacts["awakeBlocker"] = chunk6bChargeBlocker.UniqueId;
+            chargeBoundaryFacts["blockersAfter"] = DescribeChunk6bChargeLandingBlockers(target.Position, target.View.Corpulence);
         }
 
         private void ApplyNativeChargeChildrenStimulus()
