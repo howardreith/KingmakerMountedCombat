@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Kingmaker;
+using Kingmaker.Blueprints.Root;
 using Kingmaker.UI.Selection;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
@@ -40,6 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 switch (Chunk6bChargeCaseId)
                 {
                     case "C6B-CHARGE-feature-disabled": return "feature-disabled";
+                    case "C6B-CHARGE-child-cleanup": return "native-child-fact-cleanup";
                     case "C6B-CHARGE-dismounted": return "native-dismount-request";
                     case "C6B-CHARGE-mode-changed": return "native-mode-change";
                     case "C6B-CHARGE-duplicate": return "native-duplicate-request";
@@ -70,6 +73,10 @@ namespace KingmakerMountedCombat.Diagnostics
             chargeBoundaryFacts = new JObject { ["kind"] = kind, ["ownerBefore"] = combat.CaptureChargeOwnership() };
             switch (kind)
             {
+                case "native-child-fact-cleanup":
+                    ApplyNativeChargeChildrenStimulus();
+                    combat.LastMountedChargeCommand.Interrupt();
+                    break;
                 case "native-view-replacement":
                     chargeBoundaryFacts["nativeView"] = chargeView.Evidence;
                     chargeView.Apply();
@@ -126,6 +133,43 @@ namespace KingmakerMountedCombat.Diagnostics
                     break;
             }
             return true;
+        }
+
+        private void ApplyNativeChargeChildrenStimulus()
+        {
+            // Explicit native-lifetime stimulus, not a grant of COTW feats/rage,
+            // and not evidence of their eligibility or attack consequences. It
+            // exercises the exact loaded children through native AddBuff/StoreFact
+            // while the ordinary player-requested charge owns the root context.
+            var blueprint = BlueprintRoot.Instance.SystemMechanics.ChargeBuff;
+            var root = rider.Buffs.Enumerable.Single(buff => ReferenceEquals(buff.Blueprint, blueprint));
+            var surface = MountedChargeBuffSurface.Read(blueprint);
+            if (surface.Children.Length != 3) throw new InvalidOperationException("Child cleanup fixture requires the inspected loaded COTW graph.");
+            var facts = new JArray();
+            var stimulus = new JObject
+            {
+                ["contract"] = "native-lifetime-stimulus-no-feat-or-action-grant", ["rider"] = rider.UniqueId,
+                ["rootIdentity"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(root),
+                ["children"] = facts, ["allAcquired"] = false
+            };
+            chargeBoundaryFacts["childStimulus"] = stimulus;
+            foreach (var childBlueprint in surface.Children)
+            {
+                if (rider.Buffs.Enumerable.Any(buff => ReferenceEquals(buff.Blueprint, childBlueprint)))
+                    throw new InvalidOperationException("Child stimulus cannot replace a preexisting native fact.");
+                var child = rider.Buffs.AddBuff(childBlueprint, root.Context, null);
+                // The final child deliberately models an interruption after its
+                // native add returns but before the parent StoreFact call. The
+                // production acquisition owner must still retain and remove it.
+                var stored = facts.Count < 2;
+                if (stored) root.StoreFact(child);
+                facts.Add(new JObject { ["blueprint"] = childBlueprint.AssetGuid,
+                    ["identity"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(child),
+                    ["storedByParent"] = stored, ["active"] = child.Active,
+                    ["sameContextParent"] = ReferenceEquals(child.Context.ParentContext, root.Context) });
+            }
+            stimulus["allAcquired"] = true;
+            stimulus["ownerWithChildren"] = combat.CaptureChargeOwnership();
         }
 
         private void ObserveAdditionalChargeSettlement()

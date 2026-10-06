@@ -1,3 +1,24 @@
+## 2026-10-06 - preview179 source complete; native qualification pending
+
+Parent HEAD aff3995b228e68b266368b2f3fd03f491b014c55/tree
+12445990d831e56242f34089c90e83d9cea5b3bc, integration branch; all ancestors retained.
+The existing charge lease now owns exact inspected COTW child facts, native
+enchantments and Flaming FX pool generations. Acquisition/callback scopes,
+postconditions, stale-generation and finite-capacity guards retain cleanup debt.
+The new RT child-cleanup row requires actual native acquisition and full drain.
+No action cost, turn state or preparation is fabricated or refunded.
+Focused build PASS, components681/0, compiled surface47/0, charge reader360/0,
+persistence reader155/0, ownership80/0, assembly705/0, assets45/0, source143/0.
+FAST179-2 passed18/0; final CANDIDATE179-3 passed30/0 at05:11:54.7490982Z,
+log SHA e2766212124b1090aa1616cf15bd9d43ec710e3a6c183adad86f8a8a5680c99e.
+All failed build, focused and tier attempts remain in lab
+analysis-cache/chunk6-continuation/20261005-6br; see the current continuation.
+Frozen178 purity passed but native never ran because its base-only guard rejects
+installed augmentation. No179 package/native result yet. No game/transaction;
+last closure275 saves/358 Mods identical, human105 intact, restorationErrors empty.
+Next: guarded publication, immutable179 package/suite/purity, all26 ready6B stages,
+then6C-6F. No stable/owner acceptance claim, merge, release or permanent install.
+
 ## 2026-10-05 - preview.176 continuation audit
 
 **IN PROGRESS; pending-charge persistence BLOCKED — CRITICAL at the owner's explicit stop boundary.**

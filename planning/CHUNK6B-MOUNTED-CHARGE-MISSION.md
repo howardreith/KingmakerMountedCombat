@@ -1,3 +1,14 @@
+## 2026-10-06 - authorized ownership repair, native qualification pending
+
+The owner's autonomous6B-6F continuation supersedes the historical stop below.
+Working179 contains the synchronous active save barrier, durable charge owner,
+shared lifecycle cleanup, exact native/COTW buff and pooled FX ownership, and the
+ready26-stage6B campaign (RT27 rows). See [active continuation](../docs/CHUNK6-CONTINUATION.md)
+and the newest resume for gates and immutable failures. No new native campaign
+has run;6B is not stable. TB delivery remains DEFER - EVIDENCED with exact refusal
+restored in source and awaiting native requalification. No later-phase production,
+merge/release/permanent install/protected-save write or HUMAN PLAY inference.
+
 ## 2026-10-05 - preview.176 continuation audit
 
 **IN PROGRESS;6B.4 BLOCKED — CRITICAL at the owner's explicit unproven-persistence boundary.**

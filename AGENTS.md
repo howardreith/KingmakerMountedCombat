@@ -1,3 +1,17 @@
+## 2026-10-06 - preview.179 source complete; native qualification pending
+
+Integration HEAD aff3995b228e68b266368b2f3fd03f491b014c55 is preserved. Frozen178
+purity passed but native never ran: its base-only buff guard rejects installed
+COTW augmentation. Working179 extends the existing lease to exact child facts,
+enchantments and pooled FX generations, including partial/exceptional cleanup.
+Components681/0, compiled surface47/0, persistence reader155/0, charge reader360/0,
+assembly705/0 and asset45/0 pass. FAST18/0 and final CANDIDATE179-3 30/0 pass,
+including the FX capacity reservations across nested callbacks. Coherent
+publication/freeze, required purity and the ready26-stage native batch follow.
+No game/transaction is active; human105/protected files unchanged. All phase exits
+are incomplete. Continue the owner's6B-6F mission; one mutator and current safety
+limits apply. [Active record](docs/CHUNK6-CONTINUATION.md); newest resume is exact.
+
 ## 2026-10-05 - preview.178 native buff ownership repair IN PROGRESS
 
 Published HEAD225cf2d932e27d0a2fc3e9e735867959fa548f9d is preserved. Frozen177

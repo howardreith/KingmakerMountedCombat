@@ -54,10 +54,66 @@ function Assert-KmcChargeAbsentFacts($ObserverRequest,$Observations) {
  if($Observations.chargeSettled.gameTicks-lt$Observations.chargeLoaded.gameTicks){ChargeSaveFail 'no-DLL observation clock reversed'}
 }
 function ChargeSaveFail([string]$Message) { throw ('Charge persistence: '+$Message) }
+function Assert-KmcChargeNativeFactDrained($Fact,[string]$Kind) {
+ if($null-eq$Fact){ChargeSaveFail 'missing retained native fact postconditions'}
+ foreach($field in @('identity','collection','listening','statModifiers','attachedModifiers','componentCount','storedFacts','storedModifiers')){
+  if($Fact.$field-isnot[int]-and$Fact.$field-isnot[long]){ChargeSaveFail ('native fact lacks integer '+$field)}
+ }
+ foreach($field in @('inCollection','active','turnedOn','activating','deactivating','recalculating','parentContext','currentContext')){
+  if($Fact.$field-isnot[bool]-or$Fact.$field-ne$false){ChargeSaveFail ('native fact retains '+$field)}
+ }
+ foreach($field in @('listening','statModifiers','attachedModifiers','storedFacts','storedModifiers')){
+  if($Fact.$field-ne0){ChargeSaveFail ('native fact retains '+$field)}
+ }
+ if($Kind-ceq'buff'-and($Fact.disposed-ne$true-or$Fact.componentCount-ne0-or$Fact.componentData-ne$false)){ChargeSaveFail 'native buff disposal remains incomplete'}
+ if($Kind-ceq'enchantment'-and$Fact.componentCount-ne1){ChargeSaveFail 'retained native enchantment listener inventory differs'}
+}
+function Assert-KmcChargeBuffGraphDrained($Lease) {
+ $graph=$Lease.buffChildren
+ if($null-eq$graph-or$graph.schema-ne1-or$graph.surface-cnotin@('native-base','native-cotw-1.14.4c-2.1')-or
+    [string]::IsNullOrEmpty($graph.rider)-or$graph.retiring-ne$true-or$graph.scopeSettled-ne$true-or$graph.drained-ne$true-or$null-ne$graph.fault){ChargeSaveFail 'loaded Charge lifetime graph is not retained and drained'}
+ Assert-KmcChargeNativeFactDrained $Lease.buffNative 'buff'
+ if($graph.rootIdentity-ne$Lease.buffNative.identity-or$graph.rootCollection-ne$Lease.buffNative.collection){ChargeSaveFail 'root fact identity differs from retained graph'}
+ $nodes=@($graph.facts)
+ if($nodes.Count-gt16-or($graph.surface-ceq'native-base'-and$nodes.Count-ne0)){ChargeSaveFail 'unexpected or unbounded charge lifetime graph'}
+ $buffs=@('6683a35444eb42ddbd21f87c3441a50a','b0439659723f4a8da680965c78a8fbf5','61aff33f69d84391b49782fb976cf870')
+ $enchantments=@('30f90becaaac51f41bf56641966c4121','3f032a3cd54e57649a0cdad0434bf221')
+ $seen=@($graph.rootIdentity);$sequence=0
+ foreach($node in $nodes){
+  $sequence++
+  foreach($field in @('id','parent')){if($node.$field-isnot[int]-and$node.$field-isnot[long]){ChargeSaveFail 'child identity is not an exact integer'}}
+  foreach($field in @('created','acquiring','identityUncertain','settled','drained')){if($node.$field-isnot[bool]){ChargeSaveFail 'child ownership facts lack exact booleans'}}
+  if($node.id-ne$sequence-or$node.created-ne$true-or$node.acquiring-ne$false-or$node.identityUncertain-ne$false-or
+     $node.settled-ne$true-or$node.drained-ne$true-or$node.kind-cnotin@('buff','enchantment')){ChargeSaveFail 'child acquisition identity or settlement differs'}
+  Assert-KmcChargeNativeFactDrained $node.native $node.kind
+  if($node.native.identity-in$seen){ChargeSaveFail 'native lifetime fact was counted twice'};$seen+=@($node.native.identity)
+  if($node.kind-ceq'buff'){
+   if($node.blueprint-cnotin$buffs-or$node.parent-ne0-or$node.native.collection-ne$graph.rootCollection-or$null-ne$node.visuals){ChargeSaveFail 'child buff escaped exact original rider collection or root'}
+  }else{
+   if($node.blueprint-cnotin$enchantments-or$node.parent-lt1-or$node.parent-ge$sequence-or
+      $nodes[$node.parent-1].blueprint-cne$buffs[1]){ChargeSaveFail 'enchantment lacks exact retained Hellfire parent'}
+   $fx=$node.visuals
+   foreach($field in @('scopes','roots','copies','pendingRoots','pendingCopies')){if($null-eq$fx-or($fx.$field-isnot[int]-and$fx.$field-isnot[long])){ChargeSaveFail 'visual ownership lacks exact counts'}}
+   if($null-eq$fx-or$fx.scopes-ne0-or$fx.pendingRoots-ne0-or$fx.pendingCopies-ne0-or$fx.retiring-ne$true-or$fx.attached-ne$false-or$fx.drained-ne$true-or$null-ne$fx.fault){ChargeSaveFail 'enchantment FX ownership remains live or ambiguous'}
+   $acquisitions=@($fx.acquisitions);$roots=@($fx.rootFacts)
+   if($fx.roots-lt0-or$fx.roots-gt16-or$fx.copies-lt0-or$fx.copies-gt(2*$fx.roots)-or
+      $acquisitions.Count-ne($fx.roots+$fx.copies)-or$roots.Count-ne$fx.roots){ChargeSaveFail 'visual lifetime counts differ from finite native graph'}
+   $generation=0
+   foreach($acquisition in $acquisitions){$generation++;if(($acquisition.generation-isnot[int]-and$acquisition.generation-isnot[long])-or$acquisition.generation-ne$generation-or$acquisition.returned-isnot[bool]-or$acquisition.returned-ne$true){ChargeSaveFail 'effect acquisition has no observed destruction or pool transfer'}}
+   if(@($roots|Select-Object -ExpandProperty generation -Unique).Count-ne$roots.Count){ChargeSaveFail 'FX root acquisition duplicated'}
+   foreach($root in $roots){if($root.generation-lt1-or$root.generation-gt$acquisitions.Count-or$root.returned-ne$true-or$root.custodyUncertain-isnot[bool]-or$root.custodyUncertain-ne$false-or$root.controllerResidueAbsent-ne$true){ChargeSaveFail 'pooled root retains actor/controller residue or uncertain custody'}}
+   if($node.blueprint-ceq$enchantments[1]-and$acquisitions.Count-ne0){ChargeSaveFail 'Burst acquired an unexpected visual'}
+  }
+ }
+}
 function Assert-KmcChargeBuffDrained($Lease) {
  if($null-eq$Lease-or$Lease.buffAcquisitionStarted-ne$true-or$Lease.buffAcquisitionObserved-ne$true-or
     $Lease.buffOutstanding-ne$false-or$null-ne$Lease.buffCallbackDebt-or$Lease.buffRuleDispatchSettled-ne$true){ChargeSaveFail 'native Charge buff acquisition or dispatch cleanup is unproven'}
  $types=@('Kingmaker.UnitLogic.FactLogic.AddStatBonus','Kingmaker.UnitLogic.FactLogic.AddCondition','Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus')
+ Assert-KmcChargeBuffGraphDrained $Lease
+ if($Lease.buffChildren.surface-ceq'native-cotw-1.14.4c-2.1'){
+  $types=@('Kingmaker.UnitLogic.Mechanics.Components.AddFactContextActions')+$types+@('Kingmaker.UnitLogic.FactLogic.AddContextStatBonus','Kingmaker.UnitLogic.Mechanics.Components.ContextRankConfig')
+ }
  if((@($Lease.buffComponentTypes)-join'|')-cne($types-join'|')){ChargeSaveFail 'native Charge buff component inventory differs'}
  $condition=$Lease.buffCondition
  foreach($field in @('condition','contributions','additions','removals','nativeExceptions')){

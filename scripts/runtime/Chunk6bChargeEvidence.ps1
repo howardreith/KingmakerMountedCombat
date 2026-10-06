@@ -18,7 +18,7 @@ function Get-KmcChunk6bChargeRows([string]$Mode) {
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-spent-standard','C6B-CHARGE-stock-rejected','C6B-CHARGE-interrupted','C6B-CHARGE-combat-ended','C6B-CHARGE-obstructed-line','C6B-CHARGE-blocked-clearance','C6B-CHARGE-cancelled','C6B-CHARGE-exception-cleanup','C6B-CHARGE-target-moved','C6B-CHARGE-target-lost','C6B-CHARGE-rider-incapacitated','C6B-CHARGE-mount-incapacitated',
-          'C6B-CHARGE-beyond-maximum','C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-duplicate','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-lease-application-failed','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced','C6B-CHARGE-mount-dead','C6B-CHARGE-rider-dead')
+          'C6B-CHARGE-beyond-maximum','C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-duplicate','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-lease-application-failed','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced','C6B-CHARGE-mount-dead','C6B-CHARGE-rider-dead','C6B-CHARGE-child-cleanup')
     }
 }
 function Test-KmcChunk6bChargeScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargeScenarios) }
@@ -496,14 +496,29 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                 -not([string](ChargeProp $before 'targetReason')).StartsWith('The charge target is farther than the maximum charge distance of ',[StringComparison]::Ordinal)){ChargeFail 'maximum-range row did not refuse a bounded beyond-maximum target'}
             Assert-KmcChunk6bChargeNothingHappened $e $name
         }
-        {$_-cin@('C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced')} {
+        {$_-cin@('C6B-CHARGE-feature-disabled','C6B-CHARGE-dismounted','C6B-CHARGE-mode-changed','C6B-CHARGE-new-landing-blocker','C6B-CHARGE-relationship-invalidated','C6B-CHARGE-view-replaced','C6B-CHARGE-child-cleanup')} {
             $boundary=ChargeProp $e 'boundary'
-            $kinds=@{'C6B-CHARGE-feature-disabled'='feature-disabled';'C6B-CHARGE-dismounted'='native-dismount-request';'C6B-CHARGE-mode-changed'='native-mode-change';'C6B-CHARGE-new-landing-blocker'='native-new-landing-blocker';'C6B-CHARGE-relationship-invalidated'='native-ownership-loss';'C6B-CHARGE-view-replaced'='native-view-replacement'}
+            $kinds=@{'C6B-CHARGE-feature-disabled'='feature-disabled';'C6B-CHARGE-dismounted'='native-dismount-request';'C6B-CHARGE-mode-changed'='native-mode-change';'C6B-CHARGE-new-landing-blocker'='native-new-landing-blocker';'C6B-CHARGE-relationship-invalidated'='native-ownership-loss';'C6B-CHARGE-view-replaced'='native-view-replacement';'C6B-CHARGE-child-cleanup'='native-child-fact-cleanup'}
             $kind=$kinds[$name]
             if($null-eq$boundary-or$boundary.kind-cne$kind-or$boundary.ownerBefore.owned-ne$true-or$boundary.ownerAfter.owned-ne$false){ChargeFail 'lifecycle boundary lacks exact before/after ownership'}
             Assert-KmcChargeDrained $boundary.lastDrained
             if($boundary.lastDrained.identity-ne$boundary.ownerBefore.identity){ChargeFail 'lifecycle drained another owner'}
             Assert-KmcChunk6bChargeBoundedTermination $e $name $kind
+            if($name-ceq'C6B-CHARGE-child-cleanup'){
+                $stimulus=$boundary.childStimulus;$graph=$boundary.lastDrained.lease.buffChildren
+                if($stimulus.contract-cne'native-lifetime-stimulus-no-feat-or-action-grant'-or$stimulus.rider-cne$before.state.rider.id-or
+                    $stimulus.rootIdentity-ne$graph.rootIdentity-or$stimulus.allAcquired-ne$true-or@($stimulus.children).Count-ne3-or
+                    $stimulus.ownerWithChildren.identity-ne$boundary.lastDrained.identity-or$graph.surface-cne'native-cotw-1.14.4c-2.1'-or
+                    @($graph.facts).Count-ne5){ChargeFail 'child lifetime stimulus lacks exact retained native graph'}
+                $expected=@('6683a35444eb42ddbd21f87c3441a50a','b0439659723f4a8da680965c78a8fbf5','61aff33f69d84391b49782fb976cf870')
+                for($i=0;$i-lt3;$i++){
+                    $child=$stimulus.children[$i];$owned=@($graph.facts|Where-Object blueprint -CEQ $expected[$i])
+                    if($child.blueprint-cne$expected[$i]-or$child.active-ne$true-or$child.sameContextParent-ne$true-or
+                        $child.storedByParent-ne($i-lt2)-or$owned.Count-ne1-or$owned[0].native.identity-ne$child.identity){ChargeFail 'stimulated native child escaped exact parent/acquisition identity'}
+                }
+                $flaming=@($graph.facts|Where-Object blueprint -CEQ '30f90becaaac51f41bf56641966c4121')
+                if($flaming.Count-ne1-or$flaming[0].visuals.roots-lt1){ChargeFail 'child cleanup did not exercise a native Flaming visual acquisition'}
+            }
             if($name-ceq'C6B-CHARGE-feature-disabled'-and$boundary.controlAfter.kmcChargePresent-ne$false){ChargeFail 'disabled charge control remained exposed'}
             if($name-ceq'C6B-CHARGE-mode-changed'-and($boundary.nativeSettingAfter-ne$true-or$boundary.tbInitialized-ne$true-or$boundary.modeRestored-ne$true)){ChargeFail 'native mode transition or exact restoration absent'}
             if($name-ceq'C6B-CHARGE-dismounted'-and($boundary.clicked-ne$true-or$boundary.relationshipAfter-cne'Unmounted')){ChargeFail 'native voluntary Dismount did not complete'}
@@ -816,7 +831,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne35-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 35 and a chunk6b charge scenario'}
+    if([long]$Artifact.schemaVersion-ne36-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 36 and a chunk6b charge scenario'}
     $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}

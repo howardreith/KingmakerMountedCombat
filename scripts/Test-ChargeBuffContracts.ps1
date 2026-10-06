@@ -52,5 +52,23 @@ try {
   Check ((IntAt $reader (183417688+$field[0]))-eq$field[1]) ('AttackOfOpportunityAttackBonus '+$field[2])
  }
  Check (PtrAt $reader (183417688+144) 0 0) 'AoO component has no custom property'
+ Check (PtrAt $reader (163031088+288) 0 25498) 'Flaming enchantment references the finite weapon FX root'
+ Check (PtrAt $reader (163031392+184) 0 0) 'FlamingBurst enchantment has no FX prefab'
+ foreach($entry in @(
+  @(127387344,83,'d0d51c13d638f02b66fb5199128dca24e6a5072ee4355bda96f6bfe4690074e3','Flaming root'),
+  @(209148632,160,'8cd554bbf6693374b3835f7b067cdd22c9a6d8021ac319114d3238f0e9e0cfbd','single locator'),
+  @(210650632,52,'2584b52feb0d6207400489dd3fc4e997e29c7af258835f8e38503bc7dc2636bb','native fade'),
+  @(211951296,32,'4c8a36d722bf9cbdf02d86877a4251fb6fdb16a708e4c90799e05c7ad0544b1a','native pooled FX')
+ )){
+  [void]$reader.BaseStream.Seek($entry[0],[IO.SeekOrigin]::Begin)
+  $sha=[Security.Cryptography.SHA256]::Create()
+  try{$actual=([BitConverter]::ToString($sha.ComputeHash($reader.ReadBytes($entry[1])))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+  Check ($actual-ceq$entry[2]) ('exact bounded original '+$entry[3]+' input bytes')
+ }
+ [void]$reader.BaseStream.Seek(210650632+32,[IO.SeekOrigin]::Begin)
+ Check ($reader.ReadSingle()-eq1.5) 'Flaming native fade is finite 1.5 seconds'
+ Check ((IntAt $reader (209148632+124))-eq1) 'Flaming has exactly one locator name and no multi-locator clone branch'
+ [void]$reader.BaseStream.Seek(209148632+128,[IO.SeekOrigin]::Begin)
+ Check ((UnityString $reader)-ceq'Locator_WeaponCenterFX_00') 'Flaming native weapon locator identity'
 } finally {$reader.Dispose();$mono.Dispose()}
 Write-Host ('NATIVE CHARGE BUFF ASSET PASS='+$script:passed+' FAIL=0; read-only installed asset contracts, not gameplay qualification')

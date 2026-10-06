@@ -45,6 +45,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-beyond-maximum",
             "C6B-CHARGE-stock-rejected",
             "C6B-CHARGE-interrupted",
+            "C6B-CHARGE-child-cleanup",
             "C6B-CHARGE-combat-ended",
             "C6B-CHARGE-obstructed-line",
             "C6B-CHARGE-blocked-clearance",
@@ -1623,6 +1624,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 case "C6B-CHARGE-interrupted": return "A charge interrupted after commitment stopped at once, restored every leased value, delivered no attack and kept the cost the engine had taken.";
                 case "C6B-CHARGE-obstructed-line": return "A charge whose straight line the native navmesh cannot follow was refused before any cost, path or attack.";
                 case "C6B-CHARGE-cancelled": return "A charge selected over a lawful geometry and cancelled before commitment took no cost, no path and no attack.";
+                case "C6B-CHARGE-child-cleanup": return "Exact native child buffs, weapon enchantments and their FX were acquired by a labelled diagnostic stimulus during a committed charge, including a child not yet stored by its parent, and drained through the same native interruption barrier.";
                 case "C6B-CHARGE-blocked-clearance": return "A charge whose landing point one weapon reach short of the target was occupied by another native actor was refused before any cost, path or attack.";
                 case "C6B-CHARGE-exception-cleanup": return "A charge that failed immediately after entering the rider command queue resolved every native owner it had acquired, restored its lease exactly and left no residue.";
                 case "C6B-CHARGE-target-moved": return "A charge whose target moved mid-approach re-read its own conditions, re-forced the straight line onto a newly admitted carrier, and ended lawfully.";

@@ -547,6 +547,7 @@ namespace KingmakerMountedCombat.Tests
             MountedChargeOwnershipTests.Register(runner);
             MountedChargeBoundaryTests.Register(runner);
             MountedChargeFactOwnershipTests.Register(runner);
+            MountedChargeVisualOwnershipTests.Register(runner);
             MountedChargeConditionOwnershipTests.Register(runner);
             MountedChargeRevalidationTests.Register(runner);
             MountedChargeTransactionSequenceTests.Register(runner);

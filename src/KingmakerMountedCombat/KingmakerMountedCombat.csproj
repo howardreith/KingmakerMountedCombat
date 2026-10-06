@@ -435,6 +435,10 @@
     <Compile Include="Domain\MountedChargeFactOwnership.cs" />
     <Compile Include="Domain\MountedChargeConditionOwnership.cs" />
     <Compile Include="Integration\MountedChargeConditionObserver.cs" />
+    <Compile Include="Integration\MountedChargeBuffSurface.cs" />
+    <Compile Include="Integration\MountedChargeBuffChildren.cs" />
+    <Compile Include="Domain\MountedChargeVisualOwnership.cs" />
+    <Compile Include="Integration\MountedChargeEnchantmentFx.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeCleanup.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeBoundaries.cs" />
     <Compile Include="Domain\MountedChargeRevalidation.cs" />

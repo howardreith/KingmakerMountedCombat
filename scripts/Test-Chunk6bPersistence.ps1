@@ -9,6 +9,8 @@ function Accept([string]$Label,[scriptblock]$Body){ & $Body; $script:passed++; W
 function Refuse([string]$Label,[scriptblock]$Body){ $rejected=$false;try{& $Body}catch{$rejected=$true};if(-not$rejected){throw ('Accepted invalid artifact: '+$Label)};$script:passed++;Write-Host ('PASS refuses '+$Label) }
 function Actor([string]$Id,[double]$Standard=0){ [ordered]@{Id=$Id;Standard=$Standard;Move=0;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1;LastSurpriseTicks=0} }
 function BuffProof { @{buffAcquisitionStarted=$true;buffAcquisitionObserved=$true;buffOutstanding=$false;buffCallbackDebt=$null;buffRuleDispatchSettled=$true
+ buffNative=@{identity=100;collection=200;inCollection=$false;active=$false;disposed=$true;turnedOn=$false;activating=$false;deactivating=$false;recalculating=$false;listening=0;statModifiers=0;attachedModifiers=0;componentCount=0;componentData=$false;storedFacts=0;storedModifiers=0;parentContext=$false;currentContext=$false}
+ buffChildren=@{schema=1;rider='rider';rootIdentity=100;rootCollection=200;surface='native-base';retiring=$true;scopeSettled=$true;drained=$true;fault=$null;failures=@();facts=@()}
  buffComponentTypes=@('Kingmaker.UnitLogic.FactLogic.AddStatBonus','Kingmaker.UnitLogic.FactLogic.AddCondition','Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus')
  buffCondition=@{componentObserved=$true;condition=40;drained=$true;contributions=0;fault=$null;additions=1;removals=1;nativeExceptions=0;operations=@(
   @{addition=$true;before=0;after=1;mutationObserved=$true;completed=$true;returnedNormally=$true},
@@ -259,5 +261,53 @@ foreach($mutation in @(
 )){
  $proof=CopyJson (BuffProof);& $mutation $proof
  Refuse ('unproven native buff ownership: '+$mutation.ToString()) {Assert-KmcChargeBuffDrained $proof}
+}
+function CotwProof {
+ $proof=CopyJson (BuffProof)
+ $proof.buffChildren.surface='native-cotw-1.14.4c-2.1'
+ $proof.buffComponentTypes=@('Kingmaker.UnitLogic.Mechanics.Components.AddFactContextActions')+@($proof.buffComponentTypes)+@('Kingmaker.UnitLogic.FactLogic.AddContextStatBonus','Kingmaker.UnitLogic.Mechanics.Components.ContextRankConfig')
+ $nodes=@()
+ for($i=0;$i-lt3;$i++){
+  $kind=if($i-eq0){'buff'}else{'enchantment'}
+  $native=CopyJson $proof.buffNative;$native.identity=101+$i
+  if($i-gt0){$native.collection=300;$native.componentCount=1;$native.disposed=$false}
+  $fx=$null
+  if($i-gt0){$fx=@{scopes=0;pendingRoots=0;pendingCopies=0;retiring=$true;attached=$false;drained=$true;fault=$null;failures=@();roots=0;copies=0;rootFacts=@();acquisitions=@()}}
+  if($i-eq1){$fx.roots=1;$fx.copies=2;$fx.rootFacts=@(@{generation=1;returned=$true;custodyUncertain=$false;controllerResidueAbsent=$true});$fx.acquisitions=@(1,2,3|ForEach-Object{@{generation=$_;returned=$true;completionRequested=$true;failure=$null}})}
+  $nodes+=@{id=($i+1);parent=$(if($i-eq0){0}else{1});blueprint=@('b0439659723f4a8da680965c78a8fbf5','30f90becaaac51f41bf56641966c4121','3f032a3cd54e57649a0cdad0434bf221')[$i];kind=$kind;created=$true;acquiring=$false;acquired=$true;identityUncertain=$false;removalAttempted=$true;fault=$null;settled=$true;drained=$true;native=$native;visuals=$fx}
+ }
+ $proof.buffChildren.facts=@($nodes)
+ return CopyJson $proof
+}
+Accept 'exact augmented buff graph with native child enchantments and retired visual generations' {Assert-KmcChargeBuffDrained (CotwProof)}
+foreach($mutation in @(
+ {param($p)$p.buffNative.inCollection=$true},
+ {param($p)$p.buffNative.active=$true},
+ {param($p)$p.buffNative.active='false'},
+ {param($p)$p.buffChildren.surface='uninspected'},
+ {param($p)$p.buffChildren.rootIdentity=999},
+ {param($p)$p.buffChildren.facts[0].native.collection=999},
+ {param($p)$p.buffChildren.facts[0].native.listening=1},
+ {param($p)$p.buffChildren.facts[0].native.attachedModifiers=1},
+ {param($p)$p.buffChildren.facts[0].native.storedFacts=1},
+ {param($p)$p.buffChildren.facts[0].native.deactivating=$true},
+ {param($p)$p.buffChildren.facts[0].identityUncertain=$true},
+ {param($p)$p.buffChildren.facts[1].parent=0},
+ {param($p)$p.buffChildren.facts[1].native.currentContext=$true},
+ {param($p)$p.buffChildren.facts[1].visuals.scopes=1},
+ {param($p)$p.buffChildren.facts[1].visuals.pendingRoots=1},
+ {param($p)$p.buffChildren.facts[1].visuals.pendingCopies=1},
+ {param($p)$p.buffChildren.facts[1].visuals.attached=$true},
+ {param($p)$p.buffChildren.facts[1].visuals.acquisitions[0].returned=$false},
+ {param($p)$p.buffChildren.facts[1].visuals.acquisitions[2].returned=$false},
+ {param($p)$p.buffChildren.facts[1].visuals.rootFacts[0].controllerResidueAbsent=$false},
+ {param($p)$p.buffChildren.facts[1].visuals.rootFacts[0].custodyUncertain=$true},
+ {param($p)$p.buffChildren.facts[1].visuals.rootFacts[0].custodyUncertain='false'},
+ {param($p)$p.buffChildren.facts[1].visuals.fault='ambiguous-generation'},
+ {param($p)$p.buffChildren.facts[1].visuals.roots=2},
+ {param($p)$p.buffChildren.facts[1].visuals.copies='2'}
+)){
+ $proof=CotwProof;& $mutation $proof
+ Refuse ('native lifetime residue: '+$mutation.ToString()) {Assert-KmcChargeBuffDrained $proof}
 }
 Write-Host ('CHARGE PERSISTENCE READER PASS='+$script:passed+' FAIL=0; synthetic artifacts only, no native qualification')

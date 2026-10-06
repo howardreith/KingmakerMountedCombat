@@ -1,3 +1,15 @@
+## 2026-10-06 - preview.179 source complete; no new native campaign
+
+Published HEAD aff3995b228e68b266368b2f3fd03f491b014c55 is preserved. Frozen178
+purity PASS, native NOTRUN; its guard rejects installed COTW augmentation.
+Working179 includes the full bounded native child/enchantment/FX ownership graph
+and a mandatory native child-cleanup row. Components681/0, FAST18/0 and final
+CANDIDATE179-3 30/0 pass. Coherent publication/freeze/purity and the full ready
+26-stage6B batch are next. The RT stage has27 rows; TB retains exact refusal.
+See [active continuation](docs/CHUNK6-CONTINUATION.md) and AUTONOMOUS-RESUME.md.
+No179 package exists, no game/transaction is active, human105/protected files
+are unchanged. All6B-6F exits remain incomplete; no stability or HUMAN PLAY claim.
+
 ## 2026-10-05 - preview.177 retired; preview.178 repair IN PROGRESS
 
 Published source225cf2d932e27d0a2fc3e9e735867959fa548f9d remains preserved and
