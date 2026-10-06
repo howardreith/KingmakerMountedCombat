@@ -1,4 +1,49 @@
-# 2026-10-06 preview179 source complete; CANDIDATE PASS, native pending
+# 2026-10-06 preview180 dispatch repair; CANDIDATE PASS, native pending
+
+Phase6B IN PROGRESS, branch codex/mounted-combat-phase3f-playable-core. Published
+HEAD f1675762ee435125475b12e31f10ccf3fce4725e, tree83737c5a31b0a84c3eb38df1cb470ff69461945f
+was clean/fetched equal before179 campaign;40c40e4 remains an ancestor.
+Frozen179 package1ad96ef1ffa6ab7e806b64ade7f6ef7765a57b6b69a8c57a378a0079f53f0df0,
+suite20261006-chunk6b-charge-x/a631a1b62624ea5798cac8355c2070a37dcb75398ad5190e3f5e54b603cc441d.
+Purity PASS, exit0 at06:37:04Z; log4464bb119e782433a4109cb96d6e7ad1198d61f57975d3a748290c1139bb890d.
+Proof closure0252ed1c7490678bf7ce18db5abfd52df937470a2cc8e1e9850161a2bdbd0b11.
+
+Two179 launches failed before native rows: charge-rt/unmounted-rt. PIDs25504/23336
+crashed during Working load, Mono c0000005 at0x30557e. No game-result artifact.
+All3 transactions for each restored; fresh audits rehashed275 saves/358 Mods
+unchanged, human105 intact, empty restorationErrors, no recovery/live game.
+Immutable lab analysis-cache/chunk6-continuation/20261005-6br/ audits:
+launch-failure179-rt-audit.json/eb7280c9e44877a665417599d70104342f8d3adde83e3e25e3b18179181feffd
+and launch-failure179-unmounted-audit.json/410bee766d82f3a715edd4ef9fb0ca1e536101655f764036e3d4fcd7bff1a617.
+Session logs and WER reports preserved;24 stages NOTRUN. No third unchanged launch.
+Frozen179 remains immutable/unqualified; the attribution guard was not weakened.
+
+Exact IL found both native sites call OwnedFactCollection.AddFact nonvirtually;
+179 wrappers used derived virtual AddFact, whose overrides reenter those sites.
+The behavioral regression fails on179, passes on working180: actual typed wrappers
+and native owned-collection body, external insertion/override intercepted, exact
+arguments, one base call, zero reentry, unchanged exception and closed scope.
+180 retains typed delegates emitting the exact pinned nonvirtual native base call.
+Native gain events, ownership postconditions, costs and fixtures are preserved.
+Native crash attribution still awaits the repaired load; no native success claim.
+Build180-1 PASS; surface55/0, components681/0, assets45/0, charge reader360/0,
+persistence155/0; FAST180-1 PASS18/0 in2.35 minutes. CANDIDATE180-1 PASS30/0
+in10.73 minutes, completed2026-10-06T07:09:54.8347839Z; log SHA256
+2ea356d599cf551c56f84a9bbac3478a2288d515315fbd0f441fc3d3d1daac05.
+Retain dispatch179-regression-before-fix.log (generic native patch probe limitation)
+and dispatch179-regression-before-fix-2.log (actual dispatch regression failure).
+Next: coherent commit and guarded publication, then powershell.exe -NoProfile
+-ExecutionPolicy Bypass -File scripts/Package.ps1 -ArtifactQualifier chunk6b-charge-y.
+Bind post-commit identities in lab candidate180-freeze.json and suite
+20261006-chunk6b-charge-y; one180 purity and complete26-stage6B batch follow.
+Run unmounted control first to verify repaired loading, then Charge and the
+remaining ready cases. No source changes during the frozen campaign.
+The authorized native Quicken rod is for the disposable6C Druid fixture only; no
+rod/XP/foreign-mod change has occurred. All6B-6F exits remain incomplete. No merge,
+PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+Continue6B then6C-6F without stopping at a gate or intermediate commit.
+
+## Previous preview179 source checkpoint
 
 Sole mutating executor continues phase6B on codex/mounted-combat-phase3f-playable-core.
 HEAD aff3995b228e68b266368b2f3fd03f491b014c55, tree

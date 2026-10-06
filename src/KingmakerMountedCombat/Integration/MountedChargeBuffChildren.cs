@@ -27,6 +27,10 @@ namespace KingmakerMountedCombat.Integration
     internal sealed class MountedChargeBuffChildren
     {
         private static readonly List<MountedChargeBuffChildren> owners = new List<MountedChargeBuffChildren>();
+        private static readonly Func<BuffCollection, BlueprintFact, MechanicsContext, Fact> addNativeBuffFact =
+            BindNativeBaseAdd<BuffCollection>();
+        private static readonly Func<ItemEnchantmentCollection, BlueprintFact, MechanicsContext, Fact> addNativeEnchantmentFact =
+            BindNativeBaseAdd<ItemEnchantmentCollection>();
         [ThreadStatic] private static Node acquiring;
         private readonly MountedChargeBuffSurface surface;
         private readonly UnitEntityData rider;
@@ -189,10 +193,36 @@ namespace KingmakerMountedCombat.Integration
         // Wrappers replace only two token-pinned native calls. Every unowned call
         // invokes the original method unchanged; the finally scope survives throws.
         internal static Fact AddBuffFact(BuffCollection source, BlueprintFact blueprint, MechanicsContext context) =>
-            AddFact(source, blueprint, context, () => source.AddFact(blueprint, context));
+            AddFact(source, blueprint, context, () => addNativeBuffFact(source, blueprint, context));
 
         internal static Fact AddEnchantmentFact(ItemEnchantmentCollection source, BlueprintFact blueprint, MechanicsContext context) =>
-            AddFact(source, blueprint, context, () => source.AddFact(blueprint, context));
+            AddFact(source, blueprint, context, () => addNativeEnchantmentFact(source, blueprint, context));
+
+        private static Func<TCollection, BlueprintFact, MechanicsContext, Fact> BindNativeBaseAdd<TCollection>()
+        {
+            // Both native acquisition sites use `call base.AddFact`, not virtual
+            // dispatch. Their derived AddFact overrides enter AddBuff/AddEnchantment
+            // again. A normal C# source.AddFact call would recurse through our hook,
+            // including for unowned startup facts. Retain the exact native base
+            // implementation (and its gain event) with the same nonvirtual call.
+            var declaring = typeof(TCollection).BaseType;
+            if (declaring == null || !declaring.IsGenericType ||
+                declaring.GetGenericTypeDefinition() != typeof(OwnedFactCollection<>))
+                throw new InvalidOperationException("Native charge collection base differs.");
+            var method = declaring.GetMethod("AddFact", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly,
+                null, new[] { typeof(BlueprintFact), typeof(MechanicsContext) }, null);
+            if (method == null || method.Module != typeof(Fact).Module || method.MetadataToken != 0x060096AE ||
+                method.ReturnType != typeof(Fact) || method.IsStatic || method.ContainsGenericParameters)
+                throw new InvalidOperationException("Native charge base acquisition signature differs.");
+            var bridge = new DynamicMethod("KmcChargeBaseAdd_" + typeof(TCollection).Name, typeof(Fact),
+                new[] { typeof(TCollection), typeof(BlueprintFact), typeof(MechanicsContext) },
+                typeof(MountedChargeBuffChildren).Module, true);
+            var il = bridge.GetILGenerator();
+            il.Emit(OpCodes.Ldarg_0); il.Emit(OpCodes.Ldarg_1); il.Emit(OpCodes.Ldarg_2);
+            il.Emit(OpCodes.Call, method); il.Emit(OpCodes.Ret);
+            return (Func<TCollection, BlueprintFact, MechanicsContext, Fact>)bridge.CreateDelegate(
+                typeof(Func<TCollection, BlueprintFact, MechanicsContext, Fact>));
+        }
 
         private static Fact AddFact(FactCollection source, BlueprintFact blueprint, MechanicsContext context, Func<Fact> native)
         {
@@ -306,7 +336,10 @@ namespace KingmakerMountedCombat.Integration
             var calls = code.Where(instruction => instruction.operand is MethodInfo method &&
                 method.DeclaringType.IsGenericType && method.DeclaringType.GetGenericTypeDefinition() == typeof(OwnedFactCollection<>) &&
                 method.MetadataToken == 0x060096AE).ToArray();
-            if (calls.Length != 1) throw new InvalidOperationException("Native child acquisition call count differs.");
+            var expectedBase = (original.MetadataToken == 0x060029F7 ? typeof(BuffCollection) : typeof(ItemEnchantmentCollection)).BaseType;
+            if (calls.Length != 1 || calls[0].opcode != OpCodes.Call ||
+                ((MethodInfo)calls[0].operand).DeclaringType != expectedBase)
+                throw new InvalidOperationException("Native child base acquisition dispatch differs.");
             calls[0].opcode = OpCodes.Call;
             calls[0].operand = typeof(MountedChargeBuffChildren).GetMethod(original.MetadataToken == 0x060029F7 ?
                 nameof(AddBuffFact) : nameof(AddEnchantmentFact), BindingFlags.Static | BindingFlags.NonPublic);

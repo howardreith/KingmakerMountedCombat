@@ -1,4 +1,16 @@
-## 2026-10-06 - preview179 CANDIDATE passed; native ownership proof pending
+## 2026-10-06 - shared179 startup failure; bounded180 repair
+
+Two fully restored launches crashed before rows at the same Mono address. Native
+results are absent; no Charge behavior verdict is inferred. No further179 launch.
+Exact IL and behavior independently prove a dispatch defect: the wrappers invoke
+derived overrides instead of the native nonvirtual base, recursively reentering
+acquisition.180 repairs only that dispatch. Regression/surface55/0, components681/0
+and FAST18/0/CANDIDATE30/0 pass; no native load has yet confirmed crash repair. This remains
+safely actionable within the mission, not a human-only blocker. All6B lifecycle/
+persistence gates and later phases remain incomplete. Exact retained crash and
+restoration identities are in the newest resume. No guard or rule was weakened.
+
+## Previous preview179 source checkpoint
 
 Frozen178 purity PASS, native NOTRUN: installed enabled COTW expands ChargeBuff
 beyond its base-only guard. Working179 handles the exact inspected child facts,

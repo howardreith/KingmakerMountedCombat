@@ -1,6 +1,28 @@
 # Chunk 6 continuation — 2026-10-05
 
-## Newest checkpoint: preview179 loaded-buff repair, 2026-10-06
+## Newest checkpoint: preview180 native dispatch repair, 2026-10-06
+
+179 source f1675762ee435125475b12e31f10ccf3fce4725e was published/frozen and proved
+WhatIf-pure. Charge RT and ordinary unmounted RT then crashed during Working load,
+before rows, with the same Mono access violation. Both guards restored all external
+dimensions; fresh audits rehashed275 saves/358 Mods, human105 intact, empty errors,
+no recovery, game or mutable transaction. Original FAIL receipts, logs, crash reports
+and frozen inputs are retained;24 stages NOTRUN. No third unchanged179 launch.
+
+Native AddBuffInternal/AddEnchantment call their OwnedFactCollection.AddFact base
+nonvirtually.179's wrappers instead call virtual overrides that reenter acquisition.
+180 retains typed delegates to the exact pinned native base implementation using
+nonvirtual IL call semantics. Native gain events and all lease scopes remain intact.
+The real wrapper regression fails on179, passes on180 for both collections: exact
+arguments, one native base call, zero override reentry, native failure identity and
+closed scope. Build PASS; surface55/0, components681/0, assets45/0, charge reader360/0,
+persistence155/0, FAST18/0 and CANDIDATE30/0 pass. One freeze/purity/complete26-stage
+batch follows. A repaired native load must still confirm crash attribution.
+See [newest resume](../AUTONOMOUS-RESUME.md) for all exact identities and failures.
+All6B-6F exits remain incomplete. The native Quicken rod is authorized only for the
+disposable6C Druid fixture and has not yet been added.
+
+## Previous preview179 loaded-buff checkpoint
 
 Published HEAD `aff3995b228e68b266368b2f3fd03f491b014c55`, tree
 `12445990d831e56242f34089c90e83d9cea5b3bc` was guarded-pushed/fetched equal.

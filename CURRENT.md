@@ -1,4 +1,16 @@
-## 2026-10-06 - preview.179 source complete; no new native campaign
+## 2026-10-06 - preview180 dispatch repair; CANDIDATE PASS
+
+Published179 f1675762ee435125475b12e31f10ccf3fce4725e is preserved. Its purity PASS
+is immutable. Charge RT and unmounted RT both crashed during Working load before
+rows;24 stages NOTRUN. Both fully restored, empty errors, human105 unchanged.
+Working180 preserves the exact nonvirtual native base AddFact call instead of
+recursively redispatching to derived overrides. Regression fails on179, passes
+on180; surface55/0, components681/0, FAST18/0 and CANDIDATE30/0 pass.
+Coherent publication/freeze/purity/native follow; no180 native result yet.
+No third unchanged179 launch. See [active record](docs/CHUNK6-CONTINUATION.md) and
+newest resume for exact evidence and next command. All phase exits are incomplete.
+
+## Previous preview179 source checkpoint
 
 Published HEAD aff3995b228e68b266368b2f3fd03f491b014c55 is preserved. Frozen178
 purity PASS, native NOTRUN; its guard rejects installed COTW augmentation.
