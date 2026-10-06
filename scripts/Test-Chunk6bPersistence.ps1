@@ -8,11 +8,16 @@ function CopyJson($x){ $x|ConvertTo-Json -Depth 80 -Compress|ConvertFrom-Json }
 function Accept([string]$Label,[scriptblock]$Body){ & $Body; $script:passed++; Write-Host ('PASS '+$Label) }
 function Refuse([string]$Label,[scriptblock]$Body){ $rejected=$false;try{& $Body}catch{$rejected=$true};if(-not$rejected){throw ('Accepted invalid artifact: '+$Label)};$script:passed++;Write-Host ('PASS refuses '+$Label) }
 function Actor([string]$Id,[double]$Standard=0){ [ordered]@{Id=$Id;Standard=$Standard;Move=0;Swift=0;Initiative=0;Reaction=0;ReactionsRemaining=1;LastSurpriseTicks=0} }
+function BuffProof { @{buffAcquisitionStarted=$true;buffAcquisitionObserved=$true;buffOutstanding=$false;buffCallbackDebt=$null;buffRuleDispatchSettled=$true
+ buffComponentTypes=@('Kingmaker.UnitLogic.FactLogic.AddStatBonus','Kingmaker.UnitLogic.FactLogic.AddCondition','Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus')
+ buffCondition=@{componentObserved=$true;condition=40;drained=$true;contributions=0;fault=$null;additions=1;removals=1;nativeExceptions=0;operations=@(
+  @{addition=$true;before=0;after=1;mutationObserved=$true;completed=$true;returnedNormally=$true},
+  @{addition=$false;before=3;after=2;mutationObserved=$true;completed=$true;returnedNormally=$true})}} }
 function Fixture([string]$Case,[bool]$Cold=$false){
  $scenario=if($Cold){'persistence-p04-load'}else{'persistence-p04-save'}
  $process=if($Cold){102}else{101}
  $request=[ordered]@{runId='owned-run';scenario=$scenario;persistenceCase=$Case;commit='source';dllSha256='dll';fixture=@{working=@{gameId='campaign';area='area'}}}
- $owner=[ordered]@{identity=17;rider='rider';mount='mount';target='target';state='FullyDrained';attempts=2;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;processObserved=$true;debt=''}
+ $owner=[ordered]@{identity=17;rider='rider';mount='mount';target='target';state='FullyDrained';attempts=2;committed=$true;commandTerminal=$true;riderSlotReleased=$true;riderContainerReleased=$true;schedulerAbsent=$true;carrierDrained=$true;leaseDrained=$true;lease=(BuffProof);shellTerminal=$true;shellContainerReleased=$true;processEnded=$true;processObserved=$true;debt=''}
  $shell=@{acted=$true;finished=$true;type='UnitUseAbility';abilityGuid='d79eaec224a7a832e738eb81baef9d49';executor='rider';target='target'}
  $charge=[ordered]@{owner=@{owned=$false};lastDrained=$owner;shell=$shell;shellActionType='Standard';shellFullRound=$true;command=@{finished=$true};admitted=1;refused=0;mountCharging=$false;riderCharging=$false;mountSpeedOverride=$null;chargeBuffCount=0;riderStandardSlot=$null;mountMoveSlot=$null;shellProcessEnded=$true;faultFired=$Case-cin@('mounted-charge-failed','mounted-charge-drained');faultObserved=$Case-ceq'mounted-charge-drained';nativeStopSent=$Case-ceq'mounted-charge-cancelled';costMax=@{riderStandard=6;riderMove=0;mountStandard=0;mountMove=0};straightRoute=$true;landingBlocked=$false;workerRunning=$false;callback=$false;
   actors=@(@{id='rider';prepared=$true;inCombat=$true;native=(Actor 'rider' 5)},@{id='mount';prepared=$true;inCombat=$true;native=(Actor 'mount')});
@@ -237,4 +242,22 @@ foreach($field in @('runId','transactionToken','commit','dllSha256','status','mo
 Write-KmcJsonAtomic $resultPath $result
 [IO.File]::AppendAllText($observations,"`n",[Text.UTF8Encoding]::new($false))
 Refuse 'source facts changed after manifest binding' {[void](Get-KmcChargeRemovalSourceProof 'owned-run' $done.cleanupSha256 'source' 'dll')}
+Accept 'native buff cleanup preserves changing foreign condition contributions' {Assert-KmcChargeBuffDrained (CopyJson (BuffProof))}
+foreach($field in @('buffAcquisitionStarted','buffAcquisitionObserved','buffRuleDispatchSettled')){
+ $proof=CopyJson (BuffProof);$proof.$field=$false
+ Refuse ('buff cleanup lacks '+$field) {Assert-KmcChargeBuffDrained $proof}
+}
+foreach($mutation in @(
+ {param($p)$p.buffCondition.operations[1].mutationObserved=$false},
+ {param($p)$p.buffCondition.operations[1].after=1},
+ {param($p)$p.buffCondition.operations[1].before='3'},
+ {param($p)$p.buffCondition.operations[1].after=2.5},
+ {param($p)$p.buffCondition.contributions=1},
+ {param($p)$p.buffCondition.removals=0},
+ {param($p)$p.buffCondition.fault='ambiguous'},
+ {param($p)$p.buffComponentTypes=@('Kingmaker.UnitLogic.FactLogic.AddStatBonus')}
+)){
+ $proof=CopyJson (BuffProof);& $mutation $proof
+ Refuse ('unproven native buff ownership: '+$mutation.ToString()) {Assert-KmcChargeBuffDrained $proof}
+}
 Write-Host ('CHARGE PERSISTENCE READER PASS='+$script:passed+' FAIL=0; synthetic artifacts only, no native qualification')

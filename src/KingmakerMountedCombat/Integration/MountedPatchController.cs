@@ -152,6 +152,14 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(BuffCollection), "Tick", 0x06002A02, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedBuffTimerTranspiler));
                 PatchExact(typeof(BuffCollection), "CreateFact", 0x060029F9, null,
                     null, nameof(PatchMethods.ChargeBuffCreatedPostfix));
+                PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnTurnOn", 0x06002448, Type.EmptyTypes,
+                    null, null, nameof(PatchMethods.ChargeConditionTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnTurnOff", 0x06002449, Type.EmptyTypes,
+                    null, null, nameof(PatchMethods.ChargeConditionTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnEntityCreated", 0x0600244A, new[] { typeof(UnitEntityData) },
+                    null, null, nameof(PatchMethods.ChargeConditionTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.UnitState), "UpdateStatusEffect", 0x06001FBF,
+                    new[] { typeof(Kingmaker.UnitLogic.UnitCondition), typeof(Buff) }, nameof(PatchMethods.ChargeConditionMutationPrefix));
                 PatchExact(typeof(CombatController), "TickTime", 0x06000BD6, Type.EmptyTypes, nameof(PatchMethods.ChargeTransitionTickPrefix), null, nameof(PatchMethods.PairedReadinessTranspiler));
                 PatchExact(typeof(CombatController).GetNestedType("<>c", BindingFlags.NonPublic), "<HandleCombatStart>b__79_2",
                     0x0600A2BE, null, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
@@ -320,6 +328,13 @@ namespace KingmakerMountedCombat.Integration
         {
             internal static void ChargeBuffCreatedPostfix(BuffCollection __instance, Kingmaker.Blueprints.Facts.Fact __result) =>
                 MountedChargeLease.ObserveChargeBuffCreated(__instance, __result as Buff);
+
+            internal static IEnumerable<CodeInstruction> ChargeConditionTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
+                MountedChargeConditionObserver.Wrap(instructions, __originalMethod);
+
+            internal static void ChargeConditionMutationPrefix(Kingmaker.UnitLogic.UnitState __instance,
+                Kingmaker.UnitLogic.UnitCondition condition, Buff sourceBuff) =>
+                MountedChargeConditionObserver.ObserveMutation(__instance, condition, sourceBuff);
 
             internal static void ChargeTargetPostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
             {

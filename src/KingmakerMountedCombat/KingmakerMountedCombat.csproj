@@ -433,6 +433,8 @@
     <Compile Include="Domain\MountedChargeOwnership.cs" />
     <Compile Include="Domain\MountedChargeBoundaryQueue.cs" />
     <Compile Include="Domain\MountedChargeFactOwnership.cs" />
+    <Compile Include="Domain\MountedChargeConditionOwnership.cs" />
+    <Compile Include="Integration\MountedChargeConditionObserver.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeCleanup.cs" />
     <Compile Include="Integration\MountedCombatController.ChargeBoundaries.cs" />
     <Compile Include="Domain\MountedChargeRevalidation.cs" />

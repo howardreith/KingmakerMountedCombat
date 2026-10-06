@@ -1,3 +1,15 @@
+## 2026-10-05 - preview.177 retired; preview.178 repair IN PROGRESS
+
+Published source225cf2d932e27d0a2fc3e9e735867959fa548f9d remains preserved and
+remote-equal. Preview177 was frozen, then exact installed-asset review proved
+its native Charge buff guard false. Its read-only proof is ABORTED (exit-1),
+native NOT RUN, no qualification claim. All external assets remain identical.
+Working178 repairs exact condition ownership/rule settlement and requires the
+actual three-component asset contract before freeze. FAST17/0 andCANDIDATE29/0
+pass; no native178 result exists. Exact package/suite/proof receipts follow the
+coherent source commit in lab analysis-cache. See [current continuation](docs/CHUNK6-CONTINUATION.md)
+and the newest resume entry. 6B-R is still active; 6B-C and6C-6F remain pending.
+
 ## 2026-10-05 - autonomous Chunk 6 continuation: phase 6B-R IN PROGRESS
 
 The owner's new mission authorizes resolving the persistence blocker and continuing

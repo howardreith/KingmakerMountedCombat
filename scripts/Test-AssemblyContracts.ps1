@@ -48,12 +48,19 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($processes.Count-eq1-and$processes[0]-is[Reflection.FieldInfo]-and$processes[0].Name-ceq'm_Abilities'-and
         $processes[0].FieldType.IsGenericType-and$processes[0].FieldType.GetGenericArguments()[0].FullName-ceq'Kingmaker.Controllers.AbilityExecutionProcess') 'no-DLL observer reads the exact native ability process collection'
     # Charge buff custody is captured before native insertion/activation. Its residue
-    # proof is limited to the exact native AddStatBonus surface, never arbitrary callbacks.
+    # proof covers the actual pinned AddStatBonus, AddCondition and AoO listener.
     foreach($expected in @(
         @('Kingmaker.UnitLogic.Buffs.BuffCollection',0x060029F9,'CreateFact'),
         @('Kingmaker.UnitLogic.Buffs.BuffCollection',0x060029F5,'AddBuff'),
         @('Kingmaker.UnitLogic.Mechanics.MechanicsContext',0x060021CC,'CloneFor'),
         @('Kingmaker.UnitLogic.FactLogic.AddStatBonus',0x0600254F,'OnTurnOff'),
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x0600244A,'OnEntityCreated'),
+        @('Kingmaker.UnitLogic.UnitState',0x06001FB7,'AddCondition'),
+        @('Kingmaker.UnitLogic.UnitState',0x06001FB9,'RemoveCondition'),
+        @('Kingmaker.UnitLogic.UnitState',0x06001FBF,'UpdateStatusEffect'),
+        @('Kingmaker.RuleSystem.Rulebook',0x060070D0,'get_Context'),
+        @('Kingmaker.RuleSystem.RulebookEventContext',0x060070E1,'get_EventStack'),
+        @('Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus',0x060086B9,'OnEventAboutToTrigger'),
         @('Kingmaker.EntitySystem.Stats.CharacterStats',0x06007EDC,'GetList'),
         @('Kingmaker.EntitySystem.Stats.ModifiableValue',0x06007EE7,'get_Modifiers'),
         @('Kingmaker.Blueprints.GameLogicComponent',0x060096B4,'get_IsListeningEvents')
@@ -68,12 +75,20 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Blueprints.Facts.Fact',0x0400695B,'m_ComponentsData'),
         @('Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier',0x04008C66,'AppliedTo'),
         @('Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier',0x04008C6A,'Source'),
-        @('Kingmaker.UnitLogic.Mechanics.MechanicsContext',0x04001707,'ParentContext')
+        @('Kingmaker.UnitLogic.Mechanics.MechanicsContext',0x04001707,'ParentContext'),
+        @('Kingmaker.UnitLogic.UnitState',0x040015F9,'m_Conditions'),
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x04001908,'Condition')
     )){
         $field=@(Find-Token $expected[0] $expected[1])
         Assert-Contract ($field.Count-eq1-and$field[0]-is[Reflection.FieldInfo]-and$field[0].Name-ceq$expected[2]) ('charge ownership residue field '+$expected[0]+'.'+$expected[2])
     }
     $creation=@(Find-Token 'Kingmaker.UnitLogic.Buffs.BuffCollection' 0x060029F9)
+    $conditionCounter=@(Find-Token 'Kingmaker.UnitLogic.UnitState' 0x040015F9)
+    Assert-Contract ($conditionCounter[0].FieldType.FullName-ceq'System.SByte[]') 'native condition ownership uses a shared signed-byte counter, never a source ledger'
+    foreach($token in @(0x06002448,0x0600244A)){
+        Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod($token) 0x06001FB7) ('native condition addition call site '+$token.ToString('X8'))
+    }
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06002449) 0x06001FB9) 'native condition removal uses the single-contribution overload'
     Assert-Contract ($creation[0].ReturnType.FullName-ceq'Kingmaker.Blueprints.Facts.Fact') 'charge buff creation observer matches exact native return type'
     foreach($expected in @(
         @('Kingmaker.View.ObstacleAnalyzer',0x060017B4,'GetNearestNode'),

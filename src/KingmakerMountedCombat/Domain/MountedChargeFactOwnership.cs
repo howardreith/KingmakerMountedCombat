@@ -13,6 +13,7 @@ namespace KingmakerMountedCombat.Domain
         public bool Drained { get; private set; }
         public string Fault { get; private set; }
         public bool RemovalFaulted { get; private set; }
+        public bool RemovalAttempted { get; private set; }
         public bool Outstanding => Started && !Drained;
 
         public void CaptureCreated(T fact)
@@ -47,8 +48,9 @@ namespace KingmakerMountedCombat.Domain
         {
             if (!Started || Drained) return true;
             if (Fact == null || RemovalFaulted) return false;
-            if (!postcondition(Fact))
+            if (!postcondition(Fact) && !RemovalAttempted)
             {
+                RemovalAttempted = true;
                 try { remove(Fact); }
                 catch (Exception error)
                 {
