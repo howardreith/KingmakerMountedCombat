@@ -1932,6 +1932,7 @@ namespace KingmakerMountedCombat.Integration
                 case NativeMountedControlKind.Dismount: return DismountAbilityGuid;
                 case NativeMountedControlKind.RiderPrimary: return RiderPrimaryAbilityGuid;
                 case NativeMountedControlKind.MountPrimary: return MountPrimaryAbilityGuid;
+                case NativeMountedControlKind.MountedCharge: return MountedChargeAbilityGuid;
                 default: return "<none>";
             }
         }

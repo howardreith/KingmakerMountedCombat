@@ -42,6 +42,18 @@ public static class ChargeOwnershipProbe {
   };
   var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));var mod=Assembly.LoadFrom(dll);
   Check(native.ManifestModule.ModuleVersionId.ToString()=="07fa1e4d-8618-41b3-9b8d-faa17d3b26f7","pinned native MVID");
+  var controlsType=mod.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
+  var controlKind=mod.GetType("KingmakerMountedCombat.Domain.NativeMountedControlKind",true);
+  var controlGuid=controlsType.GetMethod("AbilityGuid",F);
+  foreach(var mapping in new[]{new[]{"MountCompanion","MountAbilityGuid"},new[]{"Dismount","DismountAbilityGuid"},
+   new[]{"RiderPrimary","RiderPrimaryAbilityGuid"},new[]{"MountPrimary","MountPrimaryAbilityGuid"},
+   new[]{"MountedCharge","MountedChargeAbilityGuid"}}){
+   var actual=(string)controlGuid.Invoke(null,new[]{Enum.Parse(controlKind,mapping[0])});
+   var expected=(string)controlsType.GetField(mapping[1],F).GetRawConstantValue();
+   Check(actual==expected,"native activation identifies the exact "+mapping[0]+" ability");
+  }
+  Check((string)controlGuid.Invoke(null,new[]{Enum.ToObject(controlKind,-1)})=="<none>",
+   "unknown native control does not borrow another ability identity");
   var commandType=native.GetType("Kingmaker.UnitLogic.Commands.Base.UnitCommand",true);
   var commandsType=native.GetType("Kingmaker.UnitLogic.Commands.UnitCommands",true);
   var nativeRemove=commandsType.GetMethods(F).Single(m=>m.Name=="InterruptAll"&&m.GetParameters().Length==1&&m.GetParameters()[0].ParameterType.IsGenericType);

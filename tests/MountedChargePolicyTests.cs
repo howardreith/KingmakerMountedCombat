@@ -193,6 +193,27 @@ namespace KingmakerMountedCombat.Tests
                 var far = Evaluate(request => request.Distance = request.MaximumRange);
                 TestRunner.True(far.IsAllowed, "A target exactly at the maximum charge distance was refused.");
             });
+
+            runner.Run("mounted charge maximum refusal identifies range before a blocked route", () =>
+            {
+                var request = Lawful();
+                request.MaximumRange = 15.24f;
+                request.Distance = 18f;
+                request.StraightRoute = false;
+                var result = MountedChargePolicy.Evaluate(request);
+                TestRunner.True(!result.IsAllowed && result.RejectionCode == MountedCombatRejectionCode.OutsideSupportedRange &&
+                    result.Reason.StartsWith("The charge target is farther than the maximum charge distance of "),
+                    "The out-of-range target was admitted or misidentified as another refusal.");
+                TestRunner.True(request.RiderStandardCooldown == 0f && request.Distance == 18f && !request.StraightRoute,
+                    "Range prediction changed the native observations.");
+                request.Distance = request.MaximumRange;
+                TestRunner.True(MountedChargePolicy.Evaluate(request).RejectionCode == MountedCombatRejectionCode.NoPath,
+                    "An in-range obstructed route escaped the independent navigation gate.");
+                request.RiderStandardCooldown = 6f;
+                request.Distance = 18f;
+                TestRunner.True(MountedChargePolicy.Evaluate(request).RejectionCode == MountedCombatRejectionCode.WrongActionState,
+                    "An exhausted action was disguised as a range refusal.");
+            });
         }
     }
 }

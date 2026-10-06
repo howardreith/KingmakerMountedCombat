@@ -190,11 +190,20 @@ namespace KingmakerMountedCombat.Diagnostics
         // nothing. Every attempt is published so the chosen point is never a bare assertion.
         private Vector3 FindChunk6bChargeTargetPoint(float distance)
         {
+            // The maximum-range row observes an early refusal, not a traversable
+            // charge. Native targeting must name that exact range gate before
+            // navigation, with no shell/cost/movement. A walkable target behind
+            // a bend is valid for this measurement; delivery rows still require
+            // the original clear straight route. Never enlarge the spawn envelope.
+            var rangeOnly = Chunk6bChargeCaseId == "C6B-CHARGE-beyond-maximum";
+            var maximum = horse.CombatSpeedMps * 6f;
             var attempts = new JArray();
             Chunk6bChargeMeasurement["placement-" + Chunk6bChargeCaseId] = new JObject
             {
                 ["origin"] = CapturePosition(horse.Position),
                 ["wantedDistance"] = distance,
+                ["straightRouteRequired"] = !rangeOnly,
+                ["nativeMaximum"] = maximum,
                 ["attempts"] = attempts
             };
             return FindWalkablePoint(horse.Position, distance, 0.5f, point =>
@@ -202,6 +211,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 var endpoint = ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, point);
                 var blocked = Chunk6bLandingBlocked(point, 0.5f);
                 var riderDistance = HorizontalDistance(rider.Position, point);
+                var mountDistance = HorizontalDistance(horse.Position, point);
                 var within = MountedCombatSpatialPolicy.IsWithinDiagnosticSpawnBounds(riderDistance);
                 attempts.Add(new JObject
                 {
@@ -209,9 +219,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["nativeTrace"] = CapturePosition(endpoint),
                     ["landingBlockedEstimate"] = blocked,
                     ["riderDistance"] = riderDistance,
+                    ["mountDistance"] = mountDistance,
                     ["withinFixtureBounds"] = within
                 });
-                return within && endpoint == point && !blocked;
+                return within && !blocked && (rangeOnly ? mountDistance > maximum : endpoint == point);
             });
         }
 

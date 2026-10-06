@@ -924,4 +924,16 @@ foreach($faultRow in @('C6B-CHARGE-action-failed-before-rule','C6B-CHARGE-action
  Mutate ($faultRow+' fabricated cost') {param($a) (Row $a $faultRow).economy.riderStandardMax=6}
  Mutate ($faultRow+' string boolean') {param($a) (Row $a $faultRow).lastDrainedOwnership.nativeActionInProgress='false'}
 }
+Accept 'maximum-range refusal records blocked navigation without claiming a traversable charge' {
+ $a=New-Artifact
+ (Row $a 'C6B-CHARGE-beyond-maximum').before.geometry.straightRoute=$false
+ Assert-KmcChunk6bChargeEvidence $request $a 'PASS'
+}
+Mutate 'maximum-range target rejected for navigation instead of range' {param($a)
+ (Row $a 'C6B-CHARGE-beyond-maximum').before.targetCode='NoPath'
+ (Row $a 'C6B-CHARGE-beyond-maximum').before.targetReason='The charge line to the target is obstructed.'
+}
+Mutate 'preview182 missing native charge activation identity' {param($a)
+ foreach($record in (Row $a 'C6B-CHARGE-positive').input.requestWindow.records){$record.ability='<none>'}
+}
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")
