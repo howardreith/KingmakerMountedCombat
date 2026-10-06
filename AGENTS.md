@@ -1,4 +1,16 @@
-## 2026-10-06 - preview.179 source complete; native qualification pending
+## 2026-10-06 - preview180 native dispatch repair IN PROGRESS
+
+Frozen179 f1675762ee435125475b12e31f10ccf3fce4725e and receipts are immutable.
+Purity PASS; two startup crashes before rows,24 stages NOTRUN. Both fully restored;
+human105/saves unchanged, no game/transaction remains.180 restores the original
+nonvirtual OwnedFactCollection.AddFact call;179 wrappers recursively reentered
+derived overrides. Behavioral regression reproduced the defect and now passes;
+components681/0, surface55/0, FAST18/0 and CANDIDATE30/0 pass. Native repair proof
+remains required. Continue the owner's6B-6F mission after one coherent180 freeze.
+No third unchanged179 launch, guard weakening or stability claim. One mutator,
+existing safety limits. [Active record](docs/CHUNK6-CONTINUATION.md).
+
+## Previous preview179 source checkpoint
 
 Integration HEAD aff3995b228e68b266368b2f3fd03f491b014c55 is preserved. Frozen178
 purity passed but native never ran: its base-only buff guard rejects installed

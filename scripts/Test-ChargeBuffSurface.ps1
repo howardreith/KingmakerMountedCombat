@@ -61,6 +61,56 @@ public static class ChargeBuffSurfaceProbe {
  static T RootCallback<T>() where T:class{return (T)rootFact;}
  static Delegate TypedReturn(Type t,string method){return Delegate.CreateDelegate(typeof(Func<>).MakeGenericType(t),typeof(ChargeBuffSurfaceProbe).GetMethod(method,F).MakeGenericMethod(t));}
  static object Call(object o,string name,params object[] args){return o.GetType().GetMethod(name,F).Invoke(o,args);}
+ static object dispatchSource,dispatchBlueprint,dispatchContext,dispatchResult;
+ static Exception dispatchFailure;
+ static int baseAdds,virtualAdds;
+ public static object NativeAddBoundary(object source,object blueprint,object context,int virtualCall){
+  if(virtualCall!=0)virtualAdds++;else baseAdds++;
+  Check(Object.ReferenceEquals(source,dispatchSource)&&Object.ReferenceEquals(blueprint,dispatchBlueprint)&&Object.ReferenceEquals(context,dispatchContext),
+   "typed native acquisition preserves exact collection, blueprint and parent context");
+  if(dispatchFailure!=null)throw dispatchFailure;
+  return dispatchResult;
+ }
+ public static System.Collections.Generic.IEnumerable<T> ReplaceNativeAdd<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  // The inaccessible native mutation is the external boundary. Keep the real
+  // production wrapper and its dispatch, but intercept both possible callees so
+  // an erroneous virtual reentry fails safely instead of recursing into Unity.
+  var output=new System.Collections.Generic.List<T>();
+  Action<System.Reflection.Emit.OpCode,object> emit=(op,arg)=>output.Add((T)Activator.CreateInstance(typeof(T),new object[]{op,arg}));
+  emit(System.Reflection.Emit.OpCodes.Ldarg_0,null);emit(System.Reflection.Emit.OpCodes.Ldarg_1,null);emit(System.Reflection.Emit.OpCodes.Ldarg_2,null);
+  emit(System.Reflection.Emit.OpCodes.Ldc_I4,__originalMethod.MetadataToken==0x06009694?0:1);
+  emit(System.Reflection.Emit.OpCodes.Call,typeof(ChargeBuffSurfaceProbe).GetMethod("NativeAddBoundary",F));
+  emit(System.Reflection.Emit.OpCodes.Castclass,native.GetType("Kingmaker.Blueprints.Facts.Fact",true));emit(System.Reflection.Emit.OpCodes.Ret,null);
+  return output;
+ }
+ static void NativeAcquisitionDispatch(){
+  var graphType=mod.GetType("KingmakerMountedCombat.Integration.MountedChargeBuffChildren",true);
+  var instructionType=graphType.GetMethod("WrapAddFact",F).GetParameters()[0].ParameterType.GetGenericArguments()[0];
+  var legacy=instructionType.Assembly;var instanceType=legacy.GetType("Harmony12.HarmonyInstance",true);var harmonyMethod=legacy.GetType("Harmony12.HarmonyMethod",true);
+  var harmony=instanceType.GetMethod("Create",F).Invoke(null,new object[]{"KMC.detached.native-charge-base-dispatch"});var patch=instanceType.GetMethod("Patch",F);
+  var replacement=typeof(ChargeBuffSurfaceProbe).GetMethod("ReplaceNativeAdd",F).MakeGenericMethod(instructionType);
+  var hm=Activator.CreateInstance(harmonyMethod,new object[]{replacement});
+  patch.Invoke(harmony,new object[]{native.ManifestModule.ResolveMethod(0x06009694),null,null,hm});
+  foreach(var token in new[]{0x060029F8,0x060099B9}){
+   var derived=native.ManifestModule.ResolveMethod(token);var sourceType=derived.DeclaringType;
+   // The actual OwnedFactCollection<T>.AddFact body remains intact. Its native
+   // base insertion is the sole replacement, and its null-owner event policy
+   // still executes. No generic native method is patched by this CLR probe.
+   patch.Invoke(harmony,new object[]{derived,null,null,hm});
+   dispatchSource=Blank(sourceType);dispatchBlueprint=Buff("dispatch-probe");dispatchContext=N("Kingmaker.UnitLogic.Mechanics.MechanicsContext");
+   dispatchResult=N(token==0x060029F8?"Kingmaker.UnitLogic.Buffs.Buff":"Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment");
+   var wrapper=graphType.GetMethod(token==0x060029F8?"AddBuffFact":"AddEnchantmentFact",F);
+   baseAdds=virtualAdds=0;dispatchFailure=null;
+   var result=wrapper.Invoke(null,new[]{dispatchSource,dispatchBlueprint,dispatchContext});
+   Check(Object.ReferenceEquals(result,dispatchResult)&&baseAdds==1&&virtualAdds==0,
+    "unowned "+sourceType.Name+" calls the native owned-collection base exactly once without virtual recursion");
+   baseAdds=virtualAdds=0;dispatchFailure=new InvalidOperationException("native acquisition failure");var sameFailure=false;
+   try{wrapper.Invoke(null,new[]{dispatchSource,dispatchBlueprint,dispatchContext});}catch(TargetInvocationException error){sameFailure=Object.ReferenceEquals(error.InnerException,dispatchFailure);}
+   Check(sameFailure&&baseAdds==1&&virtualAdds==0&&graphType.GetField("acquiring",F).GetValue(null)==null,
+    "failed "+sourceType.Name+" native base acquisition propagates exact failure once and closes its scope");
+   dispatchFailure=null;
+  }
+ }
  static void ChildOwnership(){
   var graphType=mod.GetType("KingmakerMountedCombat.Integration.MountedChargeBuffChildren",true);
   var owners=(System.Collections.IList)graphType.GetField("owners",F).GetValue(null);
@@ -247,6 +297,7 @@ public static class ChargeBuffSurfaceProbe {
   root=Root(true);Refuses(root,()=>Set(Comp(root,0),"NewRound",List(N("Kingmaker.UnitLogic.Mechanics.Actions.ContextActionRemoveBuff"))),"unbounded repeating native effects are refused");
   root=Root(true);Refuses(root,()=>{var enchant=((Array)Get(Comp(Child(root,1),0),"enchantments")).GetValue(0);ArrayField(enchant,"Components",N("Kingmaker.UnitLogic.FactLogic.AddCondition"));},"same-GUID enchantment with unaudited lifetime mutation is refused");
   ChildOwnership();
+  NativeAcquisitionDispatch();
   FxHooks();
   Console.WriteLine("CHARGE BUFF SURFACE PASS="+passed+" FAIL=0; detached input contract, not loaded-graph or gameplay proof");
  }

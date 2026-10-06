@@ -1,3 +1,15 @@
+## 2026-10-06 - exact native fact acquisition dispatch
+
+Same pinned Kingmaker SHA2563b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb,
+MVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7. AddBuffInternal060029F7 and
+AddEnchantment060099B8 call OwnedFactCollection<T>.AddFact060096AE nonvirtually
+on closed owner types UnitDescriptor/ItemEntity. That base retains native insertion
+and gain events. Derived overrides060029F8/060099B9 route back to AddBuff/AddEnchantment;
+a virtual call recursively reenters the wrapped acquisition.180 preserves the exact
+base dispatch with a typed nonvirtual bridge. Detached behavior executes the real
+owned-collection body, intercepting only external insertion/derived reentry:55/0.
+The regression fails on179. Native repair qualification remains pending.
+
 ## 2026-10-05 - preview.176 continuation audit
 
 At product40c40e4510c93c7c41d7656a870ccbffa34dd849, installed Kingmaker assembly SHA256
