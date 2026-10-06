@@ -1,3 +1,70 @@
+## 2026-10-06 - preview182 closed at shared observer failure; coherent183 repair
+
+Phase6B IN PROGRESS. Frozen182 source220ed73b9f17e86e564ae8277bbed8bfa2594ec0,
+tree970948a52982a24f9367fba1709e6ca6d8be132c, package
+c21d85a316125d76cce0d8d1ab14da08a8f0e9d9d0ccabd7f7aac02975455269,
+suite20261006-chunk6b-charge-aa /
+8ad7fcc6d45dcf73a13db8c0e73839aa01709e2d684c0590dc424fb677edb4f7,
+purity PASS. The owner-approved successor is exactly two Handle captures,
+SHAc44331ac2e51cdbb3410278e33a25f7a0ee2fdab470a358e8ae36190a60bf619;
+all eight original helpers remain unchanged. Its exact launch/gate fragments
+observed0/7 for worker and observer;7 was rejected. The first probe receipt's
+PowerShell list-conversion failure and all probe outputs remain retained.
+
+Stage 1 rerun because the prior child exit was unobserved. Original native63/0
+and failed outer wrapper remain immutable and receive no process qualification
+credit. Newc6b-charge182-aa-unmounted-rt-rerun1 passed63/0 with observed worker,
+observer and game exits0. Stage2c6b-charge182-aa-charge-rt failed native64/2,
+external0/1; worker1,observer0,game0. Remaining24 stages are NOT RUN. The required
+shared-observer stop overrides the instruction to complete the live batch.
+
+The actual NativeMountedControlService.AbilityGuid switch omitted MountedCharge;
+its shared activation ledger emitted <none> while the real shell had the correct
+GUID. This is a producer defect, not a rider delivery defect or reader defect.
+The positive row measured6.799m mount travel, one rider attack and native Standard
+max5.96, but cannot be qualified with the missing required identity. Separately,
+all seven walkable18m maximum-range placement candidates had blocked straight
+navmesh traces, so the fixture threw before that row. No product rejection defect
+is inferred. No new TB hypothesis is established; exact cost-free refusal remains.
+
+183 adds the omitted GUID mapping and a compiled regression covering every control
+kind (fails on182 for MountedCharge). The range-only fixture keeps the original
+3..20m envelope, walkability and landing clearance, requires distance beyond the
+actual slowed mount maximum, and records its native trace without demanding a
+traversable charge corridor. The unchanged policy checks range before navigation;
+the unchanged external reader still demands the exact range reason and no shell,
+cost, movement or attack. In-range delivery rows keep their straight-route rule.
+Component regression proves range versus navigation and exhausted-action priority;
+reader regressions reject the actual missing identity and wrong rejection cause.
+No source action, cleanup, speed, movement budget or preparation rule changed.
+
+All three transactions restored byte-identically with no recovery and empty
+restorationErrors. Human105 DLL
+8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2;
+275 saves digest511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426;
+358 Mods digestc4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c.
+Exact per-file identities, both Stage1 attempts and all26 explicit rows are in
+lab analysis-cache/chunk6-continuation/20261005-6br/:
+preview182-campaign-process-reconciliation.json
+SHA7bbb561a7697f6c46d31584c9ae373cde57b2d36ffcd445e3dea722f1e384233;
+original-plan closure028139ec169f5ed64cc950581fa387bf957dcfef6d75168bed3e7acdfdb5b1ba.
+The process reconciliation selects the new Stage1 receipt; it does not relabel the
+original wrapper or infer its missing OS exits from its internal receipt.
+
+183 build PASS/source144/0, components682/0, compiled ownership111/0.
+Charge reader404/0, FAST18/0 and CANDIDATE30/0 pass. Candidate attempt2 completed
+2026-10-06T17:41:55.9102171Z, log SHA
+74a3c14a08ca367900fffe35f93bc4c3339828745591c770bc11dbbf6d375640.
+Build183-1's version-source mismatch and the negative GUID regression are retained.
+Candidate attempt1 failed at child launch because the host supplied identical Path
+and PATH environment keys. Attempt2 normalized those identical keys in its own
+process only; no user/system environment or source guard changed. Both logs remain.
+No183 package/suite/purity/native launch. Next: coherent guarded publication,
+new183 package/suite, required purity and the full ready26-stage native campaign.
+All6B-6F phase exits remain incomplete.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod change,
+rod/6C fixture change or HUMAN PLAY acceptance occurred. One mutating executor.
+
 # Chunk 6 continuation — 2026-10-05
 
 ## 2026-10-06 - preview182 exceptional native action cleanup IN PROGRESS
