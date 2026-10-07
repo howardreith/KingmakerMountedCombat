@@ -607,13 +607,15 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                 $attachments=@($v.attachments)
                 if($attachments.Count-ne2){ChargeFail 'native view fixture lacks exactly two attachments'}
                 $calls=$v.nativeAttachment
-                if($calls.contract-cne'native-view-attachment-call-v1'-or$calls.actor-cne$v.actor-or-not(ChargeInteger $calls.actorObject)-or$calls.actorObject-eq0-or
+                if($calls.contract-cne'native-view-attachment-call-v2'-or$calls.actor-cne$v.actor-or-not(ChargeInteger $calls.actorObject)-or$calls.actorObject-eq0-or
                    $calls.closed-isnot[bool]-or$calls.closed-ne$true-or-not(ChargeInteger $calls.pending)-or$calls.pending-ne0-or@($calls.errors).Count-ne0-or@($calls.events).Count-ne6-or
                    $calls.hook.token-cne'06007e9d'-or$calls.hook.method-cne'AttachToViewOnLoad'-or
                    $calls.hook.moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){ChargeFail 'native view attachment call observer incomplete'}
                 for($i=0;$i-lt2;$i++){
                     $event=$attachments[$i];$token=if($i-eq0){'06002a08'}else{'06002a09'}
                     $view=if($i-eq0){$v.afterApply.view}else{$v.afterRestore.view}
+                    $argument=if($i-eq0){$view}else{0}
+                    $priorView=if($i-eq0){$v.before.view}else{$v.afterApply.view}
                     if($event.actor-cne$v.actor-or$event.view-ne$view-or$event.attachmentInvocation-ne$i+1-or$event.frame-lt$v.before.frame-or$event.frame-gt$v.afterRestore.frame){ChargeFail 'view attachment names a foreign actor or view'}
                     # The polymorph source and notification remain independently
                     # attributed. AttachToViewOnLoad is observed directly, not
@@ -627,7 +629,8 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
                             if(-not(ChargeInteger $call.$field)){ChargeFail 'native view call lacks exact integer identity'}
                         }
                         if($call.sequence-ne$i*3+$part+1-or$call.boundary-cne$expectedBoundary-or$call.invocation-ne$i+1-or
-                           $call.actor-cne$v.actor-or$call.actorObject-ne$calls.actorObject-or$call.argumentView-ne$view-or$call.frame-ne$event.frame-or
+                           $call.actor-cne$v.actor-or$call.actorObject-ne$calls.actorObject-or$call.argumentView-ne$argument-or$call.frame-ne$event.frame-or
+                           $call.argumentWasNull-isnot[bool]-or$call.argumentWasNull-ne($i-eq1)-or($part-eq0-and$call.currentView-ne$priorView)-or
                            $call.bound-isnot[bool]-or($part-gt0-and($call.currentView-ne$view-or$call.bound-ne$true))){ChargeFail 'native view call did not bracket its exact bound attachment'}
                     }
                 }
@@ -901,7 +904,7 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne42-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 42 and a chunk6b charge scenario'}
+    if([long]$Artifact.schemaVersion-ne43-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 43 and a chunk6b charge scenario'}
     $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}

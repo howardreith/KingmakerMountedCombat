@@ -47,8 +47,9 @@ function New-ChargeContinuationFixture([single]$Initial=5,[single]$Delta=1,[int]
   Delivery 'rider' (100+$round) (200+$round) 1
  }
  $after=Point
- $p=Clone @{contract='native-rt-charge-continuation-v1';closed=$true;riderId='rider';mountId='mount';targetId='target';before=$before;after=$after;
-  trace=@{events=@($events.ToArray());dropped=0;observationErrors=0;observerHooks=@(@('06000C3C','0600C3BE','0600934A','0600939D','060093A4','06009120','0600838F','060026B2')|ForEach-Object {@{token=$_;moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}})};
+ $labels=@(1,2)+@(foreach($e in $events){if($e.command-ne0){$e.command};if($e.callbackObject-ne0){$e.callbackObject}})
+ $p=Clone @{contract='native-rt-charge-continuation-v2';closed=$true;riderId='rider';mountId='mount';targetId='target';before=$before;after=$after;
+  trace=@{identityRegistry=@{contract='retained-native-object-identity-v1';capacity=16000;released=$true;retainedCount=0;faults=0;ids=@($labels|Sort-Object -Unique)};events=@($events.ToArray());dropped=0;observationErrors=0;observerHooks=@(@('06000C3C','0600C3BE','0600934A','0600939D','060093A4','06009120','0600838F','060026B2')|ForEach-Object {@{token=$_;moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}})};
   attacks=@($attacks.ToArray());errors=@()}
  $queued=Clone @{rider=@{Id='rider';standard=$Initial;move=0;swift=0};mount=@{Id='mount';standard=0;move=0;swift=0};detail=@{target='target';resolved=$Resolved;riderRounds=0}}
  $done=Clone @{detail=@{resolved=$Resolved+2}}

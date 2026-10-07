@@ -33,7 +33,7 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
    throw 'Charge continuation wrong ordinary attack command'
   }
  }
- if($P.contract-cne'native-rt-charge-continuation-v1'-or-not(B $P.closed)-or@($P.errors).Count-ne0-or
+ if($P.contract-cne'native-rt-charge-continuation-v2'-or-not(B $P.closed)-or@($P.errors).Count-ne0-or
     (I $P.trace.dropped)-ne0-or(I $P.trace.observationErrors)-ne0){throw 'Charge continuation trace incomplete'}
  $rider=[string]$P.riderId;$mount=[string]$P.mountId
  if([string]::IsNullOrEmpty($rider)-or[string]::IsNullOrEmpty($mount)-or$rider-ceq$mount-or
@@ -43,10 +43,20 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
   if($hooks.Count-ne1-or$hooks[0].moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Charge continuation native observer hook missing'}
  }
  $before=$P.before;$after=$P.after;$current=@{};$ticks=@{};$costs=@{};$roundPending=@{};$rounds=@{};$tickCounts=@{};$standardCosts=0
+ $identity=$P.trace.identityRegistry;$retained=@{}
+ if($identity.contract-cne'retained-native-object-identity-v1'-or(I $identity.capacity)-ne16000-or
+    -not(B $identity.released)-or(I $identity.retainedCount)-ne0-or(I $identity.faults)-ne0-or
+    $identity.ids-isnot[array]-or@($identity.ids).Count-lt2-or@($identity.ids).Count-gt16000){throw 'Charge continuation lacks exact retained object identity'}
+ foreach($label in $identity.ids){
+  $label=I $label
+  if($label-eq0-or$label-lt[int]::MinValue-or$label-gt[int]::MaxValue-or$retained.ContainsKey($label)){throw 'Charge continuation identity registry is ambiguous'}
+  $retained[$label]=$true
+ }
  $commands=@{};$lastCommandRound=@{};$paidCommands=@{}
  foreach($role in @('rider','mount')){
   $id=if($role-ceq'rider'){$rider}else{$mount};$s=CopyState $before.$role;Same $s $s
   if($s.actor-cne$id){throw 'Charge continuation role changed'}
+  if(-not$retained.ContainsKey((I $s.actorObject))){throw 'Charge continuation actor reference was not retained'}
   foreach($field in @('standard','move','swift')){if([Math]::Abs((N $s.$field)-(N $Queued.$role.$field))-gt0.0001){throw 'Charge continuation queued baseline differs'}}
   $current[$id]=$s;$rounds[$id]=0;$tickCounts[$id]=0;$lastCommandRound[$id]=-1
  }
@@ -57,6 +67,7 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
  $attackFacts=@{};$attackRules=@{};$begun=0;$resolved=0
  foreach($a in @($P.attacks)){
   $seq=I $a.allocationSequence
+  if(-not$retained.ContainsKey((I $a.rule))){throw 'Charge continuation rule reference was not retained'}
   if($attackFacts.ContainsKey($seq)-or$a.actor-cnotin@($rider,$mount)-or$a.target-cne$P.targetId-or(B $a.charge)-or(B $a.opportunity)-or
      (I $a.rule)-eq0-or$a.boundary-cnotin@('attack-before','attack-after','attack-resolved')-or
      (I $a.attacksCount)-lt1-or(I $a.attackNumber)-lt0-or(I $a.attackNumber)-ge(I $a.attacksCount)-or
@@ -67,6 +78,10 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
  $sequence=I $before.allocationSequence;$time=I $before.gameTicks;$frame=I $before.frame;$seenAttacks=0
  if($sequence-ne0-or$P.trace.events-isnot[array]-or@($P.trace.events).Count-gt16000){throw 'Charge continuation trace bounds differ'}
  foreach($e in $P.trace.events){
+  foreach($label in @($e.state.actorObject,$e.command,$e.callbackObject)){
+   $label=I $label
+   if($label-ne0-and-not$retained.ContainsKey($label)){throw 'Charge continuation callback reference was not retained'}
+  }
   if((I $e.sequence)-ne++$sequence-or(I $e.gameTicks)-lt$time-or(I $e.frame)-lt$frame-or(I $e.frame)-gt(I $after.frame)-or(I $e.gameTicks)-gt(I $after.gameTicks)){throw 'Charge continuation event order differs'}
   $time=I $e.gameTicks;$frame=I $e.frame;$id=[string]$e.state.actor
   if(-not$current.ContainsKey($id)){continue}

@@ -1109,6 +1109,12 @@ if($Target-eq'Kingmaker'){
         $attachView[0].GetParameters()[0].Name-ceq'view' -and
         $attachView[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.View.EntityViewBase') `
         'view attachment observer binds the exact native instance Void(EntityViewBase view) argument'
+    $restoreViewIl=$polymorphRestore[0].GetMethodBody().GetILAsByteArray()
+    $attachViewIl=$attachView[0].GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($restoreViewIl[0x5e..0x63]-join',')-ceq'20,111,157,126,0,6') `
+        'native Polymorph restoration passes literal null to AttachToViewOnLoad'
+    Assert-Contract (($attachViewIl[0x1d..0x28]-join',')-ceq'2,2,111,158,126,0,6,40,144,126,0,6') `
+        'native null attachment creates and assigns its own view before binding Data'
     foreach($shape in @(@(0x04005014,'m_PolymoprphHandsEquipmentSet'),@(0x04005015,'m_PolymorphAdditionalLimbs'),
         @(0x040016D6,'SourceBone'),@(0x040016D7,'BoneReplaced'),@(0x040016D8,'BoneDefault'),
         @(0x0400156F,'OverrideAsks'),@(0x04001B7C,'Prefab'),@(0x04004C18,'AssetId'))){

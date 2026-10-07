@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.CompilerServices;
 using Kingmaker;
 using Kingmaker.RuleSystem.Rules;
 using Newtonsoft.Json.Linq;
@@ -38,7 +37,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     rule.Initiator.Commands.Standard, callback: rule);
                 chargeContinuationAttacks.Add(new JObject {
                     ["boundary"] = boundary, ["allocationSequence"] = chargeContinuationTrace.EventCount,
-                    ["rule"] = RuntimeHelpers.GetHashCode(rule), ["actor"] = rule.Initiator.UniqueId,
+                    ["rule"] = chargeContinuationTrace.ObjectIdentity(rule), ["actor"] = rule.Initiator.UniqueId,
                     ["target"] = rule.Target.UniqueId, ["charge"] = rule.IsCharge,
                     ["opportunity"] = rule.IsAttackOfOpportunity, ["fullAttack"] = rule.IsFullAttack,
                     ["attackNumber"] = rule.AttackNumber, ["attacksCount"] = rule.AttacksCount
@@ -54,11 +53,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chargeContinuationTrace == null) return;
             realtimeProbe.NativeAttackObserved -= ObserveChargeContinuationAttack;
             var after = ChargeContinuationPoint();
-            var trace = chargeContinuationTrace.Capture();
             chargeContinuationTrace.Dispose();
+            var trace = chargeContinuationTrace.Capture();
             chargeContinuationTrace = null;
             Write("charge-continuation-trace", new JObject {
-                ["contract"] = "native-rt-charge-continuation-v1", ["closed"] = true,
+                ["contract"] = "native-rt-charge-continuation-v2", ["closed"] = true,
                 ["riderId"] = rider.UniqueId, ["mountId"] = mount.UniqueId, ["targetId"] = combatTarget.UniqueId,
                 ["before"] = chargeContinuationBefore, ["after"] = after,
                 ["trace"] = trace, ["attacks"] = chargeContinuationAttacks.DeepClone(),
