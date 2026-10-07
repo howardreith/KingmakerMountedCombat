@@ -342,6 +342,8 @@
     <Compile Include="Diagnostics\NativeChargeSlowLease.cs" />
     <Compile Include="Diagnostics\NativeChargeViewLease.cs" />
     <Compile Include="Diagnostics\NativeViewAttachmentProbe.cs" />
+    <Compile Include="Diagnostics\ObservedViewAttachmentCall.cs" />
+    <Compile Include="Diagnostics\RetainedObjectIdentity.cs" />
     <Compile Include="Diagnostics\Chunk4IncomingRuleObserver.cs" />
     <Compile Include="Diagnostics\Chunk4NativeAreaObservation.cs" />
     <Compile Include="Diagnostics\Chunk4ObstructionScenario.cs" />

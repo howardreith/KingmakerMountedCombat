@@ -60,6 +60,20 @@ RejectPair 'second mount command reuses the first paid identity' {param($f)
 }
 RejectPair 'mount continuation resumes Charge' {param($f)@($f.proof.attacks|Where-Object actor -CEQ 'mount')[0].charge=$true}
 Reject 'unknown observer status' {param($f)$f.proof.closed=$null}
+Reject 'old hash-only observer contract' {param($f)$f.proof.contract='native-rt-charge-continuation-v1'}
+Reject 'identity collision detected by the producer' {param($f)$f.proof.trace.identityRegistry.faults=1}
+Reject 'identity references left alive after closure' {param($f)$f.proof.trace.identityRegistry.retainedCount=1}
+Reject 'identity registry never closed' {param($f)$f.proof.trace.identityRegistry.released=$false}
+Reject 'identity release status inferred from a string' {param($f)$f.proof.trace.identityRegistry.released='true'}
+Reject 'duplicate identity label in the retained set' {param($f)$f.proof.trace.identityRegistry.ids+=@(1)}
+Reject 'nonnull reference labeled as null' {param($f)$f.proof.trace.identityRegistry.ids+=@(0)}
+Reject 'unretained actor reference' {param($f)$f.proof.trace.identityRegistry.ids=@($f.proof.trace.identityRegistry.ids|Where-Object {$_-ne1})}
+Reject 'unretained native rule reference' {param($f)$f.proof.trace.identityRegistry.ids=@($f.proof.trace.identityRegistry.ids|Where-Object {$_-ne201})}
+Reject 'unretained native command reference' {param($f)$f.proof.trace.identityRegistry.ids=@($f.proof.trace.identityRegistry.ids|Where-Object {$_-ne101})}
+Reject 'identity capacity differs' {param($f)$f.proof.trace.identityRegistry.capacity=16001}
+Reject 'distinct rider rounds alias one command identity' {param($f)
+ foreach($e in @($f.proof.trace.events|Where-Object command -EQ 102)){$e.command=101}
+}
 Reject 'missing exact native tick hook' {param($f)$f.proof.trace.observerHooks=@($f.proof.trace.observerHooks|Where-Object token -CNE '0600934A')}
 Reject 'overflowed trace' {param($f)$f.proof.trace.dropped=1}
 Reject 'observer exception' {param($f)$f.proof.errors=@('native callback observation failed')}

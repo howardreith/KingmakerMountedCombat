@@ -21,8 +21,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly HarmonyInstance harmony;
         private readonly MethodInfo method;
         private readonly JArray events = new JArray(), errors = new JArray();
-        private EntityViewBase pendingView;
-        private int invocation, pending;
+        private readonly ObservedViewAttachmentCall call = new ObservedViewAttachmentCall();
         private bool disposed;
 
         internal NativeViewAttachmentProbe(UnitEntityData actor)
@@ -45,41 +44,43 @@ namespace KingmakerMountedCombat.Diagnostics
             catch { Dispose(); throw; }
         }
 
-        private void Record(string boundary, EntityViewBase view)
+        private void Record(string boundary, EntityViewBase view, int invocation)
         {
             if (events.Count >= 16) throw new InvalidOperationException("View attachment observation bound exceeded.");
             events.Add(new JObject { ["sequence"] = events.Count + 1, ["boundary"] = boundary,
-                ["invocation"] = pending, ["frame"] = Time.frameCount,
+                ["invocation"] = invocation, ["frame"] = Time.frameCount,
                 ["actor"] = actor.UniqueId, ["actorObject"] = RuntimeHelpers.GetHashCode(actor),
                 ["argumentView"] = view == null ? 0 : view.GetInstanceID(),
+                ["argumentWasNull"] = ReferenceEquals(view, null),
                 ["currentView"] = actor.View == null ? 0 : actor.View.GetInstanceID(),
                 ["bound"] = actor.View != null && actor.View.Data == actor });
         }
         private void Before(EntityViewBase view)
         {
-            if (pending != 0 || view == null) throw new InvalidOperationException("Nested or missing native view attachment.");
-            pending = ++invocation; pendingView = view; Record("attach-before", view);
+            var invocation = call.Begin(view, actor.View);
+            Record("attach-before", view, invocation);
         }
         private void After(EntityViewBase view)
         {
-            if (pending == 0 || !ReferenceEquals(pendingView, view)) throw new InvalidOperationException("Unmatched native view return.");
-            Record("attach-after", view); pending = 0; pendingView = null;
+            var invocation = call.End(view, actor.View);
+            Record("attach-after", view, invocation);
         }
         internal int Notification(UnitEntityData unit)
         {
             var observed = 0;
             Safe(() => {
-                if (!ReferenceEquals(unit, actor) || pending == 0 || !ReferenceEquals(actor.View, pendingView))
+                if (!ReferenceEquals(unit, actor))
                     throw new InvalidOperationException("View notification lacks its exact active native call.");
-                Record("view-notification", pendingView); observed = pending;
+                observed = call.Notify(actor.View);
+                Record("view-notification", (EntityViewBase)call.Argument, observed);
             });
             return observed;
         }
         internal void Fault(Exception exception) { if (errors.Count < 8) errors.Add(exception.ToString()); }
         private void Safe(Action action) { try { action(); } catch (Exception exception) { Fault(exception); } }
         internal JObject Capture() => new JObject {
-            ["contract"] = "native-view-attachment-call-v1", ["actor"] = actor.UniqueId,
-            ["actorObject"] = RuntimeHelpers.GetHashCode(actor), ["closed"] = disposed, ["pending"] = pending,
+            ["contract"] = "native-view-attachment-call-v2", ["actor"] = actor.UniqueId,
+            ["actorObject"] = RuntimeHelpers.GetHashCode(actor), ["closed"] = disposed, ["pending"] = call.Pending,
             ["hook"] = new JObject { ["token"] = method.MetadataToken.ToString("x8"),
                 ["method"] = method.Name, ["moduleMvid"] = method.Module.ModuleVersionId.ToString("D") },
             ["events"] = events.DeepClone(), ["errors"] = errors.DeepClone()

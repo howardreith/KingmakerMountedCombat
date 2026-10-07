@@ -1,3 +1,18 @@
+## 2026-10-07 - preview186 closed; coherent187 observer repair
+
+Phase6B IN PROGRESS;6C-6F incomplete. Frozen186 closed14 PASS/2 FAIL/12 BLOCKED-unrun;
+all16 native transactions restored exactly, empty errors, no game/transaction.
+Shared hash-identity ambiguity stopped the campaign; native RestoreView(null) also
+exposed a scoped observer defect. Preview187 retains exact references until trace
+closure and separately records null view arguments/native-created views. No change
+to product charge/action/cleanup policy or acceptance limits. Historical failures
+remain immutable. Components699/0, compiled observer13/0, charge441/0,
+continuation50/0, FAST26/0 and CANDIDATE38/0 pass. No187 native credit or6B stability.
+See docs/CHUNK6-CONTINUATION.md and the lab closed186 handoff for full identities,
+restoration and the exact next command. One coherent freeze/purity/28-stage campaign
+follows CANDIDATE and guarded publication. No rod until6B closes; then continue6C-6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
 ## 2026-10-07 - preview185 closed; coherent preview186 qualification repairs
 
 Phase 6B IN PROGRESS; 6C-6F incomplete. Frozen185 remains immutable:

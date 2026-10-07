@@ -41,6 +41,9 @@
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\InterruptedEvidenceFinalizer.cs"><Link>Shared\Diagnostics\InterruptedEvidenceFinalizer.cs</Link></Compile>
     <Compile Include="InterruptedEvidenceFinalizerTests.cs" />
     <Compile Include="Program.cs" />
+    <Compile Include="ObserverIdentityTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RetainedObjectIdentity.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ObservedViewAttachmentCall.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\BuildIdentity.cs">
       <Link>Shared\BuildIdentity.cs</Link>
     </Compile>

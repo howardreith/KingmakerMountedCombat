@@ -1,3 +1,52 @@
+## 2026-10-07 - preview186 closed; preview187 observer repairs
+
+Phase 6B IN PROGRESS; 6C-6F incomplete. Frozen186 source
+91cf3c3f9a09d2af1e3d1be877beaeba458d99de/tree7418895f867e68353b3aa77bc1b2b213c9af49c1
+closed **14 PASS / 2 FAIL / 12 BLOCKED-unrun**, 16 native transactions.
+Every actual game exited0; every transaction restored human105, protected saves,
+UMM/settings and foreign Mods with empty errors and no recovery. No game or
+runtime transaction remains. No blocked entry has a synthetic native verdict.
+Closure: lab analysis-cache/chunk6-continuation/20261005-6br/preview186-campaign-closure.json,
+SHA e91f460949a6a5dfca70405a1de76957ef5edab7acbb862a1af0263a846232f9.
+The full 28-row ledger and exact product/suite/restoration identities are in
+CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-PREVIEW186-CLOSED.md under that lab parent.
+
+Stage4 failed because the view-call observer rejected the native RestoreView(null)
+argument. Stage16 failed because two rider commands had one hash label; the shared
+observer did not retain references, so exact identity could not be established.
+That shared-observer boundary stopped stages17-28. Hash reuse is a hypothesis,
+not a proven explanation. Both failed artifacts and actual child exits1 remain
+immutable; neither failure establishes a product charge defect. Native186 TB
+Mount and pending save/cold load passed, but their evidence is not transferred.
+
+Preview187 retains each exact observed object for a bounded trace, verifies
+ReferenceEquals for repeated labels, rejects collisions, and releases references
+at closure while retaining evidence of faults. Command, actor, callback and rule
+identities use that one registry. The native view probe now distinguishes its
+literal null argument from the view created by the engine. Continuation contractv2
+requires a closed/drained registry; charge schema43 requires the exact native
+view-callv2 facts. Native command/resource/cleanup policy and all acceptance limits
+are unchanged. No new library, action write, refund, preparation or TB admission.
+
+Focused PASS: components699/0 (including twelve observer behavior tests), compiled
+fixture/identity adapter13/0, continuation50/0, charge reader441/0, persistence159/0,
+ownership111/0, assembly722/0, source145/0 and build. FAST1 PASS26/0.
+Retained source187-1 FAIL: version.json still named186; corrected before build/FAST.
+CANDIDATE1 PASS38/0, actual child exit0; all inputs stayed unchanged. No187 package, suite, purity or native verdict exists yet.
+FULL remains for final consolidation: this bounded diagnostics repair preserves
+native hooks, hash labels and production semantics; affected shared readers and
+compiled adapters are covered by focused/CANDIDATE checks.
+
+Next command: git diff --check
+Then coherent guarded publication, Invoke-Artifact187-v2.ps1, Record-Freeze187.ps1,
+one mandatory purity and the complete28-stage native campaign. The unexecuted
+Invoke-Artifact187.ps1 retains its old log suffix; its reviewed v2 corrects only
+that suffix before any artifact operation. Both files and their diff are retained.
+TB delivery remains DEFER - EVIDENCED with exact cost-free refusal; no6B stable
+claim or6C rod before6B closes. Continue automatically through6F afterward.
+No merge/PR/tag/release/permanent installation/protected-human-save write,
+foreign-mod mutation or HUMAN PLAY acceptance.
+
 ## 2026-10-07 - preview185 closed; coherent preview186 qualification repairs
 
 Phase 6B IN PROGRESS; 6C-6F incomplete. Frozen185 remains immutable:

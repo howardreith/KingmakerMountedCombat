@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Harmony12;
 using Kingmaker;
 using Kingmaker.Controllers.Combat;
@@ -38,6 +37,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly MountedCombatController combat;
         private readonly JArray events = new JArray();
         private readonly JArray installedHooks = new JArray();
+        private readonly RetainedObjectIdentity identities = new RetainedObjectIdentity(16000);
         internal JArray ObserverHooks => (JArray)installedHooks.DeepClone();
         private readonly Dictionary<UnitEntityData, int> grants = new Dictionary<UnitEntityData, int>();
         private readonly Dictionary<UnitEntityData, float> movedTime = new Dictionary<UnitEntityData, float>();
@@ -54,7 +54,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal event Action<string, UnitEntityData, UnitCommand> BoundaryObserved;
         internal int EventCount => events.Count;
         internal JArray EventsSince(int offset) => new JArray(events.Skip(offset).Select(item => item.DeepClone()));
-        internal bool Complete => dropped == 0 && observationErrors == 0;
+        internal bool Complete => dropped == 0 && observationErrors == 0 && identities.FaultCount == 0;
 
         internal NativeActorAllocationTrace(UnitEntityData rider, UnitEntityData mount, MountedCombatController combat)
         {
@@ -98,7 +98,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal void BeginEncounter(string id) { encounter = id; Record("encounter-setup", rider); }
-        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors, ["observerHooks"] = installedHooks.DeepClone() };
+        internal JObject Capture() => new JObject { ["events"] = events.DeepClone(), ["dropped"] = dropped, ["observationErrors"] = observationErrors, ["observerHooks"] = installedHooks.DeepClone(),
+            ["identityRegistry"] = new JObject { ["contract"] = "retained-native-object-identity-v1", ["capacity"] = identities.Capacity,
+                ["ids"] = new JArray(identities.Ids), ["retainedCount"] = identities.RetainedCount,
+                ["released"] = identities.Released, ["faults"] = identities.FaultCount } };
         internal int GrantCount(UnitEntityData actor) => grants.ContainsKey(actor) ? grants[actor] : 0;
         internal JObject Snapshot(UnitEntityData actor)
         {
@@ -124,7 +127,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["confusionPart"] = confusion != null,
                 ["confusionState"] = confusion?.State.ToString(),
                 ["confusionRoundTicks"] = confusion?.RoundStartTime.Ticks,
-                ["confusionCommand"] = confusion?.Cmd == null ? 0 : RuntimeHelpers.GetHashCode(confusion.Cmd),
+                ["confusionCommand"] = Id(confusion?.Cmd),
                 ["preparingPairedActor"] = combat.IsPreparingPairedActor(actor),
                 ["prone"] = actor.Descriptor.State.Prone.Active,
                 ["proneRequested"] = actor.Descriptor.State.Prone.ShouldBeActive,
@@ -223,8 +226,14 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { observationErrors++; events.Add(new JObject { ["boundary"] = boundary, ["observationError"] = exception.ToString() }); }
         }
 
-        public void Dispose() { harmony.UnpatchAll(HarmonyId); if (ReferenceEquals(active, this)) active = null; }
-        private static int Id(object value) => value == null ? 0 : RuntimeHelpers.GetHashCode(value);
+        public void Dispose()
+        {
+            harmony.UnpatchAll(HarmonyId);
+            if (ReferenceEquals(active, this)) active = null;
+            identities.Dispose();
+        }
+        internal int ObjectIdentity(object value) => identities.Get(value);
+        private int Id(object value) => ObjectIdentity(value);
         private void Patch(Type type, int token, string prefix, string postfix)
         {
             var method = type?.GetMethods(Flags).SingleOrDefault(item => item.MetadataToken == token);
