@@ -6,8 +6,8 @@ param(
     [string[]]$Focused = @(),
     [ValidateSet('Debug','Release')][string]$Configuration = 'Release',
     [switch]$SkipBuild,
-    # Lab root holding the immutable preview.150 evidence and ledger; when given, CANDIDATE
-    # re-evaluates those artifacts under the current reader (Test-Chunk6aImmutableReplay.ps1).
+    [ValidateSet('Both','Kingmaker','Wrath')][string]$AssemblyTarget='Both',
+    # Compatibility input; historical replay is explicit -Focused or FULL only.
     [string]$LabRoot = ''
 )
 # Three explicit verification tiers for Chunk 6 development (owner workflow amendment,
@@ -19,7 +19,7 @@ param(
 #              focused regression for the current defect (-Focused).
 #   CANDIDATE  once, before freezing a native candidate: FAST plus the runtime safety/harness core
 #              (which includes the package validator), the assembly contracts, the cross-feature
-#              regression readers and the ledger protocol.
+#              affected regression readers and protocol checks supplied through -Focused.
 #   FULL       at a milestone, at final qualification, or when a shared foundation change affects
 #              the whole repository: the complete umbrella (scripts/Test.ps1).
 #
@@ -62,20 +62,27 @@ if ($Tier -ceq 'Full') {
     }
     # The loop variable must not collide with Invoke-Tiered's own parameters (PowerShell variable
     # names are case-insensitive and the step body resolves names dynamically).
-    $fast = @('Validate-Source.ps1','Test-Chunk6aAdditionalRegistration.ps1','Test-Chunk6aRegressionBindings.ps1','Test-Chunk6aPrimaryClaims.ps1')
+    $fast = @('Validate-Source.ps1')
+    Invoke-Tiered 'FAST components' {
+        $components=Join-Path $repoRoot ("bin/Tests/"+$Configuration+"/KingmakerMountedCombat.Tests.exe")
+        if(-not(Test-Path -LiteralPath $components)){throw 'Compiled component runner missing.'}
+        & $components | ForEach-Object { Write-Host ('    '+$_) }
+        $componentExit=$LASTEXITCODE
+        if($componentExit-ne0){throw ('Component runner exited '+$componentExit)}
+    }
     foreach ($testScript in $fast) { Invoke-Tiered ('FAST ' + $testScript) { Invoke-TestScript $testScript } }
     # A -File invocation passes a comma-joined list as one string; accept both spellings.
     $focusedScripts = @($Focused | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
     foreach ($testScript in $focusedScripts) { Invoke-Tiered ('FOCUSED ' + $testScript) { Invoke-TestScript $testScript } }
     if ($Tier -ceq 'Candidate') {
-        $candidate = @('Test-Harness.ps1','Test-AssemblyContracts.ps1','Test-PairedActivationContracts.ps1','Test-RuntimeArtifactManifestContract.ps1',
-            'Test-Chunk6aSupportingEvidence.ps1','Test-Chunk6aRegressionReader.ps1','Test-Chunk6aRegressionArchives.ps1','Test-Chunk6aRegressionLedger.ps1','Test-Chunk6aLedgerProtocol.ps1','Test-Chunk6aFoundationEvidence.ps1')
+        $candidate = @('Test-Harness.ps1','Test-PairedActivationContracts.ps1','Test-RuntimeArtifactManifestContract.ps1')
         foreach ($testScript in $candidate) { Invoke-Tiered ('CANDIDATE ' + $testScript) { Invoke-TestScript $testScript } }
+        Invoke-Tiered ('CANDIDATE assembly '+$AssemblyTarget) { Invoke-TestScript 'Test-AssemblyContracts.ps1' @('-Target',$AssemblyTarget) }
+        # Affected registration/readers/ledger checks are explicit -Focused inputs.
+        # Historical archives and immutable replays remain under FULL; LabRoot
+        # alone never adds unrelated native-evidence interpretation.
         if (-not [string]::IsNullOrWhiteSpace($LabRoot)) {
-            Invoke-Tiered 'CANDIDATE Test-Chunk6aImmutableReplay.ps1' { Invoke-TestScript 'Test-Chunk6aImmutableReplay.ps1' @('-LabRoot',$LabRoot) }
-            Invoke-Tiered 'CANDIDATE Test-Chunk6aReevaluation.ps1' { Invoke-TestScript 'Test-Chunk6aReevaluation.ps1' @('-LabRoot',$LabRoot) }
-        } else {
-            Write-Host 'SKIP CANDIDATE Test-Chunk6aImmutableReplay.ps1 and Test-Chunk6aReevaluation.ps1 (no -LabRoot: the immutable-artifact replay and re-evaluation were not evaluated)'
+            Write-Host 'LabRoot retained for compatibility; historical replays require an explicit focused check or FULL.'
         }
     }
 }

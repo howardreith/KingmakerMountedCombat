@@ -24,6 +24,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",
             "chunk6a-mammoth-mount-rt", "chunk6a-mammoth-mount-tb", "chunk6a-paused-queue", "chunk6a-refused-policy-disabled","chunk6a-refused-foreign-companion","chunk6a-refused-wrong-creature-target","chunk6a-refused-mount-selected","chunk6a-refused-multiple-selection","chunk6a-refused-foreign-selection", "chunk6a-mount-approach", "chunk6a-geometry-change", "chunk6a-obstruction", "chunk6a-stop-approach", "chunk6a-combat-end-approach", "chunk6a-disable-approach", "chunk6a-command-replacement", "chunk6a-repeated-mount-request", "chunk6a-ownership-change", "chunk6a-size-form-change", "chunk6a-lost-direct-control", "chunk6a-rider-incapacitated", "chunk6a-mount-incapacitated", "chunk6a-hotbar-approach", "chunk6a-allocation-rider-first-tb","chunk6a-allocation-mount-first-tb","chunk6a-dismount-feature-disabled-rt","chunk6a-dismount-policy-disabled-rt","chunk6a-auto-use-mount-rt","chunk6a-auto-use-dismount-rt",
@@ -331,9 +332,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
-                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting", "combat-mount-rt", "combat-dismount-rt", "mounted-charge-pending", "mounted-charge-settled", "mounted-charge-cancelled", "mounted-charge-failed", "mounted-charge-drained" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
+                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting", "mounted-casting-items", "combat-mount-rt", "combat-dismount-rt", "mounted-charge-pending", "mounted-charge-settled", "mounted-charge-cancelled", "mounted-charge-failed", "mounted-charge-drained" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
-                Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end", "combat-mount-tb" }, PersistenceCase) < 0))
+                Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end", "combat-mount-tb", "casting-items" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");
             // Removal preparation and disable-during-load write and probe a live
             // world; the integration-absent case only ever opens a cleanup archive.
@@ -704,6 +705,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "C4-SUSTAINED-TB-mount-exhausted",
             "C4-SUSTAINED-TB-early-end",
             "C4-SUSTAINED-TB-after-early-end",
+            "C6C-quickened-self", "C6C-standard-self", "C6C-standard-friendly", "C6C-standard-hostile", "C6C-prepared-interrupt-after", "C6C-invalid-target", "C6C-cancel-before", "C6C-interrupt-before", "C6C-potion-self", "C6C-scroll-friendly", "C6C-full-round", "C6C-movement-policy", "C6C-rider-incapacity", "C6C-mount-incapacity", "C6C-under-threat",
             "C6B-CHARGE-default-off", "C6B-CHARGE-positive", "C6B-CHARGE-below-minimum",
             "C6B-CHARGE-spent-standard", "C6B-CHARGE-stock-rejected",
             "C6B-CHARGE-interrupted", "C6B-CHARGE-combat-ended", "C6B-CHARGE-obstructed-line", "C6B-CHARGE-cancelled",
@@ -726,6 +728,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
             "chunk6a-mount-preamble",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb",
             "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
             "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",
             "chunk6a-mammoth-mount-rt", "chunk6a-mammoth-mount-tb", "chunk6a-paused-queue", "chunk6a-refused-policy-disabled","chunk6a-refused-foreign-companion","chunk6a-refused-wrong-creature-target","chunk6a-refused-mount-selected","chunk6a-refused-multiple-selection","chunk6a-refused-foreign-selection", "chunk6a-mount-approach", "chunk6a-geometry-change", "chunk6a-obstruction", "chunk6a-stop-approach", "chunk6a-combat-end-approach", "chunk6a-disable-approach", "chunk6a-command-replacement", "chunk6a-repeated-mount-request", "chunk6a-ownership-change", "chunk6a-size-form-change", "chunk6a-lost-direct-control", "chunk6a-rider-incapacitated", "chunk6a-mount-incapacitated", "chunk6a-hotbar-approach", "chunk6a-allocation-rider-first-tb","chunk6a-allocation-mount-first-tb","chunk6a-dismount-feature-disabled-rt","chunk6a-dismount-policy-disabled-rt","chunk6a-auto-use-mount-rt","chunk6a-auto-use-dismount-rt",

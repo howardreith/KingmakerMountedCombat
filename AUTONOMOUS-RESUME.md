@@ -1,3 +1,43 @@
+## 2026-10-07 — 6C native baseline ready for qualification
+
+6B remains IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification remains deferred to Chunk 6 consolidation. Frozen188 and
+all 28 passing stages/29 restored transactions remain immutable.
+
+Working 0.1.0-chunk6c-preview.189 adds bounded normal-input diagnostics and one
+external casting/item validator; it changes no production casting, spending,
+concentration, charge, movement-budget or turn policy. The original Druid/Mammoth
+fixture gains native-created Lesser Quicken rod, potion and scroll only inside
+guarded disposable runs. The rod is not yet created. Four RT/TB mounted/unmounted
+15-row baselines and two settled spell/item save/cold-load pairs are ready.
+The cold process reads the saved rod and spent spell slot; it cannot provision
+items, replay casting or Mount, or continue an in-flight process.
+
+Focused PASS: components699/0, casting138/0, settled persistence72/0,
+compiled observer11/0, preamble215/0, parent handoff30/0, persistence contracts187/0,
+profile protection53/0, source145/0. FAST2 passed11/0; CANDIDATE3 passed16/0
+(shared harness271/0, Kingmaker assembly698/0), with exact input bytes unchanged.
+Lab receipt: 20261005-6br/6c-candidate3-process.json,
+SHA30674368c8545eead5342207b35ebf589680f24c1b3c6a6c1b6956569656fd83.
+Earlier build, fixture, reader, FAST and CANDIDATE failures remain retained;
+reader variable collisions and stale schema/caller pins were corrected offline.
+These counts are not native gameplay qualification. No189 package/suite/purity
+or game run exists at this source checkpoint; 6C remains IN PROGRESS.
+
+FAST now runs build/components and explicit affected gates; CANDIDATE adds the
+common safety/manifest and affected assembly checks. Historical 6A archives and
+ledgers remain under FULL or an explicit dependency-driven check. The existing
+native worker/exit observer has a manifest-parameterized successor in the lab;
+original helpers are preserved, and focused process/read probes precede use.
+No large extraction or acceptance-framework rewrite is required.
+
+Next: coherent guarded publication, exact189 package/suite, required WhatIf
+purity, then the eight-stage native baseline/settled persistence batch.
+No source mutation while frozen. Native defects are not yet established;
+prefer stock behavior and fix only attributable observations. Continue6C–6F.
+No merge/PR/tag/release/permanent install/protected-human-save write/foreign-mod
+change/HUMAN PLAY acceptance. One mutating executor; no active game/transaction.
+
 ## 2026-10-07 - 6B implementation stable; 6C native baseline next
 
 CHUNK 6B IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;

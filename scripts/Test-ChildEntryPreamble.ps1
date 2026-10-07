@@ -96,6 +96,14 @@ foreach($mounted in @($true,$false)){
  $busy=Copy-Preamble $p;$busy.party.playerInCombat=$true;$busy.party.membersInCombat=2;$busy.party.idle=$false
  Check $busy $scenario $mounted $false $true
 }
+# Original Druid/Mammoth 6C children remain structural JSON checks without
+# acquiring a compiled dependency on the game-driven scenario engine.
+foreach($scenario in @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')){
+ $p=New-Preamble $false;$p.childScenario=$scenario;$p.parentScenario=$scenario;$p.parentEngine='KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine'
+ Check $p $scenario $false $true $true
+ $bad=Copy-Preamble $p;$bad.parentScenario='horse-companion-unmounted-suite';Check $bad $scenario $false $true $false $true
+ $bad=Copy-Preamble $p;$bad.parentEngine='KingmakerMountedCombat.Diagnostics.HorseCompanionUnmountedScenarioEngine';Check $bad $scenario $false $true $false
+}
 # Scenario expectations and the version gate.
 foreach($s in @('chunk6a-mount-spent-move-tb','chunk6a-combat-mount-rt','chunk6a-allocation-rider-first-tb')){if(Test-KmcChildEntryExpectsMounted $s){throw "Chunk 6A child $s must start unmounted"};$checks++}
 foreach($s in @('chunk4-rider-death-tb','unmounted-attack-controls-rt','actor-allocation-rider-first-tb','ordinary-attack-controls-tb','phase3g-native-controls-tb','chunk6b-charge-path-rt','chunk6b-charge-path-tb')){if(-not(Test-KmcChildEntryExpectsMounted $s)){throw "child $s must start mounted"};$checks++}
