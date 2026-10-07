@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ScenarioDispatchEvidence.ps1')
 . (Join-Path $PSScriptRoot 'PreciseActingGroundEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativeApproachMovementEvidence.ps1')
 . (Join-Path $PSScriptRoot 'NativeMountApproachPathEvidence.ps1')
@@ -6767,17 +6768,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L) -or
-        ($phase3dSchemaVersion -in @(34L,35L,36L,37L,38L,39L,40L,42L,43L) -and [string]$Request.scenario -cnotin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb') -and $phase3dSchemaVersion -ne 43L) -or
-        ($phase3dSchemaVersion -eq 41L -and [string]$Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) -or
-        ($phase3dSchemaVersion -eq 33L -and [string]$Request.scenario -cnotin @('chunk6b-charge-path-rt','chunk6b-charge-path-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6b-charge-path-rt','chunk6b-charge-path-tb') -and $phase3dSchemaVersion -ne 33L) -or
-        ($phase3dSchemaVersion -in @(29L,30L) -and [string]$Request.scenario -cnotin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb') -and $phase3dSchemaVersion -ne 30L) -or
-        ($phase3dSchemaVersion -eq 31L -and [string]$Request.scenario -cne 'unmounted-attack-controls-rt') -or
-        ($phase3dSchemaVersion -eq 32L -and [string]$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb')) -or
-        ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
+    if (-not (Test-KmcPhase3dSchemaRegistration -SchemaVersion $phase3dSchemaVersion -Scenario ([string]$Request.scenario)) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -6805,90 +6796,12 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         Assert-KmcChildEntryPreamble $preambleProperty.Value ([string]$Request.scenario) (Test-KmcChildEntryExpectsMounted ([string]$Request.scenario)) (Test-KmcChildEntryRequiresIdleParty ([string]$Request.scenario))
         if ([string]$preambleProperty.Value.runId -cne [string]$Request.runId) { throw 'Child entry preamble names another run.' }
     }
-    if ($phase3dSchemaVersion -eq 30L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb')) {
-        Assert-KmcChunk6aCombatMountEvidence -Request $Request -Artifact $artifact -Status $Status
+    $phase3dDispatch=Get-KmcPhase3dEvidenceDispatch -SchemaVersion $phase3dSchemaVersion -Scenario ([string]$Request.scenario)
+    if($null-ne$phase3dDispatch) {
+        & $phase3dDispatch.validator -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 6A combat-mount evidence changed during validation.'
-        }
-        return
-    }    if ($phase3dSchemaVersion -eq 23L -or (Test-KmcChunk4ExtendedScenario ([string]$Request.scenario))) {
-        Assert-KmcChunk4ExtendedEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 extended evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -eq 22L -or (Test-KmcChunk4CoreScenario ([string]$Request.scenario))) {
-        Assert-KmcChunk4CoreEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 core evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -in @(21L,27L) -or [string]$Request.scenario -cin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt','chunk4-sustained-tb')) {
-        Assert-KmcChunk4PlayEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 sustained evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -eq 43L -or [string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) {
-        Assert-KmcChunk6bChargeEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 6B charge evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -eq 33L -or [string]$Request.scenario -cin @('chunk6b-charge-path-rt','chunk6b-charge-path-tb')) {
-        Assert-KmcChunk6bChargePathEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 6B charge-path evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -in @(18L,19L,20L,24L,25L,26L,41L) -or [string]$Request.scenario -cin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
-        Assert-KmcChunk4ChargeEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 Charge evidence changed during validation.'
-        }
-        return
-    }
-    if ([string]$Request.scenario -ceq 'ordinary-attack-controls-tb') {
-        Assert-KmcOrdinaryAttackControlsEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Ordinary attack evidence changed during validation.'
-        }
-        return
-    }
-    if (Test-KmcActorAllocationScenario ([string]$Request.scenario)) {
-        Assert-KmcActorAllocationEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Actor allocation evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -in @(9L, 10L) -or [string]$Request.scenario -cin @('phase3h-combat-loop-rt','phase3h-combat-loop-tb')) {
-        Assert-KmcPhase3hLoopEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Phase 3H evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -eq 8L -or [string]$Request.scenario -cin @('phase3g-native-controls-rt','phase3g-native-controls-tb')) {
-        Assert-KmcPhase3gControlsEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Phase 3G evidence changed during validation.'
+            throw $phase3dDispatch.mutationError
         }
         return
     }
