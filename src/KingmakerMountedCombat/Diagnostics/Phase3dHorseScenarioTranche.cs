@@ -743,6 +743,28 @@ namespace KingmakerMountedCombat.Diagnostics
             combatMountNativeTickLastCurrentTurnStatus = turn?.Status.ToString();
         }
 
+        private readonly InterruptedEvidenceFinalizer interruptedEvidence = new InterruptedEvidenceFinalizer();
+
+        internal void CaptureChargeHostInterruption()
+        {
+            if (!IsChunk6bCharge || completed || disposed) return;
+            interruptedEvidence.Capture(
+                () => AddRow("phase3d-horse-host-interrupted", false,
+                    "The host interrupted this charge cohort before its selected rows completed.", new JObject {
+                        ["step"] = step.ToString(), ["caseIndex"] = chunk6bChargeCase,
+                        ["case"] = chunk6bChargeCase < Chunk6bChargeCases.Length ? Chunk6bChargeCaseId : null,
+                        ["chargeStage"] = chunk6bChargeStage, ["elapsedSeconds"] = clock.Elapsed.TotalSeconds,
+                        ["lastInput"] = chunk6bChargeInput?.DeepClone(),
+                        ["samples"] = chunk6bChargeSamples.DeepClone(),
+                        ["completeRows"] = rows.Count, ["cleanupProven"] = false }),
+                BestEffortCleanup,
+                exception => AddCleanupError("interrupted child cleanup", exception),
+                WriteEvidence);
+            // Terminal FAILED evidence, not a claim that asynchronous cleanup completed.
+            // The production charge owner remains responsible for every unresolved step.
+            completed = true;
+        }
+
         public void Dispose()
         {
             if (disposed)
@@ -6418,8 +6440,13 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (motionEvidence != null)
             {
-                motionEvidence.Dispose();
-                observations["phase3fMotionFrames"] = motionEvidence.Snapshot();
+                try {
+                    motionEvidence.Dispose();
+                    observations["phase3fMotionFrames"] = motionEvidence.Snapshot();
+                }
+                catch (Exception exception) {
+                    AddCleanupError("motion evidence closure", exception);
+                }
             }
             if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
             {
@@ -6432,7 +6459,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk6bCharge ? 39 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk6bCharge ? 40 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
@@ -6895,6 +6922,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData expectedTarget;
         private bool forcePairHit;
         private bool disposed;
+        internal event Action<string, RuleAttackWithWeapon> NativeAttackObserved;
 
         internal Phase3dCombatRuleProbe(UnitEntityData rider, UnitEntityData mount)
         {
@@ -7028,6 +7056,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public void OnEventAboutToTrigger(RuleAttackWithWeapon evt)
         {
+            if (evt?.Target == expectedTarget && (evt.Initiator == rider || evt.Initiator == mount))
+                NativeAttackObserved?.Invoke("attack-before", evt);
         }
 
         public void OnEventDidTrigger(RuleAttackWithWeapon evt)
@@ -7086,6 +7116,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["attacksCount"] = evt.AttacksCount,
                 ["weaponGuid"] = evt.Weapon?.Blueprint?.AssetGuid
             });
+            NativeAttackObserved?.Invoke("attack-after", evt);
         }
 
         public void OnEventAboutToTrigger(RuleAttackWithWeaponResolve evt) { }
@@ -7093,8 +7124,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public void OnEventDidTrigger(RuleAttackWithWeaponResolve evt)
         {
             if (evt?.Target != expectedTarget || evt.AttackWithWeapon.IsAttackOfOpportunity) { return; }
+            if (evt.Initiator != rider && evt.Initiator != mount) return;
             if (evt.Initiator == rider) { RiderResolvedCount++; }
             if (evt.Initiator == mount) { MountResolvedCount++; }
+            NativeAttackObserved?.Invoke("attack-resolved", evt.AttackWithWeapon);
         }
 
         public void OnEventAboutToTrigger(RuleAttackRoll evt)

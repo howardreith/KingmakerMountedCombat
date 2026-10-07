@@ -3,6 +3,7 @@ param()
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/Chunk6bPersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Test-ChargeContinuationData.ps1')
 $script:passed=0
 function CopyJson($x){ $x|ConvertTo-Json -Depth 80 -Compress|ConvertFrom-Json }
 function Accept([string]$Label,[scriptblock]$Body){ & $Body; $script:passed++; Write-Host ('PASS '+$Label) }
@@ -52,6 +53,8 @@ function Fixture([string]$Case,[bool]$Cold=$false){
  AddRow 'rt-spent-attack-queued' $actual;AddRow 'rt-native-debt-wait' $actual
  foreach($i in 1,2){AddRow 'rt-later-attack' $actual;$rows[$rows.Count-1].detail.resolved=$resolved+$i;$rows[$rows.Count-1].detail.riderRounds=$i}
  AddRow 'usable-continuation-complete' $actual;$rows[$rows.Count-1].detail.resolved=$resolved+2
+ $continuation=New-ChargeContinuationFixture 5 1 $resolved
+ AddRow 'charge-continuation-trace' $continuation.proof
  [pscustomobject]@{request=(CopyJson $request);rows=@($rows.ToArray());game=[pscustomobject]@{processId=$process}}
 }
 function Run($f){Assert-KmcChargePersistenceRows $f.request $f.rows $f.game}

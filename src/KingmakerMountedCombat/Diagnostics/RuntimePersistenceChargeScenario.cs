@@ -34,6 +34,12 @@ namespace KingmakerMountedCombat.Diagnostics
         private void DisposeChargePersistence()
         {
             if (!RealtimeCase || !RealtimeCharge) return;
+            try { CloseChargeContinuationTrace(); }
+            catch (Exception exception) {
+                // The mandatory external trace cannot PASS if publication failed.
+                // Preserve cleanup of other owned diagnostic scopes during teardown.
+                logger.Exception("Charge continuation evidence closure failed", exception);
+            }
             MountedChargeAdmissionFault.AfterQueue = null;
             MountedChargeAdmissionFault.BeforeCleanupStep = null;
             persistence.SaveSnapshotStaged -= ObserveChargeSnapshot;

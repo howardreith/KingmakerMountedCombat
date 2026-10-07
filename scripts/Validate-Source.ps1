@@ -1295,14 +1295,12 @@ function Get-KmcDeclaredCaseNames([string]$Text, [string]$ArrayName, [string]$Pr
     @([Regex]::Matches($body.Groups[1].Value, ('"(' + [Regex]::Escape($Prefix) + '[A-Za-z0-9-]+)"')) |
         ForEach-Object { $_.Groups[1].Value })
 }
-function Get-KmcReaderRowNames([string]$Text, [string]$Mode) {
+function Get-KmcReaderRowNames([string]$Text, [string]$Mode, [string]$Scenario='') {
     $body = [Regex]::Match($Text, '(?s)function Get-KmcChunk6bChargeRows.*?\n\}')
     if (-not $body.Success) { return @() }
-    $branches = @([Regex]::Matches($body.Value, '(?s)@\((.*?)\)') | ForEach-Object { $_.Groups[1].Value })
-    # The function reads: if TB { <first array> } else { <second array> }.
-    if ($branches.Count -ne 2) { return @() }
-    $chosen = if ($Mode -ceq 'TB') { $branches[0] } else { $branches[1] }
-    @([Regex]::Matches($chosen, "'(C6B-CHARGE-[A-Za-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value })
+    # Execute only this repository-owned pure row selector, not its imports or validators.
+    . ([scriptblock]::Create($body.Value))
+    @(Get-KmcChunk6bChargeRows $Mode $Scenario)
 }
 $fixtureRt = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeRealTimeCases' 'C6B-CHARGE-')
 $fixtureTb = @(Get-KmcDeclaredCaseNames $chargeScenarioText 'Chunk6bChargeTurnBasedCases' 'C6B-CHARGE-')
@@ -1330,6 +1328,18 @@ Assert-Kmc ($fixtureRt.Count -ge 8 -and $fixtureTb.Count -ge 4 -and $repeatRow -
     $readerRt.Count -eq ($fixtureRt.Count + 1) -and $readerTb.Count -eq $fixtureTb.Count -and
     $caseListMismatches.Count -eq 0) `
     'the Chunk 6B charge fixture case arrays, its repeat row and the reader row lists agree exactly, per mode'
+
+$cohortText=Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/Chunk6bChargeCohorts.cs')
+$cohortMatches=@([Regex]::Matches($cohortText,'(?s)case (Core|Interruption|Lifecycle):\s*names = new\[\] \{(.*?)\};'))
+$cohortAgreement=$cohortMatches.Count-eq3
+foreach($match in $cohortMatches){
+    $scenario=[Regex]::Match($cohortText,('const string '+$match.Groups[1].Value+' = "([^"]+)"')).Groups[1].Value
+    $expected=@([Regex]::Matches($match.Groups[2].Value,'"([a-z-]+)"')|ForEach-Object {'C6B-CHARGE-'+$_.Groups[1].Value})
+    if($expected-ccontains'C6B-CHARGE-positive'){$expected+=@($repeatRow)}
+    $actual=@(Get-KmcReaderRowNames $chargeReaderText 'RT' $scenario)
+    $cohortAgreement=$cohortAgreement-and(($expected|Sort-Object)-join'|')-ceq(($actual|Sort-Object)-join'|')
+}
+Assert-Kmc $cohortAgreement 'bounded charge cohorts preserve exact compiled/reader row selection including the dependent repeat'
 
 # The carrier side of the same chain. Its fixture declares one case array used by both modes and its reader
 # one row list, so the invariant is plain set equality with no repeat row to account for.

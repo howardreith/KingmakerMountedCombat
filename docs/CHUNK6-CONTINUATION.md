@@ -1,3 +1,84 @@
+## 2026-10-07 - preview184 closed; coherent185 fixture and observation repairs
+
+Phase6B IN PROGRESS;6C-6F incomplete. Frozen184 source
+`a72b685391a3300b3616434ca59a0827fef6fecd`, tree
+`1490b4522f51dd7a08c6b29626da1bd2ab46dad1`, remains preserved. Campaign closure:
+**20 PASS /4 FAIL /2 BLOCKED dependencies;24 actual native transactions**.
+The blocked settled/drained cold loads were never launched because their source
+saves failed. All26 plan entries are reconciled; not all26 native stages completed.
+
+Closure: lab `analysis-cache/chunk6-continuation/20261005-6br/preview184-campaign-closure-with-blocked.json`,
+SHA `87d0320fcb7a23250b302a359a537c8eae102df8ef8a1c714975f15ab0f70331`.
+Package `83780c77b8db79563e8c9a0a5506baf4dc7de88a9684786467543f874650c850`;
+manifest `697620c782d50bd2f952c9cbe6f2b2955e99ac5bc8d5c725601b568e23383a29`;
+DLL `9c4bb2ae8ab753a84d19a9ac00bedd8805de79ad1666014911099d68c12f1509`,
+MVID `6fc86a6b-8cf5-4776-84e9-d2479da7f5f7`;
+suite `20261006-chunk6b-charge-ac` /
+`d6f2b13c523e715b3b76138af48a2c1821ddab2b2a4738078b76ea9ca7578a80`.
+Purity PASS, actual child exit0; receipt SHA
+`1bbfc00cadb4a26a3e2db313556912c901cd4c67d28290d1a7f42c0a78086c28`.
+Full26-row result table, process exits, settled receipts and restoration hashes:
+lab `analysis-cache/chunk6-continuation/CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-PREVIEW184-CLOSED.md`.
+Its product label is clarified here as **0.1.0-chunk6b-preview.184**; the frozen
+product source and all package identities above are separate from this185 worktree.
+
+All24 actual transactions restored human105, protected saves, settings, UMM and
+foreign Mods with empty restorationErrors and no recovery.275 protected files/
+3180712448 bytes digest `511077a04981fe3657d47eb0fc8727f67ea5602f755575c6b4aae1142974a426`;
+358 Mods files/74540634 bytes digest
+`c4e783ebd7776e3dc298528438ebf5097fc7c61b483881d49cf4a14a965a721c`.
+Human105 DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`.
+No game or runtime transaction remains. **The whole profile was not byte-identical**:
+cancelled-load's native `achievements.dath` rewrite,12288 bytes, passed the unchanged
+Chunk5 native-achievement-cache-settled-size policy. Before
+`f0c88979911ec7ba23a5fc95caa613b7a178539440331c170fb066946ad9100e`, after
+`b46bddd972c27cc84ae409110f1588f94472c76aefcf1e922e5a4150a709921c`.
+Exact receipt: `runtime-evidence/c6b-charge184-ac-cancelled-load/profile-cache-changes.json`.
+No manual cache repair or protected-state write occurred.
+
+Four retained failures and the coherent repair:
+
+- RT charge exhausted the unchanged300s host budget before child publication;
+  native14/1 and external0/1 do not qualify missing rows. Three fixed cohorts now
+  contain every required case; repeated request remains attached to the positive
+  delivery. Host interruption records the exact case, samples and FAILED prefix
+  before cleanup. Root300s/leaf30s bounds are unchanged; no omitted or relabeled row.
+- TB stock safety failed its native origin walk before Charge input (62/2).
+  The measured path was interrupted near the Horse with static obstruction.185
+  records native route/footprint probes and capsule clearance against every live
+  occupant before selecting a normal ground input. No warp or resource reset.
+- Settled and drained P04 sources each failed a rounded GameTime prediction,16/1.
+  The exact pinned engine subtracts float GameDeltaTime from cooldowns but rounds
+  GameTime increments to milliseconds; a fixed10ms oracle cannot prove readiness.
+ 185 records actual cooldown entry/exit, native round crossing, cost callbacks and
+  exact ordinary attack rules. One external validator accounts for all mutations,
+  requires two lawful later rounds/costs/attacks and rejects refunds/replay/missing
+  events. No wider time tolerance, product action change or synthesized debt.
+
+The new RT cohorts reject diagnostic limitations as qualification. Schemas40
+(charge) and41(stock safety) distinguish the new raw evidence. Original fullRT and
+historical schemas remain available for historical interpretation. The campaign
+will contain28 stages: the previous25 independent controls/persistence/lifecycle
+stages plus the three cohorts. No185 package, suite, purity or native run yet.
+TB delivery remains **DEFER - EVIDENCED**;184 qualified exact refusal64/0. No new
+lawful delivery hypothesis or additional TB implementation experiment is asserted.
+
+Offline185 PASS: components687/0; charge reader423/0; continuation26/0;
+persistence159/0; stock reader484/0; source145/0; ownership111/0; compiled fixture8/0;
+FAST22/0. FAST completed2026-10-07T00:48:07.6771399Z with unchanged inputs,
+log SHA `b5a39e0245e93cc975739d381f4cf8652a32413c238746b561c223da52f75347`.
+CANDIDATE1 stopped at the harness exact-schema pin,270/1; the producer correctly
+emits40/41 and the old test expected39/26. Only those two pinned literals changed;
+all9 assertions in the exact affected test body pass. CANDIDATE2 PASS34/0 with
+unchanged inputs; harness271/0, assembly717/0. Completed2026-10-07T01:18:16.4536194Z,
+log SHA `38f5820ee73857c1138d6b0a24023fb5299bb76eb6d660fe2d5627cd4dc039bb`. Attempt1
+and its unchanged-input receipt remain retained. The first source-validator stale array-shape check and first
+stock-reader fixture-indexing failure are retained, followed by passing corrections.
+No FULL run. Every182-184 failure, helper, frozen package and receipt is preserved.
+No new production integration policy or dependency. No merge/PR/tag/release,
+permanent install, protected-save write, foreign-mod change, rod or HUMAN PLAY.
+Next: coherent guarded publication, one185 package/observer3 suite,
+one required purity proof, the complete ready28-stage batch, then continue6B-6F.
 ## 2026-10-06 - preview183 closed 22 PASS / 4 FAIL; coherent184 fixture/observer repair
 
 Phase6B IN PROGRESS. Frozen183 source672ea70f2cab947651c1906227cd90f1c7a18048,
