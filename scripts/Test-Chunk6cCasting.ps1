@@ -15,6 +15,18 @@ function Positive([bool]$tb){
 function Accept($row,[bool]$tb=$false,[bool]$mounted=$true){Assert-KmcChunk6cCastingRow $row 'rider' 'mount' $tb $mounted}
 function Reject($row,[string]$why,[bool]$tb=$false){$refused=$false;try{Accept $row $tb}catch{$refused=$true};Check $refused $why}
 foreach($tb in @($false,$true)){Accept (Positive $tb) $tb;Check $true ('native single Standard cost accepted '+$tb)}
+# Exercise the actual launcher's parameter binder without executing its body.
+$launcher=Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1'
+$tokens=$null;$errors=$null;$launchAst=[Management.Automation.Language.Parser]::ParseFile($launcher,[ref]$tokens,[ref]$errors)
+Check ($errors.Count-eq0) 'actual guarded launcher parses'
+$metadata=Get-Command $launcher
+$registered=@(($metadata.Parameters['Scenario'].Attributes|Where-Object {$_-is[Management.Automation.ValidateSetAttribute]}).ValidValues)
+$bindOnly=[scriptblock]::Create($launchAst.ParamBlock.Extent.Text+"`n'bound-without-launch'")
+foreach($scenario in @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')){
+ Check ($registered-ccontains$scenario) ('actual guarded launcher registers '+$scenario)
+ Check ((& $bindOnly -Scenario $scenario -RunId 'c6c-registration-probe')-ceq'bound-without-launch') ('actual native parameter guard admits '+$scenario)
+ Check ((Get-KmcSaveBackedRuntimeScenarios)-ccontains$scenario) ('request registry agrees '+$scenario)
+}
 $base=Positive $false
 $r=Copy-CastingFixture $base;$r.evidence.before.ability.caster='mount';Reject $r 'mount caster refused'
 $r=Copy-CastingFixture $base;$r.evidence.inputCount=2;Reject $r 'duplicate input refused'
