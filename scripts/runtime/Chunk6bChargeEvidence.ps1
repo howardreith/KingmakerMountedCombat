@@ -10,11 +10,17 @@ Set-StrictMode -Version Latest
 # rider-owned attack carries the native charge rule; every refusal happens before any cost, path or attack;
 # the feature is absent while its setting is off; the stock Charge stays rejected while mounted; and the
 # charge lease is restored exactly with no residue beyond the native buff duration.
-function Get-KmcChunk6bChargeScenarios { @('chunk6b-charge-rt','chunk6b-charge-tb') }
+function Get-KmcChunk6bChargeScenarios { @('chunk6b-charge-rt','chunk6b-charge-tb','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt') }
 function Get-KmcChunk6bChargeMode([string]$Scenario) { if([string]$Scenario-ceq'chunk6b-charge-tb'){'TB'}else{'RT'} }
 # Real time carries the whole 6B.2 row set. Turn-based carries the delivery and refusal core: the
 # repeated request and the two lifecycle interventions belong to a live real-time path.
-function Get-KmcChunk6bChargeRows([string]$Mode) {
+function Get-KmcChunk6bChargeRows([string]$Mode,[string]$Scenario='') {
+    $cohort=switch -CaseSensitive ($Scenario) {
+        'chunk6b-charge-core-rt' { @('default-off','positive','spent-standard','below-minimum','beyond-maximum','stock-rejected','obstructed-line','blocked-clearance','cancelled','duplicate') }
+        'chunk6b-charge-interruption-rt' { @('default-off','interrupted','child-cleanup','combat-ended','exception-cleanup','action-failed-before-rule','action-failed-after-rule','lease-application-failed','target-moved','target-lost','new-landing-blocker') }
+        'chunk6b-charge-lifecycle-rt' { @('default-off','rider-incapacitated','mount-incapacitated','feature-disabled','dismounted','mode-changed','relationship-invalidated','view-replaced','mount-dead','rider-dead') }
+    }
+    if($cohort){return @($cohort|ForEach-Object {'C6B-CHARGE-'+$_})}
     if([string]$Mode-ceq'TB'){
         @('C6B-CHARGE-default-off','C6B-CHARGE-positive','C6B-CHARGE-below-minimum','C6B-CHARGE-stock-rejected')
     } else {
@@ -877,13 +883,13 @@ function Assert-KmcChunk6bChargeRow($Row,[string]$Mode) {
 
 function Assert-KmcChunk6bChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if([long]$Artifact.schemaVersion-ne39-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 39 and a chunk6b charge scenario'}
+    if([long]$Artifact.schemaVersion-ne40-or-not(Test-KmcChunk6bChargeScenario ([string]$Request.scenario))){ChargeFail 'requires schema 40 and a chunk6b charge scenario'}
     $mode=Get-KmcChunk6bChargeMode ([string]$Request.scenario)
     $measurement=ChargeProp $Artifact.observations 'chunk6bCharge'
     if($null-eq$measurement-or[string](ChargeProp $measurement 'contract')-cne'chunk6b-pair-charge-delivery'-or[string](ChargeProp $measurement 'mode')-cne$mode){ChargeFail 'the delivery contract or mode is absent or differs'}
     if([string](ChargeProp $measurement 'abilityGuid')-cne(ChargeKmcAbilityGuid)){ChargeFail 'the delivery contract names another ability'}
-    $required=Get-KmcChunk6bChargeRows $mode
-    $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-tranche-cleanup-deadline','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
+    $required=Get-KmcChunk6bChargeRows $mode ([string]$Request.scenario)
+    $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-tranche-cleanup-deadline','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception','phase3d-horse-host-interrupted')
     $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     $pass=0;$fail=0
     foreach($row in @($Artifact.rows)){
@@ -891,8 +897,16 @@ function Assert-KmcChunk6bChargeEvidence {
         if([string]$row.status-ceq'FAIL'){$fail++;continue}
         $pass++
         if([string]$row.name-cin$failureOnly){ChargeFail ('failure-only row claimed PASS: '+$row.name)}
+        if($Request.scenario-cin@('chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt')-and
+           -not[string]::IsNullOrEmpty([string](ChargeProp $row.evidence 'limitation'))){
+            ChargeFail ('required cohort behavior remains unqualified: '+$row.name)
+        }
         Assert-KmcChunk6bChargeRow $row $mode
-        if($mode-ceq'RT'-and$row.name-cne'C6B-CHARGE-default-off'){
+        if($mode-ceq'RT'-and$row.name-ceq'C6B-CHARGE-spent-standard'){
+            if($null-ne$measurement.PSObject.Properties['positioning-C6B-CHARGE-spent-standard']){
+                ChargeFail 'spent-Standard repeat records independent fixture positioning'
+            }
+        }elseif($mode-ceq'RT'-and$row.name-cne'C6B-CHARGE-default-off'){
             Assert-KmcChargeFixtureReturn (ChargeProp $measurement ('positioning-'+$row.name)) (ChargeProp $measurement 'fixtureOrigin') $row.name
         }
     }
@@ -908,12 +922,12 @@ function Assert-KmcChunk6bChargeEvidence {
         if($cleanup.relationshipState-cne'Unmounted'-or$cleanup.playerInCombat-ne$false-or$cleanup.nativeTurnBased-ne$false-or$cleanup.nativeControllerInitialized-ne$false-or@($Artifact.errors).Count-ne0){ChargeFail 'charge fixture did not settle its native encounter'}
         $original=@(ChargeProp $Artifact.observations 'initialSelection')
         $expected=$original
-        if($mode-ceq'RT'){
+        if($required-ccontains'C6B-CHARGE-rider-dead'){
             $death=@($Artifact.rows|Where-Object name -CEQ 'C6B-CHARGE-rider-dead')[0].evidence.death
             if($cleanup.nativeFinalDeathSelectionExclusion-cne$death.subject){ChargeFail 'cleanup excluded another or unproven native death subject'}
             $expected=@($original|Where-Object {$_-cne$death.subject})
             if($expected.Count-eq0-and$original-ccontains$death.subject){$expected=@($death.enemyDamageSource)}
-        }elseif($null-ne$cleanup.nativeFinalDeathSelectionExclusion){ChargeFail 'TB refusal excluded an actor from restored selection'}
+        }elseif($null-ne$cleanup.nativeFinalDeathSelectionExclusion){ChargeFail 'non-death cohort excluded an actor from restored selection'}
         if((@($cleanup.expectedSelection|Sort-Object)-join'|')-cne(@($expected|Sort-Object)-join'|')-or
            (@($cleanup.actualSelection|Sort-Object)-join'|')-cne(@($expected|Sort-Object)-join'|')){ChargeFail 'exact native selection restoration differs'}
     }

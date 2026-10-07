@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string Chunk6bChargeRtScenario = "chunk6b-charge-rt";
         internal const string Chunk6bChargeTbScenario = "chunk6b-charge-tb";
         internal static bool IsChunk6bChargeScenario(string scenario) =>
+            Chunk6bChargeCohorts.Select(scenario) != null ||
             string.Equals(scenario, Chunk6bChargeRtScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6bChargeTbScenario, StringComparison.Ordinal);
         private bool IsChunk6bCharge => IsChunk6bChargeScenario(request.Scenario);
@@ -76,7 +77,8 @@ namespace KingmakerMountedCombat.Diagnostics
             "C6B-CHARGE-stock-rejected"
         };
         private string[] Chunk6bChargeCases =>
-            Chunk6bChargeTb ? Chunk6bChargeTurnBasedCases : Chunk6bChargeRealTimeCases;
+            Chunk6bChargeTb ? Chunk6bChargeTurnBasedCases :
+            Chunk6bChargeCohorts.Select(request.Scenario) ?? Chunk6bChargeRealTimeCases;
 
         private int chunk6bChargeCase, chunk6bChargeStage;
         private bool chunk6bChargeControlSent;

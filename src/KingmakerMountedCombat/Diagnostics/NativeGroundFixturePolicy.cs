@@ -6,6 +6,17 @@ namespace KingmakerMountedCombat.Diagnostics
 {
     internal static class NativeGroundFixturePolicy
     {
+        internal static double DistanceToRoute(PoseVector3 from, PoseVector3 to, PoseVector3 point)
+        {
+            if (!from.IsFinite || !to.IsFinite || !point.IsFinite) return double.NaN;
+            var dx = (double)to.X - from.X; var dz = (double)to.Z - from.Z;
+            var lengthSquared = dx * dx + dz * dz;
+            var t = lengthSquared == 0 ? 0 : Math.Max(0, Math.Min(1,
+                (((double)point.X - from.X) * dx + ((double)point.Z - from.Z) * dz) / lengthSquared));
+            var x = point.X - (from.X + t * dx); var z = point.Z - (from.Z + t * dz);
+            return Math.Sqrt(x * x + z * z);
+        }
+
         // Intersections of a short rider step with a narrow annulus around the mount.
         // Neither world yaw nor the mount's facing can exclude a valid tangent step.
         internal static IEnumerable<PoseVector3> ActingProposals(PoseVector3 rider, PoseVector3 mount)

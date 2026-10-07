@@ -256,4 +256,38 @@ foreach($mode in @('RT','TB')) {
         }
     }
 }
+function New-OriginWalk([string]$Actor){
+ $destination=@{x=2.5;y=0;z=0};$probes=@(0..7|ForEach-Object {
+  $angle=$_*[Math]::PI/4;$point=@{x=2.5+[Math]::Sin($angle)*0.5;y=0;z=[Math]::Cos($angle)*0.5}
+  @{point=$point;trace=$point;residual=0.0}
+ })
+ @{contract='native-origin-walk-clear-route';actorId=$Actor;origin=@{x=0;y=0;z=0};corpulence=0.5;clearanceRadius=0.5;
+  occupants=@(@{actorId='bystander';position=@{x=1;y=0;z=3};corpulence=0.5});
+  candidates=@(@{point=$destination;projection=$destination;routeEnd=$destination;routeResidual=0.0;probes=$probes;blockers=@();eligible=$true});
+  destination=$destination;positionAfter=$destination;nativeOriginProjectionAfter=$destination;distance=2.5;
+  command=@{id=99;type='Kingmaker.UnitLogic.Commands.UnitMoveTo';executor=$Actor;finished=$true;result='Success'}}
+}
+foreach($mode in @('RT','TB')){
+ $a=New-ChargeEnvelope $mode 26;$a.schemaVersion=41
+ $a.observations|Add-Member -NotePropertyName 'originWalk-C4-CHARGE-unmounted-rider' -NotePropertyValue (New-OriginWalk 'rider')
+ $a.observations|Add-Member -NotePropertyName 'originWalk-C4-CHARGE-unrelated-actor' -NotePropertyValue (New-OriginWalk 'unrelated')
+ $request=@{scenario='chunk4-charge-safety-'+$mode.ToLowerInvariant()}
+ Assert-KmcChunk4ChargeEvidence $request $a 'PASS';$passed++
+}
+foreach($mutation in @(
+ {param($p)$p.occupants[0].position.z=0.0},
+ {param($p)$p.occupants[0].position=@{x=3;y=0;z=0}},
+ {param($p)$p.candidates[0].routeEnd=@{x=1;y=0;z=0}},
+ {param($p)$p.candidates[0].probes[0].trace=@{x=2.5;y=0;z=0.1}},
+ {param($p)$p.command.result='Interrupt'},
+ {param($p)$p.command.executor='foreign'},
+ {param($p)$p.nativeOriginProjectionAfter=@{x=2.52;y=0;z=0}},
+ {param($p)$p.distance=0.1},
+ {param($p)$p.candidates[0].blockers=@('bystander')},
+ {param($p)$p.occupants+=@($p.occupants[0])}
+)){
+ $p=New-OriginWalk 'rider'|ConvertTo-Json -Depth 30|ConvertFrom-Json;& $mutation $p
+ $rejected=$false;try{Assert-KmcChargeOriginWalk $p 'rider'}catch{$rejected=$true}
+ if(-not$rejected){throw 'Invalid native origin walk accepted'};$passed++
+}
 Write-Host "CHUNK 4 CHARGE PROTOCOL PASS=$passed FAIL=0"

@@ -433,13 +433,13 @@ function New-Artifact([string]$Mode='RT'){
    $row.evidence['ownership']=@{owned=$false};$row.evidence['lastDrainedOwnership']=New-DrainedOwner
   }
  }
- $artifact=Copy-Case ([ordered]@{schemaVersion=39;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
+ $artifact=Copy-Case ([ordered]@{schemaVersion=40;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
   observations=[ordered]@{initialSelection=@('main');cleanup=@{selectionRestored=$true;equipmentSetRestored=$true;settingRestored=$true;pairedSchedulerSettingRestored=$true;targetClean=$true;chunk4OtherTargetReleased=$true;modeRestored=$true;unmountedHorseAiLeaseRestored=$true;combatMountRiderAiLeaseRestored=$true;relationshipState='Unmounted';playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false;nativeFinalDeathSelectionExclusion=$(if($Mode-ceq'RT'){'rider'}else{$null});expectedSelection=@('main');actualSelection=@('main')};chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
  if($Mode-ceq'RT'){
   $artifact.observations.chunk6bCharge|Add-Member -NotePropertyName fixtureOrigin -NotePropertyValue ([pscustomobject]@{x=0.0;y=0.0;z=0.0})
-  foreach($row in $artifact.rows|Where-Object name -CNE 'C6B-CHARGE-default-off'){
+  foreach($row in $artifact.rows|Where-Object { $_.name-cnotin@('C6B-CHARGE-default-off','C6B-CHARGE-spent-standard') }){
    $artifact.observations.chunk6bCharge|Add-Member -NotePropertyName ('positioning-'+$row.name) -NotePropertyValue (New-ChargeFixtureReturn $row.name)
   }
  }
@@ -947,4 +947,48 @@ Mutate 'preview182 missing native charge activation identity' {param($a)
 Mutate 'preview183 schema lacks independent fixture return' {param($a)$a.schemaVersion=38}
 Mutate 'native row omits its original fixture staging point' {param($a)$a.observations.chunk6bCharge.fixtureOrigin=$null}
 Mutate 'native row hides accumulated fixture drift' {param($a)$a.observations.chunk6bCharge.'positioning-C6B-CHARGE-blocked-clearance'.before.mountPosition.x=7.0}
+Accept 'dependent spent-Standard repeat has no independent staging' {
+ $a=New-Artifact
+ if($null-ne$a.observations.chunk6bCharge.PSObject.Properties['positioning-C6B-CHARGE-spent-standard']){throw 'Synthetic fixture invented dependent staging'}
+ Assert-KmcChunk6bChargeEvidence $request $a 'PASS'
+}
+Mutate 'fabricated positioning of the dependent repeat' {param($a)
+ $a.observations.chunk6bCharge|Add-Member -NotePropertyName 'positioning-C6B-CHARGE-spent-standard' -NotePropertyValue (New-ChargeFixtureReturn 'C6B-CHARGE-spent-standard')
+}
+function New-CohortArtifact([string]$Scenario){
+ $a=New-Artifact
+ $required=Get-KmcChunk6bChargeRows 'RT' $Scenario
+ $a.scenario=$Scenario
+ $a.rows=@($a.rows|Where-Object {$_.name-cin$required})
+ $a.subscenarioPassCount=$a.rows.Count
+ if($required-cnotcontains'C6B-CHARGE-rider-dead'){$a.observations.cleanup.nativeFinalDeathSelectionExclusion=$null}
+ $a
+}
+foreach($cohort in @('chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt')){
+ $cohortRequest=[pscustomobject]@{scenario=$cohort}
+ Accept ('exact bounded cohort '+$cohort) {Assert-KmcChunk6bChargeEvidence $cohortRequest (New-CohortArtifact $cohort) 'PASS'}
+ Reject ('missing required row in '+$cohort) {
+  $a=New-CohortArtifact $cohort;$a.rows=@($a.rows|Select-Object -Skip 1);$a.subscenarioPassCount--
+  Assert-KmcChunk6bChargeEvidence $cohortRequest $a 'PASS'
+ }
+ Reject ('substituted full batch in '+$cohort) {Assert-KmcChunk6bChargeEvidence $cohortRequest (New-Artifact) 'PASS'}
+}
+Reject 'non-death cohort excludes rider from restoration' {
+ $a=New-CohortArtifact 'chunk6b-charge-core-rt';$a.observations.cleanup.nativeFinalDeathSelectionExclusion='rider'
+ Assert-KmcChunk6bChargeEvidence ([pscustomobject]@{scenario=$a.scenario}) $a 'PASS'
+}
+Mutate 'preview184 schema lacks bounded cohort and interruption evidence' {param($a)$a.schemaVersion=39}
+Reject 'core cohort cannot qualify an obstructed-line fixture limitation' {
+ $a=New-CohortArtifact 'chunk6b-charge-core-rt'
+ (Row $a 'C6B-CHARGE-obstructed-line')|Add-Member -NotePropertyName limitation -NotePropertyValue 'no-obstructed-line-in-fixture-area'
+ Assert-KmcChunk6bChargeEvidence ([pscustomobject]@{scenario=$a.scenario}) $a 'PASS'
+}
+Accept 'host interruption preserves a failed observed prefix' {
+ if(@(Get-KmcPhase3dHorseRuntimeRows|Where-Object {$_-ceq'phase3d-horse-host-interrupted'}).Count-ne1){throw 'Interrupted child result is not registered exactly once'}
+ $a=New-CohortArtifact 'chunk6b-charge-core-rt'
+ $a.rows=@($a.rows|Where-Object name -CEQ 'C6B-CHARGE-default-off')+@([pscustomobject]@{name='phase3d-horse-host-interrupted';status='FAIL';evidence=@{cleanupProven=$false}})
+ $a.status='FAIL';$a.errors=@('host interrupted');$a.subscenarioPassCount=1;$a.subscenarioFailCount=1
+ Assert-KmcChunk6bChargeEvidence ([pscustomobject]@{scenario=$a.scenario}) $a 'FAIL'
+ Reject 'host interruption cannot become qualified cohort' {Assert-KmcChunk6bChargeEvidence ([pscustomobject]@{scenario=$a.scenario}) $a 'PASS'}
+}
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

@@ -21,6 +21,14 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("native TB setup proposals preserve measured separation at arbitrary orientation", ActingFixture);
             runner.Run("native ground fixtures require the full footprint and reachable endpoint", GroundFixture);
             runner.Run("pre-combat positioning bounds cannot relax the later Acting step", PreCombatPositioning);
+            runner.Run("native origin routes include intermediate and endpoint actor footprints", () => {
+                var origin = new PoseVector3(0, 5, 0); var end = new PoseVector3(3, 8, 0);
+                TestRunner.Equal(0.0, NativeGroundFixturePolicy.DistanceToRoute(origin, end, new PoseVector3(1.5f, 20, 0)), "Actor on route was missed.");
+                TestRunner.Equal(0.5, NativeGroundFixturePolicy.DistanceToRoute(origin, end, new PoseVector3(3.5f, 20, 0)), "Endpoint footprint was missed.");
+                TestRunner.Equal(2.0, NativeGroundFixturePolicy.DistanceToRoute(origin, end, new PoseVector3(1, 1, 2)), "Clear actor distance differs.");
+                TestRunner.Equal(1.0, NativeGroundFixturePolicy.DistanceToRoute(origin, origin, new PoseVector3(1, 1, 0)), "Degenerate route is not the origin footprint.");
+                TestRunner.True(double.IsNaN(NativeGroundFixturePolicy.DistanceToRoute(origin, end, new PoseVector3(float.NaN, 0, 0))), "Invalid position became clearance.");
+            });
         }
         private static RelationshipCommandIdentity Make(object command, object process, object context,
             string control = "shell:1", string caster = "rider", string target = "horse", long generation = 4,

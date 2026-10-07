@@ -3676,6 +3676,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            // Retain the child's raw failed prefix before parent cleanup invalidates
+            // its actors, target service or probes. Never certify partial rows as PASS.
+            if (phase3dTranche != null && Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario))
+            {
+                try { phase3dTranche.CaptureChargeHostInterruption(); }
+                catch (Exception exception) { errors.Add("Interrupted charge evidence: " + exception); }
+                foreach (var result in phase3dTranche.Results)
+                    if (!results.Contains(result)) results.Add(result);
+                observations["phase3dTranche"] = phase3dTranche.EvidenceSummary;
+                foreach (var error in phase3dTranche.Errors)
+                    if (!errors.Contains(error)) errors.Add(error);
+            }
             try { combat.Cancel("horse qualification cleanup"); }
             catch (Exception exception) { errors.Add("Mounted combat cleanup: " + exception.Message); }
             if (relationship.State != RelationshipState.Unmounted)

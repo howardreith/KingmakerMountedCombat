@@ -287,6 +287,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (stage == 10)
             {
+                if (RealtimeCharge) { AdvanceChargeContinuation(); return; }
                 if (game.TimeController.GameTime.Ticks + TimeSpan.TicksPerMillisecond * 10 < realtimeReadyTicks)
                 {
                     if (realtimeProbe.RiderResolvedCount != realtimeAttackBaseline || realtimeRounds.Count != realtimeRoundBaseline)
@@ -392,8 +393,13 @@ namespace KingmakerMountedCombat.Diagnostics
             realtimeRoundBaseline = realtimeRounds.Count;
             realtimeReadyTicks = Game.Instance.TimeController.GameTime.Ticks +
                 (long)(rider.CombatState.Cooldown.StandardAction * TimeSpan.TicksPerSecond);
+            if (RealtimeCharge) BeginChargeContinuationTrace();
             if (issueInput) QueueRealtimeAttack();
             Write("rt-spent-attack-queued", RealtimeObservation());
+            if (RealtimeCharge) {
+                Write("rt-native-debt-wait", RealtimeObservation());
+                realtimeDebtWaitObserved = true;
+            }
             stage = 10;
         }
 

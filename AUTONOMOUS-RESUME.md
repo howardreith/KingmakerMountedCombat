@@ -1,3 +1,33 @@
+## 2026-10-07 - preview184 closed; preview185 qualification repairs
+
+Phase 6B IN PROGRESS. Frozen184 source a72b685391a3300b3616434ca59a0827fef6fecd
+and all evidence remain immutable: 20 PASS / 4 FAIL / 2 BLOCKED dependencies,
+24 native transactions; no claim that all26 native stages completed. Human105,
+protected saves, settings, UMM and foreign Mods restored with empty errors. One
+native achievements-cache rewrite passed the unchanged Chunk5 cache policy;
+that profile cache was not byte-identical. No game or runtime transaction remains.
+
+The coherent185 tranche changes fixtures, observation and external acceptance:
+three fixed RT cohorts retain every required row within unchanged deadlines;
+interrupted hosts retain partial FAILED evidence; stock origin walks record native
+route and actor clearance; P04 continuation records actual native float cooldown,
+round, cost and attack callbacks instead of a rounded GameTime prediction.
+Product action/cleanup policy is unchanged. TB delivery remains DEFER - EVIDENCED;
+the exact cost-free refusal passed on184. No185 native credit or phase stability.
+
+Offline185: components687/0, charge reader423/0, continuation26/0, persistence159/0,
+stock safety reader484/0, source145/0, ownership111/0, compiled fixture8/0,
+FAST22/0 with unchanged inputs. CANDIDATE1 stopped at a stale schema pin (harness270/1);
+the exact pin is corrected and all9 focused assertions pass. CANDIDATE2 PASS34/0
+with unchanged inputs (harness271/0, assembly717/0).
+No185 package/suite/purity yet; the failed attempt remains immutable.
+Exact closure, failures, hashes and cache exception are in the active continuation
+and lab handoff CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-PREVIEW184-CLOSED.md.
+Next command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6-continuation/20261005-6br/Publish-Preview185-v2.ps1
+Continue6B then6C-6F; no rod before6B closes. No merge/PR/tag/release/permanent
+install/protected-save write/foreign-mod change/HUMAN PLAY acceptance.
+
 ## 2026-10-06 - preview183 closed 22 PASS / 4 FAIL; coherent184 fixture/observer repair
 
 Phase6B IN PROGRESS. Frozen183 source672ea70f2cab947651c1906227cd90f1c7a18048,

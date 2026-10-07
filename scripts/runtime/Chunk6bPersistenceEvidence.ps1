@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ChargeContinuationEvidence.ps1')
 # One external acceptance authority for the P04 charge checkpoints; immutable facts only.
 function Get-KmcChargePersistenceCases { @('mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained') }
 function Test-KmcChargePersistenceCase([string]$Case) { $Case -cin (Get-KmcChargePersistenceCases) }
@@ -424,6 +425,7 @@ function Assert-KmcChargePersistenceRows($Request,$Rows,$GameResult) {
   if($later[$i].detail.resolved-ne($queued.detail.resolved+$i+1)-or$later[$i].detail.riderRounds-ne($queued.detail.riderRounds+$i+1)-or$later[$i].detail.forcedD20-ne0){ChargeSaveFail 'later native round or attack duplicated'}
  }
  if($done.detail.charge.owner.owned-ne$false-or$done.detail.resolved-ne$queued.detail.resolved+2){ChargeSaveFail 'continuation retained a charge owner or duplicate attack'}
+ Assert-KmcChargeContinuation (ChargeSaveRow $Rows 'charge-continuation-trace').detail $queued $done
 }
 function Assert-KmcChargePersistenceEvidence($Request,$Rows,$GameResult) {
  Assert-KmcChargePersistenceRows $Request $Rows $GameResult

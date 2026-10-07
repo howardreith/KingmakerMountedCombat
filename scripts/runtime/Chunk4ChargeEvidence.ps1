@@ -1,6 +1,48 @@
+function Assert-KmcChargeOriginWalk($P,[string]$Actor){
+ function Num($v){if(-not(Test-KmcFiniteJsonNumber $v)){throw 'Origin walk number absent'};[double]$v}
+ function Point($p){foreach($f in @('x','y','z')){$null=Num $p.$f}}
+ function Distance($a,$b){Point $a;Point $b;[Math]::Sqrt([Math]::Pow($a.x-$b.x,2)+[Math]::Pow($a.z-$b.z,2))}
+ function RouteDistance($a,$b,$p){
+  Point $a;Point $b;Point $p;$dx=$b.x-$a.x;$dz=$b.z-$a.z;$length=$dx*$dx+$dz*$dz
+  if($length-le0){return Distance $a $p}
+  $t=[Math]::Max(0,[Math]::Min(1,(($p.x-$a.x)*$dx+($p.z-$a.z)*$dz)/$length))
+  Distance @{x=$a.x+$t*$dx;y=0;z=$a.z+$t*$dz} $p
+ }
+ if($P.contract-cne'native-origin-walk-clear-route'-or[string]::IsNullOrEmpty($Actor)-or$P.actorId-cne$Actor-or
+    (Num $P.corpulence)-lt0-or(Num $P.clearanceRadius)-lt[Math]::Max(0.5,$P.corpulence)-or
+    @($P.candidates).Count-lt1-or@($P.candidates).Count-gt32-or$P.occupants-isnot[array]){throw 'Origin walk identity/bounds differ'}
+ $ids=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+ foreach($o in $P.occupants){
+  Point $o.position
+  if([string]::IsNullOrEmpty($o.actorId)-or$o.actorId-ceq$Actor-or-not$ids.Add([string]$o.actorId)-or(Num $o.corpulence)-lt0){throw 'Origin walk occupant inventory invalid'}
+ }
+ $eligible=0
+ foreach($c in $P.candidates){
+  $route=Distance $c.routeEnd $c.point;$travel=Distance $P.origin $c.point
+  if($travel-lt2-or$travel-gt3-or[math]::Abs((Num $c.routeResidual)-$route)-gt0.0001-or@($c.probes).Count-ne8){throw 'Origin walk route/footprint bounds differ'}
+  $clear=(Distance $c.projection $c.point)-lt0.001-and$route-lt0.001
+  foreach($probe in $c.probes){
+   $residual=Distance $probe.point $probe.trace
+   if([Math]::Abs($residual-(Num $probe.residual))-gt0.0001-or[Math]::Abs((Distance $probe.point $c.point)-$P.clearanceRadius)-gt0.0001){throw 'Origin walk footprint observation differs'}
+   $clear=$clear-and$residual-lt0.001
+  }
+  $blocked=@($P.occupants|Where-Object {(RouteDistance $P.origin $c.point $_.position)-lt($P.corpulence+$_.corpulence+0.05)}|ForEach-Object {$_.actorId}|Sort-Object)
+  if(($blocked-join'|')-cne(@($c.blockers|Sort-Object)-join'|')){throw 'Origin walk actor route clearance differs'}
+  $clear=$clear-and$blocked.Count-eq0
+  if($c.eligible-isnot[bool]-or$c.eligible-ne$clear){throw 'Origin walk chosen eligibility differs from raw geometry'}
+  if($clear){$eligible++}
+ }
+ $chosen=@($P.candidates)[-1]
+ if($eligible-ne1-or$chosen.eligible-ne$true-or(Distance $chosen.point $P.destination)-gt0.0001-or
+    $P.command.type-cne'Kingmaker.UnitLogic.Commands.UnitMoveTo'-or$P.command.executor-cne$Actor-or$P.command.finished-ne$true-or$P.command.result-cne'Success'-or
+    -not(Test-KmcExactJsonInteger $P.command.id)-or$P.command.id-eq0-or(Num $P.distance)-lt0.5-or
+    [Math]::Abs((Distance $P.positionAfter $P.origin)-$P.distance)-gt0.0001-or
+    (Distance $P.positionAfter $P.nativeOriginProjectionAfter)-gt0.01){throw 'Origin walk did not complete the native start contract'}
+}
+
 function Assert-KmcChunk4ChargeEvidence {
     param($Request,$Artifact,[AllowNull()][string]$Status)
-    if ([long]$Artifact.schemaVersion -notin @(18,19,20,24,25,26) -or $Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
+    if ([long]$Artifact.schemaVersion -notin @(18,19,20,24,25,26,41) -or $Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
         throw 'Chunk 4 Charge requires its exact schema and parameterized mode.'
     }
     Assert-KmcMountedRuntimeConfiguration $Artifact.observations.phase3fActualConfiguration $true 'Chunk 4 Charge configuration'
@@ -22,7 +64,7 @@ function Assert-KmcChunk4ChargeEvidence {
         $mode=if($Request.scenario.EndsWith('-tb')){'TB'}else{'RT'}
         if ($row.name -ceq 'C4-CHARGE-queued-state-change') {
             if ($e.level -cne 'NATIVE INTEGRATION' -or $e.mode -cne $mode -or
-                $e.inputKind -cne $(if([long]$Artifact.schemaVersion -in @(24,25,26)){'native-mount-delivery-and-native-queue-promotion'}else{'native-mount-handler-and-native-queue-promotion'}) -or
+                $e.inputKind -cne $(if([long]$Artifact.schemaVersion -in @(24,25,26,41)){'native-mount-delivery-and-native-queue-promotion'}else{'native-mount-handler-and-native-queue-promotion'}) -or
                 $e.blueprint -cne 'c78506dd0e14f7c45a599990e4e65038' -or
                 $e.availableWhileUnmounted -ne $true -or $e.canTargetWhileUnmounted -ne $true -or
                 $e.queuedWhileUnmounted -ne $true -or
@@ -44,7 +86,7 @@ function Assert-KmcChunk4ChargeEvidence {
                 (@($before.actorPosition)-join ',') -cne (@($after.actorPosition)-join ',')) {
                 throw 'Native queue promotion changed costs or motion before Charge rejection.'
             }
-            if ([long]$Artifact.schemaVersion -in @(20,24,25,26)) {
+            if ([long]$Artifact.schemaVersion -in @(20,24,25,26,41)) {
                 $rejection=Test-KmcChunk4ChargeRejectionBoundary $e.admission
                 $approach=@($e.approachExecution)
                 if($approach.Count % 2 -ne 0){throw 'Charge approach observer omitted one side of a boundary.'}
@@ -62,11 +104,14 @@ function Assert-KmcChunk4ChargeEvidence {
                     throw 'Queued Charge lacks a pure mounted rejection before native approach or expenditure.'
                 }
             }
-            if ([long]$Artifact.schemaVersion -in @(24,25,26)) { Assert-KmcChunk4QueuedMountWindow $e ([long]$Artifact.schemaVersion -eq 24) }
+            if ([long]$Artifact.schemaVersion -in @(24,25,26,41)) { Assert-KmcChunk4QueuedMountWindow $e ([long]$Artifact.schemaVersion -eq 24) }
             Assert-KmcChunk4ChargeRecovery $e.recovery $mode ([long]$Artifact.schemaVersion)
             continue
         }
         $mounted=$row.name -cin @('C4-CHARGE-mounted-rider','C4-CHARGE-mounted-mount')
+        if([long]$Artifact.schemaVersion-eq41-and-not$mounted){
+            Assert-KmcChargeOriginWalk $Artifact.observations.('originWalk-'+$row.name) $e.actorId
+        }
         if ($e.level -cne 'NATIVE INTEGRATION' -or $e.inputKind -cne 'scripted-native-handler-integration' -or
             $e.mode -cne $mode -or $e.mounted -ne $mounted -or $e.hoverPure -ne $true -or @($e.identity).Count -ne 1 -or
             $e.identity[0].logic -cne 'Kingmaker.UnitLogic.Abilities.Components.AbilityCustomCharge' -or
@@ -87,7 +132,7 @@ function Assert-KmcChunk4ChargeEvidence {
         }
         if ([long]$Artifact.schemaVersion -eq 25) {
             Assert-KmcChunk4ChargePausedInput $e.pausedInput $e.before.rider.id $e.before.mount.id $e.actorId
-        } elseif ([long]$Artifact.schemaVersion -eq 26) {
+        } elseif ([long]$Artifact.schemaVersion -in @(26,41)) {
             $principal=if($e.pairMounted -and $e.actorIsMount){$e.before.rider.id}else{$e.actorId}
             Assert-KmcChunk4ChargeInputWindow $e.inputWindow $mode $e.before.rider.id $e.before.mount.id $e.actorId $principal
         }
@@ -199,7 +244,7 @@ function Assert-KmcChunk4ChargeRecovery {
     }
     if($Schema -eq 25) {
         Assert-KmcChunk4ChargePausedInput $queue.pausedInput $Recovery.afterMove.rider.id $Recovery.afterMove.mount.id $Recovery.afterMove.rider.id
-    } elseif($Schema -eq 26) {
+    } elseif($Schema -in @(26,41)) {
         Assert-KmcChunk4ChargeInputWindow $queue.inputWindow $Mode $Recovery.afterMove.rider.id $Recovery.afterMove.mount.id $Recovery.afterMove.rider.id $Recovery.afterMove.rider.id
     }
 }

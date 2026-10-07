@@ -1,3 +1,16 @@
+## 2026-10-07 - preview184 closed; coherent185 qualification tranche
+
+The owner's autonomous continuation through6F supersedes historical phase limits
+below. Phase6B remains IN PROGRESS. Frozen184 closed20 PASS /4 FAIL /2 BLOCKED;
+all24 actual transactions restored. See [the active continuation](../docs/CHUNK6-CONTINUATION.md)
+for exact identities, the native cache exception and every retained failure.
+Working185 retains all required charge rows in three bounded RT cohorts and adds
+native continuation/fixture evidence. It does not change product action/cleanup
+policy, deadlines or substantive acceptance. TB delivery remains DEFER - EVIDENCED
+with exact refusal qualified on184. No185 native credit,6B stability or6C work yet.
+Offline185 components687/0, FAST22/0, CANDIDATE34/0 pass; retained failed attempt
+and current exact receipts are linked in the active continuation. Next: coherent
+publication/freeze, required purity, complete28-stage batch.
 ## 2026-10-06 - authorized ownership repair, native qualification pending
 
 The owner's autonomous6B-6F continuation supersedes the historical stop below.
