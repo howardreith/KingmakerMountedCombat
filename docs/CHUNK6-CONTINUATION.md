@@ -1,3 +1,35 @@
+## 2026-10-07 — 6C launcher registration repaired; preview190 ready
+
+6B remains IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification is deferred to Chunk 6 consolidation. Its frozen188 evidence
+and all28 passing stages remain closed and unchanged. 6C is IN PROGRESS.
+
+Frozen189 source f8717c53667b296b4031379ea143dcbc501aca56 and package/suite
+are immutable. Its first WhatIf child exited1 before launcher entry because the
+Scenario ValidateSet omitted the four implemented6C scenarios: ABORTED — NO
+PURITY VERDICT; native0, no game/transaction or external-state mutation.
+The failed proof, logs, freeze and original parameterized helpers are retained.
+
+Working 0.1.0-chunk6c-preview.190 adds only those four launcher registrations,
+actual parameter-binder/registry regressions, and coherent version stamps.
+There is no production casting, action, cleanup, fixture or acceptance-policy
+change. The same four15-row mounted/unmounted RT/TB baselines and two settled
+save/cold pairs remain the ready eight-stage batch. No rod is yet created.
+
+Focused casting151/0 passes, including13 actual launcher-binding checks.
+CANDIDATE190-1 PASS16/0: components699/0, source145/0, compiled observer11/0,
+settled reader72/0, preamble215/0, harness271/0 and Kingmaker assembly698/0.
+All five gate inputs remained byte-identical. Lab receipt:
+20261005-6br/6c-candidate190-1-process.json.
+No190 package, suite, purity or native verdict exists at this source checkpoint.
+
+Next: coherent guarded publication; exact190 package and suite; reuse the
+unchanged18/0 entry probe, run190 WhatIf purity, then the eight native stages.
+Do not alter189 or repeat188. Continue6C–6F with stock native behavior first.
+One mutating executor; no active game/runtime transaction. No merge/PR/tag/
+release/permanent install/protected-human-save write/foreign-mod change/HUMAN PLAY.
+Candidate receipt SHA256 9ea40ef54fb30745065042b0edbded99bfb649a78089b67da98cd1f8fbbf5cfb.
+
 ## 2026-10-07 — 6C native baseline ready for qualification
 
 6B remains IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
