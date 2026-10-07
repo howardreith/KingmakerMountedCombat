@@ -1,3 +1,35 @@
+## 2026-10-07 - 6B implementation stable; 6C native baseline next
+
+CHUNK 6B IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
+FINAL QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION. Owner acceptance pending.
+Frozen188 source bc98a9cdf0d1e65b30eaabac517b58479efd3520, tree
+ def5cf512bae42a27a892d98ccac208ef75998de: all28 required stages PASS1031/0,
+zero blocked/unrun. All29 actual guarded transactions restored human105,
+protected saves, Mods/foreign Mods, UMM and settings; empty restorationErrors.
+The original Stage15 game-exit observation remains UNKNOWN and immutable;
+only15 was rerun, with independently observed worker/game exits0. First14 retained.
+Native achievement/analytics cache churn at24/25 passed the unchanged Chunk5
+policy; the whole profile was not byte-identical. No game/transaction remains.
+
+Charge stays default-off. RT delivery and the agreed cleanup/persistence matrix
+are qualified; TB has the exact cost-free refusal, not delivery. No TB experiment
+is reopened. No extra confirmation campaign is required. Full final6F and HUMAN
+PLAY remain pending. Lab closure SHA256 bb8d505912ef16113c4f9c86151a3aa0c126979923d41854b55817764f6601fb.
+Exact ledger, identities, retained failures and receipt-derived costs are in
+analysis-cache/chunk6-continuation/CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-6B-STABLE.md.
+
+After campaign closure, pure schema/reader dispatch moved into
+scripts/runtime/ScenarioDispatchEvidence.ps1 under the existing reader identity.
+Protected Common remains excluded; launcher, save, restoration, exact identity
+and artifact-byte guards are unchanged. Focused PASS: dispatch35/0, charge502/0,
+carrier142/0, shared harness271/0. No version bump, product rebuild, purity replay
+or native replay was made for this external interpretation separation.
+
+Continue directly6C: normal mounted RT/TB casting/items first, authorized native
+Lesser Quicken rod only in the disposable Druid fixture, exact new fixture proof.
+No casting production patch without an observed defect. Rod is not yet created.
+Then6D/6E/6F under the owner's charter. No merge/PR/tag/release/permanent install,
+protected-human-save write, foreign-mod change or HUMAN PLAY acceptance.
 ## 2026-10-07 - preview187 closed; bounded188 envelope repair
 
 Phase6B IN PROGRESS;6C-6F incomplete. Frozen187 source
