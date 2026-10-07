@@ -19,6 +19,46 @@ Pass 'rounded clock prediction cannot reject legitimate float cooldown expiry' {
  if(($expiry.gameTicks-$f.proof.before.gameTicks)/10000000.0+0.01-ge$f.proof.before.rider.standard){throw 'Counterexample no longer distinguishes the historical prediction'}
  Assert-KmcChargeContinuation $f.proof $f.queued $f.done
 }
+Pass 'mount ordinary full attacks pay their own Standard once after first delivery' {
+ $f=New-ChargeContinuationFixture -MountAttacks
+ if(@($f.proof.attacks|Where-Object actor -CEQ 'mount').Count-ne12){throw 'Missing four complete mount attack observations'}
+ Assert-KmcChargeContinuation $f.proof $f.queued $f.done
+}
+Pass 'pending mount initiative decays through exact native ticks without a preparation grant' {
+ $f=New-ChargeContinuationFixture -MountInitiative 3.25 -MountAttacks
+ Assert-KmcChargeContinuation $f.proof $f.queued $f.done
+}
+function RejectPair([string]$Name,[scriptblock]$Change){
+ $f=New-ChargeContinuationFixture -MountInitiative 3.25 -MountAttacks;& $Change $f
+ $failed=$false;try{Assert-KmcChargeContinuation $f.proof $f.queued $f.done}catch{$failed=$true}
+ if(-not$failed){throw ('Accepted '+$Name)};$script:checks++;Write-Host ('PASS refuses '+$Name)
+}
+RejectPair 'initiative refund inside an ordinary tick' {param($f)
+ @($f.proof.trace.events|Where-Object {$_.state.actor-ceq'mount'-and$_.boundary-ceq'cooldown-tick-after'})[0].state.initiativeCooldown=0
+}
+RejectPair 'initiative decay attributed to action debt' {param($f)
+ @($f.proof.trace.events|Where-Object {$_.state.actor-ceq'mount'-and$_.boundary-ceq'cooldown-tick-after'})[0].state.standard=1
+}
+RejectPair 'unobserved initiative grant at the endpoint' {param($f)$f.proof.after.mount.initiativeCooldown=3;$f.proof.after.mount.waitingInitiative=$true}
+RejectPair 'mount ordinary command charges the rider' {param($f)
+ @($f.proof.trace.events|Where-Object {$_.state.actor-ceq'mount'-and$_.boundary-ceq'cost-before'})[0].commandActor='rider'
+}
+RejectPair 'mount first attack has already fabricated its acted transition' {param($f)
+ @($f.proof.trace.events|Where-Object {$_.state.actor-ceq'mount'-and$_.boundary-ceq'continuation-attack-before'})[0].acted=$true
+}
+RejectPair 'duplicate full-attack member' {param($f)
+ foreach($a in @($f.proof.attacks|Where-Object {$_.actor-ceq'mount'-and$_.rule-eq411})){$a.attackNumber=0}
+}
+RejectPair 'full-attack count changes between callbacks' {param($f)
+ @($f.proof.attacks|Where-Object actor -CEQ 'mount')[1].attacksCount=3
+}
+RejectPair 'mount cost disappears after delivery' {param($f)
+ @($f.proof.trace.events|Where-Object {$_.state.actor-ceq'mount'-and$_.boundary-ceq'cost-before'})[0].boundary='omitted'
+}
+RejectPair 'second mount command reuses the first paid identity' {param($f)
+ foreach($e in @($f.proof.trace.events|Where-Object command -EQ 302)){$e.command=301}
+}
+RejectPair 'mount continuation resumes Charge' {param($f)@($f.proof.attacks|Where-Object actor -CEQ 'mount')[0].charge=$true}
 Reject 'unknown observer status' {param($f)$f.proof.closed=$null}
 Reject 'missing exact native tick hook' {param($f)$f.proof.trace.observerHooks=@($f.proof.trace.observerHooks|Where-Object token -CNE '0600934A')}
 Reject 'overflowed trace' {param($f)$f.proof.trace.dropped=1}

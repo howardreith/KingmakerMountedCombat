@@ -900,6 +900,21 @@ if($Target-eq'Kingmaker'){
         (Test-MethodIlContainsToken $combatCooldownTick[0] 0x06009349) -and
         (Test-MethodIlContainsToken $combatCooldownTick[0] 0x0600938E)) `
         'combat cooldown exact turn-based early-return gate precedes native initiative decrement'
+    $waitingInitiative=$assembly.ManifestModule.ResolveMethod(0x0600938E)
+    $waitingPrefix=$waitingInitiative.GetMethodBody().GetILAsByteArray()[0..17]
+    Assert-Contract ($waitingInitiative.Name-ceq'get_IsWaitingInitiative' -and
+        $waitingInitiative.ReturnType.FullName-ceq'System.Boolean' -and
+        ($waitingPrefix-join',')-ceq'2,123,150,94,0,4,111,180,195,0,6,34,0,0,0,0,48,31' -and
+        (Test-MethodIlContainsToken $waitingInitiative 0x06000BF6)) `
+        'native waiting initiative first tests positive Initiative; its remaining special case is turn-based only'
+    $nativeTrace=$assembly.ManifestModule.ResolveMethod(0x060017AD)
+    $nativeInside=$assembly.ManifestModule.ResolveMethod(0x060017AC)
+    Assert-Contract ($nativeTrace.IsStatic -and $nativeTrace.ReturnType.FullName-ceq'UnityEngine.Vector3' -and
+        (($nativeTrace.GetParameters()|ForEach-Object {$_.ParameterType.FullName})-join',')-ceq'UnityEngine.Vector3,UnityEngine.Vector3' -and
+        (Test-MethodIlContainsToken $nativeTrace 0x0A000E0D) -and
+        (Test-MethodIlContainsToken $nativeTrace 0x060017B4) -and
+        (Test-MethodIlContainsToken $nativeInside 0x060017B4)) `
+        'native route trace quantizes Vector3 endpoints through Int3 and shares the native nearest-node origin query'
     $disengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x0600939B)
     $shouldAttackOnDisengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x060093A2)
     $opportunityAction=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity' 0x06002699)
@@ -1089,6 +1104,11 @@ if($Target-eq'Kingmaker'){
         (Test-MethodIlContainsToken $polymorphReplace[0] 0x06007E9D) -and
         (Test-MethodIlContainsToken $polymorphRestore[0] 0x06007E9D)) `
         'Polymorph exact replacement and restoration paths attach stock views through EntityDataBase'
+    Assert-Contract ($attachView[0].ReturnType.FullName-ceq'System.Void' -and
+        -not $attachView[0].IsStatic -and $attachView[0].GetParameters().Count-eq1 -and
+        $attachView[0].GetParameters()[0].Name-ceq'view' -and
+        $attachView[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.View.EntityViewBase') `
+        'view attachment observer binds the exact native instance Void(EntityViewBase view) argument'
     foreach($shape in @(@(0x04005014,'m_PolymoprphHandsEquipmentSet'),@(0x04005015,'m_PolymorphAdditionalLimbs'),
         @(0x040016D6,'SourceBone'),@(0x040016D7,'BoneReplaced'),@(0x040016D8,'BoneDefault'),
         @(0x0400156F,'OverrideAsks'),@(0x04001B7C,'Prefab'),@(0x04004C18,'AssetId'))){

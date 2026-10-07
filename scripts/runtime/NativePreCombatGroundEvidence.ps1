@@ -7,10 +7,18 @@ function Assert-KmcNativeGroundPlan($P) {
  function Distance($a,$b){[Math]::Sqrt([Math]::Pow($a[0]-$b[0],2)+[Math]::Pow($a[2]-$b[2],2))}
  function Near($a,$b){if([Math]::Abs((Number $a)-(Number $b))-gt0.00001){throw 'Ground plan numeric geometry differs'}}
  function SamePoint($a,$b){$x=Point $a;$y=Point $b;foreach($i in 0..2){Near $x[$i] $y[$i]}}
- if($P.contract-cne'bounded-native-ground-plan'-or(Integer $P.maximumCandidates)-ne72){throw 'Ground plan contract or bound differs'}
+ $reciprocal=$P.contract-ceq'bounded-native-ground-plan-v2'
+ if((-not$reciprocal-and$P.contract-cne'bounded-native-ground-plan')-or(Integer $P.maximumCandidates)-ne72){throw 'Ground plan contract or bound differs'}
  $actor=$P.actorId;$partner=$P.partnerId;$joint=Boolean $P.joint
  if([string]::IsNullOrWhiteSpace($actor)-or[string]::IsNullOrWhiteSpace($partner)-or$actor-ceq$partner){throw 'Ground plan pair identity missing'}
  $origin=Point $P.origin;$center=Point $P.center;$corp=Number $P.corpulence;$clearance=Number $P.clearanceRadius
+ # Historical v1 evidence keeps its original forward-only route predicate.
+ # A format change never grants a historical trace the new reciprocal proof.
+ if($reciprocal){
+  $originInside=Boolean $P.originInsideNavmesh;$originWalkable=Boolean $P.originNativeNearest.walkable
+  SamePoint $P.originNativeNearest.requested $P.origin
+  $nearestOriginResidual=Distance $origin (Point $P.originNativeNearest.clamped)
+ }elseif($null-ne$P.PSObject.Properties['originInsideNavmesh']){throw 'Legacy ground plan carries a newer origin proof'}
  if($corp-lt0){throw 'Ground plan negative radius'}
  $extra=0.75;if($joint){$extra=0.0};Near $clearance ([Math]::Max(0.5,$corp)+$extra)
  $length=Distance $origin $center;if($length-lt0.1){throw 'Ground plan degenerate geometry'};$dx=($origin[0]-$center[0])/$length;$dz=($origin[2]-$center[2])/$length
@@ -24,6 +32,7 @@ function Assert-KmcNativeGroundPlan($P) {
  for($n=0;$n-lt$candidates.Count;$n++){
   if($selected-ge0){throw 'Ground plan continued after selection'}
   $c=$candidates[$n];$radius=@(2.3,2.65,2.0)[[int][Math]::Floor($n/24)];$index=$n%24
+  if(-not$reciprocal-and($null-ne$c.PSObject.Properties['reverseRouteEnd']-or$null-ne$c.PSObject.Properties['routeProof'])){throw 'Legacy ground plan carries a newer route proof'}
   $signed=$index;if($index%2-eq1){$signed=-$index};$angle=$signed*15*[Math]::PI/180
   $requested=Point $c.requested;$point=Point $c.point;Near $c.requestedSeparation $radius
   Near $requested[0] ($center[0]+([Math]::Cos($angle)*$dx+[Math]::Sin($angle)*$dz)*$radius)
@@ -32,6 +41,16 @@ function Assert-KmcNativeGroundPlan($P) {
   if(-not(Boolean $c.walkable)){if((Boolean $c.eligible)-or$null-ne$nested){throw 'Nonwalkable plan selected'};continue}
   $travel=Distance $origin $point;$separation=Distance $center $point;$route=Distance (Point $c.routeEnd) $point
   Near $c.travel $travel;Near $c.separation $separation;Near $c.routeResidual $route
+  $measuredRoute=$route
+  if($reciprocal){
+   $reverse=Distance (Point $c.reverseRouteEnd) $origin;$clipped=Distance (Point $c.routeEnd) $origin
+   $direction='rejected'
+   if($route-lt0.001){$direction='forward'}
+   elseif($originInside-and$originWalkable-and$nearestOriginResidual-lt0.001-and$clipped-lt0.001-and$reverse-lt0.001){
+    $direction='reciprocal-origin-boundary';$measuredRoute=$reverse
+   }
+   if($c.routeProof-cne$direction){throw 'Ground plan native route direction differs'}
+  }
   $f=$c.footprint;SamePoint $f.center $c.point;Near $f.corpulence $corp;Near $f.probeRadius $clearance
   $probes=@($f.probes);if($probes.Count-ne8){throw 'Ground footprint probes missing'};$maximum=0.0
   for($j=0;$j-lt8;$j++){
@@ -41,11 +60,11 @@ function Assert-KmcNativeGroundPlan($P) {
   }
   $blockers=@($occupants|Where-Object {$_.actorId-cne$actor-and(Distance $point (Point $_.position))-lt($corp+(Number $_.corpulence)+0.05)}|ForEach-Object actorId)
   if(($blockers|ConvertTo-Json -Compress)-cne(@($c.blockers)|ConvertTo-Json -Compress)){throw 'Ground plan occupancy differs'}
-  $eligible=$blockers.Count-eq0-and$radius-ge2-and$radius-le2.65-and[Math]::Abs($c.separation-$radius)-le0.45-and$c.travel-ge0.25-and$c.travel-le4-and$c.routeResidual-ge0-and$c.routeResidual-lt0.001-and$maximum-lt0.001
+  $eligible=$blockers.Count-eq0-and$radius-ge2-and$radius-le2.65-and[Math]::Abs($c.separation-$radius)-le0.45-and$c.travel-ge0.25-and$c.travel-le4-and$measuredRoute-ge0-and$measuredRoute-lt0.001-and$maximum-lt0.001
   if((Boolean $c.eligible)-ne$eligible){throw 'Ground plan eligibility differs'}
   if(-not$eligible){if($null-ne$nested){throw 'Rejected mount has rider plan'};continue}
   if($joint){
-   if($null-eq$nested-or(Boolean $nested.joint)-or$nested.actorId-cne$partner-or$nested.partnerId-cne$actor){throw 'Joint plan pair differs'}
+   if($null-eq$nested-or$nested.contract-cne$P.contract-or(Boolean $nested.joint)-or$nested.actorId-cne$partner-or$nested.partnerId-cne$actor){throw 'Joint plan pair or format differs'}
    SamePoint $nested.center $c.point;SamePoint $nested.origin $P.center;SamePoint $nested.partnerPositionOverride $c.point
    if(@($nested.occupants).Count-ne$occupants.Count){throw 'Joint counterfactual inventory missing'}
    for($k=0;$k-lt$occupants.Count;$k++){

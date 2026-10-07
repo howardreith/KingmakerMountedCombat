@@ -249,7 +249,15 @@ function New-Row([string]$Case){
   $v['sizeImmunities']=@('4f139d125bb602f48bfaec3d3e1937cb','b0793973c61a19744a8630468e8f4174','c84fbb4414925f344b894e9511626296',
    '17206974f2a2c164db26d1af7fac57d5','3fca5d38053677044a7ffd9a872d3a0a','4ce640f9800d444418779a214598d0a3',
    '6ba82f2c8a7146e6b4880cbe7f8534e8','c5d35ba066ae4a079a7d86a316d3ef38')
-  foreach($i in 0..1){$token=if($i-eq0){'06002a08'}else{'06002a09'};$v.attachments+=@{frame=130+$i;actor='rider';view=11+$i;nativeSource=@(@{token=$token;assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},@{token='06007e9d';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},@{token='0600835c';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})}}
+  $v['nativeAttachment']=@{contract='native-view-attachment-call-v1';actor='rider';actorObject=1;closed=$true;pending=0;errors=@();events=@();
+   hook=@{token='06007e9d';method='AttachToViewOnLoad';moduleMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'}}
+  foreach($i in 0..1){
+   $token=if($i-eq0){'06002a08'}else{'06002a09'}
+   $v.attachments+=@{frame=130+$i;actor='rider';view=11+$i;attachmentInvocation=$i+1;nativeSource=@(@{token=$token;assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'},@{token='0600835c';assemblyMvid='07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'})}
+   foreach($boundary in @('attach-before','view-notification','attach-after')){
+    $v.nativeAttachment.events+=@{sequence=$v.nativeAttachment.events.Count+1;boundary=$boundary;invocation=$i+1;frame=130+$i;actor='rider';actorObject=1;argumentView=11+$i;currentView=11+$i;bound=$true}
+   }
+  }
   $r.evidence['boundary']=@{kind='native-view-replacement';ownerBefore=@{owned=$true;identity=17};ownerAfter=@{owned=$false};lastDrained=(New-DrainedOwner);relationshipAfter='Unmounted';presentationResidue=$false;nativeView=$v}
   return $r
  }
@@ -433,7 +441,7 @@ function New-Artifact([string]$Mode='RT'){
    $row.evidence['ownership']=@{owned=$false};$row.evidence['lastDrainedOwnership']=New-DrainedOwner
   }
  }
- $artifact=Copy-Case ([ordered]@{schemaVersion=40;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
+ $artifact=Copy-Case ([ordered]@{schemaVersion=42;evidenceKind='phase3d-horse-scenario-evidence';scenario='chunk6b-charge-rt';status='PASS'
   rows=$rows
   observations=[ordered]@{initialSelection=@('main');cleanup=@{selectionRestored=$true;equipmentSetRestored=$true;settingRestored=$true;pairedSchedulerSettingRestored=$true;targetClean=$true;chunk4OtherTargetReleased=$true;modeRestored=$true;unmountedHorseAiLeaseRestored=$true;combatMountRiderAiLeaseRestored=$true;relationshipState='Unmounted';playerInCombat=$false;nativeTurnBased=$false;nativeControllerInitialized=$false;nativeFinalDeathSelectionExclusion=$(if($Mode-ceq'RT'){'rider'}else{$null});expectedSelection=@('main');actualSelection=@('main')};chunk6bCharge=[ordered]@{contract='chunk6b-pair-charge-delivery';mode=$Mode;cases=@(Get-KmcChunk6bChargeRows);abilityGuid=$kmc;stockChargeBlueprint=$stock;beyondMaximumReachable=$false;spawnEnvelopeMinimum=3.0;spawnEnvelopeMaximum=20.0;settingBefore=$false;settingAfter=$false;settingRestored=$true}}
   subscenarioPassCount=$rows.Count;subscenarioFailCount=0;errors=@()})
@@ -889,6 +897,17 @@ Mutate 'view restoration left a native listener' {param($a) (Row $a 'C6B-CHARGE-
 Mutate 'view restoration left a source bone' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.afterRestore.effects.sourceBones=@('Locator_HeadCenterFX_00')}
 Mutate 'view restoration changed an equipped item' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.afterRestore.effects.equipment[0].primary.identity=2}
 Mutate 'view restoration retained the KMC anchor' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.presentationResidue=$true}
+Mutate 'view observer remains installed' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.closed=$false}
+Mutate 'native attachment returned without a matching notification' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.events[1].boundary='attach-after'}
+Mutate 'native attachment has an unresolved call' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.pending=2}
+Mutate 'view observer lost a callback' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.errors=@('callback failed')}
+Mutate 'view observer watched another native hook' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.hook.token='06007e9e'}
+Mutate 'attachment returned a different view' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.events[2].currentView=12}
+Mutate 'notification belongs to another invocation' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.attachments[1].attachmentInvocation=1}
+Mutate 'native attachment belongs to another actor object' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.events[2].actorObject=2}
+Mutate 'view observer unknown closed status' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.closed='true'}
+Mutate 'view observer string identity' {param($a) (Row $a 'C6B-CHARGE-view-replaced').boundary.nativeView.nativeAttachment.events[2].actorObject='1'}
+Mutate 'preview185 lacks direct view attachment evidence' {param($a) $a.schemaVersion=40}
 Mutate 'Dismount with no exact native cost proof' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.dismountProof=$null}
 Mutate 'Dismount proof naming another action' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.dismountProof.identity.abilityGuid='foreign'}
 Mutate 'Dismount native Move billed twice' {param($a) (Row $a 'C6B-CHARGE-dismounted').boundary.dismountProof.resourceWindow.events[1].state.move=5.75}

@@ -52,6 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityView originalView;
         private readonly JObject baseline;
         private readonly IDisposable subscription;
+        private readonly NativeViewAttachmentProbe attachmentProbe;
         private readonly List<GameLogicComponent> components = new List<GameLogicComponent>();
         private readonly JArray attachments = new JArray();
         private readonly JObject evidence;
@@ -84,7 +85,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["components"] = new JArray(blueprint.ComponentsArray.Select(item => item.GetType().FullName)),
                 ["sizeImmunities"] = new JArray(blueprint.GetComponents<SpecificBuffImmunity>().Select(item => item.Buff.AssetGuid)),
                 ["before"] = Capture(), ["effectsBefore"] = baseline.DeepClone() };
-            subscription = EventBus.Subscribe(this);
+            attachmentProbe = new NativeViewAttachmentProbe(actor);
+            try { subscription = EventBus.Subscribe(this); }
+            catch { attachmentProbe.Dispose(); throw; }
         }
 
         internal void Apply()
@@ -107,6 +110,12 @@ namespace KingmakerMountedCombat.Diagnostics
         public void HandleUnitViewAttached(UnitEntityData unit)
         {
             if (unit != actor) return;
+            try { RecordViewAttached(unit); }
+            catch (Exception exception) { attachmentProbe.Fault(exception); }
+        }
+        private void RecordViewAttached(UnitEntityData unit)
+        {
+            var invocation = attachmentProbe.Notification(unit);
             var source = new JArray();
             foreach (var frame in new System.Diagnostics.StackTrace(false).GetFrames() ?? new System.Diagnostics.StackFrame[0])
             {
@@ -119,7 +128,8 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (attachments.Count >= 8) throw new InvalidOperationException("Unexpected repeated native view attachments.");
             attachments.Add(new JObject { ["frame"] = Time.frameCount, ["actor"] = actor.UniqueId,
-                ["view"] = actor.View == null ? 0 : actor.View.GetInstanceID(), ["nativeSource"] = source });
+                ["view"] = actor.View == null ? 0 : actor.View.GetInstanceID(), ["nativeSource"] = source,
+                ["attachmentInvocation"] = invocation });
         }
 
         private void CaptureComponents()
@@ -174,16 +184,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 components.Any(item => item.IsListeningEvents) || originalView != null || replacementView != null)) return false;
             if (actor.View == null || actor.View.Data != actor || actor.GetActivePolymorph() != null ||
                 actor.AreHandsBusyWithAnimation || !actor.Commands.Empty || !JToken.DeepEquals(baseline, CaptureEffects())) return false;
-            restored = true;
             evidence["afterRestore"] = Capture(); evidence["restored"] = true;
             evidence["originalRetired"] = originalView == null; evidence["replacementRetired"] = replacementView == null;
             evidence["factDisposed"] = buff?.IsDisposed ?? !attempted;
             evidence["listenersRemaining"] = components.Count(item => item.IsListeningEvents);
             subscription.Dispose();
+            attachmentProbe.Dispose();
+            restored = true;
             return true;
         }
 
-        internal JObject Evidence { get { evidence["attachments"] = attachments.DeepClone(); return evidence; } }
+        internal JObject Evidence { get { evidence["attachments"] = attachments.DeepClone(); evidence["nativeAttachment"] = attachmentProbe.Capture(); return evidence; } }
         public void Dispose()
         {
             if (!RestoreWhenSettled()) throw new InvalidOperationException("Native charge view fixture restoration remains owned.");
