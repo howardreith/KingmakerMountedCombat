@@ -12,7 +12,10 @@ function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlrea
  function Has($o,$n){$null-ne$o-and$null-ne$o.PSObject.Properties[$n]}
  function Prop($o,$n){if(Has $o $n){$o.$n}else{$null}}
  if($null-eq$P-or(T (Prop $P 'contract'))-cne'structured-child-entry-preamble-snapshot'){Fail 'contract differs'}
- if((T (Prop $P 'parentScenario'))-cne'horse-companion-unmounted-suite'-or[string]::IsNullOrEmpty((T (Prop $P 'parentEngine')))){Fail 'parent identity missing'}
+ $nativeCasting=$ChildScenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')
+ $expectedParent=if($nativeCasting){$ChildScenario}else{'horse-companion-unmounted-suite'}
+ if((T (Prop $P 'parentScenario'))-cne$expectedParent-or[string]::IsNullOrEmpty((T (Prop $P 'parentEngine')))){Fail 'parent identity missing'}
+ if($nativeCasting-and(T (Prop $P 'parentEngine'))-cne'KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine'){Fail 'native casting parent is not the original-pair engine'}
  if([string]::IsNullOrEmpty($ChildScenario)-or(T (Prop $P 'childScenario'))-cne$ChildScenario){Fail 'child scenario differs'}
  if([string]::IsNullOrEmpty((T (Prop $P 'runId')))-or(I (Prop $P 'sessionObject'))-eq0-or[string]::IsNullOrEmpty((T (Prop $P 'areaGuid')))){Fail 'session binding missing'}
  if((I (Prop $P 'frame'))-lt0-or(I (Prop $P 'gameTicks'))-lt0-or[string]::IsNullOrEmpty((T (Prop $P 'capturedAtUtc')))){Fail 'clock missing'}
@@ -49,13 +52,13 @@ function Assert-KmcChildEntryPreamble($P,[string]$ChildScenario,[bool]$PairAlrea
 }
 # The tranche's own handoff rule: Chunk 6A combat-mount children start unmounted; every
 # other tranche child requires the mounted preamble.
-function Test-KmcChildEntryExpectsMounted([string]$Scenario){ -not ($Scenario -clike 'chunk6a-*') }
+function Test-KmcChildEntryExpectsMounted([string]$Scenario){ -not ($Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6c-*') }
 function Test-KmcChildEntryRequiresIdleParty([string]$Scenario){
- $Scenario -clike 'chunk4-*' -or $Scenario -clike 'actor-allocation-*' -or $Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6b-*' -or $Scenario -ceq 'unmounted-attack-controls-rt'
+ $Scenario -clike 'chunk4-*' -or $Scenario -clike 'actor-allocation-*' -or $Scenario -clike 'chunk6a-*' -or $Scenario -clike 'chunk6b-*' -or $Scenario -clike 'chunk6c-*' -or $Scenario -ceq 'unmounted-attack-controls-rt'
 }
 # Required of every Chunk 6A candidate from preview.150 and of every Chunk 6B candidate (the compiled
 # producer stamps that version). Earlier candidates, the historical product lines and parser-only synthetic versions
 # predate the snapshot; a snapshot that is present is always validated.
 function Test-KmcChildEntryPreambleRequired([string]$ProductVersion){
- ([string]$ProductVersion -cmatch '^0[.]1[.]0-chunk6[ab]-preview[.]([0-9]+)$' -and [long]$Matches[1] -ge 150)
+ ([string]$ProductVersion -cmatch '^0[.]1[.]0-chunk6[abcdef]-preview[.]([0-9]+)$' -and [long]$Matches[1] -ge 150)
 }
