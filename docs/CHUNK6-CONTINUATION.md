@@ -1,3 +1,54 @@
+## 2026-10-07 - preview187 closed; bounded188 envelope repair
+
+Phase6B IN PROGRESS;6C-6F incomplete. Frozen187 source
+3909cf092568ee0670f0db5cea5c697d66026fc6/treea3670dcfd1dbbfd204a99218c6f7165d5b25f32a
+closed **24 PASS /1 FAIL /3 BLOCKED-unrun**,25 native transactions.
+All actual game exits0;24 workers0/one1. Exact human105, protected saves, Mods,
+UMM/settings and recorded profile bytes restored, empty errors, no recovery.
+Fetched remote equals HEAD and worktree was clean at closure; no game/transaction.
+Closure c05c60967d5fe0478c849e5423c6d8f096f3a8ed960602192dff6cf8927ce257.
+Full28-stage ledger, requests, exact product/reader/suite/proof identities and
+restoration receipts are in the lab parent handoff
+CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-PREVIEW187-CLOSED.md
+(SHA3184fc36e0d6860400fac2ee7c439b2a2abc3adec3f6db3b678469c20609c97f).
+
+All five pending/success/cancelled/failed/drained charge save/cold-load pairs pass,
+as do area/session transitions, disable after drain and removal/noDLL readiness.
+Disable and unload refuse unresolved debt; this does not claim successful hot unload.
+The retained-reference observer closes with no faults in these native traces.
+Historical186 identity ambiguity is not retroactively explained or requalified.
+Native null-view restoration remains unqualified187 because its cohort was blocked.
+
+Stage2 remains externalFAIL0/1/native70/0. The shared outer envelope still required42,
+while compiled evidence and the dedicated reader required43. Stages3/4/5 are explicit
+unrun dependencies, not product failures or inherited PASS. The later aggregate
+registration error follows the rejected result; native registration rows remain intact.
+The closed campaign and its original helpers, artifacts and verdicts are immutable.
+
+Working188 changes the four exact outer schema registrations and adds file-backed
+envelope/dispatch coverage for all five charge scenarios, current preamble obligations,
+identity/schema refusal, required rows and unchanged mount-cost prohibition.
+No production command, action, movement, cleanup or acceptance-policy change.
+Focused charge188-1 retained FAIL reproduces the exact native error after441 existing
+checks. After repair charge188-2 passes502/0. Immutable native187 offline replay passes
+registration and full charge dispatch2/0; all artifact bytes and originalFAIL unchanged.
+Build, components699/0 and source145/0 pass. FAST1 passes26/0; CANDIDATE1 passes38/0,
+actual child exit0 and all inputs unchanged. Assembly contracts722/0 pass within it.
+No188 package/suite/purity/native result.
+The existing pure-reader guard excludes Common.ps1, so one new candidate is required;
+there is no retroactive187 qualification or guard exception.
+
+Next command: git diff --check
+Then coherent commit and guarded publication, Invoke-Artifact188.ps1/Record-Freeze188.ps1,
+one freeze,
+required purity and complete28-stage native batch. No repeated87-row6A development loop.
+FULL remains for consolidation: four charge-only parser conditions changed, with
+the full current envelope, shared harness and historical replay gates passing.
+TB delivery stays DEFER - EVIDENCED with exact cost-free refusal in source; qualify
+that refusal on the successor. No6B stable claim or6C rod yet; continue6B then6C-6F.
+No merge/PR/tag/release/permanent install/protected-human-save write, foreign-mod
+alteration or HUMAN PLAY acceptance.
+
 ## 2026-10-07 - preview186 closed; preview187 observer repairs
 
 Phase 6B IN PROGRESS; 6C-6F incomplete. Frozen186 source
