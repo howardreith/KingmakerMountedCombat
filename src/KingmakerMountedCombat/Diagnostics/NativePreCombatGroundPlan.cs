@@ -64,13 +64,14 @@ namespace KingmakerMountedCombat.Diagnostics
             var candidates = new JArray();
             var nativeOrigin = ObstacleAnalyzer.GetNearestNode(origin);
             var astarOrigin = AstarPath.active.GetNearest(origin);
-            var search = new JObject { ["contract"] = "bounded-native-ground-plan", ["actorId"] = mover.UniqueId,
+            var originInside = ObstacleAnalyzer.IsPointInsideNavMesh(origin);
+            var search = new JObject { ["contract"] = "bounded-native-ground-plan-v2", ["actorId"] = mover.UniqueId,
                 ["partnerId"] = partner.UniqueId, ["origin"] = Point(origin), ["center"] = Point(center),
                 ["corpulence"] = mover.View.Corpulence, ["clearanceRadius"] = clearance, ["joint"] = joint,
                 ["partnerPositionOverride"] = partnerPosition.HasValue ? Point(partnerPosition.Value) : null,
                 ["occupants"] = occupants, ["maximumCandidates"] = SearchLimit, ["candidates"] = candidates,
                 ["selectedIndex"] = -1,
-                ["originNativeNearest"] = NavigationPoint(origin, nativeOrigin),
+                ["originInsideNavmesh"] = originInside, ["originNativeNearest"] = NavigationPoint(origin, nativeOrigin),
                 ["originAstarNearest"] = NavigationPoint(origin, astarOrigin) };
             foreach (var radius in new[] { 2.3f, 2.65f, 2f })
                 for (var index = 0; index < 24; index++)
@@ -84,6 +85,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     candidates.Add(c);
                     if (nearest.node == null || !nearest.node.Walkable) continue;
                     var routeEnd = ObstacleAnalyzer.TraceAlongNavmesh(origin, point);
+                    var reverseEnd = ObstacleAnalyzer.TraceAlongNavmesh(point, origin);
                     var footprint = NativeGroundMovementObservation.CaptureFootprint(mover, point, clearance);
                     var residuals = footprint["probes"].Select(p => (float)p["residual"]).ToArray();
                     var residual = residuals.Any(v => float.IsNaN(v) || float.IsInfinity(v)) ? float.NaN : residuals.Max();
@@ -104,8 +106,13 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["originMeasurements"] = MeasureOrigin(mover, origin, point)
                         };
                     }
-                    c["routeResidual"] = route; c["footprint"] = footprint; c["blockers"] = new JArray(blockers);
-                    var eligible = NativeGroundFixturePolicy.IsPreCombatPosition(Math.Round(radius, 2), separation, travel, route, residual, blockers.Length != 0);
+                    c["routeResidual"] = route; c["reverseRouteEnd"] = Point(reverseEnd);
+                    var measuredRoute = NativeGroundFixturePolicy.PreCombatRouteResidual(originInside,
+                        nativeOrigin.node != null && nativeOrigin.node.Walkable, Distance(origin, nativeOrigin.clampedPosition),
+                        route, Distance(routeEnd, origin), Distance(reverseEnd, origin));
+                    c["routeProof"] = route < 0.001f ? "forward" : measuredRoute < 0.001 ? "reciprocal-origin-boundary" : "rejected";
+                    c["footprint"] = footprint; c["blockers"] = new JArray(blockers);
+                    var eligible = NativeGroundFixturePolicy.IsPreCombatPosition(Math.Round(radius, 2), separation, travel, measuredRoute, residual, blockers.Length != 0);
                     c["eligible"] = eligible;
                     if (!eligible) continue;
                     if (joint) {

@@ -1,3 +1,16 @@
+## 2026-10-07 - preview185 closed; preview186 source complete for qualification
+
+Phase6B remains IN PROGRESS. Frozen185 closed16 PASS/4 FAIL/8 BLOCKED-unrun;
+all20 native transactions restored exactly. Current186 corrects continuation
+acceptance, directly observes native view attachment and records a reciprocal
+native ground route for one bounded fixture hypothesis. Existing production
+charge/action/cleanup policy and substantive limits remain unchanged. Historical
+v1 ground evidence keeps its original forward-only predicate. CANDIDATE2 PASS38/0,
+including final FAST26/0; the failed CANDIDATE1 compatibility attempt is retained.
+See the active continuation for focused gates and exact closure identities. No186
+native credit or6B stability yet. Next: guarded publication, one186 freeze/purity
+and the complete28-stage campaign. No rod until6B closes; continue then through6F.
+
 ## 2026-10-07 - preview184 closed; coherent185 qualification tranche
 
 The owner's autonomous continuation through6F supersedes historical phase limits

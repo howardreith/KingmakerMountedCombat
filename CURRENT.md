@@ -1,3 +1,51 @@
+## 2026-10-07 - preview185 closed; coherent preview186 qualification repairs
+
+Phase 6B IN PROGRESS; 6C-6F incomplete. Frozen185 remains immutable:
+16 PASS / 4 FAIL / 8 BLOCKED-unrun; all 20 actual transactions restored exactly,
+empty restorationErrors, normal game exits, no live game or runtime transaction.
+Closure d25e2eea841c3fc356713b3ae34899ee4bd36de47ea85289cb78ccfa8c42e1bc.
+Starting HEAD928589f659c2193859f66a4560ddc1e5a9e79dc4 remains fetched and remote-equal;
+intentional preview186 source is dirty. No186 package/suite/purity/native verdict.
+
+The coherent tranche corrects per-actor continuation acceptance (native initiative,
+mount ordinary attacks, and native cost after first delivery), directly observes
+the exact native view-attachment call, and records reciprocal native ground traces
+for an origin-edge fixture failure. Existing clearance/arrival/resource thresholds
+and production charge/action/cleanup policies remain unchanged. Reverse-trace
+planning is a bounded hypothesis pending native proof; it does not move an actor.
+Schema42 requires the new observer evidence; no historical result is requalified.
+Focused PASS: components687/0, continuation38/0, charge reader434/0, persistence159/0,
+ground plan317/0 and joint ground156/0. FAST1 passed26/0 before the compatibility repair.
+CANDIDATE1 retained FAIL34/1 at legacy ground evidence. The forward-only legacy path
+is restored: focused ledger record checks87/0 and literal assertions7/0 pass.
+CANDIDATE2 PASS38/0 includes the final FAST26/0; all inputs stayed unchanged.
+
+Next: coherent commit and direct guarded push, fetch/equality/clean checks, then
+Invoke-Artifact186-v2.ps1 / Record-Freeze186-v2.ps1, one new purity and the28-stage native batch.
+Do not execute historical Publish-Preview185-v2 commands. Full185 closure handoff:
+analysis-cache/chunk6-continuation/CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-PREVIEW185-CLOSED.md.
+TB delivery remains DEFER - EVIDENCED with qualified185 cost-free refusal. No6B
+stability claim or rod before6B closes. Continue6B then6C-6F. No merge/PR/tag/release,
+permanent install, protected-human-save write, foreign-mod change or HUMAN PLAY.
+
+## 2026-10-07 - preview185 closed; coherent qualification repairs in progress
+
+Phase6B IN PROGRESS. Frozen185 source928589f659c2193859f66a4560ddc1e5a9e79dc4:
+16 PASS /4 FAIL /8 BLOCKED-unrun across28 planned entries,20 native transactions.
+All20 restored exactly, including recorded profile bytes; empty restorationErrors,
+normal game exits, no live game/transaction. Closure SHA256
+d25e2eea841c3fc356713b3ae34899ee4bd36de47ea85289cb78ccfa8c42e1bc.
+RT core/interruption, TB refusal, both carriers/safety, ordinary controls, area,
+session, disable and removal/no-DLL passed. View attachment observation, TB Mount
+fixture positioning and the per-actor P04 continuation reader need correction.
+The failed P04 sources and remaining affected P04 cases block their cold loads.
+No native verdict is inferred for an unrun case;6B is not stable.
+Current work changes the reader and focused tests, then the bounded observer/fixture
+defects in one coherent tranche. Original185 package/suite/proof/evidence immutable.
+Next: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/Test-ChargeContinuation.ps1
+Continue6B then6C-6F. No rod before6B closes; no merge/PR/tag/release/permanent
+install/protected-save write/foreign-mod change/HUMAN PLAY acceptance.
+
 ## 2026-10-07 - preview184 closed; preview185 qualification repairs
 
 Phase 6B IN PROGRESS. Frozen184 source a72b685391a3300b3616434ca59a0827fef6fecd

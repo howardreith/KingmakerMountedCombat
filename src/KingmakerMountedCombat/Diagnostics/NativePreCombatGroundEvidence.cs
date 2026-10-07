@@ -19,10 +19,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private static void SamePoint(JToken a, JToken b) { var x=Point(a);var y=Point(b);for(var i=0;i<3;i++)Near(x[i],y[i],"position differs"); }
         internal static int AssertSearch(JObject p)
         {
-            Require(Text(p?["contract"]) == "bounded-native-ground-plan" && Int(p["maximumCandidates"]) == 72, "contract/bound differs");
+            Require(Text(p?["contract"]) == "bounded-native-ground-plan-v2" && Int(p["maximumCandidates"]) == 72, "contract/bound differs");
             var actor=Text(p["actorId"]);var partner=Text(p["partnerId"]);var joint=Bool(p["joint"]);
             Require(!string.IsNullOrEmpty(actor)&&!string.IsNullOrEmpty(partner)&&actor!=partner,"pair identity missing");
             var origin=Point(p["origin"]);var center=Point(p["center"]);var corp=Number(p["corpulence"]);var clearance=Number(p["clearanceRadius"]);
+            var originInside=Bool(p["originInsideNavmesh"]);var nativeOrigin=p["originNativeNearest"];
+            SamePoint(nativeOrigin?["requested"],p["origin"]);
+            var nearestOriginResidual=Distance(origin,Point(nativeOrigin["clamped"]));var originWalkable=Bool(nativeOrigin["walkable"]);
             Require(corp>=0,"negative corpulence");Near(clearance,Math.Max(0.5,corp)+(joint?0:0.75),"clearance changed");
             var length=Distance(origin,center);Require(length>=0.1,"degenerate geometry");
             var dx=(origin[0]-center[0])/length;var dz=(origin[2]-center[2])/length;
@@ -47,6 +50,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 if(!Bool(c["walkable"])) {Require(!Bool(c["eligible"])&&c["riderSearch"]==null,"nonwalkable point selected");continue;}
                 var travel=Distance(origin,point);var separation=Distance(center,point);var route=Distance(Point(c["routeEnd"]),point);
                 Near(Number(c["travel"]),travel,"travel differs");Near(Number(c["separation"]),separation,"separation differs");Near(Number(c["routeResidual"]),route,"route residual differs");
+                var measuredRoute=NativeGroundFixturePolicy.PreCombatRouteResidual(originInside,originWalkable,nearestOriginResidual,
+                    route,Distance(Point(c["routeEnd"]),origin),Distance(Point(c["reverseRouteEnd"]),origin));
+                Require(Text(c["routeProof"])==(route<0.001?"forward":measuredRoute<0.001?"reciprocal-origin-boundary":"rejected"),"native route direction differs");
                 var f=c["footprint"];SamePoint(f?["center"],c["point"]);Near(Number(f["corpulence"]),corp,"footprint actor differs");Near(Number(f["probeRadius"]),clearance,"footprint radius differs");
                 var probes=f["probes"] as JArray;Require(probes?.Count==8,"footprint probes missing");var maximum=0.0;
                 for(var j=0;j<8;j++) {
@@ -56,7 +62,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 var blockers=occupants.Where(u=>Text(u["actorId"])!=actor&&Distance(point,Point(u["position"]))<corp+Number(u["corpulence"])+0.05).Select(u=>Text(u["actorId"])).ToArray();
                 Require(c["blockers"] is JArray&&blockers.SequenceEqual(c["blockers"].Select(Text)),"occupancy differs");
-                var eligible=NativeGroundFixturePolicy.IsPreCombatPosition(radius,Number(c["separation"]),Number(c["travel"]),Number(c["routeResidual"]),probes.Max(x=>Number(x["residual"])),blockers.Length!=0);
+                var eligible=NativeGroundFixturePolicy.IsPreCombatPosition(radius,Number(c["separation"]),Number(c["travel"]),measuredRoute,probes.Max(x=>Number(x["residual"])),blockers.Length!=0);
                 Require(Bool(c["eligible"])==eligible,"candidate eligibility differs");
                 if(!eligible){Require(c["riderSearch"]==null,"rejected mount has rider search");continue;}
                 if(joint) {

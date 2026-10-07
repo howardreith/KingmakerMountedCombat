@@ -57,6 +57,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 IsClear(requestedSeparation, separation, travel, routeResidual, footprintResidual, occupied);
         }
 
+        // Native TraceAlongNavmesh quantizes its endpoints to Int3. At an origin
+        // edge a forward query can stop at its own origin. The identical reverse
+        // query may prove that segment without moving/nudging either endpoint.
+        // This is fixture planning only; native movement/arrival is still required.
+        internal static double PreCombatRouteResidual(bool originInside, bool originWalkable,
+            double nearestOriginResidual, double forwardResidual, double forwardOriginResidual, double reverseResidual)
+        {
+            foreach (var value in new[] { nearestOriginResidual, forwardResidual, forwardOriginResidual, reverseResidual })
+                if (double.IsNaN(value) || double.IsInfinity(value) || value < 0) return double.NaN;
+            if (forwardResidual < 0.001) return forwardResidual;
+            return originInside && originWalkable && nearestOriginResidual < 0.001 &&
+                forwardOriginResidual < 0.001 && reverseResidual < 0.001 ? reverseResidual : forwardResidual;
+        }
+
         internal static bool IsClear(double requestedSeparation, double separation, double travel,
             double routeResidual, double footprintResidual, bool occupied)
         {

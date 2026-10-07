@@ -11,7 +11,7 @@ function New-PlanFixture([bool]$Joint=$false,[bool]$RejectAll=$false){
  New-PlanSearch $mover $partner $origin $center (0.5+$extra) $Joint $RejectAll $occupants $null
 }
 function New-PlanSearch($Actor,$Partner,$Origin,$Center,$Clearance,[bool]$Joint,[bool]$RejectAll,$Occupants,$Override){
- $p=[pscustomobject]@{contract='bounded-native-ground-plan';maximumCandidates=72;actorId=$Actor;partnerId=$Partner;origin=$Origin;center=$Center;corpulence=0.5;clearanceRadius=$Clearance;joint=$Joint;partnerPositionOverride=$Override;occupants=@($Occupants|ForEach-Object{Copy-GroundPlan $_});candidates=@();selectedIndex=-1}
+ $p=[pscustomobject]@{contract='bounded-native-ground-plan-v2';maximumCandidates=72;actorId=$Actor;partnerId=$Partner;origin=$Origin;center=$Center;corpulence=0.5;clearanceRadius=$Clearance;joint=$Joint;partnerPositionOverride=$Override;occupants=@($Occupants|ForEach-Object{Copy-GroundPlan $_});candidates=@();selectedIndex=-1;originInsideNavmesh=$true;originNativeNearest=@{requested=(Copy-GroundPlan $Origin);clamped=(Copy-GroundPlan $Origin);walkable=$true}}
  $length=[Math]::Sqrt([Math]::Pow($Origin.x-$Center.x,2)+[Math]::Pow($Origin.z-$Center.z,2));$dx=($Origin.x-$Center.x)/$length;$dz=($Origin.z-$Center.z)/$length
  foreach($radius in @(2.3,2.65,2.0)){
   foreach($i in 0..23){
@@ -22,6 +22,7 @@ function New-PlanSearch($Actor,$Partner,$Origin,$Center,$Clearance,[bool]$Joint,
    $travel=[Math]::Sqrt([Math]::Pow($Origin.x-$point.x,2)+[Math]::Pow($Origin.z-$point.z,2));$probes=@()
    foreach($j in 0..7){$angle=$j*[Math]::PI/4;$to=@(($point.x+[Math]::Sin($angle)*$Clearance),$point.y,($point.z+[Math]::Cos($angle)*$Clearance));$probes+=@([pscustomobject]@{requested=$to;endpoint=$to.Clone();residual=0.0})}
    $c|Add-Member travel $travel;$c|Add-Member separation $radius;$c|Add-Member routeEnd (Copy-GroundPlan $point);$c|Add-Member routeResidual 0.0
+   $c|Add-Member reverseRouteEnd (Copy-GroundPlan $Origin);$c|Add-Member routeProof 'forward'
    $c|Add-Member footprint ([pscustomobject]@{center=@($point.x,$point.y,$point.z);corpulence=0.5;probeRadius=$Clearance;probes=$probes});$c|Add-Member blockers @()
    $c.eligible=$travel-ge0.25-and$travel-le4
    if(-not$c.eligible){continue}
@@ -73,4 +74,43 @@ foreach($joint in @($false,$true)){
  $x=Copy-GroundPlan $p;$x.candidates=@($x.candidates|Select-Object -First 71);Check-Plan $x $false
  $x=Copy-GroundPlan $p;$x.selectedIndex=0;Check-Plan $x $false
 }
+# A forward trace clipped at its own quantized origin may use an independently
+# measured reverse traversal. No endpoint is nudged and no tolerance is enlarged.
+$p=New-PlanFixture
+$p.candidates[0].routeEnd=Copy-GroundPlan $p.origin
+$p.candidates[0].routeResidual=$p.candidates[0].travel
+$p.candidates[0].routeProof='reciprocal-origin-boundary'
+Check-Plan $p $true
+foreach($mutation in @(
+ {param($x)$x.originInsideNavmesh=$false},
+ {param($x)$x.originNativeNearest.walkable=$false},
+ {param($x)$x.originNativeNearest.clamped.x+=0.001},
+ {param($x)$x.candidates[0].reverseRouteEnd.x+=0.002},
+ {param($x)$x.candidates[0].routeEnd.x-=0.2;$x.candidates[0].routeResidual-=0.2},
+ {param($x)$x.candidates[0].routeProof='forward'},
+ {param($x)$x.candidates[0].footprint.probes[0].residual=0.1},
+ {param($x)$x.candidates[0].blockers=@('mount')}
+)){$x=Copy-GroundPlan $p;& $mutation $x;Check-Plan $x $false}
+# The shared reader also serves immutable older ledgers. Preserve their original
+# forward-only evidence without assigning reciprocal facts to an old artifact.
+function Legacy-Plan($x){
+ $x.contract='bounded-native-ground-plan';$x.PSObject.Properties.Remove('originInsideNavmesh')
+ foreach($c in $x.candidates){
+  $c.PSObject.Properties.Remove('reverseRouteEnd');$c.PSObject.Properties.Remove('routeProof')
+  if($null-ne$c.PSObject.Properties['riderSearch']){Legacy-Plan $c.riderSearch}
+ }
+}
+function Check-LegacyReader($x,[bool]$expected){
+ $accepted=$true;try{$null=Assert-KmcNativeGroundPlan $x}catch{$accepted=$false;if($expected){throw}}
+ if($accepted-ne$expected){throw 'Legacy forward-only acceptance differs'};$script:checks++
+}
+foreach($joint in @($false,$true)){
+ $legacy=New-PlanFixture $joint;Legacy-Plan $legacy;Check-LegacyReader $legacy $true
+ $legacy.candidates[0].routeEnd=Copy-GroundPlan $legacy.origin
+ $legacy.candidates[0].routeResidual=$legacy.candidates[0].travel
+ Check-LegacyReader $legacy $false
+}
+$legacy=Copy-GroundPlan $p;Legacy-Plan $legacy;Check-LegacyReader $legacy $false
+$legacy=New-PlanFixture;$legacy.contract='bounded-native-ground-plan';Check-LegacyReader $legacy $false
+$mixed=New-PlanFixture $true;Legacy-Plan $mixed.candidates[0].riderSearch;Check-LegacyReader $mixed $false
 'BOUNDED GROUND PLAN PASS='+$checks+' FAIL=0; synthetic producer/external only'

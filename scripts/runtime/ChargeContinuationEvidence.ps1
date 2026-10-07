@@ -8,14 +8,30 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
  function CopyState($s){$s|ConvertTo-Json -Depth 30 -Compress|ConvertFrom-Json}
  function Same($a,$b){
   if([string]::IsNullOrEmpty($a.actor)-or$a.actor-cne$b.actor-or(I $a.actorObject)-eq0-or(I $a.actorObject)-ne(I $b.actorObject)-or
-    -not(B $b.inCombat)-or-not(B $b.prepared)-or(B $b.waitingInitiative)-or(I $b.grantSequence)-ne0){throw 'Charge continuation actor/preparation changed'}
-  foreach($f in @('standard','move','swift')){if([Math]::Abs((N $a.$f)-(N $b.$f))-gt0.0001){throw ('Charge continuation unexplained '+$f)}}
+    -not(B $b.inCombat)-or-not(B $b.prepared)-or(I $b.grantSequence)-ne0){throw 'Charge continuation actor/preparation changed'}
+  foreach($f in @('standard','move','swift','initiativeCooldown')){if([Math]::Abs((N $a.$f)-(N $b.$f))-gt0.0001){throw ('Charge continuation unexplained '+$f)}}
+  if((B $b.waitingInitiative)-ne((N $b.initiativeCooldown)-gt0)-or(B $a.waitingInitiative)-ne(B $b.waitingInitiative)){
+   throw 'Charge continuation initiative ownership differs'
+  }
  }
  function Decayed($e){
   $s=CopyState $e.state;$delta=[single](N $e.gameDeltaTime)
-  if($delta-lt0-or(B $e.nativeTurnBased)-or(B $e.state.waitingInitiative)){throw 'Charge continuation native RT tick differs'}
-  foreach($f in @('standard','move','swift')){$s.$f=[single][Math]::Max([single]0,[single]([single]$s.$f-$delta))}
+  if($delta-lt0-or(B $e.nativeTurnBased)){throw 'Charge continuation native RT tick differs'}
+  # TickOnUnit: while initiative is pending only Initiative decays, then returns.
+  # Standard expiry/OnNewRound occurs only on a later ordinary cooldown tick.
+  if(B $e.state.waitingInitiative){
+   $s.initiativeCooldown=[single][Math]::Max([single]0,[single]([single]$s.initiativeCooldown-$delta))
+   $s.waitingInitiative=$s.initiativeCooldown-gt0
+  }else{
+   foreach($f in @('standard','move','swift')){$s.$f=[single][Math]::Max([single]0,[single]([single]$s.$f-$delta))}
+  }
   $s
+ }
+ function AttackCommand($e){
+  if((I $e.command)-eq0-or$e.commandActor-cne$e.state.actor-or$e.actionType-cne'Standard'-or(B $e.ignoreCooldown)-or
+    $e.commandType-cnotin@('Kingmaker.UnitLogic.Commands.UnitAttack','KingmakerMountedCombat.Integration.MountedPairAttackCommand','KingmakerMountedCombat.Integration.MountedPairSingleAttack')){
+   throw 'Charge continuation wrong ordinary attack command'
+  }
  }
  if($P.contract-cne'native-rt-charge-continuation-v1'-or-not(B $P.closed)-or@($P.errors).Count-ne0-or
     (I $P.trace.dropped)-ne0-or(I $P.trace.observationErrors)-ne0){throw 'Charge continuation trace incomplete'}
@@ -27,11 +43,12 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
   if($hooks.Count-ne1-or$hooks[0].moduleMvid-cne'07fa1e4d-8618-41b3-9b8d-faa17d3b26f7'){throw 'Charge continuation native observer hook missing'}
  }
  $before=$P.before;$after=$P.after;$current=@{};$ticks=@{};$costs=@{};$roundPending=@{};$rounds=@{};$tickCounts=@{};$standardCosts=0
+ $commands=@{};$lastCommandRound=@{};$paidCommands=@{}
  foreach($role in @('rider','mount')){
   $id=if($role-ceq'rider'){$rider}else{$mount};$s=CopyState $before.$role;Same $s $s
   if($s.actor-cne$id){throw 'Charge continuation role changed'}
   foreach($field in @('standard','move','swift')){if([Math]::Abs((N $s.$field)-(N $Queued.$role.$field))-gt0.0001){throw 'Charge continuation queued baseline differs'}}
-  $current[$id]=$s;$rounds[$id]=0;$tickCounts[$id]=0
+  $current[$id]=$s;$rounds[$id]=0;$tickCounts[$id]=0;$lastCommandRound[$id]=-1
  }
  if($current[$rider].actorObject-eq$current[$mount].actorObject-or(N $current[$rider].standard)-le0){throw 'Charge continuation has no exact spent rider'}
  if((I $before.resolved)-ne(I $Queued.detail.resolved)-or(I $before.rounds)-ne(I $Queued.detail.riderRounds)-or
@@ -40,11 +57,13 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
  $attackFacts=@{};$attackRules=@{};$begun=0;$resolved=0
  foreach($a in @($P.attacks)){
   $seq=I $a.allocationSequence
-  if($attackFacts.ContainsKey($seq)-or$a.actor-cne$rider-or$a.target-cne$P.targetId-or(B $a.charge)-or(B $a.opportunity)-or
-     (I $a.rule)-eq0-or$a.boundary-cnotin@('attack-before','attack-after','attack-resolved')){throw 'Charge continuation attack identity differs'}
+  if($attackFacts.ContainsKey($seq)-or$a.actor-cnotin@($rider,$mount)-or$a.target-cne$P.targetId-or(B $a.charge)-or(B $a.opportunity)-or
+     (I $a.rule)-eq0-or$a.boundary-cnotin@('attack-before','attack-after','attack-resolved')-or
+     (I $a.attacksCount)-lt1-or(I $a.attackNumber)-lt0-or(I $a.attackNumber)-ge(I $a.attacksCount)-or
+     (-not(B $a.fullAttack)-and((I $a.attacksCount)-ne1-or(I $a.attackNumber)-ne0))){throw 'Charge continuation attack identity differs'}
   $attackFacts[$seq]=$a
  }
- if($attackFacts.Count-ne6){throw 'Charge continuation requires exactly two complete native attack observations'}
+ if($attackFacts.Count-lt6-or$attackFacts.Count-gt64-or@($P.attacks|Where-Object actor -CEQ $rider).Count-ne6){throw 'Charge continuation requires exactly two complete rider attack observations'}
  $sequence=I $before.allocationSequence;$time=I $before.gameTicks;$frame=I $before.frame;$seenAttacks=0
  if($sequence-ne0-or$P.trace.events-isnot[array]-or@($P.trace.events).Count-gt16000){throw 'Charge continuation trace bounds differ'}
  foreach($e in $P.trace.events){
@@ -60,12 +79,12 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
   }elseif($boundary-ceq'cooldown-tick-after'){
    if(-not$ticks.ContainsKey($id)-or$roundPending.ContainsKey($id)){throw 'Charge continuation unmatched tick end'}
    $expected=$ticks[$id].expected
-   $crossed=(N $ticks[$id].before.state.standard)-gt0-and(N $expected.standard)-eq0
+    $crossed=-not(B $ticks[$id].before.state.waitingInitiative)-and(N $ticks[$id].before.state.standard)-gt0-and(N $expected.standard)-eq0
    if($crossed-ne$ticks[$id].applied){throw 'Charge continuation native expiry/round callback differs'}
   }elseif($boundary-ceq'cost-after'){
    if(-not$costs.ContainsKey($id)){throw 'Charge continuation cost end has no entry'}
    $entry=$costs[$id]
-   if((I $entry.command)-ne(I $e.command)-or$entry.actionType-cne$e.actionType-or(B $entry.ignoreCooldown)-ne(B $e.ignoreCooldown)){throw 'Charge continuation cost command changed'}
+    if((I $entry.command)-ne(I $e.command)-or$entry.commandActor-cne$e.commandActor-or$entry.commandType-cne$e.commandType-or$entry.actionType-cne$e.actionType-or(B $entry.ignoreCooldown)-ne(B $e.ignoreCooldown)-or(N $entry.timeSinceStart)-ne(N $e.timeSinceStart)){throw 'Charge continuation cost command changed'}
    $expected=CopyState $current[$id]
    if(-not(B $entry.ignoreCooldown)){
     $field=if($entry.actionType-ceq'Standard'){'standard'}else{'move'}
@@ -89,11 +108,18 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
     if($costs.ContainsKey($id)-or$ticks.ContainsKey($id)-or(I $e.command)-eq0-or$e.commandActor-cne$id-or-not(B $e.acted)-or(N $e.timeSinceStart)-lt0){throw 'Charge continuation invalid native cost entry'}
     if($e.actionType-cnotin@('Standard','Move')){throw 'Charge continuation unexpected action cost'}
     if(-not(B $e.ignoreCooldown)){
-     if($id-ceq$rider){
-      if($e.actionType-cne'Standard'-or(N $e.state.standard)-gt0-or$rounds[$id]-ne$standardCosts+1-or
-        $e.commandType-cnotin@('Kingmaker.UnitLogic.Commands.UnitAttack','KingmakerMountedCombat.Integration.MountedPairAttackCommand','KingmakerMountedCombat.Integration.MountedPairSingleAttack')){throw 'Charge continuation premature or wrong rider cost'}
-      $standardCosts++
-     }elseif($e.actionType-cne'Move'-or$e.commandType-cne'Kingmaker.UnitLogic.Commands.UnitMoveTo'){throw 'Charge continuation mount paid a rider action'}
+     $key=[string](I $e.command)
+     if($paidCommands.ContainsKey($key)-or(B $e.state.waitingInitiative)){throw 'Charge continuation duplicate or premature command cost'}
+     if($e.actionType-ceq'Standard'){
+      AttackCommand $e
+      if(-not$commands.ContainsKey($key)-or$commands[$key].actor-cne$id-or$commands[$key].type-cne$e.commandType-or
+         -not$commands[$key].firstComplete-or$commands[$key].paid-or(N $e.state.standard)-gt0-or$commands[$key].round-ne$rounds[$id]){throw 'Charge continuation cost lacks its first native delivery'}
+      $commands[$key].paid=$true
+      if($id-ceq$rider){if($rounds[$id]-ne$standardCosts+1){throw 'Charge continuation premature rider cost'};$standardCosts++}
+     }elseif($id-cne$mount-or$e.commandType-cne'Kingmaker.UnitLogic.Commands.UnitMoveTo'){
+      throw 'Charge continuation wrong movement cost owner'
+     }
+     $paidCommands[$key]=$id
     }
     $costs[$id]=$e
    }
@@ -103,21 +129,39 @@ function Assert-KmcChargeContinuation($P,$Queued,$Done) {
   if($boundary.StartsWith('continuation-attack-', [StringComparison]::Ordinal)){
    if(-not$attackFacts.ContainsKey($sequence)){throw 'Charge continuation attack event lacks raw rule identity'}
    $a=$attackFacts[$sequence];$seenAttacks++
-   if($boundary-cne('continuation-'+$a.boundary)-or(I $e.callbackObject)-ne(I $a.rule)-or$id-cne$rider){throw 'Charge continuation rule callback attribution differs'}
+   if($boundary-cne('continuation-'+$a.boundary)-or(I $e.callbackObject)-ne(I $a.rule)-or$id-cne$a.actor){throw 'Charge continuation rule callback attribution differs'}
+   AttackCommand $e
+   $commandKey=[string](I $e.command)
    $key=[string]$a.rule
    if($a.boundary-ceq'attack-before'){
-    if($attackRules.ContainsKey($key)-or$rounds[$rider]-ne$begun+1){throw 'Charge continuation attack before debt expiry or duplicate attack'}
-    $begun++;$attackRules[$key]=@{after=$false;resolved=$false;round=$rounds[$rider]}
+    if($attackRules.ContainsKey($key)-or(B $e.state.waitingInitiative)){throw 'Charge continuation premature or duplicate attack'}
+    if(-not$commands.ContainsKey($commandKey)){
+     if((I $a.attackNumber)-ne0-or(B $e.acted)-or(N $e.state.standard)-gt0-or$lastCommandRound[$id]-ge$rounds[$id]){throw 'Charge continuation new attack command before native readiness'}
+     if($id-ceq$rider-and($rounds[$id]-ne$begun+1-or(I $a.attacksCount)-ne1)){throw 'Charge continuation rider round or attack count differs'}
+     $commands[$commandKey]=@{actor=$id;type=$e.commandType;round=$rounds[$id];count=(I $a.attacksCount);full=(B $a.fullAttack);next=0;paid=$false;firstComplete=$false}
+     $lastCommandRound[$id]=$rounds[$id]
+    }
+    $command=$commands[$commandKey]
+    if($command.actor-cne$id-or$command.type-cne$e.commandType-or$command.round-ne$rounds[$id]-or$command.count-ne(I $a.attacksCount)-or
+       $command.full-ne(B $a.fullAttack)-or$command.next-ne(I $a.attackNumber)-or($command.next-gt0-and(-not$command.paid-or-not(B $e.acted)))){throw 'Charge continuation ordinary attack sequence differs'}
+    $command.next++
+    if($id-ceq$rider){$begun++}
+    $attackRules[$key]=@{after=$false;resolved=$false;round=$rounds[$id];actor=$id;command=$commandKey;number=(I $a.attackNumber);count=(I $a.attacksCount);full=(B $a.fullAttack)}
    }else{
     if(-not$attackRules.ContainsKey($key)){throw 'Charge continuation orphan attack completion'}
     $part=if($a.boundary-ceq'attack-after'){'after'}else{'resolved'}
-    if($attackRules[$key][$part]-or$attackRules[$key].round-ne$rounds[$rider]){throw 'Charge continuation repeated or cross-round delivery'}
-    $attackRules[$key][$part]=$true;if($part-ceq'resolved'){$resolved++}
+    $rule=$attackRules[$key]
+    if($rule[$part]-or$rule.round-ne$rounds[$id]-or$rule.actor-cne$id-or$rule.command-cne$commandKey-or$rule.number-ne(I $a.attackNumber)-or
+       $rule.count-ne(I $a.attacksCount)-or$rule.full-ne(B $a.fullAttack)-or($part-ceq'after'-and-not$rule.resolved)){throw 'Charge continuation repeated, changed or cross-round delivery'}
+    $rule[$part]=$true
+    if($part-ceq'resolved'-and$id-ceq$rider){$resolved++}
+    if($part-ceq'after'-and$rule.number-eq0){$commands[$commandKey].firstComplete=$true}
    }
   }
  }
- if($ticks.Count-or$costs.Count-or$roundPending.Count-or$standardCosts-ne2-or$rounds[$rider]-ne2-or$rounds[$mount]-ne0-or
-    $tickCounts[$rider]-eq0-or$tickCounts[$mount]-eq0-or$begun-ne2-or$resolved-ne2-or$seenAttacks-ne6-or
+ if($ticks.Count-or$costs.Count-or$roundPending.Count-or$standardCosts-ne2-or$rounds[$rider]-ne2-or
+    $tickCounts[$rider]-eq0-or$tickCounts[$mount]-eq0-or$begun-ne2-or$resolved-ne2-or$seenAttacks-ne$attackFacts.Count-or
+    @($commands.Values|Where-Object {-not$_.paid-or-not$_.firstComplete}).Count-or
     (I $after.allocationSequence)-ne$sequence-or@($attackRules.Values|Where-Object {-not$_.after-or-not$_.resolved}).Count){throw 'Charge continuation incomplete native boundaries'}
  foreach($role in @('rider','mount')){$id=if($role-ceq'rider'){$rider}else{$mount};Same $current[$id] $after.$role}
 }
