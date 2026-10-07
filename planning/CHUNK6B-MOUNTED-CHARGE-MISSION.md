@@ -1,3 +1,16 @@
+## 2026-10-07 - preview187 closed; bounded188 envelope repair
+
+Phase6B IN PROGRESS;6C-6F incomplete. Frozen187 closed24 PASS/1 FAIL/3 BLOCKED-unrun;
+all25 native transactions restored exactly, empty errors, no active game/transaction.
+All five persistence pairs and area/session/disable/removal/noDLL passed. Charge
+schema43 was refused by the stale outer42 parser; no product defect is established.
+Working188 fixes only that registration and adds full-envelope regressions.
+Focused reader502/0, components699/0, FAST26/0 and CANDIDATE38/0 pass.
+No product action/cleanup or acceptance-policy change; original failures retained.
+See docs/CHUNK6-CONTINUATION.md and the closed187 lab handoff for exact identities.
+No6B stable claim or6C rod before the complete successor campaign. Continue6B-6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
 ## 2026-10-07 - preview186 closed; coherent187 observer repair
 
 Phase6B IN PROGRESS;6C-6F incomplete. Frozen186 closed14 PASS/2 FAIL/12 BLOCKED-unrun;

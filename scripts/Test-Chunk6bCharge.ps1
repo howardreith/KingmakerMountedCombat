@@ -1018,4 +1018,55 @@ Accept 'host interruption preserves a failed observed prefix' {
  Assert-KmcChunk6bChargeEvidence ([pscustomobject]@{scenario=$a.scenario}) $a 'FAIL'
  Reject 'host interruption cannot become qualified cohort' {Assert-KmcChunk6bChargeEvidence ([pscustomobject]@{scenario=$a.scenario}) $a 'PASS'}
 }
+# Exercise the same file-backed outer envelope used by both runtime result gates.
+# Preview187's dedicated reader passed while the outer parser still required42.
+# Use the real version's child-entry obligation, not a parser-only version bypass.
+$preambleAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Test-ChildEntryPreamble.ps1'),[ref]$tokens,[ref]$parseErrors)
+if($parseErrors.Count-ne0){throw 'Preamble fixture parse failed'}
+$preambleDefinition=@($preambleAst.FindAll({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-ceq'New-Preamble'},$true))
+if($preambleDefinition.Count-ne1){throw 'Preamble fixture function differs'}
+. ([scriptblock]::Create($preambleDefinition[0].Extent.Text))
+$outerRoot=Join-Path (Get-KmcRepositoryRoot) ('obj/chunk6b-charge-envelope/'+[Guid]::NewGuid().ToString('N'))
+$outerManifest=@{artifacts=@(@{relativePath='phase3d-horse-scenario-evidence.json';kind='phase3d-horse-scenario-evidence'})}
+foreach($scenario in Get-KmcChunk6bChargeScenarios){
+ $outer=if($scenario-ceq'chunk6b-charge-tb'){New-Artifact 'TB'}elseif($scenario-ceq'chunk6b-charge-rt'){New-Artifact}else{New-CohortArtifact $scenario}
+ $identity=@{evidenceKind='phase3d-horse-scenario-evidence';runId='synthetic-charge-envelope';scenario=$scenario;
+  branch='codex/mounted-combat-phase3f-playable-core';commit=('a'*40);productVersion='0.1.0-chunk6b-preview.188';
+  dllSha256=('b'*64);dllMvid='00000000-0000-0000-0000-000000000001';createdAtUtc='2026-10-07T00:00:00.0000000Z'}
+ foreach($key in $identity.Keys){$outer|Add-Member -NotePropertyName $key -NotePropertyValue $identity[$key] -Force}
+ $preamble=New-Preamble $true;$preamble.childScenario=$scenario;$preamble.runId=$identity.runId
+ $outer.observations|Add-Member -NotePropertyName childEntryPreamble -NotePropertyValue $preamble
+ $outerRequest=@{};foreach($key in $identity.Keys){$outerRequest[$key]=$identity[$key]}
+ $outerRequest.evidenceRoot=Join-Path $outerRoot $scenario
+ [void][IO.Directory]::CreateDirectory($outerRequest.evidenceRoot)
+ $outerPath=Join-Path $outerRequest.evidenceRoot 'phase3d-horse-scenario-evidence.json'
+ function Write-Outer($value){$value|ConvertTo-Json -Depth 60|Set-Content -LiteralPath $outerPath -Encoding UTF8}
+ Write-Outer $outer
+ Accept ('file-backed current envelope '+$scenario) {Assert-KmcPhase3dHorseScenarioEvidence -Request $outerRequest -Manifest $outerManifest -Status 'PASS'}
+ foreach($schema in @(42,44,'43',43.5)){
+  $changed=Copy-Case $outer;$changed.schemaVersion=$schema;Write-Outer $changed
+  RejectWith ('outer '+$scenario+' rejects schema '+$schema+' '+$schema.GetType().Name) 'Phase 3D Horse evidence schema' {
+   Assert-KmcPhase3dHorseScenarioEvidence -Request $outerRequest -Manifest $outerManifest -Status 'PASS'
+  }
+ }
+ $changed=Copy-Case $outer;$changed.commit=('c'*40);Write-Outer $changed
+ RejectWith ('outer '+$scenario+' exact source identity') 'identity mismatch: commit' {Assert-KmcPhase3dHorseScenarioEvidence -Request $outerRequest -Manifest $outerManifest -Status 'PASS'}
+ $changed=Copy-Case $outer;$changed.observations.PSObject.Properties.Remove('childEntryPreamble');Write-Outer $changed
+ RejectWith ('outer '+$scenario+' missing current preamble') 'omitted its structured child-entry preamble' {Assert-KmcPhase3dHorseScenarioEvidence -Request $outerRequest -Manifest $outerManifest -Status 'PASS'}
+ $changed=Copy-Case $outer;$changed.observations.childEntryPreamble.commands.riderCommandsEmpty=$false;Write-Outer $changed
+ RejectWith ('outer '+$scenario+' in-flight handoff') 'a Mount/Dismount command is in flight' {Assert-KmcPhase3dHorseScenarioEvidence -Request $outerRequest -Manifest $outerManifest -Status 'PASS'}
+ $changed=Copy-Case $outer;$changed.rows=@($changed.rows|Where-Object name -CNE 'C6B-CHARGE-default-off');$changed.subscenarioPassCount--;Write-Outer $changed
+ RejectWith ('outer dispatch '+$scenario+' missing mandatory row') 'required row absent' {Assert-KmcPhase3dHorseScenarioEvidence -Request $outerRequest -Manifest $outerManifest -Status 'PASS'}
+ foreach($unrelated in @('chunk6b-charge-path-rt','chunk4-charge-safety-rt','unmounted-attack-controls-rt')){
+  $changed=Copy-Case $outer;$changed.scenario=$unrelated;Write-Outer $changed
+  $wrongRequest=@{};foreach($key in $outerRequest.Keys){$wrongRequest[$key]=$outerRequest[$key]};$wrongRequest.scenario=$unrelated
+  RejectWith ('charge schema cannot enter '+$unrelated+' from '+$scenario) 'Phase 3D Horse evidence schema' {Assert-KmcPhase3dHorseScenarioEvidence -Request $wrongRequest -Manifest $outerManifest -Status 'PASS'}
+ }
+ # A valid envelope must reach substantive validation, not merely accept its shape.
+ if($scenario-ceq'chunk6b-charge-core-rt'){
+  $changed=Copy-Case $outer;(Row $changed 'C6B-CHARGE-positive').economy.mountMoveMax=3;Write-Outer $changed
+  RejectWith 'outer envelope preserves the native mount-cost prohibition' 'Chunk 6B charge:' {Assert-KmcPhase3dHorseScenarioEvidence -Request $outerRequest -Manifest $outerManifest -Status 'PASS'}
+ }
+ Write-Outer $outer
+}
 Write-Host ("CHUNK 6B CHARGE READER PASS=$($script:checks) FAIL=0; synthetic acceptance and refusal only, no native qualification")

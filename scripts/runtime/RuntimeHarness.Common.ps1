@@ -6767,9 +6767,9 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L) -or
-        ($phase3dSchemaVersion -in @(34L,35L,36L,37L,38L,39L,40L,42L) -and [string]$Request.scenario -cnotin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) -or
-        ([string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb') -and $phase3dSchemaVersion -ne 42L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L) -or
+        ($phase3dSchemaVersion -in @(34L,35L,36L,37L,38L,39L,40L,42L,43L) -and [string]$Request.scenario -cnotin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) -or
+        ([string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb') -and $phase3dSchemaVersion -ne 43L) -or
         ($phase3dSchemaVersion -eq 41L -and [string]$Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) -or
         ($phase3dSchemaVersion -eq 33L -and [string]$Request.scenario -cnotin @('chunk6b-charge-path-rt','chunk6b-charge-path-tb')) -or
         ([string]$Request.scenario -cin @('chunk6b-charge-path-rt','chunk6b-charge-path-tb') -and $phase3dSchemaVersion -ne 33L) -or
@@ -6836,7 +6836,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         }
         return
     }
-    if ($phase3dSchemaVersion -eq 42L -or [string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) {
+    if ($phase3dSchemaVersion -eq 43L -or [string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) {
         Assert-KmcChunk6bChargeEvidence -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
