@@ -97,7 +97,7 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  }
  if($motion) {
   $b=$e.boundary;$samples=@($e.motionSamples)
-  Need ($b.nativeGroundInputCount-eq1-and$b.carrier-ne0-and$b.costCarrier-ne0-and$b.carrierExecutor-ceq$moveOwner-and$samples.Count-gt0) 'native movement ownership unobserved'
+  Need ($b.nativeGroundInputCount-eq1-and$b.nativeMovingBeforeCast-eq$true-and$b.carrier-ne0-and$b.costCarrier-ne0-and$b.carrierExecutor-ceq$moveOwner-and$samples.Count-gt0) 'native movement ownership unobserved'
   Need ($samples[-1].carrierFinished-eq$true-and$samples[-1].moverMoveSlotOwnsCarrier-eq$false-and$after.activePairCommand-eq$false-and$after.pairMovement-eq$false) 'movement/cast replacement left its carrier live'
   $moved=@(@($b.setupCostEvents)+$costs|Where-Object {$_.boundary-ceq'cost-after'-and$_.command-eq$carrier-and$_.state.actor-ceq$moveOwner})
   Need ($moved.Count-le1) 'transport command cost was replayed'

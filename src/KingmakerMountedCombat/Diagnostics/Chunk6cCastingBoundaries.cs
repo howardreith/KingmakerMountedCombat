@@ -68,12 +68,25 @@ namespace KingmakerMountedCombat.Diagnostics
                 castingBoundary["hostileActor"] = target.UniqueId;
             }
         }
+        // UnitMoveTo approaches before IsStarted/IsRunning. Observe the exact
+        // live Move carrier and native movement instead; paired ground ownership
+        // applies only to the rider's TB partner context.
+        private static bool IsCastingMoveReady(UnitMoveTo command, UnitEntityData mover,
+            UnitMoveTo moveSlot, bool nativeMoving, bool requiresPairedOwner, bool pairedOwner) =>
+            mover != null && command != null && !command.IsFinished &&
+            ReferenceEquals(command.Executor, mover) && ReferenceEquals(command, moveSlot) &&
+            command.CreatedByPlayer && nativeMoving && (!requiresPairedOwner || pairedOwner);
+
         private bool CastingBoundaryReady()
         {
             if (CastingMotionCase)
             {
-                castingMotionCarrier = (CastingMounted ? horse : rider).Commands.Move as UnitMoveTo;
-                if (castingMotionCarrier == null || !castingMotionCarrier.IsRunning || CastingMounted && !combat.HasActiveGroundMovement) return false;
+                var mover = CastingMounted ? horse : rider;
+                castingMotionCarrier = mover.Commands.Move as UnitMoveTo;
+                var nativeMoving = mover.View?.AgentASP?.IsReallyMoving == true;
+                if (!IsCastingMoveReady(castingMotionCarrier, mover, mover.Commands.Move,
+                    nativeMoving, CastingMounted && CastingTb, combat.HasActiveGroundMovement)) return false;
+                castingBoundary["nativeMovingBeforeCast"] = nativeMoving;
                 castingBoundary["beforeCastDuringMove"] = CastingState();
                 castingBoundary["carrier"] = castingTrace.Identity(castingMotionCarrier); castingBoundary["costCarrier"] = castingCosts.ObjectIdentity(castingMotionCarrier);
                 castingBoundary["carrierExecutor"] = castingMotionCarrier.Executor.UniqueId;
