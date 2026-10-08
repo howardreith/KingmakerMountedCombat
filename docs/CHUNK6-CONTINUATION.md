@@ -1,3 +1,36 @@
+## 2026-10-08 - preview197 closed; bounded198 native movement fixture repair
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery DEFER -
+EVIDENCED with its qualified cost-free refusal. Refusal is not delivery.
+6C IN PROGRESS;6D-6F incomplete. Frozen197 source
+b91204f9f81057e95a234f732344fd994080dfd5 remains immutable:4 PASS/1 fixture
+FAIL/3 BLOCKED-unrun. Purity PASS95.13673min. All5 transactions restored,
+game exits0, empty restoration/observation errors; human105/275 protected saves/
+358 Mods unchanged. Both RT/TB settled casting/item save-cold pairs PASS.
+No game or runtime transaction remains.
+
+The corrected refusal completed. Eleven native structural baseline rows receive
+no complete external-stage qualification. The motion row never requested a cast:
+it awaited UnitMoveTo.IsRunning (post-approach startup) while native movement had
+already carried the pair~6m; RT also incorrectly required a TB-only ground owner.
+Working198 fixes only fixture readiness: exact live player Move carrier/executor/
+slot plus observed native movement, TB paired owner only when applicable.
+One raw movement-before-cast fact is checked by the sole external validator.
+Same15 rows/four baselines/eight stages/schema44, unchanged deadlines/thresholds.
+No product casting/action/resource/turn/preparation/movement/cleanup/save policy patch.
+
+PASS198: build/source145/0, components710/0, compiled observer95/0, reader153/0,
+persistence79/0, safety271/0, assembly698/0, FAST12/0 and CANDIDATE16/0.
+685 gate inputs unchanged. Observer1/2 test reflection/terminal-stimulus FAILs
+remain retained; observer3 PASS. No198 package/suite/purity/native credit yet.
+197 closure467281e7a50b4b227eda349fec670984b7a0c5a4300208398267b0ca870d8477;
+cost4163088bace0a2872aed02400070775ea94100c4e767f4089ea28b9708dd1dcb.
+Latest full checkpoint: lab analysis-cache/chunk6-continuation/
+CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-08-PREVIEW197-CLOSED-198-REPAIR.md.
+Next: coherent guarded publication, one198 freeze/purity and failed mountedRT first
+in the ready6C batch. Continue6C then6D-6F. No6B replay or newTB experiment.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod change/
+HUMAN PLAY acceptance. One mutating executor.
 ## 2026-10-08 - preview196 closed; bounded197 native refusal fixture repair
 
 6B remains IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery

@@ -98,7 +98,7 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
  }
  if($name-ceq'C6C-movement-policy'){
   $e.after|Add-Member pairMovement $false
-  $e|Add-Member boundary ([pscustomobject]@{nativeGroundInputCount=1;carrier=40;costCarrier=400;carrierExecutor=$(if($mounted){'mount'}else{'rider'});setupCostEvents=@()})
+  $e|Add-Member boundary ([pscustomobject]@{nativeGroundInputCount=1;nativeMovingBeforeCast=$true;carrier=40;costCarrier=400;carrierExecutor=$(if($mounted){'mount'}else{'rider'});setupCostEvents=@()})
   $e|Add-Member motionSamples @([pscustomobject]@{carrierFinished=$true;moverMoveSlotOwnsCarrier=$false})
  }
  if($name-ceq'C6C-under-threat'){
@@ -112,6 +112,8 @@ $r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.costShell=10;Reje
 $r=New-CastingRow 'C6C-full-round' $true $true;$r.evidence.costEvents[1].state.move=0.0;Reject $r 'TB full-round Move commitment not dropped' $true
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.healthRestored=$false;Reject $r 'unrestored fixture incapacity cannot qualify'
 $r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.motionSamples[0].carrierFinished=$false;Reject $r 'live delegated movement cannot disappear'
+$r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.boundary.nativeMovingBeforeCast=$false;Reject $r 'idle carrier is not casting during native movement'
+$r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.boundary.PSObject.Properties.Remove('nativeMovingBeforeCast');Reject $r 'missing native movement observation cannot pass'
 $r=New-CastingRow 'C6C-under-threat' $false $true;$r.evidence.boundary.riderEngaged=$false;Reject $r 'mere nearby enemy cannot stand for native threat'
 $r=New-CastingRow 'C6C-potion-self' $false $true;$r.evidence.events+=$r.evidence.events[3];Reject $r 'duplicate potion spending rejected'
 # Same file-backed envelope and original-pair preamble used by the real runtime gate.

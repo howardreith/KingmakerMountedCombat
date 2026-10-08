@@ -182,6 +182,41 @@ public static class CastingObserverProbe {
   if(count!=1||targets!=1)throw new InvalidOperationException("Pinned native touch/target boundary differs.");
   return list;
  }
+ static void ExerciseNativeMoveReadiness(Assembly native,Type child){
+  var actor=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+  var mover=FormatterServices.GetUninitializedObject(actor);
+  var foreign=FormatterServices.GetUninitializedObject(actor);
+  var moveType=native.GetType("Kingmaker.UnitLogic.Commands.UnitMoveTo",true);
+  var commandType=moveType.BaseType;
+  var pointType=moveType.GetConstructors().Single(c=>c.GetParameters().Length==1).GetParameters()[0].ParameterType;
+  var move=moveType.GetConstructor(new[]{pointType}).Invoke(new[]{Activator.CreateInstance(pointType)});
+  var owner=commandType.GetProperty("Executor",F);var player=commandType.GetField("CreatedByPlayer",F);
+  owner.SetValue(move,mover,null);player.SetValue(move,true);
+  var ready=child.GetMethod("IsCastingMoveReady",F);
+  Func<object,object,object,bool,bool,bool,bool> check=(c,m,slot,moving,required,paired)=>
+   (bool)ready.Invoke(null,new[]{c,m,slot,(object)moving,required,paired});
+  Check(!(bool)commandType.GetProperty("IsRunning",F).GetValue(move,null)&&
+   !(bool)commandType.GetProperty("IsStarted",F).GetValue(move,null)&&
+   !(bool)commandType.GetProperty("IsFinished",F).GetValue(move,null),
+   "actual native Move carrier is live before post-approach command startup");
+  Check(check(move,mover,move,true,false,false),"RT native moving carrier does not require a TB ground owner");
+  Check(check(move,mover,move,true,true,true),"TB moving carrier retains its exact paired owner");
+  Check(!check(move,mover,move,true,true,false),"TB movement without paired owner is not ready");
+  Check(!check(move,mover,move,false,false,false),"owned idle carrier cannot stand in for observed native movement");
+  Check(!check(null,mover,null,true,false,false)&&!check(move,null,move,true,false,false),
+   "missing carrier or mover is not ready");
+  Check(!check(move,foreign,move,true,false,false),"foreign executor is not a casting fixture move");
+  Check(!check(move,mover,null,true,false,false),"released Move slot is not ready");
+  player.SetValue(move,false);
+  Check(!check(move,mover,move,true,false,false),"AI carrier cannot stand in for normal ground input");
+  player.SetValue(move,true);
+  Check(!(bool)commandType.GetProperty("IsStarted",F).GetValue(move,null)&&
+   !(bool)commandType.GetProperty("IsActed",F).GetValue(move,null)&&ReferenceEquals(owner.GetValue(move,null),mover),
+   "readiness observation does not start, act or replace the native command");
+  // Project the native terminal input only in this detached fixture; Result alone is not IsFinished.
+  commandType.GetProperty("IsFinished",F).SetValue(move,true,null);
+  Check(!check(move,mover,move,true,false,false),"terminal carrier cannot satisfy movement readiness");
+ }
  static void ExerciseNativeGroundRefusal(Assembly native,Type child){
   var handlerType=native.GetType("Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler",true);
   var abilityType=native.GetType("Kingmaker.UnitLogic.Abilities.AbilityData",true);
@@ -384,6 +419,7 @@ public static class CastingObserverProbe {
   var parent=mod.GetType("KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine",true);
   ExerciseCastingFixtureAdmission(native,child);
   ExerciseNativeGroundRefusal(native,child);
+  ExerciseNativeMoveReadiness(native,child);
   foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
    Check((bool)parent.GetMethod("SupportsScenario",F).Invoke(null,new object[]{scenario}),"native original-pair engine accepts "+scenario);
    Check((bool)child.GetMethod("IsChunk6cCastingScenario",F).Invoke(null,new object[]{scenario}) &&
