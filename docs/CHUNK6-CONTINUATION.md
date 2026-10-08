@@ -1,3 +1,100 @@
+## 2026-10-08 - preview199 closed; transfer to Claude at owner's request
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL
+QUALIFICATION DEFERRED TO CHUNK6 CONSOLIDATION. Charge stays default-off; its TB
+refusal is not delivery. 6C is IN PROGRESS; 6D-6F remain incomplete. Codex stops
+development here at the owner's request. No preview200 source or candidate exists.
+
+Frozen199 product source: 85186ae3af3fac0a3aa466625188fa53f64d6f71; tree:
+5e3fd08810f35d65d6a75cd066675f2a8f4f0534; version0.1.0-chunk6c-preview.199.
+The publication following this closure contains documentation only; it must never
+replace the frozen product commit in package, suite or proof receipts.
+Package SHA2567ef4e05fa3cda94e64e6cc21408fd64e92717e2604268142ff6b89176781a0ad;
+manifest4de2bc375e0e777abe4edcb28687fbf3cd71020c641a2f7875a85dd0703e100d;
+DLLf0295fd938a4892c1cf6833e24235d94fd68d5d06e888898ae9c69a23253a6e0;
+MVIDc01cef6e-03ba-45b0-a8c0-fcec6ac0e475.
+Suite20261008-chunk6c-casting-k:
+552e17733d52b55d8765654937c75b8078bc446040268db62cd763865b2365f4.
+Schema44; compiled producer and external reader identities remain separately bound.
+
+Purity retry2 PASS: independently observed child28036 exit0; 98.92729min.
+purity199-k2-process.json SHA256dce63913f5d9cfedc8f3827775dbe3906d4c72083dfd3d63fda901ac7d175809.
+Original proof1 lost terminal observation in a daemon restart and remains
+UNKNOWN / ABORTED - NO PURITY VERDICT; no original receipt or log was replaced.
+
+| Stage | Run suffix | Outcome | External assertions | Native assertions | Worker/game exit |
+| --- | --- | --- | --- | --- | --- |
+| 1 | mounted-rt | fixture FAIL | 0/1 | 14/1 | 1/0 |
+| 2 | mounted-tb | BLOCKED-unrun | - | - | - |
+| 3 | unmounted-rt | BLOCKED-unrun | - | - | - |
+| 4 | unmounted-tb | BLOCKED-unrun | - | - | - |
+| 5 | settled-rt-save | PASS | 7/0 | 7/0 | 0/0 |
+| 6 | settled-rt-load | PASS | 3/0 | 3/0 | 0/0 |
+| 7 | settled-tb-save | PASS | 7/0 | 7/0 | 0/0 |
+| 8 | settled-tb-load | PASS | 3/0 | 3/0 | 0/0 |
+
+All run IDs start c6c-casting199-k-. Five actual guarded transactions restored
+human105, protected saves/Working, Mods/foreign Mods, UMM/settings and required
+profile dimensions; restorationErrors and observationErrors are empty. Fresh
+suite audit verifies275 save files and358 Mods files byte-identically. All game
+exits are independently observed0; no game, proof, build, runtime lock, install
+transaction or recovery debt remains. No emergency recovery was needed.
+Normal guarded restore uses its existing recovery/quarantine plan. Whole-profile
+byte identity is not asserted beyond the exact profile receipts and cache policy.
+
+The capped native damage safely made the disposable Druid unconscious; the cap
+itself passed. The C6C-rider-incapacity row then exceeded its unchanged30-second
+leaf while ordinary Mammoth attacks continued. Twelve successful structural
+baseline leaves do not qualify the failed complete stage. Final cleanup proved
+exact shell terminal, containers empty, processes/effects settled and unmounted;
+the exact shell terminal time before the deadline is not established.
+No production casting defect is established.
+
+Concrete next hypothesis: the diagnostic mount-AI lease is acquired after Mount.
+Mount captures original enabled AI, the later lease captures already-disabled AI,
+and lifecycle Dismount restores the earlier enabled AI. Acquiring the existing
+scoped lease before Mount may preserve isolation through Dismount. This is not
+implemented or proven. Verify actual order and add a behavior-focused regression;
+retain native command/combat settlement, exact health-owner compensation and
+unchanged deadlines. Do not synthesize actions or force completion.
+
+A separate generic reader defect treats a compound6C request as an individual
+one and demands a nonexistent named root, masking the native failure. Finding:
+PREVIEW199-ENVELOPE-READER-FINDING-20261008.json,
+SHA256028cfb142b49f4819dc4aac6720092862996dc6a72442e94d2c74f068874e6ad.
+No correction/re-evaluation is applied. Fix interpretation narrowly with complete
+envelope tests and a new reader identity; do not mutate artifacts or invent PASS.
+The actual compiled fixture repair requires a coherent successor candidate.
+
+Exact199 gates: build/source145/0; components710/0; compiled observer135/0;
+casting158/0; persistence79/0; safety271/0; assembly701/0; FAST12/0;
+CANDIDATE16/0; package11/0. All685 gate inputs unchanged.
+No new test/build/package/purity cycle was run for this documentation closure.
+
+Lab records under analysis-cache/chunk6-continuation/20261005-6br:
+preview199-campaign-closure.json SHA2566f437ccd962f0f2b665fb914f3fb8aed798f78ee995cc54ce8674b3b4789b4d2;
+preview199-cost-summary.json SHA256182b10a2def09da3566010caae1af585dc2a7c57858dca6aa8339dce64294938;
+preview199-cost-reconciliation.json clarifies the final acknowledgement interval.
+Measured: CANDIDATE346.708118sec; package6.489405sec; successful purity5935.637637sec;
+five native producer windows309.118076sec; restoration/verification36.650373sec;
+outer setup/cases/restoration625.953500sec. Intervals overlap; implementation and
+approval effort were not separately measured. Four persistence stages repeat
+qualified behavior; cap observation is new but the baseline still fails.
+
+Complete final branch/HEAD/tree, publication equality, receipt hashes, processes,
+retained failures and next commands:
+C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6-continuation/CODEX-CHUNK6-HANDOFF-TO-CLAUDE-2026-10-08.md.
+Ready prompt: [Claude takeover](CLAUDE-CHUNK6-TAKEOVER-2026-10-08.md).
+
+Next read-only command:
+rg -n 'PrepareUnmountedHorseAiIsolation|RequestPhase3dHorseMountedRelationship|C6C-rider-incapacity|mountAiBackingWasEnabled|Individual runtime scenario' src/KingmakerMountedCombat scripts/runtime
+Continue6C first, then6D staged native movement,6E bounded native reaction feasibility,
+and6F final combined qualification under the existing charter. Do not repeat6B,
+reopen TB Charge or replay closed199/proofs. Preserve all historical failures.
+No merge/PR/tag/release/permanent install/protected human-save write, foreign-mod
+change or HUMAN PLAY acceptance occurred or is authorized.
+
+
 ## 2026-10-08 - preview198 closed; bounded199 lifecycle fixture repair
 
 6B IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
