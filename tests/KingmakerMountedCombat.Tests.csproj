@@ -42,6 +42,8 @@
     <Compile Include="InterruptedEvidenceFinalizerTests.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="ObserverIdentityTests.cs" />
+    <Compile Include="CastingFixtureSlotSnapshotTests.cs" />
+    <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\CastingFixtureSlotSnapshot.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\RetainedObjectIdentity.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\Diagnostics\ObservedViewAttachmentCall.cs" />
     <Compile Include="..\src\KingmakerMountedCombat\BuildIdentity.cs">
