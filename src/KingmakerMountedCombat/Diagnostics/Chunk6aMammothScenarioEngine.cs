@@ -50,7 +50,9 @@ namespace KingmakerMountedCombat.Diagnostics
             this.request=request;this.relationship=relationship;this.playerAction=playerAction;this.combat=combat;
             nativeControls=controls;this.horseService=horseService;this.settings=settings;this.logger=logger;
         }
-        internal static bool SupportsScenario(string scenario) => scenario==RealTimeScenario || scenario==TurnBasedScenario || Phase3dHorseScenarioTranche.IsChunk6cCastingScenario(scenario);
+        internal static bool IsCombatMountScenario(string scenario) => scenario == RealTimeScenario || scenario == TurnBasedScenario;
+        // Engine routing is wider than the child Mount/Dismount behavior family.
+        internal static bool SupportsScenario(string scenario) => IsCombatMountScenario(scenario) || Phase3dHorseScenarioTranche.IsChunk6cCastingScenario(scenario);
         internal bool IsCompleted => completed;
         internal IReadOnlyList<RuntimeSubscenarioResult> Results => results;
         internal IReadOnlyList<string> Errors => errors;

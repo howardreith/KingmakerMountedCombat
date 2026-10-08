@@ -24,6 +24,17 @@ public static class CastingObserverProbe {
   var native=Assembly.LoadFrom(Path.Combine(managed,"Assembly-CSharp.dll"));
   Check(native.ManifestModule.ModuleVersionId.ToString()=="07fa1e4d-8618-41b3-9b8d-faa17d3b26f7","exact native assembly");
   var mod=Assembly.LoadFrom(product);var type=mod.GetType("KingmakerMountedCombat.Diagnostics.NativeCastingItemTrace",true);
+  var child=mod.GetType("KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche",true);
+  var parent=mod.GetType("KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine",true);
+  foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
+   Check((bool)parent.GetMethod("SupportsScenario",F).Invoke(null,new object[]{scenario}),"native original-pair engine accepts "+scenario);
+   Check((bool)child.GetMethod("IsChunk6cCastingScenario",F).Invoke(null,new object[]{scenario}) &&
+    !(bool)child.GetMethod("IsChunk6aCombatMountScenario",F).Invoke(null,new object[]{scenario}),"compiled child chooses casting rather than Mount/Dismount for "+scenario);
+  }
+  foreach(var field in new[]{"RealTimeScenario","TurnBasedScenario"}){
+   var scenario=(string)parent.GetField(field,F).GetRawConstantValue();
+   Check((bool)child.GetMethod("IsChunk6aCombatMountScenario",F).Invoke(null,new object[]{scenario}),"existing native Mammoth Mount/Dismount classification retained "+scenario);
+  }
   var actor=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
   var rider=FormatterServices.GetUninitializedObject(actor);var mount=FormatterServices.GetUninitializedObject(actor);
   var owner=Activator.CreateInstance(type,F,null,new[]{rider,mount},null);

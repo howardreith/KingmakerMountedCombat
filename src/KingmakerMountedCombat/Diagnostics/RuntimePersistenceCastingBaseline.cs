@@ -212,7 +212,19 @@ namespace KingmakerMountedCombat.Diagnostics
             if (baselineShell != null && !baselineShell.IsFinished) baselineShell.Interrupt();
             if (!PairIdle || !baselineCastTrace.ProcessesSettled || NativeSaveEffectBoundary.HasUnresolvedAbilities() || NativeSaveEffectBoundary.HasUnresolvedProjectiles())
                 throw new InvalidOperationException("6C native process remains live; casting/item owners retained.");
-            baselinePotion?.Dispose(); baselineRod?.Dispose();
+            var itemFailures = new System.Collections.Generic.List<Exception>();
+            foreach (var lease in new[] { baselinePotion, baselineRod }.Where(i => i != null))
+            {
+                try { lease.Dispose(); }
+                catch (Exception exception) { itemFailures.Add(exception); }
+            }
+            if (itemFailures.Count != 0)
+            {
+                Write("6c-fixture-item-cleanup-pending", new JObject {
+                    ["items"] = new JArray(new[] { baselinePotion, baselineRod }.Where(i => i != null).Select(i => i.Evidence.DeepClone())),
+                    ["errors"] = new JArray(itemFailures.Select(e => e.ToString())) });
+                throw new AggregateException("Casting fixture item cleanup remains incomplete; exact leases retained.", itemFailures);
+            }
             baselineCostTrace.Dispose(); baselineCastTrace.Dispose();
             Write("6c-observers-closed", new JObject {
                 ["castTrace"] = baselineCastTrace.Capture(), ["costTrace"] = baselineCostTrace.Capture(),

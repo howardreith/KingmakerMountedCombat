@@ -302,7 +302,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["unit"] = u.UniqueId, ["inState"] = u.IsInState,
                 ["worldContains"] = Game.Instance.State.Units.Any(x => ReferenceEquals(x, u)) }));
             if (castingTrace.Summons.Any(u => u.IsInState || Game.Instance.State.Units.Any(x => ReferenceEquals(x, u)))) return false;
-            for (var i = castingItems.Count - 1; i >= 0; i--) castingItems[i].Dispose();
+            var itemFailures = new List<Exception>();
+            for (var i = castingItems.Count - 1; i >= 0; i--)
+            {
+                try { castingItems[i].Dispose(); }
+                catch (Exception exception) { itemFailures.Add(exception); }
+            }
+            // Every exact lease remains retained for the existing bounded retry.
+            // One failed item cannot prevent independent item cleanup or its evidence.
+            CastingMeasurement["items"] = new JArray(castingItems.Select(i => i.Evidence.DeepClone()));
+            if (itemFailures.Count != 0) throw new AggregateException("Casting fixture item cleanup remains incomplete.", itemFailures);
             CastingMeasurement["items"] = new JArray(castingItems.Select(i => i.Evidence.DeepClone()));
             CastingMeasurement["final"] = CastingState();
             castingCosts.Dispose(); castingTrace.Dispose();

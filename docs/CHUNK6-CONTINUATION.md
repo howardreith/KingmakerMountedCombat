@@ -1,3 +1,37 @@
+## 2026-10-07 - 6C preview190 closed; coherent191 diagnostic repair
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification is deferred to Chunk6 consolidation. Frozen188 stays closed.
+6C IN PROGRESS; 6D-6F incomplete. Published190 source78a20c2338444016f34a86732d42fc1a8db6bcbd,
+tree2f33a448d36e3037a13d16bec917497346d01fb0 and all frozen bytes remain preserved.
+190 purity PASS, actual exit0. Campaign closed0 qualified PASS / 2 FAIL / 6 BLOCKED-unrun.
+Stage1 ran older CM01/02/03 because the6A classifier reused a wider engine allowlist.
+Stage5 separately observed quickened Snowball, potion, a native disposable save and
+ordinary continuation; its exact item-cleanup postcondition then failed. No6C
+stability or cold-load credit. Both workers exited1, both games exited0; exact
+human105,275 protected saves and358 Mods restored, empty restorationErrors, no recovery.
+No live game/transaction. Closure e689f34c2364aa1f32d7bbd580c2819decb3834e06dcc1734c781a21c68bb62a
+under lab analysis-cache/chunk6-continuation/20261005-6br/preview190-campaign-closure.json.
+
+Working191 separates engine routing from the Mount/Dismount behavior family;
+its actual compiled regression fails on190 and passes21/0 on the repair. Fixture
+unequip disables native auto-merge, retains exact owners and attempts independent
+item cleanup; a failed postcondition records its exact collection/slot/residency.
+The native cause still requires the next focused run; offline success is not proof.
+Casting reader151/0 and settled reader72/0 pass. FAST191-1 retained an orchestration
+FAIL solely from an added nonexistent test filename; its actual affected checks passed.
+No production casting/action/turn/resource/persistence policy or acceptance change.
+No191 package/suite/purity/native verdict yet. Original190 artifacts remain immutable.
+
+CANDIDATE191-1 PASS16/0 (including FAST), components699/0, casting151/0, settled72/0, compiled observer/dispatch21/0, source145/0, harness271/0 and Kingmaker assembly698/0; actual child exit0. Receipt: lab20261005-6br/6c-candidate191-1-process.json.
+
+Next: coherent commit/guarded
+push/equality/clean check, then one191 package/suite/proof. Run the failed settled RT
+case first, then affected cold and mounted/unmounted RT/TB baselines. Continue6C-6F.
+Use the existing parameterized runner/probe; no188 replay, TB experiment or new matrix.
+No merge/PR/tag/release/permanent install/protected-human-save write/foreign-mod change/
+HUMAN PLAY acceptance. Direct disposable-archive enumeration was rejected by automatic
+approval review and was not retried or bypassed; runtime facts and pinned IL are used.
 ## 2026-10-07 — 6C launcher registration repaired; preview190 ready
 
 6B remains IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
