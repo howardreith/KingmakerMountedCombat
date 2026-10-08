@@ -1,3 +1,60 @@
+## 2026-10-08 - preview198 closed; bounded199 lifecycle fixture repair
+
+6B IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
+DEFERRED TO CHUNK6 CONSOLIDATION. Charge remains default-off; its TB refusal is
+not delivery. 6C IN PROGRESS;6D-6F incomplete.
+
+Frozen198 source acc627daf4ed2fd1686ead51ae4c5b19ab7a0b37, tree
+de4f2031e0e033fa2c06ff13377c13624b7cd26d remains immutable, fetched/remote-equal
+and clean at closure. Purity PASS94.41612min, actual child exit0. Campaign:
+4 qualified PASS/1 fixture FAIL/3 shared-fixture BLOCKED-unrun; all5 transactions
+restored exactly with empty restoration/observation errors and normal game exits0.
+Human105/275 protected saves/358 Mods unchanged; no game or mutable transaction.
+
+The native movement readiness repair worked: the motion row requested and settled
+a rider cast while the exact mount carrier was observed moving. Twelve structural
+baseline rows receive no complete external-stage qualification. The next row
+correctly refused damage to the Druid main-character subject. No incapacity
+damage was applied. Exception cleanup also completed before native combat ended,
+so the outer paired configuration restore was refused. These are fixture/setup
+defects; no product casting defect is established. Both RT/TB settled save-cold
+pairs pass on exact198 (7/0,3/0,8/0,3/0).
+
+Working199 uses the native RuleDealDamage.MinHPAfterDamage fence with a checked
+native float/difficulty maximum, zero temporary HP and a strict window below
+death for this disposable main-character subject. Unclamped main-character
+damage remains refused. Original consciousness/dying/immortality/essential/enemy
+and non-main safety checks remain. No native LifeState/action/preparation/turn
+field is fabricated. The sole external validator requires the actual cap,
+unchanged native difficulty, non-fake rule and observed safe unconscious window.
+The exact health owner is retained before synchronous native callbacks; fixture
+health restoration waits for command/process/effect settlement. Casting cleanup
+also waits for actual native combat end under the unchanged30-second leaf budget.
+Same15 rows/four baselines/eight stages/schema44. No production casting, movement,
+cost/resource, cleanup or persistence policy patch; native199 remains unqualified.
+
+PASS199 build/source145/0, components710/0 via FAST, compiled observer135/0,
+casting reader158/0, persistence reader79/0 and FAST12/0;685 inputs unchanged.
+CANDIDATE1 PASS16/0; safety271/0 and native assembly701/0,685 inputs unchanged.
+Initial editor stopped at a wrong BuildIdentity path after
+preserved partial edits; the real file was located and completed. Observer1's
+readonly native actor fields were mistaken for properties; observer2 passes with
+unchanged identity assertions. All original failures remain immutable.
+
+198 closure939ab1b1b6388649f18c428da3c848612b69ffc55c313a73fbef08f47f26599e;
+cost750fa80d4788f8dfa657282edc075ffd5ae49eb926b30e49d652a5d12221e7b8.
+Closure's final console formatting failed after both complete records were written.
+Independent append-only reconciliationa1aff97638ad942edd8c4a5b7d3437d76b963545f81d2d692c6b0ba412c5d53f
+rehashes every original artifact/receipt and retains that failure.
+Existing timestamps: proof94.41612min; native setup/cases279.0208s; restoration
+39.0942s. One new raw movement behavior, zero newly qualified baseline stage types,
+four repeated settled persistence stages. Implementation/approval effort is not
+separately measured. No profiling subsystem or additional mandatory matrix.
+
+Next: coherent commit/guarded publication, one199 freeze/proof and the failed
+mountedRT first in the existing batch. Finish6C then continue6D-6F. No6B replay
+or newTB experiment. No merge/PR/tag/release/permanent install/protected-save write/
+foreign-mod change/HUMAN PLAY acceptance. One mutating executor.
 ## 2026-10-08 - preview197 closed; bounded198 native movement fixture repair
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery DEFER -

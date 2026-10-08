@@ -94,7 +94,10 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
  if($name-cin@('C6C-rider-incapacity','C6C-mount-incapacity')){
   $e.after.relationship='Unmounted';$e.after|Add-Member relationshipRider $null;$e.after|Add-Member relationshipMount $null
   $e.after|Add-Member riderLife ([pscustomobject]@{conscious=$true;dead=$false});$e.after|Add-Member mountLife ([pscustomobject]@{conscious=$true;dead=$false})
-  $e|Add-Member boundary ([pscustomobject]@{subject=$(if($name-ceq'C6C-rider-incapacity'){'rider'}else{'mount'});nativeDamage=11;damageAfter=11;hitPoints=10;deathThreshold=20;unconsciousObserved=$true;deadObserved=$false;healthRestored=$true;damageRestored=0;damageBefore=0;settledBeforeHealthRestore=[pscustomobject]@{riderCommandsEmpty=$true;mountCommandsEmpty=$true;processesSettled=$true}})
+  $main=$name-ceq'C6C-rider-incapacity';$nativeCap=if($main){-1}else{$null}
+  $riderLife=[pscustomobject]@{mainCharacter=$true;conscious=$true;dead=$false;allowDyingCondition=$true;immortal=$false;essential=$false;temporaryHitPoints=0}
+  $mountLife=Copy-CastingFixture $riderLife;$mountLife.mainCharacter=$false
+  $e|Add-Member boundary ([pscustomobject]@{subject=$(if($main){'rider'}else{'mount'});mainCharacter=$main;nativeDamageCap=$nativeCap;nativeRuleDamageCap=$nativeCap;nativeDamageBeforeDifficulty=11;requested=11;difficulty=1.0;nativeRuleDifficulty=1.0;nativeRuleIsFake=$false;beforeIncapacity=[pscustomobject]@{riderLife=$riderLife;mountLife=$mountLife};nativeDamage=11;damageAfter=11;hitPoints=10;deathThreshold=20;unconsciousObserved=$true;deadObserved=$false;healthRestored=$true;damageRestored=0;damageBefore=0;settledBeforeHealthRestore=[pscustomobject]@{riderCommandsEmpty=$true;mountCommandsEmpty=$true;processesSettled=$true}})
  }
  if($name-ceq'C6C-movement-policy'){
   $e.after|Add-Member pairMovement $false
@@ -111,6 +114,11 @@ foreach($tb in @($false,$true)){foreach($mounted in @($false,$true)){foreach($na
 $r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.costShell=10;Reject $r 'cost trace may not reuse another registry identity'
 $r=New-CastingRow 'C6C-full-round' $true $true;$r.evidence.costEvents[1].state.move=0.0;Reject $r 'TB full-round Move commitment not dropped' $true
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.healthRestored=$false;Reject $r 'unrestored fixture incapacity cannot qualify'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.nativeRuleDamageCap=$null;Reject $r 'main-character life stimulus cannot lose its native cap'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.nativeDamageBeforeDifficulty=12;Reject $r 'native main-character damage cannot exceed the applied cap'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.nativeRuleIsFake=$true;Reject $r 'fake damage cannot prove native incapacity'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.nativeRuleDifficulty=2.0;Reject $r 'changed native difficulty cannot qualify the safe window'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.beforeIncapacity.riderLife.mainCharacter=$false;Reject $r 'native main-character subject cannot be relabeled'
 $r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.motionSamples[0].carrierFinished=$false;Reject $r 'live delegated movement cannot disappear'
 $r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.boundary.nativeMovingBeforeCast=$false;Reject $r 'idle carrier is not casting during native movement'
 $r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.boundary.PSObject.Properties.Remove('nativeMovingBeforeCast');Reject $r 'missing native movement observation cannot pass'

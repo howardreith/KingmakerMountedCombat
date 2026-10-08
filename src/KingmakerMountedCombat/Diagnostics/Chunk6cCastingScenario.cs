@@ -320,8 +320,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (castingShell != null && !castingShell.IsFinished) castingShell.Interrupt();
             if (castingThreatAttack != null && !castingThreatAttack.IsFinished) castingThreatAttack.Interrupt();
             ObserveCastingIncapacity();
+            if (!CastingHealthBoundarySettled(rider.Commands.Empty, horse.Commands.Empty, castingTrace.ProcessesSettled,
+                NativeSaveEffectBoundary.HasUnresolvedAbilities(), NativeSaveEffectBoundary.HasUnresolvedProjectiles())) return false;
             if (!RestoreCastingIncapacity()) return false;
-            if (!rider.Commands.Empty || !horse.Commands.Empty || !castingTrace.ProcessesSettled || NativeSaveEffectBoundary.HasUnresolvedAbilities() || NativeSaveEffectBoundary.HasUnresolvedProjectiles()) return false;
             foreach (var unit in castingTrace.Summons) { if (unit.IsInState) unit.Destroy(); }
             Game.Instance.EntityDestroyer.Tick();
             CastingMeasurement["summonCleanup"] = new JArray(castingTrace.Summons.Select(u => new JObject {

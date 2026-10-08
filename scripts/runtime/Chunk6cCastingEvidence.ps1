@@ -90,6 +90,12 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  }
  if($life) {
   $b=$e.boundary;$subject=if($Row.name-ceq'C6C-rider-incapacity'){$Rider}else{$Mount}
+  $nativeBefore=if($Row.name-ceq'C6C-rider-incapacity'){$b.beforeIncapacity.riderLife}else{$b.beforeIncapacity.mountLife}
+  Need ($b.mainCharacter-is[bool]-and$b.mainCharacter-eq$nativeBefore.mainCharacter-and$b.nativeRuleIsFake-eq$false-and(Close $b.difficulty $b.nativeRuleDifficulty)) 'native life stimulus identity/difficulty differs'
+  Need ($nativeBefore.conscious-eq$true-and$nativeBefore.dead-eq$false-and$nativeBefore.allowDyingCondition-eq$true-and$nativeBefore.immortal-eq$false-and$nativeBefore.essential-eq$false) 'life stimulus lacks its native safe subject'
+  if($b.mainCharacter) {
+   Need ($nativeBefore.temporaryHitPoints-eq0-and$b.nativeDamageCap-is[int]-and$b.nativeRuleDamageCap-eq$b.nativeDamageCap-and$b.nativeDamageBeforeDifficulty-le$b.requested-and$b.nativeDamageCap-eq$b.hitPoints-$b.requested) 'main-character native damage cap absent or exceeded'
+  } else {Need ($null-eq$b.nativeDamageCap-and$null-eq$b.nativeRuleDamageCap) 'non-main life fixture cap identity differs'}
   Need ($b.subject-ceq$subject-and$b.nativeDamage-gt0-and$b.damageAfter-ge$b.hitPoints-and$b.damageAfter-lt$b.deathThreshold-and$b.unconsciousObserved-eq$true-and$b.deadObserved-eq$false) 'real safe native incapacity not observed'
   Need ($b.healthRestored-eq$true-and$b.damageRestored-eq$b.damageBefore-and$b.settledBeforeHealthRestore.riderCommandsEmpty-eq$true-and$b.settledBeforeHealthRestore.mountCommandsEmpty-eq$true-and$b.settledBeforeHealthRestore.processesSettled-eq$true) 'life stimulus restored before native command settlement'
   Need ($after.relationship-ceq'Unmounted'-and$after.riderLife.conscious-eq$true-and$after.mountLife.conscious-eq$true-and$after.riderLife.dead-eq$false-and$after.mountLife.dead-eq$false) 'life cleanup relationship or restored pair differs'

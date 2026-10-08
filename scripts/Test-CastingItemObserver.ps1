@@ -407,6 +407,58 @@ public static class CastingObserverProbe {
     "repeat fixture release preserves item charges without creating a game or mutating its singleton");
 
  }
+ static void ExerciseCastingLifeSafety(Assembly native,Type child){
+  var plan=child.GetMethod("PlanCastingMainCharacterDamageCap",F);
+  Func<int,int,int,int,float,int?> cap=(hp,con,damage,temp,factor)=>{
+   var result=plan.Invoke(null,new object[]{hp,con,damage,temp,factor});
+   return result==null?(int?)null:(int)result;
+  };
+  Check(cap(45,11,1,0,1f)==-1,"original Druid window has a native increment cap");
+  foreach(var factor in new[]{.5f,.7f,1f,1.5f,2f}){
+   var value=cap(45,11,1,0,factor);
+   Check(value.HasValue,"finite native difficulty has a safe bounded fixture window");
+   var requested=45-value.Value;
+   var nativeMaximum=Math.Max(1,(int)(requested*factor));
+   Check(1+nativeMaximum>=45&&1+nativeMaximum<56,"native float/difficulty maximum stays unconscious and strictly below death");
+  }
+  foreach(var facts in new[]{new[]{0,11,0,0},new[]{45,1,0,0},new[]{45,11,-1,0},
+    new[]{45,11,45,0},new[]{45,11,0,1},new[]{int.MaxValue,11,0,0}})
+   Check(!cap(facts[0],facts[1],facts[2],facts[3],1f).HasValue,"invalid life/temporary-HP/overflow window remains refused");
+  foreach(var factor in new[]{0f,-1f,float.NaN,float.PositiveInfinity,1000f,float.Epsilon})
+   Check(!cap(45,11,1,0,factor).HasValue,"unsafe native difficulty does not create a main-character stimulus");
+  var actor=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+  var source=FormatterServices.GetUninitializedObject(actor);
+  var subject=FormatterServices.GetUninitializedObject(actor);
+  var create=child.GetMethod("CreateCastingIncapacityRule",F);
+  var refused=false;
+  try{create.Invoke(null,new object[]{source,subject,46,true,null});}
+  catch(TargetInvocationException e){refused=e.InnerException is InvalidOperationException;}
+  Check(refused,"unclamped main-character damage is still refused before a native rule is created");
+  var rule=create.Invoke(null,new object[]{source,subject,46,true,cap(45,11,1,0,1f)});
+  var type=rule.GetType();
+  Check(type.FullName=="Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage","fixture builds the actual pinned native damage rule");
+  Check(ReferenceEquals(type.GetField("Initiator",F).GetValue(rule),source)&&
+   ReferenceEquals(type.GetField("Target",F).GetValue(rule),subject),"native damage retains exact source and subject");
+  Check((int)type.GetProperty("MinHPAfterDamage",F).GetValue(rule,null)==-1&&
+   !(bool)type.GetProperty("IsFake",F).GetValue(rule,null)&&
+   (int)type.GetProperty("Damage",F).GetValue(rule,null)==0,"native cap is installed before dispatch; no damage or fake result is fabricated");
+  var ordinary=create.Invoke(null,new object[]{source,subject,46,false,null});
+  Check(type.GetProperty("MinHPAfterDamage",F).GetValue(ordinary,null)==null,
+   "existing non-main native stimulus retains its original uncapped rule");
+  var health=child.GetMethod("CastingHealthBoundarySettled",F);
+  Check((bool)health.Invoke(null,new object[]{true,true,true,false,false}),"health restoration admits only the settled native command/process boundary");
+  foreach(var facts in new[]{new[]{false,true,true,false,false},new[]{true,false,true,false,false},
+    new[]{true,true,false,false,false},new[]{true,true,true,true,false},new[]{true,true,true,false,true}})
+   Check(!(bool)health.Invoke(null,facts.Cast<object>().ToArray()),"live native command/process/effect retains fixture health cleanup debt");
+  var encounter=child.GetMethod("FixtureNativeEncounterPending",F);
+  foreach(var facts in new[]{new[]{true,false,true,false,false},new[]{true,false,false,true,false},
+    new[]{true,false,false,false,true},new[]{false,true,true,false,false}})
+   Check((bool)encounter.Invoke(null,facts.Cast<object>().ToArray()),"casting/obstruction cleanup waits for its real native encounter boundary");
+  Check(!(bool)encounter.Invoke(null,new object[]{true,false,false,false,false}),
+   "fully settled casting encounter allows outer configuration restoration");
+  Check(!(bool)encounter.Invoke(null,new object[]{false,false,true,true,true}),
+   "unrelated historical fixture completion policy remains unchanged");
+ }
  public static void Run(string managed,string product){
   AppDomain.CurrentDomain.AssemblyResolve+=(s,e)=>{
    var leaf=new AssemblyName(e.Name).Name+".dll";
@@ -420,6 +472,7 @@ public static class CastingObserverProbe {
   ExerciseCastingFixtureAdmission(native,child);
   ExerciseNativeGroundRefusal(native,child);
   ExerciseNativeMoveReadiness(native,child);
+  ExerciseCastingLifeSafety(native,child);
   foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
    Check((bool)parent.GetMethod("SupportsScenario",F).Invoke(null,new object[]{scenario}),"native original-pair engine accepts "+scenario);
    Check((bool)child.GetMethod("IsChunk6cCastingScenario",F).Invoke(null,new object[]{scenario}) &&
