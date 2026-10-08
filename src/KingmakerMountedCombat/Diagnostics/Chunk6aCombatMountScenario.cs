@@ -40,7 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
             IsChunk6aRefusedScenario(scenario) ||
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
-            Chunk6aMammothScenarioEngine.SupportsScenario(scenario) ||
+            Chunk6aMammothScenarioEngine.IsCombatMountScenario(scenario) ||
             string.Equals(scenario, Chunk6aHotbarScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aStopApproachScenario, StringComparison.Ordinal) ||
@@ -71,7 +71,7 @@ namespace KingmakerMountedCombat.Diagnostics
             string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
 
         private bool Chunk6aApproachOnly =>
-            Chunk6aMammothScenarioEngine.SupportsScenario(request.Scenario) ||
+            Chunk6aMammothScenarioEngine.IsCombatMountScenario(request.Scenario) ||
             Chunk6aHotbarOnly || string.Equals(request.Scenario, Chunk6aMountApproachScenario, StringComparison.Ordinal) || Chunk6aPausedQueueOnly;
 
         private bool Chunk6aObstructionOnly => string.Equals(request.Scenario, Chunk6aObstructionScenario, StringComparison.Ordinal);

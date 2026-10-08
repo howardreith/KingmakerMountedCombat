@@ -77,6 +77,9 @@ namespace KingmakerMountedCombat.Diagnostics
             ["collection"] = trace.Identity(Item?.Collection), ["holdingSlot"] = trace.Identity(Item?.HoldingSlot),
             ["exactRiderCollection"] = Item != null && Item.Collection == rider.Inventory,
             ["exactSlot"] = Item != null && ReferenceEquals(slot?.MaybeItem, Item),
+            ["slotOccupant"] = trace.Identity(slot?.MaybeItem),
+            ["slotOccupantBlueprint"] = slot?.MaybeItem?.Blueprint.AssetGuid,
+            ["exactInventoryResident"] = Item != null && rider.Inventory.Items.Any(i => ReferenceEquals(i, Item)),
             ["ability"] = trace.Identity(Item?.Ability), ["abilityCaster"] = Item?.Ability?.Data?.Caster?.Unit?.UniqueId,
             ["activatable"] = trace.Identity(Item?.ActivatableAbility),
             ["activatableSourceItem"] = trace.Identity(Item?.ActivatableAbility?.SourceItem),
@@ -92,12 +95,13 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Item != null)
             {
                 var activation = Item.ActivatableAbility;
-                if (ReferenceEquals(slot?.MaybeItem, Item) && !slot.RemoveItem())
+                if (ReferenceEquals(slot?.MaybeItem, Item) && !slot.RemoveItem(false))
                     throw new InvalidOperationException("Exact casting fixture slot removal failed; item ownership retained.");
                 if (Item.HoldingSlot != null) throw new InvalidOperationException("Fixture item retains another slot; owner retained.");
                 if (Item.Collection != null) Item.Collection.Remove(Item);
+                Evidence["removalPostconditions"] = Snapshot();
                 if (Item.Collection != null || rider.Inventory.Items.Any(i => ReferenceEquals(i, Item)) || slot.HasItem)
-                    throw new InvalidOperationException("Fixture item removal postconditions failed; exact owner retained.");
+                    throw new InvalidOperationException("Fixture item removal postconditions failed; exact owner retained: " + Evidence["removalPostconditions"].ToString(Newtonsoft.Json.Formatting.None));
                 if (activation != null && (activation.Active || activation.IsOn))
                     throw new InvalidOperationException("Native item activation remains live; fixture owner retained.");
                 if (blueprint == LesserQuickenRod && rider.Buffs.Enumerable.Count(b => b.Blueprint.AssetGuid == RodBuff) != rodBuffsBefore)
