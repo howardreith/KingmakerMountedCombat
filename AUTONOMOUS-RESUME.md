@@ -1,3 +1,22 @@
+## 2026-10-08 - preview194 closed; coherent195 fixture and reader repair
+
+6B remains implementation stable: RT supported/default-off Charge, TB delivery
+DEFER - EVIDENCED with its qualified cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen194 source69946c89217d9625b04756899babe050454461f8 remains immutable:
+0 qualified PASS /3 FAIL /5 BLOCKED-unrun; all3 transactions restored exactly,
+empty restorationErrors, game exits0, human105 and275 saves/358 Mods unchanged.
+RT native7/0 proved the activation cleanup repair. Its original reader FAIL remains;
+complete immutable envelope re-evaluation now PASS under a separately hashed reader.
+Mounted RT failed before use at omitted6C exact-pair AI admission (2/1); TB source
+timed out before use because rider readiness blocked another actor's End Turn (6/1).
+Working195 repairs those diagnostic paths and the reader's pre-Mount/empty-RT-pair
+assumptions. Native action, spending, cleanup, turn and save policy are unchanged.
+Focused observer57/0, casting151/0, persistence79/0 and build1 pass. FAST1 PASS12/0;CANDIDATE1 PASS16/0,685 inputs unchanged.
+No195 package/suite/purity/native verdict yet. See docs/CHUNK6-CONTINUATION.md.
+Next: coherent guarded publication, one new compiled freeze/proof,
+same reviewed runner/eight stages; failed RT source first. No188 or TB-Charge replay.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
 ## 2026-10-08 - 6C preview193 closed; coherent194 native fixture repair
 
 6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;

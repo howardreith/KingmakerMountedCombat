@@ -130,8 +130,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 BindRealtimeObservers(); Write("initial", CastingBaselineObservation()); stage = 1; return;
             }
             if (stage == 1) {
-                if (!rider.IsInCombat || !rider.CombatState.CanActInCombat || !PairIdle) return;
-                if (CastingBaselineTb && turn?.Unit != rider) { EndFixtureTurn(turn); return; }
+                if (!rider.IsInCombat || !PairIdle) return;
+                if (Phase3dHorseScenarioTranche.WaitForNativeCastingPrincipal(CastingBaselineTb,
+                    turn?.Unit == rider, rider.CombatState.CanActInCombat, () => EndFixtureTurn(turn))) return;
                 if (!rider.HasSwiftAction()) return;
                 baselineCostOffset = baselineCostTrace.EventCount;
                 baselineInput = new JObject { ["before"] = CastingBaselineObservation(), ["inputs"] = new JArray() };
@@ -172,8 +173,10 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["actual"] = CastingBaselineObservation() }); stage = 8; return;
             }
             if (stage == 8) {
-                if (!PairIdle || !rider.CombatState.CanActInCombat || !rider.HasStandardAction()) return;
-                if (CastingBaselineTb && turn?.Unit != rider) { EndFixtureTurn(turn); return; }
+                if (!PairIdle) return;
+                if (Phase3dHorseScenarioTranche.WaitForNativeCastingPrincipal(CastingBaselineTb,
+                    turn?.Unit == rider, rider.CombatState.CanActInCombat, () => EndFixtureTurn(turn))) return;
+                if (!rider.HasStandardAction()) return;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
                 using (var input = new NativeOrdinaryAttackInput(combatTarget)) { if (!input.Click()) return; }
                 baselineAttackInput = true; Write("6c-ordinary-continuation-input", CastingBaselineObservation()); stage = 9; return;

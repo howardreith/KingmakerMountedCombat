@@ -149,8 +149,10 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (castingStage == 1)
             {
-                if (!rider.IsInCombat || !horse.IsInCombat || !rider.CombatState.CanActInCombat) return;
-                if (CastingTb && (turn == null || turn.Unit != rider || !rider.HasStandardAction() || !rider.HasSwiftAction()))
+                if (!rider.IsInCombat || !horse.IsInCombat) return;
+                if (WaitForNativeCastingPrincipal(CastingTb, turn?.Unit == rider,
+                    rider.CombatState.CanActInCombat, () => EndCastingNativeTurn(turn))) return;
+                if (CastingTb && (!rider.HasStandardAction() || !rider.HasSwiftAction()))
                 { EndCastingNativeTurn(turn); return; }
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                     game.HandsEquipmentController.IsUpdateScheduledFor(rider)) return;
@@ -276,6 +278,15 @@ namespace KingmakerMountedCombat.Diagnostics
             var amount = (int)Math.Ceiling(3d / factor);
             if (amount * factor >= subject.Stats.HitPoints.ModifiedValue - 2) throw new InvalidOperationException("Heal stimulus has no safe native margin.");
             Rulebook.Trigger(new RuleDealDamage(target, subject, new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), amount))));
+        }
+        // Fixture input progression only. A rider is normally unable to act on
+        // another actor's native turn; that fact must not block its lawful End Turn.
+        // The caller's existing input helper still validates the exact native actor.
+        internal static bool WaitForNativeCastingPrincipal(bool turnBased, bool principalTurn,
+            bool principalCanAct, Action advanceNativeTurn)
+        {
+            if (turnBased && !principalTurn) { advanceNativeTurn(); return true; }
+            return !principalCanAct;
         }
         private void EndCastingNativeTurn(TurnController turn)
         {

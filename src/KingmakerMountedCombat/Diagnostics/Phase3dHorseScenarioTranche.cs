@@ -5582,7 +5582,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsExactDiagnosticAiIsolationRelationship()
         {
             return relationship.State == RelationshipState.Unmounted ||
-                (IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsActorAllocation || IsChunk6aCombatMount || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
+                (IsChunk6cCasting || IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsActorAllocation || IsChunk6aCombatMount || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
         }
