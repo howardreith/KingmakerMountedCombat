@@ -1,3 +1,30 @@
+## 2026-10-08 - preview196 closed; bounded197 native refusal fixture repair
+
+6B remains IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery
+DEFER - EVIDENCED with its qualified cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen196 source a9ba8f629aa3bce6a1d2239c112f01c81a2759c1 remains immutable:
+4 qualified PASS /1 fixture/setup FAIL /3 BLOCKED-unrun. All5 transactions restored,
+empty restorationErrors, observed game exits0; human105,275 protected saves and
+358 Mods unchanged. No game or mutable runtime transaction remains.
+Purity PASS95.35307min; both settled RT/TB casting/item save-cold pairs pass.
+The failed baseline completed five native structural rows, which do not receive
+complete external stage qualification. Its intended Guidance-on-enemy refusal
+instead admitted an unstarted native shell and hit the unchanged30-second leaf.
+Native CanTarget permits that target; the fixture assumption was wrong.
+
+Working197 uses the native unit-only spell's empty-ground target refusal.
+Ordinary unit input is retained. No product casting/action/resource/turn/cleanup/
+save or substantive acceptance-policy change, schema44 and existing eight stages
+unchanged. Actual compiled/native boundary regression84/0, casting reader151/0,
+persistence reader79/0 and FAST12/0 pass;685 inputs unchanged.
+First build197-1 and observer probes1/2/3 remain failed immutable evidence.
+CANDIDATE1 PASS16/0, including components710/0, source145/0, safety271/0 and
+assembly698/0;685 inputs unchanged. No197 package/suite/purity/native credit.
+Closure27ccb2ca3752f696fe686fdc4c1978150fc716cdad0bb8e381505131ba735f00;
+exact receipts/costs under lab analysis-cache/chunk6-continuation/20261005-6br.
+Next: CANDIDATE, coherent guarded publication, one freeze/proof and ready6C batch.
+Continue6C then6D-6F. No merge/PR/tag/release/permanent install/protected-save write/
+foreign-mod change/HUMAN PLAY acceptance. One mutating executor.
 ## 2026-10-08 - preview195 closed; bounded196 full fixture admission repair
 
 6B remains implementation stable: RT supported/default-off Charge; TB delivery

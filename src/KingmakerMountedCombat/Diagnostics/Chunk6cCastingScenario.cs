@@ -9,6 +9,7 @@ using Kingmaker.RuleSystem.Rules.Damage;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic;
 using Kingmaker.UnitLogic.Abilities;
+using Kingmaker.UnitLogic.Abilities.Blueprints;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using KingmakerMountedCombat.Domain;
@@ -210,6 +211,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 castingStage = 1; ResetLeafClock();
             }
         }
+        // A unit-only spell cannot select empty ground. Enemy targeting is not
+        // inherently invalid in the native CanTarget/OnClick contract.
+        private static GameObject CastingInputObject(string caseId, GameObject targetView) =>
+            caseId == "C6C-invalid-target" ? null : targetView;
+
         private void BeginCastingCase()
         {
             castingTrace.BeginCase(CastingCase); castingEventOffset = castingTrace.EventCount; castingCostOffset = castingCosts.EventCount;
@@ -237,8 +243,15 @@ namespace KingmakerMountedCombat.Diagnostics
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             var handler = Game.Instance.SelectedAbilityHandler;
             handler.SetAbility(castingAbility);
-            var resolved = handler.GetTarget(castingTarget.View.gameObject, castingTarget.Position, castingAbility);
-            castingCaseFacts["resolvedTarget"] = resolved?.Unit?.UniqueId; castingCaseFacts["resolvedPoint"] = resolved == null ? null : CapturePosition(resolved.Point); castingCaseFacts["targetPoint"] = CapturePosition(castingTarget.Position);
+            var invalidTarget = CastingCase == "C6C-invalid-target";
+            if (invalidTarget && castingAbility.TargetAnchor != AbilityTargetAnchor.Unit)
+                throw new InvalidOperationException("Refusal fixture requires a native unit-only spell.");
+            var inputObject = CastingInputObject(CastingCase, castingTarget.View.gameObject);
+            var inputPoint = invalidTarget ? FindWalkablePoint(rider.Position, 4f, .5f) : castingTarget.Position;
+            castingCaseFacts["targetKind"] = invalidTarget ? "empty-ground" : "unit";
+            castingCaseFacts["target"] = invalidTarget ? null : castingTarget.UniqueId;
+            var resolved = handler.GetTarget(inputObject, inputPoint, castingAbility);
+            castingCaseFacts["resolvedTarget"] = resolved?.Unit?.UniqueId; castingCaseFacts["resolvedPoint"] = resolved == null ? null : CapturePosition(resolved.Point); castingCaseFacts["targetPoint"] = CapturePosition(inputPoint);
             castingCaseFacts["canTarget"] = resolved != null && castingAbility.CanTarget(resolved);
             castingCaseFacts["selected"] = ReferenceEquals(handler.Ability, castingAbility);
             castingCaseFacts["selectionAfter"] = new JArray(SelectionManager.Instance.SelectedUnits.Select(u => u.UniqueId));
@@ -248,7 +261,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             else
             {
-                castingCaseFacts["clicked"] = handler.OnClick(castingTarget.View.gameObject, castingTarget.Position, 0, false, false);
+                castingCaseFacts["clicked"] = handler.OnClick(inputObject, inputPoint, 0, false, false);
                 castingCaseFacts["inputCount"] = 1;
                 var shells = rider.Commands.Raw.Concat(rider.Commands.Queue).OfType<UnitUseAbility>()
                     .Where(c => c.Spell.Blueprint == castingAbility.Blueprint).Distinct().ToArray();

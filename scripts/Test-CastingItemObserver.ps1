@@ -121,6 +121,111 @@ public static class CastingObserverProbe {
   il.Emit(System.Reflection.Emit.OpCodes.Ret);
   return dynamic;
  }
+ static System.Reflection.Emit.DynamicMethod detachedDeliverTouch,detachedGroundTarget;
+ public static bool DetachedNullEqual(object a,object b){
+  if(a!=null||b!=null)throw new InvalidOperationException("A live Unity object reached detached comparison.");
+  return true;
+ }
+ public static bool DetachedNullNotEqual(object a,object b){return !DetachedNullEqual(a,b);}
+ public static bool DetachedNullPresent(object a){
+  if(a!=null)throw new InvalidOperationException("A live Unity object reached detached presence.");
+  return false;
+ }
+ public static System.Collections.Generic.IEnumerable<T> DetachedGroundTarget<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  if(__originalMethod.Name!="GetTarget"||__originalMethod.DeclaringType.FullName!="Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler")
+   throw new InvalidOperationException("Unexpected native target boundary.");
+  var list=new System.Collections.Generic.List<T>();var count=0;var quaternion=0;
+  foreach(var instruction in instructions){
+   var called=typeof(T).GetField("operand").GetValue(instruction) as MethodInfo;
+   if(called!=null&&called.DeclaringType.FullName=="UnityEngine.Object"){
+    var name=called.Name=="op_Equality"?"DetachedNullEqual":called.Name=="op_Inequality"?"DetachedNullNotEqual":
+     called.Name=="op_Implicit"?"DetachedNullPresent":null;
+    if(name==null)throw new InvalidOperationException("Unexpected Unity target operation.");
+    typeof(T).GetField("operand").SetValue(instruction,typeof(CastingObserverProbe).GetMethod(name,F));count++;
+   }
+   if(called!=null&&called.DeclaringType.FullName=="UnityEngine.Quaternion"&&
+    (called.Name=="LookRotation"||called.Name=="get_eulerAngles")){
+    var parameters=called.GetParameters().Select(p=>p.ParameterType).ToList();
+    if(!called.IsStatic)parameters.Insert(0,called.DeclaringType.MakeByRefType());
+    var unavailable=new System.Reflection.Emit.DynamicMethod("unavailable_"+called.MetadataToken,called.ReturnType,
+     parameters.ToArray(),typeof(CastingObserverProbe).Module,true);
+    var il=unavailable.GetILGenerator();il.Emit(System.Reflection.Emit.OpCodes.Ldstr,"Point-only Unity rotation reached unit-ground refusal.");
+    il.Emit(System.Reflection.Emit.OpCodes.Newobj,typeof(InvalidOperationException).GetConstructor(new[]{typeof(string)}));
+    il.Emit(System.Reflection.Emit.OpCodes.Throw);
+    typeof(T).GetField("opcode").SetValue(instruction,System.Reflection.Emit.OpCodes.Call);
+    typeof(T).GetField("operand").SetValue(instruction,unavailable);quaternion++;
+   }
+   list.Add(instruction);
+  }
+  // Seven pinned Unity comparisons; accept only null inputs, never simulate a view.
+  if(count!=7||quaternion!=2)throw new InvalidOperationException("Pinned native null/rotation boundary differs.");
+  return list;
+ }
+ public static System.Collections.Generic.IEnumerable<T> DetachedGroundRefusal<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  if(__originalMethod.DeclaringType.FullName!="Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler"||
+   __originalMethod.Name!="OnClick")throw new InvalidOperationException("Unexpected native click boundary.");
+  var list=new System.Collections.Generic.List<T>();var count=0;var targets=0;
+  foreach(var instruction in instructions){
+   var called=typeof(T).GetField("operand").GetValue(instruction) as MethodInfo;
+   if(called!=null&&called.DeclaringType==__originalMethod.DeclaringType&&called.Name=="GetTarget"){
+    typeof(T).GetField("opcode").SetValue(instruction,System.Reflection.Emit.OpCodes.Call);
+    typeof(T).GetField("operand").SetValue(instruction,detachedGroundTarget);targets++;
+   }
+   else if(called!=null&&called.DeclaringType==__originalMethod.DeclaringType&&called.Name=="get_IsTurnBasedDeliverTouch"){
+    typeof(T).GetField("opcode").SetValue(instruction,System.Reflection.Emit.OpCodes.Call);
+    typeof(T).GetField("operand").SetValue(instruction,detachedDeliverTouch);count++;
+   }
+   list.Add(instruction);
+  }
+  // Only the inaccessible global turn/touch input is projected. Keep native
+  // target resolution, refusal, admission and spending branches unchanged.
+  if(count!=1||targets!=1)throw new InvalidOperationException("Pinned native touch/target boundary differs.");
+  return list;
+ }
+ static void ExerciseNativeGroundRefusal(Assembly native,Type child){
+  var handlerType=native.GetType("Kingmaker.Controllers.Clicks.Handlers.ClickWithSelectedAbilityHandler",true);
+  var abilityType=native.GetType("Kingmaker.UnitLogic.Abilities.AbilityData",true);
+  var blueprintType=native.GetType("Kingmaker.UnitLogic.Abilities.Blueprints.BlueprintAbility",true);
+  var descriptorType=native.GetType("Kingmaker.UnitLogic.UnitDescriptor",true);
+  var getTarget=handlerType.GetMethod("GetTarget",F);
+  var gameObjectType=getTarget.GetParameters()[0].ParameterType;
+  var view=FormatterServices.GetUninitializedObject(gameObjectType);
+  var input=child.GetMethod("CastingInputObject",F);
+  Check(input!=null&&input.Invoke(null,new object[]{"C6C-invalid-target",view})==null,
+   "compiled refusal fixture selects empty ground instead of a targetable enemy");
+  foreach(var name in (string[])child.GetField("CastingCases",F).GetValue(null)){
+   if(name=="C6C-invalid-target")continue;
+   Check(ReferenceEquals(input.Invoke(null,new[]{(object)name,view}),view),"ordinary native unit input retained "+name);
+  }
+  var blueprint=FormatterServices.GetUninitializedObject(blueprintType);
+  blueprintType.GetField("CanTargetFriends",F).SetValue(blueprint,true);
+  var range=blueprintType.GetField("Range",F);
+  range.SetValue(blueprint,Enum.Parse(range.FieldType,"Touch"));
+  var caster=FormatterServices.GetUninitializedObject(descriptorType);
+  var ability=abilityType.GetConstructor(new[]{blueprintType,descriptorType}).Invoke(new[]{blueprint,caster});
+  Check(abilityType.GetProperty("TargetAnchor",F).GetValue(ability,null).ToString()=="Unit",
+   "actual native friendly Touch spell has unit-only target anchor");
+  var handler=FormatterServices.GetUninitializedObject(handlerType);
+  handlerType.GetProperty("Ability",F).SetValue(handler,ability,null);
+  var point=Activator.CreateInstance(getTarget.GetParameters()[1].ParameterType);
+  var instruction=child.Assembly.GetType("KingmakerMountedCombat.Integration.MountedChargeBuffChildren",true)
+   .GetMethod("WrapAddFact",F).GetParameters()[0].ParameterType.GetGenericArguments()[0];
+  detachedGroundTarget=CopyDetachedMethod(getTarget,instruction,"DetachedGroundTarget");
+  Check(detachedGroundTarget.Invoke(null,new[]{handler,null,point,ability})==null,
+   "actual native GetTarget rejects empty ground with only inaccessible null Unity comparisons projected");
+  detachedDeliverTouch=new System.Reflection.Emit.DynamicMethod("detached_native_touch_context",typeof(bool),
+   new[]{handlerType},typeof(CastingObserverProbe).Module,true);
+  var il=detachedDeliverTouch.GetILGenerator();il.Emit(System.Reflection.Emit.OpCodes.Ldc_I4_0);il.Emit(System.Reflection.Emit.OpCodes.Ret);
+  var click=CopyDetachedMethod(handlerType.GetMethod("OnClick",F),instruction,"DetachedGroundRefusal");
+  // Silence external UI events in detached CLR. If refusal reaches native
+  // command admission, the uninitialized caster fails rather than fabricating it.
+  Check(!(bool)click.Invoke(null,new[]{handler,null,point,(object)0,false,true}),
+   "actual native OnClick refuses empty ground before command or cost admission");
+  Check(ReferenceEquals(handlerType.GetProperty("Ability",F).GetValue(handler,null),ability)&&
+   ReferenceEquals(abilityType.GetField("Caster",F).GetValue(ability),caster),
+   "native refusal preserves selected ability and exact caster ownership");
+  detachedDeliverTouch=null;detachedGroundTarget=null;
+ }
  static int detachedRelationshipState;
  static object detachedRelationshipRider,detachedRelationshipMount;
  static System.Collections.Generic.Dictionary<string,System.Reflection.Emit.DynamicMethod> detachedRelationshipGetters;
@@ -278,6 +383,7 @@ public static class CastingObserverProbe {
   var child=mod.GetType("KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche",true);
   var parent=mod.GetType("KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine",true);
   ExerciseCastingFixtureAdmission(native,child);
+  ExerciseNativeGroundRefusal(native,child);
   foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
    Check((bool)parent.GetMethod("SupportsScenario",F).Invoke(null,new object[]{scenario}),"native original-pair engine accepts "+scenario);
    Check((bool)child.GetMethod("IsChunk6cCastingScenario",F).Invoke(null,new object[]{scenario}) &&
@@ -336,4 +442,4 @@ public static class CastingObserverProbe {
  }
 }
 "@
-[CastingObserverProbe]::Run($managed,(Join-Path $repo "bin/$Configuration/KingmakerMountedCombat.dll"))
+try { [CastingObserverProbe]::Run($managed,(Join-Path $repo "bin/$Configuration/KingmakerMountedCombat.dll")) } catch { $cause=$_.Exception; while($null-ne$cause){[Console]::WriteLine($cause.ToString());$cause=$cause.InnerException};throw }
