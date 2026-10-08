@@ -1,3 +1,32 @@
+## 2026-10-08 - preview195 closed; bounded196 full fixture admission repair
+
+6B remains implementation stable: RT supported/default-off Charge; TB delivery
+DEFER - EVIDENCED with its qualified cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen195 source9d5eb700a7b62f2851336a94d961c68625551326 remains immutable:
+4 qualified PASS /1 fixture/setup FAIL /3 BLOCKED-unrun; all5 actual transactions
+restored exactly, empty restorationErrors, game exits0. Human105,275 protected
+saves and358 Mods are unchanged; no game or runtime transaction remains.
+Both RT and TB settled casting/item save-cold pairs pass on195. Four persistence
+runs have exact whole-profile audit receipts; the short failed baseline has none.
+No additional whole-profile claim is made for that short transaction.
+
+The first baseline stopped at stage0 before any casting row: the outer pre-target
+rider AI scenario list omitted6C even though the nested exact-pair check allowed it.
+All four baselines share that guard, so three dependent launches were not repeated.
+Working196 adds6C to that exact scenario admission, tests its compiled decisions,
+and verifies the full compiled native fixture guard calls the tested gate.
+Other native preconditions, exact pair checks and AI lease/restoration are unchanged.
+No product casting/action/resource/turn/cleanup/save or acceptance-policy change.
+Focused build1 PASS; observer/admission65/0, casting151/0, persistence79/0.
+FAST1 PASS12/0;CANDIDATE1 PASS16/0,685 inputs unchanged. Components710/0,
+source145/0, safety harness271/0 and assembly698/0 pass.
+No196 package/suite/purity/native credit.
+Closure11f27b27ff850e21833e1c83f79e4dfb4779cd85316019f8cc3235d6ee9e501d:
+lab analysis-cache/chunk6-continuation/20261005-6br/preview195-campaign-closure.json.
+Next: targeted gates, coherent guarded publication, one compiled freeze/proof;
+failed mounted RT baseline first, then the same existing eight-stage6C scope.
+No188 or TB-Charge replay; continue6C-6F. No merge/PR/tag/release/permanent
+install/protected-human-save write/foreign-mod mutation/HUMAN PLAY acceptance.
 ## 2026-10-08 - preview194 closed; coherent195 fixture and reader repair
 
 6B remains implementation stable: RT supported/default-off Charge, TB delivery

@@ -140,6 +140,16 @@ public static class CastingObserverProbe {
   if(counts.Count!=3||counts["get_State"]!=2||counts["get_Rider"]!=1||counts["get_Mount"]!=1)
    throw new InvalidOperationException("Exact relationship predicate boundary differs.");
  }
+ public static System.Collections.Generic.IEnumerable<T> VerifyDetachedRiderAiAdmission<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  if(__originalMethod.Name!="PrepareCombatMountRiderAiIsolation")throw new InvalidOperationException("Unexpected full rider admission method.");
+  var calls=0;
+  foreach(var instruction in instructions){
+   var called=typeof(T).GetField("operand").GetValue(instruction) as MethodInfo;
+   if(called!=null&&called.DeclaringType==__originalMethod.DeclaringType&&called.Name=="IsDiagnosticRiderAiIsolationScenario")calls++;
+   yield return instruction;
+  }
+  if(calls!=1)throw new InvalidOperationException("Native fixture admission must call the tested scenario gate exactly once.");
+ }
  static void ExerciseCastingFixtureAdmission(Assembly native,Type child){
   var mod=child.Assembly;var service=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
   var actor=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
@@ -160,10 +170,16 @@ public static class CastingObserverProbe {
   // Mock only observed relationship inputs. Keep the exact compiled scenario,
   // state and pair-identity decisions; no native state or installed code changes.
   var predicate=CopyDetachedMethod(child.GetMethod("IsExactDiagnosticAiIsolationRelationship",F),instruction,"ReplaceDetachedRelationship");
+  var scenarioGate=child.GetMethod("IsDiagnosticRiderAiIsolationScenario",F);
+  Check(scenarioGate!=null,"native rider AI admission declares one tested scenario gate");
+  // Verify the full compiled native-fixture guard calls this tested gate.
+  // Do not invoke its Unity selection/AI mutation boundaries in detached CLR.
+  CopyDetachedMethod(child.GetMethod("PrepareCombatMountRiderAiIsolation",F),instruction,"VerifyDetachedRiderAiAdmission");
   var stateType=service.GetProperty("State",F).PropertyType;
   foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
    var request=Activator.CreateInstance(mod.GetType("KingmakerMountedCombat.Diagnostics.RuntimeRequest",true));
    request.GetType().GetProperty("Scenario",F).SetValue(request,scenario,null);child.GetField("request",F).SetValue(instance,request);
+   Check((bool)scenarioGate.Invoke(instance,null),"full pre-target rider scenario admission "+scenario);
    detachedRelationshipState=(int)Enum.Parse(stateType,"Mounted");detachedRelationshipRider=exactRider;detachedRelationshipMount=exactMount;
    Check((bool)predicate.Invoke(null,new[]{instance}),"exact mounted casting AI lease admission "+scenario);
    detachedRelationshipRider=foreign;Check(!(bool)predicate.Invoke(null,new[]{instance}),"foreign rider refused "+scenario);
@@ -172,6 +188,14 @@ public static class CastingObserverProbe {
    detachedRelationshipState=(int)Enum.Parse(stateType,"Faulted");Check(!(bool)predicate.Invoke(null,new[]{instance}),"faulted relationship refused "+scenario);
    detachedRelationshipState=(int)Enum.Parse(stateType,"Unmounted");Check((bool)predicate.Invoke(null,new[]{instance}),"existing unmounted isolation preserved "+scenario);
   }
+  var legacyRequest=Activator.CreateInstance(mod.GetType("KingmakerMountedCombat.Diagnostics.RuntimeRequest",true));
+  legacyRequest.GetType().GetProperty("Scenario",F).SetValue(legacyRequest,child.GetField("TurnBasedScenario",F).GetRawConstantValue(),null);
+  child.GetField("request",F).SetValue(instance,legacyRequest);
+  Check((bool)scenarioGate.Invoke(instance,null),"legacy native paired fixture scenario remains admitted");
+  legacyRequest.GetType().GetProperty("Scenario",F).SetValue(legacyRequest,"unregistered-casting-scenario",null);
+  Check(!(bool)scenarioGate.Invoke(instance,null),"unregistered scenario cannot acquire rider AI ownership");
+  detachedRelationshipState=(int)Enum.Parse(stateType,"Mounted");
+  Check(!(bool)predicate.Invoke(null,new[]{instance}),"unregistered scenario cannot isolate a mounted pair");
   detachedRelationshipGetters=null;detachedRelationshipRider=null;detachedRelationshipMount=null;
   var wait=child.GetMethod("WaitForNativeCastingPrincipal",F);var advances=0;Action advance=()=>advances++;
   Check((bool)wait.Invoke(null,new object[]{true,false,false,advance})&&advances==1,

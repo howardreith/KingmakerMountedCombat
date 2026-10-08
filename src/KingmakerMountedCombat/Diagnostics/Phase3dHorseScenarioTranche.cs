@@ -5497,6 +5497,14 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private bool IsDiagnosticRiderAiIsolationScenario()
+        {
+            return string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) ||
+                IsActorAllocation || IsOrdinaryAttackControls || IsUnmountedAttackControls ||
+                IsChunk6cCasting || IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge ||
+                IsChunk4Play || IsChunk4Core || IsChunk6aCombatMount;
+        }
+
         private bool PrepareCombatMountRiderAiIsolation()
         {
             try
@@ -5504,8 +5512,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (combatMountRiderAiLease == null)
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
-                    if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
-                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls && !IsChunk6bCharge && !IsChunk6bChargePath && !IsChunk4Charge && !IsChunk4Play && !IsChunk4Core && !IsChunk6aCombatMount) ||
+                    if (!IsDiagnosticRiderAiIsolationScenario() ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
