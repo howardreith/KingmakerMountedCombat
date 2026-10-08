@@ -35,6 +35,16 @@ public static class CastingObserverProbe {
    var scenario=(string)parent.GetField(field,F).GetRawConstantValue();
    Check((bool)child.GetMethod("IsChunk6aCombatMountScenario",F).Invoke(null,new object[]{scenario}),"existing native Mammoth Mount/Dismount classification retained "+scenario);
   }
+  var slotOwner=native.GetType("Kingmaker.Items.Slots.ItemSlot",true).GetField("Owner",F);
+  var descriptor=native.GetType("Kingmaker.UnitLogic.UnitDescriptor",true);
+  Check(slotOwner.MetadataToken==0x0400502C&&slotOwner.FieldType==descriptor,
+   "original usable slots retain the exact native UnitDescriptor owner");
+  var body=descriptor.GetProperty("Body",F);
+  Check(body.MetadataToken==0x17000642&&body.PropertyType.FullName=="Kingmaker.Items.UnitBody",
+   "original owner body identity is pinned");
+  var quickSlots=body.PropertyType.GetProperty("QuickSlots",F);
+  Check(quickSlots.MetadataToken==0x17001555&&quickSlots.PropertyType.GetGenericArguments()[0].FullName=="Kingmaker.Items.Slots.UsableSlot",
+   "original owner quick-slot container is pinned");
   var itemLease=mod.GetType("KingmakerMountedCombat.Diagnostics.NativeCastingItemLease",true);
   var remove=(MethodInfo)itemLease.GetField("NativeRemoveItem",F).GetValue(null);
   Check(remove.MetadataToken==0x06007C7E&&remove.GetParameters().Length==2&&remove.GetParameters()[0].Name=="raiseEvent"&&remove.GetParameters()[1].Name=="autoMerge",

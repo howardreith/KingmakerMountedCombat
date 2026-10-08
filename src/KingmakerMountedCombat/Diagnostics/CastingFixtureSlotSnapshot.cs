@@ -12,6 +12,20 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly TSlot[] slots;
         private readonly TItem[] items;
         private readonly Func<TSlot, TItem> read;
+        internal static TSlot[] IncludeOriginalOwnerSlots(IEnumerable<TSlot> riderSlots,
+            IEnumerable<TSlot> originalHeldSlots, Func<TSlot, IEnumerable<TSlot>> ownerSlots)
+        {
+            var result = new List<TSlot>();
+            foreach (var source in riderSlots.Concat(originalHeldSlots))
+            {
+                var container = ownerSlots(source).ToArray();
+                if (!container.Any(s => ReferenceEquals(s, source)))
+                    throw new InvalidOperationException("Original item slot is outside its exact owner container.");
+                foreach (var slot in container)
+                    if (!result.Any(s => ReferenceEquals(s, slot))) result.Add(slot);
+            }
+            return result.ToArray();
+        }
         internal CastingFixtureSlotSnapshot(IEnumerable<TSlot> slots, Func<TSlot, TItem> read)
         {
             this.slots = slots.ToArray(); this.read = read;

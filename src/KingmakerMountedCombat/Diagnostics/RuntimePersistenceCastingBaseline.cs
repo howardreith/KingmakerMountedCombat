@@ -26,6 +26,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeCastingItemTrace baselineCastTrace;
         private NativeActorAllocationTrace baselineCostTrace;
         private NativeCastingItemLease baselineRod, baselinePotion;
+        private NativeCastingOriginalSlots baselineOriginalSlots;
         private Kingmaker.Items.ItemEntityUsable baselineLoadedRod;
         private SpellSlot baselineSpellSlot;
         private UnitUseAbility baselineShell;
@@ -73,8 +74,9 @@ namespace KingmakerMountedCombat.Diagnostics
             baselineCostTrace = new NativeActorAllocationTrace(rider, mount, combat);
             baselineCostTrace.BeginEncounter(request.RunId + ":casting-items");
             if (!Cold) {
-                baselineRod = new NativeCastingItemLease(rider, baselineCastTrace, NativeCastingItemLease.LesserQuickenRod); baselineRod.Acquire();
-                baselinePotion = new NativeCastingItemLease(rider, baselineCastTrace, NativeCastingItemLease.CurePotion); baselinePotion.Acquire();
+                baselineOriginalSlots = new NativeCastingOriginalSlots(rider, baselineCastTrace);
+                baselineRod = new NativeCastingItemLease(rider, baselineCastTrace, NativeCastingItemLease.LesserQuickenRod, baselineOriginalSlots); baselineRod.Acquire();
+                baselinePotion = new NativeCastingItemLease(rider, baselineCastTrace, NativeCastingItemLease.CurePotion, baselineOriginalSlots); baselinePotion.Acquire();
                 Write("6c-fixture-items-created", new JObject { ["rod"] = baselineRod.Evidence.DeepClone(), ["potion"] = baselinePotion.Evidence.DeepClone() });
             } else {
                 var rods = rider.Inventory.Items.OfType<Kingmaker.Items.ItemEntityUsable>()
@@ -215,7 +217,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var itemFailures = new System.Collections.Generic.List<Exception>();
             foreach (var lease in new[] { baselinePotion, baselineRod }.Where(i => i != null))
             {
-                try { lease.Dispose(); }
+                try { lease.ReleaseOwnedItem(); }
                 catch (Exception exception) { itemFailures.Add(exception); }
             }
             if (itemFailures.Count != 0)
@@ -224,6 +226,12 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["items"] = new JArray(new[] { baselinePotion, baselineRod }.Where(i => i != null).Select(i => i.Evidence.DeepClone())),
                     ["errors"] = new JArray(itemFailures.Select(e => e.ToString())) });
                 throw new AggregateException("Casting fixture item cleanup remains incomplete; exact leases retained.", itemFailures);
+            }
+            if (baselineOriginalSlots != null)
+            {
+                baselineOriginalSlots.Restore();
+                foreach (var lease in new[] { baselinePotion, baselineRod }.Where(i => i != null)) lease.Dispose();
+                Write("6c-original-slots-restored", (JObject)baselineOriginalSlots.Evidence.DeepClone());
             }
             baselineCostTrace.Dispose(); baselineCastTrace.Dispose();
             Write("6c-observers-closed", new JObject {

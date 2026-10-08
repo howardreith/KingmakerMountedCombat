@@ -16,14 +16,17 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("unknown quick-slot occupant fails before altering original equipment", RejectUnknown);
             runner.Run("replacement quick-slot container cannot inherit original snapshot authority", RejectReplacementSlots);
             runner.Run("settled quick-slot restoration is idempotent and does not replay equipment", Idempotent);
+            runner.Run("shared inventory auto-fill restores the original item to another actor", RestoreOtherOwner);
+            runner.Run("cohort releases owned items before restoring original placement without refunds", RestoreCohort);
+            runner.Run("original holding slot outside its owner is refused before mutations", RejectForeignContainer);
         }
         private sealed class Item
         {
-            internal readonly int Charges;
+            internal int Charges;
             internal Slot Holding;
             internal Item(int charges) { Charges = charges; }
         }
-        private sealed class Slot { internal Item Item; }
+        private sealed class Slot { internal Item Item; internal Slot[] OwnerSlots; }
         private sealed class Fixture
         {
             internal readonly Item Potion = new Item(1), Rod = new Item(2);
@@ -64,6 +67,72 @@ namespace KingmakerMountedCombat.Tests
         {
             var caught = false; try { action(); } catch (InvalidOperationException) { caught = true; }
             TestRunner.True(caught, "Incomplete fixture restoration was accepted.");
+        }
+        private static Slot[] OwnerSlots(int count)
+        {
+            var slots = Enumerable.Range(0, count).Select(_ => new Slot()).ToArray();
+            foreach (var slot in slots) slot.OwnerSlots = slots;
+            return slots;
+        }
+        private static void InsertExact(Slot slot, Item item)
+        {
+            if (slot.Item != null || item.Holding != null) throw new InvalidOperationException("Native placement is not vacant.");
+            slot.Item = item; item.Holding = slot;
+        }
+        private static bool RemoveExact(Slot slot)
+        {
+            slot.Item.Holding = null; slot.Item = null; return true;
+        }
+        private static void RestoreOtherOwner()
+        {
+            var rider = OwnerSlots(3); var companion = OwnerSlots(2); var original = new Item(1);
+            InsertExact(companion[1], original);
+            var all = CastingFixtureSlotSnapshot<Slot, Item>.IncludeOriginalOwnerSlots(rider,
+                new[] { original.Holding }, s => s.OwnerSlots);
+            var snapshot = new CastingFixtureSlotSnapshot<Slot, Item>(all, s => s.Item);
+            TestRunner.Equal(5, all.Length, "The shared original owner was omitted or duplicated.");
+            // The native consumed-item replacement moves this exact original.
+            RemoveExact(companion[1]); InsertExact(rider[1], original);
+            snapshot.Restore(RemoveExact, InsertExact);
+            TestRunner.True(snapshot.Restored && ReferenceEquals(companion[1].Item, original) &&
+                rider.All(s => s.Item == null) && ReferenceEquals(original.Holding, companion[1]),
+                "The original item did not return to its exact companion slot.");
+            TestRunner.Equal(1, original.Charges, "Original item resources changed during equipment restoration.");
+        }
+        private static void RestoreCohort()
+        {
+            var rider = OwnerSlots(3); var companion = OwnerSlots(2);
+            var originalPotion = new Item(1); var originalScroll = new Item(1);
+            InsertExact(companion[0], originalPotion); InsertExact(companion[1], originalScroll);
+            var all = CastingFixtureSlotSnapshot<Slot, Item>.IncludeOriginalOwnerSlots(rider,
+                new[] { originalPotion.Holding, originalScroll.Holding }, s => s.OwnerSlots);
+            var snapshot = new CastingFixtureSlotSnapshot<Slot, Item>(all, s => s.Item);
+            var rod = new Item(3); var potion = new Item(1); var scroll = new Item(1);
+            InsertExact(rider[0], rod); InsertExact(rider[1], potion); InsertExact(rider[2], scroll);
+            rod.Charges--; RemoveExact(rider[0]); // Native quickened use then early rod release.
+            Throws(() => snapshot.Restore(RemoveExact, InsertExact));
+            TestRunner.True(ReferenceEquals(rider[1].Item, potion) && ReferenceEquals(rider[2].Item, scroll),
+                "Early restoration disturbed still-owned cohort items.");
+            potion.Charges--; RemoveExact(rider[1]); RemoveExact(companion[0]); InsertExact(rider[1], originalPotion);
+            scroll.Charges--; RemoveExact(rider[2]); RemoveExact(companion[1]); InsertExact(rider[2], originalScroll);
+            snapshot.Restore(RemoveExact, InsertExact);
+            TestRunner.True(snapshot.Restored && ReferenceEquals(companion[0].Item, originalPotion) &&
+                ReferenceEquals(companion[1].Item, originalScroll) && rider.All(s => s.Item == null),
+                "The cohort's original placements were not restored after all releases.");
+            TestRunner.True(rod.Holding == null && potion.Holding == null && scroll.Holding == null &&
+                rod.Charges == 2 && potion.Charges == 0 && scroll.Charges == 0,
+                "Consumed fixture items were re-equipped or their charges refunded.");
+            TestRunner.True(originalPotion.Charges == 1 && originalScroll.Charges == 1,
+                "Original consumables were spent or refunded.");
+        }
+        private static void RejectForeignContainer()
+        {
+            var rider = OwnerSlots(3); var companion = OwnerSlots(2); var stale = new Slot { OwnerSlots = companion };
+            var original = new Item(1); InsertExact(stale, original);
+            Throws(() => CastingFixtureSlotSnapshot<Slot, Item>.IncludeOriginalOwnerSlots(rider,
+                new[] { original.Holding }, s => s.OwnerSlots));
+            TestRunner.True(ReferenceEquals(stale.Item, original) && rider.All(s => s.Item == null),
+                "A stale native owner caused equipment mutation during capture.");
         }
         private static void RestoreReplacement()
         { var f = new Fixture(); f.AutoReplaceConsumedFixture(); f.Restore(); f.Verify(); }

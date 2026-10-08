@@ -40,6 +40,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private NativeActorAllocationTrace castingCosts;
         private readonly List<NativeCastingItemLease> castingItems = new List<NativeCastingItemLease>();
         private NativeCastingItemLease castingRod, castingPotion, castingScroll;
+        private NativeCastingOriginalSlots castingOriginalSlots;
         private int castingCaseIndex, castingStage, castingEventOffset, castingCostOffset, castingSetupCostOffset;
         private AbilityData castingAbility;
         private SpellSlot castingPrepared;
@@ -62,6 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
             castingCosts = new NativeActorAllocationTrace(rider, horse, combat);
             castingCosts.BoundaryObserved += ObserveCastingNativeCost;
             CastingMeasurementInit();
+            castingOriginalSlots = new NativeCastingOriginalSlots(rider, castingTrace);
             // Retain each owner before native acquisition so partial equip failures
             // stay reachable through the existing bounded fixture cleanup path.
             castingRod = AcquireCastingItem(NativeCastingItemLease.LesserQuickenRod);
@@ -83,7 +85,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private NativeCastingItemLease AcquireCastingItem(string blueprint)
         {
-            var lease = new NativeCastingItemLease(rider, castingTrace, blueprint);
+            var lease = new NativeCastingItemLease(rider, castingTrace, blueprint, castingOriginalSlots);
             castingItems.Add(lease);
             lease.Acquire();
             return lease;
@@ -200,7 +202,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 // the external reader owns substantive PASS/FAIL for every row.
                 AddRow(CastingCase, castingTrace.Complete && castingCosts.Complete,
                     "Observed normal native rider casting/item input and terminal ownership.", castingCaseFacts);
-                if (castingCaseIndex == 0) { castingRod.Dispose(); CastingMeasurement["rodCleanup"] = castingRod.Evidence.DeepClone(); }
+                if (castingCaseIndex == 0) { castingRod.ReleaseOwnedItem(); CastingMeasurement["rodCleanup"] = castingRod.Evidence.DeepClone(); }
                 castingCaseIndex++; castingMountClick = false;
                 if (castingCaseIndex == CastingCases.Length) { BeginCleanup(); return; }
                 castingStage = 1; ResetLeafClock();
@@ -305,13 +307,16 @@ namespace KingmakerMountedCombat.Diagnostics
             var itemFailures = new List<Exception>();
             for (var i = castingItems.Count - 1; i >= 0; i--)
             {
-                try { castingItems[i].Dispose(); }
+                try { castingItems[i].ReleaseOwnedItem(); }
                 catch (Exception exception) { itemFailures.Add(exception); }
             }
             // Every exact lease remains retained for the existing bounded retry.
             // One failed item cannot prevent independent item cleanup or its evidence.
             CastingMeasurement["items"] = new JArray(castingItems.Select(i => i.Evidence.DeepClone()));
             if (itemFailures.Count != 0) throw new AggregateException("Casting fixture item cleanup remains incomplete.", itemFailures);
+            castingOriginalSlots.Restore();
+            foreach (var item in castingItems) item.Dispose();
+            CastingMeasurement["originalSlots"] = castingOriginalSlots.Evidence.DeepClone();
             CastingMeasurement["items"] = new JArray(castingItems.Select(i => i.Evidence.DeepClone()));
             CastingMeasurement["final"] = CastingState();
             castingCosts.Dispose(); castingTrace.Dispose();
