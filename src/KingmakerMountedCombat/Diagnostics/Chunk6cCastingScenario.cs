@@ -134,14 +134,20 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation) return;
                 SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
-                if (CastingMounted && relationship.State != RelationshipState.Mounted)
-                {
-                    if (!castingMountClick) castingMountClick = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "casting-exploration-mount");
-                    return;
-                }
                 if (!CastingMounted && relationship.State != RelationshipState.Unmounted)
                     throw new InvalidOperationException("Unmounted casting control entered mounted.");
-                if (!PrepareUnmountedHorseAiIsolation() || !PrepareCombatMountRiderAiIsolation()) return;
+                // The reversible fixture AI leases own both actors BEFORE the exploration
+                // Mount. Mount captures the mount's raw AI and every lifecycle Dismount
+                // restores that captured value; a lease acquired after Mount captured the
+                // already-disabled AI, so the forced rider-incapacity Dismount re-enabled
+                // ordinary mount attacks and native settlement never arrived (preview.199).
+                // Isolating first makes the relationship capture and restore the isolated
+                // state; only the lease restores the true original at fixture cleanup.
+                var isolationReady = PrepareUnmountedHorseAiIsolation() && PrepareCombatMountRiderAiIsolation();
+                var pairMounted = relationship.State == RelationshipState.Mounted;
+                if (CastingEntryMayRequestMount(CastingMounted, pairMounted, isolationReady, castingMountClick))
+                    castingMountClick = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "casting-exploration-mount");
+                if (!CastingEntryReady(CastingMounted, pairMounted, isolationReady)) return;
                 if (turnBasedModeProbe == null) turnBasedModeProbe = new NativeModeTransitionProbe(CastingTb);
                 if (!turnBasedModeProbe.TemporaryValueIsCurrent) { turnBasedModeProbe.DispatchTemporaryValueIfRequired(); return; }
                 if (CastingTb && pairedAutomaticEndProbe == null) pairedAutomaticEndProbe = new NativeAutomaticEndProbe(false);
@@ -301,6 +307,41 @@ namespace KingmakerMountedCombat.Diagnostics
             if (turnBased && !principalTurn) { advanceNativeTurn(); return true; }
             return !principalCanAct;
         }
+        // Fixture entry ordering: both reversible AI leases must own the pair before the
+        // exploration Mount is requested, and a mounted baseline proceeds only once the
+        // native Mount has settled. Pure decisions; the caller owns every side effect.
+        internal static bool CastingEntryMayRequestMount(bool mounted, bool pairMounted, bool aiIsolationReady, bool mountRequested) =>
+            mounted && !pairMounted && aiIsolationReady && !mountRequested;
+        internal static bool CastingEntryReady(bool mounted, bool pairMounted, bool aiIsolationReady) =>
+            aiIsolationReady && (!mounted || pairMounted);
+        // Bounded raw facts for a 6C leaf deadline: the exact case, its live boundary and
+        // the pair's command/AI/life state. Observation only; nothing is mutated.
+        private JObject CaptureChunk6cCastingDeadlineProgress()
+        {
+            var progress = new JObject { ["stage"] = castingStage, ["caseIndex"] = castingCaseIndex,
+                ["case"] = castingCaseIndex < CastingCases.Length ? CastingCase : null,
+                ["mountClickRequested"] = castingMountClick, ["castingCleanupStarted"] = castingCleanupStarted };
+            try
+            {
+                progress["boundary"] = castingBoundary?.DeepClone();
+                progress["caseFacts"] = castingCaseFacts?.DeepClone();
+                progress["state"] = castingTrace == null || castingCosts == null ? null : CastingState();
+                progress["mountRawAi"] = AiBackingField == null ? JValue.CreateNull() : new JValue((bool)AiBackingField.GetValue(horse));
+                progress["riderRawAi"] = AiBackingField == null ? JValue.CreateNull() : new JValue((bool)AiBackingField.GetValue(rider));
+                progress["mountEffectiveAi"] = horse.IsAIEnabled; progress["riderEffectiveAi"] = rider.IsAIEnabled;
+                progress["mountCommands"] = CaptureCastingCommandSurface(horse);
+                progress["riderCommands"] = CaptureCastingCommandSurface(rider);
+                progress["mountAiIsolation"] = CaptureUnmountedHorseAiIsolation();
+                progress["riderAiIsolation"] = CaptureCombatMountRiderAiIsolation();
+            }
+            catch (Exception exception) { progress["captureError"] = exception.GetType().Name + ": " + exception.Message; }
+            return progress;
+        }
+        private static JObject CaptureCastingCommandSurface(UnitEntityData actor) => new JObject {
+            ["inCombat"] = actor.IsInCombat, ["empty"] = actor.Commands.Empty,
+            ["raw"] = new JArray(actor.Commands.Raw.Select(c => c == null ? JValue.CreateNull() : new JValue(
+                c.GetType().Name + ":" + (c.IsFinished ? "finished" : c.IsRunning ? "running" : "pending")))),
+            ["queue"] = new JArray(actor.Commands.Queue.Select(c => new JValue(c.GetType().Name))) };
         private void EndCastingNativeTurn(TurnController turn)
         {
             var actor = turn?.Unit;

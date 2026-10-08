@@ -290,6 +290,44 @@ public static class CastingObserverProbe {
   }
   if(calls!=1)throw new InvalidOperationException("Native fixture admission must call the tested scenario gate exactly once.");
  }
+ public static System.Collections.Generic.IEnumerable<T> VerifyDetachedCastingEntryOrder<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  if(__originalMethod.Name!="TickChunk6cCasting")throw new InvalidOperationException("Unexpected casting tick method.");
+  var index=0;var mountIsolation=-1;var riderIsolation=-1;var firstClick=-1;var mayRequest=0;var ready=0;
+  var list=new System.Collections.Generic.List<T>();
+  foreach(var instruction in instructions){
+   var called=typeof(T).GetField("operand").GetValue(instruction) as MethodInfo;
+   if(called!=null&&called.DeclaringType==__originalMethod.DeclaringType){
+    if(called.Name=="PrepareUnmountedHorseAiIsolation"&&mountIsolation<0)mountIsolation=index;
+    if(called.Name=="PrepareCombatMountRiderAiIsolation"&&riderIsolation<0)riderIsolation=index;
+    if(called.Name=="TryNativeAbilityTargetClick"&&firstClick<0)firstClick=index;
+    if(called.Name=="CastingEntryMayRequestMount")mayRequest++;
+    if(called.Name=="CastingEntryReady")ready++;
+   }
+   list.Add(instruction);index++;
+  }
+  // Compiled fixture entry: mount lease, then rider lease, then the tested gates, and only
+  // then the first native Mount click (preview.199 clicked Mount before any lease).
+  if(mountIsolation<0||riderIsolation<0||firstClick<0||mayRequest!=1||ready!=1)throw new InvalidOperationException("Casting entry must call both AI leases, both tested gates exactly once and the native Mount click.");
+  if(!(mountIsolation<riderIsolation&&riderIsolation<firstClick))throw new InvalidOperationException("Casting entry must own mount then rider AI isolation before its first native Mount click.");
+  return list;
+ }
+ static void ExerciseCastingEntryOrdering(Type child,Type instruction){
+  var mayMount=child.GetMethod("CastingEntryMayRequestMount",F);var ready=child.GetMethod("CastingEntryReady",F);
+  Check(mayMount!=null&&mayMount.IsStatic&&ready!=null&&ready.IsStatic,"casting entry gates are pure static decisions");
+  Func<bool,bool,bool,bool,bool> request=(mounted,paired,isolated,requested)=>(bool)mayMount.Invoke(null,new object[]{mounted,paired,isolated,requested});
+  Func<bool,bool,bool,bool> proceed=(mounted,paired,isolated)=>(bool)ready.Invoke(null,new object[]{mounted,paired,isolated});
+  Check(!request(true,false,false,false),"exploration Mount is never requested before fixture AI isolation owns both actors");
+  Check(request(true,false,true,false),"isolated unmounted casting fixture requests exactly its exploration Mount");
+  Check(!request(true,false,true,true),"a requested native Mount is not repeated");
+  Check(!request(true,true,true,false),"a mounted pair requests no second Mount");
+  Check(!request(false,false,true,false)&&!request(false,false,false,false),"unmounted casting baselines never request a Mount");
+  Check(!proceed(true,false,true),"mounted baseline waits for the native Mount to settle");
+  Check(proceed(true,true,true)&&proceed(false,false,true),"isolated settled pair proceeds to the native encounter");
+  Check(!proceed(true,true,false)&&!proceed(false,false,false)&&!proceed(true,false,false),"no baseline proceeds without fixture AI isolation");
+  CopyDetachedMethod(child.GetMethod("TickChunk6cCasting",F),instruction,"VerifyDetachedCastingEntryOrder");
+  Check(true,"compiled casting entry owns both AI leases and consults the tested gates before its first native Mount click");
+  Check(child.GetMethod("CaptureChunk6cCastingDeadlineProgress",F)!=null,"6C leaf deadline records bounded raw case/boundary/AI/command facts");
+ }
  static void ExerciseCastingFixtureAdmission(Assembly native,Type child){
   var mod=child.Assembly;var service=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
   var actor=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
@@ -470,6 +508,7 @@ public static class CastingObserverProbe {
   var child=mod.GetType("KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche",true);
   var parent=mod.GetType("KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine",true);
   ExerciseCastingFixtureAdmission(native,child);
+  ExerciseCastingEntryOrdering(child,mod.GetType("KingmakerMountedCombat.Integration.MountedChargeBuffChildren",true).GetMethod("WrapAddFact",F).GetParameters()[0].ParameterType.GetGenericArguments()[0]);
   ExerciseNativeGroundRefusal(native,child);
   ExerciseNativeMoveReadiness(native,child);
   ExerciseCastingLifeSafety(native,child);

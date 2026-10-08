@@ -37,3 +37,14 @@ function Get-KmcPhase3dEvidenceDispatch([long]$SchemaVersion,[string]$Scenario) 
     if ($phase3dSchemaVersion -eq 8L -or [string]$Request.scenario -cin @('phase3g-native-controls-rt','phase3g-native-controls-tb')) { return [pscustomobject]@{validator='Assert-KmcPhase3gControlsEvidence';mutationError='Phase 3G evidence changed during validation.'} }
     return $null
 }
+# Compound runtime scenarios register one request root and report their child case
+# rows (with fixture, failure and restoration rows) without a self-named aggregate.
+# Their exact registered case set, raw native facts and PASS/FAIL belong to the
+# dedicated validator the dispatch above selects, so the generic envelope readers
+# do not demand a self-named row for them. Individual scenarios keep the rule.
+function Get-KmcCompoundRuntimeScenarios {
+    @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')
+}
+function Test-KmcCompoundRuntimeScenario([string]$Scenario) {
+    [string]$Scenario -cin @(Get-KmcCompoundRuntimeScenarios)
+}

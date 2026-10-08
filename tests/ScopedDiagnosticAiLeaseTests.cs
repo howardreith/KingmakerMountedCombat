@@ -12,6 +12,67 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("diagnostic AI lease detects membership command and AI drift", DetectsActiveDrift);
             runner.Run("diagnostic AI lease restoration verifies original raw and effective state", RestorationVerifiesOriginalState);
             runner.Run("native mode AI reset reasserts exact idle scope and preserves original restoration", ReassertsNativeReset);
+            runner.Run("fixture AI lease acquired before Mount keeps the mount isolated across a forced lifecycle Dismount", LeaseBeforeMountSurvivesForcedDismount);
+            runner.Run("fixture AI lease acquired after Mount captures the mounted-disabled state and a forced Dismount re-enables the mount", LeaseAfterMountLosesIsolationAtForcedDismount);
+        }
+
+        // Only the documented relationship contract for the mount's raw AI is modelled:
+        // Mount captures the raw value and disables it; every lifecycle Dismount restores
+        // the captured value (KingmakerMountedPairRuntime movement authority; the native
+        // IsAIEnabled setter writes only the raw field). The real runtime needs Unity.
+        private sealed class FakeMountedRelationship
+        {
+            private bool captured;
+
+            public bool Mounted { get; private set; }
+
+            public void Mount(FakeUnit mount) { captured = mount.RawAi; mount.SetRawAi(false); Mounted = true; }
+
+            public void ForcedDismount(FakeUnit mount) { mount.SetRawAi(captured); Mounted = false; }
+        }
+
+        private static void LeaseBeforeMountSurvivesForcedDismount()
+        {
+            var mount = new FakeUnit("mount", true, true);
+            var relationship = new FakeMountedRelationship();
+            var lease = CreateLease();
+            lease.Acquire(new[] { mount });
+            TestRunner.True(lease.States[0].RawAiBefore && lease.States[0].EffectiveAiBefore,
+                "Lease acquired before Mount must capture the mount's true enabled AI.");
+            relationship.Mount(mount);
+            lease.ValidateActive(new[] { mount });
+            relationship.ForcedDismount(mount);
+            TestRunner.True(!mount.RawAi && !mount.EffectiveAi,
+                "Forced lifecycle Dismount re-enabled the isolated mount AI.");
+            lease.ValidateActive(new[] { mount });
+            TestRunner.True(lease.LastActiveValidationPassed, "Fixture isolation did not survive the forced Dismount.");
+            lease.Restore(new[] { mount });
+            TestRunner.True(mount.RawAi && mount.EffectiveAi && lease.LastRestoreVerified && !relationship.Mounted,
+                "Final fixture restoration did not return the true original mount AI.");
+        }
+
+        private static void LeaseAfterMountLosesIsolationAtForcedDismount()
+        {
+            // The preview.199 ordering: the lease captured the already-disabled AI, so the
+            // relationship's own restoration re-enabled ordinary mount behavior mid-fixture.
+            var mount = new FakeUnit("mount", true, true);
+            var relationship = new FakeMountedRelationship();
+            relationship.Mount(mount);
+            var lease = CreateLease();
+            lease.Acquire(new[] { mount });
+            TestRunner.True(!lease.States[0].RawAiBefore && !lease.States[0].EffectiveAiBefore,
+                "Lease acquired after Mount should capture the mounted-disabled state.");
+            relationship.ForcedDismount(mount);
+            TestRunner.True(mount.RawAi && mount.EffectiveAi,
+                "Expected the preview.199 defect: a forced Dismount re-enables the mount behind the lease.");
+            var drifted = false;
+            try { lease.ValidateActive(new[] { mount }); }
+            catch (InvalidOperationException) { drifted = true; }
+            TestRunner.True(drifted, "Lease validation must detect the re-enabled mount AI as drift.");
+            mount.SetRawAi(false);
+            lease.Restore(new[] { mount });
+            TestRunner.True(!mount.RawAi && lease.LastRestoreVerified,
+                "A post-Mount lease can only restore the mounted-disabled state, never the true original.");
         }
 
         private static void SuppressesAndRestoresExactSet()
