@@ -6139,6 +6139,9 @@ namespace KingmakerMountedCombat.Diagnostics
             });
         }
 
+        private static bool FixtureNativeEncounterPending(bool casting, bool obstruction,
+            bool playerInCombat, bool controllerInitialized, bool turnBased) =>
+            (casting || obstruction) && (playerInCombat || controllerInitialized || turnBased);
         private void BeginCleanup()
         {
             if (cleanupStarted)
@@ -6367,9 +6370,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var chunk6aDoorRestored = true;
             try { chunk6aDoorRestored = RestoreChunk6aDoor(); }
             catch (Exception exception) { chunk6aDoorRestored = false; AddCleanupError("Chunk 6A door restoration", exception); }
-            var obstructionEncounterPending = IsChunk4Obstruction &&
-                (Game.Instance.Player.IsInCombat || Game.Instance.TurnBasedCombatController.Initialized ||
-                 CombatController.IsInTurnBasedCombat());
+            var obstructionEncounterPending = FixtureNativeEncounterPending(IsChunk6cCasting, IsChunk4Obstruction,
+                Game.Instance.Player.IsInCombat, Game.Instance.TurnBasedCombatController.Initialized,
+                CombatController.IsInTurnBasedCombat());
             if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored || obstructionEncounterPending || !chunk6aDoorRestored ||
                 !unmountedHorseAiLeaseRestored || !combatMountRiderAiLeaseRestored ||
                 relationship.State != RelationshipState.Unmounted)

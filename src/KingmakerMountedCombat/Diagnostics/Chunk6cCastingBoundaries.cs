@@ -111,6 +111,44 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["shellStarted"] = castingShell?.IsStarted, ["shellActed"] = castingShell?.IsActed,
                 ["shellFinished"] = castingShell?.IsFinished });
         }
+        // The original damage stimulus still refuses an unclamped main character.
+        // For this disposable fixture only, the native RuleDealDamage cap bounds
+        // every calculated/modifier result before difficulty is applied. Require
+        // no temporary HP and a checked native float/difficulty result strictly
+        // below death; no LifeState, action, preparation or turn field is written.
+        private static int? PlanCastingMainCharacterDamageCap(int hitPoints, int constitution,
+            int damageBefore, int temporaryHitPoints, float difficulty)
+        {
+            if (hitPoints <= 0 || constitution <= 1 || damageBefore < 0 ||
+                damageBefore >= hitPoints || temporaryHitPoints != 0 || difficulty <= 0 ||
+                float.IsNaN(difficulty) || float.IsInfinity(difficulty) ||
+                (long)hitPoints + constitution > int.MaxValue) return null;
+            var needed = (long)hitPoints + 1 - damageBefore;
+            var requestedValue = Math.Ceiling((needed + 1d) / difficulty);
+            if (requestedValue < 1 || requestedValue > int.MaxValue) return null;
+            var requested = (int)requestedValue;
+            var nativeProduct = requested * difficulty;
+            if (float.IsNaN(nativeProduct) || float.IsInfinity(nativeProduct) ||
+                nativeProduct >= int.MaxValue) return null;
+            var nativeMaximum = Math.Max(1, (int)nativeProduct);
+            var projected = (long)damageBefore + nativeMaximum;
+            if (projected < hitPoints || projected >= (long)hitPoints + constitution) return null;
+            return checked(hitPoints - requested);
+        }
+        private static bool CastingHealthBoundarySettled(bool riderCommandsEmpty, bool mountCommandsEmpty,
+            bool processesSettled, bool abilitiesPending, bool projectilesPending) =>
+            riderCommandsEmpty && mountCommandsEmpty && processesSettled && !abilitiesPending && !projectilesPending;
+        private static RuleDealDamage CreateCastingIncapacityRule(UnitEntityData source,
+            UnitEntityData subject, int requested, bool mainCharacter, int? nativeCap)
+        {
+            if (source == null || subject == null || ReferenceEquals(source, subject) ||
+                requested <= 0 || (mainCharacter && !nativeCap.HasValue))
+                throw new InvalidOperationException("Unbounded main-character or invalid incapacity stimulus refused.");
+            return new RuleDealDamage(source, subject,
+                new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))) {
+                MinHPAfterDamage = nativeCap
+            };
+        }
         private void ApplyCastingIncapacity()
         {
             castingLifeSubject = CastingCase == "C6C-rider-incapacity" ? rider : horse;
@@ -118,9 +156,18 @@ namespace KingmakerMountedCombat.Diagnostics
             var factor = Game.Instance.Player.Difficulty.DamageToParty;
             var hp = subject.Stats.HitPoints.ModifiedValue; var con = subject.Stats.Constitution.ModifiedValue;
             var needed = hp + 1 - subject.Damage + subject.Stats.TemporaryHitPoints.ModifiedValue;
+            var mainCharacter = subject == Game.Instance.Player.MainCharacter.Value;
+            var nativeCap = mainCharacter ? PlanCastingMainCharacterDamageCap(hp, con, subject.Damage,
+                subject.Stats.TemporaryHitPoints.ModifiedValue, factor) : null;
+            castingBoundary["beforeIncapacity"] = CastingState();
+            castingBoundary["subject"] = subject.UniqueId;
+            castingBoundary["mainCharacter"] = mainCharacter;
+            castingBoundary["nativeDamageCap"] = nativeCap;
+            castingBoundary["difficulty"] = factor;
             if (!state.IsConscious || state.IsDead || !(bool)state.AllowDyingCondition || state.Immortality ||
-                subject.Descriptor.IsEssentialForGame || subject == Game.Instance.Player.MainCharacter.Value ||
-                !target.IsPlayersEnemy || factor <= 0 || float.IsNaN(factor) || float.IsInfinity(factor) || needed <= 0)
+                subject.Descriptor.IsEssentialForGame || (mainCharacter && !nativeCap.HasValue) ||
+                target == null || !target.IsInState || !target.IsPlayersEnemy ||
+                factor <= 0 || float.IsNaN(factor) || float.IsInfinity(factor) || needed <= 0)
                 throw new InvalidOperationException("Casting incapacity stimulus lacks a safe disposable native subject.");
             var requested = checked((int)Math.Ceiling((needed + 1d) / factor));
             if (subject.Damage + requested * factor - subject.Stats.TemporaryHitPoints.ModifiedValue >= hp + con)
@@ -128,10 +175,16 @@ namespace KingmakerMountedCombat.Diagnostics
             castingLifeDamageBefore = subject.Damage;
             castingBoundary["beforeIncapacity"] = CastingState(); castingBoundary["subject"] = subject.UniqueId;
             castingBoundary["damageBefore"] = castingLifeDamageBefore;
-            var damage = Rulebook.Trigger(new RuleDealDamage(target, subject,
-                new DamageBundle(new DirectDamage(new DiceFormula(0, DiceType.Zero), requested))));
+            var rule = CreateCastingIncapacityRule(target, subject, requested, mainCharacter, nativeCap);
+            castingBoundary["damageRule"] = castingTrace.Identity(rule);
+            // Retain the exact subject/health owner before synchronous native
+            // callbacks: a throw after partial damage must not lose restoration.
             castingLifeApplied = true;
-            castingBoundary["damageRule"] = castingTrace.Identity(damage);
+            var damage = Rulebook.Trigger(rule);
+            castingBoundary["nativeDamageBeforeDifficulty"] = damage.DamageBeforeDifficulty;
+            castingBoundary["nativeRuleDamageCap"] = damage.MinHPAfterDamage;
+            castingBoundary["nativeRuleDifficulty"] = damage.DifficultyModifier;
+            castingBoundary["nativeRuleIsFake"] = damage.IsFake;
             castingBoundary["nativeDamage"] = damage.Damage; castingBoundary["damageAfter"] = subject.Damage;
             castingBoundary["requested"] = requested; castingBoundary["hitPoints"] = hp;
             castingBoundary["deathThreshold"] = hp + con;

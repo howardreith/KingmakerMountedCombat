@@ -1,3 +1,15 @@
+## 2026-10-08 - preview198 closed; bounded199 lifecycle fixture repair
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen198 closed4 PASS/1 fixture FAIL/3 BLOCKED-unrun. All5 transactions restored
+exactly, game exits0, empty errors; human105/275 saves/358 Mods unchanged.
+Working199 adds a checked native damage cap for the disposable Druid lifecycle
+row, keeps unclamped main-character damage refused, and waits for native command/
+combat settlement before fixture restoration. No production casting/action patch.
+Focused135/0, reader158/0, persistence79/0, FAST12/0 and CANDIDATE16/0 pass.
+Exact identities, failures and next step: [active continuation](docs/CHUNK6-CONTINUATION.md).
+One mutator; no merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
 ## 2026-10-08 - preview197 closed; bounded198 native movement fixture repair
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery DEFER -
