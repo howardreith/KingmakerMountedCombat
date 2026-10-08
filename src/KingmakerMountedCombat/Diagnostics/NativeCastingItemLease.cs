@@ -18,7 +18,7 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal const string LesserQuickenRod = "55a059b32df920c4abe65b8ee8b56056";
         internal const string CurePotion = "d52566ae8cbe8dc4dae977ef51c27d91";
-        internal const string CureScroll = "cd635d5720937b044a354dba17abad8d2";
+        internal const string CureScroll = "cd635d5720937b044a354dba17abad8d";
         private readonly UnitEntityData rider;
         private readonly NativeCastingItemTrace trace;
         private readonly string blueprint;
@@ -92,7 +92,10 @@ namespace KingmakerMountedCombat.Diagnostics
             ["ability"] = trace.Identity(Item?.Ability), ["abilityCaster"] = Item?.Ability?.Data?.Caster?.Unit?.UniqueId,
             ["activatable"] = trace.Identity(Item?.ActivatableAbility),
             ["activatableSourceItem"] = trace.Identity(Item?.ActivatableAbility?.SourceItem),
-            ["activatableOn"] = Item?.ActivatableAbility?.IsOn
+            ["activatableOn"] = Item?.ActivatableAbility?.IsOn,
+            ["retainedActivationActive"] = ownedActivation?.Active,
+            ["retainedActivationOn"] = ownedActivation?.IsOn,
+            ["retainedActivationDisposed"] = ownedActivation?.IsDisposed
         };
         private JArray Inventory() => new JArray(rider.Inventory.Items.Select(i => new JObject {
             ["item"] = trace.Identity(i), ["blueprint"] = i.Blueprint.AssetGuid, ["count"] = i.Count,
@@ -116,6 +119,16 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw;
             }
         }
+        internal static void TurnOffExactActivation(ActivatableAbility activation, ItemEntityUsable exactItem,
+            Kingmaker.UnitLogic.UnitDescriptor exactOwner)
+        {
+            if (activation == null) return;
+            if (!ReferenceEquals(activation.SourceItem, exactItem) || !ReferenceEquals(activation.Owner, exactOwner))
+                throw new InvalidOperationException("Native fixture activation owner changed; exact lease retained.");
+            if (activation.IsOn) activation.IsOn = false;
+            if (activation.IsOn)
+                throw new InvalidOperationException("Native fixture activation did not turn off; exact lease retained.");
+        }
         internal void ReleaseOwnedItem()
         {
             if (disposed) return;
@@ -123,6 +136,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Item != null && !released)
             {
                 if (ownedActivation == null) ownedActivation = Item.ActivatableAbility;
+                // Native fact disposal leaves the IsOn flag unchanged. Use the
+                // normal toggle while the exact fixture activation is still owned.
+                TurnOffExactActivation(ownedActivation, Item, rider.Descriptor);
                 if (ReferenceEquals(slot?.MaybeItem, Item) && !RemoveExactSlot(slot))
                     throw new InvalidOperationException("Exact casting fixture slot removal failed; item ownership retained.");
                 if (Item.HoldingSlot != null) throw new InvalidOperationException("Fixture item retains another slot; owner retained.");

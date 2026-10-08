@@ -118,7 +118,7 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  }
  if($Row.name-cin@('C6C-potion-self','C6C-scroll-friendly')) {
   $id=$before.ability.sourceItem
-  Need ($id-ne0-and$before.ability.sourceItemBlueprint-cin@('d52566ae8cbe8dc4dae977ef51c27d91','cd635d5720937b044a354dba17abad8d2')) 'item source identity missing'
+  Need ($id-ne0-and$before.ability.sourceItemBlueprint-cin@('d52566ae8cbe8dc4dae977ef51c27d91','cd635d5720937b044a354dba17abad8d')) 'item source identity missing'
   $spent=@($events|Where-Object {$_.kind-ceq'item-spend-after'-and$_.identity-eq$id})
   $pre=@($events|Where-Object {$_.kind-ceq'item-spend-before'-and$_.identity-eq$id})
   Need ($pre.Count-eq1-and$spent.Count-eq1-and(($spent[0].charges-eq$pre[0].charges-1)-or($spent[0].count-eq$pre[0].count-1))) 'native consumable state did not decrease exactly once'

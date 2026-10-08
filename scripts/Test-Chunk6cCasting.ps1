@@ -81,7 +81,7 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
   if($name-ceq'C6C-interrupt-before'){$e|Add-Member interrupted $true;$e|Add-Member interruptionBefore ([pscustomobject]@{shell=[pscustomobject]@{started=$true;acted=$false}})}
  }
  if($name-cin@('C6C-potion-self','C6C-scroll-friendly')){
-  $itemBlueprint=if($name-ceq'C6C-potion-self'){'d52566ae8cbe8dc4dae977ef51c27d91'}else{'cd635d5720937b044a354dba17abad8d2'}
+  $itemBlueprint=if($name-ceq'C6C-potion-self'){'d52566ae8cbe8dc4dae977ef51c27d91'}else{'cd635d5720937b044a354dba17abad8d'}
   $e.before.ability|Add-Member sourceItem 60;$e.before.ability|Add-Member sourceItemBlueprint $itemBlueprint
   if($name-ceq'C6C-potion-self'){Set-CastingAction $r $tb 'Move'}
   $e.events+=@([pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=1},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=0;count=1;result=$true},[pscustomobject]@{kind='heal';actor='rider';target='rider';value=3})
