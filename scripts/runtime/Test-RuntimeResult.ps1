@@ -96,7 +96,8 @@ function Assert-SubscenarioResults {
         [int]$Result.assertionPassCount -ne $assertionPass -or [int]$Result.assertionFailCount -ne $assertionFail) {
         throw 'Runtime result subscenario totals do not match the named results.'
     }
-    if (@($missionScenarios | Where-Object { $_ -ceq [string]$Result.scenario }).Count -eq 1 -and -not $names.Contains([string]$Result.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
+    # A compound scenario (Get-KmcCompoundRuntimeScenarios) reports child case rows only; its dedicated validator owns the required case set.
+    if (-not (Test-KmcCompoundRuntimeScenario ([string]$Result.scenario)) -and @($missionScenarios | Where-Object { $_ -ceq [string]$Result.scenario }).Count -eq 1 -and -not $names.Contains([string]$Result.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
 }
 
 & (Join-Path $PSScriptRoot 'Test-RuntimeRequest.ps1') -RequestPath $RequestPath

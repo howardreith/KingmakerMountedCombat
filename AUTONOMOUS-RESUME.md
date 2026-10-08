@@ -1,3 +1,25 @@
+## 2026-10-08 - preview199 closed; coherent200 fixture AI-lease ordering and reader repair
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen199 source85186ae3af3fac0a3aa466625188fa53f64d6f71 and its closed campaign
+(4 PASS/1 fixture FAIL/3 BLOCKED-unrun) remain immutable; Claude continues the
+owner's Chunk6 mission from the published4a840a0 takeover checkpoint.
+Working200 acquires both reversible fixture AI leases BEFORE the exploration Mount:
+the199 lease captured already-disabled mount AI, so the forced rider-incapacity
+Dismount restored enabled AI and ordinary Mammoth attacks blocked settlement
+(frozen evidence: lease rawAiBefore=false; two native round attacks at the deadline).
+It adds a bounded6C leaf-deadline capture and reads compound6C envelopes (child
+case rows, no self-named aggregate) in both generic readers through one pure
+registry; individual scenarios keep the exactly-once rule. No production casting/
+action/resource/turn/cleanup/save policy change; same15 rows/eight stages/schema44.
+PASS build/source145/0, components712/0, compiled observer146/0, casting reader212/0,
+dispatch56/0, FAST12/0, CANDIDATE16/0 (harness271/0, assembly701/0). The corrected reader reaches the
+immutable Stage1 native FAIL (14/1 leaf deadline) and never promotes it; bytes unchanged.
+No200 package/suite/purity/native credit at this source checkpoint.
+Next: guarded publication, package/suite/freeze, one purity, failed mountedRT first.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
 ## 2026-10-08 - Codex closed preview199; owner-requested Claude handoff
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains

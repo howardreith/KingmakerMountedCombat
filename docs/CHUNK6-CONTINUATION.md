@@ -1,3 +1,73 @@
+## 2026-10-08 - preview199 closed; coherent200 fixture AI-lease ordering and reader repair (Claude)
+
+6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
+DEFERRED TO CHUNK6 CONSOLIDATION. Charge stays default-off; its TB refusal is not
+delivery. 6C IN PROGRESS; 6D-6F incomplete. Claude continues the owner's Chunk6
+mission from the published takeover checkpoint 4a840a0543bfd803a6c63135731c385da7ac9e75
+(fetched, upstream/remote equal, clean; no game, lock or transaction at intake).
+
+Frozen199 source85186ae3af3fac0a3aa466625188fa53f64d6f71, its package/suite/proof
+and the closed campaign (4 PASS/1 fixture FAIL/3 BLOCKED-unrun) remain immutable.
+No199 artifact, verdict or receipt was replaced.
+
+Verified cause of the Stage1 C6C-rider-incapacity timeout (frozen evidence):
+cleanup.unmountedHorseAiIsolation.states[0] recorded rawAiBefore=false and
+effectiveAiBefore=false for the Mammoth, i.e. the fixture lease was acquired after
+the exploration Mount had already captured the enabled AI and disabled it. The
+relationship restores its captured value on every lifecycle Dismount, so the forced
+rider-incapacity Dismount re-enabled the mount: the deadline snapshot shows the
+Mammoth inCombat with nativeRoundAttacks=2 while the rider lay prone at damage47,
+and the settlement wait (rider/mount commands empty) could not arrive. The lease
+later "restored" false, the mounted-disabled value, not the true original.
+
+Working200 (one coherent tranche, no production policy change):
+- Chunk6cCastingScenario stage0 acquires both reversible AI leases BEFORE the
+  exploration Mount through two pure gates, CastingEntryMayRequestMount and
+  CastingEntryReady; the relationship now captures and restores the isolated state
+  and only the lease restores the true original at fixture cleanup. Same15 rows/
+  four baselines/eight stages/schema44/30-second leaf; no deadline, threshold,
+  action, resource, turn, preparation, cleanup or save policy change.
+- A bounded6C leaf-deadline capture (case, boundary, case facts, pair command/AI/
+  life state, both lease captures) replaces the empty leafDeadlineProgress of199.
+- Both generic envelope readers consult one pure registry
+  (ScenarioDispatchEvidence.ps1: Get-KmcCompoundRuntimeScenarios) so a compound6C
+  request root with child case rows and no self-named aggregate is read
+  structurally; individual scenarios keep the exactly-once rule. No duplicated
+  registry root, no fabricated aggregate, no Common/launcher change.
+- Regressions: ScopedDiagnosticAiLease ordering tests (lease-before-Mount survives a
+  forced Dismount; lease-after-Mount reproduces the199 defect), compiled gate tests
+  plus an IL-order check that TickChunk6cCasting owns mount then rider isolation
+  before its first native Mount click, dispatch registry checks, and compound/
+  individual envelope checks against both readers and the immutable199 Stage1 game
+  result: the frozen reader reproduces the masking refusal, the corrected chain
+  reaches the dedicated6C validator with the raw leaf-deadline FAIL (14/1) and
+  refuses PASS promotion; artifact bytes unchanged.
+- Version stamps0.1.0-chunk6c-preview.200 (Info.json, BuildIdentity.cs, version.json).
+
+Offline gates (receipts bound in lab20261005-6br/preview200-offline-gates.json,
+SHA256 23b325ca512e9f432e3ee9854e187d8d9426838c42d54050e11018727d17e822):
+build/source145/0; components712/0; compiled observer146/0; casting reader212/0;
+dispatch56/0; FAST12/0; CANDIDATE16/0 with harness271/0 and Kingmaker assembly701/0;
+684 non-documentation inputs bound at the gate (preview200-candidate-inputs-terminal.json).
+Retained failures: fast1 stopped at Test-PersistenceValidationEvidence.ps1, a
+parameterized regression that the tier runner cannot invoke standalone (not a
+product or reader defect); casting-reader1 attempted the live launcher reader on
+the frozen request, which Test-RuntimeRequest pins to the current version.json, so
+the interpretation chain after that launch-time guard is evaluated directly.
+
+Reader identity: Test-RuntimeGameResult.ps1/Test-RuntimeResult.ps1 are not pure
+reader paths under the unchanged Test-KmcChunk6aPureReaderPath whitelist, so the
+correction rides the200 product candidate; its separate reader identity and the
+immutable199 Stage1 evaluation record are written after publication
+(Record-ReaderEvaluation200.ps1). The native Stage1 verdict remains FAIL.
+
+No200 package/suite/purity/native credit at this source checkpoint.
+Next: coherent commit, guarded push, package (chunk6c-casting-l), suite, freeze200,
+one read-only purity, then the eight-stage batch with the failed mountedRT first.
+Then continue6D/6E/6F. No6B replay or TB-Charge experiment. No merge/PR/tag/release/
+permanent install/protected-save write/foreign-mod change/HUMAN PLAY acceptance.
+One mutating executor.
+
 ## 2026-10-08 - preview199 closed; transfer to Claude at owner's request
 
 6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL

@@ -29,4 +29,14 @@ Check (Test-KmcChunk6aPureReaderPath 'scripts/runtime/ScenarioDispatchEvidence.p
 Check (-not(Test-KmcChunk6aPureReaderPath 'scripts/runtime/RuntimeHarness.Common.ps1')) 'Protected Common module was whitelisted'
 $root=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 Check ('scripts/runtime/ScenarioDispatchEvidence.ps1'-cin@(Get-KmcChunk6aReaderFiles $root)) 'Metadata omitted from exact reader identity'
+# Compound 6C request roots: child case rows only, one dedicated validator, registered exactly once.
+foreach($scenario in @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')) {
+ Check (Test-KmcCompoundRuntimeScenario $scenario) ('Compound 6C request root not registered: '+$scenario)
+ Check (@(Get-KmcPhase3dHorseRuntimeRows|Where-Object {$_-ceq$scenario}).Count-eq1) ('Compound root must stay registered exactly once, never duplicated: '+$scenario)
+ Check ((Get-KmcPhase3dEvidenceDispatch 44 $scenario).validator-ceq'Assert-KmcChunk6cCastingEvidence') ('Compound root lacks its dedicated validator: '+$scenario)
+}
+foreach($scenario in @('chunk6b-charge-core-rt','chunk6b-charge-rt','chunk6a-combat-mount-rt','persistence-p04-save','mod-load-smoke','C6C-rider-incapacity','CHUNK6C-CASTING-RT','')) {
+ Check (-not(Test-KmcCompoundRuntimeScenario $scenario)) ('Individual scenario, row or inexact name treated as compound: '+$scenario)
+}
+Check (@(Get-KmcCompoundRuntimeScenarios).Count-eq4) 'Compound registry changed without a dedicated validator review'
 Write-Host ('TOTAL PASS='+$passed+' FAIL=0')

@@ -141,4 +141,60 @@ foreach($scenario in @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-castin
  }
  Envelope $artifact
 }
+# Compound 6C envelopes: one registered request root, child case rows only, no self-named
+# aggregate. The generic readers accept that structure and keep the individual rule intact.
+function New-CompoundRow([string]$name,[string]$status='PASS'){
+ [pscustomobject]@{name=$name;status=$status;assertionPassCount=$(if($status-ceq'PASS'){1}else{0});assertionFailCount=$(if($status-ceq'PASS'){0}else{1});errors=@($(if($status-ceq'PASS'){@()}else{@('synthetic native failure')}))}
+}
+function New-CompoundEnvelope([string]$scenario,$rows){
+ $rows=@($rows);$pass=@($rows|Where-Object status -CEQ 'PASS').Count;$fail=$rows.Count-$pass
+ [pscustomobject]@{scenario=$scenario;status=$(if($fail-eq0){'PASS'}else{'FAIL'});subscenarioTotal=$rows.Count;subscenarioPassCount=$pass;subscenarioFailCount=$fail;assertionPassCount=$pass;assertionFailCount=$fail;subscenarioResults=$rows}
+}
+function RejectEnvelope($envelope,[string]$expected,[string]$why){
+ $message=$null;try{Assert-SubscenarioResults $envelope}catch{$message=$_.Exception.Message}
+ Check ($null-ne$message-and$message.IndexOf($expected,[StringComparison]::Ordinal)-ge0) ($why+' ['+$message+']')
+}
+$frozenRoot='C:\Dev\KingmakerMountedCombatLab\runtime-evidence\c6c-casting199-k-mounted-rt'
+$frozenGame=Read-KmcJson (Join-Path $frozenRoot 'runtime-game-result.json')
+Check ($frozenGame.commit-ceq'85186ae3af3fac0a3aa466625188fa53f64d6f71'-and$frozenGame.status-ceq'FAIL'-and@($frozenGame.subscenarioResults).Count-eq15-and@($frozenGame.subscenarioResults|Where-Object name -CEQ 'chunk6c-casting-rt').Count-eq0) 'frozen preview.199 Stage 1 compound envelope is the immutable child-rows-only fixture'
+foreach($leaf in @('Test-RuntimeGameResult.ps1','Test-RuntimeResult.ps1')){
+ $tokens=$null;$parseErrors=$null
+ $readerAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot ('runtime/'+$leaf)),[ref]$tokens,[ref]$parseErrors)
+ if($parseErrors.Count-ne0){throw ('Reader has syntax errors: '+$leaf)}
+ $definition=@($readerAst.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-ceq'Assert-SubscenarioResults'},$true))
+ if($definition.Count-ne1){throw ('Reader lacks one subscenario assertion: '+$leaf)}
+ . ([scriptblock]::Create($definition[0].Extent.Text))
+ Assert-SubscenarioResults $frozenGame;Check $true ('immutable compound FAIL envelope is read structurally by '+$leaf)
+ foreach($scenario in @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')){
+  $rows=@(New-CompoundRow 'CM01-native-mammoth-fixture')+@(Get-KmcChunk6cCastingCases|ForEach-Object{New-CompoundRow $_})+@(New-CompoundRow 'CM01-native-mammoth-restoration')
+  Assert-SubscenarioResults (New-CompoundEnvelope $scenario $rows);Check $true ('complete compound PASS envelope accepted by '+$leaf+' '+$scenario)
+  $partial=@(New-CompoundRow 'CM01-native-mammoth-fixture')+@(New-CompoundRow 'C6C-quickened-self')+@(New-CompoundRow 'phase3d-horse-leaf-deadline' 'FAIL')+@(New-CompoundRow 'CM01-native-mammoth-restoration')
+  Assert-SubscenarioResults (New-CompoundEnvelope $scenario $partial);Check $true ('partial compound FAIL envelope keeps its raw native failure in '+$leaf+' '+$scenario)
+  RejectEnvelope (New-CompoundEnvelope $scenario ($rows+@(New-CompoundRow 'C6C-not-registered'))) 'unknown subscenario' ('compound envelope cannot carry an unregistered row '+$leaf+' '+$scenario)
+  RejectEnvelope (New-CompoundEnvelope $scenario ($rows+@(New-CompoundRow 'C6C-quickened-self'))) 'duplicate subscenario' ('compound envelope cannot duplicate a case row '+$leaf+' '+$scenario)
+  $mismatch=New-CompoundEnvelope $scenario $rows;$mismatch.subscenarioPassCount=0
+  RejectEnvelope $mismatch 'totals do not match' ('compound envelope totals remain exact '+$leaf+' '+$scenario)
+ }
+ RejectEnvelope (New-CompoundEnvelope 'chunk6b-charge-core-rt' @(New-CompoundRow 'C6B-CHARGE-positive')) 'Individual runtime scenario did not report its own named result.' ('individual scenario still requires its own named row '+$leaf)
+ Assert-SubscenarioResults (New-CompoundEnvelope 'chunk6b-charge-core-rt' @((New-CompoundRow 'C6B-CHARGE-positive'),(New-CompoundRow 'chunk6b-charge-core-rt')));Check $true ('individual scenario with its own named row accepted '+$leaf)
+ RejectEnvelope (New-CompoundEnvelope 'persistence-p04-save' @(New-CompoundRow 'CM01-native-mammoth-fixture')) 'Individual runtime scenario did not report its own named result.' ('individual persistence scenario still requires its own named row '+$leaf)
+}
+# The corrected reader chain over the immutable Stage 1 artifacts: artifact bytes bound, the
+# compound structure read, the dedicated 6C validator reached with the raw native FAIL, no PASS
+# promotion and no byte change. The live request guard (current product version) is a launch-time
+# gate and is deliberately not replayed against a frozen earlier candidate.
+$frozenLeaves=@('runtime-request.json','runtime-game-result.json','runtime-result.json','runtime-artifacts.json','phase3d-horse-scenario-evidence.json')
+$frozenHashes=@(foreach($leaf in $frozenLeaves){(Get-FileHash -LiteralPath (Join-Path $frozenRoot $leaf) -Algorithm SHA256).Hash})
+$frozenRequest=Read-KmcJson (Join-Path $frozenRoot 'runtime-request.json')
+Check ($frozenRequest.productVersion-ceq'0.1.0-chunk6c-preview.199'-and$frozenRequest.scenario-ceq'chunk6c-casting-rt'-and([IO.Path]::GetFullPath([string]$frozenRequest.evidenceRoot).TrimEnd('\')-ceq$frozenRoot)) 'frozen Stage 1 request binds the exact preview.199 compound scenario and evidence root'
+Assert-KmcManifestJsonMembersUnique (Join-Path $frozenRoot 'runtime-game-result.json') 'frozen runtime game result'
+Assert-KmcReadOnlyArtifactManifest $frozenRequest $frozenGame.evidenceManifestSha256 -GameResult
+Check $true 'immutable Stage 1 artifact manifest still binds every artifact byte'
+$frozenManifest=Read-KmcJson (Join-Path $frozenRoot 'runtime-artifacts.json')
+Assert-KmcPhase3dHorseScenarioEvidence -Request $frozenRequest -Manifest $frozenManifest -Status ([string]$frozenGame.status) -SubscenarioResults $frozenGame.subscenarioResults
+Check ($frozenGame.status-ceq'FAIL'-and@($frozenGame.errors|Where-Object {$_-like'*leaf exceeded 30 seconds*'}).Count-ge1) 'corrected reader chain reaches the dedicated 6C validator with the raw native leaf-deadline FAIL preserved'
+$promoted=$false;try{Assert-KmcPhase3dHorseScenarioEvidence -Request $frozenRequest -Manifest $frozenManifest -Status 'PASS' -SubscenarioResults $frozenGame.subscenarioResults;$promoted=$true}catch{}
+Check (-not$promoted) 'dedicated 6C validator never promotes the immutable native fixture timeout to PASS'
+$afterHashes=@(foreach($leaf in $frozenLeaves){(Get-FileHash -LiteralPath (Join-Path $frozenRoot $leaf) -Algorithm SHA256).Hash})
+Check (($frozenHashes-join',')-ceq($afterHashes-join',')) 'immutable Stage 1 artifacts are byte-identical after re-evaluation'
 Write-Host ('TOTAL PASS='+$passed+' FAIL=0')

@@ -4828,6 +4828,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JToken CaptureLeafDeadlineProgress()
         {
             if (IsChunk4Sustained) return CaptureChunk4SustainedProgress();
+            if (IsChunk6cCasting) return CaptureChunk6cCastingDeadlineProgress();
             if (step == Phase3dHorseStep.AwaitNextRiderTurnForMountPrimaryTb ||
                 step == Phase3dHorseStep.AwaitNextRiderTurnForStockMeleeTb ||
                 step == Phase3dHorseStep.AwaitNextRiderTurnForRangedTb ||
