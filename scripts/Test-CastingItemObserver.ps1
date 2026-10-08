@@ -35,6 +35,13 @@ public static class CastingObserverProbe {
    var scenario=(string)parent.GetField(field,F).GetRawConstantValue();
    Check((bool)child.GetMethod("IsChunk6aCombatMountScenario",F).Invoke(null,new object[]{scenario}),"existing native Mammoth Mount/Dismount classification retained "+scenario);
   }
+  var itemLease=mod.GetType("KingmakerMountedCombat.Diagnostics.NativeCastingItemLease",true);
+  var remove=(MethodInfo)itemLease.GetField("NativeRemoveItem",F).GetValue(null);
+  Check(remove.MetadataToken==0x06007C7E&&remove.GetParameters().Length==2&&remove.GetParameters()[0].Name=="raiseEvent"&&remove.GetParameters()[1].Name=="autoMerge",
+   "fixture cleanup pins the native two-argument equipment-event overload");
+  var emptySlot=FormatterServices.GetUninitializedObject(native.GetType("Kingmaker.Items.Slots.UsableSlot",true));
+  Check(!(bool)itemLease.GetMethod("RemoveExactSlot",F).Invoke(null,new[]{emptySlot}),
+   "actual native empty-slot refusal is observed rather than converted to cleanup success");
   var actor=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
   var rider=FormatterServices.GetUninitializedObject(actor);var mount=FormatterServices.GetUninitializedObject(actor);
   var owner=Activator.CreateInstance(type,F,null,new[]{rider,mount},null);

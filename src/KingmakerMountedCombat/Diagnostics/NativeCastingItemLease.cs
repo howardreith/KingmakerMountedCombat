@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Kingmaker.Blueprints;
 using Kingmaker.Blueprints.Items;
 using Kingmaker.EntitySystem.Entities;
@@ -20,6 +22,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly NativeCastingItemTrace trace;
         private readonly string blueprint;
         private UsableSlot slot;
+        private CastingFixtureSlotSnapshot<UsableSlot, ItemEntity> originalQuickSlots;
         private bool disposed;
         private int rodBuffsBefore;
         private const string RodBuff = "db36e9189250df94a8e8474ee6c331e1";
@@ -45,6 +48,8 @@ namespace KingmakerMountedCombat.Diagnostics
             Evidence["slot"] = trace.Identity(slot);
             Evidence["slotOriginallyEmpty"] = !slot.HasItem;
             Evidence["inventoryBefore"] = Inventory();
+            originalQuickSlots = new CastingFixtureSlotSnapshot<UsableSlot, ItemEntity>(rider.Body.QuickSlots, s => s.MaybeItem);
+            Evidence["quickSlotsBefore"] = QuickSlots();
             rodBuffsBefore = rider.Buffs.Enumerable.Count(b => b.Blueprint.AssetGuid == RodBuff);
             Evidence["rodBuffsBefore"] = rodBuffsBefore;
             try
@@ -85,9 +90,31 @@ namespace KingmakerMountedCombat.Diagnostics
             ["activatableSourceItem"] = trace.Identity(Item?.ActivatableAbility?.SourceItem),
             ["activatableOn"] = Item?.ActivatableAbility?.IsOn
         };
+        private JArray QuickSlots() => new JArray(rider.Body.QuickSlots.Select(s => new JObject {
+            ["slot"] = trace.Identity(s), ["item"] = trace.Identity(s.MaybeItem),
+            ["blueprint"] = s.MaybeItem?.Blueprint.AssetGuid, ["holdingSlot"] = trace.Identity(s.MaybeItem?.HoldingSlot) }));
         private JArray Inventory() => new JArray(rider.Inventory.Items.Select(i => new JObject {
             ["item"] = trace.Identity(i), ["blueprint"] = i.Blueprint.AssetGuid, ["count"] = i.Count,
             ["charges"] = i.Charges, ["holdingSlot"] = trace.Identity(i.HoldingSlot) }));
+        private static readonly MethodInfo NativeRemoveItem = typeof(ItemSlot).GetMethod("RemoveItem",
+            BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(bool), typeof(bool) }, null);
+        private static bool RemoveExactSlot(UsableSlot exactSlot)
+        {
+            if (NativeRemoveItem == null || NativeRemoveItem.MetadataToken != 0x06007C7E ||
+                NativeRemoveItem.Module.ModuleVersionId.ToString() != "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7")
+                throw new InvalidOperationException("Pinned native fixture removal overload differs; owner retained.");
+            try
+            {
+                var result = NativeRemoveItem.Invoke(exactSlot, new object[] { true, false });
+                if (!(result is bool)) throw new InvalidOperationException("Native fixture removal returned no observed result.");
+                return (bool)result;
+            }
+            catch (TargetInvocationException exception)
+            {
+                ExceptionDispatchInfo.Capture(exception.InnerException ?? exception).Throw();
+                throw;
+            }
+        }
         public void Dispose()
         {
             if (disposed) return;
@@ -95,10 +122,21 @@ namespace KingmakerMountedCombat.Diagnostics
             if (Item != null)
             {
                 var activation = Item.ActivatableAbility;
-                if (ReferenceEquals(slot?.MaybeItem, Item) && !slot.RemoveItem(false))
+                if (ReferenceEquals(slot?.MaybeItem, Item) && !RemoveExactSlot(slot))
                     throw new InvalidOperationException("Exact casting fixture slot removal failed; item ownership retained.");
                 if (Item.HoldingSlot != null) throw new InvalidOperationException("Fixture item retains another slot; owner retained.");
                 if (Item.Collection != null) Item.Collection.Remove(Item);
+                if (originalQuickSlots == null || !originalQuickSlots.ExactSlots(rider.Body.QuickSlots))
+                    throw new InvalidOperationException("Original fixture quick-slot container changed; owner retained.");
+                // The installed auto-fill patch targets only RemoveItem(bool).
+                // The native two-argument overload still performs OnWillUnequip
+                // and raises normal equipment events, without that refill wrapper.
+                originalQuickSlots.Restore(RemoveExactSlot, (s, original) => {
+                    if (original.Collection != rider.Inventory || original.HoldingSlot != null || s.HasItem || !s.CanInsertItem(original))
+                        throw new InvalidOperationException("Exact original fixture item cannot return to its slot; owner retained.");
+                    s.InsertItem(original);
+                });
+                Evidence["quickSlotsAfter"] = QuickSlots();
                 Evidence["removalPostconditions"] = Snapshot();
                 if (Item.Collection != null || rider.Inventory.Items.Any(i => ReferenceEquals(i, Item)) || slot.HasItem)
                     throw new InvalidOperationException("Fixture item removal postconditions failed; exact owner retained: " + Evidence["removalPostconditions"].ToString(Newtonsoft.Json.Formatting.None));
@@ -110,7 +148,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             Evidence["afterCleanup"] = Snapshot();
             Evidence["noOwnedItemResident"] = Item == null || !rider.Inventory.Items.Any(i => ReferenceEquals(i, Item));
-            Evidence["slotRestored"] = slot == null || !slot.HasItem;
+            Evidence["slotRestored"] = slot == null || (!slot.HasItem && originalQuickSlots != null && originalQuickSlots.Restored);
             Evidence["disposed"] = true;
             disposed = true;
         }

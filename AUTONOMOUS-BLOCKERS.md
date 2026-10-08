@@ -1,3 +1,23 @@
+## 2026-10-07 - 6C preview191 closed; coherent192 native fixture cleanup
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification is deferred to Chunk6 consolidation. Frozen188 is unchanged.
+6C IN PROGRESS;6D-6F incomplete. Frozen191 source5abca28b80e25c8292b929c95ba9fb22163d06a7
+is preserved. Purity PASS, actual exit0; one native FAIL7/1 and7 BLOCKED-unrun.
+Its worker exited1/game0; human105,275 protected saves,358 Mods and profile bytes
+restored exactly, empty restorationErrors, no recovery or active game/transaction.
+The failure proves native auto-replacement of the consumed fixture potion and
+rod re-equipping during cleanup. The installed auto-fill wrapper targets only
+RemoveItem(bool). Working192 pins the exact native two-argument removal (equipment
+events retained) and restores captured original quick-slot placements. No action,
+resource, casting, relationship, persistence or acceptance policy changed.
+FAST2 PASS6/0;CANDIDATE1 PASS16/0: components707/0, compiled observer23/0,
+casting151/0, settled persistence72/0, source145/0, harness271/0, assembly698/0.
+FAST1's private-overload compile error and all earlier failures are retained.
+Native qualification remains required. Details and exact receipts: docs/CHUNK6-CONTINUATION.md.
+Next: coherent guarded publication, immutable192 package/suite, one required purity,
+then the same8 ready6C stages with the failed RT save first. Continue6C then6D-6F.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod change/HUMAN PLAY.
 ## 2026-10-07 - 6C preview190 closed; coherent191 diagnostic repair
 
 6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
