@@ -1,3 +1,25 @@
+## 2026-10-08 - 6C preview192 closed; coherent193 shared-slot fixture repair
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification deferred to Chunk6 consolidation. 6C IN PROGRESS;6D-6F incomplete.
+Frozen192 source39b1e102e9aa09b6cf3eb7edcdaf20eb5e45b557 is preserved.
+Purity PASS with actual child0; controller typo1 is retained separately.
+Campaign closed0 qualified PASS/1 fixture FAIL/7 BLOCKED-unrun. Worker1/game0;
+human105,275 saves,358 Mods/settings/profile restored exactly, empty errors,
+no recovery/game/transaction. The consumed fixture potion was absent, while an
+original potion from another actor occupied its slot. Native two-bool rod removal passed.
+Working193 captures original native owner containers once before item acquisition,
+releases all created items, then restores exact original placements. Owners remain
+until postconditions pass. No casting/action/turn/resource/acceptance policy change.
+Three regressions cover the observed shared-owner and cohort-order defects.
+FAST PASS6/0;CANDIDATE PASS16/0 with unchanged inputs: components710/0,
+compiled observer26/0, casting151/0, persistence72/0, source145/0, assembly698/0.
+Two initial build failures (version stamp and evidence type) remain immutable.
+No193 package/suite/purity/native credit at this checkpoint. Exact receipts and
+next action: docs/CHUNK6-CONTINUATION.md. Guarded publication, one193 freeze/proof,
+same8 stages with failed RT source first, then continue6C-6F.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod mutation/HUMAN PLAY.
+
 ## 2026-10-07 - 6C preview191 closed; coherent192 native fixture cleanup
 
 6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;

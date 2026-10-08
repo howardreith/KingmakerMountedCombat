@@ -263,6 +263,7 @@
     <Compile Include="Diagnostics\NativeActorAllocationTrace.cs" />
     <Compile Include="Diagnostics\NativeCastingItemTrace.cs" />
     <Compile Include="Diagnostics\NativeCastingItemLease.cs" />
+    <Compile Include="Diagnostics\NativeCastingOriginalSlots.cs" />
     <Compile Include="Diagnostics\CastingFixtureSlotSnapshot.cs" />
     <Compile Include="Diagnostics\Chunk6cCastingScenario.cs" />
     <Compile Include="Diagnostics\Chunk6cCastingBoundaries.cs" />

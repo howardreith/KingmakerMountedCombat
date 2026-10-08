@@ -7,6 +7,7 @@ using Kingmaker.Blueprints.Items;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.Items;
 using Kingmaker.Items.Slots;
+using Kingmaker.UnitLogic.ActivatableAbilities;
 using Newtonsoft.Json.Linq;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -21,16 +22,19 @@ namespace KingmakerMountedCombat.Diagnostics
         private readonly UnitEntityData rider;
         private readonly NativeCastingItemTrace trace;
         private readonly string blueprint;
+        private readonly NativeCastingOriginalSlots originalQuickSlots;
         private UsableSlot slot;
-        private CastingFixtureSlotSnapshot<UsableSlot, ItemEntity> originalQuickSlots;
-        private bool disposed;
+        private ActivatableAbility ownedActivation;
+        private bool released, disposed;
         private int rodBuffsBefore;
         private const string RodBuff = "db36e9189250df94a8e8474ee6c331e1";
         internal ItemEntityUsable Item { get; private set; }
         internal JObject Evidence { get; } = new JObject();
-        internal NativeCastingItemLease(UnitEntityData rider, NativeCastingItemTrace trace, string blueprint)
+        internal NativeCastingItemLease(UnitEntityData rider, NativeCastingItemTrace trace, string blueprint,
+            NativeCastingOriginalSlots originalQuickSlots)
         {
             this.rider = rider; this.trace = trace; this.blueprint = blueprint;
+            this.originalQuickSlots = originalQuickSlots ?? throw new ArgumentNullException(nameof(originalQuickSlots));
             if (blueprint != LesserQuickenRod && blueprint != CurePotion && blueprint != CureScroll)
                 throw new InvalidOperationException("Casting fixture item is not in the exact native fixture list.");
         }
@@ -48,8 +52,7 @@ namespace KingmakerMountedCombat.Diagnostics
             Evidence["slot"] = trace.Identity(slot);
             Evidence["slotOriginallyEmpty"] = !slot.HasItem;
             Evidence["inventoryBefore"] = Inventory();
-            originalQuickSlots = new CastingFixtureSlotSnapshot<UsableSlot, ItemEntity>(rider.Body.QuickSlots, s => s.MaybeItem);
-            Evidence["quickSlotsBefore"] = QuickSlots();
+            Evidence["quickSlotsBefore"] = originalQuickSlots.Evidence["before"].DeepClone();
             rodBuffsBefore = rider.Buffs.Enumerable.Count(b => b.Blueprint.AssetGuid == RodBuff);
             Evidence["rodBuffsBefore"] = rodBuffsBefore;
             try
@@ -66,6 +69,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 slot.InsertItem(Item);
                 if (!ReferenceEquals(slot.MaybeItem, Item) || Item.HoldingSlot != slot)
                     throw new InvalidOperationException("Native equip did not retain the exact fixture item.");
+                ownedActivation = Item.ActivatableAbility;
                 Evidence["equipped"] = Snapshot();
                 Evidence["inventoryAfter"] = Inventory();
             }
@@ -90,15 +94,12 @@ namespace KingmakerMountedCombat.Diagnostics
             ["activatableSourceItem"] = trace.Identity(Item?.ActivatableAbility?.SourceItem),
             ["activatableOn"] = Item?.ActivatableAbility?.IsOn
         };
-        private JArray QuickSlots() => new JArray(rider.Body.QuickSlots.Select(s => new JObject {
-            ["slot"] = trace.Identity(s), ["item"] = trace.Identity(s.MaybeItem),
-            ["blueprint"] = s.MaybeItem?.Blueprint.AssetGuid, ["holdingSlot"] = trace.Identity(s.MaybeItem?.HoldingSlot) }));
         private JArray Inventory() => new JArray(rider.Inventory.Items.Select(i => new JObject {
             ["item"] = trace.Identity(i), ["blueprint"] = i.Blueprint.AssetGuid, ["count"] = i.Count,
             ["charges"] = i.Charges, ["holdingSlot"] = trace.Identity(i.HoldingSlot) }));
         private static readonly MethodInfo NativeRemoveItem = typeof(ItemSlot).GetMethod("RemoveItem",
             BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(bool), typeof(bool) }, null);
-        private static bool RemoveExactSlot(UsableSlot exactSlot)
+        internal static bool RemoveExactSlot(UsableSlot exactSlot)
         {
             if (NativeRemoveItem == null || NativeRemoveItem.MetadataToken != 0x06007C7E ||
                 NativeRemoveItem.Module.ModuleVersionId.ToString() != "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7")
@@ -115,40 +116,46 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw;
             }
         }
-        public void Dispose()
+        internal void ReleaseOwnedItem()
         {
             if (disposed) return;
             Evidence["beforeCleanup"] = Snapshot();
-            if (Item != null)
+            if (Item != null && !released)
             {
-                var activation = Item.ActivatableAbility;
+                if (ownedActivation == null) ownedActivation = Item.ActivatableAbility;
                 if (ReferenceEquals(slot?.MaybeItem, Item) && !RemoveExactSlot(slot))
                     throw new InvalidOperationException("Exact casting fixture slot removal failed; item ownership retained.");
                 if (Item.HoldingSlot != null) throw new InvalidOperationException("Fixture item retains another slot; owner retained.");
+                if (Item.Collection != null && Item.Collection != rider.Inventory)
+                    throw new InvalidOperationException("Fixture item moved to a different inventory; owner retained.");
                 if (Item.Collection != null) Item.Collection.Remove(Item);
-                if (originalQuickSlots == null || !originalQuickSlots.ExactSlots(rider.Body.QuickSlots))
-                    throw new InvalidOperationException("Original fixture quick-slot container changed; owner retained.");
-                // The installed auto-fill patch targets only RemoveItem(bool).
-                // The native two-argument overload still performs OnWillUnequip
-                // and raises normal equipment events, without that refill wrapper.
-                originalQuickSlots.Restore(RemoveExactSlot, (s, original) => {
-                    if (original.Collection != rider.Inventory || original.HoldingSlot != null || s.HasItem || !s.CanInsertItem(original))
-                        throw new InvalidOperationException("Exact original fixture item cannot return to its slot; owner retained.");
-                    s.InsertItem(original);
-                });
-                Evidence["quickSlotsAfter"] = QuickSlots();
-                Evidence["removalPostconditions"] = Snapshot();
-                if (Item.Collection != null || rider.Inventory.Items.Any(i => ReferenceEquals(i, Item)) || slot.HasItem)
+            }
+            Evidence["removalPostconditions"] = Snapshot();
+            if (Item != null)
+            {
+                if (Item.Collection != null || Item.HoldingSlot != null || rider.Inventory.Items.Any(i => ReferenceEquals(i, Item)))
                     throw new InvalidOperationException("Fixture item removal postconditions failed; exact owner retained: " + Evidence["removalPostconditions"].ToString(Newtonsoft.Json.Formatting.None));
-                if (activation != null && (activation.Active || activation.IsOn))
+                if (ownedActivation != null && (ownedActivation.Active || ownedActivation.IsOn))
                     throw new InvalidOperationException("Native item activation remains live; fixture owner retained.");
                 if (blueprint == LesserQuickenRod && rider.Buffs.Enumerable.Count(b => b.Blueprint.AssetGuid == RodBuff) != rodBuffsBefore)
                     throw new InvalidOperationException("Native rod buff remains; fixture owner retained.");
-                Item.Dispose();
             }
+            released = true;
+            Evidence["ownedItemReleased"] = true;
+        }
+        public void Dispose()
+        {
+            if (disposed) return;
+            ReleaseOwnedItem();
+            // All cohort items first release their exact native ownership. Keep
+            // every lease until the shared original placement postcondition passes.
+            if (!originalQuickSlots.Restored || slot != null && slot.HasItem)
+                throw new InvalidOperationException("Original cohort slots remain unsettled; fixture owner retained.");
+            Evidence["quickSlotsAfter"] = originalQuickSlots.Snapshot();
+            Item?.Dispose();
             Evidence["afterCleanup"] = Snapshot();
             Evidence["noOwnedItemResident"] = Item == null || !rider.Inventory.Items.Any(i => ReferenceEquals(i, Item));
-            Evidence["slotRestored"] = slot == null || (!slot.HasItem && originalQuickSlots != null && originalQuickSlots.Restored);
+            Evidence["slotRestored"] = originalQuickSlots.Restored && (slot == null || !slot.HasItem);
             Evidence["disposed"] = true;
             disposed = true;
         }
