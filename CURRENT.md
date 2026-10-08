@@ -1,3 +1,25 @@
+## 2026-10-08 - Codex closed preview199; owner-requested Claude handoff
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen199 source85186ae3af3fac0a3aa466625188fa53f64d6f71 is preserved.
+Campaign closed4 PASS/1 fixture FAIL/3 shared-fixture BLOCKED-unrun. Both settled
+RT/TB casting/item save-cold pairs pass. All5 transactions restored exactly,
+worker exits observed, game exits0, empty restoration/observation errors.
+Human105/275 protected saves/358 Mods unchanged; no game or transaction remains.
+The capped rider-incapacity stimulus worked; native mount attacks continued
+during settlement. Exact AI-lease ordering is a hypothesis for the next repair,
+not implemented. A separate compound-envelope reader defect is also recorded.
+No production casting patch or complete baseline qualification is claimed.
+Owner requested stopping Codex development and transferring to Claude. No new
+candidate, proof, source repair or native launch follows this closed boundary.
+Read [active continuation](docs/CHUNK6-CONTINUATION.md) and
+[Claude takeover prompt](docs/CLAUDE-CHUNK6-TAKEOVER-2026-10-08.md).
+Final HEAD/tree and complete evidence bindings are in the lab handoff
+analysis-cache/chunk6-continuation/CODEX-CHUNK6-HANDOFF-TO-CLAUDE-2026-10-08.md.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+
 ## 2026-10-08 - preview198 closed; bounded199 lifecycle fixture repair
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
