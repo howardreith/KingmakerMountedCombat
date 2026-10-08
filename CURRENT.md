@@ -1,3 +1,25 @@
+## 2026-10-08 - 6C preview193 closed; coherent194 native fixture repair
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification deferred to Chunk6 consolidation. 6C IN PROGRESS;6D-6F incomplete.
+Frozen193 source9b0223d92188c18350822bed4ef93ab85c6da3ce is preserved.
+Purity actual0 PASS,94.36min. Campaign closed0 qualified PASS/1 fixture FAIL/7 BLOCKED-unrun.
+Source casting, potion, save and continuation ran; retained rod activation failed cleanup.
+Worker1/game0; human105,275 saves,358 Mods/UMM/settings/profile restored exactly,
+empty errors, no recovery/game/transaction. Closure834d24d990146ba737429e8de4453563bb9e33eed9ee495583555d19dbb2a7bc.
+Native disposal leaves IsOn unchanged. Working194 uses the exact owned rod's normal
+native toggle before unequip; every prior item/activation/buff/slot postcondition remains.
+The scroll declaration now matches the original native fixture AssetGuid.
+No production casting/action/turn/resource/relationship/persistence policy change.
+Focused regression preserves exact disposal bodies and disposed-state assertions;
+only inaccessible Unity boundaries and a clock read are mocked in the detached host.
+The rejected test edit did not execute. Six failed probe attempts remain immutable.
+FAST PASS12/0;CANDIDATE PASS16/0 with unchanged inputs: components710/0,
+observer33/0, casting151/0, settled72/0, source145/0, harness271/0, assembly698/0.
+No194 package/suite/purity/native credit at this source checkpoint.
+Next: coherent guarded publication, one194 freeze/proof, same8 stages with failed
+RT source first, then continue6C-6F. Exact receipts: docs/CHUNK6-CONTINUATION.md.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod mutation/HUMAN PLAY.
 ## 2026-10-08 - 6C preview192 closed; coherent193 shared-slot fixture repair
 
 6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
