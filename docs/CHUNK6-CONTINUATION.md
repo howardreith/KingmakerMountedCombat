@@ -1,3 +1,60 @@
+## 2026-10-08 - preview194 closed; bounded195 ready for offline tiers
+
+6B remains implementation stable: RT supported/default-off Charge, TB delivery
+DEFER - EVIDENCED with the qualified cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+
+Frozen194 source69946c89217d9625b04756899babe050454461f8/treeab208ecaf64ef94afa81dc7c711758dac1975acf is preserved.
+Packageb4733f149238ac368a91df5fcb945a4936a3cad761c5cff762e1b88eb80969b4;
+DLL28a6764961d5edac9180fefe1fe4267038aa0ad50f5d342226c85ab9d897b104,
+MVIDa9d1bdba-b2fd-45ac-88f1-3eb32eec3b7b. Suite20261008-chunk6c-casting-f/
+07b27d536f96512b58dd070ebf93af25d3e5b0b02e23382922e52287cdb39913.
+Purity PASS actual child20628 exit0,94.32974min; process receipt SHA
+4cdb2fe9433ea5739b63f9729e2c62a2b02acf9cc07792138509d74738a87ab7.
+
+Campaign0 qualified PASS/3 FAIL/5 BLOCKED-unrun. RT source native7/0 passed:
+the normal exact rod toggle, native item disposal and original-slot restoration worked.
+Its original external FAIL is retained: the reader demanded Mounted before Mount and
+mistook the normal empty RT pair-identity descriptor for live turn ownership.
+Reader re-evaluation3 now passes the complete immutable envelope, with exact product,
+producer, fixture, launcher, safety/restoration and artifact hashes unchanged.
+ReaderSHAfada86b2fa70513bffee20833a0c489d9cf96641d22806500649a942eee09aa7;
+receipt61108b53b4c0fe7dc3a9bf193c33ef33c931c9b7f53172aa0886ba61bb3876c7.
+Original worker exit1/result FAIL remain unchanged; no cold prerequisite was reused.
+Evaluation1's missing module and evaluation2's exact RT-descriptor failure are retained.
+
+Mounted RT failed2/1 before casting: the exact6C pair was missing from the shared
+diagnostic AI-isolation relationship predicate. TB source failed6/1 at stage1:
+checking rider CanActInCombat before advancing another actor's native turn made
+the existing EndFixtureTurn input unreachable. Neither is a casting product defect.
+Only the independent TB source followed the fully restored RT baseline failure.
+Cold2/8 are blocked by source verdicts; baseline4-6 by the shared fixture defect.
+
+All3 transactions restored with empty errors, game exits0, worker exits1,
+no recovery, no live game or transaction. Human105,275 saves and358 Mods match.
+RT/TB sources have exact whole-profile audit receipts; the short baseline has no
+profile-cache artifact, so no additional whole-profile claim is made.
+Closurec3872d983755b2b4c33a63d8ab6930ae25597691b5553ae5fd9e555e2d3a918e:
+lab analysis-cache/chunk6-continuation/20261005-6br/preview194-campaign-closure.json.
+
+Working195 adds only exact6C diagnostic pair admission, a small shared fixture wait
+decision that requests the existing guarded native End Turn before rider readiness,
+and the phase-aware read-only persistence interpretation. No resource, preparation,
+turn, movement, native action, gameplay or save policy changes. The same8-stage
+batch remains; no cases added, wrappers changed or historical verdict rewritten.
+Focused build1PASS, compiled observer/admission57/0, casting151/0, persistence79/0.
+Detached predicate tests keep exact compiled decisions and mock only relationship
+inputs; foreign rider/mount and faulted state refuse. Foreign native turns progress
+while the rider cannot act; owned/unavailable and RT cases request no extra turn.
+Real RT whole-envelope evidence and synthetic full-envelope refusals pin the reader.
+
+FAST1 PASS12/0;CANDIDATE1 PASS16/0,685 code/script/test/version inputs unchanged.
+Components710/0, source145/0, safety harness271/0 and assembly698/0 pass.
+No195 package/suite/purity/native verdict exists. Next: coherent guarded publication,
+one195 package/suite/proof,
+then the unchanged reviewed parameterized runner against8 stages, failed source first.
+Continue6C-6F. No6C stability, merge/PR/tag/release/permanent installation,
+protected-human-save write, foreign-mod mutation or HUMAN PLAY acceptance.
+
 ## 2026-10-08 - preview193 terminal fixture failure; preview194 source-complete
 
 6B remains implementation stable: RT supported/default-off Charge; TB delivery DEFER - EVIDENCED with the qualified cost-free refusal. No188 replay or TB experiment. 6C IN PROGRESS;6D-6F incomplete.

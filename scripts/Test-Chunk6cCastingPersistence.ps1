@@ -28,9 +28,10 @@ function Fixture([bool]$Tb,[bool]$Cold=$false){
  $hash=Get-KmcSha256 $archive;$request.persistenceLoad.sha256=$hash
  $a=Actual $Cold;$a.tb=$Tb
  $snapshot=CopyJson @{Mounted=$true;Rider=(Actor 'rider');Mount=(Actor 'mount');CampaignId='campaign';AreaId='area';Combat=@{TurnBased=$Tb;Round=1;Current=$null;Roster=@();Paired=$null}}
- if($Tb){$snapshot.Rider.Move=3;$snapshot.Rider.Swift=6;$snapshot.Combat.Current=CopyJson @{ActorId='rider'};$snapshot.Combat.Paired=CopyJson @{Activation=@{owner='rider'}}}else{$snapshot.Rider.Swift=4}
+ if($Tb){$snapshot.Rider.Move=3;$snapshot.Rider.Swift=6;$snapshot.Combat.Current=CopyJson @{ActorId='rider'};$snapshot.Combat.Paired=CopyJson @{Activation=@{owner='rider'}}}else{$snapshot.Rider.Swift=4;$snapshot.Combat.Paired=CopyJson @{RiderId='rider';MountId='mount';Activation=$null;BoundaryIsCurrent=$false;Boundary=$null;Partner=$null;SplitReleaseRound=-1;PendingSplitId=$null;PendingSplitRound=-1;RenewalNotBeforeTicks=0}}
  $rows=New-Object 'Collections.Generic.List[object]'
  function Add([string]$Kind,$Detail){[void]$rows.Add((CopyJson @{runId=$run;scenario=$scenario;source=$request.commit;dll=$request.dllSha256;processId=$process;checkpoint=$case;rider=@{Id='rider'};mount=@{Id='mount'};relationship='Mounted';controls=@{DuplicateFactCount=0;NativeCastRequestCount=0};native=@{tbSetting=$Tb};kind=$Kind;detail=$Detail}))}
+ if(-not$Cold){Add '6c-fixture-items-created' @{rod=@{blueprint='55a059b32df920c4abe65b8ee8b56056'}};$rows[0].relationship='Unmounted'}
  Add 'initial' $a
  if(-not$Cold){
   $before=CopyJson $a;$before.slotAvailable=$true
@@ -51,7 +52,7 @@ function Fixture([bool]$Tb,[bool]$Cold=$false){
    @{boundary='cost-before';command=101;state=(Budget 'rider' 0 $swift)},
    @{boundary='cost-after';command=101;timeSinceStart=1;state=(Budget 'rider' $move $swift)})
   $inputs=@(@{ability=@{caster='rider';blueprint='9f10909f0be1f5141bf1c102041f93d9';runtimeActionType='Swift'};target='target';costShell=100;castShell=10},@{ability=@{caster='rider';blueprint='5590652e1c2225c4ca30c4a699ab3649';sourceItemBlueprint='d52566ae8cbe8dc4dae977ef51c27d91';runtimeActionType='Move'};target='rider';costShell=101;castShell=11})
-  Add '6c-fixture-items-created' @{rod=@{blueprint='55a059b32df920c4abe65b8ee8b56056'}}
+
   Add '6c-settled-use' @{before=$before;afterSpell=$afterSpell;beforePotion=$beforePotion;afterPotion=$afterPotion;inputs=$inputs;costWindow=$costs}
   Add '6c-save-request' $a
   Add 'native-write-complete' @{snapshot=$snapshot;actual=$a;path=$archive;sha256=$hash;length=(Get-Item -LiteralPath $archive).Length;nativeType='Manual';nativeCallback=$true;operation='None'}
@@ -82,6 +83,15 @@ foreach($tb in @($false,$true)){
  Accept ('source complete existing envelope '+$tb) {Envelope $source}
  Accept ('cold complete existing envelope '+$tb) {Envelope $cold}
  Accept ('exact immutable source/cold outcome '+$tb) {Assert-KmcCastingBaselineColdOutcome $source.rows $cold.rows $cold.request}
+ if(-not$tb){
+  foreach($mutation in @(
+   {param($f)(Row $f 'native-write-complete').detail.snapshot.Combat.Paired.Activation=@{owner='rider'}},
+   {param($f)(Row $f 'native-write-complete').detail.snapshot.Combat.Paired.Partner=@{actor='mount'}},
+   {param($f)(Row $f 'native-write-complete').detail.snapshot.Combat.Paired.RiderId='foreign'}
+  )){Refuse 'RT identity descriptor must not own turn state or a foreign pair' {$bad=CopyJson $source;& $mutation $bad;Run $bad}}
+ }
+ Refuse ('source creation must be pre-Mount '+$tb) {$bad=CopyJson $source;(Row $bad '6c-fixture-items-created').relationship='Mounted';Run $bad}
+ Refuse ('settled source must remain Mounted '+$tb) {$bad=CopyJson $source;(Row $bad 'initial').relationship='Unmounted';Run $bad}
  foreach($mutation in @(
   {param($f)(Row $f 'native-write-complete').detail.actual.pairCommand=$true},
   {param($f)(Row $f 'native-write-complete').detail.actual.abilitiesPending=$true},

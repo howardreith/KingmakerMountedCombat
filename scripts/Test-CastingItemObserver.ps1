@@ -121,6 +121,68 @@ public static class CastingObserverProbe {
   il.Emit(System.Reflection.Emit.OpCodes.Ret);
   return dynamic;
  }
+ static int detachedRelationshipState;
+ static object detachedRelationshipRider,detachedRelationshipMount;
+ static System.Collections.Generic.Dictionary<string,System.Reflection.Emit.DynamicMethod> detachedRelationshipGetters;
+ public static System.Collections.Generic.IEnumerable<T> ReplaceDetachedRelationship<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  if(__originalMethod.Name!="IsExactDiagnosticAiIsolationRelationship")throw new InvalidOperationException("Unexpected diagnostic predicate.");
+  var counts=new System.Collections.Generic.Dictionary<string,int>();
+  foreach(var instruction in instructions){
+   var called=typeof(T).GetField("operand").GetValue(instruction) as MethodInfo;
+   if(called!=null&&called.DeclaringType.FullName=="KingmakerMountedCombat.Integration.GameMountedRelationshipService"){
+    if(!detachedRelationshipGetters.ContainsKey(called.Name))throw new InvalidOperationException("Unexpected relationship boundary.");
+    typeof(T).GetField("opcode").SetValue(instruction,System.Reflection.Emit.OpCodes.Call);
+    typeof(T).GetField("operand").SetValue(instruction,detachedRelationshipGetters[called.Name]);
+    counts[called.Name]=counts.ContainsKey(called.Name)?counts[called.Name]+1:1;
+   }
+   yield return instruction;
+  }
+  if(counts.Count!=3||counts["get_State"]!=2||counts["get_Rider"]!=1||counts["get_Mount"]!=1)
+   throw new InvalidOperationException("Exact relationship predicate boundary differs.");
+ }
+ static void ExerciseCastingFixtureAdmission(Assembly native,Type child){
+  var mod=child.Assembly;var service=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
+  var actor=native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true);
+  var exactRider=FormatterServices.GetUninitializedObject(actor);var exactMount=FormatterServices.GetUninitializedObject(actor);
+  var foreign=FormatterServices.GetUninitializedObject(actor);var instance=FormatterServices.GetUninitializedObject(child);
+  child.GetField("relationship",F).SetValue(instance,FormatterServices.GetUninitializedObject(service));
+  child.GetField("rider",F).SetValue(instance,exactRider);child.GetField("horse",F).SetValue(instance,exactMount);
+  detachedRelationshipGetters=new System.Collections.Generic.Dictionary<string,System.Reflection.Emit.DynamicMethod>();
+  foreach(var name in new[]{"State","Rider","Mount"}){
+   var getter=service.GetProperty(name,F).GetGetMethod(true);
+   var method=new System.Reflection.Emit.DynamicMethod("observed_"+name,getter.ReturnType,new[]{service},typeof(CastingObserverProbe).Module,true);
+   var il=method.GetILGenerator();il.Emit(System.Reflection.Emit.OpCodes.Ldsfld,typeof(CastingObserverProbe).GetField("detachedRelationship"+name,F));
+   if(name!="State")il.Emit(System.Reflection.Emit.OpCodes.Castclass,actor);il.Emit(System.Reflection.Emit.OpCodes.Ret);
+   detachedRelationshipGetters.Add(getter.Name,method);
+  }
+  var graph=mod.GetType("KingmakerMountedCombat.Integration.MountedChargeBuffChildren",true);
+  var instruction=graph.GetMethod("WrapAddFact",F).GetParameters()[0].ParameterType.GetGenericArguments()[0];
+  // Mock only observed relationship inputs. Keep the exact compiled scenario,
+  // state and pair-identity decisions; no native state or installed code changes.
+  var predicate=CopyDetachedMethod(child.GetMethod("IsExactDiagnosticAiIsolationRelationship",F),instruction,"ReplaceDetachedRelationship");
+  var stateType=service.GetProperty("State",F).PropertyType;
+  foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
+   var request=Activator.CreateInstance(mod.GetType("KingmakerMountedCombat.Diagnostics.RuntimeRequest",true));
+   request.GetType().GetProperty("Scenario",F).SetValue(request,scenario,null);child.GetField("request",F).SetValue(instance,request);
+   detachedRelationshipState=(int)Enum.Parse(stateType,"Mounted");detachedRelationshipRider=exactRider;detachedRelationshipMount=exactMount;
+   Check((bool)predicate.Invoke(null,new[]{instance}),"exact mounted casting AI lease admission "+scenario);
+   detachedRelationshipRider=foreign;Check(!(bool)predicate.Invoke(null,new[]{instance}),"foreign rider refused "+scenario);
+   detachedRelationshipRider=exactRider;detachedRelationshipMount=foreign;
+   Check(!(bool)predicate.Invoke(null,new[]{instance}),"foreign mount refused "+scenario);detachedRelationshipMount=exactMount;
+   detachedRelationshipState=(int)Enum.Parse(stateType,"Faulted");Check(!(bool)predicate.Invoke(null,new[]{instance}),"faulted relationship refused "+scenario);
+   detachedRelationshipState=(int)Enum.Parse(stateType,"Unmounted");Check((bool)predicate.Invoke(null,new[]{instance}),"existing unmounted isolation preserved "+scenario);
+  }
+  detachedRelationshipGetters=null;detachedRelationshipRider=null;detachedRelationshipMount=null;
+  var wait=child.GetMethod("WaitForNativeCastingPrincipal",F);var advances=0;Action advance=()=>advances++;
+  Check((bool)wait.Invoke(null,new object[]{true,false,false,advance})&&advances==1,
+   "other native turn advances even while rider cannot act; rider still waits");
+  advances=0;Check((bool)wait.Invoke(null,new object[]{true,true,false,advance})&&advances==0,
+   "unavailable principal waits without an End Turn request");
+  Check(!(bool)wait.Invoke(null,new object[]{true,true,true,advance})&&advances==0,
+   "ready native principal proceeds without an extra turn request");
+  Check(!(bool)wait.Invoke(null,new object[]{false,false,true,advance})&&advances==0,
+   "RT readiness does not request a TB turn");
+ }
  static void ExerciseNativeActivationCleanup(Assembly native,Type itemLease){
   var graph=itemLease.Assembly.GetType("KingmakerMountedCombat.Integration.MountedChargeBuffChildren",true);
   var instruction=graph.GetMethod("WrapAddFact",F).GetParameters()[0].ParameterType.GetGenericArguments()[0];
@@ -191,6 +253,7 @@ public static class CastingObserverProbe {
   var mod=Assembly.LoadFrom(product);var type=mod.GetType("KingmakerMountedCombat.Diagnostics.NativeCastingItemTrace",true);
   var child=mod.GetType("KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche",true);
   var parent=mod.GetType("KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine",true);
+  ExerciseCastingFixtureAdmission(native,child);
   foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
    Check((bool)parent.GetMethod("SupportsScenario",F).Invoke(null,new object[]{scenario}),"native original-pair engine accepts "+scenario);
    Check((bool)child.GetMethod("IsChunk6cCastingScenario",F).Invoke(null,new object[]{scenario}) &&
