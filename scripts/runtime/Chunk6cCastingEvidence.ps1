@@ -3,8 +3,27 @@
 Set-StrictMode -Version Latest
 function Get-KmcChunk6cCastingCases {
  @('C6C-quickened-self','C6C-standard-self','C6C-standard-friendly','C6C-standard-hostile',
-   'C6C-prepared-interrupt-after','C6C-invalid-target','C6C-cancel-before','C6C-interrupt-before',
+   'C6C-scroll-interrupt-after','C6C-invalid-target','C6C-cancel-before','C6C-interrupt-before',
    'C6C-potion-self','C6C-scroll-friendly','C6C-full-round','C6C-movement-policy','C6C-rider-incapacity','C6C-mount-incapacity','C6C-under-threat')
+}
+# Native preparation is never replayed inside a cast window. A Cooldowns.Clear nested inside the
+# same actor's native combat-exit window (combat-clear-before .. combat-clear-after) is the engine's
+# own leave-combat reset of an incapacitated actor, not a replay; every other clear or prepare is.
+function Get-KmcChunk6cPairReplayCount($Costs,[string]$Rider,[string]$Mount) {
+ $inside=@{};$replays=0
+ foreach($c in @($Costs)) {
+  $actor=[string]$c.state.actor
+  if($actor-cnotin@($Rider,$Mount)){continue}
+  switch -CaseSensitive([string]$c.boundary) {
+   'combat-clear-before' {$inside[$actor]=$true}
+   'combat-clear-after' {$inside[$actor]=$false}
+   'prepare-before' {$replays++}
+   'prepare-after' {$replays++}
+   'clear-before' {if(-not$inside[$actor]){$replays++}}
+   'clear-after' {if(-not$inside[$actor]){$replays++}}
+  }
+ }
+ $replays
 }
 function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb,[bool]$Mounted) {
  function Need([bool]$ok,[string]$why){if(-not$ok){throw ('6C '+$Row.name+': '+$why)}}
@@ -25,8 +44,16 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   if(-not$life){Need ($state.generation-eq$before.generation-and$state.relationship-ceq$(if($Mounted){'Mounted'}else{'Unmounted'})) 'relationship generation changed during settled baseline'}
  }
  Need ($before.ability.caster-ceq$Rider) 'native caster/item user is not the rider'
- $expectedBlueprint=switch -CaseSensitive($Row.name){'C6C-standard-hostile'{'9f10909f0be1f5141bf1c102041f93d9'} 'C6C-prepared-interrupt-after'{'5590652e1c2225c4ca30c4a699ab3649'} 'C6C-potion-self'{'5590652e1c2225c4ca30c4a699ab3649'} 'C6C-scroll-friendly'{'5590652e1c2225c4ca30c4a699ab3649'} 'C6C-full-round'{'c6147854641924442a3bb736080cfeb6'} default{'c3a8f31778c3980498d8f00c980be5f5'}}
+ $expectedBlueprint=switch -CaseSensitive($Row.name){'C6C-standard-hostile'{'9f10909f0be1f5141bf1c102041f93d9'} 'C6C-full-round'{'c6147854641924442a3bb736080cfeb6'} default{'5590652e1c2225c4ca30c4a699ab3649'}}
  Need ($before.ability.blueprint-ceq$expectedBlueprint) 'native fixture ability substituted'
+ # Instrument identity. The fixture Druid has no memorized orison, so the native IsAvailable
+ # predicate (not IsAvailableForCast) must already be true for every spellbook row; the other
+ # rows cast CLW from the exact native scroll stack and the potion row drinks the exact potion.
+ $spellbookRow=$Row.name-cin@('C6C-quickened-self','C6C-standard-hostile','C6C-full-round')
+ $scrollRow=-not$spellbookRow-and$Row.name-cne'C6C-potion-self'
+ if($spellbookRow){Need ($before.ability.sourceItem-eq0-and$null-eq$before.ability.sourceItemBlueprint-and$before.ability.available-eq$true) 'spellbook row lacks an available memorized or converted native slot'}
+ if($scrollRow){Need ($before.ability.sourceItem-ne0-and$before.ability.sourceItemBlueprint-ceq'cd635d5720937b044a354dba17abad8d'-and$before.ability.available-eq$true) 'scroll row did not cast from the exact native scroll stack'}
+ if($Row.name-ceq'C6C-potion-self'){Need ($before.ability.sourceItem-ne0-and$before.ability.sourceItemBlueprint-ceq'd52566ae8cbe8dc4dae977ef51c27d91') 'potion row did not drink the exact native potion'}
  Need ($after.riderCommandsEmpty-eq$true-and$after.mountCommandsEmpty-eq$true-and$after.processesSettled-eq$true-and$after.nativeAbilitiesPending-eq$false-and$after.projectilesPending-eq$false-and$after.activePairCommand-eq$false) 'command/process/pair residue remains'
  Need ($e.selectionAfter-is[Array]-and$e.selectionAfter.Count-eq1-and$e.selectionAfter[0]-ceq$Rider) 'normal input lacks exact single rider selection'
  $events=@($e.events);$costs=@($e.costEvents)
@@ -34,7 +61,13 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  $moveOwner=if($Mounted){$Mount}else{$Rider}
  $carrier=if($motion){$e.boundary.costCarrier}else{0}
  Need (@($costs|Where-Object {$_.state.actor-ceq$Mount-and$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')-and(-not$motion-or$_.command-ne$carrier)}).Count-eq0) 'mount charged for rider casting'
- Need (@($costs|Where-Object {$_.state.actor-cin@($Rider,$Mount)-and$_.boundary-cin@('prepare-before','prepare-after','clear-before','clear-after')}).Count-eq0) 'pair preparation replayed in cast window'
+ Need ((Get-KmcChunk6cPairReplayCount $costs $Rider $Mount)-eq0) 'pair preparation replayed in cast window'
+ if($life) {
+  $partner=if($Row.name-ceq'C6C-rider-incapacity'){$Mount}else{$Rider}
+  Need (@($costs|Where-Object {$_.state.actor-ceq$partner-and$_.boundary-like'*clear*'}).Count-eq0) 'partner cooldowns cleared during the subject incapacity'
+ } else {
+  Need (@($costs|Where-Object {$_.state.actor-cin@($Rider,$Mount)-and$_.boundary-like'*clear*'}).Count-eq0) 'pair cooldowns cleared in a settled cast window'
+ }
  foreach($field in @('standard','move','swift')) {
   if($Tb-and-not$motion){Need (Close $before.mount.$field $after.mount.$field) 'mount native debt changed during rider action'}
   elseif(-not$motion){Need ((Number $after.mount.$field)-le(Number $before.mount.$field)+.001) 'mount native debt increased during rider action'}
@@ -58,7 +91,7 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   $b=$beforeCost[0].state;$a=$afterCost[0].state
   $action=$before.ability.runtimeActionType
   Need ($action-cin@('Standard','Swift','Move')) 'baseline action type unsupported or unobserved'
-  if($Row.name-ceq'C6C-quickened-self'){Need ($action-ceq'Swift') 'rod did not produce genuine native Swift casting'}
+  if($Row.name-ceq'C6C-quickened-self'){Need ($action-ceq'Swift') 'rod did not produce genuine native Swift casting';Need ($before.slotAvailable-eq$true-and$after.slotAvailable-eq$false) 'quickened memorized slot not spent once'}
   $field=if($action-ceq'Standard'){'standard'}elseif($action-ceq'Swift'){'swift'}else{'move'}
   $nominal=if($action-ceq'Move'){3.0}else{6.0}
   if($Tb){Need (Close ((Number $a.$field)-(Number $b.$field)) $nominal) 'native additive action debt differs'}
@@ -77,9 +110,8 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   foreach($extra in @($costAfter|Where-Object command -NE $root)) {
    Need ($extra.ignoreCooldown-eq$true-or($motion-and$extra.command-eq$carrier-and$extra.state.actor-ceq$moveOwner)) 'another rider command cost was charged'
   }
-  if($Row.name-ceq'C6C-prepared-interrupt-after') {
+  if($Row.name-ceq'C6C-scroll-interrupt-after') {
    Need ($e.interrupted-eq$true-and$e.interruptionBefore.shell.acted-eq$true-and$e.interruptionBefore.shell.finished-eq$false) 'postcommit exact-shell interruption not observed'
-   Need ($before.slotAvailable-eq$true-and$after.slotAvailable-eq$false) 'native prepared slot not spent once'
   }
   if($Row.name-ceq'C6C-full-round') {
    Need ($before.ability.fullRound-eq$true-and$before.slotAvailable-eq$true-and$after.slotAvailable-eq$false) 'available native converted full-round slot not spent'
@@ -113,7 +145,7 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   $def=@($events|Where-Object kind -CEQ 'defensive-rule-after')
   Need ($def.Count-eq1-and$def[0].actor-ceq$Rider-and$def[0].dc-gt0-and$def[0].roll-is[int]-and$def[0].success-is[bool]) 'native defensive check outcome unobserved'
   if($nativeConcentrationFailure) {
-   Need ($cast.Count-eq0-and@($events|Where-Object kind -CEQ 'spell-spend-after').Count-eq1-and$after.shell.finished-eq$true) 'native concentration failure lost or duplicated commitment'
+   Need ($cast.Count-eq0-and@($events|Where-Object {$_.kind-cin@('spell-spend-after','item-spend-after')}).Count-eq1-and$after.shell.finished-eq$true) 'native concentration failure lost or duplicated commitment'
    Need ($costAfter.Count-eq$(if($Tb){1}else{0})) 'concentration-failure native mode cost differs'
   }
  }
@@ -122,16 +154,21 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   $rodAfter=@($after.items|Where-Object blueprint -CEQ '55a059b32df920c4abe65b8ee8b56056')
   Need ($rodBefore.Count-eq1-and$rodAfter.Count-eq1-and$rodBefore[0].item-eq$rodAfter[0].item-and$rodBefore[0].activatableSourceItem-eq$rodBefore[0].item-and$rodBefore[0].activatableOn-eq$true-and$rodBefore[0].charges-eq3-and$rodAfter[0].charges-eq2) 'exact native rod did not spend one factory-created charge'
  }
- if($Row.name-cin@('C6C-potion-self','C6C-scroll-friendly')) {
+ # Every completed item-sourced cast spends exactly one native charge/count; the two wounded
+ # heal rows also deliver exactly one native heal. Refused or precommit-interrupted casts spend nothing.
+ if($Row.name-cin@('C6C-potion-self','C6C-scroll-friendly')-or($scrollRow-and-not$refusal-and-not$nativeConcentrationFailure)) {
   $id=$before.ability.sourceItem
   Need ($id-ne0-and$before.ability.sourceItemBlueprint-cin@('d52566ae8cbe8dc4dae977ef51c27d91','cd635d5720937b044a354dba17abad8d')) 'item source identity missing'
   $spent=@($events|Where-Object {$_.kind-ceq'item-spend-after'-and$_.identity-eq$id})
   $pre=@($events|Where-Object {$_.kind-ceq'item-spend-before'-and$_.identity-eq$id})
   Need ($pre.Count-eq1-and$spent.Count-eq1-and(($spent[0].charges-eq$pre[0].charges-1)-or($spent[0].count-eq$pre[0].count-1))) 'native consumable state did not decrease exactly once'
   Need ($spent.Count-eq1) 'native item charge/consumption not exactly once'
-  $heal=@($events|Where-Object {$_.kind-ceq'heal'-and$_.actor-ceq$Rider-and$_.target-ceq$e.target})
-  Need ($heal.Count-eq1-and(Number $heal[0].value)-gt0) 'item healing missing or duplicated'
+  if($Row.name-cin@('C6C-potion-self','C6C-scroll-friendly')) {
+   $heal=@($events|Where-Object {$_.kind-ceq'heal'-and$_.actor-ceq$Rider-and$_.target-ceq$e.target})
+   Need ($heal.Count-eq1-and(Number $heal[0].value)-gt0) 'item healing missing or duplicated'
+  }
  }
+ if($scrollRow-and$refusal){Need (@($events|Where-Object {$_.kind-ceq'item-spend-after'}).Count-eq0) 'refused or precommit-interrupted scroll cast spent a charge'}
 }
 function Assert-KmcChunk6cCastingEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)

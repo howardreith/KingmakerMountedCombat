@@ -30,11 +30,16 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsChunk6cCasting => IsChunk6cCastingScenario(request.Scenario);
         private bool CastingTb => request.Scenario.EndsWith("-tb", StringComparison.Ordinal);
         private bool CastingMounted => !request.Scenario.Contains("-unmounted-");
-        private const string Guidance = "c3a8f31778c3980498d8f00c980be5f5";
+        // The fixture Druid has no memorized level-0 slot: an orison's AbilityData.IsAvailable is
+        // false and UnitUseAbility.OnAction fails before RuleCastSpell (preview.200 native fact;
+        // native Spellbook.Memorize sets SpellSlot.Available=false until rest). Spellbook casts
+        // therefore use the three memorized level-1 slots (CLW quickened by the rod, Snowball, the
+        // spontaneous summon conversion); every other cast uses the exact CLW scroll stack.
+        internal const int ScrollStackCount = 10;
         private const string Heal = "5590652e1c2225c4ca30c4a699ab3649";
         private const string Snowball = "9f10909f0be1f5141bf1c102041f93d9";
         internal static readonly string[] CastingCases = { "C6C-quickened-self", "C6C-standard-self",
-            "C6C-standard-friendly", "C6C-standard-hostile", "C6C-prepared-interrupt-after",
+            "C6C-standard-friendly", "C6C-standard-hostile", "C6C-scroll-interrupt-after",
             "C6C-invalid-target", "C6C-cancel-before", "C6C-interrupt-before",
             "C6C-potion-self", "C6C-scroll-friendly", "C6C-full-round", "C6C-movement-policy", "C6C-rider-incapacity", "C6C-mount-incapacity", "C6C-under-threat" };
         private NativeCastingItemTrace castingTrace;
@@ -69,7 +74,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // stay reachable through the existing bounded fixture cleanup path.
             castingRod = AcquireCastingItem(NativeCastingItemLease.LesserQuickenRod);
             castingPotion = AcquireCastingItem(NativeCastingItemLease.CurePotion);
-            castingScroll = AcquireCastingItem(NativeCastingItemLease.CureScroll);
+            castingScroll = AcquireCastingItem(NativeCastingItemLease.CureScroll, ScrollStackCount);
             observations["chunk6cCasting"]["items"] = new JArray(castingItems.Select(i => i.Evidence));
             step = Phase3dHorseStep.Phase3gControls;
             ResetLeafClock();
@@ -84,11 +89,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["policy"] = "Stock UnitUseAbility owns every cost, resource, targeting and process."
             };
         }
-        private NativeCastingItemLease AcquireCastingItem(string blueprint)
+        private NativeCastingItemLease AcquireCastingItem(string blueprint, int count = 1)
         {
             var lease = new NativeCastingItemLease(rider, castingTrace, blueprint, castingOriginalSlots);
             castingItems.Add(lease);
-            lease.Acquire();
+            lease.Acquire(count);
             return lease;
         }
         private JArray CastingPreparedInventory() => new JArray(rider.Descriptor.Spellbooks.SelectMany(b => b.GetAllMemorizedSpells())
@@ -227,11 +232,13 @@ namespace KingmakerMountedCombat.Diagnostics
             castingTrace.BeginCase(CastingCase); castingEventOffset = castingTrace.EventCount; castingCostOffset = castingCosts.EventCount;
             castingShell = null; castingPrepared = null; castingInterrupted = false; castingStableFrames = 0;
             castingTarget = CastingCase == "C6C-standard-hostile" || CastingCase == "C6C-invalid-target" ? target :
-                CastingCase == "C6C-standard-friendly" || CastingCase == "C6C-prepared-interrupt-after" || CastingCase == "C6C-scroll-friendly" ? horse : rider;
+                CastingCase == "C6C-standard-friendly" || CastingCase == "C6C-scroll-interrupt-after" || CastingCase == "C6C-scroll-friendly" ? horse : rider;
+            // Instruments: the rod quickens the memorized CLW slot; Snowball is the memorized hostile
+            // spell; the full-round row converts the remaining slot; the potion row drinks the potion;
+            // every other row casts CLW from the exact native scroll stack (unit-only, touch range).
             castingAbility = CastingCase == "C6C-standard-hostile" ? ResolveCastingAbility(Snowball, true) :
-                CastingCase == "C6C-prepared-interrupt-after" ? ResolveCastingAbility(Heal, true) :
-                CastingCase == "C6C-potion-self" ? castingPotion.Item.Ability?.Data :
-                CastingCase == "C6C-scroll-friendly" ? castingScroll.Item.Ability?.Data : ResolveCastingAbility(Guidance, false);
+                CastingCase == "C6C-quickened-self" ? ResolveCastingAbility(Heal, true) :
+                CastingCase == "C6C-potion-self" ? castingPotion.Item.Ability?.Data : castingScroll.Item.Ability?.Data;
             if (CastingFullRoundCase) castingAbility = ResolveNativeFullRound();
             if (CastingFullRoundCase && castingAbility == null)
             {
@@ -242,7 +249,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (castingAbility == null || castingAbility.Caster.Unit != rider)
                 throw new InvalidOperationException("Native ability/item caster is not the exact rider.");
-            if (CastingCase == "C6C-prepared-interrupt-after" || CastingCase == "C6C-potion-self" || CastingCase == "C6C-scroll-friendly")
+            if (CastingCase == "C6C-scroll-interrupt-after" || CastingCase == "C6C-potion-self" || CastingCase == "C6C-scroll-friendly")
                 WoundCastingSubject(castingTarget);
             castingCaseFacts = new JObject { ["case"] = CastingCase, ["target"] = castingTarget.UniqueId,
                 ["before"] = CastingState(), ["inputCount"] = 0 };
@@ -280,7 +287,7 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void ObserveCastingNativeCost(string boundary, UnitEntityData actor, UnitCommand command)
         {
-            if (cleanupStarted || castingCaseIndex >= CastingCases.Length || CastingCase != "C6C-prepared-interrupt-after" ||
+            if (cleanupStarted || castingCaseIndex >= CastingCases.Length || CastingCase != "C6C-scroll-interrupt-after" ||
                 castingInterrupted || boundary != "cost-after" || actor != rider || command != castingShell) return;
             castingCaseFacts["interruptionBefore"] = CastingState();
             castingInterrupted = true;

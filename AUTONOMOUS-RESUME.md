@@ -1,3 +1,27 @@
+## 2026-10-09 - preview200 closed (producer PASS, external FAIL); coherent201 casting instruments and reader rules
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen200 source3542dc0c211eb5e0ce47b74ace4127b3e9f48f67 is immutable: purity l1 ABORTED
+(tool-host memory kill, exit UNKNOWN), l2 PASS exit0; Stage1 mountedRT ran natively with
+producer PASS17/0 (all15 rows reached, rider/mount incapacity and under-threat settled; the
+AI-lease ordering repair worked), external FAIL at the generic registration-audit list,
+worker1/game0, transaction restored exactly; stages2-4 BLOCKED-unrun, 5-8 NOT RUN.
+Offline external row evaluation8 PASS/7 FAIL: Guidance is natively uncastable for the fixture
+Druid (no memorized orison; AbilityData.IsAvailable=false; OnAction fails before RuleCastSpell;
+Spellbook.Memorize sets Available=false until rest), and the incapacitated actor's native
+combat-exit Cooldowns.Clear tripped the pair-replay rule. No production casting defect.
+Working201: spellbook rows use the three memorized slots (quickened CLW, Snowball, summon
+conversion); every other cast uses the exact native CLW scroll stack (count10, same lease);
+C6C-prepared-interrupt-after becomes C6C-scroll-interrupt-after (historical name stays
+registered); the reader pins IsAvailable, exact instruments and single scroll spends, counts a
+clear only outside the actor's own combat-exit window, and the four Mammoth-engine6C roots leave
+the registration-audit list, now held equal to the compiled policy by source validation.
+PASS build/source146/0, components712/0, compiled observer150/0, casting reader228/0,
+FAST12/0, CANDIDATE16/0 (harness271/0, assembly701/0). No201 package/suite/purity/native credit yet.
+Next: guarded publication, package/suite/freeze, one purity, failed mountedRT first.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
 ## 2026-10-08 - preview199 closed; coherent200 fixture AI-lease ordering and reader repair
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains

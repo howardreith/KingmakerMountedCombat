@@ -5,12 +5,12 @@ $passed=0
 function Check([bool]$condition,[string]$why){if(-not$condition){throw $why};$script:passed++;Write-Host ('PASS '+$why)}
 function Copy-CastingFixture($v){$v|ConvertTo-Json -Depth 40 -Compress|ConvertFrom-Json}
 function New-CastingFixtureState {
- [pscustomobject]@{relationship='Mounted';generation=1;rider=[pscustomobject]@{actor='rider';standard=0.0;move=0.0;swift=0.0};mount=[pscustomobject]@{actor='mount';standard=0.0;move=0.0;swift=0.0};riderCommandsEmpty=$true;mountCommandsEmpty=$true;processesSettled=$true;nativeAbilitiesPending=$false;projectilesPending=$false;activePairCommand=$false;items=@();ability=[pscustomobject]@{caster='rider';blueprint='c3a8f31778c3980498d8f00c980be5f5';runtimeActionType='Standard';fullRound=$false};slotAvailable=$null}
+ [pscustomobject]@{relationship='Mounted';generation=1;rider=[pscustomobject]@{actor='rider';standard=0.0;move=0.0;swift=0.0};mount=[pscustomobject]@{actor='mount';standard=0.0;move=0.0;swift=0.0};riderCommandsEmpty=$true;mountCommandsEmpty=$true;processesSettled=$true;nativeAbilitiesPending=$false;projectilesPending=$false;activePairCommand=$false;items=@();ability=[pscustomobject]@{caster='rider';blueprint='5590652e1c2225c4ca30c4a699ab3649';runtimeActionType='Standard';fullRound=$false;sourceItem=60;sourceItemBlueprint='cd635d5720937b044a354dba17abad8d';available=$true};slotAvailable=$null}
 }
 function Positive([bool]$tb){
  $before=New-CastingFixtureState;$after=Copy-CastingFixture $before;$after.rider.standard=if($tb){6.0}else{4.0}
  $post=Copy-CastingFixture $before;$post|Add-Member shell ([pscustomobject]@{identity=10})
- [pscustomobject]@{name='C6C-standard-self';status='PASS';evidence=[pscustomobject]@{case='C6C-standard-self';before=$before;afterInput=$post;after=$after;selectionAfter=@('rider');target='rider';resolvedTarget='rider';selected=$true;canTarget=$true;clicked=$true;inputCount=1;admittedShellCount=1;costShell=100;events=@([pscustomobject]@{kind='action-after';identity=10;actor='rider';shell=[pscustomobject]@{ignoreCooldown=$false;timeSinceStart=2.0}},[pscustomobject]@{kind='cast-after';actor='rider';ability=[pscustomobject]@{blueprint='c3a8f31778c3980498d8f00c980be5f5'};process=20;spellFailed=$false;arcaneFailed=$false});costEvents=@([pscustomobject]@{boundary='cost-before';command=100;state=$before.rider},[pscustomobject]@{boundary='cost-after';command=100;state=$after.rider})}}
+ [pscustomobject]@{name='C6C-standard-self';status='PASS';evidence=[pscustomobject]@{case='C6C-standard-self';before=$before;afterInput=$post;after=$after;selectionAfter=@('rider');target='rider';resolvedTarget='rider';selected=$true;canTarget=$true;clicked=$true;inputCount=1;admittedShellCount=1;costShell=100;events=@([pscustomobject]@{kind='action-after';identity=10;actor='rider';shell=[pscustomobject]@{ignoreCooldown=$false;timeSinceStart=2.0}},[pscustomobject]@{kind='cast-after';actor='rider';ability=[pscustomobject]@{blueprint='5590652e1c2225c4ca30c4a699ab3649'};process=20;spellFailed=$false;arcaneFailed=$false},[pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=10},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=1;count=9;result=$true});costEvents=@([pscustomobject]@{boundary='cost-before';command=100;state=$before.rider},[pscustomobject]@{boundary='cost-after';command=100;state=$after.rider})}}
 }
 function Accept($row,[bool]$tb=$false,[bool]$mounted=$true){Assert-KmcChunk6cCastingRow $row 'rider' 'mount' $tb $mounted}
 function Reject($row,[string]$why,[bool]$tb=$false){$refused=$false;try{Accept $row $tb}catch{$refused=$true};Check $refused $why}
@@ -66,14 +66,16 @@ function Set-CastingAction($row,[bool]$tb,[string]$action){
 function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
  $r=Positive $tb;$r.name=$name;$e=$r.evidence;$e.case=$name
  if(-not$mounted){foreach($v in @($e.before,$e.afterInput,$e.after)){$v.relationship='Unmounted'}}
- $blueprint=switch -CaseSensitive($name){'C6C-standard-hostile'{'9f10909f0be1f5141bf1c102041f93d9'} 'C6C-prepared-interrupt-after'{'5590652e1c2225c4ca30c4a699ab3649'} 'C6C-potion-self'{'5590652e1c2225c4ca30c4a699ab3649'} 'C6C-scroll-friendly'{'5590652e1c2225c4ca30c4a699ab3649'} 'C6C-full-round'{'c6147854641924442a3bb736080cfeb6'} default{'c3a8f31778c3980498d8f00c980be5f5'}}
+ $blueprint=switch -CaseSensitive($name){'C6C-standard-hostile'{'9f10909f0be1f5141bf1c102041f93d9'} 'C6C-full-round'{'c6147854641924442a3bb736080cfeb6'} default{'5590652e1c2225c4ca30c4a699ab3649'}}
  $e.before.ability.blueprint=$blueprint;$e.events[1].ability.blueprint=$blueprint
+ # Spellbook rows cast an available memorized or converted slot, never an item; every other row casts from the scroll stack.
+ if($name-cin@('C6C-quickened-self','C6C-standard-hostile','C6C-full-round')){$e.before.ability.sourceItem=0;$e.before.ability.sourceItemBlueprint=$null;$e.events=@($e.events|Where-Object {$_.kind-notlike'item-spend-*'})}
  if($name-ceq'C6C-quickened-self'){
   Set-CastingAction $r $tb 'Swift'
   $e.before.items=@([pscustomobject]@{blueprint='55a059b32df920c4abe65b8ee8b56056';item=60;activatableSourceItem=60;activatableOn=$true;charges=3});$e.after.items=@([pscustomobject]@{blueprint='55a059b32df920c4abe65b8ee8b56056';item=60;charges=2})
  }
- if($name-cin@('C6C-standard-hostile','C6C-prepared-interrupt-after','C6C-full-round')){$e.before.slotAvailable=$true;$e.after.slotAvailable=$false}
- if($name-ceq'C6C-prepared-interrupt-after'){$e|Add-Member interrupted $true;$e|Add-Member interruptionBefore ([pscustomobject]@{shell=[pscustomobject]@{acted=$true;finished=$false}})}
+ if($name-cin@('C6C-quickened-self','C6C-standard-hostile','C6C-full-round')){$e.before.slotAvailable=$true;$e.after.slotAvailable=$false}
+ if($name-ceq'C6C-scroll-interrupt-after'){$e|Add-Member interrupted $true;$e|Add-Member interruptionBefore ([pscustomobject]@{shell=[pscustomobject]@{acted=$true;finished=$false}})}
  if($name-cin@('C6C-invalid-target','C6C-cancel-before','C6C-interrupt-before','C6C-rider-incapacity')){
   $e.events=@();$e.costEvents=@();$e.after.rider.standard=0.0
   if($name-ceq'C6C-invalid-target'){$e.canTarget=$false;$e.admittedShellCount=0}
@@ -82,9 +84,9 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
  }
  if($name-cin@('C6C-potion-self','C6C-scroll-friendly')){
   $itemBlueprint=if($name-ceq'C6C-potion-self'){'d52566ae8cbe8dc4dae977ef51c27d91'}else{'cd635d5720937b044a354dba17abad8d'}
-  $e.before.ability|Add-Member sourceItem 60;$e.before.ability|Add-Member sourceItemBlueprint $itemBlueprint
-  if($name-ceq'C6C-potion-self'){Set-CastingAction $r $tb 'Move'}
-  $e.events+=@([pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=1},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=0;count=1;result=$true},[pscustomobject]@{kind='heal';actor='rider';target='rider';value=3})
+  $e.before.ability.sourceItem=60;$e.before.ability.sourceItemBlueprint=$itemBlueprint
+  if($name-ceq'C6C-potion-self'){Set-CastingAction $r $tb 'Move';$e.events=@($e.events|Where-Object {$_.kind-notlike'item-spend-*'})+@([pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=1},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=0;count=1;result=$true})}
+  $e.events+=@([pscustomobject]@{kind='heal';actor='rider';target=$e.target;value=3})
  }
  if($name-ceq'C6C-full-round'){
   $e.before.ability.fullRound=$true
@@ -95,6 +97,9 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
   $e.after.relationship='Unmounted';$e.after|Add-Member relationshipRider $null;$e.after|Add-Member relationshipMount $null
   $e.after|Add-Member riderLife ([pscustomobject]@{conscious=$true;dead=$false});$e.after|Add-Member mountLife ([pscustomobject]@{conscious=$true;dead=$false})
   $main=$name-ceq'C6C-rider-incapacity';$nativeCap=if($main){-1}else{$null}
+  # The incapacitated subject leaves combat natively: its Cooldowns.Clear is nested in its own combat-exit window.
+  $subjectState=if($main){$e.before.rider}else{$e.before.mount}
+  $e.costEvents=@($e.costEvents)+@([pscustomobject]@{boundary='combat-clear-before';command=0;state=$subjectState},[pscustomobject]@{boundary='clear-before';command=0;state=$subjectState},[pscustomobject]@{boundary='clear-after';command=0;state=$subjectState},[pscustomobject]@{boundary='combat-clear-after';command=0;state=$subjectState})
   $riderLife=[pscustomobject]@{mainCharacter=$true;conscious=$true;dead=$false;allowDyingCondition=$true;immortal=$false;essential=$false;temporaryHitPoints=0}
   $mountLife=Copy-CastingFixture $riderLife;$mountLife.mainCharacter=$false
   $e|Add-Member boundary ([pscustomobject]@{subject=$(if($main){'rider'}else{'mount'});mainCharacter=$main;nativeDamageCap=$nativeCap;nativeRuleDamageCap=$nativeCap;nativeDamageBeforeDifficulty=11;requested=11;difficulty=1.0;nativeRuleDifficulty=1.0;nativeRuleIsFake=$false;beforeIncapacity=[pscustomobject]@{riderLife=$riderLife;mountLife=$mountLife};nativeDamage=11;damageAfter=11;hitPoints=10;deathThreshold=20;unconsciousObserved=$true;deadObserved=$false;healthRestored=$true;damageRestored=0;damageBefore=0;settledBeforeHealthRestore=[pscustomobject]@{riderCommandsEmpty=$true;mountCommandsEmpty=$true;processesSettled=$true}})
@@ -124,6 +129,23 @@ $r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.boundary.native
 $r=New-CastingRow 'C6C-movement-policy' $false $true;$r.evidence.boundary.PSObject.Properties.Remove('nativeMovingBeforeCast');Reject $r 'missing native movement observation cannot pass'
 $r=New-CastingRow 'C6C-under-threat' $false $true;$r.evidence.boundary.riderEngaged=$false;Reject $r 'mere nearby enemy cannot stand for native threat'
 $r=New-CastingRow 'C6C-potion-self' $false $true;$r.evidence.events+=$r.evidence.events[3];Reject $r 'duplicate potion spending rejected'
+# Instrument and native-fact rules introduced after the preview.200 Stage 1 observation.
+$r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.before.ability.sourceItem=0;$r.evidence.before.ability.sourceItemBlueprint=$null;Reject $r 'scroll row must cast from the exact native scroll stack'
+$r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.before.ability.blueprint='c3a8f31778c3980498d8f00c980be5f5';$r.evidence.events[1].ability.blueprint='c3a8f31778c3980498d8f00c980be5f5';Reject $r 'unavailable Guidance orison cannot stand in for the scroll cast'
+$r=New-CastingRow 'C6C-quickened-self' $false $true;$r.evidence.before.ability.available=$false;Reject $r 'spellbook row with an unavailable native slot refused'
+$r=New-CastingRow 'C6C-quickened-self' $false $true;$r.evidence.after.slotAvailable=$true;Reject $r 'quickened memorized slot must be spent exactly once'
+$r=New-CastingRow 'C6C-quickened-self' $false $true;$r.evidence.before.ability.sourceItem=60;$r.evidence.before.ability.sourceItemBlueprint='cd635d5720937b044a354dba17abad8d';Reject $r 'spellbook row cannot be served by an item'
+$r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.events=@($r.evidence.events|Where-Object {$_.kind-cne'item-spend-after'});Reject $r 'scroll cast without one native charge spend refused'
+$r=New-CastingRow 'C6C-scroll-interrupt-after' $false $true;Accept $r;Check $true 'post-commit scroll interruption spends once and keeps its cost'
+$r=New-CastingRow 'C6C-scroll-interrupt-after' $false $true;$r.evidence.interruptionBefore.shell.acted=$false;Reject $r 'precommit interruption cannot pass as the post-commit row'
+$r=New-CastingRow 'C6C-invalid-target' $false $true;$r.evidence.events=@([pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=1;count=9});Reject $r 'refused scroll cast cannot spend a charge'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.costEvents+=@([pscustomobject]@{boundary='clear-before';command=0;state=$r.evidence.before.rider});Reject $r 'bare pair cooldown clear outside the native combat-exit window is a replay'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.costEvents=@($r.evidence.costEvents[0],[pscustomobject]@{boundary='prepare-before';command=0;state=$r.evidence.before.rider})+@($r.evidence.costEvents|Select-Object -Skip 1);Reject $r 'preparation inside the combat-exit window is still a replay'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.costEvents+=@([pscustomobject]@{boundary='combat-clear-before';command=0;state=$r.evidence.before.mount},[pscustomobject]@{boundary='clear-before';command=0;state=$r.evidence.before.mount},[pscustomobject]@{boundary='clear-after';command=0;state=$r.evidence.before.mount},[pscustomobject]@{boundary='combat-clear-after';command=0;state=$r.evidence.before.mount});Reject $r 'the partner must not leave combat during the subject incapacity'
+$r=New-CastingRow 'C6C-mount-incapacity' $false $true;Accept $r;Check $true 'mount incapacity accepts the native mount combat exit around a completed rider cast'
+$r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.costEvents+=@([pscustomobject]@{boundary='combat-clear-before';command=0;state=$r.evidence.before.rider},[pscustomobject]@{boundary='clear-before';command=0;state=$r.evidence.before.rider},[pscustomobject]@{boundary='clear-after';command=0;state=$r.evidence.before.rider},[pscustomobject]@{boundary='combat-clear-after';command=0;state=$r.evidence.before.rider});Reject $r 'a settled cast window tolerates no pair combat exit'
+Check ((Get-KmcChunk6cPairReplayCount @() 'rider' 'mount')-eq0) 'empty cost window has no replay'
+Check ((Get-KmcChunk6cPairReplayCount @([pscustomobject]@{boundary='clear-before';state=[pscustomobject]@{actor='other'}}) 'rider' 'mount')-eq0) 'foreign actor clears are not pair replays'
 # Same file-backed envelope and original-pair preamble used by the real runtime gate.
 $tokens=$null;$parseErrors=$null;$ast=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'Test-ChildEntryPreamble.ps1'),[ref]$tokens,[ref]$parseErrors)
 $definition=@($ast.FindAll({param($n)$n-is[Management.Automation.Language.FunctionDefinitionAst]-and$n.Name-ceq'New-Preamble'},$true));if($parseErrors.Count-ne0-or$definition.Count-ne1){throw 'Existing preamble fixture unavailable'};. ([scriptblock]::Create($definition[0].Extent.Text))

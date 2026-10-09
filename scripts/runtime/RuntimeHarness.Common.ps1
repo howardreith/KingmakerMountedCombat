@@ -3787,7 +3787,7 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'CM06-combat-mount-repeat-refused', 'CM05-combat-dismount-accepted',
         'CM05-combat-dismount-conserves-debt', 'CM05-no-duplicate-mount-turn', 'CM05-repeated-input', 'CM05-forced-detach',
         'CM03-mount-spent-move', 'CM03-mount-spent-standard', 'CM03-mount-spent-all', 'CM03-rider-without-move', 'CM03-rider-other-action', 'CM03-unrelated-candidate-between', 'CM05-after-rider-expenditure', 'CM05-after-mount-expenditure', 'CM05-immediately-after-mount',
-        'C6C-quickened-self','C6C-standard-self','C6C-standard-friendly','C6C-standard-hostile','C6C-prepared-interrupt-after','C6C-invalid-target','C6C-cancel-before','C6C-interrupt-before','C6C-potion-self','C6C-scroll-friendly','C6C-full-round','C6C-movement-policy','C6C-rider-incapacity','C6C-mount-incapacity','C6C-under-threat',
+        'C6C-quickened-self','C6C-standard-self','C6C-standard-friendly','C6C-standard-hostile','C6C-prepared-interrupt-after','C6C-scroll-interrupt-after','C6C-invalid-target','C6C-cancel-before','C6C-interrupt-before','C6C-potion-self','C6C-scroll-friendly','C6C-full-round','C6C-movement-policy','C6C-rider-incapacity','C6C-mount-incapacity','C6C-under-threat',
         'C6B-CHARGE-default-off', 'C6B-CHARGE-positive', 'C6B-CHARGE-below-minimum',
         'C6B-CHARGE-beyond-maximum', 'C6B-CHARGE-feature-disabled', 'C6B-CHARGE-dismounted',
         'C6B-CHARGE-mode-changed', 'C6B-CHARGE-duplicate', 'C6B-CHARGE-new-landing-blocker',
@@ -5005,9 +5005,11 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $scenario = 'horse-companion-blueprint-registration'
     $leaf = 'horse-companion-blueprint-registration.json'
     $kind = 'horse-companion-blueprint-registration'
+    # Only Horse-engine scenarios run HorseCompanionBlueprintRegistrationAuditService (see
+    # HorseCompanionRegistrationScenarioPolicy). The Mammoth-engine roots (chunk6a-mammoth-mount-*
+    # and the four chunk6c-casting-* roots) never manifest this artifact and are not listed.
     $isAudit = [string]$Request.scenario -cin @(
         $scenario,
-        'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
         'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',

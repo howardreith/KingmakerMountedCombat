@@ -38,8 +38,11 @@ namespace KingmakerMountedCombat.Diagnostics
             if (blueprint != LesserQuickenRod && blueprint != CurePotion && blueprint != CureScroll)
                 throw new InvalidOperationException("Casting fixture item is not in the exact native fixture list.");
         }
-        internal void Acquire()
+        // One exact native item entity. A count above one is the native stack of that many
+        // factory-created disposable items (ItemEntity.IncrementCount), released together.
+        internal void Acquire(int count = 1)
         {
+            if (count < 1 || count > 32) throw new ArgumentOutOfRangeException(nameof(count), "Fixture item stack count is outside the bounded disposable range.");
             if (Item != null || disposed) throw new InvalidOperationException("Fixture item acquisition already attempted.");
             if (rider.IsInCombat || !rider.Commands.Empty)
                 throw new InvalidOperationException("Fixture item acquisition requires settled exploration.");
@@ -61,6 +64,14 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Item == null || Item.Count != 1 || Item.Collection != null || Item.HoldingSlot != null)
                     throw new InvalidOperationException("Native item factory did not create one unowned exact usable item.");
                 Evidence["created"] = Snapshot();
+                Evidence["requestedCount"] = count;
+                if (count > 1)
+                {
+                    if (!Item.IsStackable) throw new InvalidOperationException("Native fixture item does not stack; one item only.");
+                    Item.IncrementCount(count - 1, true);
+                    if (Item.Count != count) throw new InvalidOperationException("Native stack count did not reach the requested disposable count.");
+                    Evidence["stacked"] = Snapshot();
+                }
                 Item.Identify();
                 var inserted = rider.Inventory.Add(Item, true);
                 if (!ReferenceEquals(inserted, Item) || Item.Collection != rider.Inventory)
