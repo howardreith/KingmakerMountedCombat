@@ -1,3 +1,73 @@
+## 2026-10-09 - Chunk 6 final consolidation on frozen preview.205 (Claude)
+
+6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFER - EVIDENCED. 6C, 6D, 6E: ENGINEERING COMPLETE -
+OWNER ACCEPTANCE PENDING on frozen preview.205. 6F: executed in full on that candidate; the combined 6A ledger
+is 68 PASS / 18 BLOCKED / 1 FAIL and does not pass the completion gate.
+
+Frozen 205 (source 558e6f93b6e21c12b6d5dc15eb44f6deb57302df, tree 868a2c0d..., package
+cbb35b5088a87eb2d673455f084de380ed13131695e31b634711699c33304bf0, DLL 10fbb85ca3445d3ea510e5113127deae29ed36561d555c7f9f5b30903518ad20,
+MVID 0c9fd64d-89be-494a-b985-3ac1c1bd91e2, suite 20261009-chunk6de-staged-q 380de2c3..., freeze candidate205-freeze.json
+e5550560..., observer-augmented candidate205b-freeze.json ee878446..., purity p1 PASS exit 0 in 99.0 min with the sentinel,
+ledger-shaped receipt analysis-cache/chunk6a-causal/purity-receipt-preview205.json 43b410ff...).
+- Twelve-stage batch, preview205-campaign-closure.json 0d5eb9881fe050447afdaf3782b2c1b3dc455b6a287e3c48912570b9f031cd2b:
+  Stage 1/2/3/4 (6C mounted RT, mounted TB, unmounted RT, unmounted TB) native 17/0, 15/15 rows external PASS, envelope
+  PASS, restored; Stage 9/10 (6D RT/TB) native 7/0, 5/5 rows PASS, envelope PASS, restored; Stages 5-8 persistence PASS;
+  Stage 11/12 (6E RT/TB) native 6/0 and restored, swift rows external FAIL under the frozen 205 reader only (RT: the rule
+  compared the settled cooldown with the charge instead of the cost boundary; TB: an out-of-turn Swift input is admitted
+  into a shell that never starts - finished Success without running, or interrupted by the next pair preparation - with no
+  cost, cast or spend). The turn-based cleanup stall of 203/204 is explained and closed: at cleanup the game sat in the
+  Pause mode with no unit in combat and a stale Player.IsInCombat; restoring the pause captured at setup ended every TB stage.
+- Final consolidation: final-plan205.json superseded after two stages (its 182 reference matrix ran the whole RT charge
+  matrix in one 300-second stage; final205-campaign-closure.json e5782d16...); final-plan205b.json (84 stages, cohort 6B
+  matrix from native-plan188.json): 27 PASS, stage 28 (p07 no-DLL cold load) refused twice - no removal observer bound,
+  then the stage identity already observed (final205b-campaign-closure.json f0f9c6bb...); final-plan205c.json (58 stages,
+  prefix c6-final205-s, observer bound, 26 PASS runs and the 12 batch stages bound): 50 PASS, 8 FAIL retained
+  (final205c-campaign-closure.json db07d84bba733c675eb8ab6e0ac447247944a0eda72094b1174c465806f6918a).
+- Retained failures: stages 27, 28, 38, 39, 40, 42 (6A allocation rider/mount first, rider-other-action,
+  unrelated-candidate-between, dismount-after-rider-expenditure, dismount-immediately-after-mount; all turn-based) passed
+  natively and were refused by Chunk6aPreCombatPositioningEvidence.ps1's forward-route bound while the v2 ground plan
+  proved the candidate through its reciprocal origin boundary; stage 35 chunk6a-mount-spent-standard-tb failed natively
+  ("Native rider ground setup did not settle on the same Acting turn"; the ground order was issued on a Preparing turn) and
+  its reviewed worker was stopped by the executor after 47 minutes inside the post-run JSON member walk of the 2.9 MB
+  failed-run result, with evidence and restoration already complete; stage 43 chunk4-area-cleanup failed natively (the real
+  Game.ReloadArea was dispatched, no native AreaUnloading delivery arrived within 45 s, the rider kept its movement-agent
+  component because the cleanup trigger never fired).
+- 204 Stage 8: attempts 1-2 refused (worktree dirtied by the next candidate's edits; stash rewrote LF reader bytes),
+  attempt 3 native PASS, outer FAIL on a zero-size achievements.dat profile leaf; its transaction lock released through
+  Recover-KingmakerRuntimeTransaction.ps1 (recover205-stale-lock-1).
+
+Harness-only corrections after all native work (product unchanged; version stays 0.1.0-chunk6d-preview.205):
+- d4c76cf5208f29dd3e7c31359b94aa746e10fa18: 6E never-started turn-based Swift shells are the native refusal; the real-time
+  Swift charge is read at the cost boundary with decay admitted; the 6A positioning reader measures the v2 reciprocal
+  origin-boundary proof like the producer and the shared plan reader; Test-KmcExternalReaderRefusal admits the positioning
+  reader's "TB positioning ..." refusals into the re-evaluation contract. Tests 6E 82/0, positioning 37/0, re-evaluation 32/0.
+- 71d25ecf6e71add8d4381714a3e03afe879bc61b: Test-NativeForcedDetach.ps1 follows the dispatch module move and the extended
+  schema chain (the FULL umbrella had refused it on two stale anchors).
+- Harness evaluation through the repository scenario dispatch over all three closures:
+  reader206-preview205-harness-evaluation3.json c2b7d69ed2717d11e305e1d2620ae6eb69449d7ae0579d7197a842ef08d1d780 (evaluation2
+  1fba7b56... pre-commit, evaluation1 superseded): the five 6E swift rows and the six positioning refusals become PASS;
+  nothing else changes.
+- Gates (preview206-offline-gates.json): build/source 147/0, components 719/0, compiled observer 204/0, 6C 287/0, 6D 83/0,
+  6E 82/0, positioning 37/0, FAST 12/0, CANDIDATE 16/0 (harness 271/0, assembly 701/0), FULL 1/0 (preview206-full3, 24.5
+  min; full1 stopped by the executor before the last harness edit, full2 failed on the stale anchors; both retained).
+
+Final combined 6A ledger (docs/chunk6a-ledger.json; Build-FinalLedger.ps1 over candidate205-freeze.json with
+native-plan205.json, final-plan205b-bound.json and final-plan205c.json; regression roles bound through the regression
+binder, native-PASS reader-refused runs through the re-evaluation contract; Test-Chunk6aLedger.ps1 record checks 87/0,
+40 retained failures bound): 68 PASS (CM03-rider-before-mount-slot, CM03-mount-slot-before-rider, CM03-rider-other-action,
+CM03-early-end-turn, CM03-next-round-activation, CM03-unrelated-candidate-between, CM05-after-rider-expenditure and
+CM05-immediately-after-mount through re-evaluation), 18 BLOCKED (CM02-left-area, CM02-view-agent-lost,
+CM02-loading-cutscene, CM02-generation-change, CM04-turn-end, CM04-mode-exit, CM04-area-session-transition,
+CM04-rider-death, CM04-mount-death, CM04-injected-exception, CM07-cold-load, CM07-save-slot-routes,
+CM07-unsettled-save-deferred, CM07-area-reload, CM07-schema-unchanged - no implemented scenario, owner decision or
+implementation required; CM03-mount-spent-standard - native fixture failure; CM08-persistence-suite - its CM07 members;
+CM08-disable-removal-readiness - the Chunk 5 persistence ledger is not bound), 1 FAIL (CM08-area-restoration -
+chunk4-area-cleanup). The -Completion gate does not pass on this ledger.
+
+Awaiting the owner: acceptance of 6C/6D/6E on frozen preview.205; decisions on the 15 unimplemented 6A ids, the
+chunk4-area-cleanup and mount-spent-standard-tb failures and the Chunk 5 ledger binding; HUMAN PLAY acceptance.
+No merge, PR, tag, release, permanent install, protected-save write or HUMAN PLAY acceptance under this continuation.
+
 ## 2026-10-09 - preview204 closed (twelve stages); coherent205 turn-based fixture, record and cleanup corrections (Claude)
 
 6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION

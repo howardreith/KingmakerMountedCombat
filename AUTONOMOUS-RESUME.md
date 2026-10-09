@@ -1,3 +1,44 @@
+## 2026-10-09 - Chunk 6 final consolidation on frozen preview.205: 6C/6D/6E qualified, 6F executed, final 6A ledger 68 PASS / 18 BLOCKED / 1 FAIL (Claude)
+
+ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING for 6C, 6D and 6E on the frozen preview.205 candidate
+(source 558e6f93b6e21c12b6d5dc15eb44f6deb57302df, package cbb35b50..., DLL 10fbb85c..., MVID 0c9fd64d-89be-494a-b985-3ac1c1bd91e2,
+suite 20261009-chunk6de-staged-q, purity p1 PASS exit 0 99.0 min). 6B stays IMPLEMENTATION STABLE (RT supported,
+TB delivery DEFER - EVIDENCED). 6F consolidation executed in full on that candidate; the combined 6A ledger is NOT complete.
+Twelve-stage batch (preview205-campaign-closure.json 0d5eb988...): the four 6C stages 15/15 rows external PASS each (mounted
+and unmounted, RT and TB), the two 6D stages 5/5, the four persistence pairs PASS; the two 6E stages passed natively
+(every row produced, restored) and their swift rows were refused only by the frozen 6E reader. Final consolidation
+(final205b-campaign-closure.json f0f9c6bb..., 26 PASS runs bound; final205c-campaign-closure.json db07d84b..., 58 stages,
+50 PASS): every implemented 6A/6B/chunk 4/persistence scenario ran once on the same candidate. Retained failures: six 6A
+turn-based stages (allocation rider/mount first, rider-other-action, unrelated-candidate-between, dismount after rider
+expenditure, dismount immediately after mount) passed natively and were refused by the stale forward-route bound of the
+positioning reader; chunk6a-mount-spent-standard-tb failed natively (the action-economy ground order issued on a Preparing
+turn never settled on the same Acting turn; its stalled post-run worker was stopped by the executor after the evidence and
+restoration were complete); chunk4-area-cleanup failed natively (no native AreaUnloading delivery within 45 s after the
+real Game.ReloadArea, so the cleanup trigger never fired and the rider kept its movement-agent component). Also retained:
+the superseded first final plan (182 reference matrix ran the whole RT charge matrix in one 300-second stage), the
+no-DLL cold load refused until the removal observer was bound (candidate205b-freeze.json), the stale lock recovery, the
+zero-size achievements.dat leaf on 204 stage 8. No production casting/action/resource/turn/cleanup defect was established.
+Harness-only corrections after the native work (commits d4c76cf5... and 71d25ecf..., product unchanged): 6E never-started
+turn-based Swift shells are the native refusal and the real-time Swift charge is read at the cost boundary; the 6A positioning
+reader measures the v2 reciprocal origin-boundary proof like the producer; the positioning reader's refusals join the
+re-evaluation contract; the forced-detach contract test follows the moved dispatch module. Harness evaluation over all three
+closures (reader206-preview205-harness-evaluation3.json c2b7d69e...): the five 6E swift rows and the six positioning
+refusals become PASS, nothing else changes. FULL once on the final harness: preview206-full3 PASS 24.5 min (full1 stopped
+by the executor before the last harness edit, full2 FAIL on the stale forced-detach anchors; both retained). Gates
+(preview206-offline-gates.json): components 719/0, compiled observer 204/0, 6C 287/0, 6D 83/0, 6E 82/0, positioning 37/0,
+FAST 12/0, CANDIDATE 16/0, FULL 1/0.
+Final combined 6A ledger (docs/chunk6a-ledger.json, built by Build-FinalLedger.ps1 over candidate205-freeze.json with
+native-plan205.json, final-plan205b-bound.json and final-plan205c.json; record checks 87/0, 40 retained failures bound):
+68 PASS (eight through the re-evaluation contract), 18 BLOCKED (the 15 owner-known unimplemented ids CM02-left-area,
+CM02-view-agent-lost, CM02-loading-cutscene, CM02-generation-change, CM04-turn-end, CM04-mode-exit,
+CM04-area-session-transition, CM04-rider-death, CM04-mount-death, CM04-injected-exception, CM07-cold-load,
+CM07-save-slot-routes, CM07-unsettled-save-deferred, CM07-area-reload, CM07-schema-unchanged; CM03-mount-spent-standard on
+the native fixture failure; CM08-persistence-suite on its CM07 members; CM08-disable-removal-readiness on the unbound
+Chunk 5 persistence ledger), 1 FAIL (CM08-area-restoration). The -Completion gate therefore does not pass; owner decision or
+implementation is required for those ids. Restoration: every stage restored (Mods, protected saves, baseline, working
+fixture, allowlist); human preview.105 and the human installation untouched; no merge, PR, tag, release, permanent install,
+protected-save write or HUMAN PLAY acceptance.
+
 ## 2026-10-09 - preview204 closed (twelve stages; 6C RT twice and 6D RT qualified); coherent205 turn-based fixture, record and cleanup corrections (Claude)
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
