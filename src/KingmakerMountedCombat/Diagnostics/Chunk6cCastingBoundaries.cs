@@ -9,6 +9,7 @@ using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Abilities;
 using Kingmaker.UnitLogic.Commands;
 using Newtonsoft.Json.Linq;
+using TurnBased.Controllers;
 using UnityEngine;
 
 namespace KingmakerMountedCombat.Diagnostics
@@ -60,13 +61,34 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (CastingThreatCase)
             {
-                if (!target.Commands.Empty) throw new InvalidOperationException("Threat actor owns an unrelated native command.");
-                castingBoundary["beforeAttack"] = CastingState();
-                castingThreatAttack = new UnitAttack(rider) { CreatedByPlayer = true };
-                target.Commands.Run(castingThreatAttack);
-                castingBoundary["nativeHostileAttackInputCount"] = 1;
-                castingBoundary["hostileActor"] = target.UniqueId;
+                // Turn-based: a hostile command run during the rider's turn never starts and is interrupted
+                // (frozen 203 TB 6E hostile-attack steps), so the attack is issued on the hostile's own
+                // native turn by TickCastingThreatHostileTurn instead.
+                if (CastingTb) { castingBoundary["hostileAttackDeferredToHostileTurn"] = true; return; }
+                IssueCastingThreatAttack();
             }
+        }
+        private void IssueCastingThreatAttack()
+        {
+            if (!target.Commands.Empty) throw new InvalidOperationException("Threat actor owns an unrelated native command.");
+            castingBoundary["beforeAttack"] = CastingState();
+            castingThreatAttack = new UnitAttack(rider) { CreatedByPlayer = true };
+            target.Commands.Run(castingThreatAttack);
+            castingBoundary["nativeHostileAttackInputCount"] = 1;
+            castingBoundary["hostileActor"] = target.UniqueId;
+        }
+        // Ends the exact fixture turns until the hostile's own turn and issues the threat attack there.
+        private void TickCastingThreatHostileTurn(TurnController turn)
+        {
+            if (turn == null) return;
+            if (turn.Unit == target)
+            {
+                if (castingThreatAttack != null) return;
+                castingBoundary["hostileTurnStatus"] = turn.Status.ToString();
+                IssueCastingThreatAttack();
+                return;
+            }
+            EndCastingNativeTurn(turn);
         }
         // UnitMoveTo approaches before IsStarted/IsRunning. Observe the exact
         // live Move carrier and native movement instead; paired ground ownership
@@ -96,7 +118,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 castingBoundary["riderEngaged"] = rider.CombatState.IsEngaged;
                 if (!rider.CombatState.IsEngaged) return false;
                 if (castingThreatAttack != null && !castingThreatAttack.IsFinished) castingThreatAttack.Interrupt();
-                castingBoundary["nativeAttackTerminalBeforeCast"] = castingThreatAttack.IsFinished;
+                castingBoundary["nativeAttackTerminalBeforeCast"] = castingThreatAttack != null && castingThreatAttack.IsFinished;
                 castingBoundary["beforeThreatCast"] = CastingState();
             }
             return true;
@@ -217,4 +239,4 @@ namespace KingmakerMountedCombat.Diagnostics
             return restored;
         }
     }
-}
+}

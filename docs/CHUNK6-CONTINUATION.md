@@ -1,3 +1,86 @@
+## 2026-10-09 - preview203 closed (twelve stages); coherent204 turn-based and 6D/6E corrections (Claude)
+
+6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
+DEFERRED TO CHUNK6 CONSOLIDATION. Charge stays default-off; its TB refusal is not
+delivery. 6C IN PROGRESS (two qualified RT stages); 6D/6E ran natively once; 6F incomplete.
+
+Frozen203 (source10f681cb67e6e55b69081295bcb486bcecc4bbc5, package cc376d448b436adb7d2367d3b77d11dd6eae9a70785e6b616e0bb3e0ab96cc5f,
+suite20261009-chunk6de-staged-o, freeze5797aa99..., plan64c0f80a...) is closed
+(preview203-campaign-closure.json dae0e17a6fcdc3e10725cc084cba4d4f18c1cac637b19ed2ba7de8f1eff17296):
+- Purity o1 PASS exit0 with the sentinel after91.1 minutes (orphaned controller; ledger-shaped receipt
+  analysis-cache/chunk6a-causal/purity-receipt-preview203.json 905fb06f...).
+- Stage1 mountedRT and Stage3 unmountedRT: native PASS17/0, external15/15 rows PASS, envelope PASS,
+  worker0/game0, restored exactly - the first qualified6C stages. Under-threat reached the native
+  casting-defensively check (dc17 roll17 success) at1.51 s on the mount target; rider-incapacity
+  reproduced the lost-spell spend (dc34 roll8, scroll5->4, no cast, no cost); the full-round summon
+  was released before the next row.
+- Stage2 mountedTB: rows1-12 external PASS (the summon release works in TB), then rider-incapacity
+  external FAIL: the paired turn end marks the mount's remaining actions spent (standard0->6 at
+  turn-end-after) and the native action controller charges the force-finished shell its Standard at
+  the finish frame (cost-before/after with the command end); then the remount after the life row was
+  refused one frame after the rider's new turn prepared (combat Mount needs an Acting rider turn),
+  leaf deadline at case index13, cleanup deadline, outer FAIL.
+- Stage4 unmountedTB: the artifact-less300-second in-process deadline; no tranche artifact and the
+  game log was not retained (every later stage copies output_log.txt into the lab).
+- Stages5-8 persistence pairs: PASS.
+- Stages9-10 6D RT/TB: all5 rows produced natively; external FAIL on the real-time Standard rule
+  (settled state instead of the cost boundary), the ranged step (the product admits the mounted
+  rider's ranged click as its RiderRanged pair command, charges one Standard and resolves it; the
+  stock refusal code belongs to the bypass path only) and the exhaustion rows (HasMoveAction false does
+  not end native movement; the Mammoth kept moving from3.68 to5.32 s of its6 s move budget);
+  rangedWeaponReleased was never written because the shared tranche cleanup releases the lease first;
+  the TB stage ended in a cleanup deadline.
+- Stages11-12 6E RT/TB: all4 rows produced natively; external FAIL on two producer/reader key
+  mismatches (the swift record lost its instrument/rod keys when the cast record replaced it; rows lack
+  hostileActor), on the RT reaction-window row (Entangle cast beside the hostile standing next to the
+  mount made the rider and mount save) and on both TB hostile-attack rows (the hostile attack never
+  started inside the step: hostiles act only on their own TB turn); TB cleanup deadline.
+- 0 qualified6D/6E stages; every result retained; no production casting/action/resource/turn defect.
+
+Native facts added (frozen203): a TB force-finished shell is charged its Standard and reports acted
+without a cast process; the paired turn end spends the mount; combat Mount is refused while the rider's
+turn is Preparing ("finished preparing"); a TB encounter ends only at a turn boundary; the product routes
+the mounted rider's ranged click into MountedPairAttackCommand RiderRanged; the native TB movement budget
+is the6 s move cooldown; hostiles act only on their own TB turn.
+
+Working204 (one coherent tranche, no production policy change):
+- 6C reader: TB lost-spell Standard charge (exactly one native cost pair on the shell, +6) and the
+  paired turn-end mount debt (unchanged at turn-end-before, never above turn-end-after); the lost shell
+  is finished with no cast process. Fixture: leaf clock restarts at most16 times per row on turn
+  changes (a turn-cycling stall surfaces as a leaf deadline with its progress record); TB remount after a
+  life row through one native ground order on the Preparing turn and the Mount click on the Acting turn
+  (every attempt recorded, bounded at3); the threat attack is issued on the hostile's own TB turn; the
+  casting-family cleanup ends idle fixture turns (bounded) while the party is still in TB combat.
+- 6D reader: charge read at the cost boundary and RT cooldown decay admitted; the product's RiderRanged
+  pair command (one Standard, mount uncharged, finished Success); exhaustion on the6 s move cooldown
+  (legs up to8). Producer: exhaustion legs continue to the cooldown budget; Standard/Swift steps wait
+  for a rider turn holding the action; rangedWeaponReleased recorded with its releasing owner.
+- 6E producer: the keyed swift record is kept (instrument/rod facts), rows name the hostile, the
+  ground instrument is cast beyond the hostile away from the pair (distances recorded; reader requires
+  ≥8 m from rider and mount), hostile attacks are issued on the hostile's TB turn.
+- Reader-only corrections evaluated against the immutable203 Stage1-3, 9-12 evidence
+  (reader204-preview203-evaluation2.json 70f353ab7bffada5e9bb4185781bdaf5daf66605a9b39a4f441d123efd94c256):
+  mounted TB rider-incapacity FAIL->PASS; 6D RT move-cast-move, cast-then-move, double-move-ranged and
+  auto-stop-boundary FAIL->PASS; 6D TB auto-stop-boundary FAIL->PASS; the fixture-dependent rows stay
+  FAIL until the204 native run.
+- Regressions: 6C reader negatives for the TB charge and turn-end rules; 6D negatives for the pair
+  command and the cooldown exhaustion; 6E ground-distance negatives; compiled checks for the bounded
+  restarts, the remount, the hostile-turn threat and the cleanup turn ending.
+- Version stamps0.1.0-chunk6d-preview.204.
+
+Observed gates (preview204-offline-gates.json): build/source147/0; components719/0; compiled
+observer201/0; casting reader281/0; 6D reader81/0; 6E reader72/0; FAST11/0; CANDIDATE15/0
+(harness271/0, assembly701/0). The first FAST and the first casting/staged reader receipts predate the
+final reader adjustment and are retained as superseded passes.
+
+No204 package/suite/purity/native credit at this source checkpoint.
+Next: coherent commit, guarded push, package (chunk6de-staged-p), suite, freeze204 with the12-stage
+plan (6C mounted TB first, unmounted TB, mounted RT, unmounted RT, the two settled persistence pairs,
+then chunk6d-staged-rt/tb and chunk6e-reaction-rt/tb), one orphaned read-only purity, then the batch.
+6F afterwards on the final candidate: FULL once, the final consolidation plan (the remaining82 stages
+bound to the12 already run on the same frozen candidate), the6A ledger built through the repository
+binders; the15 unimplemented6A ids stay BLOCKED until implemented or owner-decided.
+
 ## 2026-10-09 - preview202 closed (eight stages); coherent203: 6C corrections + 6D staged/6E reaction families (Claude)
 
 6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION

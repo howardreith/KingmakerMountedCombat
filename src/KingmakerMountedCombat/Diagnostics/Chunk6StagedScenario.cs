@@ -80,7 +80,10 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool stagedSecondaryInputSent, stagedRangedReady;
         private int stagedLegCostOffset, stagedLegEventOffset;
         private JObject stagedLeg;
-        private const int StagedMaxLegs = 4;
+        // Bounded native budget legs: the mount's move cooldown (two Move actions, 6 s) is the exhaustion
+        // measure (frozen 203 TB: HasMoveAction turned false after two legs while the Mammoth kept moving).
+        private const int StagedMaxLegs = 8;
+        private const float StagedExhaustedMoveSeconds = 5.95f;
 
         private void BeginChunk6Staged()
         {
@@ -184,7 +187,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 stagedRowCostOffset = castingCosts.EventCount; stagedRowEventOffset = castingTrace.EventCount;
                 stagedStepRecords = new JArray();
                 stagedCaseFacts = new JObject { ["case"] = StagedCase, ["plan"] = new JArray(StagedPlan(StagedCase)),
-                    ["before"] = StagedState(), ["rowTurnActor"] = turn?.Unit?.UniqueId };
+                    ["before"] = StagedState(), ["rowTurnActor"] = turn?.Unit?.UniqueId, ["hostileActor"] = target.UniqueId };
                 stagedStage = 2; ResetLeafClock(); return;
             }
             if (stagedStage == 2)
@@ -248,9 +251,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 // Native budget rows: long legs repeat until the mount itself reports the two-move or
                 // exhausted state (TB; bounded), or exactly two legs in RT where no budget exists.
                 case "move-two-moves": case "move-exhaust": IssueStagedGroundOrder(StagedLongLegMetres, false); return true;
-                case "cast-standard-scroll": IssueStagedCast(ExactCastingItemAbility(castingScroll), rider, null); return true;
-                case "cast-swift": IssueStagedSwiftCast(); return true;
-                case "attack-ranged": IssueStagedRangedAttack(); return true;
+                // Turn-based: a Standard or Swift step runs only on a rider turn that still holds that action
+                // (frozen 203 TB: a scroll cast issued after the ranged pair command on the same turn
+                // finished without any cast process); other fixture turns are ended until then.
+                case "cast-standard-scroll":
+                    if (CastingTb && !StagedRiderActionTurn(turn, rider.HasStandardAction())) return false;
+                    IssueStagedCast(ExactCastingItemAbility(castingScroll), rider, null); return true;
+                case "cast-swift":
+                    if (CastingTb && !StagedRiderActionTurn(turn, rider.HasSwiftAction())) return false;
+                    IssueStagedSwiftCast(); return true;
+                case "attack-ranged":
+                    if (CastingTb && !StagedRiderActionTurn(turn, rider.HasStandardAction())) return false;
+                    IssueStagedRangedAttack(); return true;
                 case "foreign-window-swift":
                     if (CastingTb)
                     {
@@ -265,6 +277,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     IssueStagedCast(ExactCastingItemAbility(castingScroll), rider, "primaryInput"); return true;
                 case "hostile-attack-mount":
                 case "hostile-attack-swift":
+                    // Turn-based: the hostile acts only on its own native turn (frozen 203 TB: an attack run
+                    // during the rider's turn never started and was interrupted); the exact fixture turns are
+                    // ended until the hostile's turn and the attack is issued there.
+                    if (CastingTb)
+                    {
+                        if (turn == null) return false;
+                        if (turn.Unit != target) { EndCastingNativeTurn(turn); return false; }
+                        stagedStep["hostileTurnStatus"] = turn.Status.ToString();
+                    }
                     if (!target.Commands.Empty) throw new InvalidOperationException("Hostile owns an unrelated native command before the mount attack.");
                     stagedStep["before"] = StagedState();
                     stagedHostileAttack = new UnitAttack(horse) { CreatedByPlayer = true };
@@ -307,13 +328,22 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
             }
         }
+        // True on the rider's own native turn while it still holds the required action; otherwise the
+        // exact fixture turn (rider, mount, idle lease member) is ended and the step waits.
+        private bool StagedRiderActionTurn(TurnController turn, bool actionAvailable)
+        {
+            if (turn == null) return false;
+            if (turn.Unit == rider && actionAvailable) return true;
+            EndCastingNativeTurn(turn);
+            return false;
+        }
         private bool StagedStepWantsAnotherLeg()
         {
             var kind = (string)stagedStep["kind"]; var legs = ((JArray)stagedStep["legs"]).Count;
             if (kind != "move-two-moves" && kind != "move-exhaust") return false;
             if (!CastingTb) return legs < 2;
             if (legs >= StagedMaxLegs) return false;
-            return kind == "move-two-moves" ? !horse.UsedTwoMoveAction() : horse.HasMoveAction();
+            return kind == "move-two-moves" ? !horse.UsedTwoMoveAction() : horse.CombatState.Cooldown.MoveAction < StagedExhaustedMoveSeconds;
         }
         // One native ground order (one leg); every leg of a step keeps its own record and offsets.
         private void IssueStagedGroundOrder(float distance, bool probe)
@@ -360,7 +390,8 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void IssueStagedCast(AbilityData ability, UnitEntityData castTarget, string recordKey)
         {
-            var record = recordKey == null ? stagedStep : new JObject();
+            // A keyed record prepared by the caller (the Swift instrument and rod facts) is kept, never replaced.
+            var record = recordKey == null ? stagedStep : (stagedStep[recordKey] as JObject ?? new JObject());
             if (recordKey != null) stagedStep[recordKey] = record;
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             if (ability == null || ability.Caster.Unit != rider) throw new InvalidOperationException("Native ability caster is not the exact rider.");
@@ -372,7 +403,17 @@ namespace KingmakerMountedCombat.Diagnostics
             var handler = Game.Instance.SelectedAbilityHandler;
             handler.SetAbility(ability);
             record["selected"] = ReferenceEquals(handler.Ability, ability);
-            var inputObject = castTarget?.View?.gameObject; var inputPoint = castTarget != null ? castTarget.Position : FindWalkablePoint(target.Position, 2f, .5f);
+            var inputObject = castTarget?.View?.gameObject;
+            // A ground instrument (Entangle, 20 ft area) is cast beyond the hostile, away from the pair:
+            // frozen 203 RT cast it beside the hostile standing next to the mount and the pair had to save.
+            var inputPoint = castTarget != null ? castTarget.Position : FindWalkablePointAwayFromTarget(target.Position, horse.Position, 12f);
+            if (castTarget == null)
+            {
+                record["groundPoint"] = CapturePosition(inputPoint);
+                record["groundDistanceToRider"] = HorizontalDistance(inputPoint, rider.Position);
+                record["groundDistanceToMount"] = HorizontalDistance(inputPoint, horse.Position);
+                record["groundDistanceToHostile"] = HorizontalDistance(inputPoint, target.Position);
+            }
             var resolved = handler.GetTarget(inputObject, inputPoint, ability);
             record["resolvedTarget"] = resolved?.Unit?.UniqueId; record["canTarget"] = resolved != null && ability.CanTarget(resolved);
             record["clicked"] = handler.OnClick(inputObject, inputPoint, 0, false, false); record["inputCount"] = 1;
@@ -467,7 +508,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool DrainStagedFixture()
         {
             if (!DrainCastingFixture()) return false;
-            if (rangedWeaponLease != null) { rangedWeaponLease.Dispose(); rangedWeaponLease = null; CastingMeasurement["rangedWeaponReleased"] = true; }
+            // The shared tranche cleanup may already have released the ranged lease (frozen 203 RT: the key
+            // was never written); the release fact is recorded either way with its owner.
+            if (rangedWeaponLease != null) { rangedWeaponLease.Dispose(); rangedWeaponLease = null; CastingMeasurement["rangedWeaponReleasedBy"] = "staged-drain"; }
+            else if (CastingMeasurement["rangedWeaponReleasedBy"] == null) CastingMeasurement["rangedWeaponReleasedBy"] = "shared-cleanup";
+            CastingMeasurement["rangedWeaponReleased"] = rangedWeaponLease == null;
             if (stagedRules != null) { CastingMeasurement["ruleTrace"] = stagedRules.Capture(); stagedRules.Dispose(); stagedRules = null; }
             return true;
         }

@@ -77,8 +77,18 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  } else {
   Need (@($costs|Where-Object {$_.state.actor-cin@($Rider,$Mount)-and$_.boundary-like'*clear*'}).Count-eq0) 'pair cooldowns cleared in a settled cast window'
  }
+ # Turn-based life rows: the subject's native incapacity ends the pair's shared turn and the product's
+ # paired turn end marks the mount's remaining actions spent (the shared paired turn-end event; frozen
+ # 203 mounted TB: mount standard 0 -> 6 at turn-end-after, decaying afterwards). That is the only
+ # admitted mount debt change: at turn-end-before the mount still carries the row's baseline (nothing
+ # was charged during the cast) and the settled debt never exceeds the turn-end value.
+ $mountTurnEndBefore=@($costs|Where-Object {$_.state.actor-ceq$Mount-and$_.boundary-ceq'turn-end-before'})
+ $mountTurnEndAfter=@($costs|Where-Object {$_.state.actor-ceq$Mount-and$_.boundary-ceq'turn-end-after'})
  foreach($field in @('standard','move','swift')) {
-  if($Tb-and-not$motion){Need (Close $before.mount.$field $after.mount.$field) 'mount native debt changed during rider action'}
+  if($Tb-and$life-and($mountTurnEndBefore.Count-gt0-or$mountTurnEndAfter.Count-gt0)) {
+   Need ($mountTurnEndBefore.Count-eq1-and$mountTurnEndAfter.Count-eq1-and(Close $mountTurnEndBefore[0].state.$field $before.mount.$field)-and(Number $after.mount.$field)-le(Number $mountTurnEndAfter[0].state.$field)+.001) 'mount native debt changed outside the native paired turn end'
+  }
+  elseif($Tb-and-not$motion){Need (Close $before.mount.$field $after.mount.$field) 'mount native debt changed during rider action'}
   elseif(-not$motion){Need ((Number $after.mount.$field)-le(Number $before.mount.$field)+.001) 'mount native debt increased during rider action'}
  }
  $costBefore=@($costs|Where-Object {$_.boundary-ceq'cost-before'-and$_.state.actor-ceq$Rider})
@@ -97,8 +107,10 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  Need ($concentration.Count-le1-and($concentration.Count-eq0-or$Row.name-cin@('C6C-under-threat','C6C-rider-incapacity'))) 'unexpected native concentration check'
  if($Row.name-ceq'C6C-rider-incapacity'){Need ($concentration.Count-eq1-and$concentration[0].dc-gt0-and$concentration[0].roll-is[int]-and$concentration[0].success-is[bool]) 'incapacity damage did not reach the native concentration owner inside the running shell'}
  $nativeConcentrationFailure=$concentration.Count-eq1-and$concentration[0].success-eq$false
+ # A turn-based lost spell is the one refusal that carries a native charge (see the lost-spell rules).
+ $refusalCharges=$(if($Tb-and$nativeConcentrationFailure){1}else{0})
  if($refusal) {
-  Need ($cast.Count-eq0-and$costBefore.Count-eq0-and$costAfter.Count-eq0) 'precommit refusal/cancellation spent or delivered'
+  Need ($cast.Count-eq0-and$costBefore.Count-eq$refusalCharges-and$costAfter.Count-eq$refusalCharges) 'precommit refusal/cancellation spent or delivered'
   if($Row.name-ceq'C6C-invalid-target'){Need ($e.canTarget-eq$false-and$e.admittedShellCount-eq0-and$e.inputCount-eq1) 'invalid target was not genuinely refused'}
   if($Row.name-ceq'C6C-cancel-before'){Need ($e.inputCount-eq0-and$e.cancelledSelection-eq$true) 'selection cancellation sent a cast'}
   if($Row.name-ceq'C6C-interrupt-before'){Need ($e.interrupted-eq$true-and$e.interruptionBefore.shell.started-eq$true-and$e.interruptionBefore.shell.acted-eq$false) 'exact running precommit shell was not interrupted'}
@@ -147,10 +159,18 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   if($Row.name-ceq'C6C-standard-hostile'){Need ($before.slotAvailable-eq$true-and$after.slotAvailable-eq$false) 'native hostile prepared slot not spent'}
  }
  if($nativeConcentrationFailure) {
-  # The lost spell: the shell force-finished before acting (no cast, no action cost in either mode),
-  # exactly one native spell spend, and for a scroll row exactly one charge of the exact leased
-  # entity decremented in place; a memorized slot is spent once.
-  Need ($cast.Count-eq0-and$costBefore.Count-eq0-and$costAfter.Count-eq0-and$after.shell.acted-eq$false-and$after.shell.finished-eq$true) 'native concentration failure acted, charged or left its shell live'
+  # The lost spell: the shell force-finished before acting. In real time nothing is charged (frozen
+  # 202/203 RT); in turn-based mode the native action controller charges the finished, not interrupted,
+  # shell its Standard action at the finish frame (frozen 203 mounted TB: cost-before/after with the
+  # command end, standard 0 -> 6). Exactly one native spell spend, and for a scroll row exactly one
+  # charge of the exact leased entity decremented in place; a memorized slot is spent once.
+  $lostCharges=$(if($Tb){1}else{0})
+  # (In turn-based mode the charged shell reports acted while it never ran a cast process: frozen 203 TB.)
+  Need ($cast.Count-eq0-and$costBefore.Count-eq$lostCharges-and$costAfter.Count-eq$lostCharges-and$after.shell.finished-eq$true-and$after.shell.process-eq0) 'native concentration failure cast, charged outside its native mode or left its shell live'
+  if($Tb) {
+   $lostRoot=$e.costShell;$lostBefore=@($costBefore|Where-Object command -EQ $lostRoot);$lostAfter=@($costAfter|Where-Object command -EQ $lostRoot)
+   Need ($lostBefore.Count-eq1-and$lostAfter.Count-eq1-and(Close ((Number $lostAfter[0].state.standard)-(Number $lostBefore[0].state.standard)) 6.0)) 'turn-based lost spell did not charge exactly one native Standard action on its own shell'
+  }
   Need (@($events|Where-Object kind -CEQ 'spell-spend-after').Count-eq1) 'native concentration failure lost or duplicated commitment'
   if($scrollRow) {
    $id=$before.ability.sourceItem;$spent=@($events|Where-Object {$_.kind-ceq'item-spend-after'-and$_.identity-eq$id})
