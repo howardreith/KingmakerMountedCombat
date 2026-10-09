@@ -64,7 +64,9 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const int CastingTurnResetLimit = 16;
         internal const int CastingRemountAttemptLimit = 3;
         private int castingTurnResets, castingRemountAttempts, castingRemountIdleFrames;
-        private UnitMoveTo castingRemountOrder;
+        private UnitMoveTo castingRemountOrder, castingStandUpOrder;
+        private TurnController castingStandUpTurn;
+        private int castingStandUpAttempts;
         private TurnController castingRemountTurn;
         private int castingStableFrames;
         private TurnController castingEndedTurn, castingSeenTurn;
@@ -195,6 +197,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!rider.Commands.Empty || !horse.Commands.Empty || rider.AreHandsBusyWithAnimation ||
                     game.HandsEquipmentController.IsUpdateScheduledFor(rider)) return;
                 if (!CastingTb && (rider.CombatState.Cooldown.StandardAction > .001f || rider.CombatState.Cooldown.SwiftAction > .001f)) return;
+                // Turn-based: a rider restored after its life row stays prone until it acts on its own turn, and
+                // the native stand-up spends the Move action while dropping the command that triggered it
+                // (frozen 204 TB: the first remount click after the rider's incapacity finished unmounted; the
+                // unmounted mount-incapacity cast was interrupted at admission). One bounded native ground order
+                // per rider turn stands the unmounted rider up before the row; the row keeps its Standard.
+                if (CastingTb && !CastingMounted && rider.Descriptor.State.Prone.Active) { TickCastingTurnBasedStandUp(turn); return; }
                 if (CastingMounted && relationship.State != RelationshipState.Mounted)
                 {
                     if (CastingTb) { TickCastingTurnBasedRemount(turn); return; }
@@ -203,6 +211,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 }
                 ResetCastingBoundary(); castingMountClick = false; castingTurnResets = 0;
                 castingRemountOrder = null; castingRemountTurn = null; castingRemountAttempts = 0; castingRemountIdleFrames = 0;
+                castingStandUpOrder = null; castingStandUpTurn = null; castingStandUpAttempts = 0;
                 castingShell = null; castingAbility = null; castingPrepared = null;
                 castingTrace.BeginCase(CastingCase); castingSetupCostOffset = castingCosts.EventCount;
                 if (CastingMotionCase || CastingThreatCase) { StartCastingBoundarySetup(); castingStage = 4; ResetLeafClock(); return; }
@@ -407,6 +416,24 @@ namespace KingmakerMountedCombat.Diagnostics
         // Acting. Every order and click is recorded with its native outcome, a shell that finished
         // unmounted releases the latch for a bounded retry, and exhausted attempts fail the row explicitly.
         private JArray CastingRemounts => (JArray)(CastingMeasurement["remounts"] ?? (CastingMeasurement["remounts"] = new JArray()));
+        private JArray CastingStandUps => (JArray)(CastingMeasurement["standUps"] ?? (CastingMeasurement["standUps"] = new JArray()));
+        // One native ground order per rider turn until the prone rider has stood up natively (bounded attempts).
+        private void TickCastingTurnBasedStandUp(TurnController turn)
+        {
+            if (turn?.Unit != rider) { EndCastingNativeTurn(turn); return; }
+            if (castingStandUpOrder != null && ReferenceEquals(castingStandUpTurn, turn)) return;
+            if (castingStandUpAttempts >= CastingRemountAttemptLimit)
+                throw new InvalidOperationException("Casting fixture's prone rider did not stand up natively after " +
+                    castingStandUpAttempts + " ground orders: " + CastingStandUps.ToString(Newtonsoft.Json.Formatting.None));
+            SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+            var destination = FindWalkablePoint(rider.Position, 0.75f, .25f);
+            var order = new JObject { ["kind"] = "stand-up-ground-order", ["attempt"] = ++castingStandUpAttempts, ["frame"] = Time.frameCount,
+                ["turnStatus"] = turn.Status.ToString(), ["destination"] = CapturePosition(destination), ["before"] = CastingState() };
+            ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
+            castingStandUpOrder = rider.Commands.Move as UnitMoveTo; castingStandUpTurn = turn;
+            order["admitted"] = castingStandUpOrder != null && castingStandUpOrder.Executor == rider && castingStandUpOrder.CreatedByPlayer;
+            CastingStandUps.Add(order);
+        }
         private void TickCastingTurnBasedRemount(TurnController turn)
         {
             if (turn?.Unit != rider) { EndCastingNativeTurn(turn); return; }

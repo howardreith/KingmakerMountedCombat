@@ -27,6 +27,15 @@ public static class CastingObserverProbe {
   }
   return a>=0&&b>=0&&a<b;
  }
+ // True when the compiled body calls `target` at least once (IL call/callvirt tokens).
+ static bool Calls(MethodInfo body,MethodInfo target){
+  var il=body.GetMethodBody().GetILAsByteArray();
+  for(var i=0;i+4<il.Length;i++){
+   if(il[i]!=0x28&&il[i]!=0x6F)continue;
+   if(BitConverter.ToInt32(il,i+1)==target.MetadataToken)return true;
+  }
+  return false;
+ }
  public static void InaccessibleUnityLog(Exception error){
   throw new InvalidOperationException("Native disposal failed before inaccessible Unity logging.",error);
  }
@@ -358,6 +367,14 @@ public static class CastingObserverProbe {
   Check(child.GetMethod("TickCastingTurnBasedRemount",F)!=null,"compiled casting fixture owns a bounded turn-based remount after its life rows");
   Check(child.GetMethod("TickCastingThreatHostileTurn",F)!=null&&child.GetMethod("IssueCastingThreatAttack",F)!=null,"compiled threat boundary issues the hostile attack on the hostile's own turn-based turn");
   Check(child.GetMethod("TryEndCastingCleanupTurn",F)!=null&&CallsInOrder(child.GetMethod("DrainCastingFixture",F),child.GetMethod("TryEndCastingCleanupTurn",F),child.GetMethod("CaptureCastingSummonCleanup",F)),"compiled casting cleanup ends idle fixture turns before draining in turn-based combat");
+  // Frozen preview.204 TB facts: a restored rider stays prone until its own turn (the native stand-up spends the
+  // Move action and drops the triggering command); a keyed JObject re-parented to its own owner is cloned, so the
+  // swift record must be kept in place; the casting-family cleanup restores the captured pause before its wait.
+  Check(child.GetMethod("TickCastingTurnBasedStandUp",F)!=null&&CallsInOrder(child.GetMethod("TickChunk6cCasting",F),child.GetMethod("TickCastingTurnBasedStandUp",F),child.GetMethod("BeginCastingCase",F)),"compiled casting fixture stands the prone turn-based rider up through a bounded native ground order before the row");
+  var keep=child.GetMethod("KeepKeyedRecord",F);
+  Check(keep!=null&&keep.IsStatic&&keep.ReturnType==typeof(JObject)&&Calls(child.GetMethod("IssueStagedCast",F),keep)&&Calls(child.GetMethod("IssueStagedSwiftCast",F),keep),"compiled staged casts keep the caller's keyed record in place instead of re-parenting a clone");
+  var pauseRestore=child.GetMethod("RestoreCastingFamilyPause",F);
+  Check(pauseRestore!=null&&CallsInOrder(child.GetMethod("AwaitCleanup",F),pauseRestore,child.GetMethod("FixtureNativeEncounterPending",F)),"compiled casting-family cleanup restores the captured pause state before judging the native encounter");
   var residue=child.Assembly.GetType("KingmakerMountedCombat.Diagnostics.CastingSummonResidue",true).GetMethod("Remains",F);
   Check(residue!=null&&residue.IsStatic&&residue.IsGenericMethodDefinition,"summon residue predicate is a pure shared helper under component tests");
   var stack=(int)child.GetField("ScrollStackCount",F).GetRawConstantValue();

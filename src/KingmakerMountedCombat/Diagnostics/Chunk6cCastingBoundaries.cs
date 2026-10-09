@@ -116,6 +116,10 @@ namespace KingmakerMountedCombat.Diagnostics
             if (CastingThreatCase)
             {
                 castingBoundary["riderEngaged"] = rider.CombatState.IsEngaged;
+                // Turn-based: the rider is normally still engaged from the earlier rows, so engagement alone
+                // proves nothing about this row's threat (frozen 204 mounted TB: riderEngaged true, the
+                // deferred hostile attack never issued). The attack issued on the hostile's own turn is required.
+                if (CastingTb && castingThreatAttack == null) return false;
                 if (!rider.CombatState.IsEngaged) return false;
                 if (castingThreatAttack != null && !castingThreatAttack.IsFinished) castingThreatAttack.Interrupt();
                 castingBoundary["nativeAttackTerminalBeforeCast"] = castingThreatAttack != null && castingThreatAttack.IsFinished;

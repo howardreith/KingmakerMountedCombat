@@ -6143,6 +6143,19 @@ namespace KingmakerMountedCombat.Diagnostics
             });
         }
 
+        private bool castingFamilyPauseRestored;
+        private void RestoreCastingFamilyPause()
+        {
+            if (castingFamilyPauseRestored) return;
+            castingFamilyPauseRestored = true;
+            var game = Game.Instance;
+            observations["castingCleanupPauseRestore"] = new JObject {
+                ["frame"] = frame, ["pausedBefore"] = game.IsPaused, ["originalPause"] = originalPause,
+                ["nativeControllerInitialized"] = game.TurnBasedCombatController.Initialized,
+                ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(), ["playerInCombat"] = game.Player.IsInCombat,
+                ["partyGroupInCombat"] = (bool)rider.Group.IsInCombat, ["currentMode"] = game.CurrentMode.ToString() };
+            if (game.IsPaused != originalPause) game.IsPaused = originalPause;
+        }
         private static bool FixtureNativeEncounterPending(bool casting, bool obstruction,
             bool playerInCombat, bool controllerInitialized, bool turnBased) =>
             (casting || obstruction) && (playerInCombat || controllerInitialized || turnBased);
@@ -6371,6 +6384,14 @@ namespace KingmakerMountedCombat.Diagnostics
                     return;
                 }
             }
+            // Turn-based casting-family cleanup (frozen 203/204): with the mode preference restored and the
+            // hostile destroyed, the party stayed in combat for the whole bounded wait. The native join
+            // controller recomputes Player.IsInCombat and the leave controller advances the group's leave
+            // timer only while the default game mode ticks (pinned IL 0x06009360/0x06009366); a pause left by
+            // the turn-based input wait keeps both frozen. The fixture restores the pause state it captured
+            // at setup (the restoration the Mammoth engine performs at Finish) once its own restorations are
+            // done, and the pending record below carries the exact native facts.
+            if (IsCastingFixtureFamily && modeRestored && targetCleanupComplete) RestoreCastingFamilyPause();
             var chunk6aDoorRestored = true;
             try { chunk6aDoorRestored = RestoreChunk6aDoor(); }
             catch (Exception exception) { chunk6aDoorRestored = false; AddCleanupError("Chunk 6A door restoration", exception); }
@@ -6388,6 +6409,18 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["playerInCombat"] = Game.Instance.Player.IsInCombat,
                     ["nativeControllerInitialized"] = Game.Instance.TurnBasedCombatController.Initialized,
                     ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(),
+                    ["gamePaused"] = Game.Instance.IsPaused, ["originalPause"] = originalPause,
+                    ["currentMode"] = Game.Instance.CurrentMode.ToString(),
+                    ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                    ["gameDeltaTime"] = Game.Instance.TimeController.GameDeltaTime,
+                    ["partyGroupInCombat"] = (bool)rider.Group.IsInCombat,
+                    ["partyLeaveCombatTimer"] = rider.Group.LeaveCombatTimer,
+                    ["nativePassing"] = CombatController.IsPassing(),
+                    ["nativeHasEnemyInCombat"] = Game.Instance.TurnBasedCombatController.HasEnemyInCombat,
+                    ["nativeHadEnemyAtSomePoint"] = Game.Instance.TurnBasedCombatController.HadEnemyAtSomePoint,
+                    ["unitsInCombat"] = new JArray(Game.Instance.State.Units.Where(u => u.IsInCombat).Take(12).Select(u => new JObject {
+                        ["actor"] = u.UniqueId, ["group"] = u.GroupId, ["controllable"] = u.IsDirectlyControllable, ["inState"] = u.IsInState })),
+                    ["pauseRestore"] = observations["castingCleanupPauseRestore"]?.DeepClone(),
                     ["mountAiRestored"] = unmountedHorseAiLeaseRestored,
                     ["riderAiRestored"] = combatMountRiderAiLeaseRestored,
                     ["relationship"] = relationship.State.ToString(),
