@@ -36,6 +36,10 @@ namespace KingmakerMountedCombat.Diagnostics
         // therefore use the three memorized level-1 slots (CLW quickened by the rod, Snowball, the
         // spontaneous summon conversion); every other cast uses the exact CLW scroll stack.
         internal const int ScrollStackCount = 10;
+        // Two units keep the exact potion entity in its slot after the one measured drink: a
+        // single unit would be removed natively and the foreign quick-slot refill would move an
+        // original potion out of another party member's slot (preview.200 native fact).
+        internal const int PotionStackCount = 2;
         private const string Heal = "5590652e1c2225c4ca30c4a699ab3649";
         private const string Snowball = "9f10909f0be1f5141bf1c102041f93d9";
         internal static readonly string[] CastingCases = { "C6C-quickened-self", "C6C-standard-self",
@@ -73,7 +77,7 @@ namespace KingmakerMountedCombat.Diagnostics
             // Retain each owner before native acquisition so partial equip failures
             // stay reachable through the existing bounded fixture cleanup path.
             castingRod = AcquireCastingItem(NativeCastingItemLease.LesserQuickenRod);
-            castingPotion = AcquireCastingItem(NativeCastingItemLease.CurePotion);
+            castingPotion = AcquireCastingItem(NativeCastingItemLease.CurePotion, PotionStackCount);
             castingScroll = AcquireCastingItem(NativeCastingItemLease.CureScroll, ScrollStackCount);
             observations["chunk6cCasting"]["items"] = new JArray(castingItems.Select(i => i.Evidence));
             step = Phase3dHorseStep.Phase3gControls;
@@ -113,6 +117,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 .Where(s => s.Blueprint.AssetGuid == blueprint).ToArray();
             if (spells.Length != 1) throw new InvalidOperationException("Fixture has no unique native cantrip: " + blueprint);
             return spells[0];
+        }
+        // Every item-sourced row casts from the exact equipped disposable stack while at least two
+        // units remain, so the native spend decrements the stack in place and never removes the
+        // entity or invokes the foreign quick-slot refill. The ability must source that entity.
+        private AbilityData ExactCastingItemAbility(NativeCastingItemLease lease)
+        {
+            lease.RequireExactlyEquipped("Item-sourced casting row " + CastingCase, 2);
+            var ability = lease.Item.Ability?.Data;
+            if (ability == null || !ReferenceEquals(ability.SourceItem, lease.Item))
+                throw new InvalidOperationException("Native item ability does not source the exact equipped fixture item.");
+            return ability;
         }
         private JObject CastingState() => new JObject {
             ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
@@ -236,10 +251,10 @@ namespace KingmakerMountedCombat.Diagnostics
             // Instruments: the rod quickens the memorized CLW slot; Snowball is the memorized hostile
             // spell; the full-round row converts the remaining slot; the potion row drinks the potion;
             // every other row casts CLW from the exact native scroll stack (unit-only, touch range).
-            castingAbility = CastingCase == "C6C-standard-hostile" ? ResolveCastingAbility(Snowball, true) :
+            castingAbility = CastingFullRoundCase ? ResolveNativeFullRound() :
+                CastingCase == "C6C-standard-hostile" ? ResolveCastingAbility(Snowball, true) :
                 CastingCase == "C6C-quickened-self" ? ResolveCastingAbility(Heal, true) :
-                CastingCase == "C6C-potion-self" ? castingPotion.Item.Ability?.Data : castingScroll.Item.Ability?.Data;
-            if (CastingFullRoundCase) castingAbility = ResolveNativeFullRound();
+                ExactCastingItemAbility(CastingCase == "C6C-potion-self" ? castingPotion : castingScroll);
             if (CastingFullRoundCase && castingAbility == null)
             {
                 castingCaseFacts = new JObject { ["case"] = CastingCase, ["availability"] = "none-native",

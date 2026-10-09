@@ -19,6 +19,8 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("shared inventory auto-fill restores the original item to another actor", RestoreOtherOwner);
             runner.Run("cohort releases owned items before restoring original placement without refunds", RestoreCohort);
             runner.Run("original holding slot outside its owner is refused before mutations", RejectForeignContainer);
+            runner.Run("original occupant without its holding slot is not restored placement", DanglingHoldingIsDebt);
+            runner.Run("dangling original holding slot is relinked through native removal and insertion", RelinkDanglingHolding);
         }
         private sealed class Item
         {
@@ -133,6 +135,38 @@ namespace KingmakerMountedCombat.Tests
                 new[] { original.Holding }, s => s.OwnerSlots));
             TestRunner.True(ReferenceEquals(stale.Item, original) && rider.All(s => s.Item == null),
                 "A stale native owner caused equipment mutation during capture.");
+        }
+        private static CastingFixtureSlotSnapshot<Slot, Item> LinkedSnapshot(Slot[] slots) =>
+            new CastingFixtureSlotSnapshot<Slot, Item>(slots, s => s.Item, (s, i) => ReferenceEquals(i.Holding, s));
+        private static void DanglingHoldingIsDebt()
+        {
+            var rider = OwnerSlots(3); var companion = OwnerSlots(2); var original = new Item(1);
+            InsertExact(companion[1], original);
+            var snapshot = LinkedSnapshot(CastingFixtureSlotSnapshot<Slot, Item>.IncludeOriginalOwnerSlots(rider,
+                new[] { original.Holding }, s => s.OwnerSlots));
+            // The foreign refill moved the original into a rider slot without clearing its own slot;
+            // the later exact removal from the rider slot cleared the holding slot it still needs.
+            rider[1].Item = original; original.Holding = rider[1];
+            TestRunner.True(!snapshot.Restored, "A double-referenced original counted as restored placement.");
+            RemoveExact(rider[1]);
+            TestRunner.True(ReferenceEquals(companion[1].Item, original) && original.Holding == null && !snapshot.Restored,
+                "An original without its holding slot counted as restored placement.");
+        }
+        private static void RelinkDanglingHolding()
+        {
+            var rider = OwnerSlots(3); var companion = OwnerSlots(2); var original = new Item(1);
+            InsertExact(companion[1], original);
+            var snapshot = LinkedSnapshot(CastingFixtureSlotSnapshot<Slot, Item>.IncludeOriginalOwnerSlots(rider,
+                new[] { original.Holding }, s => s.OwnerSlots));
+            rider[1].Item = original; original.Holding = rider[1];
+            var removals = 0; var insertions = 0;
+            snapshot.Restore(s => { removals++; return RemoveExact(s); }, (s, i) => { insertions++; InsertExact(s, i); });
+            TestRunner.True(snapshot.Restored && ReferenceEquals(companion[1].Item, original) &&
+                ReferenceEquals(original.Holding, companion[1]) && rider.All(s => s.Item == null),
+                "The dangling original was not relinked to its exact slot.");
+            TestRunner.Equal(2, removals, "Relink used an unexpected number of native removals.");
+            TestRunner.Equal(1, insertions, "Relink used an unexpected number of native insertions.");
+            TestRunner.Equal(1, original.Charges, "Relink changed original resources.");
         }
         private static void RestoreReplacement()
         { var f = new Fixture(); f.AutoReplaceConsumedFixture(); f.Restore(); f.Verify(); }

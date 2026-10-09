@@ -1,3 +1,30 @@
+## 2026-10-09 - preview201 closed (fixture-setup FAIL); coherent202 disposable stacks on the exact equipped unit
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen201 source0c5c8d3f9dbcf3dd794ac72b5f544e54e9352a37 is immutable: purity m1 PASS exit0
+(90.4 min detached); Stage1 mountedRT FAILED natively inside fixture setup before any row
+("Native equip did not retain the exact fixture item", NativeCastingItemLease.Acquire count10),
+producer2 rows1/1, worker1/game0, transaction restored exactly; stages2-4 BLOCKED-unrun, 5-8 NOT RUN
+(preview201-campaign-closure.json). Native facts (pinned IL): ItemSlot.InsertItem splits every
+stackable to one unit before taking slot ownership (Split(1) keeps identity only at count1);
+SpendCharges decrements a slot stack in place (count-1, charges back to1) but removes a single unit
+through the one-bool ItemSlot.RemoveItem that the installed BagOfTricks refill patch intercepts -
+frozen200 Stage1 shows that refill moving ORIGINAL items (another member's potion, the rider's
+original scroll) into the disposable slots, leaving the potion double-referenced with a null
+HoldingSlot. No production casting/resource/concentration defect.
+Working202: the lease equips the exact single unit first and builds the bounded stack on that
+entity (scroll x10, potion x2 so the one measured drink never removes it); every item row resolves
+its ability through ExactCastingItemAbility (exact equipped entity, at least two units, ability
+sources that entity); original-slot restoration now requires holding-slot linkage and relinks a
+dangling original through the same native removal/insertion; the first release snapshot is kept;
+the reader pins each item row to the exact equipped lease entity, in-place stack decrements,
+unchanged stacks on refusals and stack conservation (requested count minus observed spends).
+PASS build/source146/0, components714/0, compiled observer154/0, casting reader252/0,
+FAST12/0, CANDIDATE16/0 (harness271/0, assembly701/0). No202 package/suite/purity/native credit yet.
+Next: guarded publication, package/suite/freeze, one purity, failed mountedRT first.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
 ## 2026-10-09 - preview200 closed (producer PASS, external FAIL); coherent201 casting instruments and reader rules
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
