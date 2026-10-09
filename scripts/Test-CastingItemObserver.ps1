@@ -16,6 +16,17 @@ public static class CastingObserverProbe {
  const BindingFlags F=BindingFlags.Instance|BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic;
  static int passed;
  static void Check(bool condition,string why){if(!condition)throw new InvalidOperationException(why);passed++;Console.WriteLine("PASS "+why);}
+ // True when the compiled body calls `first` before its first call of `second` (IL call/callvirt tokens).
+ static bool CallsInOrder(MethodInfo body,MethodInfo first,MethodInfo second){
+  var il=body.GetMethodBody().GetILAsByteArray();var a=-1;var b=-1;
+  for(var i=0;i+4<il.Length;i++){
+   if(il[i]!=0x28&&il[i]!=0x6F)continue;
+   var token=BitConverter.ToInt32(il,i+1);
+   if(token==first.MetadataToken&&a<0)a=i;
+   if(token==second.MetadataToken&&b<0)b=i;
+  }
+  return a>=0&&b>=0&&a<b;
+ }
  public static void InaccessibleUnityLog(Exception error){
   throw new InvalidOperationException("Native disposal failed before inaccessible Unity logging.",error);
  }
@@ -331,6 +342,16 @@ public static class CastingObserverProbe {
   var cases=(string[])child.GetField("CastingCases",F).GetValue(null);
   Check(cases.Length==15&&cases[4]=="C6C-scroll-interrupt-after"&&!cases.Contains("C6C-prepared-interrupt-after")&&cases.Distinct().Count()==15,"compiled 6C rows name the scroll-sourced post-commit interruption exactly once");
   Check(!child.GetFields(F).Any(f=>f.IsLiteral&&f.FieldType==typeof(string)&&(string)f.GetRawConstantValue()=="c3a8f31778c3980498d8f00c980be5f5"),"the unavailable Guidance orison is no longer a compiled fixture instrument");
+  // Frozen preview.202 native facts: the casting-defensively window opens only for a shell still running
+  // after one second (a self-targeted CLW acts at ~0.55 s), and the full-round row's live summon owned a
+  // foreign turn-based turn before the next row.
+  var role=child.GetMethod("CastingTargetRole",F);
+  Func<string,string> targetRole=name=>(string)role.Invoke(null,new object[]{name});
+  Check(role!=null&&role.IsStatic&&targetRole("C6C-under-threat")=="mount"&&targetRole("C6C-standard-hostile")=="hostile"&&targetRole("C6C-invalid-target")=="hostile"&&targetRole("C6C-standard-friendly")=="mount"&&targetRole("C6C-scroll-interrupt-after")=="mount"&&targetRole("C6C-scroll-friendly")=="mount"&&cases.Where(c=>!new[]{"C6C-under-threat","C6C-standard-hostile","C6C-invalid-target","C6C-standard-friendly","C6C-scroll-interrupt-after","C6C-scroll-friendly"}.Contains(c)).All(c=>targetRole(c)=="rider"),"compiled threatened row targets the mount so its touch cast still runs at the native one-second defensive window; every other target role is unchanged");
+  var release=child.GetMethod("ReleaseCastingSummons",F);
+  Check(release!=null&&release.ReturnType==typeof(bool)&&CallsInOrder(child.GetMethod("TickChunk6cCasting",F),release,child.GetMethod("AddRow",F)),"compiled full-round row releases its exact native summons before the row is recorded and the next row begins");
+  var residue=child.Assembly.GetType("KingmakerMountedCombat.Diagnostics.CastingSummonResidue",true).GetMethod("Remains",F);
+  Check(residue!=null&&residue.IsStatic&&residue.IsGenericMethodDefinition,"summon residue predicate is a pure shared helper under component tests");
   var stack=(int)child.GetField("ScrollStackCount",F).GetRawConstantValue();
   Check(stack>=8&&stack<=32,"scroll stack covers every scroll-sourced row within the bounded disposable range");
   var acquire=child.Assembly.GetType("KingmakerMountedCombat.Diagnostics.NativeCastingItemLease",true).GetMethod("Acquire",F);
@@ -401,7 +422,7 @@ public static class CastingObserverProbe {
   // Do not invoke its Unity selection/AI mutation boundaries in detached CLR.
   CopyDetachedMethod(child.GetMethod("PrepareCombatMountRiderAiIsolation",F),instruction,"VerifyDetachedRiderAiAdmission");
   var stateType=service.GetProperty("State",F).PropertyType;
-  foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
+  foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb","chunk6d-staged-rt","chunk6d-staged-tb","chunk6e-reaction-rt","chunk6e-reaction-tb"}){
    var request=Activator.CreateInstance(mod.GetType("KingmakerMountedCombat.Diagnostics.RuntimeRequest",true));
    request.GetType().GetProperty("Scenario",F).SetValue(request,scenario,null);child.GetField("request",F).SetValue(instance,request);
    Check((bool)scenarioGate.Invoke(instance,null),"full pre-target rider scenario admission "+scenario);
@@ -559,10 +580,13 @@ public static class CastingObserverProbe {
   ExerciseNativeGroundRefusal(native,child);
   ExerciseNativeMoveReadiness(native,child);
   ExerciseCastingLifeSafety(native,child);
-  foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb"}){
+  foreach(var scenario in new[]{"chunk6c-casting-rt","chunk6c-casting-tb","chunk6c-casting-unmounted-rt","chunk6c-casting-unmounted-tb","chunk6d-staged-rt","chunk6d-staged-tb","chunk6e-reaction-rt","chunk6e-reaction-tb"}){
    Check((bool)parent.GetMethod("SupportsScenario",F).Invoke(null,new object[]{scenario}),"native original-pair engine accepts "+scenario);
-   Check((bool)child.GetMethod("IsChunk6cCastingScenario",F).Invoke(null,new object[]{scenario}) &&
-    !(bool)child.GetMethod("IsChunk6aCombatMountScenario",F).Invoke(null,new object[]{scenario}),"compiled child chooses casting rather than Mount/Dismount for "+scenario);
+   Check((bool)child.GetMethod("IsCastingFixtureFamilyScenario",F).Invoke(null,new object[]{scenario}) &&
+    !(bool)child.GetMethod("IsChunk6aCombatMountScenario",F).Invoke(null,new object[]{scenario}),"compiled child chooses the casting fixture family rather than Mount/Dismount for "+scenario);
+   Check((bool)child.GetMethod("IsChunk6cCastingScenario",F).Invoke(null,new object[]{scenario})==scenario.StartsWith("chunk6c-") &&
+    (bool)child.GetMethod("IsChunk6dStagedScenario",F).Invoke(null,new object[]{scenario})==scenario.StartsWith("chunk6d-") &&
+    (bool)child.GetMethod("IsChunk6eReactionScenario",F).Invoke(null,new object[]{scenario})==scenario.StartsWith("chunk6e-"),"compiled child assigns exactly one family to "+scenario);
   }
   foreach(var field in new[]{"RealTimeScenario","TurnBasedScenario"}){
    var scenario=(string)parent.GetField(field,F).GetRawConstantValue();

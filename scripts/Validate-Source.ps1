@@ -1343,6 +1343,37 @@ Assert-Kmc $cohortAgreement 'bounded charge cohorts preserve exact compiled/read
 
 # The carrier side of the same chain. Its fixture declares one case array used by both modes and its reader
 # one row list, so the invariant is plain set equality with no repeat row to account for.
+# Chunk 6D/6E staged families: the compiled case arrays and per-case step plans must equal the readers'
+# registered cases and plans (in order), and every row and request root must sit in the shared registry.
+# Both mismatches would otherwise surface only after a live run, as an unknown or missing row or a
+# refused plan, so they are compared here in the same way as the 6B lists above.
+$stagedScenarioText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6StagedScenario.cs')
+$stagedReaderText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Chunk6dStagedEvidence.ps1')
+$reactionReaderText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'scripts\runtime\Chunk6eReactionEvidence.ps1')
+function Get-KmcStagedReaderList([string]$Text, [string]$FunctionName, [string]$Argument) {
+    $body = [Regex]::Match($Text, ('(?s)function ' + [Regex]::Escape($FunctionName) + '[^\n]*\{.*?\n\}'))
+    if (-not $body.Success) { return @() }
+    # Execute only this repository-owned pure selector, never its validators.
+    . ([scriptblock]::Create($body.Value))
+    if ($Argument) { @(& $FunctionName $Argument) } else { @(& $FunctionName) }
+}
+function Get-KmcStagedCompiledPlan([string]$Text, [string]$Case) {
+    $body = [Regex]::Match($Text, ('case "' + [Regex]::Escape($Case) + '": return new\[\] \{([^}]*)\};'))
+    if (-not $body.Success) { return @() }
+    @([Regex]::Matches($body.Groups[1].Value, '"([a-z-]+)"') | ForEach-Object { $_.Groups[1].Value })
+}
+$fixture6d = @(Get-KmcDeclaredCaseNames $stagedScenarioText 'Chunk6dStagedCases' 'C6D-')
+$fixture6e = @(Get-KmcDeclaredCaseNames $stagedScenarioText 'Chunk6eReactionCases' 'C6E-')
+$reader6d = @(Get-KmcStagedReaderList $stagedReaderText 'Get-KmcChunk6dStagedCases' '')
+$reader6e = @(Get-KmcStagedReaderList $reactionReaderText 'Get-KmcChunk6eReactionCases' '')
+$planMismatches = @()
+foreach ($case in $fixture6d) { if ((@(Get-KmcStagedCompiledPlan $stagedScenarioText $case) -join ',') -cne (@(Get-KmcStagedReaderList $stagedReaderText 'Get-KmcChunk6dStagedPlan' $case) -join ',')) { $planMismatches += $case } }
+foreach ($case in $fixture6e) { if ((@(Get-KmcStagedCompiledPlan $stagedScenarioText $case) -join ',') -cne (@(Get-KmcStagedReaderList $reactionReaderText 'Get-KmcChunk6eReactionPlan' $case) -join ',')) { $planMismatches += $case } }
+Assert-Kmc ($fixture6d.Count -eq 5 -and $fixture6e.Count -eq 4 -and
+    (($fixture6d -join ',') -ceq ($reader6d -join ',')) -and (($fixture6e -join ',') -ceq ($reader6e -join ',')) -and
+    $planMismatches.Count -eq 0 -and
+    @(@($fixture6d) + @($fixture6e) + @('chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb') | Where-Object { $sharedRowNames -cnotcontains $_ }).Count -eq 0) `
+    'the 6D/6E compiled case arrays and step plans equal the registered reader cases and plans, and every row and root is in the shared registry'
 $pathScenarioText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6bChargePathScenario.cs')
 $fixturePathCases = @(Get-KmcDeclaredCaseNames $pathScenarioText 'Chunk6bChargePathCases' 'C6B-PATH-')
 $readerPathBody = [Regex]::Match($chargePathReaderText, '(?s)function Get-KmcChunk6bChargePathRows.*?\n?\}')
@@ -1682,7 +1713,8 @@ $auditReaderBody = [Regex]::Match($runtimeCommonText, '(?s)\$isAudit = \[string\
 $readerAuditScenarios = @(@([Regex]::Matches($auditReaderBody.Groups[1].Value, "'([a-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value }) + @('horse-companion-blueprint-registration') | Sort-Object -Unique)
 Assert-Kmc ($auditReaderBody.Success -and $compiledAuditScenarios.Count -ge 40 -and
     $null -eq (Compare-Object -ReferenceObject $compiledAuditScenarios -DifferenceObject $readerAuditScenarios) -and
-    ($readerAuditScenarios -cnotcontains 'chunk6c-casting-rt') -and ($readerAuditScenarios -cnotcontains 'chunk6a-mammoth-mount-rt')) `
+    ($readerAuditScenarios -cnotcontains 'chunk6c-casting-rt') -and ($readerAuditScenarios -cnotcontains 'chunk6a-mammoth-mount-rt') -and
+    ($readerAuditScenarios -cnotcontains 'chunk6d-staged-rt') -and ($readerAuditScenarios -cnotcontains 'chunk6e-reaction-rt')) `
     'the registration-audit reader list equals the compiled audit scenario policy (no Mammoth-engine root demands an artifact it never produces)'
 
 if ($failures.Count -gt 0) {

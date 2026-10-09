@@ -1,3 +1,41 @@
+## 2026-10-09 - preview202 closed (eight stages ran); coherent203: 6C corrections + 6D staged/6E reaction families (Claude)
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D/6E offline-ready (native NOT RUN); 6F incomplete.
+Frozen202 source1f1cecb686fdf0ca68784c1f62da422f27b8b4c0 is closed (preview202-campaign-closure.json
+e02aa6e5f3f3a31709c8fe27226d2fbacb428df57b9182578d5dac2448b988cd): purity n1 ABORTED (tool-host
+low-memory kill, no verdict), n2 PASS exit0 (92.6 min, orphaned controller). Stages1/3 (mounted/
+unmounted RT): native PASS17/0, external13/15 rows, envelope FAIL on C6C-rider-incapacity (native
+concentration-failure spend unmodelled) and C6C-under-threat (self-targeted scroll acts at ~0.55 s,
+before the native one-second defensive window). Stages2/4 (TB): rows1-11 PASS, then the fixture
+refused End Turn on a foreign actor at case12 (live full-round summon inside the leased party),
+cleanup deadline, outer FAIL. Stages5-8 (settled persistence with casting items): PASS. 0 qualified
+6C stages; every result retained; no product defect. Native facts (pinned IL, MVID07fa1e4d):
+UnitUseAbility.OnTick opens the casting-defensively window only for a Standard shell still running
+after one second while engaged (TryCastingDefensively exempts wand sources only); damage inside a
+running cast reaches MakeConcentrationCheck and a failed check makes FailIfConcentrationCheckFailed
+force-finish the shell and spend the spell (scroll charge, then slot) with no cast and no cost; TB
+charges at the action frame; a converted summon joins the party group and owns its own TB turn.
+Working203 (one coherent tranche): C6C-under-threat targets the mount (touch cast ~1.5 s inside the
+window); the reader models the native lost-spell path (one spend, no cast, no cost, shell
+force-finished) for the threatened and rider-incapacity rows and requires the row-end summon release;
+the full-round row releases its exact native summons before the next row (CastingSummonResidue,
+component-tested, compiled call-order check). Reader-only correction evaluated against the immutable
+202 Stage1/3 evidence (reader203-preview202-evaluation1.json 14abe5a7...: rider-incapacity
+FAIL->PASS; under-threat/full-round FAIL for the new requirements). 6D staged (move-cast-move,
+cast-then-move, double-move-ranged, movement-exhausted, auto-stop-boundary; schema45) and 6E reaction
+(swift-on-own-turn, swift-out-of-turn, attack-on-mount-observed, reaction-window; schema46) run on
+the casting fixture with native remaining movement; no synthetic movement/action grants,
+cooldown/TimeMoved writes, second preparation or movement replay; roots chunk6d-staged-rt/tb and
+chunk6e-reaction-rt/tb.
+Observed gates (preview203-offline-gates.json 635090ca...): build/source147/0, components719/0,
+compiled observer197/0, casting reader274/0, 6D reader76/0, 6E reader70/0, FAST11/0, CANDIDATE15/0
+(harness271/0, assembly701/0); three reader1 receipts retained as wrapper launch-argument failures
+(no test ran). No203 package/suite/purity/native credit yet.
+Next: guarded publication, package (chunk6de-staged-o)/suite/freeze203, one orphaned purity, the
+12-stage batch (6C mounted RT first, TB, unmounted RT/TB, persistence pairs, then 6D/6E roots), then6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
 ## 2026-10-09 - preview201 closed (fixture-setup FAIL); coherent202 disposable stacks on the exact equipped unit
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains

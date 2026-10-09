@@ -32,7 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal static void AssertStructure(JObject p, string childScenario, bool pairAlreadyMounted)
         {
             Require(p != null && Text(p["contract"]) == Contract, "contract differs");
-            Require(Text(p["parentScenario"]) == ((childScenario == "chunk6c-casting-rt" || childScenario == "chunk6c-casting-tb" || childScenario == "chunk6c-casting-unmounted-rt" || childScenario == "chunk6c-casting-unmounted-tb") ? childScenario : ParentScenario) && !string.IsNullOrEmpty(Text(p["parentEngine"])), "parent identity missing");
+            Require(Text(p["parentScenario"]) == ((childScenario == "chunk6c-casting-rt" || childScenario == "chunk6c-casting-tb" || childScenario == "chunk6c-casting-unmounted-rt" || childScenario == "chunk6c-casting-unmounted-tb" || childScenario == "chunk6d-staged-rt" || childScenario == "chunk6d-staged-tb" || childScenario == "chunk6e-reaction-rt" || childScenario == "chunk6e-reaction-tb") ? childScenario : ParentScenario) && !string.IsNullOrEmpty(Text(p["parentEngine"])), "parent identity missing");
             Require(!string.IsNullOrEmpty(childScenario) && Text(p["childScenario"]) == childScenario, "child scenario differs");
             Require(!string.IsNullOrEmpty(Text(p["runId"])) && Int(p["sessionObject"], "sessionObject") != 0 && !string.IsNullOrEmpty(Text(p["areaGuid"])), "session binding missing");
             // A JSON re-reader may parse the ISO timestamp as a date token; either form is the same clock evidence.

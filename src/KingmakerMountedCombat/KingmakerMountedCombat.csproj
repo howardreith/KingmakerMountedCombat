@@ -267,6 +267,8 @@
     <Compile Include="Diagnostics\CastingFixtureSlotSnapshot.cs" />
     <Compile Include="Diagnostics\Chunk6cCastingScenario.cs" />
     <Compile Include="Diagnostics\Chunk6cCastingBoundaries.cs" />
+    <Compile Include="Diagnostics\CastingSummonResidue.cs" />
+    <Compile Include="Diagnostics\Chunk6StagedScenario.cs" />
     <Compile Include="Diagnostics\NativeApproachMovementTrace.cs" />
     <Compile Include="Diagnostics\NativeApproachMovementEvidence.cs" />
     <Compile Include="Diagnostics\NativeMountApproachPathProbe.cs" />

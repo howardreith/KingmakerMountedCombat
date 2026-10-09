@@ -31,7 +31,7 @@ function Assert-KmcNativeMammothArtifact {
     param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Manifest,[AllowNull()][string]$Status)
     $leaf='chunk6a-native-mammoth-profile.json';$kind='chunk6a-native-mammoth-profile'
     $records=@($Manifest.artifacts|Where-Object { $_.relativePath -ceq $leaf -or $_.kind -ceq $kind })
-    if($Request.scenario -cnotin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')) {
+    if($Request.scenario -cnotin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb')) {
         if($records.Count -ne 0){throw 'Another scenario manifested a native Mammoth profile.'}
         return
     }
@@ -64,13 +64,17 @@ function Assert-KmcNativeMammothArtifact {
     if($Status -ceq 'PASS' -and $profile.status -cne 'PASS'){throw 'PASS run has a failed native Mammoth profile.'}
     if($profile.status -cne 'PASS'){return}
     $child=Read-ProfileArtifact 'phase3d-horse-scenario-evidence.json' 'phase3d-horse-scenario-evidence'
-    if($Request.scenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')) {
-        if($child.status -cne 'PASS' -or $child.schemaVersion -ne44 -or $profile.status-cne'PASS' -or @($profile.errors).Count-ne0){throw 'Native casting profile is incomplete.'}
+    if($Request.scenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb')) {
+        # The casting-fixture families (6C, 6D staged, 6E reaction) share the Mammoth-engine outer
+        # profile; each child artifact carries its own schema, observation key and dedicated validator.
+        $family=if($Request.scenario -clike 'chunk6d-*'){@{schema=45;key='chunk6dStaged';validator='Assert-KmcChunk6dStagedEvidence'}}elseif($Request.scenario -clike 'chunk6e-*'){@{schema=46;key='chunk6eReaction';validator='Assert-KmcChunk6eReactionEvidence'}}else{@{schema=44;key='chunk6cCasting';validator='Assert-KmcChunk6cCastingEvidence'}}
+        if($child.status -cne 'PASS' -or $child.schemaVersion -ne$family.schema -or $profile.status-cne'PASS' -or @($profile.errors).Count-ne0){throw 'Native casting profile is incomplete.'}
         $o=$profile.observations
         Assert-KmcNativeMammothPair $o.before $o.after
-        if($o.before.riderId-cne$child.observations.chunk6cCasting.rider-or$o.before.mountId-cne$child.observations.chunk6cCasting.mount-or$o.childScenario-cne$Request.scenario){throw 'Native casting original pair binding differs.'}
+        $childObservation=$child.observations.($family.key)
+        if($null-eq$childObservation-or$o.before.riderId-cne$childObservation.rider-or$o.before.mountId-cne$childObservation.mount-or$o.childScenario-cne$Request.scenario){throw 'Native casting original pair binding differs.'}
         if($o.restored-ne$true-or($o.selectionBefore|ConvertTo-Json -Compress)-cne($o.selectionAfter|ConvertTo-Json -Compress)-or$o.pauseBefore-ne$o.pauseAfter-or$o.turnBasedBefore-ne$o.turnBasedAfter-or$o.pairedBefore-ne$o.pairedAfter){throw 'Native casting outer fixture was not restored.'}
-        Assert-KmcChunk6cCastingEvidence -Request $Request -Artifact $child -Status $Status
+        & $family.validator -Request $Request -Artifact $child -Status $Status
         return
     }
     if($child.status -cne 'PASS' -or $child.schemaVersion -ne 30){throw 'Native Mammoth profile depends on an incomplete command artifact.'}

@@ -61,7 +61,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int castingStableFrames;
         private TurnController castingEndedTurn, castingSeenTurn;
         private string CastingCase => CastingCases[castingCaseIndex];
-        private JObject CastingMeasurement => (JObject)observations["chunk6cCasting"];
+        private JObject CastingMeasurement => (JObject)observations[CastingMeasurementKeyFor(request.Scenario)];
 
         private void BeginChunk6cCasting()
         {
@@ -221,6 +221,17 @@ namespace KingmakerMountedCombat.Diagnostics
                     castingBoundary["settledBeforeHealthRestore"] = CastingState();
                     if (!RestoreCastingIncapacity()) return;
                 }
+                // The converted full-round row's exact native summons are fixture residue once the cast
+                // settles: a live summon owns a foreign turn-based turn and joins the leased party group
+                // before the next row (frozen 202 TB stages 2/4 refused End Turn on a foreign actor).
+                // Release them through the same native destruction the drain uses and advance only once
+                // nothing of them remains; the row records that release.
+                if (CastingFullRoundCase)
+                {
+                    var summonsReleased = ReleaseCastingSummons();
+                    castingCaseFacts["summonCleanup"] = CaptureCastingSummonCleanup();
+                    if (!summonsReleased) return;
+                }
                 castingCaseFacts["after"] = CastingState();
                 castingCaseFacts["boundary"] = castingBoundary.DeepClone();
                 castingCaseFacts["motionSamples"] = castingMotionSamples.DeepClone();
@@ -242,12 +253,23 @@ namespace KingmakerMountedCombat.Diagnostics
         private static GameObject CastingInputObject(string caseId, GameObject targetView) =>
             caseId == "C6C-invalid-target" ? null : targetView;
 
+        // Target roles: the hostile rows click the exact hostile; the friendly, post-commit interruption,
+        // scroll heal and threatened rows click the mount; every other row targets the rider. The
+        // threatened row targets the mount because the native casting-defensively window opens only for
+        // a Standard shell still running after one second while engaged (UnitUseAbility.OnTick,
+        // 0x06002734; TryCastingDefensively, 0x0600273B, exempts wand sources only): a self-targeted
+        // CLW acts after ~0.55 s, the touch cast at the mount after ~1.5 s (frozen 202 RT/TB stages).
+        internal static string CastingTargetRole(string caseId) =>
+            caseId == "C6C-standard-hostile" || caseId == "C6C-invalid-target" ? "hostile" :
+            caseId == "C6C-standard-friendly" || caseId == "C6C-scroll-interrupt-after" ||
+            caseId == "C6C-scroll-friendly" || caseId == "C6C-under-threat" ? "mount" : "rider";
+
         private void BeginCastingCase()
         {
             castingTrace.BeginCase(CastingCase); castingEventOffset = castingTrace.EventCount; castingCostOffset = castingCosts.EventCount;
             castingShell = null; castingPrepared = null; castingInterrupted = false; castingStableFrames = 0;
-            castingTarget = CastingCase == "C6C-standard-hostile" || CastingCase == "C6C-invalid-target" ? target :
-                CastingCase == "C6C-standard-friendly" || CastingCase == "C6C-scroll-interrupt-after" || CastingCase == "C6C-scroll-friendly" ? horse : rider;
+            var targetRole = CastingTargetRole(CastingCase);
+            castingTarget = targetRole == "hostile" ? target : targetRole == "mount" ? horse : rider;
             // Instruments: the rod quickens the memorized CLW slot; Snowball is the memorized hostile
             // spell; the full-round row converts the remaining slot; the potion row drinks the potion;
             // every other row casts CLW from the exact native scroll stack (unit-only, touch range).
@@ -376,6 +398,17 @@ namespace KingmakerMountedCombat.Diagnostics
             Game.Instance.PauseBind();
             castingCosts.Record("casting-end-turn-input-after", actor); castingEndedTurn = turn; ResetLeafClock();
         }
+        private static bool CastingSummonInWorld(UnitEntityData unit) => Game.Instance.State.Units.Any(x => ReferenceEquals(x, unit));
+        private JArray CaptureCastingSummonCleanup() => new JArray(castingTrace.Summons.Select(u => new JObject {
+            ["unit"] = u.UniqueId, ["inState"] = u.IsInState, ["worldContains"] = CastingSummonInWorld(u) }));
+        // Destroys the fixture's exact native summons through the engine's own entity destroyer and
+        // reports whether any of them still remains (CastingSummonResidue owns that predicate).
+        private bool ReleaseCastingSummons()
+        {
+            foreach (var unit in castingTrace.Summons) { if (unit.IsInState) unit.Destroy(); }
+            Game.Instance.EntityDestroyer.Tick();
+            return !CastingSummonResidue.Remains(castingTrace.Summons, u => u.IsInState, CastingSummonInWorld);
+        }
         private bool DrainCastingFixture()
         {
             if (castingTrace == null) return true;
@@ -386,12 +419,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (!CastingHealthBoundarySettled(rider.Commands.Empty, horse.Commands.Empty, castingTrace.ProcessesSettled,
                 NativeSaveEffectBoundary.HasUnresolvedAbilities(), NativeSaveEffectBoundary.HasUnresolvedProjectiles())) return false;
             if (!RestoreCastingIncapacity()) return false;
-            foreach (var unit in castingTrace.Summons) { if (unit.IsInState) unit.Destroy(); }
-            Game.Instance.EntityDestroyer.Tick();
-            CastingMeasurement["summonCleanup"] = new JArray(castingTrace.Summons.Select(u => new JObject {
-                ["unit"] = u.UniqueId, ["inState"] = u.IsInState,
-                ["worldContains"] = Game.Instance.State.Units.Any(x => ReferenceEquals(x, u)) }));
-            if (castingTrace.Summons.Any(u => u.IsInState || Game.Instance.State.Units.Any(x => ReferenceEquals(x, u)))) return false;
+            var summonsReleased = ReleaseCastingSummons();
+            CastingMeasurement["summonCleanup"] = CaptureCastingSummonCleanup();
+            if (!summonsReleased) return false;
             var itemFailures = new List<Exception>();
             for (var i = castingItems.Count - 1; i >= 0; i--)
             {

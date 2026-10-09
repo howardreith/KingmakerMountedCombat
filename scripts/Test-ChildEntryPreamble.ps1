@@ -98,14 +98,15 @@ foreach($mounted in @($true,$false)){
 }
 # Original Druid/Mammoth 6C children remain structural JSON checks without
 # acquiring a compiled dependency on the game-driven scenario engine.
-foreach($scenario in @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')){
+foreach($scenario in @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb','chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb')){
  $p=New-Preamble $false;$p.childScenario=$scenario;$p.parentScenario=$scenario;$p.parentEngine='KingmakerMountedCombat.Diagnostics.Chunk6aMammothScenarioEngine'
  Check $p $scenario $false $true $true
  $bad=Copy-Preamble $p;$bad.parentScenario='horse-companion-unmounted-suite';Check $bad $scenario $false $true $false $true
  $bad=Copy-Preamble $p;$bad.parentEngine='KingmakerMountedCombat.Diagnostics.HorseCompanionUnmountedScenarioEngine';Check $bad $scenario $false $true $false
 }
 # Scenario expectations and the version gate.
-foreach($s in @('chunk6a-mount-spent-move-tb','chunk6a-combat-mount-rt','chunk6a-allocation-rider-first-tb')){if(Test-KmcChildEntryExpectsMounted $s){throw "Chunk 6A child $s must start unmounted"};$checks++}
+foreach($s in @('chunk6a-mount-spent-move-tb','chunk6a-combat-mount-rt','chunk6a-allocation-rider-first-tb','chunk6d-staged-rt','chunk6e-reaction-tb')){if(Test-KmcChildEntryExpectsMounted $s){throw "Chunk 6A child $s must start unmounted"};$checks++}
+foreach($s in @('chunk6d-staged-tb','chunk6e-reaction-rt')){if(-not(Test-KmcChildEntryRequiresIdleParty $s)){throw "child $s requires the idle party"};$checks++}
 foreach($s in @('chunk4-rider-death-tb','unmounted-attack-controls-rt','actor-allocation-rider-first-tb','ordinary-attack-controls-tb','phase3g-native-controls-tb','chunk6b-charge-path-rt','chunk6b-charge-path-tb')){if(-not(Test-KmcChildEntryExpectsMounted $s)){throw "child $s must start mounted"};$checks++}
 foreach($s in @('chunk4-rider-death-tb','unmounted-attack-controls-rt','actor-allocation-rider-first-tb','chunk6a-rider-without-move-tb','chunk6b-charge-path-rt','chunk6b-charge-path-tb')){if(-not(Test-KmcChildEntryRequiresIdleParty $s)){throw "child $s requires the idle party"};$checks++}
 foreach($s in @('ordinary-attack-controls-tb','phase3g-native-controls-tb','phase3d-horse-presentation-suite')){if(Test-KmcChildEntryRequiresIdleParty $s){throw "child $s does not require the idle party"};$checks++}

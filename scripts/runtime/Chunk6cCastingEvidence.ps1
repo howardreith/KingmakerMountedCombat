@@ -85,7 +85,18 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  $costAfter=@($costs|Where-Object {$_.boundary-ceq'cost-after'-and$_.state.actor-ceq$Rider})
  $cast=@($events|Where-Object {$_.kind-ceq'cast-after'-and$_.ability.blueprint-ceq$before.ability.blueprint-and$_.actor-ceq$Rider})
  $refusal=$Row.name-cin@('C6C-invalid-target','C6C-cancel-before','C6C-interrupt-before','C6C-rider-incapacity')-or($Row.name-ceq'C6C-mount-incapacity'-and$cast.Count-eq0)
- $nativeConcentrationFailure=$Row.name-ceq'C6C-under-threat'-and@($events|Where-Object {$_.kind-ceq'concentration-rule-after'-and$_.success-eq$false}).Count-gt0
+ # Native concentration (pinned IL, Assembly-CSharp MVID 07fa1e4d): damage to a unit whose running
+ # standard command is a UnitUseAbility makes UnitConcentrationController.Tick (0x060090F7) call
+ # MakeConcentrationCheck (0x06002739; wand sources excluded, scrolls included); a failed check makes
+ # FailIfConcentrationCheckFailed (0x06002736) force-finish the shell before it acts and spend the
+ # spell through AbilityData.Spend (0x06002B60: the scroll charge, then the spellbook slot), so no
+ # cast and no action cost exist in either mode (TB charges at the action frame, frozen 202 TB).
+ # Only the two rows whose stimulus can land inside the running shell may show that check; the
+ # rider incapacity row must, because its damage is applied to the running precommit shell.
+ $concentration=@($events|Where-Object {$_.kind-ceq'concentration-rule-after'-and$_.actor-ceq$Rider})
+ Need ($concentration.Count-le1-and($concentration.Count-eq0-or$Row.name-cin@('C6C-under-threat','C6C-rider-incapacity'))) 'unexpected native concentration check'
+ if($Row.name-ceq'C6C-rider-incapacity'){Need ($concentration.Count-eq1-and$concentration[0].dc-gt0-and$concentration[0].roll-is[int]-and$concentration[0].success-is[bool]) 'incapacity damage did not reach the native concentration owner inside the running shell'}
+ $nativeConcentrationFailure=$concentration.Count-eq1-and$concentration[0].success-eq$false
  if($refusal) {
   Need ($cast.Count-eq0-and$costBefore.Count-eq0-and$costAfter.Count-eq0) 'precommit refusal/cancellation spent or delivered'
   if($Row.name-ceq'C6C-invalid-target'){Need ($e.canTarget-eq$false-and$e.admittedShellCount-eq0-and$e.inputCount-eq1) 'invalid target was not genuinely refused'}
@@ -126,8 +137,27 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
    Need ($before.ability.fullRound-eq$true-and$before.slotAvailable-eq$true-and$after.slotAvailable-eq$false) 'available native converted full-round slot not spent'
    $summons=@($events|Where-Object kind -CEQ 'summon')
    Need ($summons.Count-gt0-and@($summons|Where-Object {$_.actor-cne$Rider-or$_.unitObject-eq0-or$_.context-eq0}).Count-eq0) 'native converted summon effect not observed'
+   # The row releases its exact native summons before the next row (frozen 202 TB stages 2/4: a live
+   # summon owned a foreign turn and changed the leased party membership); every summoned unit is named.
+   $summonUnits=@($summons|ForEach-Object {[string]$_.unit}|Sort-Object -Unique)
+   Need ($null-ne$e.PSObject.Properties['summonCleanup']) 'row-end summon release unobserved'
+   $cleanup=@($e.summonCleanup)
+   Need ($cleanup.Count-eq$summonUnits.Count-and@($cleanup|Where-Object {$_.inState-ne$false-or$_.worldContains-ne$false-or[string]$_.unit-cnotin$summonUnits}).Count-eq0) 'exact native summons were not released before the next row'
   }
   if($Row.name-ceq'C6C-standard-hostile'){Need ($before.slotAvailable-eq$true-and$after.slotAvailable-eq$false) 'native hostile prepared slot not spent'}
+ }
+ if($nativeConcentrationFailure) {
+  # The lost spell: the shell force-finished before acting (no cast, no action cost in either mode),
+  # exactly one native spell spend, and for a scroll row exactly one charge of the exact leased
+  # entity decremented in place; a memorized slot is spent once.
+  Need ($cast.Count-eq0-and$costBefore.Count-eq0-and$costAfter.Count-eq0-and$after.shell.acted-eq$false-and$after.shell.finished-eq$true) 'native concentration failure acted, charged or left its shell live'
+  Need (@($events|Where-Object kind -CEQ 'spell-spend-after').Count-eq1) 'native concentration failure lost or duplicated commitment'
+  if($scrollRow) {
+   $id=$before.ability.sourceItem;$spent=@($events|Where-Object {$_.kind-ceq'item-spend-after'-and$_.identity-eq$id})
+   Need ($id-ne0-and$spent.Count-eq1-and@($events|Where-Object kind -CEQ 'item-spend-after').Count-eq1) 'native concentration failure did not spend exactly one charge of the exact scroll'
+   $stackBefore=@($before.items|Where-Object {$_.item-eq$id});$stackAfter=@($after.items|Where-Object {$_.item-eq$id})
+   Need ($stackBefore.Count-eq1-and$stackAfter.Count-eq1-and$stackBefore[0].exactSlot-eq$true-and$stackAfter[0].exactSlot-eq$true-and$stackBefore[0].count-ge2-and$stackAfter[0].count-eq$stackBefore[0].count-1-and$stackAfter[0].charges-eq1) 'lost scroll charge did not decrement the exact disposable stack in place'
+  } else {Need ($before.slotAvailable-eq$true-and$after.slotAvailable-eq$false) 'lost memorized spell did not spend its slot once'}
  }
  if($life) {
   $b=$e.boundary;$subject=if($Row.name-ceq'C6C-rider-incapacity'){$Rider}else{$Mount}
@@ -151,11 +181,18 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  }
  if($Row.name-ceq'C6C-under-threat') {
   Need ($e.boundary.riderEngaged-eq$true-and$e.boundary.nativeHostileAttackInputCount-eq1-and$e.boundary.nativeAttackTerminalBeforeCast-eq$true) 'real native threat not established'
+  # The native casting-defensively window (UnitUseAbility.OnTick, 0x06002734) opens only for a Standard
+  # shell still running after one second while engaged in combat; TryCastingDefensively (0x0600273B)
+  # exempts wand sources only, so the scroll is checked. A self-targeted CLW acts after ~0.55 s and is
+  # never checked (frozen 202 RT stages 1/3); the threatened row therefore targets the mount (~1.5 s)
+  # and the check must be observed exactly once. A failed check provokes the native attack of
+  # opportunity, whose damage may fail concentration: that is the lost spell handled above.
+  Need ($e.target-ceq$Mount-and$e.resolvedTarget-ceq$Mount) 'threatened cast did not target the exact mount'
   $def=@($events|Where-Object kind -CEQ 'defensive-rule-after')
   Need ($def.Count-eq1-and$def[0].actor-ceq$Rider-and$def[0].dc-gt0-and$def[0].roll-is[int]-and$def[0].success-is[bool]) 'native defensive check outcome unobserved'
-  if($nativeConcentrationFailure) {
-   Need ($cast.Count-eq0-and@($events|Where-Object {$_.kind-cin@('spell-spend-after','item-spend-after')}).Count-eq1-and$after.shell.finished-eq$true) 'native concentration failure lost or duplicated commitment'
-   Need ($costAfter.Count-eq$(if($Tb){1}else{0})) 'concentration-failure native mode cost differs'
+  if(-not$nativeConcentrationFailure) {
+   $acted=@($events|Where-Object {$_.kind-ceq'action-after'-and$_.identity-eq$e.afterInput.shell.identity})
+   Need ($acted.Count-eq1-and(Number $acted[0].shell.timeSinceStart)-gt1.0) 'threatened cast acted before the native one-second defensive window'
   }
  }
  if($Row.name-ceq'C6C-quickened-self') {
@@ -181,7 +218,7 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
    Need ($heal.Count-eq1-and(Number $heal[0].value)-gt0) 'item healing missing or duplicated'
   }
  }
- if($scrollRow-and$refusal) {
+ if($scrollRow-and$refusal-and-not$nativeConcentrationFailure) {
   Need (@($events|Where-Object {$_.kind-ceq'item-spend-after'}).Count-eq0) 'refused or precommit-interrupted scroll cast spent a charge'
   $id=$before.ability.sourceItem;$stackBefore=@($before.items|Where-Object {$_.item-eq$id});$stackAfter=@($after.items|Where-Object {$_.item-eq$id})
   Need ($stackBefore.Count-eq1-and$stackAfter.Count-eq1-and$stackAfter[0].exactSlot-eq$true-and$stackAfter[0].count-eq$stackBefore[0].count) 'refused scroll cast changed the exact disposable stack'

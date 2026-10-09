@@ -88,6 +88,12 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
   if($name-ceq'C6C-cancel-before'){$e.inputCount=0;$e|Add-Member cancelledSelection $true}
   if($name-ceq'C6C-interrupt-before'){$e|Add-Member interrupted $true;$e|Add-Member interruptionBefore ([pscustomobject]@{shell=[pscustomobject]@{started=$true;acted=$false}})}
  }
+ if($name-ceq'C6C-rider-incapacity'){
+  # Frozen 202 RT native fact: the incapacity damage lands inside the running scroll shell, the native
+  # concentration check fails and the engine spends one scroll charge before force-finishing the shell.
+  $e.events=@([pscustomobject]@{kind='concentration-rule-after';actor='rider';dc=34;roll=26;success=$false},[pscustomobject]@{kind='spell-spend-after';actor='rider';identity=5},[pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=10;result=$true},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=1;count=9;result=$true})
+  $e.after.items[1].count=9;$e.after|Add-Member shell ([pscustomobject]@{identity=10;acted=$false;finished=$true})
+ }
  if($name-cin@('C6C-potion-self','C6C-scroll-friendly')){
   $itemBlueprint=if($name-ceq'C6C-potion-self'){'d52566ae8cbe8dc4dae977ef51c27d91'}else{'cd635d5720937b044a354dba17abad8d'}
   $e.before.ability.sourceItem=60;$e.before.ability.sourceItemBlueprint=$itemBlueprint
@@ -97,7 +103,8 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
  if($name-ceq'C6C-full-round'){
   $e.before.ability.fullRound=$true
   if($tb){$e.after.rider.move=3.0;$e.costEvents[1].state.move=3.0}
-  $e.events+=[pscustomobject]@{kind='summon';actor='rider';unitObject=70;context=20}
+  $e.events+=[pscustomobject]@{kind='summon';actor='rider';unit='summon-1';unitObject=70;context=20}
+  $e|Add-Member summonCleanup @([pscustomobject]@{unit='summon-1';inState=$false;worldContains=$false})
  }
  if($name-cin@('C6C-rider-incapacity','C6C-mount-incapacity')){
   $e.after.relationship='Unmounted';$e.after|Add-Member relationshipRider $null;$e.after|Add-Member relationshipMount $null
@@ -117,6 +124,8 @@ function New-CastingRow([string]$name,[bool]$tb,[bool]$mounted){
  }
  if($name-ceq'C6C-under-threat'){
   $e|Add-Member boundary ([pscustomobject]@{riderEngaged=$true;nativeHostileAttackInputCount=1;nativeAttackTerminalBeforeCast=$true})
+  # The threatened row targets the mount: the touch cast still runs at the native one-second defensive window.
+  $e.target='mount';$e.resolvedTarget='mount'
   $e.events+=[pscustomobject]@{kind='defensive-rule-after';actor='rider';dc=17;roll=19;success=$true}
  }
  $r
@@ -125,6 +134,32 @@ foreach($tb in @($false,$true)){foreach($mounted in @($false,$true)){foreach($na
 $r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.costShell=10;Reject $r 'cost trace may not reuse another registry identity'
 $r=New-CastingRow 'C6C-full-round' $true $true;$r.evidence.costEvents[1].state.move=0.0;Reject $r 'TB full-round Move commitment not dropped' $true
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.healthRestored=$false;Reject $r 'unrestored fixture incapacity cannot qualify'
+# Native concentration failure inside the running shell (frozen 202 RT stages 1/3): the engine spends the
+# scroll charge once and force-finishes the shell without acting or charging; a passed check spends nothing.
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events=@($r.evidence.events|Where-Object {$_.kind-cnotlike'*spend*'});$r.evidence.after.items[1].count=10;Reject $r 'native concentration failure cannot keep the scroll charge'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events=@();$r.evidence.after.items[1].count=10;Reject $r 'incapacity inside the running shell must reach the native concentration owner'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events[0].success=$true;Reject $r 'a passed concentration check cannot spend the scroll'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events=@($r.evidence.events[0]);$r.evidence.events[0].success=$true;$r.evidence.after.items[1].count=10;Accept $r;Check $true 'passed concentration check followed by native incapacity interruption spends nothing'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events+=[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=1;count=8;result=$true};Reject $r 'lost spell cannot spend two scroll charges'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events+=[pscustomobject]@{kind='spell-spend-after';actor='rider';identity=5};Reject $r 'lost spell cannot be spent twice'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.costEvents=@($base.evidence.costEvents[0]);Reject $r 'force-finished shell cannot charge an action'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.after.shell.finished=$false;Reject $r 'lost spell cannot leave its shell live'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.after.items[1].count=10;Reject $r 'lost scroll charge must decrement the exact stack in place'
+$r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events+=[pscustomobject]@{kind='cast-after';identity=11;actor='rider';process=1;spellFailed=$false;arcaneFailed=$false;ability=[pscustomobject]@{blueprint='5590652e1c2225c4ca30c4a699ab3649'}};Reject $r 'lost spell cannot also deliver a cast'
+$r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.events+=[pscustomobject]@{kind='concentration-rule-after';actor='rider';dc=20;roll=25;success=$true};Reject $r 'settled rows admit no native concentration check'
+# Full-round rows release their exact native summons before the next row (frozen 202 TB stages 2/4).
+$r=New-CastingRow 'C6C-full-round' $false $true;$r.evidence.summonCleanup[0].inState=$true;Reject $r 'live native summon cannot survive the full-round row'
+$r=New-CastingRow 'C6C-full-round' $false $true;$r.evidence.summonCleanup[0].worldContains=$true;Reject $r 'world-listed native summon cannot survive the full-round row'
+$r=New-CastingRow 'C6C-full-round' $false $true;$r.evidence.PSObject.Properties.Remove('summonCleanup');Reject $r 'unobserved summon release cannot pass the full-round row'
+$r=New-CastingRow 'C6C-full-round' $false $true;$r.evidence.summonCleanup=@();Reject $r 'summon release must name every exact summoned unit'
+$r=New-CastingRow 'C6C-full-round' $false $true;$r.evidence.summonCleanup[0].unit='other-unit';Reject $r 'summon release cannot name a foreign unit'
+# The threatened row: mount target, the cast still running after one second, the defensive outcome once.
+$r=New-CastingRow 'C6C-under-threat' $false $true;$r.evidence.target='rider';$r.evidence.resolvedTarget='rider';Reject $r 'self-targeted threatened cast cannot stand for the native defensive window'
+$r=New-CastingRow 'C6C-under-threat' $false $true;$r.evidence.events[0].shell.timeSinceStart=0.55;$r.evidence.after.rider.standard=5.45;$r.evidence.costEvents[1].state.standard=5.45;Reject $r 'threatened cast that acted inside one second cannot claim the native defensive check'
+$r=New-CastingRow 'C6C-under-threat' $false $true;$r.evidence.events=@($r.evidence.events|Where-Object kind -cne 'defensive-rule-after');Reject $r 'threatened cast without the native defensive outcome refused'
+$r=New-CastingRow 'C6C-under-threat' $false $true;$r.evidence.events=@([pscustomobject]@{kind='defensive-rule-after';actor='rider';dc=17;roll=9;success=$false},[pscustomobject]@{kind='concentration-rule-after';actor='rider';dc=21;roll=12;success=$false},[pscustomobject]@{kind='spell-spend-after';actor='rider';identity=5},[pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=10;result=$true},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=1;count=9;result=$true});$r.evidence.costEvents=@();$r.evidence.after.rider.standard=0.0;$r.evidence.after|Add-Member shell ([pscustomobject]@{identity=10;acted=$false;finished=$true});Accept $r;Check $true 'threatened cast lost to the native attack of opportunity and concentration failure spends exactly one charge'
+$r=New-CastingRow 'C6C-under-threat' $false $true;$r.evidence.events=@([pscustomobject]@{kind='defensive-rule-after';actor='rider';dc=17;roll=9;success=$false},[pscustomobject]@{kind='concentration-rule-after';actor='rider';dc=21;roll=12;success=$false},[pscustomobject]@{kind='spell-spend-after';actor='rider';identity=5},[pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=10;result=$true},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=1;count=9;result=$true});$r.evidence.after.rider.standard=0.0;$r.evidence.after|Add-Member shell ([pscustomobject]@{identity=10;acted=$false;finished=$true});Reject $r 'lost threatened spell cannot charge an action in real time'
+$r=New-CastingRow 'C6C-under-threat' $true $true;$r.evidence.events=@([pscustomobject]@{kind='defensive-rule-after';actor='rider';dc=17;roll=9;success=$false},[pscustomobject]@{kind='concentration-rule-after';actor='rider';dc=21;roll=12;success=$false},[pscustomobject]@{kind='spell-spend-after';actor='rider';identity=5},[pscustomobject]@{kind='item-spend-before';identity=60;actor='rider';charges=1;count=10;result=$true},[pscustomobject]@{kind='item-spend-after';identity=60;actor='rider';charges=1;count=9;result=$true});$r.evidence.after.rider.standard=0.0;$r.evidence.after|Add-Member shell ([pscustomobject]@{identity=10;acted=$false;finished=$true});Reject $r 'lost threatened spell cannot charge an action in turn-based mode' $true
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.nativeRuleDamageCap=$null;Reject $r 'main-character life stimulus cannot lose its native cap'
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.nativeDamageBeforeDifficulty=12;Reject $r 'native main-character damage cannot exceed the applied cap'
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.boundary.nativeRuleIsFake=$true;Reject $r 'fake damage cannot prove native incapacity'
