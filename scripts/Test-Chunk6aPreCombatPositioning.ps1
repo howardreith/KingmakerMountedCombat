@@ -52,6 +52,24 @@ Reject-Positioning {param($c)$c.candidates+=@($c.candidates[0])} 'search is miss
 foreach($value in @(1.9,2.7)){ $copy=Copy-Positioning $fixture;$copy.candidates[0].requestedSeparation=$value;$rejected=$false;try{Assert-KmcChunk6aPreCombatPositioning $copy $proof}catch{$rejected=$true};if(!$rejected){throw 'Nominal separation bound weakened'};$checks++ }
 Reject-Positioning {param($c)$c.candidates[0].travel=4.1} 'route and clearance'
 Reject-Positioning {param($c)$c.candidates[0].routeResidual=0.1} 'route and clearance'
+# Frozen 205 allocation-rider-first-tb: the v2 ground plan proves a forward route that ends at the origin through its
+# reciprocal origin boundary (reverse route from the point reaching the origin); the measured residual is the reverse one
+# and only under the complete v2 proof.
+function Add-ReciprocalProof($c) {
+    $origin=[pscustomobject]@{x=0;y=0;z=0}
+    $c|Add-Member -NotePropertyName plan -NotePropertyValue ([pscustomobject]@{contract='bounded-native-ground-plan-v2';origin=$origin;originInsideNavmesh=$true;originNativeNearest=[pscustomobject]@{walkable=$true;requested=$origin;clamped=$origin}}) -Force
+    $cand=$c.candidates[0];$cand.routeResidual=2.0
+    $cand|Add-Member -NotePropertyName routeEnd -NotePropertyValue ([pscustomobject]@{x=0;y=0;z=0}) -Force
+    $cand|Add-Member -NotePropertyName reverseRouteEnd -NotePropertyValue ([pscustomobject]@{x=0.0002;y=0;z=0}) -Force
+    $cand|Add-Member -NotePropertyName routeProof -NotePropertyValue 'reciprocal-origin-boundary' -Force
+}
+$copy=Copy-Positioning $fixture;Add-ReciprocalProof $copy;Assert-KmcChunk6aPreCombatPositioning $copy $proof;$script:checks++
+Reject-Positioning {param($c)Add-ReciprocalProof $c;$c.candidates[0].reverseRouteEnd.x=0.5} 'route and clearance'
+Reject-Positioning {param($c)Add-ReciprocalProof $c;$c.candidates[0].routeEnd.x=0.5} 'route and clearance'
+Reject-Positioning {param($c)Add-ReciprocalProof $c;$c.candidates[0].routeProof='forward'} 'route and clearance'
+Reject-Positioning {param($c)Add-ReciprocalProof $c;$c.plan.contract='bounded-native-ground-plan'} 'route and clearance'
+Reject-Positioning {param($c)Add-ReciprocalProof $c;$c.plan.originInsideNavmesh=$false} 'route and clearance'
+Reject-Positioning {param($c)Add-ReciprocalProof $c;$c.plan.originNativeNearest.walkable=$false} 'route and clearance'
 Reject-Positioning {param($c)$c.candidates[0].blockers=@('actor')} 'route and clearance'
 Reject-Positioning {param($c)$c.candidates[0].footprint.probes[0].residual=0.1} 'footprint is clipped'
 Reject-Positioning {param($c)$c.clearanceRadius=0.5} 'clearance footprint'

@@ -79,6 +79,29 @@ function Accept($row,[bool]$tb){Assert-KmcChunk6eReactionRow $row $Rider $Mount 
 function Reject($row,[string]$why,[bool]$tb=$true){$refused=$false;try{Accept $row $tb}catch{$refused=$true};Check $refused $why}
 foreach($tb in @($true,$false)){foreach($name in Get-KmcChunk6eReactionCases){Accept (New-ReactionRow $name $tb) $tb;Check $true ('native fact row (refused out-of-turn Swift) '+$name+' TB='+$tb)}}
 foreach($tb in @($true,$false)){foreach($name in @('C6E-swift-out-of-turn','C6E-reaction-window')){Accept (New-ReactionRow $name $tb $true) $tb;Check $true ('native fact row (admitted out-of-turn Swift, charged exactly once) '+$name+' TB='+$tb)}}
+# Frozen 205 TB (Stage 12): a Swift input issued outside the rider's own turn is admitted into a shell that never
+# starts (finished without a start, no cost pair, no cast, no spend; swift debt and slot unchanged) - the native
+# refusal shape. The same never-started shell on the rider's own turn stays a refused own-turn cast.
+function New-NeverStartedRow([string]$name,[bool]$interrupted=$false){
+ $r=New-ReactionRow $name $true $true;$s=$r.evidence.steps[0]
+ $s.events=@();$s.costEvents=@();$s.after=New-ReactionState 0.0 0.0 $(if($name-ceq'C6E-reaction-window'){$Rider}else{$Hostile}) $true
+ $s.terminal=New-Terminal 11 'UnitUseAbility' $Rider $true $false
+ if($interrupted){$s.terminal.acted=$false;$s.terminal.result='Interrupt'}
+ $r.evidence.after=$s.after;$r.evidence.events=@();$r.evidence.costEvents=@()
+ $r
+}
+$r=New-NeverStartedRow 'C6E-swift-out-of-turn';Accept $r $true;Check $true 'turn-based out-of-turn Swift shell that never started (finished without running) is the native refusal'
+$r=New-NeverStartedRow 'C6E-reaction-window' $true;Accept $r $true;Check $true 'turn-based attack-window Swift shell interrupted before it started is the native refusal'
+$r=New-NeverStartedRow 'C6E-swift-out-of-turn';$r.evidence.steps[0].after=New-ReactionState 6.0 0.0 $Hostile $true;$r.evidence.after=$r.evidence.steps[0].after;Reject $r 'a never-started Swift shell cannot change the Swift debt'
+$r=New-NeverStartedRow 'C6E-swift-out-of-turn';$r.evidence.steps[0].after=New-ReactionState 0.0 0.0 $Hostile $false;$r.evidence.after=$r.evidence.steps[0].after;Reject $r 'a never-started Swift shell cannot spend the memorized slot'
+$r=New-NeverStartedRow 'C6E-swift-out-of-turn';$r.evidence.steps[0].terminal.identity=12;Reject $r 'a never-started shell must be the exact admitted rider shell'
+$r=New-NeverStartedRow 'C6E-swift-out-of-turn';$r.evidence.steps[0].terminal.started=$true;Reject $r 'a shell that started without its single Swift charge is refused'
+$r=New-ReactionRow 'C6E-swift-on-own-turn' $true;$s=$r.evidence.steps[0];$s.events=@();$s.costEvents=@();$s.after=New-ReactionState 0.0 0.0 $Rider $true;$s.terminal=New-Terminal 11 'UnitUseAbility' $Rider $true $false;$r.evidence.after=$s.after;$r.evidence.events=@();$r.evidence.costEvents=@();Reject $r 'an own-turn Swift shell that never started is still a refused own-turn cast'
+# Frozen 205 RT (Stage 11): the native Swift charge is read at the cost boundary (6 s less the shell's running time) and
+# the settled state decays after it; a settled debt above the charge or a cost boundary that differs from the timing is refused.
+$r=New-ReactionRow 'C6E-swift-on-own-turn' $false;$s=$r.evidence.steps[0];$s.after=New-ReactionState 3.7 0.0 $Rider $false;$r.evidence.after=$s.after;Accept $r $false;Check $true 'real-time own-turn Swift accepts the settled cooldown decaying below the native charge'
+$r=New-ReactionRow 'C6E-swift-on-own-turn' $false;$s=$r.evidence.steps[0];$s.after=New-ReactionState 4.5 0.0 $Rider $false;$r.evidence.after=$s.after;Reject $r 'real-time settled Swift debt above the native charge is refused' $false
+$r=New-ReactionRow 'C6E-swift-on-own-turn' $false;$r.evidence.steps[0].costEvents[1].state=New-ReactionState 3.0 0.0 $Rider $false;$r.evidence.steps[0].costEvents[1].state=$r.evidence.steps[0].costEvents[1].state.rider;Reject $r 'real-time Swift charge that differs from the shell timing is refused' $false
 # Swift ownership.
 $r=New-ReactionRow 'C6E-swift-on-own-turn' $true;$r.evidence.steps[0].swift.ability.runtimeActionType='Standard';Reject $r 'a quickened instrument that is not Swift-typed is refused'
 # Frozen 203 RT: a ground instrument cast beside the pair made the rider and mount save at the attack seam.
