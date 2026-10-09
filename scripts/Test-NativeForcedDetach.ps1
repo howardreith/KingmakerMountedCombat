@@ -210,8 +210,10 @@ if($contracts.Count-ne3-or(@($contracts|ForEach-Object scenario|Sort-Object)-joi
 $roles=@(Get-KmcChunk6aAdditionalRoles 'CM05-forced-detach')
 if($roles.Count-ne3-or(@($roles|ForEach-Object {$_.name+'='+$_.scenario})-join'|')-cne'rider-death=chunk4-rider-death-tb|mount-death=chunk4-mount-death-tb|rider-incapacitation=chunk4-rider-incapacitation-tb'-or
    @($roles|Where-Object {($_.rows-join'|')-cne'CM05-forced-detach'}).Count-ne0){throw 'Forced detach additional roles differ'};$checks++
-$harness=Get-Content -Raw (Join-Path $repo 'scripts/runtime/RuntimeHarness.Common.ps1')
-if(-not$harness.Contains("(`$phase3dSchemaVersion -eq 32L -and [string]`$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb'))")-or-not$harness.Contains('30L, 31L, 32L)')){throw 'Harness does not pin schema 32 to the native life scenarios'};$checks++
+# The schema registration and dispatch moved from RuntimeHarness.Common.ps1 into ScenarioDispatchEvidence.ps1 (dot-sourced by Common,
+# same reviewed reader identity) and the registered schema list now continues past 32L; the pin is read from the dispatch module.
+$harness=(Get-Content -Raw (Join-Path $repo 'scripts/runtime/RuntimeHarness.Common.ps1'))+(Get-Content -Raw (Join-Path $repo 'scripts/runtime/ScenarioDispatchEvidence.ps1'))
+if(-not$harness.Contains("(`$phase3dSchemaVersion -eq 32L -and [string]`$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb'))")-or-not$harness.Contains('31L, 32L, 33L')){throw 'Harness does not pin schema 32 to the native life scenarios'};$checks++
 $supporting=Get-Content -Raw (Join-Path $repo 'scripts/runtime/Chunk6aSupportingEvidence.ps1')
 if(-not$supporting.Contains("if(`$Id-cne'CM05-forced-detach'-or`$artifact.schemaVersion-ne32){throw")-or-not$supporting.Contains("Assert-KmcChunk4CoreEvidence `$request `$artifact 'PASS'")){throw 'Additional native life qualification does not use the core reader on schema 32'};$checks++
 
@@ -232,7 +234,8 @@ foreach($needle in @('NativeForcedDetachEvidence.AssertComplete(evidence);','Add
  if(-not$source.Contains($needle)){throw ('Forced detach scenario lacks: '+$needle)};$checks++
 }
 $tranche=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Diagnostics/Phase3dHorseScenarioTranche.cs')
-if(-not$tranche.Contains('["schemaVersion"] = IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 :')){throw 'Native life scenarios do not publish schema 32'};$checks++
+# The schema chain gained the 6B/6C/6D/6E families in front of the native life pin; the pin itself is unchanged.
+if(-not$tranche.Contains('IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 :')){throw 'Native life scenarios do not publish schema 32'};$checks++
 $controls=Get-Content -Raw (Join-Path $repo 'src/KingmakerMountedCombat/Integration/NativeMountedControlService.cs')
 if(-not$controls.Contains('internal IReadOnlyList<NativeLifecycleDeliveryRecord> SnapshotLifecycleDeliveries()')){throw 'Lifecycle delivery snapshot accessor missing'};$checks++
 'NATIVE FORCED DETACH PASS='+$checks+' FAIL=0; synthetic producer/external/envelope only'
