@@ -1670,6 +1670,21 @@ $trackedTextFiles = @($tracked | Where-Object { [IO.Path]::GetExtension($_).ToLo
 $trackedText = ($trackedTextFiles | ForEach-Object { Get-Content -Raw -LiteralPath (Join-Path $repoRoot $_) }) -join "`n"
 Assert-Kmc ($trackedText -notmatch '(?i)BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|gh[pousr]_[A-Za-z0-9_]{20,}|password\s*[:=]\s*[^\s`"'']+') 'tracked shippable text contains no recognized secret pattern'
 
+# The registration-audit reader may demand the horse-companion-blueprint-registration artifact only
+# from scenarios whose compiled engine actually runs the audit (HorseCompanionRegistrationScenarioPolicy,
+# including the 6B cohorts). Preview.200 Stage 1 was refused at run time because the four Mammoth-engine
+# 6C roots sat in the reader list without any producer; the two lists are now held equal offline.
+$registrationPolicyText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs')
+$cohortText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\Chunk6bChargeCohorts.cs')
+$compiledAuditScenarios = @(@([Regex]::Matches($registrationPolicyText, '"([a-z0-9-]+)"') | ForEach-Object { $_.Groups[1].Value }) +
+    @([Regex]::Matches($cohortText, '"(chunk6b-charge-[a-z]+-rt)"') | ForEach-Object { $_.Groups[1].Value }) | Sort-Object -Unique)
+$auditReaderBody = [Regex]::Match($runtimeCommonText, '(?s)\$isAudit = \[string\]\$Request\.scenario -cin @\(\s*\$scenario,(.*?)\)\r?\n\s*\$records = @\(\$Manifest\.artifacts')
+$readerAuditScenarios = @(@([Regex]::Matches($auditReaderBody.Groups[1].Value, "'([a-z0-9-]+)'") | ForEach-Object { $_.Groups[1].Value }) + @('horse-companion-blueprint-registration') | Sort-Object -Unique)
+Assert-Kmc ($auditReaderBody.Success -and $compiledAuditScenarios.Count -ge 40 -and
+    $null -eq (Compare-Object -ReferenceObject $compiledAuditScenarios -DifferenceObject $readerAuditScenarios) -and
+    ($readerAuditScenarios -cnotcontains 'chunk6c-casting-rt') -and ($readerAuditScenarios -cnotcontains 'chunk6a-mammoth-mount-rt')) `
+    'the registration-audit reader list equals the compiled audit scenario policy (no Mammoth-engine root demands an artifact it never produces)'
+
 if ($failures.Count -gt 0) {
     Write-Host "TOTAL PASS=$passes FAIL=$($failures.Count)"
     foreach ($failure in $failures) {

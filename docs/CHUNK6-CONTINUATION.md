@@ -1,3 +1,72 @@
+## 2026-10-09 - preview200 closed; coherent201 casting instruments and external rule corrections (Claude)
+
+6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
+DEFERRED TO CHUNK6 CONSOLIDATION. Charge stays default-off; its TB refusal is not
+delivery. 6C IN PROGRESS; 6D-6F remain incomplete.
+
+Frozen200 (source3542dc0c211eb5e0ce47b74ace4127b3e9f48f67, tree
+e89a03dc8038a6e2b07c9dc905baac79cdf66978, package4c7d320cff4d90d23883ceb06843689d3a44356521d3e75560b69a1c922c620b,
+DLL322f733e6002c0eb029ba40e1c4ff724657ebb8dbd130259dd054eaad7a6b71c /
+MVID201bdf32-402d-4ed4-b98d-0d9b81355325, suite20261008-chunk6c-casting-l
+4672c26b749dee050a41378bd429da3eb137d5ac3febe6f7f1cfea144c18602b) is closed:
+- Purity l1 ABORTED - NO PURITY VERDICT: the Claude Code tool host stopped the hosting background
+  task for system memory pressure after about97 minutes; controller and child absent, no receipt,
+  exit UNKNOWN (purity200-l1-interruption.json). Purity l2 PASS: detached controller, child30204,
+  exit0 with the PASS sentinel after90.6 minutes (purity200-l2-process.json
+  c7b03f4917ec3eb0e4828226c1a98d5f695816eb85af03a63755e4a41c89fabe).
+- Stage1 c6c-casting200-l-mounted-rt: the native producer completed all15 rows for the first time
+  (PASS17/0, frames6290, 112.5s): the AI-lease-before-Mount repair worked - rider incapacity, mount
+  incapacity and under-threat settled without a leaf deadline. The outer envelope FAILED at the
+  generic registration-audit reader ("PASS horse companion registration audit requires exactly one
+  manifested artifact"): the four Mammoth-engine6C roots were listed as audited scenarios although
+  Chunk6aMammothScenarioEngine never runs that audit (chunk6a-mammoth-mount-* PASS runs are read
+  without it). Worker1/game6772 exit0; transaction restored exactly (modsRestored, saveProtection,
+  baselineImmutable, workingRestored, allowlist all true; empty restoration/observation errors).
+- Offline external row evaluation of the immutable Stage1 rows:8 PASS /7 FAIL. Five Guidance rows
+  (quickened-self, standard-self, standard-friendly, movement-policy, under-threat) failed on the
+  native fact that Guidance is not castable by the fixture Druid: the spellbook has no memorized
+  level-0 slot (initialPrepared lists three level-1 slots), AbilityData.IsAvailable is false while
+  IsAvailableForCast is true, UnitUseAbility.OnAction fails at IL_0008-IL_001C (pinned contract) with
+  Result=Fail, no RuleCastSpell, no process and the action still charged; native Spellbook.Memorize
+  sets SpellSlot.Available=false until rest, so no lawful runtime memorization exists. The two life
+  rows failed only on the pair-replay rule: the incapacitated actor's native combat exit clears its
+  cooldowns (combat-clear-before/clear-before/clear-after/combat-clear-after nested for the subject).
+  No production casting, action, resource or concentration defect is established.
+- Stages2-4 BLOCKED-unrun (shared fixture instruments), stages5-8 NOT RUN (no concrete change;
+  return in the successor batch). Closure preview200-campaign-closure.json
+  926ad819361a1fcd0a3b39c70661b06c061f5e58d358debfa2f55ff522ebe605.
+
+Working201 (one coherent tranche, no production policy change):
+- Instruments: C6C-quickened-self quickens the memorized CLW slot through the rod; standard-hostile
+  keeps Snowball; full-round keeps the spontaneous summon conversion; every other cast (standard-self,
+  standard-friendly, scroll-interrupt-after, invalid-target, cancel-before, interrupt-before,
+  scroll-friendly, movement-policy, rider/mount incapacity, under-threat) casts CLW from one exact
+  native scroll stack (count10 through ItemEntity.IncrementCount at creation, released as one item).
+  C6C-prepared-interrupt-after is renamed C6C-scroll-interrupt-after (post-commit interruption keeps
+  the cost and the spent charge); the historical name stays registered so199/200 envelopes remain
+  readable. Same15 rows/four baselines/eight stages/schema44/30-second leaf.
+- External rules: the reader pins the native IsAvailable predicate, exact instrument identity
+  (spellbook slot vs scroll stack vs potion), exactly one native spend per completed item cast and
+  none for refusals, counts a Cooldowns.Clear as a replay only outside the actor's own combat-exit
+  window, requires the partner never to leave combat during the subject incapacity, and requires the
+  quickened slot to be spent once. The four6C roots leave the registration-audit list, and source
+  validation now holds that list equal to the compiled HorseCompanionRegistrationScenarioPolicy.
+- Regressions: reader fixtures and new negatives (unavailable orison, foreign instrument, missing or
+  duplicated spend, bare clear, prepare inside the exit window, partner exit, settled-window exit);
+  compiled checks that the Guidance GUID is no longer an instrument, the row list and the bounded
+  stack count; the immutable199 Stage1 chain re-evaluation still preserves its FAIL.
+- Version stamps0.1.0-chunk6c-preview.201.
+
+Offline gates: build/source146/0; components712/0; compiled observer150/0; casting reader228/0
+(reader1 retained: the renamed row made the immutable199 envelope unknown until the historical name
+was re-registered); FAST12/0; CANDIDATE16/0 (harness271/0, assembly701/0).
+
+No201 package/suite/purity/native credit at this source checkpoint.
+Next: coherent commit, guarded push, package (chunk6c-casting-m), suite, freeze201, one read-only
+detached purity, then the eight-stage batch with the failed mountedRT first. Then6D/6E (design notes
+CHUNK6D-STAGED-ACTIONS-DESIGN-20261008.md, CHUNK6E-REACTION-FEASIBILITY-DESIGN-20261008.md) and6F.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod change/HUMAN PLAY acceptance.
+
 ## 2026-10-08 - preview199 closed; coherent200 fixture AI-lease ordering and reader repair (Claude)
 
 6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION

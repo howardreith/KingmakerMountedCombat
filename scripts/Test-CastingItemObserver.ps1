@@ -327,6 +327,14 @@ public static class CastingObserverProbe {
   CopyDetachedMethod(child.GetMethod("TickChunk6cCasting",F),instruction,"VerifyDetachedCastingEntryOrder");
   Check(true,"compiled casting entry owns both AI leases and consults the tested gates before its first native Mount click");
   Check(child.GetMethod("CaptureChunk6cCastingDeadlineProgress",F)!=null,"6C leaf deadline records bounded raw case/boundary/AI/command facts");
+  // Instruments after the preview.200 native fact: no unmemorized orison, a bounded native scroll stack.
+  var cases=(string[])child.GetField("CastingCases",F).GetValue(null);
+  Check(cases.Length==15&&cases[4]=="C6C-scroll-interrupt-after"&&!cases.Contains("C6C-prepared-interrupt-after")&&cases.Distinct().Count()==15,"compiled 6C rows name the scroll-sourced post-commit interruption exactly once");
+  Check(!child.GetFields(F).Any(f=>f.IsLiteral&&f.FieldType==typeof(string)&&(string)f.GetRawConstantValue()=="c3a8f31778c3980498d8f00c980be5f5"),"the unavailable Guidance orison is no longer a compiled fixture instrument");
+  var stack=(int)child.GetField("ScrollStackCount",F).GetRawConstantValue();
+  Check(stack>=8&&stack<=32,"scroll stack covers every scroll-sourced row within the bounded disposable range");
+  var acquire=child.Assembly.GetType("KingmakerMountedCombat.Diagnostics.NativeCastingItemLease",true).GetMethod("Acquire",F);
+  Check(acquire.GetParameters().Length==1&&acquire.GetParameters()[0].ParameterType==typeof(int),"native item lease acquires an exact bounded stack count");
  }
  static void ExerciseCastingFixtureAdmission(Assembly native,Type child){
   var mod=child.Assembly;var service=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);
