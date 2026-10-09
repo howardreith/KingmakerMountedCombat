@@ -25,7 +25,7 @@ function Get-KmcChunk6cPairReplayCount($Costs,[string]$Rider,[string]$Mount) {
  }
  $replays
 }
-function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb,[bool]$Mounted) {
+function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb,[bool]$Mounted,$Items=$null) {
  function Need([bool]$ok,[string]$why){if(-not$ok){throw ('6C '+$Row.name+': '+$why)}}
  function Number($v){if($v-isnot[int]-and$v-isnot[long]-and$v-isnot[single]-and$v-isnot[double]-and$v-isnot[decimal]){throw '6C number missing'};$x=[double]$v;if([double]::IsNaN($x)-or[double]::IsInfinity($x)){throw '6C nonfinite number'};$x}
  function Close($a,$b){[Math]::Abs((Number $a)-(Number $b))-le.001}
@@ -54,6 +54,15 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  if($spellbookRow){Need ($before.ability.sourceItem-eq0-and$null-eq$before.ability.sourceItemBlueprint-and$before.ability.available-eq$true) 'spellbook row lacks an available memorized or converted native slot'}
  if($scrollRow){Need ($before.ability.sourceItem-ne0-and$before.ability.sourceItemBlueprint-ceq'cd635d5720937b044a354dba17abad8d'-and$before.ability.available-eq$true) 'scroll row did not cast from the exact native scroll stack'}
  if($Row.name-ceq'C6C-potion-self'){Need ($before.ability.sourceItem-ne0-and$before.ability.sourceItemBlueprint-ceq'd52566ae8cbe8dc4dae977ef51c27d91') 'potion row did not drink the exact native potion'}
+ # The row's source item is the exact equipped disposable entity recorded by the lease of the same
+ # identity registry, never an original or a foreign quick-slot refill of one.
+ if($null-ne$Items) {
+  $leaseBlueprint=if($Row.name-ceq'C6C-potion-self'){'d52566ae8cbe8dc4dae977ef51c27d91'}elseif($scrollRow){'cd635d5720937b044a354dba17abad8d'}else{$null}
+  if($leaseBlueprint) {
+   $lease=@($Items|Where-Object blueprint -CEQ $leaseBlueprint)
+   Need ($lease.Count-eq1-and$lease[0].equipped.exactSlot-eq$true-and$before.ability.sourceItem-eq$lease[0].equipped.item) 'item row did not source the exact equipped disposable entity'
+  }
+ }
  Need ($after.riderCommandsEmpty-eq$true-and$after.mountCommandsEmpty-eq$true-and$after.processesSettled-eq$true-and$after.nativeAbilitiesPending-eq$false-and$after.projectilesPending-eq$false-and$after.activePairCommand-eq$false) 'command/process/pair residue remains'
  Need ($e.selectionAfter-is[Array]-and$e.selectionAfter.Count-eq1-and$e.selectionAfter[0]-ceq$Rider) 'normal input lacks exact single rider selection'
  $events=@($e.events);$costs=@($e.costEvents)
@@ -163,12 +172,20 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   $pre=@($events|Where-Object {$_.kind-ceq'item-spend-before'-and$_.identity-eq$id})
   Need ($pre.Count-eq1-and$spent.Count-eq1-and(($spent[0].charges-eq$pre[0].charges-1)-or($spent[0].count-eq$pre[0].count-1))) 'native consumable state did not decrease exactly once'
   Need ($spent.Count-eq1) 'native item charge/consumption not exactly once'
+  # The exact disposable stack stays equipped and decrements in place (count-1, charges back to 1);
+  # a removed single unit would invoke the foreign quick-slot refill of an original item.
+  $stackBefore=@($before.items|Where-Object {$_.item-eq$id});$stackAfter=@($after.items|Where-Object {$_.item-eq$id})
+  Need ($stackBefore.Count-eq1-and$stackAfter.Count-eq1-and$stackBefore[0].exactSlot-eq$true-and$stackAfter[0].exactSlot-eq$true-and$stackBefore[0].count-ge2-and$stackAfter[0].count-eq$stackBefore[0].count-1-and$stackAfter[0].charges-eq1) 'exact disposable stack did not decrement in place'
   if($Row.name-cin@('C6C-potion-self','C6C-scroll-friendly')) {
    $heal=@($events|Where-Object {$_.kind-ceq'heal'-and$_.actor-ceq$Rider-and$_.target-ceq$e.target})
    Need ($heal.Count-eq1-and(Number $heal[0].value)-gt0) 'item healing missing or duplicated'
   }
  }
- if($scrollRow-and$refusal){Need (@($events|Where-Object {$_.kind-ceq'item-spend-after'}).Count-eq0) 'refused or precommit-interrupted scroll cast spent a charge'}
+ if($scrollRow-and$refusal) {
+  Need (@($events|Where-Object {$_.kind-ceq'item-spend-after'}).Count-eq0) 'refused or precommit-interrupted scroll cast spent a charge'
+  $id=$before.ability.sourceItem;$stackBefore=@($before.items|Where-Object {$_.item-eq$id});$stackAfter=@($after.items|Where-Object {$_.item-eq$id})
+  Need ($stackBefore.Count-eq1-and$stackAfter.Count-eq1-and$stackAfter[0].exactSlot-eq$true-and$stackAfter[0].count-eq$stackBefore[0].count) 'refused scroll cast changed the exact disposable stack'
+ }
 }
 function Assert-KmcChunk6cCastingEvidence {
  param([Parameter(Mandatory=$true)]$Request,[Parameter(Mandatory=$true)]$Artifact,[AllowNull()][string]$Status)
@@ -184,10 +201,21 @@ function Assert-KmcChunk6cCastingEvidence {
  if($o.mode-cne$(if($tb){'TB'}else{'RT'})-or$o.mounted-ne$mounted){throw '6C mode/surface differs'}
  $expected=@(Get-KmcChunk6cCastingCases)
  if(($o.cases|ConvertTo-Json -Compress)-cne($expected|ConvertTo-Json -Compress)){throw '6C registered row order differs'}
- foreach($name in $expected){$rows=@($Artifact.rows|Where-Object name -CEQ $name);if($rows.Count-ne1){throw ('6C required row missing or duplicated: '+$name)};Assert-KmcChunk6cCastingRow $rows[0] $o.rider $o.mount $tb $mounted}
+ foreach($name in $expected){$rows=@($Artifact.rows|Where-Object name -CEQ $name);if($rows.Count-ne1){throw ('6C required row missing or duplicated: '+$name)};Assert-KmcChunk6cCastingRow $rows[0] $o.rider $o.mount $tb $mounted @($o.items)}
  if($o.castTrace.faults-ne0-or$o.castTrace.dropped-ne0-or$o.castTrace.identityRegistry.faults-ne0-or$o.castTrace.identityRegistry.released-ne$true-or$o.castTrace.identityRegistry.retainedCount-ne0-or$o.costTrace.observationErrors-ne0-or$o.costTrace.dropped-ne0-or$o.costTrace.identityRegistry.faults-ne0-or$o.costTrace.identityRegistry.released-ne$true-or$o.costTrace.identityRegistry.retainedCount-ne0){throw '6C observer incomplete or ownership not retired'}
  if($o.final.riderCommandsEmpty-ne$true-or$o.final.mountCommandsEmpty-ne$true-or$o.final.processesSettled-ne$true-or$o.final.nativeAbilitiesPending-ne$false-or$o.final.projectilesPending-ne$false){throw '6C final native residue remains'}
  foreach($item in @($o.items)){if($item.disposed-ne$true-or$item.slotRestored-ne$true-or$item.noOwnedItemResident-ne$true){throw '6C disposable native item ownership remains'}}
+ # Disposable stacks: one exact equipped unit first, the bounded stack built on that entity, and the
+ # final count equal to the requested count minus every observed native spend of that exact entity.
+ foreach($item in @($o.items)) {
+  if($item.requestedCount-isnot[int]-and$item.requestedCount-isnot[long]){throw '6C disposable item lacks its requested count'}
+  if($item.equipped.exactSlot-ne$true-or$item.equipped.count-ne1-or$item.equipped.item-eq0){throw '6C disposable item was not equipped as one exact unit'}
+  if($item.requestedCount-gt1-and($item.stacked.exactSlot-ne$true-or$item.stacked.count-ne$item.requestedCount-or$item.stacked.item-ne$item.equipped.item)){throw '6C disposable stack was not built on the equipped entity'}
+  if($item.blueprint-cin@('d52566ae8cbe8dc4dae977ef51c27d91','cd635d5720937b044a354dba17abad8d')) {
+   $spends=@($Artifact.rows|ForEach-Object {if($_.evidence.PSObject.Properties['events']){@($_.evidence.events)}}|Where-Object {$_.kind-ceq'item-spend-after'-and$_.identity-eq$item.equipped.item-and$_.result-eq$true}).Count
+   if($item.beforeCleanup.exactSlot-ne$true-or$item.beforeCleanup.count-lt1-or$item.beforeCleanup.count-ne($item.requestedCount-$spends)){throw '6C disposable stack left its slot or its count does not conserve the observed native spends'}
+  }
+ }
  if(@($o.summonCleanup|Where-Object {$_.inState-ne$false-or$_.worldContains-ne$false}).Count-ne0){throw '6C fixture summoned actor remains'}
  if($Status-ceq'PASS'-and$Artifact.status-cne'PASS'){throw '6C failed native observation cannot be promoted'}
 }

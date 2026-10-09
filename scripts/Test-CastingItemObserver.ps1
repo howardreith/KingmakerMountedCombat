@@ -335,6 +335,45 @@ public static class CastingObserverProbe {
   Check(stack>=8&&stack<=32,"scroll stack covers every scroll-sourced row within the bounded disposable range");
   var acquire=child.Assembly.GetType("KingmakerMountedCombat.Diagnostics.NativeCastingItemLease",true).GetMethod("Acquire",F);
   Check(acquire.GetParameters().Length==1&&acquire.GetParameters()[0].ParameterType==typeof(int),"native item lease acquires an exact bounded stack count");
+  // Disposable stacks after the preview.201 native fact: the exact unit is equipped first (native
+  // InsertItem splits stacks), the stack is built on that entity, and every item-sourced row
+  // demands at least two units so the native spend decrements in place (no foreign refill).
+  var potion=(int)child.GetField("PotionStackCount",F).GetRawConstantValue();
+  Check(potion>=2&&potion<=32,"potion stack keeps the exact potion entity equipped after its one measured drink");
+  CopyDetachedMethod(acquire,instruction,"VerifyDetachedAcquireOrder");
+  Check(true,"compiled lease equips the exact single unit before building the disposable stack on that entity");
+  var require=acquire.DeclaringType.GetMethod("RequireExactlyEquipped",F);
+  Check(child.GetMethod("ExactCastingItemAbility",F)!=null&&require!=null&&require.GetParameters().Length==2&&require.GetParameters()[1].ParameterType==typeof(int),"item-sourced rows demand the exact equipped stack with a minimum unit count");
+  CopyDetachedMethod(child.GetMethod("BeginCastingCase",F),instruction,"VerifyDetachedItemRowGuard");
+  Check(true,"compiled case entry resolves item-sourced abilities only through the exact equipped-stack guard");
+ }
+ public static System.Collections.Generic.IEnumerable<T> VerifyDetachedAcquireOrder<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  if(__originalMethod.Name!="Acquire")throw new InvalidOperationException("Unexpected lease method.");
+  var list=new System.Collections.Generic.List<T>();var index=0;var add=-1;var insert=-1;var increment=-1;var increments=0;
+  foreach(var instruction in instructions){
+   var called=typeof(T).GetField("operand").GetValue(instruction) as MethodInfo;
+   if(called!=null){
+    if(called.DeclaringType.FullName=="Kingmaker.Items.ItemsCollection"&&called.Name=="Add"&&add<0)add=index;
+    if(called.DeclaringType.FullName=="Kingmaker.Items.Slots.ItemSlot"&&called.Name=="InsertItem"&&insert<0)insert=index;
+    if(called.DeclaringType.FullName=="Kingmaker.Items.ItemEntity"&&called.Name=="IncrementCount"){if(increment<0)increment=index;increments++;}
+   }
+   list.Add(instruction);index++;
+  }
+  if(add<0||insert<0||increment<0||increments!=1)throw new InvalidOperationException("Lease acquisition must add, equip and stack exactly once.");
+  if(!(add<insert&&insert<increment))throw new InvalidOperationException("Lease acquisition must equip the exact unit before building its stack.");
+  return list;
+ }
+ public static System.Collections.Generic.IEnumerable<T> VerifyDetachedItemRowGuard<T>(System.Collections.Generic.IEnumerable<T> instructions,MethodBase __originalMethod){
+  if(__originalMethod.Name!="BeginCastingCase")throw new InvalidOperationException("Unexpected case entry.");
+  var list=new System.Collections.Generic.List<T>();var guarded=0;var raw=0;
+  foreach(var instruction in instructions){
+   var called=typeof(T).GetField("operand").GetValue(instruction) as MethodInfo;
+   if(called!=null&&called.Name=="ExactCastingItemAbility")guarded++;
+   if(called!=null&&called.Name=="get_Ability"&&called.DeclaringType.Namespace=="Kingmaker.Items")raw++;
+   list.Add(instruction);
+  }
+  if(guarded!=1||raw!=0)throw new InvalidOperationException("Case entry must resolve item abilities only through the exact guard.");
+  return list;
  }
  static void ExerciseCastingFixtureAdmission(Assembly native,Type child){
   var mod=child.Assembly;var service=mod.GetType("KingmakerMountedCombat.Integration.GameMountedRelationshipService",true);

@@ -28,7 +28,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 s => s.Owner.Body.QuickSlots);
             owners = slots.Select(s => s.Owner).ToArray();
             bodies = owners.Select(o => o.Body).ToArray();
-            state = new CastingFixtureSlotSnapshot<UsableSlot, ItemEntity>(slots, s => s.MaybeItem);
+            state = new CastingFixtureSlotSnapshot<UsableSlot, ItemEntity>(slots, s => s.MaybeItem, (s, i) => ReferenceEquals(i.HoldingSlot, s));
             Evidence["before"] = Snapshot();
         }
 

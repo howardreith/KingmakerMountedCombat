@@ -39,7 +39,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Casting fixture item is not in the exact native fixture list.");
         }
         // One exact native item entity. A count above one is the native stack of that many
-        // factory-created disposable items (ItemEntity.IncrementCount), released together.
+        // factory-created disposable items (ItemEntity.IncrementCount) on the equipped entity,
+        // released together. Native SpendCharges decrements a slot stack in place while it removes
+        // a single consumed unit through the one-bool ItemSlot.RemoveItem that the installed
+        // foreign refill patch intercepts (preview.200 moved original items into these slots), so
+        // every measured spend starts with at least two units and never displaces an original.
         internal void Acquire(int count = 1)
         {
             if (count < 1 || count > 32) throw new ArgumentOutOfRangeException(nameof(count), "Fixture item stack count is outside the bounded disposable range.");
@@ -65,23 +69,27 @@ namespace KingmakerMountedCombat.Diagnostics
                     throw new InvalidOperationException("Native item factory did not create one unowned exact usable item.");
                 Evidence["created"] = Snapshot();
                 Evidence["requestedCount"] = count;
-                if (count > 1)
-                {
-                    if (!Item.IsStackable) throw new InvalidOperationException("Native fixture item does not stack; one item only.");
-                    Item.IncrementCount(count - 1, true);
-                    if (Item.Count != count) throw new InvalidOperationException("Native stack count did not reach the requested disposable count.");
-                    Evidence["stacked"] = Snapshot();
-                }
+                if (count > 1 && !Item.IsStackable) throw new InvalidOperationException("Native fixture item does not stack; one item only.");
                 Item.Identify();
                 var inserted = rider.Inventory.Add(Item, true);
                 if (!ReferenceEquals(inserted, Item) || Item.Collection != rider.Inventory)
                     throw new InvalidOperationException("Native item insertion changed exact fixture identity.");
                 if (!slot.CanInsertItem(Item)) throw new InvalidOperationException("Native quick slot refused fixture item.");
+                // Native ItemSlot.InsertItem splits any stackable to one unit before taking slot
+                // ownership (ItemEntity.Split(1) returns the same entity only at count 1), so the
+                // exact unit is equipped first and the bounded stack is built on that entity.
                 slot.InsertItem(Item);
-                if (!ReferenceEquals(slot.MaybeItem, Item) || Item.HoldingSlot != slot)
+                if (!ReferenceEquals(slot.MaybeItem, Item) || Item.HoldingSlot != slot || Item.Count != 1)
                     throw new InvalidOperationException("Native equip did not retain the exact fixture item.");
                 ownedActivation = Item.ActivatableAbility;
                 Evidence["equipped"] = Snapshot();
+                if (count > 1)
+                {
+                    Item.IncrementCount(count - 1, true);
+                    if (Item.Count != count || !ReferenceEquals(slot.MaybeItem, Item) || Item.HoldingSlot != slot || Item.Collection != rider.Inventory)
+                        throw new InvalidOperationException("Native stack count did not reach the requested disposable count on the equipped entity.");
+                    Evidence["stacked"] = Snapshot();
+                }
                 Evidence["inventoryAfter"] = Inventory();
             }
             catch
@@ -108,6 +116,16 @@ namespace KingmakerMountedCombat.Diagnostics
             ["retainedActivationOn"] = ownedActivation?.IsOn,
             ["retainedActivationDisposed"] = ownedActivation?.IsDisposed
         };
+        // The measured cast must source this exact equipped entity with enough units for the
+        // native spend to decrement in place; any other occupant is refused before input.
+        internal bool IsExactlyEquipped(int minimumCount) => Item != null && !released && !disposed && slot != null &&
+            ReferenceEquals(slot.MaybeItem, Item) && ReferenceEquals(Item.HoldingSlot, slot) &&
+            Item.Collection == rider.Inventory && Item.Count >= minimumCount;
+        internal void RequireExactlyEquipped(string purpose, int minimumCount)
+        {
+            if (!IsExactlyEquipped(minimumCount))
+                throw new InvalidOperationException(purpose + " requires the exact equipped fixture item with at least " + minimumCount + " unit(s): " + Snapshot().ToString(Newtonsoft.Json.Formatting.None));
+        }
         private JArray Inventory() => new JArray(rider.Inventory.Items.Select(i => new JObject {
             ["item"] = trace.Identity(i), ["blueprint"] = i.Blueprint.AssetGuid, ["count"] = i.Count,
             ["charges"] = i.Charges, ["holdingSlot"] = trace.Identity(i.HoldingSlot) }));
@@ -143,7 +161,8 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void ReleaseOwnedItem()
         {
             if (disposed) return;
-            Evidence["beforeCleanup"] = Snapshot();
+            // The first release snapshot is the evidence; the Dispose re-entry must not overwrite it.
+            if (Evidence["beforeCleanup"] == null) Evidence["beforeCleanup"] = Snapshot();
             if (Item != null && !released)
             {
                 if (ownedActivation == null) ownedActivation = Item.ActivatableAbility;

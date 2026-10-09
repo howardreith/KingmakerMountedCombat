@@ -1,3 +1,73 @@
+## 2026-10-09 - preview201 closed; coherent202 disposable stacks on the exact equipped unit (Claude)
+
+6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
+DEFERRED TO CHUNK6 CONSOLIDATION. Charge stays default-off; its TB refusal is not
+delivery. 6C IN PROGRESS; 6D-6F remain incomplete.
+
+Frozen201 (source0c5c8d3f9dbcf3dd794ac72b5f544e54e9352a37, tree
+50110c4526c2e38e77bb20cba23ba5a005f86ca4, packagebbf555908ca1a4e99bf85fb6c378c59418f408468f40855b7b80dac4b2ea652b,
+DLL38c1ff6cf835da721436838f567e233bda11a75ca7101efd6af04b64d2d37f55 /
+MVID85e9b16f-35aa-417c-98f8-5f8719621409, suite20261009-chunk6c-casting-m
+fbb748bd4ed0b52435cd2c33e7b940e01687ff348577a9fc08ee1851ffabe633) is closed:
+- Purity m1 PASS: detached controller, child22704, exit0 with the PASS sentinel after90.4 minutes
+  (purity201-m1-process.json f84c4fc958d2699923fd79ae93e3fab6842b1ca9f731103950a28da09b37a083).
+- Stage1 c6c-casting201-m-mounted-rt FAILED natively inside fixture setup before any6C row:
+  "Native equip did not retain the exact fixture item" from NativeCastingItemLease.Acquire(count10)
+  (producer2 rows: CM01-native-mammoth-fixture FAIL, CM01-native-mammoth-restoration PASS; frames118,
+  39.2s). Worker1/game23328 exit0; transaction restored exactly (modsRestored, saveProtection,
+  baselineImmutable, workingRestored, allowlist all true; empty restoration/observation errors).
+- Native facts (Assembly-CSharp 3b6450ff..., read-only IL): ItemSlot.InsertItem (0x06007C7C) splits every
+  stackable item to one unit before taking slot ownership (ItemEntity.Split(1), 0x06007B63; identity
+  is kept only when Count == n), so the slot received a new split entity while the count-10 stack
+  stayed in the inventory. ItemEntity.SpendCharges (0x06007B74) decrements a slot stack in place
+  (count-1, Charges back to1) while a single consumed unit is removed through ItemsCollection.Remove ->
+  Extract -> ItemSlot.RemoveItem(bool) (0x06007C7D), the one-bool overload the installed BagOfTricks
+  patch refills from the native inventory. The frozen200 Stage1 rows show that refill moving ORIGINAL
+  fixture items into the disposable slots after the single potion and single scroll were consumed
+  (original potion -510858112 from another party member's quick slot; original scroll 458352640 from
+  the rider's quick slot1); the cohort restore returned the occupants but left the other-owner potion
+  with a null HoldingSlot inside its original slot (double reference created by the foreign refill),
+  which the occupant-only Restored predicate did not see. No production casting, action, resource or
+  concentration defect is established.
+- Stages2-4 BLOCKED-unrun (same fixture setup), stages5-8 NOT RUN. Closure
+  preview201-campaign-closure.json efe8bf56a4ae5a670054d9d8f542857326bedf6dd87ee2ab8d3d0c197ad25c05.
+
+Working202 (one coherent tranche, no production policy change):
+- NativeCastingItemLease.Acquire equips the exact single unit first (Split(1) at count1 keeps
+  identity; postconditions exact slot, holding slot, count1) and then builds the bounded disposable
+  stack on that equipped entity with ItemEntity.IncrementCount (count, slot, holding slot and
+  collection re-verified). The scroll stack stays x10; the potion becomes x2 so the one measured
+  drink decrements in place instead of removing the unit and invoking the foreign refill. The first
+  release snapshot (beforeCleanup) is no longer overwritten by the Dispose re-entry.
+- Chunk6cCastingScenario resolves every item-sourced row through ExactCastingItemAbility: the lease
+  must be exactly equipped with at least two units and the native AbilityData must source that exact
+  entity; otherwise the row refuses before input. Spellbook rows and the full-round conversion are
+  unchanged. Same15 rows/four baselines/eight stages/schema44/30-second leaf.
+- CastingFixtureSlotSnapshot/NativeCastingOriginalSlots: Restored now requires occupant identity
+  AND the native HoldingSlot link; Restore relinks a dangling original through the same exact native
+  removal and insertion (resources untouched). Component tests cover both.
+- External rules (Chunk6cCastingEvidence.ps1): each item row's source item must be the exact equipped
+  lease entity of the same identity registry (never an original or a refill); every completed item
+  cast decrements the exact stack in place (exactSlot before/after, count-1, charges1, at least two
+  units before); refused scroll rows leave the stack unchanged; envelope-level, each disposable item
+  was equipped as one exact unit, its stack was built on that entity, and its count before cleanup
+  equals the requested count minus the observed native spends of that entity while still in its slot.
+- Regressions: compiled IL-order check that Acquire adds, equips and only then stacks; PotionStackCount
+  bounds; the case entry resolves item abilities only through the guard; reader positives/negatives
+  for foreign identity, non-decrementing or displaced stacks, single-unit spends, refused-row changes
+  and conservation; the immutable199 Stage1 chain re-evaluation still preserves its FAIL.
+- Version stamps0.1.0-chunk6c-preview.202.
+
+Offline gates: build/source146/0; components714/0; compiled observer154/0; casting reader252/0
+(reader1-3 retained: synthetic refusal rows and a PowerShell5.1 ConvertFrom-Json array wrapper in the
+test fixture, not reader or product defects); FAST12/0; CANDIDATE16/0 (harness271/0, assembly701/0).
+
+No202 package/suite/purity/native credit at this source checkpoint.
+Next: coherent commit, guarded push, package (chunk6c-casting-n), suite, freeze202, one read-only
+detached purity, then the eight-stage batch with the failed mountedRT first. Then6D/6E (design notes
+CHUNK6D-STAGED-ACTIONS-DESIGN-20261008.md, CHUNK6E-REACTION-FEASIBILITY-DESIGN-20261008.md) and6F.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod change/HUMAN PLAY acceptance.
+
 ## 2026-10-09 - preview200 closed; coherent201 casting instruments and external rule corrections (Claude)
 
 6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
