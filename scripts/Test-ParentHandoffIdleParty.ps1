@@ -45,10 +45,10 @@ $evaluated=[KmcParentHandoffProbe]::Evaluate($modPath,$managed,[string[]]$regist
 $rows=@($evaluated-split"`n"|Where-Object{$_-ne''}|ForEach-Object{$p=$_-split'\|';[pscustomobject]@{scenario=$p[0];requires=($p[1]-eq'1');supports=($p[2]-eq'1')}})
 Check ($rows.Count-eq$registry.Count) 'every registered scenario was evaluated by the compiled predicates'
 foreach($row in $rows){
- $expected=$row.supports-and($row.scenario-clike'chunk4-*'-or$row.scenario-clike'actor-allocation-*'-or$row.scenario-clike'chunk6a-*'-or$row.scenario-clike'chunk6b-*'-or$row.scenario-clike'chunk6c-casting-*'-or$row.scenario-ceq'unmounted-attack-controls-rt')
+ $expected=$row.supports-and($row.scenario-clike'chunk4-*'-or$row.scenario-clike'actor-allocation-*'-or$row.scenario-clike'chunk6a-*'-or$row.scenario-clike'chunk6b-*'-or$row.scenario-clike'chunk6c-casting-*'-or$row.scenario-clike'chunk6d-staged-*'-or$row.scenario-clike'chunk6e-reaction-*'-or$row.scenario-ceq'unmounted-attack-controls-rt')
  if($row.requires-ne$expected){throw ('Idle-party handoff set differs for '+$row.scenario+': compiled='+$row.requires+' expected='+$expected)}
 }
-$checks++;Write-Output ('PASS the compiled idle-party handoff set equals every tranche-supported chunk4, actor-allocation, chunk6a/6b/6c and unmounted-attack-controls scenario ('+@($rows|Where-Object requires).Count+' scenarios)')
+$checks++;Write-Output ('PASS the compiled idle-party handoff set equals every tranche-supported chunk4, actor-allocation, chunk6a/6b/6c/6d/6e and unmounted-attack-controls scenario ('+@($rows|Where-Object requires).Count+' scenarios)')
 Check (@($rows|Where-Object{$_.requires-and-not$_.supports}).Count-eq0) 'no scenario outside the tranche allowlist requires the handoff'
 foreach($name in @('ordinary-attack-controls-tb','phase3d-unified-combat-tb-suite','phase3d-horse-presentation-suite','chunk6a-mount-preamble','mod-load-smoke','phase3h-combat-loop-rt')){
  Check (@($rows|Where-Object{$_.scenario-ceq$name-and-not$_.requires}).Count-eq1) ($name+' does not require the idle-party handoff')
@@ -59,8 +59,8 @@ foreach($name in @('unmounted-attack-controls-rt','chunk4-rider-death-tb','chunk
 
 # 2. Every child that captures the idle party is a tranche scenario family named by the predicate.
 $callers=@(Get-ChildItem (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics') -Filter '*.cs'|Where-Object{(Get-Content -Raw $_.FullName).Contains('CaptureIdleFixturePartyForCleanup();')}|ForEach-Object Name)
-$expectedCallers=@('ActorAllocationScenarios.cs','Chunk4ChargeScenario.cs','Chunk6bChargePathScenario.cs','Chunk6bChargeScenario.cs','Chunk6cCastingScenario.cs','Chunk4GroundArrivalScenario.cs','Chunk4HorseStrikeScenario.cs','Chunk4IncomingScenario.cs','Chunk4InspectionScenario.cs','Chunk4InterruptScenario.cs','Chunk4NativeLifeScenario.cs','Chunk4NativeRangedControl.cs','Chunk4ObstructionScenario.cs','Chunk4PairedPlayScenario.cs','Chunk4SessionScenario.cs','Chunk4SustainedScenario.cs','Chunk6aCombatMountScenario.cs','Phase3dHorseScenarioTranche.cs')
-Check ((@($callers|Sort-Object)-join'|')-ceq(@($expectedCallers|Sort-Object)-join'|')) 'the idle-party capture callers are exactly the known chunk4, actor-allocation, chunk6a/6b/6c and unmounted-controls child families'
+$expectedCallers=@('ActorAllocationScenarios.cs','Chunk4ChargeScenario.cs','Chunk6bChargePathScenario.cs','Chunk6bChargeScenario.cs','Chunk6cCastingScenario.cs','Chunk6StagedScenario.cs','Chunk4GroundArrivalScenario.cs','Chunk4HorseStrikeScenario.cs','Chunk4IncomingScenario.cs','Chunk4InspectionScenario.cs','Chunk4InterruptScenario.cs','Chunk4NativeLifeScenario.cs','Chunk4NativeRangedControl.cs','Chunk4ObstructionScenario.cs','Chunk4PairedPlayScenario.cs','Chunk4SessionScenario.cs','Chunk4SustainedScenario.cs','Chunk6aCombatMountScenario.cs','Phase3dHorseScenarioTranche.cs')
+Check ((@($callers|Sort-Object)-join'|')-ceq(@($expectedCallers|Sort-Object)-join'|')) 'the idle-party capture callers are exactly the known chunk4, actor-allocation, chunk6a/6b/6c/6d/6e and unmounted-controls child families'
 
 # 3. Parent engine: generalized admission wait and the bounded re-check immediately before the child.
 $parent=Get-Content -Raw (Join-Path $repoRoot 'src/KingmakerMountedCombat/Diagnostics/HorseCompanionUnmountedScenarioEngine.cs')

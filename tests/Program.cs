@@ -14,6 +14,7 @@ namespace KingmakerMountedCombat.Tests
             var runner = new TestRunner();
             ObserverIdentityTests.Register(runner);
             CastingFixtureSlotSnapshotTests.Register(runner);
+            CastingSummonResidueTests.Register(runner);
             runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAreSafe);
             runner.Run("request accepts no-save smoke", RequestAcceptsNoSaveSmoke);
             runner.Run("request rejects valued save", RequestRejectsValuedSave);

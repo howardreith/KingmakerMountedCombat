@@ -1,3 +1,96 @@
+## 2026-10-09 - preview202 closed (eight stages); coherent203: 6C corrections + 6D staged/6E reaction families (Claude)
+
+6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
+DEFERRED TO CHUNK6 CONSOLIDATION. Charge stays default-off; its TB refusal is not
+delivery. 6C IN PROGRESS; 6D/6E offline-ready, native NOT RUN; 6F incomplete.
+
+Frozen202 (source1f1cecb686fdf0ca68784c1f62da422f27b8b4c0, package e736b9cd808f9211a46e493f4e8fac28889e72a5c73e14558345a06b1cc06a5a,
+suite20261009-chunk6c-casting-n, freeze650925c6..., plan3255b1be...) is closed
+(preview202-campaign-closure.json e02aa6e5f3f3a31709c8fe27226d2fbacb428df57b9182578d5dac2448b988cd):
+- Purity n1 ABORTED - NO PURITY VERDICT (the Invoke-CimMethod controller kept the launching shell
+  as its parent and the tool host's low-memory process-tree kill took it after ~110 minutes;
+  purity202-n1-interruption.json d5e13b34...). Purity n2 PASS exit0 with the sentinel after
+  92.6 minutes through the orphaned Start-DetachedController launch (purity202-n2-process.json
+  2f0d8683...). Every native stage was bound to that receipt.
+- Stage1 mountedRT / Stage3 unmountedRT: native PASS17/0 (15 rows + fixture/restoration),
+  worker1/game0, transaction restored exactly; external13/15 rows PASS; envelope FAIL on
+  C6C-rider-incapacity ("refused ... spent a charge": the incapacity damage landed inside the running
+  scroll shell, the native concentration check failed dc34 roll26 and the engine spent one scroll
+  charge, count5->4, with no cast and no cost) and C6C-under-threat ("native defensive check outcome
+  unobserved": the self-targeted CLW acted after0.55 s, inside the native one-second window).
+- Stage2 mountedTB / Stage4 unmountedTB: rows1-11 external PASS (quickened-self through full-round),
+  then "Casting fixture refused End Turn on a foreign actor" at case index11 (C6C-movement-policy
+  readiness): the converted full-round summon55702771 joined the player party group and owned its
+  own TB turn, so the non-pair member d17c8fd0's turn arrived with changed leased membership;
+  cleanup deadline (player still in combat) and the outer Mammoth restoration failed; worker1/game0,
+  transaction restored exactly. Mount-independent (identical in both TB stages).
+- Stages5-8 (persistence p04 mounted-casting-items save/cold load, p02 casting-items save/cold
+  load): PASS, worker0/game0.
+- 0 qualified6C stages; every result retained; no production casting/action/resource/concentration
+  defect.
+
+Native facts (pinned IL, Assembly-CSharp MVID07fa1e4d, lab *203.il.txt dumps):
+- UnitUseAbility.OnTick (0x06002734) opens the casting-defensively window only for a Standard shell
+  still running after one second (TimeSinceStart > 1, !IsActed, provoking spell, non-potion source,
+  executor in combat and engaged); TryCastingDefensively (0x0600273B) exempts wand sources only
+  (UsableItemType Other=0 Wand=1 Scroll=2 Potion=3); a failed check provokes the native attack of
+  opportunity. Measured: self CLW ~0.55 s, touch cast at another unit ~1.5 s, Snowball ~1.5 s,
+  potion ~1.24 s, converted summon5.5 s RT /2.5 s TB.
+- UnitConcentrationController.Tick (0x060090F7) routes damage to a running UnitUseAbility standard
+  command into MakeConcentrationCheck (0x06002739); on failure FailIfConcentrationCheckFailed
+  (0x06002736) force-finishes the shell before it acts and spends through AbilityData.Spend
+  (0x06002B60: ItemEntity.SpendCharges, then SpendFromSpellbook). TB charges the action at the action
+  frame (cost-before/after coincide with action-before; a never-acted shell carries no cost).
+
+Working203 (one coherent tranche, no production policy change):
+- C6C-under-threat targets the mount (CastingTargetRole: hostile rows click the hostile; friendly,
+  post-commit interruption, scroll heal and threatened rows click the mount; the rest the rider).
+- The reader models the native lost-spell path for the threatened and rider-incapacity rows: exactly
+  one concentration-rule-after (required for rider-incapacity), on failure no cast, no cost in either
+  mode, the shell force-finished, exactly one spell spend and one in-place scroll charge of the exact
+  leased entity; on success nothing is spent. The threatened row requires the mount target, the cast
+  still running after one second and the defensive outcome exactly once; other rows admit no check.
+- The full-round row releases its exact native summons before the next row (ReleaseCastingSummons,
+  CastingSummonResidue.Remains under component tests, the drain reuses it); the reader requires the
+  row-end summonCleanup naming every summoned unit with inState/worldContains false.
+- Reader-only correction evaluated against the immutable202 Stage1-4 evidence before any native
+  run (reader203-preview202-evaluation1.json 14abe5a72f6d2f967a06c98120c5a709db0d48ba0387a3e93e38927c71148640):
+  rider-incapacity FAIL->PASS on both RT stages; under-threat and full-round FAIL for the new
+  requirements the202 fixture could not have produced; nothing else changed.
+- 6D staged-action family (Chunk6StagedScenario.cs, Chunk6dStagedEvidence.ps1, schema45, contract
+  native-mounted-staged-actions-v1): C6D-move-cast-move, cast-then-move, double-move-ranged,
+  movement-exhausted, auto-stop-boundary on the casting fixture with native remaining movement
+  (TB legs until UsedTwoMoveAction/no move action, RT exactly two); the stock mounted ranged attack is
+  the product's MountedRangedUnsupported refusal, cost-free.
+- 6E reaction-feasibility family (Chunk6eReactionEvidence.ps1, schema46, contract
+  native-mounted-reaction-feasibility-v1): C6E-swift-on-own-turn, swift-out-of-turn,
+  attack-on-mount-observed, reaction-window; the rod-quickened Swift instrument on the first
+  available memorized level-1 slot, the hostile attack on the mount observed through
+  Chunk4IncomingRuleObserver; rider debt only through admitted shells.
+- Registry/dispatch: eight compound roots, 24 schema registrations (44/45/46), launcher ValidateSet,
+  child-entry preamble, source validation of the compiled case/plan lists against the readers.
+- Regressions: casting reader negatives for every new rule (lost spell without spend, double spend,
+  charged force-finish, live shell, self-targeted or sub-second threatened cast, live or foreign
+  summon residue); CastingSummonResidueTests; compiled checks for the target roles and the
+  release-before-record call order; 6D/6E readers76/0 and70/0.
+- Version stamps0.1.0-chunk6d-preview.203.
+
+Observed gates (preview203-offline-gates.json 635090ca039eae51bc1f727820086eb51187582b47bf6ba6ad1f9fabb24c38f9):
+build/source147/0; components719/0; compiled observer197/0; casting reader274/0; 6D reader76/0;
+6E reader70/0; FAST11/0; CANDIDATE15/0 (harness271/0, assembly701/0). Retained: the three
+*-reader1 receipts failed in the observed wrapper's launch arguments (script name not expanded; no
+test ran) and were rerun as reader2.
+
+No203 package/suite/purity/native credit at this source checkpoint.
+Next: coherent commit, guarded push, package (chunk6de-staged-o), suite, freeze203 with the
+generated12-stage plan (6C mounted RT first, mounted TB, unmounted RT/TB, the two settled
+persistence pairs, then chunk6d-staged-rt/tb and chunk6e-reaction-rt/tb), one orphaned read-only
+purity, then the batch. 6F afterwards on the final candidate: FULL once, final package/suite/purity,
+the94-stage consolidation plan (New-FinalConsolidationPlan.ps1) and the6A ledger; the15 unimplemented
+6A ids (CM02 left-area/view-agent-lost/loading-cutscene/generation-change, CM04 turn-end/mode-exit/
+area-session-transition/rider-death/mount-death/injected-exception, CM07 cold-load/save-slot-routes/
+unsettled-save-deferred/area-reload/schema-unchanged) stay BLOCKED until implemented or owner-decided.
+
 ## 2026-10-09 - preview201 closed; coherent202 disposable stacks on the exact equipped unit (Claude)
 
 6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION

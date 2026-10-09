@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest
 function Test-KmcPhase3dSchemaRegistration([long]$SchemaVersion,[string]$Scenario) {
     $phase3dSchemaVersion=$SchemaVersion
     $Request=[pscustomobject]@{scenario=$Scenario}
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L, 44L) -or
+    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L, 38L, 39L, 40L, 41L, 42L, 43L, 44L, 45L, 46L) -or
         ($phase3dSchemaVersion -in @(34L,35L,36L,37L,38L,39L,40L,42L,43L) -and [string]$Request.scenario -cnotin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb')) -or
         ([string]$Request.scenario -cin @('chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt','chunk6b-charge-tb') -and $phase3dSchemaVersion -ne 43L) -or
         ($phase3dSchemaVersion -eq 41L -and [string]$Request.scenario -cnotin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) -or
@@ -18,10 +18,14 @@ function Test-KmcPhase3dSchemaRegistration([long]$SchemaVersion,[string]$Scenari
         ($phase3dSchemaVersion -eq 32L -and [string]$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb')) -or
         ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt'))) { return $false }
     if (($SchemaVersion -eq 44 -and $Scenario -cnotin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')) -or ($Scenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb') -and $SchemaVersion -ne 44)) { return $false }
+    if (($SchemaVersion -eq 45 -and $Scenario -cnotin @('chunk6d-staged-rt','chunk6d-staged-tb')) -or ($Scenario -cin @('chunk6d-staged-rt','chunk6d-staged-tb') -and $SchemaVersion -ne 45)) { return $false }
+    if (($SchemaVersion -eq 46 -and $Scenario -cnotin @('chunk6e-reaction-rt','chunk6e-reaction-tb')) -or ($Scenario -cin @('chunk6e-reaction-rt','chunk6e-reaction-tb') -and $SchemaVersion -ne 46)) { return $false }
     return $true
 }
 function Get-KmcPhase3dEvidenceDispatch([long]$SchemaVersion,[string]$Scenario) {
     if ($SchemaVersion -eq 44 -or $Scenario -cin @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')) { return [pscustomobject]@{validator='Assert-KmcChunk6cCastingEvidence';mutationError='Chunk 6C casting evidence changed during validation.'} }
+    if ($SchemaVersion -eq 45 -or $Scenario -cin @('chunk6d-staged-rt','chunk6d-staged-tb')) { return [pscustomobject]@{validator='Assert-KmcChunk6dStagedEvidence';mutationError='Chunk 6D staged evidence changed during validation.'} }
+    if ($SchemaVersion -eq 46 -or $Scenario -cin @('chunk6e-reaction-rt','chunk6e-reaction-tb')) { return [pscustomobject]@{validator='Assert-KmcChunk6eReactionEvidence';mutationError='Chunk 6E reaction evidence changed during validation.'} }
     $phase3dSchemaVersion=$SchemaVersion
     $Request=[pscustomobject]@{scenario=$Scenario}
     if ($phase3dSchemaVersion -eq 30L -or [string]$Request.scenario -cin @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb','chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt','chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb')) { return [pscustomobject]@{validator='Assert-KmcChunk6aCombatMountEvidence';mutationError='Chunk 6A combat-mount evidence changed during validation.'} }
@@ -43,7 +47,8 @@ function Get-KmcPhase3dEvidenceDispatch([long]$SchemaVersion,[string]$Scenario) 
 # dedicated validator the dispatch above selects, so the generic envelope readers
 # do not demand a self-named row for them. Individual scenarios keep the rule.
 function Get-KmcCompoundRuntimeScenarios {
-    @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb')
+    @('chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
+      'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb')
 }
 function Test-KmcCompoundRuntimeScenario([string]$Scenario) {
     [string]$Scenario -cin @(Get-KmcCompoundRuntimeScenarios)
