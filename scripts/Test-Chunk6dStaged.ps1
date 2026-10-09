@@ -35,8 +35,12 @@ function New-CastStep([int]$index,$before,$after,[bool]$tb){
   events=@([pscustomobject]@{kind='action-after';identity=$shellIdentity;actor=$Rider;shell=[pscustomobject]@{ignoreCooldown=$false;timeSinceStart=2.0}},[pscustomobject]@{kind='cast-after';actor=$Rider;ability=[pscustomobject]@{blueprint=$Clw};process=20;spellFailed=$false;arcaneFailed=$false},[pscustomobject]@{kind='item-spend-before';identity=60;actor=$Rider;charges=1;count=$before.items[1].count},[pscustomobject]@{kind='item-spend-after';identity=60;actor=$Rider;charges=1;count=$after.items[1].count;result=$true})
   costEvents=@([pscustomobject]@{boundary='cost-before';command=$cost;actionType='Standard';state=$before.rider},[pscustomobject]@{boundary='cost-after';command=$cost;actionType='Standard';state=$after.rider})}
 }
+# Frozen 203: the product admits the mounted rider's ranged click as its RiderRanged pair command.
 function New-RangedStep([int]$index,$before,$after){
- [pscustomobject]@{index=$index;kind='attack-ranged';frame=300;before=$before;weapon=[pscustomobject]@{blueprint='sling';ranged=$true};fullAttackMode=$false;ignoreClick=$false;cursorCycles=0;clicked=$true;inputCount=1;admitted=$null;rejectionCodes=@('MountedRangedUnsupported');rejectionFeedback='Mounted ranged attacks are not supported in this private alpha.';afterInput=$before;after=$after;terminal=$null;hostileAttackTerminal=$null;costEvents=@();events=@()}
+ $admitted=[pscustomobject]@{identity=77;costIdentity=770;type='MountedPairAttackCommand';executor=$Rider;createdByPlayer=$true;started=$false;acted=$false;finished=$false;result='None';ignoreCooldown=$false;commandType='Standard';timeSinceStart=0.0}
+ $terminal=[pscustomobject]@{identity=77;costIdentity=770;type='MountedPairAttackCommand';executor=$Rider;createdByPlayer=$true;started=$true;acted=$true;finished=$true;result='Success';ignoreCooldown=$false;commandType='Standard';timeSinceStart=1.5}
+ [pscustomobject]@{index=$index;kind='attack-ranged';frame=300;before=$before;weapon=[pscustomobject]@{blueprint='sling';ranged=$true};fullAttackMode=$false;ignoreClick=$false;cursorCycles=0;clicked=$true;inputCount=1;admitted=$admitted;rejectionCodes=@();rejectionFeedback='Mounted pair command accepted: RiderRanged.';afterInput=$before;after=$after;terminal=$terminal;hostileAttackTerminal=$null;events=@()
+  costEvents=@([pscustomobject]@{boundary='cost-before';command=770;actionType='Standard';state=$before.rider},[pscustomobject]@{boundary='cost-after';command=770;actionType='Standard';state=$after.rider})}
 }
 # Rows with native-shaped numbers: TB additive debt (short leg .7, long leg 2.3), RT absolute debt.
 function New-StagedRow([string]$name,[bool]$tb){
@@ -48,7 +52,7 @@ function New-StagedRow([string]$name,[bool]$tb){
   $kind=$plan[$i]
   switch -CaseSensitive($kind){
    'cast-standard-scroll' { $b=S $standard $move $x $hasMove $usedTwo $scrollCount; $standard=if($tb){$standard+6.0}else{4.0}; $scrollCount--; $a=S $standard $move $x $hasMove $usedTwo $scrollCount; $steps+=New-CastStep $i $b $a $tb }
-   'attack-ranged' { $b=S $standard $move $x $hasMove $usedTwo $scrollCount; $steps+=New-RangedStep $i $b $b }
+   'attack-ranged' { $b=S $standard $move $x $hasMove $usedTwo $scrollCount; $standard=if($tb){$standard+6.0}else{5.25}; $a=S $standard $move $x $hasMove $usedTwo $scrollCount; $steps+=New-RangedStep $i $b $a; if($tb){$standard=0.0} }
    default {
     $legs=@();$legCount=switch -CaseSensitive($kind){'move-two-moves'{if($tb){2}else{2}} 'move-exhaust'{if($tb){3}else{2}} default{1}}
     for($l=0;$l-lt$legCount;$l++){
@@ -91,12 +95,17 @@ $r=New-StagedRow 'C6D-move-cast-move' $false;$r.evidence.steps[1].after.rider.st
 $r=New-StagedRow 'C6D-cast-then-move' $true;$r.evidence.steps[1].legs[0].before.mount.standard=6.0;Reject $r 'movement after the cast governed by a spent mount Standard is refused'
 # Budget rows.
 $r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[0].legs[-1].after.mountUsedTwoMove=$false;Reject $r 'double move that never reached the native second Move is refused'
-$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].admitted=New-Carrier 77;Reject $r 'an admitted mounted stock ranged attack is refused'
-$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].rejectionCodes=@('WrongActionState');Reject $r 'a refusal without the exact mounted-ranged code is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].admitted=$null;$r.evidence.steps[1].rejectionCodes=@('MountedRangedUnsupported');Reject $r 'a stock refusal in place of the product''s RiderRanged pair command is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].admitted=New-Carrier 77;Reject $r 'a ranged attack admitted as another command type is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].rejectionFeedback='Mounted pair command accepted: RiderMelee.';Reject $r 'a pair command of another action kind is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].terminal.finished=$false;Reject $r 'a ranged pair command that did not finish is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].costEvents=@();Reject $r 'a ranged pair command without its single native Standard charge is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].costEvents+=[pscustomobject]@{boundary='cost-after';command=770;actionType='Standard';state=$r.evidence.steps[1].after.mount};Reject $r 'a mount charged for the rider ranged attack is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $false;$r.evidence.steps[1].costEvents[1].state=(Copy-Staged $r.evidence.steps[1].before.rider);Reject $r 'a real-time ranged pair command without a Standard charge is refused' $false
 $r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[2].before.rider.standard=6.0;$r.evidence.steps[2].before.riderHasStandard=$false;Reject $r 'rider Standard lost after the two Moves is refused'
-$r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[1].legs[0].before.mountHasMove=$true;Reject $r 'probe that did not start from native exhaustion is refused'
+$r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[1].legs[0].before.mount.move=4.0;Reject $r 'probe that did not start from the spent native move budget is refused'
 $r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[1].legs[0].after.mountPosition.x+=2.0;Reject $r 'exhausted mount that still moved is refused'
-$r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[0].legs[-1].after.mountHasMove=$true;Reject $r 'exhaust step that left movement is refused'
+$r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[0].legs[-1].after.mount.move=4.0;Reject $r 'exhaust step that left native move budget is refused'
 $r=New-StagedRow 'C6D-auto-stop-boundary' $true;$r.evidence.steps[0].legs[0].after.mount.move=4.0;$r.evidence.steps[0].legs[0].after.mountUsedTwoMove=$true;Reject $r 'extended leg not stopped at the one-Move boundary under auto-stop is refused'
 $r=New-StagedRow 'C6D-auto-stop-boundary' $true;$refused=$false;try{Assert-KmcChunk6dStagedRow $r $Rider $Mount $true $castingLeases $false}catch{$refused=$true};Check $refused 'without auto-stop the extended leg must continue into the second Move'
 $r=New-StagedRow 'C6D-auto-stop-boundary' $true;$r.evidence.steps[1].admittedShellCount=0;$r.evidence.steps[1].shell=$null;Reject $r 'rider boundary ended before the cast is refused'

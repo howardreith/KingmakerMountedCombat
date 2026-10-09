@@ -29,7 +29,7 @@ function Assert-KmcStagedSwiftCast($Swift,$After,$StepEvents,$StepCosts,[string]
  $expectedTarget=$script:KmcChunk6eSwiftInstruments[$instrument]
  if($expectedTarget-ceq'rider'){Need ($Swift.target-ceq$Rider) 'self instrument targeted another unit'}
  elseif($expectedTarget-ceq'hostile'){Need ($Swift.target-ceq$Hostile) 'hostile instrument targeted another unit'}
- else {Need ($null-eq$Swift.target) 'ground instrument targeted a unit'}
+ else {Need ($null-eq$Swift.target-and(Get-KmcStagedNumber (Get-KmcStagedProp $Swift 'groundDistanceToRider') 'groundDistanceToRider')-ge8.0-and(Get-KmcStagedNumber (Get-KmcStagedProp $Swift 'groundDistanceToMount') 'groundDistanceToMount')-ge8.0) 'ground instrument targeted a unit or its area reached the pair'}
  Need ($Swift.inputCount-eq1-and$Swift.clicked-is[bool]-and$Swift.admittedShellCount-in@(0,1)) 'Swift input not issued exactly once'
  $riderCosts=@($costs|Where-Object {$_.state.actor-ceq$Rider-and$_.boundary-cin@('cost-before','cost-after')})
  Need (@($costs|Where-Object {$_.state.actor-ceq$Mount-and$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')}).Count-eq0) 'mount charged for the rider Swift input'

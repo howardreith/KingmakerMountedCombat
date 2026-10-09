@@ -350,6 +350,14 @@ public static class CastingObserverProbe {
   Check(role!=null&&role.IsStatic&&targetRole("C6C-under-threat")=="mount"&&targetRole("C6C-standard-hostile")=="hostile"&&targetRole("C6C-invalid-target")=="hostile"&&targetRole("C6C-standard-friendly")=="mount"&&targetRole("C6C-scroll-interrupt-after")=="mount"&&targetRole("C6C-scroll-friendly")=="mount"&&cases.Where(c=>!new[]{"C6C-under-threat","C6C-standard-hostile","C6C-invalid-target","C6C-standard-friendly","C6C-scroll-interrupt-after","C6C-scroll-friendly"}.Contains(c)).All(c=>targetRole(c)=="rider"),"compiled threatened row targets the mount so its touch cast still runs at the native one-second defensive window; every other target role is unchanged");
   var release=child.GetMethod("ReleaseCastingSummons",F);
   Check(release!=null&&release.ReturnType==typeof(bool)&&CallsInOrder(child.GetMethod("TickChunk6cCasting",F),release,child.GetMethod("AddRow",F)),"compiled full-round row releases its exact native summons before the row is recorded and the next row begins");
+  // Frozen preview.203 TB facts: a turn-cycling stall must surface as a leaf deadline, and the remount
+  // after a life row needs an Acting rider turn (bounded native ground order, then the Mount click).
+  var turnResets=(int)child.GetField("CastingTurnResetLimit",F).GetRawConstantValue();
+  var remountAttempts=(int)child.GetField("CastingRemountAttemptLimit",F).GetRawConstantValue();
+  Check(turnResets>=8&&turnResets<=32&&remountAttempts>=2&&remountAttempts<=5,"compiled turn-based leaf-clock restarts and remount attempts are bounded");
+  Check(child.GetMethod("TickCastingTurnBasedRemount",F)!=null,"compiled casting fixture owns a bounded turn-based remount after its life rows");
+  Check(child.GetMethod("TickCastingThreatHostileTurn",F)!=null&&child.GetMethod("IssueCastingThreatAttack",F)!=null,"compiled threat boundary issues the hostile attack on the hostile's own turn-based turn");
+  Check(child.GetMethod("TryEndCastingCleanupTurn",F)!=null&&CallsInOrder(child.GetMethod("DrainCastingFixture",F),child.GetMethod("TryEndCastingCleanupTurn",F),child.GetMethod("CaptureCastingSummonCleanup",F)),"compiled casting cleanup ends idle fixture turns before draining in turn-based combat");
   var residue=child.Assembly.GetType("KingmakerMountedCombat.Diagnostics.CastingSummonResidue",true).GetMethod("Remains",F);
   Check(residue!=null&&residue.IsStatic&&residue.IsGenericMethodDefinition,"summon residue predicate is a pure shared helper under component tests");
   var stack=(int)child.GetField("ScrollStackCount",F).GetRawConstantValue();

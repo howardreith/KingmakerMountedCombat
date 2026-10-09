@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Kingmaker;
+using Kingmaker.Controllers.Clicks.Handlers;
 using Kingmaker.Controllers.Combat;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.RuleSystem;
@@ -58,6 +59,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData castingTarget;
         private JObject castingCaseFacts;
         private bool castingMountClick, castingInterrupted, castingCleanupStarted;
+        // Bounded leaf-clock restarts per row on native turn changes (turn-based), and the bounded
+        // turn-based remount after a life row (see TickCastingTurnBasedRemount).
+        internal const int CastingTurnResetLimit = 16;
+        internal const int CastingRemountAttemptLimit = 3;
+        private int castingTurnResets, castingRemountAttempts, castingRemountIdleFrames;
+        private UnitMoveTo castingRemountOrder;
+        private TurnController castingRemountTurn;
         private int castingStableFrames;
         private TurnController castingEndedTurn, castingSeenTurn;
         private string CastingCase => CastingCases[castingCaseIndex];
@@ -147,7 +155,10 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var game = Game.Instance; var controller = game.TurnBasedCombatController; var turn = controller.CurrentTurn;
             if (game.IsPaused) { game.IsPaused = false; return; }
-            if (CastingTb && !ReferenceEquals(turn, castingSeenTurn)) { castingSeenTurn = turn; ResetLeafClock(); }
+            // A new native turn restarts the leaf clock, but only a bounded number of times per row:
+            // a turn-cycling stall must surface as a leaf deadline with its progress record instead of
+            // the artifact-less 300-second process deadline (frozen 203 unmounted TB).
+            if (CastingTb && !ReferenceEquals(turn, castingSeenTurn)) { castingSeenTurn = turn; if (++castingTurnResets <= CastingTurnResetLimit) ResetLeafClock(); }
             CastingMeasurement["progress"] = new JObject { ["stage"] = castingStage, ["caseIndex"] = castingCaseIndex,
                 ["case"] = CastingCase, ["rider"] = castingCosts.Snapshot(rider), ["mount"] = castingCosts.Snapshot(horse) };
             if (castingStage == 0)
@@ -186,10 +197,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!CastingTb && (rider.CombatState.Cooldown.StandardAction > .001f || rider.CombatState.Cooldown.SwiftAction > .001f)) return;
                 if (CastingMounted && relationship.State != RelationshipState.Mounted)
                 {
+                    if (CastingTb) { TickCastingTurnBasedRemount(turn); return; }
                     if (!castingMountClick) castingMountClick = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "casting-native-remount-after-life");
                     return;
                 }
-                ResetCastingBoundary(); castingMountClick = false;
+                ResetCastingBoundary(); castingMountClick = false; castingTurnResets = 0;
+                castingRemountOrder = null; castingRemountTurn = null; castingRemountAttempts = 0; castingRemountIdleFrames = 0;
                 castingShell = null; castingAbility = null; castingPrepared = null;
                 castingTrace.BeginCase(CastingCase); castingSetupCostOffset = castingCosts.EventCount;
                 if (CastingMotionCase || CastingThreatCase) { StartCastingBoundarySetup(); castingStage = 4; ResetLeafClock(); return; }
@@ -197,7 +210,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             if (castingStage == 4)
             {
-                if (!CastingBoundaryReady()) { if (CastingTb && CastingThreatCase) EndCastingNativeTurn(turn); return; }
+                if (!CastingBoundaryReady()) { if (CastingTb && CastingThreatCase) TickCastingThreatHostileTurn(turn); return; }
                 if (CastingTb && CastingThreatCase && (turn?.Unit != rider || !rider.HasStandardAction())) { EndCastingNativeTurn(turn); return; }
                 castingBoundary["setupCostEvents"] = castingCosts.EventsSince(castingSetupCostOffset);
                 BeginCastingCase(); return;
@@ -243,7 +256,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 AddRow(CastingCase, castingTrace.Complete && castingCosts.Complete,
                     "Observed normal native rider casting/item input and terminal ownership.", castingCaseFacts);
                 if (castingCaseIndex == 0) { castingRod.ReleaseOwnedItem(); CastingMeasurement["rodCleanup"] = castingRod.Evidence.DeepClone(); }
-                castingCaseIndex++; castingMountClick = false;
+                castingCaseIndex++; castingMountClick = false; castingTurnResets = 0;
                 if (castingCaseIndex == CastingCases.Length) { BeginCleanup(); return; }
                 castingStage = 1; ResetLeafClock();
             }
@@ -386,6 +399,55 @@ namespace KingmakerMountedCombat.Diagnostics
             ["raw"] = new JArray(actor.Commands.Raw.Select(c => c == null ? JValue.CreateNull() : new JValue(
                 c.GetType().Name + ":" + (c.IsFinished ? "finished" : c.IsRunning ? "running" : "pending")))),
             ["queue"] = new JArray(actor.Commands.Queue.Select(c => new JValue(c.GetType().Name))) };
+        // Turn-based remount after a life row. The product admits the combat Mount transition only on
+        // an ACTING rider turn (CM01-combat-mount-preparing-refused: frozen 203 mounted TB clicked Mount
+        // one frame after the rider's new turn prepared and the shell was interrupted at once), and a
+        // native turn becomes Acting only through a real order. The fixture therefore issues one bounded
+        // native ground order first (the 6A acting-turn setup pattern) and clicks Mount once the turn is
+        // Acting. Every order and click is recorded with its native outcome, a shell that finished
+        // unmounted releases the latch for a bounded retry, and exhausted attempts fail the row explicitly.
+        private JArray CastingRemounts => (JArray)(CastingMeasurement["remounts"] ?? (CastingMeasurement["remounts"] = new JArray()));
+        private void TickCastingTurnBasedRemount(TurnController turn)
+        {
+            if (turn?.Unit != rider) { EndCastingNativeTurn(turn); return; }
+            if (!rider.Commands.Empty || !horse.Commands.Empty || combat.HasActiveCommand || rider.View?.AgentASP?.IsReallyMoving == true)
+            { castingRemountIdleFrames = 0; return; }
+            if (castingMountClick)
+            {
+                // The admitted click settled without a mounted pair: a refused native attempt.
+                if (++castingRemountIdleFrames < 10) return;
+                var last = (JObject)CastingRemounts[CastingRemounts.Count - 1];
+                last["outcome"] = "finished-unmounted"; last["outcomeFrame"] = Time.frameCount;
+                last["shell"] = CaptureNativeAbilityShell(lastNativeAbilityShell); last["after"] = CastingState();
+                castingMountClick = false; castingRemountIdleFrames = 0;
+                if (castingRemountAttempts >= CastingRemountAttemptLimit)
+                    throw new InvalidOperationException("Casting fixture could not remount in turn-based combat after " +
+                        castingRemountAttempts + " native attempts: " + CastingRemounts.ToString(Newtonsoft.Json.Formatting.None));
+                return;
+            }
+            if (turn.Status == TurnController.TurnStatus.Preparing)
+            {
+                if (castingRemountOrder != null && ReferenceEquals(castingRemountTurn, turn)) return;
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                var destination = FindWalkablePoint(rider.Position, 0.75f, .25f);
+                var order = new JObject { ["kind"] = "acting-ground-order", ["frame"] = Time.frameCount, ["turnStatus"] = turn.Status.ToString(),
+                    ["destination"] = CapturePosition(destination), ["before"] = CastingState() };
+                ClickGroundHandler.MoveSelectedUnitsToPoint(destination, false);
+                castingRemountOrder = rider.Commands.Move as UnitMoveTo; castingRemountTurn = turn;
+                order["admitted"] = castingRemountOrder != null && castingRemountOrder.Executor == rider && castingRemountOrder.CreatedByPlayer;
+                CastingRemounts.Add(order);
+                return;
+            }
+            if (!turn.IsActing) return;
+            var attempt = new JObject { ["kind"] = "mount-click", ["attempt"] = ++castingRemountAttempts, ["frame"] = Time.frameCount,
+                ["turnStatus"] = turn.Status.ToString(), ["before"] = CastingState() };
+            castingMountClick = TryNativeAbilityTargetClick(nativeControls.MountAbility, horse, "casting-native-remount-after-life-" + castingRemountAttempts);
+            attempt["clicked"] = castingMountClick; castingRemountIdleFrames = 0;
+            CastingRemounts.Add(attempt);
+            if (!castingMountClick && castingRemountAttempts >= CastingRemountAttemptLimit)
+                throw new InvalidOperationException("Casting fixture's turn-based remount click was not admitted after " +
+                    castingRemountAttempts + " attempts: " + CastingRemounts.ToString(Newtonsoft.Json.Formatting.None));
+        }
         private void EndCastingNativeTurn(TurnController turn)
         {
             var actor = turn?.Unit;
@@ -394,9 +456,9 @@ namespace KingmakerMountedCombat.Diagnostics
                 Game.Instance.TurnBasedCombatController.WaitingForUI || GetPendingNextUnit(Game.Instance.TurnBasedCombatController) != null) return;
             if (actor != rider && actor != horse && !(targetService.NonPairPartyAiLease.OwnsExactMember(actor) && targetService.NonPairPartyAiLease.ValidateActive()))
                 throw new InvalidOperationException("Casting fixture refused End Turn on a foreign actor.");
-            castingCosts.Record("casting-end-turn-input-before", actor);
+            castingCosts?.Record("casting-end-turn-input-before", actor);
             Game.Instance.PauseBind();
-            castingCosts.Record("casting-end-turn-input-after", actor); castingEndedTurn = turn; ResetLeafClock();
+            castingCosts?.Record("casting-end-turn-input-after", actor); castingEndedTurn = turn; ResetLeafClock();
         }
         private static bool CastingSummonInWorld(UnitEntityData unit) => Game.Instance.State.Units.Any(x => ReferenceEquals(x, unit));
         private JArray CaptureCastingSummonCleanup() => new JArray(castingTrace.Summons.Select(u => new JObject {
@@ -409,8 +471,26 @@ namespace KingmakerMountedCombat.Diagnostics
             Game.Instance.EntityDestroyer.Tick();
             return !CastingSummonResidue.Remains(castingTrace.Summons, u => u.IsInState, CastingSummonInWorld);
         }
+        // Cleanup in turn-based combat: the native encounter ends only at a turn boundary, so the exact
+        // idle fixture turns (rider, mount, idle player-party members) are ended natively while the party
+        // is still in combat, a bounded number of times (frozen 203 TB stages 2, 10 and 12 waited the whole
+        // bounded cleanup with the party in combat). Foreign actors are never touched.
+        private int castingCleanupTurnEnds;
+        private TurnController castingCleanupEndedTurn;
+        private void TryEndCastingCleanupTurn()
+        {
+            if (!CastingTb || !CombatController.IsInTurnBasedCombat() || !Game.Instance.Player.IsInCombat || castingCleanupTurnEnds >= CastingTurnResetLimit) return;
+            var controller = Game.Instance.TurnBasedCombatController; var turn = controller.CurrentTurn; var actor = turn?.Unit;
+            if (actor == null || ReferenceEquals(turn, castingCleanupEndedTurn) || !actor.IsDirectlyControllable || !actor.Commands.Empty ||
+                actor.AreHandsBusyWithAnimation || !turn.CanEndTurnAndNoActing() || controller.WaitingForUI || GetPendingNextUnit(controller) != null) return;
+            if (actor != rider && actor != horse && !(actor.Group != null && actor.Group == rider.Group && actor.Group.IsPlayerParty)) return;
+            castingCleanupTurnEnds++; castingCleanupEndedTurn = turn;
+            CastingMeasurement["cleanupTurnEnds"] = castingCleanupTurnEnds;
+            Game.Instance.PauseBind();
+        }
         private bool DrainCastingFixture()
         {
+            TryEndCastingCleanupTurn();
             if (castingTrace == null) return true;
             if (!castingCleanupStarted) { castingCleanupStarted = true; castingCosts.BoundaryObserved -= ObserveCastingNativeCost; }
             if (castingShell != null && !castingShell.IsFinished) castingShell.Interrupt();
@@ -443,4 +523,4 @@ namespace KingmakerMountedCombat.Diagnostics
             return true;
         }
     }
-}
+}

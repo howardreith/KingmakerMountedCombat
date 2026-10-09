@@ -53,14 +53,18 @@ function Assert-KmcStagedStandardScrollCast($Step,[string]$Rider,[string]$Mount,
  $pairs=Get-KmcStagedCostPairs $costs $Rider $Step.costShell
  Need ($pairs.before.Count-eq1-and$pairs.after.Count-eq1) 'rider Standard commitment not exactly once'
  Need (@($costs|Where-Object {$_.state.actor-ceq$Mount-and$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')}).Count-eq0) 'mount charged for the rider cast'
- if($Tb){Need (Test-KmcStagedClose ((Get-KmcStagedNumber $after.rider.standard 'standard')-(Get-KmcStagedNumber $before.rider.standard 'standard')) 6.0 'standard') 'native additive Standard debt differs'}
+ # The native charge is read at the cost boundary itself (frozen 203 RT: the settled state has already
+ # decayed by the time the step settles); the settled debt never exceeds that charge.
+ $charged=$pairs.after[0].state;$chargedBefore=$pairs.before[0].state
+ if($Tb){Need (Test-KmcStagedClose ((Get-KmcStagedNumber $charged.standard 'standard')-(Get-KmcStagedNumber $chargedBefore.standard 'standard')) 6.0 'standard') 'native additive Standard debt differs'}
  else {
   $acted=@($events|Where-Object {$_.kind-ceq'action-after'-and$_.identity-eq$Step.shell.identity})
   Need ($acted.Count-eq1-and$acted[0].shell.ignoreCooldown-eq$false) 'native action timing absent'
-  Need (Test-KmcStagedClose $after.rider.standard (6.0-(Get-KmcStagedNumber $acted[0].shell.timeSinceStart 'timeSinceStart')) 'standard') 'native real-time Standard cost differs'
+  Need (Test-KmcStagedClose $charged.standard (6.0-(Get-KmcStagedNumber $acted[0].shell.timeSinceStart 'timeSinceStart')) 'standard') 'native real-time Standard cost differs'
  }
- foreach($field in @('move','swift')){Need (Test-KmcStagedClose $after.rider.$field $before.rider.$field $field) ('rider '+$field+' changed during the cast')}
- foreach($field in @('standard','move','swift')){Need (Test-KmcStagedClose $after.mount.$field $before.mount.$field $field) ('mount '+$field+' changed during the rider cast')}
+ Need ((Get-KmcStagedNumber $after.rider.standard 'standard')-le(Get-KmcStagedNumber $charged.standard 'standard')+.001) 'settled Standard debt above its native charge'
+ foreach($field in @('move','swift')){ if($Tb){Need (Test-KmcStagedClose $after.rider.$field $before.rider.$field $field) ('rider '+$field+' changed during the cast')} else {Need ((Get-KmcStagedNumber $after.rider.$field $field)-le(Get-KmcStagedNumber $before.rider.$field $field)+.001) ('rider '+$field+' rose during the cast')} }
+ foreach($field in @('standard','move','swift')){ if($Tb){Need (Test-KmcStagedClose $after.mount.$field $before.mount.$field $field) ('mount '+$field+' changed during the rider cast')} else {Need ((Get-KmcStagedNumber $after.mount.$field $field)-le(Get-KmcStagedNumber $before.mount.$field $field)+.001) ('mount '+$field+' rose during the rider cast')} }
  $spent=@($events|Where-Object {$_.kind-ceq'item-spend-after'-and$_.identity-eq$Step.ability.sourceItem})
  $stackBefore=@($before.items|Where-Object {$_.item-eq$Step.ability.sourceItem});$stackAfter=@($after.items|Where-Object {$_.item-eq$Step.ability.sourceItem})
  Need ($spent.Count-eq1-and$stackBefore.Count-eq1-and$stackAfter.Count-eq1-and$stackBefore[0].exactSlot-eq$true-and$stackAfter[0].exactSlot-eq$true-and$stackBefore[0].count-ge2-and$stackAfter[0].count-eq$stackBefore[0].count-1) 'exact scroll stack did not decrement in place exactly once'
@@ -75,10 +79,14 @@ function Assert-KmcStagedMoveLeg($Leg,[string]$Rider,[string]$Mount,[bool]$Tb,[s
  Need ($null-ne$before-and$null-ne$after-and$null-ne$Leg.afterInput) 'leg states missing'
  Need (@($events|Where-Object {$_.kind-clike'cast-*'-or$_.kind-clike'*spend*'}).Count-eq0) 'movement leg cast or spent something'
  Need (@($costs|Where-Object {$_.state.actor-ceq$Rider-and$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')}).Count-eq0) 'rider charged for mount movement'
- foreach($field in @('standard','move','swift')){Need (Test-KmcStagedClose $after.rider.$field $before.rider.$field $field) ('rider '+$field+' changed during movement')}
- Need (Test-KmcStagedClose $after.mount.standard $before.mount.standard 'standard') 'mount Standard changed during movement'
+ # Real-time cooldowns decay while the mount moves (frozen 203 RT); turn-based debt is exact.
+ foreach($field in @('standard','move','swift')){ if($Tb){Need (Test-KmcStagedClose $after.rider.$field $before.rider.$field $field) ('rider '+$field+' changed during movement')} else {Need ((Get-KmcStagedNumber $after.rider.$field $field)-le(Get-KmcStagedNumber $before.rider.$field $field)+.001) ('rider '+$field+' rose during movement')} }
+ if($Tb){Need (Test-KmcStagedClose $after.mount.standard $before.mount.standard 'standard') 'mount Standard changed during movement'} else {Need ((Get-KmcStagedNumber $after.mount.standard 'standard')-le(Get-KmcStagedNumber $before.mount.standard 'standard')+.001) 'mount Standard rose during movement'}
  $moved=Get-KmcStagedDisplacement $before.mountPosition $after.mountPosition
- $expectMovement=-not$Tb-or$before.mountHasMove-eq$true
+ # Native TB movement ends when the mount's move cooldown budget (two Move actions, 6 s) is spent, not
+ # when HasMoveAction first reports false: frozen 203 TB kept the Mammoth moving from 3.68 to 5.32 after
+ # UsedTwoMoveAction. Movement is therefore expected while the budget is open and refused once spent.
+ $expectMovement=-not$Tb-or(Get-KmcStagedNumber $before.mount.move 'move')-lt5.95
  if($expectMovement) {
   $carrier=$Leg.carrier
   Need ($null-ne$carrier-and$carrier.type-ceq'UnitMoveTo'-and$carrier.executor-ceq$Mount-and$carrier.createdByPlayer-eq$true) 'exact mount carrier not admitted'
@@ -95,26 +103,37 @@ function Assert-KmcStagedMoveStep($Step,[string]$Rider,[string]$Mount,[bool]$Tb,
  function Need([bool]$ok,[string]$what){if(-not$ok){throw ($Why+': '+$what)}}
  $legs=@($Step.legs)
  $kind=[string]$Step.kind
- if($kind-cin@('move-two-moves','move-exhaust')){ if($Tb){Need ($legs.Count-ge1-and$legs.Count-le4) 'bounded leg count differs'}else{Need ($legs.Count-eq2) 'RT budget rows run exactly two legs'} }
+ if($kind-cin@('move-two-moves','move-exhaust')){ if($Tb){Need ($legs.Count-ge1-and$legs.Count-le8) 'bounded leg count differs'}else{Need ($legs.Count-eq2) 'RT budget rows run exactly two legs'} }
  else {Need ($legs.Count-eq1) 'single-leg step ran more than one leg'}
  for($i=0;$i-lt$legs.Count;$i++){Assert-KmcStagedMoveLeg $legs[$i] $Rider $Mount $Tb ($Why+' leg '+$i)}
  $last=$legs[-1]
  if($Tb){
   if($kind-ceq'move-two-moves'){Need ($last.after.mountUsedTwoMove-eq$true-and(Get-KmcStagedNumber $last.after.mount.move 'move')-gt3.001) 'mount did not reach its native second Move'}
-  if($kind-ceq'move-exhaust'){Need ($last.after.mountHasMove-eq$false) 'mount movement not natively exhausted'}
-  if($kind-ceq'move-probe'){Need ($legs[0].before.mountHasMove-eq$false) 'probe did not start from native exhaustion'}
+  if($kind-ceq'move-exhaust'){Need ((Get-KmcStagedNumber $last.after.mount.move 'move')-ge5.95) 'mount movement not natively exhausted'}
+  if($kind-ceq'move-probe'){Need ((Get-KmcStagedNumber $legs[0].before.mount.move 'move')-ge5.95) 'probe did not start from native exhaustion'}
  }
  Assert-KmcStagedSettledState $Step.after $Rider $Mount ($Why+' step end')
 }
-function Assert-KmcStagedRangedAttack($Step,[string]$Rider,[string]$Mount,[string]$Why) {
+function Assert-KmcStagedRangedAttack($Step,[string]$Rider,[string]$Mount,[bool]$Tb,[string]$Why) {
  function Need([bool]$ok,[string]$what){if(-not$ok){throw ($Why+': '+$what)}}
  $before=$Step.before;$after=$Step.after;$costs=@($Step.costEvents)
  Need ($Step.weapon.ranged-eq$true-and$Step.inputCount-eq1-and$Step.clicked-is[bool]) 'ranged input not recorded'
- # The product's mounted stock-attack policy refuses the stock ranged attack of the mounted rider
- # (private alpha: mounted ranged unsupported). The exact refusal must be cost-free.
- Need ($null-eq$Step.admitted-and@($Step.rejectionCodes)-ccontains'MountedRangedUnsupported') 'mounted stock ranged attack was not refused with its exact code'
- Need (@($costs|Where-Object {$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')-and$_.state.actor-cin@($Rider,$Mount)}).Count-eq0) 'refused ranged attack committed a cost'
- foreach($field in @('standard','move','swift')){Need (Test-KmcStagedClose $after.rider.$field $before.rider.$field $field) ('rider '+$field+' changed on refusal');Need (Test-KmcStagedClose $after.mount.$field $before.mount.$field $field) ('mount '+$field+' changed on refusal')}
+ # The product routes the mounted rider's stock ranged click into its own MountedPairAttackCommand
+ # (action RiderRanged; frozen 203 RT and TB: "Mounted pair command accepted: RiderRanged."), charges the
+ # rider's Standard once at the native cost boundary and resolves the attack natively; the mount is
+ # never charged. The stock refusal code MountedRangedUnsupported belongs to the bypassing UnitAttack
+ # path only and never appears here.
+ Need ($null-ne$Step.admitted-and$Step.admitted.type-ceq'MountedPairAttackCommand'-and$Step.admitted.executor-ceq$Rider-and$Step.admitted.createdByPlayer-eq$true-and$Step.admitted.commandType-ceq'Standard'-and@($Step.rejectionCodes).Count-eq0-and[string]$Step.rejectionFeedback-ceq'Mounted pair command accepted: RiderRanged.') 'mounted ranged attack was not admitted as the product''s RiderRanged pair command'
+ Need ($null-ne$Step.terminal-and$Step.terminal.identity-eq$Step.admitted.identity-and$Step.terminal.finished-eq$true-and$Step.terminal.acted-eq$true-and$Step.terminal.result-ceq'Success'-and$Step.terminal.executor-ceq$Rider) 'admitted ranged pair command did not finish successfully on the rider'
+ $pairs=Get-KmcStagedCostPairs $costs $Rider $Step.admitted.costIdentity
+ Need ($pairs.before.Count-eq1-and$pairs.after.Count-eq1) 'rider Standard commitment not exactly once'
+ $charged=$pairs.after[0].state;$chargedBefore=$pairs.before[0].state
+ if($Tb){Need (Test-KmcStagedClose ((Get-KmcStagedNumber $charged.standard 'standard')-(Get-KmcStagedNumber $chargedBefore.standard 'standard')) 6.0 'standard') 'native additive Standard debt differs'}
+ else {Need ((Get-KmcStagedNumber $charged.standard 'standard')-gt(Get-KmcStagedNumber $chargedBefore.standard 'standard')+.001-and(Get-KmcStagedNumber $charged.standard 'standard')-le6.001) 'native real-time Standard charge missing or above the nominal action'}
+ Need ((Get-KmcStagedNumber $after.rider.standard 'standard')-le(Get-KmcStagedNumber $charged.standard 'standard')+.001) 'settled Standard debt above its native charge'
+ Need (@($costs|Where-Object {$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')-and$_.state.actor-ceq$Mount}).Count-eq0) 'mount charged for the rider ranged attack'
+ foreach($field in @('move','swift')){ if($Tb){Need (Test-KmcStagedClose $after.rider.$field $before.rider.$field $field) ('rider '+$field+' changed during the ranged attack')} else {Need ((Get-KmcStagedNumber $after.rider.$field $field)-le(Get-KmcStagedNumber $before.rider.$field $field)+.001) ('rider '+$field+' rose during the ranged attack')} }
+ foreach($field in @('standard','move','swift')){ if($Tb){Need (Test-KmcStagedClose $after.mount.$field $before.mount.$field $field) ('mount '+$field+' changed during the rider ranged attack')} else {Need ((Get-KmcStagedNumber $after.mount.$field $field)-le(Get-KmcStagedNumber $before.mount.$field $field)+.001) ('mount '+$field+' rose during the rider ranged attack')} }
  Assert-KmcStagedSettledState $after $Rider $Mount ($Why+' step end')
 }
 function Assert-KmcChunk6dStagedRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb,$Items,$AutoStop) {
@@ -133,7 +152,7 @@ function Assert-KmcChunk6dStagedRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb
   $step=$steps[$i];$why='6D '+$Row.name+' step '+$i+' '+$step.kind
   switch -CaseSensitive([string]$step.kind) {
    'cast-standard-scroll' { Assert-KmcStagedStandardScrollCast $step $Rider $Mount $Tb $Items $why }
-   'attack-ranged' { Assert-KmcStagedRangedAttack $step $Rider $Mount $why }
+   'attack-ranged' { Assert-KmcStagedRangedAttack $step $Rider $Mount $Tb $why }
    default { Assert-KmcStagedMoveStep $step $Rider $Mount $Tb $why }
   }
  }
