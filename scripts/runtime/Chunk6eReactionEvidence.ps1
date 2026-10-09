@@ -18,7 +18,7 @@ function Get-KmcChunk6eReactionPlan([string]$Case) {
 }
 $script:KmcChunk6eSwiftInstruments=@{'5590652e1c2225c4ca30c4a699ab3649'='rider';'9f10909f0be1f5141bf1c102041f93d9'='hostile';'0fd00984a2c0e0a429cf1a911b4ec5ca'='ground'}
 # Returns 'admitted' or 'refused' after requiring the record to be internally consistent.
-function Assert-KmcStagedSwiftCast($Swift,$After,$StepEvents,$StepCosts,[string]$Rider,[string]$Mount,[string]$Hostile,[bool]$Tb,[bool]$RequireAdmission,[string]$Why) {
+function Assert-KmcStagedSwiftCast($Swift,$After,$StepEvents,$StepCosts,[string]$Rider,[string]$Mount,[string]$Hostile,[bool]$Tb,[bool]$RequireAdmission,[string]$Why,$Terminal=$null) {
  function Need([bool]$ok,[string]$what){if(-not$ok){throw ($Why+': '+$what)}}
  Need ($null-ne$Swift-and$null-ne$Swift.before-and$null-ne$After) 'swift record or states missing'
  $before=$Swift.before;$events=@($StepEvents);$costs=@($StepCosts)
@@ -35,7 +35,14 @@ function Assert-KmcStagedSwiftCast($Swift,$After,$StepEvents,$StepCosts,[string]
  Need (@($costs|Where-Object {$_.state.actor-ceq$Mount-and$_.boundary-cin@('cost-before','cost-after','actor-cost-before','actor-cost-after')}).Count-eq0) 'mount charged for the rider Swift input'
  $cast=@($events|Where-Object {$_.kind-ceq'cast-after'-and$_.actor-ceq$Rider-and$_.ability.blueprint-ceq$instrument})
  $spend=@($events|Where-Object {$_.kind-ceq'spell-spend-after'-and$_.actor-ceq$Rider-and$_.ability.blueprint-ceq$instrument})
- if($Swift.admittedShellCount-eq1) {
+ # Turn-based native fact (frozen 205 Stage 12): a Swift input issued outside the rider's own turn is admitted
+ # into a shell that never starts - the turn controller finishes a foreign-turn command without running it
+ # (acted, Success, no start) or the next pair preparation interrupts it (Interrupt, no start) - with no cost
+ # pair, no cast and no spend. That shell is the native refusal; only a shell that actually started is the
+ # admitted Swift cast measured below.
+ $neverStarted=$Swift.admittedShellCount-eq1-and$null-ne$Terminal-and$Terminal.started-eq$false-and$Terminal.finished-eq$true-and
+  @((Get-KmcStagedCostPairs $costs $Rider $Swift.costShell).before).Count-eq0-and$cast.Count-eq0-and$spend.Count-eq0
+ if($Swift.admittedShellCount-eq1-and-not$neverStarted) {
   Need ($null-ne$Swift.shell-and$Swift.shell.executor-ceq$Rider-and$Swift.costShell-ne0) 'admitted Swift shell lacks its identity'
   $pairs=Get-KmcStagedCostPairs $costs $Rider $Swift.costShell
   Need ($pairs.before.Count-eq1-and$pairs.after.Count-eq1-and$pairs.after[0].actionType-ceq'Swift') 'admitted Swift command not charged exactly once as Swift'
@@ -45,13 +52,18 @@ function Assert-KmcStagedSwiftCast($Swift,$After,$StepEvents,$StepCosts,[string]
   else {
    $acted=@($events|Where-Object {$_.kind-ceq'action-after'-and$_.identity-eq$Swift.shell.identity})
    Need ($acted.Count-eq1-and$acted[0].shell.ignoreCooldown-eq$false) 'native Swift action timing absent'
-   Need (Test-KmcStagedClose $After.rider.swift (6.0-(Get-KmcStagedNumber $acted[0].shell.timeSinceStart 'timeSinceStart')) 'swift') 'native real-time Swift cost differs'
+   # The native charge is read at the cost boundary (6 s less the shell's running time at its action frame);
+   # the settled state only decays after it (frozen 205 Stage 11: cost-after 5.989 = 6 - 0.0108, settled 5.86;
+   # the attack-window row settled at 0.83 after the hostile attack ran to completion).
+   Need (Test-KmcStagedClose $pairs.after[0].state.swift (6.0-(Get-KmcStagedNumber $acted[0].shell.timeSinceStart 'timeSinceStart')) 'swift') 'native real-time Swift cost differs'
+   Need ((Get-KmcStagedNumber $After.rider.swift 'swift')-le(Get-KmcStagedNumber $pairs.after[0].state.swift 'swift')+.001-and(Get-KmcStagedNumber $After.rider.swift 'swift')-ge0.0) 'settled Swift debt rose above the native charge'
   }
   Need ($After.slotAvailable-eq$false) 'admitted quickened slot was not spent'
   return 'admitted'
  }
  Need ($RequireAdmission-eq$false) 'the rider''s own-turn Swift cast was refused'
- Need ($null-eq$Swift.shell-and$riderCosts.Count-eq0-and$cast.Count-eq0-and$spend.Count-eq0) 'refused Swift input still committed, cast or spent'
+ if($neverStarted){Need ($null-ne$Swift.shell-and$Swift.shell.executor-ceq$Rider-and$Terminal.executor-ceq$Rider-and$Terminal.identity-eq$Swift.shell.identity-and$null-ne$Terminal.acted) 'never-started Swift shell is not the exact admitted rider shell'}
+ Need (($null-eq$Swift.shell-or$neverStarted)-and$riderCosts.Count-eq0-and$cast.Count-eq0-and$spend.Count-eq0) 'refused Swift input still committed, cast or spent'
  if($Tb){Need (Test-KmcStagedClose $After.rider.swift $before.rider.swift 'swift') 'refused Swift input changed Swift debt'}
  else {Need ((Get-KmcStagedNumber $After.rider.swift 'swift')-le(Get-KmcStagedNumber $before.rider.swift 'swift')+.001) 'refused Swift input increased Swift debt'}
  Need ($After.slotAvailable-eq$true) 'refused Swift input spent the memorized slot'
@@ -96,14 +108,14 @@ function Assert-KmcChunk6eReactionRow($Row,[string]$Rider,[string]$Mount,[bool]$
  switch -CaseSensitive([string]$step.kind) {
   'cast-swift' {
    Need ($step.swift.turnActor-ceq$(if($Tb){$Rider}else{$null})-or-not$Tb) 'own-turn Swift cast did not run on the rider''s native turn'
-   $null=Assert-KmcStagedSwiftCast $step.swift $step.after @($step.events) @($step.costEvents) $Rider $Mount $e.before.turnActor $Tb $true $why
+   $null=Assert-KmcStagedSwiftCast $step.swift $step.after @($step.events) @($step.costEvents) $Rider $Mount $e.before.turnActor $Tb $true $why $step.terminal
    Need ($step.terminal.finished-eq$true-and$step.terminal.executor-ceq$Rider) 'Swift shell did not finish on the rider'
   }
   'foreign-window-swift' {
    if($Tb) {
     Need (-not[string]::IsNullOrEmpty([string]$step.foreignTurnActor)-and$step.foreignTurnActor-cne$Rider-and$step.foreignTurnActor-cne$Mount-and$step.swift.turnActor-ceq$step.foreignTurnActor) 'Swift input was not issued on a foreign native turn'
     Need ($step.swift.riderCanAct-is[bool]-and$step.swift.ignoreClick-is[bool]) 'native out-of-turn admission facts missing'
-    $null=Assert-KmcStagedSwiftCast $step.swift $step.after @($step.events) @($step.costEvents) $Rider $Mount $e.hostileActor $Tb $false $why
+    $null=Assert-KmcStagedSwiftCast $step.swift $step.after @($step.events) @($step.costEvents) $Rider $Mount $e.hostileActor $Tb $false $why $step.terminal
    } else {
     $primary=$step.primaryInput
     Need ($null-ne$primary-and$primary.ability.blueprint-ceq'5590652e1c2225c4ca30c4a699ab3649'-and$primary.ability.sourceItem-ne0-and$primary.admittedShellCount-eq1-and$primary.costShell-ne0) 'RT window lacks the admitted Standard scroll cast'
@@ -114,7 +126,7 @@ function Assert-KmcChunk6eReactionRow($Row,[string]$Rider,[string]$Mount,[bool]$
     # exact identities before the Swift consistency rules run.
     $swiftEvents=@(@($step.events)|Where-Object {$_.kind-notlike'item-spend-*'-and-not(($_.kind-ceq'cast-before'-or$_.kind-ceq'cast-after')-and(Get-KmcStagedProp (Get-KmcStagedProp $_ 'ability') 'sourceItem')-ne0)-and-not($_.kind-clike'action-*'-and(Get-KmcStagedProp $_ 'identity')-eq$primary.shell.identity)})
     $swiftCosts=@(@($step.costEvents)|Where-Object {$_.command-ne$primary.costShell})
-    $null=Assert-KmcStagedSwiftCast $step.swift $step.after $swiftEvents $swiftCosts $Rider $Mount $e.hostileActor $Tb $false $why
+    $null=Assert-KmcStagedSwiftCast $step.swift $step.after $swiftEvents $swiftCosts $Rider $Mount $e.hostileActor $Tb $false $why $step.terminal
     Need ($step.terminal.finished-eq$true) 'RT window commands did not finish'
    }
   }
@@ -127,7 +139,7 @@ function Assert-KmcChunk6eReactionRow($Row,[string]$Rider,[string]$Mount,[bool]$
   'hostile-attack-swift' {
    Assert-KmcStagedHostileAttack $step $e.ruleEvents $Row.name $Rider $Mount $why
    Need ($step.hostileAttackAtInput.started-eq$true-and$step.hostileAttackAtInput.finished-eq$false) 'Swift input was not issued while the hostile attack was live'
-   $null=Assert-KmcStagedSwiftCast $step.swift $step.after @($step.events) @($step.costEvents) $Rider $Mount $step.hostileActor $Tb $false $why
+   $null=Assert-KmcStagedSwiftCast $step.swift $step.after @($step.events) @($step.costEvents) $Rider $Mount $step.hostileActor $Tb $false $why $step.terminal
   }
   default { throw ('6E '+$Row.name+': unknown step '+$step.kind) }
  }

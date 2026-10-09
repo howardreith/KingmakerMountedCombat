@@ -27,9 +27,25 @@ function Assert-KmcChunk6aPreCombatPositioning($Setup,$Proof) {
     foreach($v in @($c.requestedSeparation,$c.separation,$c.travel,$c.routeResidual)) {
         if($null -eq $v -or [double]::IsNaN([double]$v) -or [double]::IsInfinity([double]$v)){throw 'TB positioning candidate omitted finite geometry.'}
     }
+    # The v2 ground plan proves a candidate whose forward native route query ends at the origin through its
+    # reciprocal origin boundary (the origin inside the navmesh and walkable, the forward route end and the
+    # reverse route from the point both at the origin); the producer and the shared plan reader measure that
+    # candidate by its reverse residual (frozen 205 allocation-rider-first-tb: forward residual 1.83 = travel,
+    # reverse residual 0, the native move delivered to the destination). This rule measures the same residual.
+    $measuredRoute=[double]$c.routeResidual
+    if($null -ne $Setup.PSObject.Properties['plan'] -and $Setup.plan.contract -ceq 'bounded-native-ground-plan-v2' -and
+        $null -ne $c.PSObject.Properties['routeProof'] -and $c.routeProof -ceq 'reciprocal-origin-boundary' -and
+        $null -ne $c.PSObject.Properties['routeEnd'] -and $null -ne $c.PSObject.Properties['reverseRouteEnd']) {
+        $horizontal={param($p,$q) $a=if($p -is [array]){@([double]$p[0],[double]$p[2])}else{@([double]$p.x,[double]$p.z)};$b=if($q -is [array]){@([double]$q[0],[double]$q[2])}else{@([double]$q.x,[double]$q.z)};[Math]::Sqrt([Math]::Pow($a[0]-$b[0],2)+[Math]::Pow($a[1]-$b[1],2))}
+        $planOrigin=$Setup.plan.origin
+        $clipped=& $horizontal $c.routeEnd $planOrigin;$reverse=& $horizontal $c.reverseRouteEnd $planOrigin
+        $nearestOrigin=& $horizontal $Setup.plan.originNativeNearest.clamped $planOrigin
+        if($Setup.plan.originInsideNavmesh -eq $true -and $Setup.plan.originNativeNearest.walkable -eq $true -and
+            $nearestOrigin -lt 0.001 -and $clipped -lt 0.001 -and $reverse -lt 0.001){$measuredRoute=$reverse}
+    }
     if($c.walkable -ne $true -or $c.requestedSeparation -lt 2 -or $c.requestedSeparation -gt 2.65 -or
         [Math]::Abs($c.separation-$c.requestedSeparation) -gt 0.45 -or $c.travel -lt 0.25 -or $c.travel -gt 4 -or
-        $c.routeResidual -lt 0 -or $c.routeResidual -ge 0.001 -or @($c.blockers).Count -ne 0){throw 'TB positioning candidate violates unchanged route and clearance bounds.'}
+        $c.routeResidual -lt 0 -or $measuredRoute -lt 0 -or $measuredRoute -ge 0.001 -or @($c.blockers).Count -ne 0){throw 'TB positioning candidate violates unchanged route and clearance bounds.'}
     $footprint=$c.footprint
     if($footprint.corpulence -lt 0 -or [Math]::Abs($Setup.clearanceRadius-([Math]::Max(0.5,$footprint.corpulence)+0.75)) -gt 0.00001 -or
         $footprint.probeRadius -ne $Setup.clearanceRadius -or @($footprint.probes).Count -ne 8){throw 'TB positioning clearance footprint changed.'}
