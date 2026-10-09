@@ -1,3 +1,41 @@
+## 2026-10-09 - preview204 closed (twelve stages; 6C RT twice and 6D RT qualified); coherent205 turn-based fixture, record and cleanup corrections (Claude)
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS (mounted/unmounted RT qualified on 203 and
+again on 204); 6D IN PROGRESS (RT qualified on 204, 5/5); 6E IN PROGRESS (every row produced natively
+twice, no qualified stage); 6F incomplete. Frozen 204 source 0e45a832cfe9056e808873596c0ce4c73a507c5a
+is closed (preview204-campaign-closure.json 613ec6aa33a58553fa5d6934e82e38a80a3679e888bc8c4d300099df4e18848d;
+purity p1 PASS exit 0, 91.8 min). Stage 1/3 (6C RT): native 17/0, 15/15 external PASS, envelope PASS,
+restored. Stage 9 (6D RT): native 7/0, 5/5 external PASS, envelope PASS, restored. Stage 2 (6C mounted
+TB): 14/15 (under-threat: the deferred hostile attack was never issued because the rider was already
+engaged). Stage 4 (6C unmounted TB): 13/15 (rider-incapacity: the separately-turned mount's Standard
+decayed 4.00 -> 3.76 against the exact TB rule; mount-incapacity: the prone rider's cast was interrupted
+at admission by the native stand-up that spent the Move action). Stage 10 (6D TB): 4/5
+(double-move-ranged: the retained-Standard cast waited for the next native turn whose pair preparation
+the replay rule counted). Stages 11/12 (6E RT/TB): 1/4 each (every swift record lost its cast facts:
+a keyed JObject re-assigned to its own owner is stored as a clone). Every TB casting-family stage again
+ended in the cleanup deadline (player in combat with the mode restored, controller deinitialised) and
+the Mammoth paired-activation restoration refused in combat. Stages 5-7 PASS; Stage 8: attempts 1-2
+refused (the worktree was dirtied by the next candidate's edits; the stash rewrote LF reader bytes),
+attempt 3 native PASS, outer FAIL on a zero-size achievements.dat profile leaf. No production defect.
+Working 205 (one coherent tranche): TB threat readiness requires the hostile attack issued on the
+hostile's turn; the unmounted TB rider stands up through one bounded native ground order before the
+row; keyed swift records are reused in place; the casting-family cleanup restores the captured pause
+before judging the native encounter and records pause/mode/ticks/group guard/leave timer/units-in-combat
+facts at the deadline (pinned IL: the join controller recomputes Player.IsInCombat and the leave
+controller advances the group's leave timer only while the default mode ticks); the 6C reader admits
+TB mount cooldown decay without a paired turn end; the shared replay rule is scoped by turn identity.
+Reader-only corrections evaluated against the immutable 204 evidence (reader205-preview204-evaluation1.json
+c7270fadfd0a30a284a3058ae6a4421e9bbdbf3055b594818b77c59ff7ca923a: Stage 4 rider-incapacity and Stage 10
+double-move-ranged FAIL -> PASS; fixture-dependent rows stay FAIL). Observed gates
+(preview205-offline-gates.json): build/source 147/0, components 719/0, compiled observer 204/0, casting
+reader 287/0, 6D reader 83/0, 6E reader 72/0, FAST 11/0, CANDIDATE 15/0 (harness 271/0, assembly 701/0);
+the first reader gate receipts failed on a mis-expanded path and are retained. No 205 package/suite/purity/
+native credit yet.
+Next: guarded publication, package (chunk6de-staged-q)/suite/freeze 205, one orphaned purity, the 12-stage
+batch (TB stages first: 2, 4, 10, 12, then 9, 11, 1, 3, 5-8), then 6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
 ## 2026-10-09 - preview203 closed (twelve stages ran; the first two qualified 6C stages); coherent204 turn-based and 6D/6E corrections (Claude)
 
 6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains

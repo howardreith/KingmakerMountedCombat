@@ -199,6 +199,26 @@ $r=New-CastingRow 'C6C-mount-incapacity' $false $true;Accept $r;Check $true 'mou
 $r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.costEvents+=@([pscustomobject]@{boundary='combat-clear-before';command=0;state=$r.evidence.before.rider},[pscustomobject]@{boundary='clear-before';command=0;state=$r.evidence.before.rider},[pscustomobject]@{boundary='clear-after';command=0;state=$r.evidence.before.rider},[pscustomobject]@{boundary='combat-clear-after';command=0;state=$r.evidence.before.rider});Reject $r 'a settled cast window tolerates no pair combat exit'
 Check ((Get-KmcChunk6cPairReplayCount @() 'rider' 'mount')-eq0) 'empty cost window has no replay'
 Check ((Get-KmcChunk6cPairReplayCount @([pscustomobject]@{boundary='clear-before';state=[pscustomobject]@{actor='other'}}) 'rider' 'mount')-eq0) 'foreign actor clears are not pair replays'
+# Frozen 204 TB: a row that waits for the rider's next native turn records that turn's single pair preparation
+# (prepare-before, the nested cooldown clear, prepare-after) under a new turn identity; the row's own turn and any
+# further preparation in the later turn stay replays.
+$turnA=[pscustomobject]@{boundary='admission-before';turn=5;state=[pscustomobject]@{actor='rider'}}
+$nextTurn=@(@('prepare-before','clear-before','clear-after','prepare-after')|ForEach-Object {[pscustomobject]@{boundary=$_;turn=6;state=[pscustomobject]@{actor='rider'}}})
+$sameTurn=@(@('prepare-before','clear-before','clear-after','prepare-after')|ForEach-Object {[pscustomobject]@{boundary=$_;turn=5;state=[pscustomobject]@{actor='rider'}}})
+Check ((Get-KmcChunk6cPairReplayCount (@($turnA)+$nextTurn) 'rider' 'mount')-eq0) 'the next native turn''s single pair preparation is not a replay'
+Check ((Get-KmcChunk6cPairReplayCount (@($turnA)+$sameTurn) 'rider' 'mount')-eq4) 'a pair preparation inside the row''s own turn counts every boundary as replay'
+Check ((Get-KmcChunk6cPairReplayCount (@($turnA)+$nextTurn+$nextTurn) 'rider' 'mount')-eq4) 'a further preparation inside the next native turn is a replay'
+Check ((Get-KmcChunk6cPairReplayCount $nextTurn 'rider' 'mount')-eq4) 'a preparation on the row''s first turn identity is a replay'
+# Frozen 204 unmounted TB: the separately-turned mount's cooldowns decay with game time during the rider's lost
+# cast and no paired turn end exists; a rising mount debt without that turn end stays refused.
+function New-UnmountedTurnBasedLifeRow {
+ $r=New-CastingRow 'C6C-rider-incapacity' $true $false
+ $r.evidence.costEvents=@($r.evidence.costEvents|Where-Object {-not($_.boundary-like'turn-end-*'-and$_.state.actor-ceq'mount')})
+ foreach($k in @('before','afterInput')){$p=$r.evidence.PSObject.Properties[$k];if($p-and$p.Value.PSObject.Properties['mount']){$p.Value.mount.standard=4.0}}
+ $r
+}
+$r=New-UnmountedTurnBasedLifeRow;$r.evidence.after.mount.standard=3.76;Accept $r $true $false;Check $true 'unmounted turn-based lost spell accepts the mount''s native cooldown decay without a paired turn end'
+$r=New-UnmountedTurnBasedLifeRow;$r.evidence.after.mount.standard=5.0;$refused=$false;try{Accept $r $true $false}catch{$refused=$true};Check $refused 'unmounted turn-based mount debt rising without a paired turn end refused'
 # Disposable stack rules introduced after the preview.201 native fact (ItemSlot.InsertItem splits stacks;
 # a consumed single unit is removed through the one-bool removal the foreign refill patch intercepts).
 $r=New-CastingRow 'C6C-standard-self' $false $true;$r.evidence.before.ability.sourceItem=59;Reject $r 'scroll row sourcing another same-blueprint item is refused'

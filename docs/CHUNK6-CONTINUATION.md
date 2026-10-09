@@ -1,3 +1,92 @@
+## 2026-10-09 - preview204 closed (twelve stages); coherent205 turn-based fixture, record and cleanup corrections (Claude)
+
+6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION
+DEFERRED TO CHUNK6 CONSOLIDATION. Charge stays default-off; its TB refusal is not
+delivery. 6C IN PROGRESS (two qualified RT stages, twice); 6D IN PROGRESS (RT qualified); 6E ran natively
+twice with no qualified stage; 6F incomplete.
+
+Frozen 204 (source 0e45a832cfe9056e808873596c0ce4c73a507c5a, package 6bad2cc126004b5605130654fd33c6c9d9da0475b47b46b0c7bdbbe6cb2b0985,
+suite 20261009-chunk6de-staged-p, freeze 6d561cfc..., plan 1f8a9c65...) is closed
+(preview204-campaign-closure.json 613ec6aa33a58553fa5d6934e82e38a80a3679e888bc8c4d300099df4e18848d):
+- Purity p1 PASS exit 0 with the sentinel after 91.8 minutes (orphaned controller; ledger-shaped receipt
+  analysis-cache/chunk6a-causal/purity-receipt-preview204.json).
+- Stage 1 mounted RT and Stage 3 unmounted RT: native 17/0, external 15/15 rows PASS, envelope PASS,
+  worker 0/game 0, restored exactly (qualified a second time on an independent candidate).
+- Stage 9 6D RT: native 7/0, external 5/5 rows PASS, envelope PASS, restored - the first qualified 6D stage
+  (move-cast-move, cast-then-move, double-move-ranged through the product's RiderRanged pair command,
+  movement-exhausted on the 6 s move cooldown, auto-stop-boundary).
+- Stage 2 mounted TB: 14/15 (rider-incapacity and mount-incapacity now PASS: the TB lost-spell charge, the
+  paired turn-end mount debt and the acting-turn remount all held); under-threat FAIL: the boundary saw
+  riderEngaged true before the hostile's turn (engaged since earlier rows), so the deferred hostile attack was
+  never issued; the native defensive check itself happened (dc 17, roll 20, 1.52 s).
+- Stage 4 unmounted TB: 13/15; rider-incapacity FAIL on the exact TB mount-debt rule (the separately-turned
+  mount's Standard decayed 4.00 -> 3.76 during the rider's lost cast, the rider's own delta: TB cooldowns of
+  every unit decay with game time); mount-incapacity: the rider restored from its life row was still prone
+  at its Acting turn, the row's cast was admitted and interrupted in the same frame by the native stand-up
+  (move 0 -> 3) and no stimulus was applied (the reader threw on the missing beforeIncapacity).
+- Stage 10 6D TB: 4/5; double-move-ranged FAIL only on the replay rule: the retained-Standard cast waited for
+  the rider's next native turn and that turn's pair preparation (prepare-before, cooldown clear, prepare-after
+  under a new turn identity) was counted as a replay.
+- Stage 11 6E RT and Stage 12 6E TB: 1/4 each; every swift record carried only its rod and instrument keys:
+  IssueStagedCast re-assigned the already parented keyed JObject to its owner, which stores a clone and
+  orphans the record the cast facts were written into. TB facts retained: out-of-turn and attack-window
+  Swift inputs were refused natively with sw 4.0 remaining (the paired turn end spends the Swift too); the
+  hostile attack issued on the hostile's turn ran 3.37 s then ended in Interrupt at its turn end.
+- Every TB casting-family stage (2, 4, 10, 12) ended in the cleanup deadline with playerInCombat true,
+  nativeTurnBased false, nativeControllerInitialized false, targetClean true, the allocation party restored
+  and cleanupTurnEnds empty (the 204 turn ending never ran: TB was already off at cleanup); the Mammoth
+  paired-activation restoration was refused "outside combat" as a consequence.
+- Stages 5-7 persistence PASS. Stage 8 settled-tb-load: attempt 1 refused "Worktree changed" (the next
+  candidate's edits were applied before the batch ended), attempt 2 refused "Frozen identity changed"
+  (git stash re-checked out LF reader files as CRLF), attempt 3 native PASS 1/1, outer FAIL: a new zero-size
+  achievements.dat profile leaf (the profile holds dozens of such native cache leaves). All attempts retained.
+- 0 qualified TB stages; every result retained; no production casting/action/resource/turn defect.
+
+Native facts pinned (frozen 204 and IL, Assembly-CSharp MVID 07fa1e4d): TB cooldowns of every unit decay with
+game time while a command runs; a unit restored from unconsciousness stays prone in TB until it acts on its own
+turn and the native stand-up spends the Move action while dropping the triggering command (a Mount click
+"finished unmounted", a cast interrupted at admission); hostiles keep the rider engaged across rows; Newtonsoft
+clones a JObject re-parented onto its own owner; UnitCombatJoinController.Tick (0x06009360) recomputes
+Player.IsInCombat on every tick it runs and UnitCombatLeaveController.Tick (0x06009366) advances the party
+group's LeaveCombatTimer by GameDeltaTime only while the default game mode is active (in TB only while passing);
+UnitEntityData.Dispose leaves combat before removing the unit from its group.
+
+Working 205 (one coherent tranche, no production policy change):
+- 6C fixture: TB threat readiness requires the hostile attack issued on the hostile's own turn; the unmounted
+  TB rider that is prone at stage 1 receives one bounded native ground order per rider turn (recorded under
+  standUps, at most 3) before the row.
+- 6E/6D producer: KeepKeyedRecord reuses the existing keyed child; IssueStagedCast and the swift step never
+  re-parent a record.
+- Casting-family cleanup: RestoreCastingFamilyPause restores the captured pause state once the mode and
+  target restorations are done (the same restoration the Mammoth engine performs at Finish) and the
+  cleanupPending record carries gamePaused, originalPause, currentMode, gameTicks, gameDeltaTime,
+  partyGroupInCombat, partyLeaveCombatTimer, nativePassing, nativeHasEnemyInCombat, nativeHadEnemyAtSomePoint
+  and the units still in combat.
+- 6C reader: without a paired turn end the mount's debt may only decay in either mode.
+- Shared replay rule (6C/6D/6E): scoped by the cost event's turn identity; a later turn's single native
+  preparation per actor is admitted, the row's own turn and any further preparation remain replays.
+- Reader-only corrections evaluated against the immutable 204 evidence
+  (reader205-preview204-evaluation1.json c7270fadfd0a30a284a3058ae6a4421e9bbdbf3055b594818b77c59ff7ca923a):
+  Stage 4 rider-incapacity FAIL->PASS; Stage 10 double-move-ranged FAIL->PASS; nothing else changed.
+- Regressions: 6C replay-count unit checks (next-turn preparation admitted, same-turn and repeated
+  preparations counted), the unmounted TB life row with mount decay (accepted) and with a rising mount debt
+  (refused); 6D TB row spanning into the next native turn (accepted) and a repeated preparation (refused);
+  compiled checks for the stand-up ordering, KeepKeyedRecord use and the cleanup pause restoration order.
+- Version stamps 0.1.0-chunk6d-preview.205.
+
+Observed gates (preview205-offline-gates.json): build/source 147/0; components 719/0; compiled observer
+204/0; casting reader 287/0; 6D reader 83/0; 6E reader 72/0; FAST 11/0; CANDIDATE 15/0 (harness 271/0,
+assembly 701/0). The first casting/staged/reaction reader receipts failed on a mis-expanded script path
+(exit -196608) and are retained; the reader2 receipts ran the same scripts on the same source.
+
+No 205 package/suite/purity/native credit at this source checkpoint.
+Next: coherent commit, guarded push, package (chunk6de-staged-q), suite, freeze 205 with the 12-stage plan,
+one orphaned read-only purity, then the batch with the TB stages first (2, 4, 10, 12), then 9, 11, 1, 3, 5-8;
+no worktree edit until the last stage has run. 6F afterwards on the final candidate: FULL once, the final
+consolidation plan (the remaining 82 stages bound to the 12 already run on the same frozen candidate), the 6A
+ledger built through the repository binders; the 15 unimplemented 6A ids stay BLOCKED until implemented or
+owner-decided.
+
 ## 2026-10-09 - preview203 closed (twelve stages); coherent204 turn-based and 6D/6E corrections (Claude)
 
 6B IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED; FINAL QUALIFICATION

@@ -86,6 +86,11 @@ $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[2].legs[0].after.m
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[0].legs[0].after.mountPosition.x=0.0;Reject $r 'an admitted leg that did not displace the mount is refused'
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[0].legs[0].carrier.createdByPlayer=$false;Reject $r 'a non-player carrier is refused'
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.costEvents=@([pscustomobject]@{boundary='prepare-before';command=0;state=$r.evidence.before.mount});Reject $r 'pair preparation replay inside the row is refused'
+# Frozen 204 TB double-move-ranged: the retained-Standard cast after the ranged attack waits for the rider's next
+# native turn; that turn's single pair preparation per actor is native, a further one is still a replay.
+function New-NextTurnPreparation([string]$actor,[int]$turn){@(@('prepare-before','clear-before','clear-after','prepare-after')|ForEach-Object {[pscustomobject]@{boundary=$_;command=0;turn=$turn;state=[pscustomobject]@{actor=$actor}}})}
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.costEvents=@($r.evidence.costEvents)+(New-NextTurnPreparation $Rider 77)+(New-NextTurnPreparation $Mount 77);Accept $r $true;Check $true 'turn-based row spanning into the rider''s next native turn accepts that turn''s single pair preparation'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.costEvents=@($r.evidence.costEvents)+(New-NextTurnPreparation $Rider 77)+(New-NextTurnPreparation $Rider 77);Reject $r 'a further pair preparation inside the next native turn is still a replay'
 # Cast ownership.
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[1].after.mount.standard=6.0;Reject $r 'mount Standard charged for the rider cast is refused'
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[1].ability.sourceItem=59;Reject $r 'scroll cast from another entity is refused'

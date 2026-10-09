@@ -9,18 +9,32 @@ function Get-KmcChunk6cCastingCases {
 # Native preparation is never replayed inside a cast window. A Cooldowns.Clear nested inside the
 # same actor's native combat-exit window (combat-clear-before .. combat-clear-after) is the engine's
 # own leave-combat reset of an incapacitated actor, not a replay; every other clear or prepare is.
+function Get-KmcChunk6cEventTurn($Event) {
+ $p=$Event.PSObject.Properties['turn']
+ if($null-eq$p-or$null-eq$p.Value){return '0'}
+ [string]$p.Value
+}
 function Get-KmcChunk6cPairReplayCount($Costs,[string]$Rider,[string]$Mount) {
- $inside=@{};$replays=0
+ # A pair preparation inside the row's own turn is a replay. A row that legitimately waits for the
+ # rider's next native turn (frozen 204 TB 6D double-move-ranged: the retained-Standard cast after the
+ # ranged attack) records that turn's single native preparation per actor (prepare-before, the cooldown
+ # clear it nests, prepare-after) under a new turn identity; only a further preparation there is a replay.
+ $inside=@{};$replays=0;$rowTurn=$null;$seenTurn=$false;$nativePrepare=@{}
  foreach($c in @($Costs)) {
   $actor=[string]$c.state.actor
   if($actor-cnotin@($Rider,$Mount)){continue}
+  $turn=Get-KmcChunk6cEventTurn $c
+  if(-not$seenTurn){$rowTurn=$turn;$seenTurn=$true}
+  $laterTurn=$turn-cne$rowTurn
+  $key=$actor+'|'+$turn
+  $nativeOpen=$laterTurn-and$nativePrepare[$key]-ceq'open'
   switch -CaseSensitive([string]$c.boundary) {
    'combat-clear-before' {$inside[$actor]=$true}
    'combat-clear-after' {$inside[$actor]=$false}
-   'prepare-before' {$replays++}
-   'prepare-after' {$replays++}
-   'clear-before' {if(-not$inside[$actor]){$replays++}}
-   'clear-after' {if(-not$inside[$actor]){$replays++}}
+   'prepare-before' {if($laterTurn-and-not$nativePrepare.ContainsKey($key)){$nativePrepare[$key]='open'}else{$replays++}}
+   'prepare-after' {if($nativeOpen){$nativePrepare[$key]='closed'}else{$replays++}}
+   'clear-before' {if(-not$inside[$actor]-and-not$nativeOpen){$replays++}}
+   'clear-after' {if(-not$inside[$actor]-and-not$nativeOpen){$replays++}}
   }
  }
  $replays
@@ -88,7 +102,9 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
   if($Tb-and$life-and($mountTurnEndBefore.Count-gt0-or$mountTurnEndAfter.Count-gt0)) {
    Need ($mountTurnEndBefore.Count-eq1-and$mountTurnEndAfter.Count-eq1-and(Close $mountTurnEndBefore[0].state.$field $before.mount.$field)-and(Number $after.mount.$field)-le(Number $mountTurnEndAfter[0].state.$field)+.001) 'mount native debt changed outside the native paired turn end'
   }
-  elseif($Tb-and-not$motion){Need (Close $before.mount.$field $after.mount.$field) 'mount native debt changed during rider action'}
+  # Without a paired turn end the mount's debt may only decay: the native cooldown controller ticks every
+  # unit's cooldowns while game time flows in both modes (frozen 204 unmounted TB rider-incapacity: the
+  # separately-turned mount's Standard 4.00 -> 3.76 during the rider's lost cast, the rider's own delta).
   elseif(-not$motion){Need ((Number $after.mount.$field)-le(Number $before.mount.$field)+.001) 'mount native debt increased during rider action'}
  }
  $costBefore=@($costs|Where-Object {$_.boundary-ceq'cost-before'-and$_.state.actor-ceq$Rider})

@@ -390,9 +390,10 @@ namespace KingmakerMountedCombat.Diagnostics
         }
         private void IssueStagedCast(AbilityData ability, UnitEntityData castTarget, string recordKey)
         {
-            // A keyed record prepared by the caller (the Swift instrument and rod facts) is kept, never replaced.
-            var record = recordKey == null ? stagedStep : (stagedStep[recordKey] as JObject ?? new JObject());
-            if (recordKey != null) stagedStep[recordKey] = record;
+            // A keyed record prepared by the caller (the Swift instrument and rod facts) is kept, never replaced:
+            // re-assigning an already parented JObject stores a clone and orphans the caller's record (frozen
+            // 204: every swift record lost its cast facts), so the existing child is reused in place.
+            var record = recordKey == null ? stagedStep : KeepKeyedRecord(stagedStep, recordKey);
             SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
             if (ability == null || ability.Caster.Unit != rider) throw new InvalidOperationException("Native ability caster is not the exact rider.");
             castingAbility = ability; castingPrepared = null;
@@ -429,12 +430,20 @@ namespace KingmakerMountedCombat.Diagnostics
             if (shell != null) { castingShell = shell; stagedCommand = shell; }
             record["afterInput"] = StagedState();
         }
+        // The existing keyed child is returned in place; only an absent key creates (and parents) a new record.
+        internal static JObject KeepKeyedRecord(JObject owner, string key)
+        {
+            var existing = owner[key] as JObject;
+            if (existing != null) return existing;
+            var created = new JObject();
+            owner[key] = created;
+            return created;
+        }
         // The exact Swift-typed instrument: the equipped Lesser Quicken rod on the first still-available
         // memorized level-1 slot (CLW on the rider, Snowball on the hostile, Entangle near the hostile).
         private void IssueStagedSwiftCast()
         {
-            var record = stagedStep["swift"] == null ? new JObject() : (JObject)stagedStep["swift"];
-            stagedStep["swift"] = record;
+            var record = KeepKeyedRecord(stagedStep, "swift");
             record["rod"] = castingRod.Snapshot();
             foreach (var instrument in new[] { new { Blueprint = Heal, Target = rider }, new { Blueprint = Snowball, Target = target }, new { Blueprint = Entangle, Target = (UnitEntityData)null } })
             {
