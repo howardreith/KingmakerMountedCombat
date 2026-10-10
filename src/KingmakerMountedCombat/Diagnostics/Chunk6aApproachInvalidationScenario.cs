@@ -91,9 +91,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject chunk6aInvalidationLedgerBefore;
         private long chunk6aInvalidationGenerationBefore, chunk6aInvalidationDispatchesBefore, chunk6aInvalidationRejectionsBefore,
             chunk6aInvalidationCastsBefore, chunk6aInvalidationShellsBefore;
-        private int chunk6aInvalidationTraceStart, chunk6aInvalidationSettled, chunk6aInvalidationTerminalFrame = -1;
+        private int chunk6aInvalidationTraceStart, chunk6aInvalidationSettled, chunk6aInvalidationTerminalFrame = -1, chunk6aInvalidationStimulusFrame = -1;
         private int chunk6aInvalidationStimulusCount, chunk6aInvalidationRestoreCount, chunk6aInvalidationCleanupInterruptCount;
-        private bool chunk6aInvalidationTriggered, chunk6aInvalidationRestored, chunk6aInvalidationHorseLeftArea, chunk6aInvalidationCutsceneStarted;
+        private bool chunk6aInvalidationTriggered, chunk6aInvalidationRestored, chunk6aInvalidationHorseLeftArea, chunk6aInvalidationCutsceneStarted, chunk6aInvalidationResurrected;
+        // The native cutscene lock is held while the exact pending shell runs; if the engine freezes the party's commands
+        // under the lock (no terminal arrives), the lock is released after this bounded hold and the shell is left to
+        // reach its own terminal in the Default mode. Both shapes are recorded; the external validator decides.
+        private const int Chunk6aInvalidationCutsceneHoldFrames = 180;
         private NativeChargeViewLease chunk6aInvalidationViewLease;
         private NativeDeathPolicyLease chunk6aInvalidationDeathPolicy;
         private PairedConditionObserver chunk6aInvalidationDeathObserver;
@@ -180,7 +184,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["scenario"] = request.Scenario,
                     ["row"] = Chunk6aInvalidationRow,
                     ["diagnosticStimulus"] = request.Scenario == Chunk6aGenerationChangeScenario || request.Scenario == Chunk6aInjectedExceptionScenario,
-                    ["externalRestorationRequired"] = Chunk6aInvalidationDeath,
+                    // Every stimulus this family owns is restored in-process (a dead subject through the engine's own
+                    // UnitDescriptor.ResurrectAndFullRestore after its death was observed and recorded).
+                    ["externalRestorationRequired"] = false,
                     ["start"] = start,
                     ["before"] = CaptureChunk6aInvalidationState("before-click"),
                     ["samples"] = chunk6aInvalidationSamples,
@@ -244,6 +250,22 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
+                ResetLeafClock();
+                return;
+            }
+            // Bounded cutscene hold: a shell the engine froze under the native lock never reaches a terminal; release
+            // the lock once after the hold and record the frame so the validator can see that no delivery happened
+            // while the cutscene was active.
+            if (request.Scenario == Chunk6aLoadingCutsceneScenario && chunk6aInvalidationCutsceneStarted && Game.Instance.CutsceneLock &&
+                !command.IsFinished && chunk6aInvalidationStimulusFrame >= 0 && Time.frameCount - chunk6aInvalidationStimulusFrame >= Chunk6aInvalidationCutsceneHoldFrames &&
+                chunk6aInvalidationEvidence["cutsceneHoldExpired"] == null)
+            {
+                chunk6aInvalidationEvidence["cutsceneHoldExpired"] = new JObject
+                {
+                    ["frame"] = Time.frameCount, ["holdFrames"] = Chunk6aInvalidationCutsceneHoldFrames,
+                    ["command"] = CaptureOrdinaryCommand(command), ["state"] = CaptureChunk6aInvalidationState("hold-expired")
+                };
+                RestoreChunk6aInvalidationStimulus(false);
                 ResetLeafClock();
                 return;
             }
@@ -330,12 +352,16 @@ namespace KingmakerMountedCombat.Diagnostics
                     catch (InvalidOperationException exception) { refusal = exception.Message; }
                     break;
                 case Chunk6aLoadingCutsceneScenario:
-                    stimulus["contract"] = "one-native-cutscene-game-mode-start";
-                    stimulus["method"] = "Kingmaker.Game.StartMode"; stimulus["token"] = "06000CBD";
-                    stimulus["modeBefore"] = game.CurrentMode.ToString();
-                    game.StartMode(GameModeType.Cutscene);
+                    // The engine's own cutscene entry (CommandLockControls.OnRun -> Game.SetCutsceneLock 06000CE6): the
+                    // counting-guard lock starts the Cutscene game mode and holds it; a bare StartMode(Cutscene) without the
+                    // lock reverted to Default within one frame (preview.206 stage 3).
+                    stimulus["contract"] = "one-native-cutscene-lock-with-its-cutscene-game-mode";
+                    stimulus["method"] = "Kingmaker.Game.SetCutsceneLock"; stimulus["token"] = "06000CE6";
+                    stimulus["modeBefore"] = game.CurrentMode.ToString(); stimulus["lockBefore"] = game.CutsceneLock;
+                    game.SetCutsceneLock(true);
                     chunk6aInvalidationCutsceneStarted = true;
-                    stimulus["modeAfterRequest"] = game.CurrentMode.ToString();
+                    stimulus["lockAfterRequest"] = game.CutsceneLock; stimulus["modeAfterRequest"] = game.CurrentMode.ToString();
+                    if (!game.CutsceneLock) refusal = "the native cutscene lock did not engage";
                     break;
                 case Chunk6aGenerationChangeScenario:
                     stimulus["contract"] = "one-owned-diagnostic-generation-invalidation-before-the-shell-generation-check";
@@ -377,6 +403,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     break;
             }
             stimulus["count"] = chunk6aInvalidationStimulusCount;
+            chunk6aInvalidationStimulusFrame = Time.frameCount;
             stimulus["frameAfter"] = Time.frameCount; stimulus["gameTicksAfter"] = game.TimeController.GameTime.Ticks;
             stimulus["commandAfter"] = CaptureOrdinaryCommand(command);
             stimulus["riderAfter"] = CaptureChunk6aInvalidationActor(rider); stimulus["mountAfter"] = CaptureChunk6aInvalidationActor(horse);
@@ -418,14 +445,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 case Chunk6aLoadingCutsceneScenario:
                     if (chunk6aInvalidationCutsceneStarted)
                     {
-                        if (game.CurrentMode == GameModeType.Cutscene && (int)record["attempts"] == 1)
+                        if (game.CutsceneLock)
                         {
-                            record["method"] = "Kingmaker.Game.StopMode"; record["token"] = "06000CBE";
-                            game.StopMode(GameModeType.Cutscene);
+                            // The same exact native entry releases the lock and stops the Cutscene mode (deferred by the
+                            // engine to its next mode tick when modes are ticking).
+                            record["method"] = "Kingmaker.Game.SetCutsceneLock"; record["token"] = "06000CE6";
+                            record["releaseFrame"] = Time.frameCount; record["releaseGameTicks"] = game.TimeController.GameTime.Ticks;
+                            record["commandAtRelease"] = chunk6aInvalidationCommand == null ? null : CaptureOrdinaryCommand(chunk6aInvalidationCommand);
+                            game.SetCutsceneLock(false);
                             chunk6aInvalidationRestoreCount++;
                         }
-                        restored = game.CurrentMode == GameModeType.Default;
-                        record["modeNow"] = game.CurrentMode.ToString();
+                        restored = !game.CutsceneLock && game.CurrentMode == GameModeType.Default;
+                        record["lockNow"] = game.CutsceneLock; record["modeNow"] = game.CurrentMode.ToString();
                         if (restored) chunk6aInvalidationCutsceneStarted = false;
                     }
                     break;
@@ -451,7 +482,29 @@ namespace KingmakerMountedCombat.Diagnostics
                         chunk6aInvalidationDeathPolicy = null;
                         chunk6aInvalidationRestoreCount++;
                     }
-                    record["subjectDead"] = Chunk6aInvalidationDeathSubject.Descriptor.State.IsDead;
+                    // The fixture's own lethal stimulus is restored in-process through the engine's resurrection entry
+                    // (UnitDescriptor.ResurrectAndFullRestore 06001F12, the path the Horse engine already uses) once the
+                    // death was observed and recorded; restoration is complete only when the subject is conscious, undamaged,
+                    // in state with a live view and no pending command.
+                    var deathSubject = Chunk6aInvalidationDeathSubject;
+                    if (record["subjectDeadBefore"] == null) record["subjectDeadBefore"] = deathSubject.Descriptor.State.IsDead;
+                    if (!chunk6aInvalidationResurrected && deathSubject.Descriptor.State.IsDead)
+                    {
+                        record["resurrection"] = new JObject
+                        {
+                            ["method"] = "Kingmaker.UnitLogic.UnitDescriptor.ResurrectAndFullRestore", ["token"] = "06001F12",
+                            ["frame"] = Time.frameCount, ["damageBefore"] = deathSubject.Damage, ["finallyDeadBefore"] = deathSubject.Descriptor.State.IsFinallyDead
+                        };
+                        deathSubject.Descriptor.ResurrectAndFullRestore();
+                        chunk6aInvalidationResurrected = true;
+                    }
+                    restored = chunk6aInvalidationResurrected && !deathSubject.Descriptor.State.IsDead && deathSubject.Descriptor.State.IsConscious &&
+                        deathSubject.Damage == 0 && deathSubject.IsInState && deathSubject.View != null && deathSubject.Commands.Empty;
+                    record["resurrected"] = chunk6aInvalidationResurrected;
+                    record["subjectDead"] = deathSubject.Descriptor.State.IsDead;
+                    record["subjectConscious"] = deathSubject.Descriptor.State.IsConscious;
+                    record["subjectDamage"] = deathSubject.Damage;
+                    record["subjectInState"] = deathSubject.IsInState;
                     break;
             }
             record["restored"] = restored;

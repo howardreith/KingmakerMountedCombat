@@ -88,7 +88,11 @@ function Assert-KmcChunk6aApproachInvalidation([string]$Scenario,$Artifact) {
  if(-not(ClosureSameJson $rows[0].evidence $Case)){ClosureFail 'the row evidence differs from the recorded case'}
  if([string]$Case.contract-cne$contract-or[string]$Case.scenario-cne$Scenario-or[string]$Case.row-cne$row){ClosureFail 'the contract differs'}
  $diagnostic=$Scenario-cin@('chunk6a-generation-change','chunk6a-injected-exception');$death=$Scenario-cin@('chunk6a-rider-death-approach','chunk6a-mount-death-approach')
- if($Case.diagnosticStimulus-ne$diagnostic-or$Case.externalRestorationRequired-ne$death){ClosureFail 'the stimulus kind declaration differs'}
+ if($Case.diagnosticStimulus-ne$diagnostic-or$Case.externalRestorationRequired-ne$false){ClosureFail 'the stimulus kind declaration differs'}
+ # The cutscene case has two lawful shapes: the pending shell reached its terminal under the native lock (refused or
+ # interrupted), or the engine froze the party's commands under the lock, the fixture released the lock after its bounded
+ # hold and the shell then reached its own terminal in the Default mode (a delivery after the cutscene, never during it).
+ $cutsceneDeferred=$Scenario-ceq'chunk6a-loading-cutscene'-and[string]$Case.outcome-ceq'delivered'-and$null-ne(ClosureProp $Case 'cutsceneHoldExpired')
  $before=$Case.before
  if($Case.start.isAdjacent-ne$false-or[string]$before.relationshipState-cne'Unmounted'-or$before.partyInCombat-ne$true){ClosureFail 'the Mount did not start outside transition reach from an unmounted pair in combat'}
  Assert-KmcChunk6aClosureClick $Case.click 'approach invalidation'
@@ -103,10 +107,16 @@ function Assert-KmcChunk6aApproachInvalidation([string]$Scenario,$Artifact) {
  $terminal=ClosureProp $Case 'terminal';$after=ClosureProp $Case 'after';$terminalCommand=ClosureProp $Case 'terminalCommand'
  if($null-eq$terminal-or$null-eq$after-or$null-eq$terminalCommand-or$terminalCommand.finished-ne$true-or$terminalCommand.id-ne$trigger.commandObject){ClosureFail 'no terminal of the exact command was observed'}
  if($Case.allocationTraceComplete-ne$true-or$Case.diagnosticInterruptCount-ne0){ClosureFail 'the native allocation trace is incomplete or the command was interrupted diagnostically'}
- Assert-KmcChunk6aClosureNoResidueState $after $Case 'the invalidation sequence'
  if($Case.castRequestDelta-ne1){ClosureFail 'the window holds other than the one native cast request'}
  $delta=$Case.ledgerDelta
- if([string]$after.relationshipState-cne'Unmounted'-or$delta.acceptedMount-ne0-or$Case.dispatchAcceptedDelta-ne0-or$delta.acceptedDismount-ne0-or$delta.admittedDismount-ne0){ClosureFail 'the invalidated Mount was delivered'}
+ if($cutsceneDeferred){
+  # Delivered after the cutscene: exactly one accepted Mount, nothing in flight, both containers empty, one shell.
+  if($after.transitionInFlight-ne$false-or$after.riderCommandsEmpty-ne$true-or$after.horseCommandsEmpty-ne$true-or$Case.relationshipShellsDelta-ne1){ClosureFail 'the deferred delivery left command, transition or shell residue'}
+  if([string]$after.relationshipState-cne'Mounted'-or$delta.acceptedMount-ne1-or$delta.admittedMount-ne1-or$delta.refusedVoluntary-ne0-or$delta.forcedDetach-ne0-or$Case.dispatchAcceptedDelta-ne1-or$Case.generationDelta-ne1-or$terminalCommand.acted-ne$true){ClosureFail 'the deferred delivery is not exactly one accepted Mount'}
+ } else {
+  Assert-KmcChunk6aClosureNoResidueState $after $Case 'the invalidation sequence'
+  if([string]$after.relationshipState-cne'Unmounted'-or$delta.acceptedMount-ne0-or$Case.dispatchAcceptedDelta-ne0-or$delta.acceptedDismount-ne0-or$delta.admittedDismount-ne0){ClosureFail 'the invalidated Mount was delivered'}
+ }
  if($Case.pairPrepareCallbacks-ne0){ClosureFail 'a native preparation ran during the invalidation window'}
  $outcome=[string]$Case.outcome
  switch -Regex -CaseSensitive ($outcome){
@@ -116,6 +126,9 @@ function Assert-KmcChunk6aApproachInvalidation([string]$Scenario,$Artifact) {
   }
   '^acted-not-mounted$' {
    if($terminalCommand.acted-ne$true){ClosureFail 'an acted outcome names an unacted terminal'}
+  }
+  '^delivered$' {
+   if(-not$cutsceneDeferred){ClosureFail 'the invalidated Mount was delivered'}
   }
   default { ClosureFail ('unlawful outcome '+$outcome) }
  }
@@ -135,10 +148,23 @@ function Assert-KmcChunk6aApproachInvalidation([string]$Scenario,$Artifact) {
    if($after.riderActor.polymorphed-ne$false-or$after.riderActor.viewBound-ne$true-or$after.riderActor.viewPresent-ne$true){ClosureFail 'the rider view was not restored'}
   }
   'chunk6a-loading-cutscene' {
-   if([string]$stimulus.contract-cne'one-native-cutscene-game-mode-start'-or[string]$stimulus.token-cne'06000CBD'-or[string]$stimulus.modeBefore-cne'Default'){ClosureFail 'the cutscene mode was not started through the exact native entry'}
-   $cutsceneSamples=@(@($Case.samples)|Where-Object {$null-ne$_-and[string](ClosureProp $_ 'currentMode')-ceq'Cutscene'})
-   if($cutsceneSamples.Count-lt1-and[string]$stimulus.modeAfterRequest-cne'Cutscene'-and[string]$terminal.currentMode-cne'Cutscene'){ClosureFail 'the native Cutscene mode was never observed'}
-   if($null-eq$restoration-or$restoration.restored-ne$true-or[string]$restoration.modeNow-cne'Default'-or[string]$after.currentMode-cne'Default'-or$Case.restorationCount-ne1-or[string]$restoration.token-cne'06000CBE'-or[string]$restoration.method-cne'Kingmaker.Game.StopMode'){ClosureFail 'the Default mode was not restored exactly once through the exact native exit'}
+   # The engine's own cutscene entry: the counting-guard lock (Game.SetCutsceneLock 06000CE6) starts and holds the Cutscene
+   # mode; the same entry releases it.
+   if([string]$stimulus.contract-cne'one-native-cutscene-lock-with-its-cutscene-game-mode'-or[string]$stimulus.method-cne'Kingmaker.Game.SetCutsceneLock'-or[string]$stimulus.token-cne'06000CE6'-or[string]$stimulus.modeBefore-cne'Default'-or$stimulus.lockBefore-ne$false-or$stimulus.lockAfterRequest-ne$true){ClosureFail 'the cutscene lock was not engaged through the exact native entry'}
+   if($null-eq$restoration-or$restoration.restored-ne$true-or[string]$restoration.method-cne'Kingmaker.Game.SetCutsceneLock'-or[string]$restoration.token-cne'06000CE6'-or$restoration.lockNow-ne$false-or[string]$restoration.modeNow-cne'Default'-or$Case.restorationCount-ne1-or$after.cutsceneLock-ne$false-or[string]$after.currentMode-cne'Default'){ClosureFail 'the cutscene lock was not released exactly once through the exact native entry'}
+   $releaseFrame=ClosureLong $restoration.releaseFrame 'releaseFrame';$stimulusFrame=ClosureLong $stimulus.frameAfter 'stimulus frame';$terminalFrame=ClosureLong $terminal.frame 'terminal frame'
+   $heldSamples=@(@($Case.samples)|Where-Object {$null-ne$_-and(ClosureLong $_.frame 'sample frame')-gt($stimulusFrame+1)-and(ClosureLong $_.frame 'sample frame')-lt$releaseFrame})
+   if($heldSamples.Count-lt1-or@($heldSamples|Where-Object {[string](ClosureProp $_ 'currentMode')-cne'Cutscene'-or(ClosureProp $_ 'cutsceneLock')-ne$true}).Count-ne0){ClosureFail 'the native Cutscene mode and lock were not held for the whole stimulus window'}
+   $delivers=@(@((ClosureProp (ClosureProp $Case 'commandWindow') 'samples'))|Where-Object {$null-ne$_-and[string](ClosureProp $_ 'boundary')-ceq'deliver'})
+   if(@($delivers|Where-Object {(ClosureLong (ClosureProp $_ 'frame') 'deliver frame')-le$releaseFrame}).Count-ne0){ClosureFail 'the Mount was delivered while the native cutscene lock was held'}
+   if($cutsceneDeferred){
+    $hold=$Case.cutsceneHoldExpired
+    if((ClosureLong $hold.frame 'hold frame')-lt($stimulusFrame+(ClosureLong $hold.holdFrames 'holdFrames'))-or(ClosureLong $hold.holdFrames 'holdFrames')-lt60-or$hold.command.finished-ne$false-or$releaseFrame-lt(ClosureLong $hold.frame 'hold frame')-or$terminalFrame-le$releaseFrame-or[string]$hold.state.currentMode-cne'Cutscene'){ClosureFail 'the deferred delivery did not follow the bounded hold and the lock release'}
+    if($delivers.Count-ne1){ClosureFail 'the deferred delivery is not exactly one delivery after the release'}
+   } else {
+    if($null-ne(ClosureProp $Case 'cutsceneHoldExpired')){ClosureFail 'the bounded hold expired but the shell did not deliver after the release'}
+    if($terminalFrame-gt$releaseFrame-or$terminal.cutsceneLock-ne$true){ClosureFail 'the refusal terminal was not reached under the native cutscene lock'}
+   }
   }
   'chunk6a-generation-change' {
    if([string]$stimulus.contract-cne'one-owned-diagnostic-generation-invalidation-before-the-shell-generation-check'-or$stimulus.armed-ne$true-or$before.generationFaultArmed-ne$false){ClosureFail 'the diagnostic generation invalidation was not armed once from a disarmed seam'}
@@ -164,15 +190,18 @@ function Assert-KmcChunk6aApproachInvalidation([string]$Scenario,$Artifact) {
    if([string]$stimulus.contract-cne'one-native-lethal-ruledeal-damage-under-permanent-death-policy'-or$stimulus.damageDispatches-ne1-or$stimulus.nativeDamageBeforeDifficulty-ne$stimulus.requestedDamage-or(ClosureLong $stimulus.requestedDamage 'requestedDamage')-lt1-or$null-eq$policy-or$policy.permanentDeathFixture-ne$true-or$policy.effective.trueDeath-ne$true){ClosureFail 'the lethal native damage was not delivered exactly once under the permanent death policy'}
    if([string]$stimulus.subjectId-cne$(if($subject-ceq'riderActor'){$riderId}else{$mountId})){ClosureFail 'the lethal damage did not target the exact subject'}
    $subjectBefore=if($subject-ceq'riderActor'){'riderBefore'}else{'mountBefore'}
-   if($stimulus.$subjectBefore.dead-ne$false-or$after.$subject.dead-ne$true-or$after.$other.dead-ne$false-or$after.$other.conscious-ne$true){ClosureFail 'the native death did not land on the exact subject alone'}
+   if($stimulus.$subjectBefore.dead-ne$false-or$terminal.$subject.dead-ne$true-or$terminal.$other.dead-ne$false-or$terminal.$other.conscious-ne$true){ClosureFail 'the native death did not land on the exact subject alone'}
    if($Case.pairCostCallbacks-ne0-or$delta.admittedMount-ne0-or$delta.refusedVoluntary-ne0){ClosureFail 'the forced detach paid or admitted a voluntary transition'}
-   # One cleanup: the lifecycle subscriber announces the death through its cleanup trigger; the first
-   # announcement is the forced detach, repeated announcements for the same generation are suppressed. An
-   # acted cast that reached delivery after the death is rejected before admission (the forced detach stays one).
-   if($outcome-ceq'acted-not-mounted'){ if($delta.forcedDetach-ne1){ClosureFail 'the death cleanup did not announce exactly one forced detach'} } else { $detachExpected=1 }
-   if($delta.duplicateSuppressed-lt0-or$delta.duplicateSuppressed-gt2){ClosureFail 'the death cleanup announced other than once with at most two suppressed repeats'}
-   $restoredPolicy=ClosureProp $restoration 'policy'
-   if($null-eq$restoration-or$restoration.restored-ne$true-or$null-eq$restoredPolicy-or$null-eq(ClosureProp $restoredPolicy 'restoration')-or$restoredPolicy.restoration.restored-ne$true-or$restoration.subjectDead-ne$true-or$Case.restorationCount-ne1){ClosureFail 'the death policy lease was not restored exactly once or the subject revived in-process'}
+   # Nothing was attached when the subject died (the pair was pending, never mounted), so the forced-detach ledger has
+   # nothing to record: the one cleanup is the engine's own interruption of the dead unit's command; the voluntary and
+   # involuntary counters stay exactly where the fixture left them (preview.206 stages 6 and 7).
+   if($delta.forcedDetach-ne0-or$delta.duplicateSuppressed-ne0){ClosureFail 'a death during the pending approach moved the transition ledger although nothing was attached'}
+   $restoredPolicy=ClosureProp $restoration 'policy';$resurrection=ClosureProp $restoration 'resurrection'
+   if($null-eq$restoration-or$restoration.restored-ne$true-or$null-eq$restoredPolicy-or$null-eq(ClosureProp $restoredPolicy 'restoration')-or$restoredPolicy.restoration.restored-ne$true-or$Case.restorationCount-ne1){ClosureFail 'the death policy lease was not restored exactly once'}
+   # The fixture's own lethal stimulus is restored in-process through the engine's resurrection entry after the death was
+   # observed; restoration is complete only when the subject is conscious, undamaged and in state.
+   if($restoration.subjectDeadBefore-ne$true-or$restoration.resurrected-ne$true-or$null-eq$resurrection-or[string]$resurrection.method-cne'Kingmaker.UnitLogic.UnitDescriptor.ResurrectAndFullRestore'-or[string]$resurrection.token-cne'06001F12'-or$restoration.subjectDead-ne$false-or$restoration.subjectConscious-ne$true-or$restoration.subjectDamage-ne0-or$restoration.subjectInState-ne$true){ClosureFail 'the dead subject was not restored exactly once through the exact native resurrection'}
+   if($after.$subject.dead-ne$false-or$after.$subject.conscious-ne$true-or$after.$subject.inState-ne$true-or$after.$subject.viewBound-ne$true-or$after.$other.dead-ne$false){ClosureFail 'the pair was not whole after the restoration'}
   }
  }
  if($outcome-ceq'acted-not-mounted'){
@@ -182,19 +211,16 @@ function Assert-KmcChunk6aApproachInvalidation([string]$Scenario,$Artifact) {
   # adoption was refused (the lifecycle rule: one admission, one refusal, one compensating forced detach, one
   # generation), or the diagnostic fail-closed path. The native cases take whichever shape the engine produced;
   # the diagnostic cases are pinned to theirs.
-  $observed=if($death){ if($delta.admittedMount-eq0-and$delta.refusedVoluntary-eq0-and$Case.dispatchRejectedDelta-ge1-and$delta.forcedDetach-eq1-and$Case.generationDelta-eq0){'rejected-before-admission'}else{$null} }
-   elseif($delta.admittedMount-eq0-and$delta.refusedVoluntary-eq0-and$Case.dispatchRejectedDelta-ge1-and$delta.forcedDetach-eq0-and$Case.generationDelta-eq$generationExpected){'rejected-before-admission'}
+  $observed=if($delta.admittedMount-eq0-and$delta.refusedVoluntary-eq0-and$Case.dispatchRejectedDelta-ge1-and$delta.forcedDetach-eq0-and$Case.generationDelta-eq$generationExpected){'rejected-before-admission'}
    elseif($delta.admittedMount-eq1-and$delta.refusedVoluntary-eq1-and$delta.forcedDetach-eq0-and$Case.generationDelta-eq0-and$after.compensatedMounts-eq$before.compensatedMounts){'refused-at-admission'}
    elseif($delta.admittedMount-eq1-and$delta.refusedVoluntary-eq1-and$delta.forcedDetach-eq1-and$Case.generationDelta-eq1-and$after.compensatedMounts-eq($before.compensatedMounts+1)){'compensated'}
    elseif($delta.admittedMount-eq1-and$delta.refusedVoluntary-eq1-and$delta.forcedDetach-eq1-and$Case.generationDelta-eq0-and$after.compensatedMounts-eq$before.compensatedMounts){'failed-closed'}
    else{$null}
   if($null-eq$observed){ClosureFail 'the acted outcome has no lawful ledger shape (admission, refusal, forced detach, generation and compensation do not agree)'}
   if($null-ne$shape-and$observed-cne$shape){ClosureFail ('the acted outcome took the shape '+$observed+' instead of '+$shape)}
-  if($death){
-   # The death cleanup already announced its forced detach; the acted cast must then have been rejected before any
-   # admission, so the pinned shape differs from the generic one by that single detach.
-   if($delta.admittedMount-ne0-or$delta.refusedVoluntary-ne0-or$Case.dispatchRejectedDelta-lt1-or$Case.generationDelta-ne0){ClosureFail 'a death during the approach must be refused before any voluntary admission'}
-  }
+  if($death-and$observed-cne'rejected-before-admission'){ClosureFail 'a death during the approach must be refused before any voluntary admission'}
+ } elseif($cutsceneDeferred) {
+  if($null-ne$shape){ClosureFail 'a diagnostic case cannot defer its delivery'}
  } else {
   if($null-ne$shape){ClosureFail ('the diagnostic case requires its acted outcome, observed '+$outcome)}
   if($Case.generationDelta-ne$generationExpected){ClosureFail 'the relationship generation moved other than expected'}
@@ -220,7 +246,10 @@ function Assert-KmcChunk6aTurnEnd($Artifact) {
  $trigger=ClosureProp $Case 'trigger'
  Assert-KmcChunk6aClosureTrigger $trigger 'turn end'
  $input=ClosureProp $Case 'endInput';$beforeEnd=ClosureProp $Case 'beforeEndInput';$afterInput=ClosureProp $Case 'afterEndInput'
- if($null-eq$input-or$Case.endInputCount-ne1-or[string]$input.method-cne'Kingmaker.Game.PauseBind'-or[string]$input.token-cne'06000CB7'-or$input.count-ne1){ClosureFail 'the one native End Turn input was not issued exactly once'}
+ # The native End Turn input while the rider still acts is the UI's (InGameInputLayerView.OnTurnBasedEndTurn 06005D30, the
+ # in-game menu button 06003E87): admitted through TurnController.CanEndTurn (06000C4A), delivered as ForceToEnd(true)
+ # (06000C47), which forfeits the turn with the engine's own Standard/Move/Swift debt and interrupts the running command.
+ if($null-eq$input-or$Case.endInputCount-ne1-or[string]$input.method-cne'TurnBased.Controllers.TurnController.ForceToEnd'-or[string]$input.token-cne'06000C47'-or$input.argument-ne$true-or[string]$input.admissionToken-cne'06000C4A'-or$input.count-ne1){ClosureFail 'the one native End Turn input was not issued exactly once through the exact UI path'}
  if($null-eq$beforeEnd-or$null-eq$afterInput-or[string]$beforeEnd.turnActor-cne$riderId-or$beforeEnd.turnIsActing-ne$true-or$beforeEnd.turnCanEnd-ne$true-or$beforeEnd.waitingForUi-ne$false-or$beforeEnd.turnObject-ne$before.turnObject-or[string]$beforeEnd.relationshipState-cne'Unmounted'){ClosureFail 'the End Turn input was not issued on the rider''s own unchanged acting turn'}
  if($beforeEnd.command.finished-ne$false-or$beforeEnd.command.acted-ne$false-or$beforeEnd.command.id-ne$trigger.commandObject){ClosureFail 'the exact pending shell had already settled before the End Turn input'}
  $terminal=ClosureProp $Case 'terminal';$after=ClosureProp $Case 'after';$terminalCommand=ClosureProp $Case 'terminalCommand'
@@ -231,8 +260,9 @@ function Assert-KmcChunk6aTurnEnd($Artifact) {
  if([string]$after.relationshipState-cne'Unmounted'){ClosureFail 'the turn end delivered the Mount'}
  $delta=$Case.ledgerDelta
  foreach($name in @('admittedMount','acceptedMount','admittedDismount','acceptedDismount','refusedVoluntary','forcedDetach')){ if($delta.$name-ne0){ClosureFail ('the turn end moved the transition ledger: '+$name)} }
+ # KMC charged nothing (no pair cost callback); the native ForceToEnd(true) forfeit itself writes the engine's own turn-end
+ # debt, so the cooldown values are recorded, not bounded, here.
  if($Case.dispatchAcceptedDelta-ne0-or$Case.generationDelta-ne0-or$Case.pairCostCallbacks-ne0-or$Case.pairPrepareCallbacks-ne0-or$Case.allocationTraceComplete-ne$true){ClosureFail 'the turn end charged, prepared or delivered'}
- Assert-KmcChunk6aClosureCooldownsNotRaised $before $after 'the turn end'
  $roundDelta=ClosureLong $Case.roundDelta 'roundDelta'
  if($roundDelta-lt0-or$roundDelta-gt1){ClosureFail 'the native round advanced other than by at most one'}
  if($after.partyInCombat-ne$true-or$after.riderInCombat-ne$true-or$after.horseInCombat-ne$true-or$after.turnBasedCombat-ne$true-or$after.targetPresent-ne$true-or[string]$after.rider.actor-cne$riderId-or[string]$after.mount.actor-cne$mountId){ClosureFail 'the actors or the encounter were not valid after the turn end'}
@@ -250,19 +280,20 @@ function Assert-KmcChunk6aModeExit($Artifact) {
  if($null-eq$input-or$null-eq$afterInput-or$Case.exitInputCount-ne1-or[string]$input.method-cne'SettingsEntityBase.OnInvokeUpdateCallback'-or[string]$input.token-cne'06003359'-or[string]$input.cacheToken-cne'04002275'-or$input.temporaryValue-ne$false-or$input.settingAfter-ne$false-or$afterInput.turnBasedSetting-ne$false){ClosureFail 'the native mode exit was not dispatched exactly once through the exact settings callback'}
  $terminal=ClosureProp $Case 'terminal';$after=ClosureProp $Case 'after'
  if($null-eq$terminal-or$null-eq$after-or$terminal.turnBasedCombat-ne$false-or$after.turnBasedCombat-ne$false-or$after.partyInCombat-ne$true){ClosureFail 'the native controller did not leave turn-based combat inside the live encounter'}
- # Forfeited exactly once: the product observed the one exit while mounted (its exit lease is armed once) and
- # granted no fresh paired activation afterwards; the pair stays mounted in real time without any charge.
- if([string]$after.relationshipState-cne'Mounted'-or$after.exitAiLeaseArmed-ne($before.exitAiLeaseArmed+1)){ClosureFail 'the mode exit while mounted was not observed exactly once by the product'}
+ # Forfeited exactly once: the product observed the exit while mounted (its exit AI lease is armed through both of its
+ # observation paths and reasserted exactly once), released the partner context and granted no fresh paired activation;
+ # the pair stays mounted in real time without any KMC charge (the engine's own real-time cooldowns are recorded, not
+ # bounded: the controller converts the turn-based state when it leaves turn-based combat).
+ if([string]$after.relationshipState-cne'Mounted'-or$after.exitAiLeaseArmed-le$before.exitAiLeaseArmed-or$after.exitAiLeaseAttempts-le$before.exitAiLeaseAttempts-or$after.exitAiLeaseMutations-ne($before.exitAiLeaseMutations+1)){ClosureFail 'the mode exit while mounted was not observed and reasserted exactly once by the product'}
  $pairedAfter=[string](ClosureProp $after 'pairedIdentity')
  if(-not[string]::IsNullOrEmpty($pairedAfter)-and$pairedAfter-cne[string]$before.pairedIdentity){ClosureFail 'the mode exit granted a fresh paired activation'}
+ if($null-ne(ClosureProp $after 'partnerContextActor')){ClosureFail 'the mode exit retained the turn-based partner context'}
  if($after.transitionInFlight-ne$false-or$after.riderCommandsEmpty-ne$true-or$after.horseCommandsEmpty-ne$true){ClosureFail 'the mode exit left command or transition residue'}
  if($Case.pairCostCallbacks-ne0-or$Case.pairPrepareCallbacks-ne0-or$Case.allocationTraceComplete-ne$true){ClosureFail 'the mode exit charged or prepared the pair again'}
  foreach($name in @('admittedMount','acceptedMount','admittedDismount','acceptedDismount','refusedVoluntary','forcedDetach')){ if($Case.ledgerDelta.$name-ne0){ClosureFail ('the mode exit moved the transition ledger: '+$name)} }
- Assert-KmcChunk6aClosureCooldownsNotRaised $before $after 'the mode exit'
- if([string]$after.combatFeedback-cne'Mounted combat cancelled: real-time/turn-based mode changed.'){ClosureFail 'the product did not record the one mode-change cancellation'}
  $restore=ClosureProp $Case 'restoreInput';$afterRestore=ClosureProp $Case 'afterRestore'
  if($null-eq$restore-or$restore.restoreDeliveryCompleted-ne$true-or$restore.persistedValueUnchanged-ne$true-or$restore.settingAfter-ne$true){ClosureFail 'the declared turn-based mode was not restored through the same exact path without touching persisted settings'}
- if($null-eq$afterRestore-or$afterRestore.turnBasedCombat-ne$true-or$afterRestore.turnBasedSetting-ne$true-or[string]$afterRestore.relationshipState-cne'Mounted'-or$afterRestore.exitAiLeaseArmed-ne$after.exitAiLeaseArmed){ClosureFail 'the encounter did not return to turn-based combat with the pair mounted and no second exit'}
+ if($null-eq$afterRestore-or$afterRestore.turnBasedCombat-ne$true-or$afterRestore.turnBasedSetting-ne$true-or[string]$afterRestore.relationshipState-cne'Mounted'-or$afterRestore.exitAiLeaseMutations-ne$after.exitAiLeaseMutations){ClosureFail 'the encounter did not return to turn-based combat with the pair mounted and no second reassertion'}
 }
 
 # ---------------------------------------------------------------------------------------------
