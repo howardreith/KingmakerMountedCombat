@@ -1,14 +1,17 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Linq;
 using Kingmaker;
 using Kingmaker.Controllers.Clicks.Handlers;
+using Kingmaker.TurnBasedMode;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using KingmakerMountedCombat.Domain;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Pathfinding;
 using TurnBased.Controllers;
 using UnityEngine;
 
@@ -69,6 +72,20 @@ namespace KingmakerMountedCombat.Diagnostics
             throw new InvalidOperationException("No bounded pair-relative native Acting setup point satisfied unchanged travel/separation and clear footprint constraints.");
         }
 
+        // The turn-based path preview the visualizer holds for the rider at order time, read-only: its end and the
+        // end's distance to the ordered point name whether a stale preview existed (frozen 205 stage 35).
+        private static JObject CaptureChunk6aVisualizerPath(Path path, Vector3 destination)
+        {
+            var points = path?.vectorPath;
+            var present = points != null && points.Count > 0;
+            return new JObject {
+                ["present"] = present, ["pathObject"] = path == null ? 0 : RuntimeHelpers.GetHashCode(path),
+                ["pointCount"] = points == null ? 0 : points.Count,
+                ["end"] = present ? CapturePosition(points[points.Count - 1]) : null,
+                ["endResidual"] = present ? (JToken)HorizontalDistance(points[points.Count - 1], destination) : JValue.CreateNull()
+            };
+        }
+
         // Native Preparing persists while an able player unit is idle. A real, short
         // ground order enters Acting; its debt is carried into the later Mount baseline.
         private bool PrepareChunk6aNativeActingTurn(TurnController turn)
@@ -103,6 +120,15 @@ namespace KingmakerMountedCombat.Diagnostics
                             Vector3.Distance(point, chunk6aActingSetupDestination) > 0.000001f)
                             throw new InvalidOperationException("Precise Acting input changed its single rider, native turn or destination.");
                         ownedCommand = NativeActingGroundInput.Create(point, speedLimit, orientation, delay, marker);
+                        // Turn-based UnitCommand.TickApproaching (060027A6) follows PathVisualizer.CurrentPathForUnit
+                        // (0600700F) whenever no ForcedPath is set: frozen 205 chunk6a-mount-spent-standard-tb followed a
+                        // stale visualizer preview (the real cursor's path toward the mount) 7.16 m to a Success terminal
+                        // 7.30 m from the ordered point. The precise setup order carries its own route (set_ForcedPath
+                        // 0600279B): the straight route whose navmesh trace and footprint the destination search already
+                        // proved clear. The preview the visualizer held at order time is recorded as evidence.
+                        var staleVisualizerPath = PathVisualizer.Instance?.CurrentPathForUnit(unit.View);
+                        var forcedRoute = new List<Vector3> { unit.Position, point };
+                        ownedCommand.ForcedPath = new ForcedPath(forcedRoute);
                         unit.Commands.Run(ownedCommand);
                         chunk6aActingSetup["nativeGroundInput"] = new JObject {
                             ["contract"] = "native-ground-input-with-one-precise-setup-command",
@@ -111,7 +137,15 @@ namespace KingmakerMountedCombat.Diagnostics
                             ["selectedIds"] = new JArray(selected.Select(actor => actor.UniqueId)),
                             ["commandObject"] = RuntimeHelpers.GetHashCode(ownedCommand), ["frame"] = Time.frameCount,
                             ["targetPoint"] = CapturePosition(ownedCommand.Target), ["approachRadius"] = ownedCommand.ApproachRadius,
-                            ["createdByPlayer"] = ownedCommand.CreatedByPlayer
+                            ["createdByPlayer"] = ownedCommand.CreatedByPlayer,
+                            ["forcedPath"] = new JObject {
+                                ["contract"] = "forced-path-along-the-verified-straight-route", ["setterToken"] = "0600279B",
+                                ["approachingToken"] = "060027A6", ["visualizerToken"] = "0600700F",
+                                ["points"] = new JArray(forcedRoute.Select(CapturePosition)),
+                                ["endResidual"] = HorizontalDistance(forcedRoute[forcedRoute.Count - 1], point),
+                                ["startResidual"] = HorizontalDistance(forcedRoute[0], unit.Position)
+                            },
+                            ["staleVisualizerPath"] = CaptureChunk6aVisualizerPath(staleVisualizerPath, point)
                         };
                     });
                 chunk6aActingSetupCommand = rider.Commands.Move as UnitMoveTo;

@@ -4,6 +4,9 @@ function Get-KmcChunk6aArtifactRows([string]$Path,[string]$Scenario,$Game,[switc
     if($Scenario-ceq'chunk4-area-cleanup') {Get-KmcAreaRegressionRows $Path $Game;return}
     # A foundation persistence run is projected from its JSONL leaf; a retained foundation failure binds the
     # failing facet's JSON leaf (runtime-game-result.json or runtime-result.json), which the generic reader projects.
+    # The Chunk 6 closeout checkpoints (P04 closure cases, the Chunk 5 area reload) project their own row; they are
+    # recognized by the artifact's checkpoint before the foundation rule claims every P04 save.
+    if([IO.Path]::GetFileName($Path) -ceq 'persistence-observations.jsonl' -and (Test-KmcChunk6aClosureArtifact $Path $Scenario)) {Get-KmcChunk6aClosureRows $Path $Scenario $Game;return}
     if((Test-KmcChunk6aFoundationScenario $Scenario) -and [IO.Path]::GetFileName($Path) -ceq 'persistence-observations.jsonl') {Get-KmcChunk6aFoundationRows $Path $Scenario $Game;return}
     if([IO.Path]::GetExtension($Path) -ceq '.jsonl') {
         if([IO.Path]::GetFileName($Path) -cne 'combat-scenario-evidence.jsonl' -or $Scenario -cne 'mounted-mammoth-primary-hit-tb' -or [string]$Game.scenario -cne $Scenario) {throw 'Legacy row reader requires the fixed Mammoth scenario and JSONL leaf.'}

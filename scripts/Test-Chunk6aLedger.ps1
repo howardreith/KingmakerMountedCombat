@@ -167,6 +167,14 @@ foreach($entry in $ledger.entries){
             Assert-KmcIsolatedQualification $id $binding $LabRoot
             if($id -clike 'CM07-*') { Assert-KmcChunk6aFoundationLedgerPairing $id $entry $ids $LabRoot }
             Assert-KmcChunk6aAdditionalQualification $id $payload $binding (Get-Field $entry 'supportingRuns') $LabRoot
+            if($id -ceq 'CM07-cold-load') {
+                # The combined cold-load claim reuses evidence only where it proves the claim: its two roles are
+                # exactly the runs of the PASS cold-load entries, each already paired to its PASS source save.
+                foreach($pair in @(@('rt','CM07-mount-load-rt'),@('tb','CM07-mount-load-tb'))) {
+                    $roleBinding=@(@(Get-Field $entry 'supportingRuns') | Where-Object { [string]$_.role -ceq $pair[0] })
+                    if($roleBinding.Count -ne 1 -or -not $ids.ContainsKey($pair[1]) -or [string]$ids[$pair[1]].status -cne 'PASS' -or [string]$roleBinding[0].runId -cne [string]$ids[$pair[1]].runId){throw "Chunk 6A entry ${id}: role $($pair[0]) is not the PASS run of $($pair[1])."}
+                }
+            }
             if($id -cin @(Get-KmcChunk6aRegressionClaims)) {
                 $regressionRoles=@(Get-KmcChunk6aRegressionRoles $id)
                 $regressionBindings=if($regressionRoles.Count -eq 1){@($binding)}else{@(Get-Field $entry 'supportingRuns')}

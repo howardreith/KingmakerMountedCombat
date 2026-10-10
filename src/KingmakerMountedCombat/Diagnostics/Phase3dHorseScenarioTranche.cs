@@ -469,7 +469,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aLifecycleBoundaryDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aRepeatedRequestDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aEligibilityDeadline() && !CaptureChunk6aObstructionDeadline())
+                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aLifecycleBoundaryDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aRepeatedRequestDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aApproachInvalidationDeadline() && !CaptureChunk6aTurnBoundaryDeadline() && !CaptureChunk6aEligibilityDeadline() && !CaptureChunk6aObstructionDeadline())
                         FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
@@ -6202,6 +6202,12 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 6A ownership restoration", exception); }
             try { CleanupChunk6aEligibilityChanges(); }
             catch (Exception exception) { AddCleanupError("Chunk 6A eligibility-change restoration", exception); }
+            // The approach-invalidation stimuli (in-game flag, authored view lease, cutscene mode, both diagnostic
+            // seams, the death policy lease) are scenario-owned and restored or disarmed on every abort path.
+            try { CleanupChunk6aApproachInvalidation(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A approach-invalidation restoration", exception); }
+            try { CleanupChunk6aTurnBoundary(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A turn-boundary mode restoration", exception); }
             try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
             catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
             try { CleanupChunk6aAutoUse(); }

@@ -136,6 +136,47 @@ function Assert-KmcStagedRangedAttack($Step,[string]$Rider,[string]$Mount,[bool]
  foreach($field in @('standard','move','swift')){ if($Tb){Need (Test-KmcStagedClose $after.mount.$field $before.mount.$field $field) ('mount '+$field+' changed during the rider ranged attack')} else {Need ((Get-KmcStagedNumber $after.mount.$field $field)-le(Get-KmcStagedNumber $before.mount.$field $field)+.001) ('mount '+$field+' rose during the rider ranged attack')} }
  Assert-KmcStagedSettledState $after $Rider $Mount ($Why+' step end')
 }
+# Native boundaries that open, refresh or close a turn or round. Any of them inside a claimed activation
+# means a later step drew on budget the activation itself did not carry.
+function Get-KmcStagedTurnTransitionBoundaries {
+ @('prepare-before','prepare-after','clear-before','clear-after','combat-clear-before','combat-clear-after',
+   'turn-end-before','turn-end-after','casting-end-turn-input-before','casting-end-turn-input-after',
+   'round-state-before','round-state-after','round-handler-before','round-handler-after','ai-round-before','ai-round-after')
+}
+function Get-KmcStagedEventSequence($Event,[string]$Why) {
+ $p=$Event.PSObject.Properties['sequence']
+ if($null-eq$p-or$null-eq$p.Value){throw ($Why+': cost boundary without its native trace sequence')}
+ [long](Get-KmcStagedNumber $p.Value 'sequence')
+}
+# One native activation across the named steps: every cost boundary of those steps is stamped by the same
+# rider turn identity and round (turn-based), none of them sits outside the Preparing/Acting window of the
+# rider's own turn, and no turn-transition boundary (preparation, cooldown clear, turn end, round state,
+# round handler, AI round) is traced anywhere between the first and the last of them in the row's own
+# trace. Frozen 205 TB double-move-ranged: the two mount Moves and the ranged attack share turn
+# -2051895680 in round 3 while the later scroll cast followed three native turn ends and a round rollover;
+# that cast is a separate next-turn control and never evidence for the activation it followed.
+function Assert-KmcStagedSameActivation($Row,[int[]]$StepIndexes,[string]$Rider,[string]$Mount,[bool]$Tb,[string]$Why) {
+ function Need([bool]$ok,[string]$what){if(-not$ok){throw ($Why+': '+$what)}}
+ $steps=@($Row.evidence.steps);$window=@()
+ foreach($i in $StepIndexes){ Need ($i-ge0-and$i-lt$steps.Count) 'activation step index outside the row'; $window+=@($steps[$i].costEvents) }
+ Need ($window.Count-ge2) 'activation carries no native cost boundaries'
+ $sequences=@($window|ForEach-Object { Get-KmcStagedEventSequence $_ $Why })
+ $first=($sequences|Measure-Object -Minimum).Minimum;$last=($sequences|Measure-Object -Maximum).Maximum
+ $transitions=@(Get-KmcStagedTurnTransitionBoundaries)
+ $inside=@(@($Row.evidence.costEvents)|Where-Object { $s=Get-KmcStagedEventSequence $_ $Why; $s-ge$first-and$s-le$last })
+ Need ($inside.Count-ge$window.Count) 'row trace does not carry the activation''s own boundaries'
+ Need (@($inside|Where-Object {[string]$_.boundary-cin$transitions}).Count-eq0) 'a native turn transition or round refresh sits inside the claimed activation'
+ if($Tb){
+  $turns=@($window|ForEach-Object { Get-KmcChunk6cEventTurn $_ }|Select-Object -Unique)
+  Need ($turns.Count-eq1-and$turns[0]-cne'0') 'activation spans more than one native turn identity'
+  $rounds=@($window|ForEach-Object { [string](Get-KmcStagedNumber $_.round 'round') }|Select-Object -Unique)
+  Need ($rounds.Count-eq1) 'activation spans more than one native round'
+  Need (@($window|Where-Object {[string]$_.currentActor-cne$Rider}).Count-eq0) 'activation boundary traced outside the rider''s own native turn'
+  Need (@($window|Where-Object {[string]$_.turnStatus-cnotin@('Preparing','Acting')}).Count-eq0) 'activation boundary traced outside the Preparing/Acting window'
+  Need ([string]$Row.evidence.rowTurnActor-ceq$Rider) 'row did not open on the rider''s native turn'
+ }
+ Need (@($window|Where-Object {[string]$_.boundary-ceq'cost-after'-and[string]$_.state.actor-ceq$Rider}).Count-eq1) 'the activation did not carry exactly one rider cost commitment'
+}
 function Assert-KmcChunk6dStagedRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb,$Items,$AutoStop) {
  function Need([bool]$ok,[string]$why){if(-not$ok){throw ('6D '+$Row.name+': '+$why)}}
  $e=$Row.evidence
@@ -156,18 +197,38 @@ function Assert-KmcChunk6dStagedRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb
    default { Assert-KmcStagedMoveStep $step $Rider $Mount $Tb $why }
   }
  }
+ $why6d='6D '+$Row.name
+ switch -CaseSensitive($Row.name) {
+  'C6D-move-cast-move' {
+   # Both legs and the cast are one activation: no refreshed turn between them, one rider cost (the cast).
+   Assert-KmcStagedSameActivation $Row @(0,1,2) $Rider $Mount $Tb ($why6d+' same activation')
+  }
+  'C6D-double-move-ranged' {
+   # The mount's two Moves and the rider's ranged attack are one activation; the rider's Standard is
+   # available immediately before the attack and the attack is the activation's single rider cost. The
+   # later scroll cast is a separate next-turn control (frozen 205 TB: three native turn ends and a round
+   # rollover before it) and proves nothing about retention during the movement.
+   Assert-KmcStagedSameActivation $Row @(0,1) $Rider $Mount $Tb ($why6d+' same activation')
+   Need ((Get-KmcStagedNumber $steps[1].before.rider.standard 'standard')-le.001-and$steps[1].before.riderHasStandard-eq$true) 'rider Standard was not available immediately before the ranged attack'
+   if($Tb){Need ($steps[1].before.mountUsedTwoMove-eq$true-and(Get-KmcStagedNumber $steps[1].before.mount.move 'move')-gt3.001) 'the ranged attack did not follow the mount''s two native Moves inside the same activation'}
+  }
+ }
  if($Tb) {
   switch -CaseSensitive($Row.name) {
    'C6D-move-cast-move' {
     # Both short legs fit the mount's first Move; the cast between them changed nothing for the mount.
     Need ((Get-KmcStagedNumber $e.after.mount.move 'move')-le3.001-and$e.after.mountUsedTwoMove-ne$true) 'two short legs exceeded one native Move'
     Need ((Get-KmcStagedNumber $steps[2].legs[0].after.mount.move 'move')-gt(Get-KmcStagedNumber $steps[0].legs[0].after.mount.move 'move')+.001) 'second leg did not continue the same native Move budget'
+    # The second leg starts from the first leg's retained allocation (no refresh) and consumes the mount's
+    # remaining native movement time of that same allocation.
+    $second=$steps[2].legs[0]
+    Need ($second.before.mountUsedOneMove-eq$true-and(Test-KmcStagedClose $second.before.mount.move $steps[0].legs[0].after.mount.move 'move')) 'second leg did not start from the first leg''s retained native Move allocation'
+    Need ((Get-KmcStagedNumber $second.after.mount.remainingNativeTime 'remainingNativeTime')-lt(Get-KmcStagedNumber $second.before.mount.remainingNativeTime 'remainingNativeTime')-.001-and(Get-KmcStagedNumber $second.before.mount.remainingNativeTime 'remainingNativeTime')-lt5.999) 'second leg did not consume the retained native movement time'
    }
    'C6D-cast-then-move' {
     # The mount's remaining movement follows the mount's own unused Standard, not the rider's spent one.
     Need ($steps[1].legs[0].before.mountHasMove-eq$true-and(Test-KmcStagedClose $steps[1].legs[0].before.mount.standard 0.0 'standard')-and(Get-KmcStagedNumber $steps[1].legs[0].before.rider.standard 'standard')-ge5.999) 'movement after the cast was not governed by the mount''s own actions'
    }
-   'C6D-double-move-ranged' { Need ((Get-KmcStagedNumber $steps[2].before.rider.standard 'standard')-le.001-and$steps[2].before.riderHasStandard-eq$true) 'rider Standard was not retained after the mount''s two Moves' }
    'C6D-auto-stop-boundary' {
     $leg=$steps[0].legs[0]
     if($AutoStop-eq$true){Need ((Test-KmcStagedClose $leg.after.mount.move 3.0 'move')-and$leg.after.mountUsedTwoMove-ne$true) 'auto-stop did not stop the extended leg at the one-Move boundary'}

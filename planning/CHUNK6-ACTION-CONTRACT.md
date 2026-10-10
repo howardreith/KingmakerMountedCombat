@@ -217,32 +217,35 @@ qualified and is not claimed by any row below;
 | Cost owner | native, per the item ability's action type |
 | 6A obligation | none |
 
-### 6. Staged move–cast–move — LATER (6D)
+### 6. Staged move–cast–move — IMPLEMENTED, SAME-ACTIVATION CONTRACT QUALIFIED (6D)
 
 | Facet | Contract |
 |---|---|
 | Controlling actors | rider (action) and mount (both movement legs) |
 | Native surface | `TurnController.GetRemainingMovementRange` `0x06000C59` / `GetRemainingMovementTime` `0x06000C5A` / `GetRemainingActionMovementRangeFeet` `0x06000C58`, `HasMovement` `0x06000C52`, `HasNormalMovement` `0x06000C51`, `EnabledSingleActionMove` `0x06000C1C`; movement time is accounted through `TurnController.TimeMoved` `0x06000C14` |
 | Cost owner | native Move budget of the **mount** for both legs (the accepted CRPG preset), rider's own action for the cast |
-| Open question for 6D | the partner context's `TimeMoved` must carry between legs without a second grant, and `AutoStopAfterFirstMoveAction` `0x04000687` must not end the rider-led boundary between them |
+| Same-activation rule (`C6D-move-cast-move`, reader `Assert-KmcStagedSameActivation`) | every cost event of the three steps belongs to one native activation: one turn identity, one round, the rider as current actor, no turn-transition boundary (prepare, clear, turn-end, round state/handler or AI round) inside the window; exactly one rider `cost-after` in the window. Turn-based: the second leg continues the mount allocation already used by the first leg (`mountUsedOneMove` true before it, `remainingNativeTime` strictly lower than at the first leg's end and below the fresh 6 s grant, the mount Move cooldown unchanged by the cast). A sequence whose second leg sits in a refreshed turn never qualifies (negative tests in `Test-Chunk6dStaged.ps1`). Qualified on the immutable preview.205 evidence through a harness-only re-evaluation (all three steps on turn 1565247616), re-run on the closeout candidate |
+| Closed question | the partner context's `TimeMoved` carries between legs without a second grant and `AutoStopAfterFirstMoveAction` `0x04000687` does not end the rider-led boundary between them (the recorded `autoStopAfterFirstMoveAction` facts) |
 
-### 7. Staged double-move ranged action — LATER (6D)
+### 7. Staged double-move ranged action — IMPLEMENTED, SAME-ACTIVATION CONTRACT QUALIFIED (6D)
 
 | Facet | Contract |
 |---|---|
 | Controlling actors | rider (ranged action) and mount (both move legs) |
 | Native surface | as row 6, plus `UnitEntityData.UsedTwoMoveAction` `0x06008383` as the exact two-move predicate and `IsFullAttackRestrictedBecauseOfMoveAction` for the restriction KMC's CRPG preset deliberately does not add for transport |
 | Cost owner | native |
-| Open question for 6D | interaction between the mount spending both Move actions and the rider retaining a Standard ranged attack |
+| Same-activation rule (`C6D-double-move-ranged`) | the mount's two Move legs (step 0) and the rider's ranged attack (step 1) share one native activation under the rule of row 6; the rider's Standard is available immediately before the ranged attack (`steps[1].before.rider.standard` zero and `riderHasStandard`), exactly one native Standard cost belongs to that attack, and in turn-based play the mount had used both Move actions before the attack (`mountUsedTwoMove`, mount Move cooldown above 3 s). The later scroll cast (step 2) is a separate next-turn control and is **not** evidence for the retained-Standard claim; the earlier reader's step-2 retention rule was removed (preview.205 evidence: steps 0/1 on turn -2051895680 round 3, step 2 after the native rollover). A sequence whose attack sits in a refreshed turn never qualifies |
+| Closed question | the mount spending both Move actions leaves the rider's Standard ranged attack intact within the same activation; a refreshed allocation is detected and refused by the reader |
 
-### 8. Mounted Combat defensive feat — LATER (6E)
+### 8. Mounted Combat defensive feat — 6E FEASIBILITY COMPLETE — DEFENSIVE FEAT DEFERRED; NOT IMPLEMENTED
 
 | Facet | Contract |
 |---|---|
-| Controlling actor | rider, reacting on behalf of the mount |
-| Native surface | the pre-consequence attack-result seam is `RuleAttackWithWeapon` `0x02000D4C`: `AttackRoll` `0x06007197`, `IsCharge` `0x06007185`, `OnTrigger` `0x0600719D`, `CreateRuleDealDamage` `0x060071A1`. Immediate/Swift debt is `Cooldowns.SwiftAction` `0x0600C3BA`/`0x0600C3BB`, reset by `Cooldowns.Clear` `0x0600C3BE` at each `Prepare` |
-| Cost owner | an immediate action, i.e. the rider's Swift debt, written **only** by native `UpdateCooldowns` through a real Swift-typed command — never by a direct field write |
-| Open question for 6E | Kingmaker has no native immediate-action reaction command for a player unit outside `UnitAttackOfOpportunity` `0x02000502`; 6E must establish whether a Swift-typed command can be admitted out of turn at all, or whether the feat must be modelled as a per-round allowance observed at the attack rule |
+| Disposition | **NOT IMPLEMENTED.** The product contains no Mounted Combat feat, no reaction command, no negated attack roll and no Ride check. `Chunk6eReactionEvidence.ps1` (schema 46, contract `native-mounted-reaction-feasibility-v1`) and `Chunk6StagedScenario.cs` record native Swift/reaction **feasibility observations** only; the reader requires that no product reaction fires and no attack roll is negated |
+| Observed native limitation (bounded) | Kingmaker admits a Swift-typed `UnitUseAbility` on the rider's own turn (`C6E-swift-on-own-turn`: the rod-quickened instrument spends the Swift cooldown natively) but has no immediate-action reaction command for a player unit outside `UnitAttackOfOpportunity` `0x02000502`: an out-of-turn Swift input is admitted into a shell that never starts (finished `Success` without running, or interrupted by the next pair preparation) with no cost, cast or spend (`C6E-swift-out-of-turn`); an attack on the mount is observed at `RuleAttackWithWeapon` `0x02000D4C` (`C6E-attack-on-mount-observed`) and the real-time reaction window is observable (`C6E-reaction-window`). This bounds the designs measured; it does not prove every possible design impossible |
+| Authorized path | bounded feasibility, then defer (owner authorization of 2026-10-08). No unbounded reaction implementation campaign is opened by this closeout |
+| Cost owner (if ever implemented) | an immediate action, i.e. the rider's Swift debt, written **only** by native `UpdateCooldowns` through a real Swift-typed command — never by a direct field write |
+| Native surface (reference) | pre-consequence attack-result seam `RuleAttackWithWeapon`: `AttackRoll` `0x06007197`, `IsCharge` `0x06007185`, `OnTrigger` `0x0600719D`, `CreateRuleDealDamage` `0x060071A1`; Swift debt `Cooldowns.SwiftAction` `0x0600C3BA`/`0x0600C3BB`, reset by `Cooldowns.Clear` `0x0600C3BE` at each `Prepare` |
 
 ## What Chunk 6A explicitly does not do
 

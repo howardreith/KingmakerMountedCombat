@@ -61,7 +61,26 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM05-after-rider-expenditure','chunk6a-dismount-after-rider-expenditure-tb',@('CM05-after-rider-expenditure')),
   @('CM05-after-mount-expenditure','chunk6a-dismount-after-mount-expenditure-tb',@('CM05-after-mount-expenditure')),
   @('CM05-immediately-after-mount','chunk6a-dismount-immediately-after-mount-tb',@('CM05-immediately-after-mount')),
-  @('CM08-area-restoration','chunk4-area-cleanup',@('native-area-clean-dismount')),
+  # Chunk 6 closeout: the supported area lifecycle is the Chunk 5 suspension and restoration across the native
+  # area reload (persistence-p07-save area-reload), not the legacy chunk4 clean dismount (retired from the claim;
+  # its archives stay historical).
+  @('CM08-area-restoration','persistence-p07-save',@('P07-save-area-reload')),
+  @('CM07-save-slot-routes','persistence-p04-save',@('P04-save-combat-mount-routes')),
+  @('CM07-unsettled-save-deferred','persistence-p04-save',@('P04-save-combat-mount-unsettled-save')),
+  @('CM07-area-reload','persistence-p04-save',@('P04-save-combat-mount-area-reload')),
+  @('CM04-area-session-transition','persistence-p04-save',@('P04-save-pending-mount-area')),
+  @('CM07-schema-unchanged','persistence-p04-save',@('P04-save-combat-mount-rt')),
+  @('CM07-cold-load','persistence-p04-load',@('P04-load-combat-mount-rt')),
+  @('CM07-cold-load','persistence-p02-load',@('P02-load-combat-mount-tb')),
+  @('CM02-left-area','chunk6a-left-area',@('CM02-left-area')),
+  @('CM02-view-agent-lost','chunk6a-view-agent-lost',@('CM02-view-agent-lost')),
+  @('CM02-loading-cutscene','chunk6a-loading-cutscene',@('CM02-loading-cutscene')),
+  @('CM02-generation-change','chunk6a-generation-change',@('CM02-generation-change')),
+  @('CM04-injected-exception','chunk6a-injected-exception',@('CM04-injected-exception')),
+  @('CM04-rider-death','chunk6a-rider-death-approach',@('CM04-rider-death')),
+  @('CM04-mount-death','chunk6a-mount-death-approach',@('CM04-mount-death')),
+  @('CM04-turn-end','chunk6a-turn-end-approach-tb',@('CM04-turn-end')),
+  @('CM04-mode-exit','chunk6a-mode-exit-tb',@('CM04-mode-exit','CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt','CM01-combat-mount-preparing-refused')),
   @('CM07-mount-save-rt','persistence-p04-save',@('P04-save-combat-mount-rt')),
   @('CM07-mount-load-rt','persistence-p04-load',@('P04-load-combat-mount-rt')),
   @('CM07-dismount-save','persistence-p04-save',@('P04-save-combat-dismount-rt')),
@@ -73,7 +92,7 @@ function Get-KmcChunk6aPrimaryContracts {
   @('CM08-mounted-mammoth-primary-hit-tb','mounted-mammoth-primary-hit-tb',@('mounted-mammoth-primary-hit-tb'))
  )
  foreach($spec in $specs) {
-  [pscustomobject]@{id=$spec[0];scenario=$spec[1];rows=@($spec[2]);evidenceLeaf=$(if($spec[0]-ceq'CM08-area-restoration'){'boundary-scenario-evidence.jsonl'}elseif($spec[0]-ceq'CM08-mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}elseif($spec[0]-clike'CM07-*'){'persistence-observations.jsonl'}else{'phase3d-horse-scenario-evidence.json'})}
+  [pscustomobject]@{id=$spec[0];scenario=$spec[1];rows=@($spec[2]);evidenceLeaf=$(if($spec[0]-ceq'CM08-mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}elseif($spec[1]-clike'persistence-p0*'){'persistence-observations.jsonl'}else{'phase3d-horse-scenario-evidence.json'})}
  }
  foreach($claimId in @(Get-KmcChunk6aRegressionClaims)) {
   foreach($role in @(Get-KmcChunk6aRegressionRoles $claimId)) {

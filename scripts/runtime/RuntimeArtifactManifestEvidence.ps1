@@ -5,19 +5,29 @@ function Assert-KmcManifestJsonMembersUnique {
     $reader = $null
     try {
         $reader = [Runtime.Serialization.Json.JsonReaderWriterFactory]::CreateJsonReader([IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path)), [Xml.XmlDictionaryReaderQuotas]::Max)
-        $document = New-Object Xml.XmlDocument
-        $document.Load($reader)
-        function Test-JsonObjectNode([Xml.XmlNode]$Node, [string]$Location) {
-            if ($Node.NodeType -eq [Xml.XmlNodeType]::Element -and [string]$Node.Attributes['type'].Value -ceq 'object') {
-                $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-                foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) {
-                    $name = if ($child.LocalName -ceq 'item' -and $null -ne $child.Attributes['item']) { [string]$child.Attributes['item'].Value } else { [string]$child.LocalName }
-                    if (-not $names.Add($name)) { throw "$Description contains duplicate JSON property '$name' at $Location." }
+        # One streaming pass over the JSON-as-XML reader: a name set per open object, no DOM and no recursion. The
+        # same objects and member names are visited as before (an object's members are its child elements; a
+        # member whose name is not a valid XML name arrives as <item item="name">); the DOM walk took an hour on a
+        # multi-megabyte failed game result.
+        $names = New-Object 'System.Collections.Generic.Stack[System.Collections.Generic.HashSet[string]]'
+        $objects = New-Object 'System.Collections.Generic.Stack[bool]'
+        $locations = New-Object 'System.Collections.Generic.Stack[string]'
+        while ($reader.Read()) {
+            if ($reader.NodeType -eq [Xml.XmlNodeType]::Element) {
+                $item = $reader.GetAttribute('item')
+                $name = if ($reader.LocalName -ceq 'item' -and $null -ne $item) { [string]$item } else { [string]$reader.LocalName }
+                $location = if ($locations.Count -eq 0) { '$' } else { $locations.Peek() + '/' + $reader.LocalName }
+                if ($objects.Count -gt 0 -and $objects.Peek() -and -not $names.Peek().Add($name)) { throw "$Description contains duplicate JSON property '$name' at $($locations.Peek())." }
+                if (-not $reader.IsEmptyElement) {
+                    $objects.Push(([string]$reader.GetAttribute('type')) -ceq 'object')
+                    $names.Push([Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal))
+                    $locations.Push($location)
                 }
             }
-            foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) { Test-JsonObjectNode $child ($Location + '/' + $child.LocalName) }
+            elseif ($reader.NodeType -eq [Xml.XmlNodeType]::EndElement) {
+                [void]$objects.Pop(); [void]$names.Pop(); [void]$locations.Pop()
+            }
         }
-        Test-JsonObjectNode $document.DocumentElement '$'
     }
     finally { if ($null -ne $reader) { $reader.Dispose() } }
 }

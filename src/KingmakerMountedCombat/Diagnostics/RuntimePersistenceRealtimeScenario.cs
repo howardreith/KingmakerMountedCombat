@@ -84,6 +84,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private void AdvanceRealtime()
         {
             if (ChargeLifecycleCase && stage == 70) { AdvanceChargeLifecycle(); return; }
+            if (RealtimeClosure && stage >= 80) { AdvanceClosure(); return; }
             if (clock.Elapsed.TotalSeconds > 150)
                 throw new InvalidOperationException("P04 " + Checkpoint + " timed out at " + stage + ": " + persistence.Feedback);
             var game = Game.Instance;
@@ -280,6 +281,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["nativeType"] = save.Type.ToString(), ["nativeCallback"] = callback, ["operation"] = save.OperationState.ToString(),
                     ["snapshot"] = JObject.FromObject(read.Data, MountedSaveCodec.CreateSerializer()),
                     ["actual"] = RealtimeObservation(), ["barrier"] = realtimeApproachBarrier });
+                if (ClosureAreaReload) { stage = 84; return; }
                 if (RealtimeCasting) BeginCastingContinuation();
                 else if (RealtimeApproach) BeginApproachContinuation();
                 else if (RealtimeFoundation) BeginFoundationContinuation(); else BeginRealtimeContinuation();

@@ -25,7 +25,7 @@ function Test-KmcExternalReaderRefusal([string]$Message) {
     # The prefixed messages are the external readers' own; the prediction-rule messages are raised at run time by
     # Assert-KmcNativePredictionCommands (the external mirror of the compiled prediction rule). A compiled refusal of
     # the same text never reaches a re-evaluation: the game result must be a PASS with no errors first.
-    [string]$Message -cmatch '^(Action economy|Child entry preamble|Additional Chunk6A binding differs|Chunk 6A foundation): ' -or
+    [string]$Message -cmatch '^(Action economy|Child entry preamble|Additional Chunk6A binding differs|Chunk 6A foundation|Chunk 6A closure): ' -or
     # The dedicated pre-combat positioning reader (Chunk6aPreCombatPositioningEvidence.ps1) refuses with its own
     # "TB positioning ..." messages; frozen 205 final consolidation: six native-PASS runs refused only by its stale
     # forward-route bound, re-qualified under the corrected harness identity.
@@ -51,11 +51,16 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     $reevaluation=if($null -ne $Binding.PSObject.Properties['reevaluation']){$Binding.reevaluation}else{$null}
     $area=[string]$Binding.scenario -ceq 'chunk4-area-cleanup'
     $legacy=[string]$Binding.scenario -ceq 'mounted-mammoth-primary-hit-tb'
-    $foundation=Test-KmcChunk6aFoundationScenario ([string]$Binding.scenario)
+    # A closure binding (a P04 closure checkpoint or the Chunk 5 area reload) is recognized by its exact row name
+    # before the foundation rule, which would otherwise claim every P04 save.
+    $closure=Test-KmcChunk6aClosureBinding $Binding
+    $foundation=-not $closure -and (Test-KmcChunk6aFoundationScenario ([string]$Binding.scenario))
     if($legacy) {
         if([string]$Binding.evidenceLeaf -cne 'combat-scenario-evidence.jsonl' -or @($Binding.rows).Count -ne 1 -or [string]$Binding.rows[0] -cne 'mounted-mammoth-primary-hit-tb') { throw 'Legacy Mammoth requires its exact scenario, JSONL leaf and row.' }
     } elseif($area) {
         if($Binding.evidenceLeaf-cne'boundary-scenario-evidence.jsonl'-or@($Binding.rows).Count-ne1-or$Binding.rows[0]-cne'native-area-clean-dismount'){throw 'Area requires exact scenario, JSONL and native row'}
+    } elseif($closure) {
+        if($Binding.evidenceLeaf-cne'persistence-observations.jsonl'){throw 'Closure persistence requires the exact scenario, JSONL leaf and one row'}
     } elseif($foundation) {
         if($Binding.evidenceLeaf-cne'persistence-observations.jsonl'-or@($Binding.rows).Count-ne1){throw 'Foundation persistence requires the exact scenario, JSONL leaf and one row'}
     } elseif([string]$Binding.evidenceLeaf -cnotmatch '^[A-Za-z0-9._-]+\.json$') { throw 'Evidence must name one JSON leaf.' }
@@ -65,7 +70,7 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
     $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $Binding.requestSha256
     $orchestration=Get-KmcBoundJson (Join-Path $root 'orchestration.json') $Binding.orchestrationSha256
     $transaction=Get-KmcBoundJson (Join-Path $LabRoot ('runtime-state/run-transactions/'+$run+'.json')) $Binding.transactionSha256
-    $artifact=if($legacy){Get-KmcLegacyCombatProjection $Binding $request $game $result $root}elseif($area){Get-KmcAreaRegressionProjection $Binding $request $game $result $root}elseif($foundation){Get-KmcChunk6aFoundationProjection $Binding $request $game $result $root}else{Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256}
+    $artifact=if($legacy){Get-KmcLegacyCombatProjection $Binding $request $game $result $root}elseif($area){Get-KmcAreaRegressionProjection $Binding $request $game $result $root}elseif($closure){Get-KmcChunk6aClosureProjection $Binding $request $game $result $root}elseif($foundation){Get-KmcChunk6aFoundationProjection $Binding $request $game $result $root}else{Get-KmcBoundJson (Join-Path $root $Binding.evidenceLeaf) $Binding.evidenceSha256}
     foreach($item in @($result,$game,$request)) {
         if([string]$item.runId -cne $run -or [string]$item.scenario -cne [string]$Binding.scenario) { throw 'Supporting run or scenario differs.' }
         if([string]$item.commit -cne [string]$Payload.commit -or [string]$item.branch -cne [string]$Payload.branch -or
@@ -120,8 +125,8 @@ function Assert-KmcSupportingRun($Payload,$Binding,[string]$LabRoot) {
         # The complete scenario validator must accept the immutable bytes under the current readers.
         . (Join-Path $PSScriptRoot 'RuntimeHarness.Common.ps1')
         if([string]$Binding.evidenceLeaf -ceq 'phase3d-horse-scenario-evidence.json') { Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS' }
-        elseif(-not $foundation) { throw 'Re-evaluation is defined only for Phase 3D Horse artifacts and foundation persistence projections.' }
-        # A foundation persistence projection already re-ran the complete persistence validator above.
+        elseif(-not ($foundation -or $closure)) { throw 'Re-evaluation is defined only for Phase 3D Horse artifacts and foundation or closure persistence projections.' }
+        # A foundation or closure persistence projection already re-ran the complete persistence validator above.
     }
     $rows=@($Binding.rows)
     if($rows.Count -lt 1 -or @($rows | Select-Object -Unique).Count -ne $rows.Count) { throw 'Supporting rows must be nonempty and unique.' }
@@ -209,7 +214,8 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
     if($RunId -cnotmatch '^[A-Za-z0-9._-]{1,120}$') { throw 'Invalid supporting run ID.' }
     $root=Join-Path $LabRoot ('runtime-evidence/'+$RunId)
     $result=Get-Content -Raw (Join-Path $root 'runtime-result.json')|ConvertFrom-Json
-    $leaf=if($result.scenario -ceq 'chunk4-area-cleanup'){'boundary-scenario-evidence.jsonl'}elseif($result.scenario -ceq 'mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}elseif(Test-KmcChunk6aFoundationScenario ([string]$result.scenario)){'persistence-observations.jsonl'}else{'phase3d-horse-scenario-evidence.json'}
+    $persistence=[string]$result.scenario -cmatch '^persistence-p0[0-9]-(save|load)$'
+    $leaf=if($result.scenario -ceq 'chunk4-area-cleanup'){'boundary-scenario-evidence.jsonl'}elseif($result.scenario -ceq 'mounted-mammoth-primary-hit-tb'){'combat-scenario-evidence.jsonl'}elseif($persistence){'persistence-observations.jsonl'}else{'phase3d-horse-scenario-evidence.json'}
     $game=Get-Content -Raw (Join-Path $root 'runtime-game-result.json')|ConvertFrom-Json
     $reevaluation=Get-KmcChunk6aReevaluation $result $game ([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..')))
     $binding=[ordered]@{role=$Role;runId=$RunId;scenario=$result.scenario;passCount=$(if($null -ne $reevaluation){$game.assertionPassCount}else{$result.assertionPassCount});failCount=$(if($null -ne $reevaluation){0}else{$result.assertionFailCount});
@@ -220,7 +226,7 @@ function Get-KmcSupportingBinding([string]$Role,[string]$RunId,[string[]]$Rows,[
         $binding[$pair[0]]=(Get-FileHash -LiteralPath (Join-Path $root $pair[1]) -Algorithm SHA256).Hash.ToLowerInvariant()
     }
     $binding['transactionSha256']=(Get-FileHash -LiteralPath (Join-Path $LabRoot ('runtime-state/run-transactions/'+$RunId+'.json')) -Algorithm SHA256).Hash.ToLowerInvariant()
-    if($result.scenario -cin @('mounted-mammoth-primary-hit-tb','chunk4-area-cleanup') -or (Test-KmcChunk6aFoundationScenario ([string]$result.scenario))) {
+    if($result.scenario -cin @('mounted-mammoth-primary-hit-tb','chunk4-area-cleanup') -or $persistence) {
         $binding['artifactManifestSha256']=(Get-FileHash -LiteralPath (Join-Path $root 'runtime-artifacts.json')).Hash.ToLowerInvariant()
     }
     if($result.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb')) {
@@ -268,6 +274,22 @@ function Assert-KmcIsolatedScenarioRows([string]$Id,$Binding) {
         'CM07-dismount-load'=@('persistence-p04-load','P04-load-combat-dismount-rt')
         'CM07-mount-save-tb'=@('persistence-p02-save','P02-save-combat-mount-tb')
         'CM07-mount-load-tb'=@('persistence-p02-load','P02-load-combat-mount-tb')
+        # Chunk 6 closeout (Chunk6aClosureEvidence.ps1).
+        'CM07-save-slot-routes'=@('persistence-p04-save','P04-save-combat-mount-routes')
+        'CM07-unsettled-save-deferred'=@('persistence-p04-save','P04-save-combat-mount-unsettled-save')
+        'CM07-area-reload'=@('persistence-p04-save','P04-save-combat-mount-area-reload')
+        'CM04-area-session-transition'=@('persistence-p04-save','P04-save-pending-mount-area')
+        'CM08-area-restoration'=@('persistence-p07-save','P07-save-area-reload')
+        'CM07-schema-unchanged'=@('persistence-p04-save','P04-save-combat-mount-rt')
+        'CM02-left-area'=@('chunk6a-left-area','CM02-left-area')
+        'CM02-view-agent-lost'=@('chunk6a-view-agent-lost','CM02-view-agent-lost')
+        'CM02-loading-cutscene'=@('chunk6a-loading-cutscene','CM02-loading-cutscene')
+        'CM02-generation-change'=@('chunk6a-generation-change','CM02-generation-change')
+        'CM04-injected-exception'=@('chunk6a-injected-exception','CM04-injected-exception')
+        'CM04-rider-death'=@('chunk6a-rider-death-approach','CM04-rider-death')
+        'CM04-mount-death'=@('chunk6a-mount-death-approach','CM04-mount-death')
+        'CM04-turn-end'=@('chunk6a-turn-end-approach-tb','CM04-turn-end')
+        'CM04-mode-exit'=@('chunk6a-mode-exit-tb','CM04-mode-exit','CM01-combat-mount-accepted','CM01-combat-mount-preparing-refused')
     }
     if(-not $requirements.ContainsKey($Id)){return $false}
     $required=$requirements[$Id]
@@ -285,6 +307,18 @@ function Assert-KmcIsolatedQualification([string]$Id,$Binding,[string]$LabRoot) 
         $game=Get-KmcBoundJson (Join-Path $root 'runtime-game-result.json') $Binding.gameResultSha256
         $result=Get-KmcBoundJson (Join-Path $root 'runtime-result.json') $Binding.resultSha256
         $null=Get-KmcLegacyCombatProjection $Binding $request $game $result $root
+        return
+    }
+    if($Id -ceq 'CM07-schema-unchanged') {
+        # The settled combat-mounted save plus the accepted schema of the immutable staged archive.
+        Assert-KmcChunk6aFoundationIsolated 'CM07-mount-save-rt' $Binding $LabRoot
+        Assert-KmcChunk6aSchemaClaimIsolated $Id $Binding $LabRoot
+        return
+    }
+    if(Test-KmcChunk6aClosureId $Id) {
+        # The complete closure reader already ran inside the supporting-run projection; the isolated step binds
+        # the id to its exact scenario and checkpoint.
+        Assert-KmcChunk6aClosureIsolated $Id $Binding $LabRoot
         return
     }
     if($Id -clike 'CM07-*') {
@@ -376,7 +410,20 @@ function Get-KmcChunk6aAdditionalRoles([string]$Id) {
   foreach($case in @('feature','policy')) {[pscustomobject]@{name=$case;scenario=('chunk6a-dismount-'+$case+'-disabled-rt');rows=@($Id)}}
  } elseif($Id -ceq 'CM05-forced-detach') {
   foreach($case in @(@('rider-death','chunk4-rider-death-tb'),@('mount-death','chunk4-mount-death-tb'),@('rider-incapacitation','chunk4-rider-incapacitation-tb'))) {[pscustomobject]@{name=$case[0];scenario=$case[1];rows=@($Id)}}
+ } elseif($Id -ceq 'CM07-cold-load') {
+  # A cold process load of a combat-mounted archive restores once and plays: the settled real-time and
+  # turn-based cold loads (the same runs CM07-mount-load-rt and CM07-mount-load-tb bind to their sources).
+  [pscustomobject]@{name='rt';scenario='persistence-p04-load';rows=@('P04-load-combat-mount-rt')}
+  [pscustomobject]@{name='tb';scenario='persistence-p02-load';rows=@('P02-load-combat-mount-tb')}
  }
+}
+# The row a combined claim's primary must carry: its own id, or for the persistence-backed CM07-cold-load the
+# exact checkpoint row of its primary role.
+function Get-KmcChunk6aAdditionalClaimRow([string]$Id,$Primary) {
+ if($Id -cne 'CM07-cold-load') { return $Id }
+ $role=@(Get-KmcChunk6aAdditionalRoles $Id | Where-Object { [string]$_.scenario -ceq [string]$Primary.scenario })
+ if($role.Count -ne 1) { throw 'Additional primary does not bind one of its role scenarios' }
+ [string]$role[0].rows[0]
 }
 function Assert-KmcChunk6aAdditionalBindings([string]$Id,$Primary,$Bindings) {
  $roles=@(Get-KmcChunk6aAdditionalRoles $Id);if($roles.Count-eq0){return}
@@ -389,7 +436,8 @@ function Assert-KmcChunk6aAdditionalBindings([string]$Id,$Primary,$Bindings) {
  }
  $primaryRun=@($items|Where-Object runId -CEQ $Primary.runId)
  if($primaryRun.Count-ne1-or$primaryRun[0].scenario-cne$Primary.scenario-or$primaryRun[0].evidenceSha256-cne$Primary.evidenceSha256){throw 'Additional primary does not bind its supporting transaction'}
- if(@($Primary.rows|Where-Object {$_-ceq$Id}).Count-ne1){throw 'Additional primary omits its exact claim row'}
+ $claimRow=Get-KmcChunk6aAdditionalClaimRow $Id $Primary
+ if(@($Primary.rows|Where-Object {$_-ceq$claimRow}).Count-ne1){throw 'Additional primary omits its exact claim row'}
 }
 function Assert-KmcChunk6aAdditionalQualification([string]$Id,$Payload,$Primary,$Bindings,[string]$LabRoot) {
  $roles=@(Get-KmcChunk6aAdditionalRoles $Id);if($roles.Count-eq0){return}
@@ -399,11 +447,23 @@ function Assert-KmcChunk6aAdditionalQualification([string]$Id,$Payload,$Primary,
  foreach($binding in $Bindings){
   $root=Join-Path $LabRoot ('runtime-evidence/'+$binding.runId)
   $request=Get-KmcBoundJson (Join-Path $root 'runtime-request.json') $binding.requestSha256
-  $artifact=Get-KmcBoundJson (Join-Path $root $binding.evidenceLeaf) $binding.evidenceSha256
+  if([string]$binding.evidenceLeaf -ceq 'persistence-observations.jsonl'){
+   # A JSONL leaf is bound by hash; its rows were projected by the supporting-run validator above.
+   if((Get-FileHash -LiteralPath (Join-Path $root $binding.evidenceLeaf) -Algorithm SHA256).Hash.ToLowerInvariant()-cne[string]$binding.evidenceSha256){throw 'Additional evidence bytes differ'}
+   $artifact=$null
+  } else {
+   $artifact=Get-KmcBoundJson (Join-Path $root $binding.evidenceLeaf) $binding.evidenceSha256
+  }
   if([IO.Path]::GetFullPath($root).TrimEnd('\')-cne[IO.Path]::GetFullPath($request.evidenceRoot).TrimEnd('\')){throw 'Additional evidence root differs'}
   if(Test-KmcChunk4CoreScenario ([string]$request.scenario)){
    if($Id-cne'CM05-forced-detach'-or$artifact.schemaVersion-ne32){throw 'Additional native life qualification requires the schema-32 forced-detach artifact'}
    Assert-KmcChunk4CoreEvidence $request $artifact 'PASS'
+  } elseif($Id-ceq'CM07-cold-load') {
+   # The complete persistence validator ran inside each role's supporting projection; the role binds its exact
+   # settled cold-load checkpoint and archive descriptor.
+   $role=@($roles|Where-Object { [string]$_.name -ceq [string]$binding.role })
+   if($role.Count-ne1){throw 'Additional cold-load role differs'}
+   Assert-KmcChunk6aColdLoadRole $role[0] $request
   } else {
    Assert-KmcChunk6aCombatMountEvidence $request $artifact 'PASS'
   }

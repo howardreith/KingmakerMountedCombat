@@ -5,15 +5,23 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/Chunk6aSupportingEvidence.ps1')
 $checks=0
 function Copy-Additional($x){$x|ConvertTo-Json -Depth 30|ConvertFrom-Json}
-$expectedRoles=[ordered]@{'CM03-early-end-turn'=2;'CM03-next-round-activation'=2;'CM05-dismount-survives-feature-policy-disable'=2;'CM06-ai-auto-use'=2;'CM05-forced-detach'=3}
+$expectedRoles=[ordered]@{'CM03-early-end-turn'=2;'CM03-next-round-activation'=2;'CM05-dismount-survives-feature-policy-disable'=2;'CM06-ai-auto-use'=2;'CM05-forced-detach'=3;'CM07-cold-load'=2}
 foreach($id in @($expectedRoles.Keys)){
  $roles=@(Get-KmcChunk6aAdditionalRoles $id)
  if($roles.Count-ne$expectedRoles[$id]){throw 'Combined claim lost a required case'};$checks++
  $bindings=@($roles|ForEach-Object{[pscustomobject]@{role=$_.name;scenario=$_.scenario;runId=('synthetic-'+$_.name);rows=@($_.rows);evidenceSha256=('a'*64)}})
  $primary=Copy-Additional $bindings[0]
  Assert-KmcChunk6aAdditionalBindings $id $primary $bindings;$checks++
- foreach($name in @($id)+@($roles|ForEach-Object scenario)){
-  if(@(Get-KmcPhase3dHorseRuntimeRows|Where-Object {$_-ceq$name}).Count-ne1){throw ('Missing or duplicate runtime row '+$name)};$checks++
+ if($id-ceq'CM07-cold-load'){
+  # The persistence-backed combined claim: its roles are the registered save-backed cold-load scenarios and its
+  # primary carries the exact checkpoint row of its own role, never a Phase 3D Horse row.
+  foreach($scenario in @($roles|ForEach-Object scenario)){ if(@(Get-KmcSaveBackedRuntimeScenarios|Where-Object {$_-ceq$scenario}).Count-ne1){throw ('Missing or duplicate save-backed scenario '+$scenario)};$checks++ }
+  if((Get-KmcChunk6aAdditionalClaimRow $id $primary)-cne'P04-load-combat-mount-rt'-or(Get-KmcChunk6aAdditionalClaimRow $id (Copy-Additional $bindings[1]))-cne'P02-load-combat-mount-tb'){throw 'Cold-load claim rows differ'};$checks++
+  $foreign=Copy-Additional $primary;$foreign.scenario='chunk6a-mount-approach';$failed=$false;try{$null=Get-KmcChunk6aAdditionalClaimRow $id $foreign}catch{$failed=$true};if(-not$failed){throw 'Cold-load claim row accepted a foreign primary scenario'};$checks++
+ } else {
+  foreach($name in @($id)+@($roles|ForEach-Object scenario)){
+   if(@(Get-KmcPhase3dHorseRuntimeRows|Where-Object {$_-ceq$name}).Count-ne1){throw ('Missing or duplicate runtime row '+$name)};$checks++
+  }
  }
  function Reject-Additional([scriptblock]$Mutate){
   $b=Copy-Additional $bindings;$p=Copy-Additional $primary;& $Mutate $p $b
