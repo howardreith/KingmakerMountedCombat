@@ -262,10 +262,11 @@ function Assert-KmcChunk6aTurnEnd($Artifact) {
   # The engine's turn-end bookkeeping: UnitActionController.TickCommandTurnBased (0600911D) -> UnitCommand.ForceFinishForTurnBased
   # (060027AB) -> ForceFinish (060027AA) marks the unit's command IsActed with Result Success without checking IsFinished, so the
   # shell the product interrupted and retired at the native End Turn reads acted/Success one frame later although it never
-  # started (preview.207 stage 8). Lawful only when the product's own interruption of the exact shell is recorded at the End Turn
-  # frame and nothing was delivered.
+  # started (preview.207 stage 8). Lawful only when the exact shell's interruption at the End Turn frame is recorded (the
+  # product's approach-interruption completion and the engine's own turn-based action tick both record one; preview.208 stage 8
+  # carried both) and nothing was delivered.
   $ownInterrupts=@(@(ClosureProp $Case 'interrupts')|Where-Object {[string]$_.boundary-ceq'command-interrupt-before'-and$_.command-eq$trigger.commandObject-and$_.frame-eq$endInput.frame})
-  if($terminalCommand.started-ne$false-or[string]$terminalCommand.result-cne'Success'-or[string]$Case.outcome-cne'acted-not-mounted'-or$ownInterrupts.Count-ne1){ClosureFail 'the acted pending shell is not the engine''s turn-end bookkeeping of the shell the product interrupted'}
+  if($terminalCommand.started-ne$false-or[string]$terminalCommand.result-cne'Success'-or[string]$Case.outcome-cne'acted-not-mounted'-or$ownInterrupts.Count-lt1){ClosureFail 'the acted pending shell is not the engine''s turn-end bookkeeping of the shell the product interrupted'}
  }
  if($terminal.turnObject-eq$beforeEnd.turnObject-or$after.turnObject-eq$beforeEnd.turnObject){ClosureFail 'the rider''s native turn did not end'}
  Assert-KmcChunk6aClosureNoResidueState $after $Case 'the turn end' 0

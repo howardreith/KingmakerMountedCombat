@@ -432,9 +432,13 @@ namespace KingmakerMountedCombat.Integration
             internal static bool ResetToMainMenuPrefix(string message, Kingmaker.Blueprints.Area.BlueprintAreaPreset preset) =>
                 PatchBridge.Persistence == null || !PatchBridge.Persistence.DeferResetToMainMenu(message, preset);
 
+            // While a deferred save waits, new actions are held; the registered Mount/Dismount shell the save itself waits for
+            // (SaveEffectsReady: OwnsUnsettledRelationshipShell) must still start, or the hold and the readiness term deadlock
+            // until the bounded wait refuses the save (preview.208 combat-mount-unsettled-save).
             internal static bool SaveCommandStartPrefix(UnitCommand __instance) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 (PatchBridge.Persistence?.Enabled != true || NativeSaveEffectBoundary.MayStartDuringWait(__instance) ||
+                 PatchBridge.NativeControls?.OwnsUnsettledRelationshipShell(__instance) == true ||
                  PatchBridge.UnifiedTurn?.MayStartNativePreparationDuringSave(__instance) == true ||
                  !NativeDeferredSave.Waiting(LoadingProcess.Instance)) &&
                 ChargeExecutionPrefix(__instance);
