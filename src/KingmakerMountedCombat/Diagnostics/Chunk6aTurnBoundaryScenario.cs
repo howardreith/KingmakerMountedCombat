@@ -74,7 +74,11 @@ namespace KingmakerMountedCombat.Diagnostics
             state["turnActor"] = turn?.Unit?.UniqueId;
             state["turnStatus"] = turn?.Status.ToString();
             state["turnIsActing"] = turn?.IsActing;
-            state["turnCanEnd"] = turn?.CanEndTurnAndNoActing();
+            // CanEndTurn is the UI End Turn admission (InGameInputLayerView.OnTurnBasedEndTurn 06005D30, the in-game menu's
+            // m_CanEndTurn 06003E87); CanEndTurnAndNoActing additionally requires an empty command queue and is the Space-key
+            // admission (Game.PauseBind 06000CB7), which speeds the game up instead while the unit still acts.
+            state["turnCanEnd"] = turn?.CanEndTurn();
+            state["turnCanEndAndNoActing"] = turn?.CanEndTurnAndNoActing();
             state["waitingForUi"] = controller != null && (bool)controller.WaitingForUI;
             state["pairedSequence"] = combat.PairedActivationSequence;
             state["pairedSplit"] = combat.PairedActivationSplit;
@@ -148,14 +152,19 @@ namespace KingmakerMountedCombat.Diagnostics
                     BeginCleanup();
                     return;
                 }
-                // The ordinary native End Turn input is admitted only while the controller accepts it; the
-                // readiness facts are recorded on every refused frame so the bounded wait names itself.
-                if (controller.WaitingForUI || GetPendingNextUnit(controller) != null || !turn.CanEndTurnAndNoActing())
+                // The native End Turn input while the rider still acts is the UI's: InGameInputLayerView.OnTurnBasedEndTurn
+                // (06005D30) and the in-game menu button (m_CanEndTurn 06003E87) admit it through TurnController.CanEndTurn
+                // and deliver TurnController.ForceToEnd(true) (06000C47), which forfeits the turn (native Standard/Move/Swift
+                // debt) and interrupts the running commands. The Space key (Game.PauseBind) requires an empty command queue
+                // and only speeds the game up during the approach (preview.206 stage 8). The readiness facts are recorded on
+                // every refused frame so the bounded wait names itself.
+                if (controller.WaitingForUI || GetPendingNextUnit(controller) != null || !turn.CanEndTurn())
                 {
                     chunk6aTurnEndEvidence["endInputWait"] = new JObject
                     {
                         ["frame"] = Time.frameCount, ["waitingForUi"] = (bool)controller.WaitingForUI,
-                        ["pendingNextUnit"] = GetPendingNextUnit(controller) != null, ["canEnd"] = turn.CanEndTurnAndNoActing()
+                        ["pendingNextUnit"] = GetPendingNextUnit(controller) != null, ["canEnd"] = turn.CanEndTurn(),
+                        ["canEndAndNoActing"] = turn.CanEndTurnAndNoActing()
                     };
                     return;
                 }
@@ -164,10 +173,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk6aTurnEndEvidence["beforeEndInput"] = CaptureChunk6aTurnBoundaryState("before-end-input", command);
                 chunk6aTurnEndIssued = true;
                 chunk6aTurnEndEvidence["endInputCount"] = 1;
-                Game.Instance.PauseBind();
+                turn.ForceToEnd(true);
                 chunk6aTurnEndEvidence["endInput"] = new JObject
                 {
-                    ["method"] = "Kingmaker.Game.PauseBind", ["token"] = "06000CB7",
+                    ["method"] = "TurnBased.Controllers.TurnController.ForceToEnd", ["token"] = "06000C47", ["argument"] = true,
+                    ["uiCallers"] = new JArray("06005D30", "06003E87"), ["admission"] = "TurnBased.Controllers.TurnController.CanEndTurn", ["admissionToken"] = "06000C4A",
                     ["moduleMvid"] = typeof(Game).Assembly.ManifestModule.ModuleVersionId.ToString(), ["count"] = 1,
                     ["frame"] = Time.frameCount, ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks
                 };
@@ -342,7 +352,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["state"] = CaptureChunk6aTurnBoundaryState("deadline", chunk6aTurnEndCommand),
                     ["endInputIssued"] = chunk6aTurnEndIssued
                 };
-                FailCurrent("CM04-turn-end", "The exact approach, End Turn input or pending-shell terminal did not settle at the unchanged 30-second deadline.");
+                FailCurrent("CM04-turn-end", "The exact approach, native End Turn input or pending-shell terminal did not settle at the unchanged 30-second deadline.");
                 return true;
             }
             if (Chunk6aModeExitOnly && chunk6aStage == 57)
