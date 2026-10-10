@@ -75,8 +75,10 @@ function Assert-KmcChunk6aClosureTrigger($Trigger,[string]$Where) {
 # Residue is decided from primitives (the compiled noResidue flag is recorded, not trusted): nothing in flight,
 # both command containers empty, no paired identity or partner context, exactly one shell registration for the
 # one click.
-function Assert-KmcChunk6aClosureNoResidueState($After,$Case,[string]$Where) {
- if($After.transitionInFlight-ne$false-or$After.riderCommandsEmpty-ne$true-or$After.horseCommandsEmpty-ne$true-or$null-ne(ClosureProp $After 'pairedIdentity')-or$null-ne(ClosureProp $After 'partnerContextActor')-or$Case.relationshipShellsDelta-ne1){ClosureFail ($Where+' left relationship, command, activation or shell residue')}
+function Assert-KmcChunk6aClosureNoResidueState($After,$Case,[string]$Where,[int]$ExpectedShellsDelta=1) {
+ # The invalidation family measures its shells from a pre-click baseline (delta 1: the exact pending shell); the turn-end
+ # case measures from its after-click baseline (delta 0: no further shell through the turn end).
+ if($After.transitionInFlight-ne$false-or$After.riderCommandsEmpty-ne$true-or$After.horseCommandsEmpty-ne$true-or$null-ne(ClosureProp $After 'pairedIdentity')-or$null-ne(ClosureProp $After 'partnerContextActor')-or$Case.relationshipShellsDelta-ne$ExpectedShellsDelta){ClosureFail ($Where+' left relationship, command, activation or shell residue')}
 }
 function Assert-KmcChunk6aApproachInvalidation([string]$Scenario,$Artifact) {
  $row=Get-KmcChunk6aInvalidationRow $Scenario;$contract=Get-KmcChunk6aInvalidationContract $Scenario
@@ -245,18 +247,28 @@ function Assert-KmcChunk6aTurnEnd($Artifact) {
  if([string]$before.turnActor-cne$riderId-or[string]$before.turnStatus-cne'Acting'){ClosureFail 'the Mount was not clicked on the rider''s own acting turn'}
  $trigger=ClosureProp $Case 'trigger'
  Assert-KmcChunk6aClosureTrigger $trigger 'turn end'
- $input=ClosureProp $Case 'endInput';$beforeEnd=ClosureProp $Case 'beforeEndInput';$afterInput=ClosureProp $Case 'afterEndInput'
+ $endInput=ClosureProp $Case 'endInput';$beforeEnd=ClosureProp $Case 'beforeEndInput';$afterInput=ClosureProp $Case 'afterEndInput'
  # The native End Turn input while the rider still acts is the UI's (InGameInputLayerView.OnTurnBasedEndTurn 06005D30, the
  # in-game menu button 06003E87): admitted through TurnController.CanEndTurn (06000C4A), delivered as ForceToEnd(true)
  # (06000C47), which forfeits the turn with the engine's own Standard/Move/Swift debt and interrupts the running command.
- if($null-eq$input-or$Case.endInputCount-ne1-or[string]$input.method-cne'TurnBased.Controllers.TurnController.ForceToEnd'-or[string]$input.token-cne'06000C47'-or$input.argument-ne$true-or[string]$input.admissionToken-cne'06000C4A'-or$input.count-ne1){ClosureFail 'the one native End Turn input was not issued exactly once through the exact UI path'}
+ if($null-eq$endInput-or$Case.endInputCount-ne1-or[string]$endInput.method-cne'TurnBased.Controllers.TurnController.ForceToEnd'-or[string]$endInput.token-cne'06000C47'-or$endInput.argument-ne$true-or[string]$endInput.admissionToken-cne'06000C4A'-or$endInput.count-ne1){ClosureFail 'the one native End Turn input was not issued exactly once through the exact UI path'}
  if($null-eq$beforeEnd-or$null-eq$afterInput-or[string]$beforeEnd.turnActor-cne$riderId-or$beforeEnd.turnIsActing-ne$true-or$beforeEnd.turnCanEnd-ne$true-or$beforeEnd.waitingForUi-ne$false-or$beforeEnd.turnObject-ne$before.turnObject-or[string]$beforeEnd.relationshipState-cne'Unmounted'){ClosureFail 'the End Turn input was not issued on the rider''s own unchanged acting turn'}
  if($beforeEnd.command.finished-ne$false-or$beforeEnd.command.acted-ne$false-or$beforeEnd.command.id-ne$trigger.commandObject){ClosureFail 'the exact pending shell had already settled before the End Turn input'}
  $terminal=ClosureProp $Case 'terminal';$after=ClosureProp $Case 'after';$terminalCommand=ClosureProp $Case 'terminalCommand'
- if($null-eq$terminal-or$null-eq$after-or$null-eq$terminalCommand-or$terminalCommand.finished-ne$true-or$terminalCommand.acted-ne$false-or$terminalCommand.id-ne$trigger.commandObject){ClosureFail 'the pending shell did not retire unacted'}
+ if($null-eq$terminal-or$null-eq$after-or$null-eq$terminalCommand-or$terminalCommand.finished-ne$true-or$terminalCommand.id-ne$trigger.commandObject){ClosureFail 'the pending shell did not settle'}
+ if($terminalCommand.acted-eq$false){
+  if([string]$Case.outcome-cnotmatch'^unacted-(Interrupt|Fail)$'){ClosureFail ('unlawful outcome '+[string]$Case.outcome)}
+ } else {
+  # The engine's turn-end bookkeeping: UnitActionController.TickCommandTurnBased (0600911D) -> UnitCommand.ForceFinishForTurnBased
+  # (060027AB) -> ForceFinish (060027AA) marks the unit's command IsActed with Result Success without checking IsFinished, so the
+  # shell the product interrupted and retired at the native End Turn reads acted/Success one frame later although it never
+  # started (preview.207 stage 8). Lawful only when the product's own interruption of the exact shell is recorded at the End Turn
+  # frame and nothing was delivered.
+  $ownInterrupts=@(@(ClosureProp $Case 'interrupts')|Where-Object {[string]$_.boundary-ceq'command-interrupt-before'-and$_.command-eq$trigger.commandObject-and$_.frame-eq$endInput.frame})
+  if($terminalCommand.started-ne$false-or[string]$terminalCommand.result-cne'Success'-or[string]$Case.outcome-cne'acted-not-mounted'-or$ownInterrupts.Count-ne1){ClosureFail 'the acted pending shell is not the engine''s turn-end bookkeeping of the shell the product interrupted'}
+ }
  if($terminal.turnObject-eq$beforeEnd.turnObject-or$after.turnObject-eq$beforeEnd.turnObject){ClosureFail 'the rider''s native turn did not end'}
- if([string]$Case.outcome-cnotmatch'^unacted-(Interrupt|Fail)$'){ClosureFail ('unlawful outcome '+[string]$Case.outcome)}
- Assert-KmcChunk6aClosureNoResidueState $after $Case 'the turn end'
+ Assert-KmcChunk6aClosureNoResidueState $after $Case 'the turn end' 0
  if([string]$after.relationshipState-cne'Unmounted'){ClosureFail 'the turn end delivered the Mount'}
  $delta=$Case.ledgerDelta
  foreach($name in @('admittedMount','acceptedMount','admittedDismount','acceptedDismount','refusedVoluntary','forcedDetach')){ if($delta.$name-ne0){ClosureFail ('the turn end moved the transition ledger: '+$name)} }
@@ -276,8 +288,8 @@ function Assert-KmcChunk6aModeExit($Artifact) {
  if([string]$Case.contract-cne'native-turn-based-mode-exit-while-mounted-on-adopted-turn'-or[string]$Case.boundary-cne'mode-exit'-or[string]$Case.mountWindow-cne'positive-mount'){ClosureFail 'the contract differs'}
  $before=$Case.before
  if([string]$before.relationshipState-cne'Mounted'-or$before.turnBasedCombat-ne$true-or$before.turnBasedSetting-ne$true-or$before.partyInCombat-ne$true-or[string]::IsNullOrEmpty([string](ClosureProp $before 'pairedIdentity'))-or$before.transitionInFlight-ne$false){ClosureFail 'the pair was not mounted and settled on an adopted turn-based activation before the exit'}
- $input=ClosureProp $Case 'exitInput';$afterInput=ClosureProp $Case 'afterExitInput'
- if($null-eq$input-or$null-eq$afterInput-or$Case.exitInputCount-ne1-or[string]$input.method-cne'SettingsEntityBase.OnInvokeUpdateCallback'-or[string]$input.token-cne'06003359'-or[string]$input.cacheToken-cne'04002275'-or$input.temporaryValue-ne$false-or$input.settingAfter-ne$false-or$afterInput.turnBasedSetting-ne$false){ClosureFail 'the native mode exit was not dispatched exactly once through the exact settings callback'}
+ $exitInput=ClosureProp $Case 'exitInput';$afterInput=ClosureProp $Case 'afterExitInput'
+ if($null-eq$exitInput-or$null-eq$afterInput-or$Case.exitInputCount-ne1-or[string]$exitInput.method-cne'SettingsEntityBase.OnInvokeUpdateCallback'-or[string]$exitInput.token-cne'06003359'-or[string]$exitInput.cacheToken-cne'04002275'-or$exitInput.temporaryValue-ne$false-or$exitInput.settingAfter-ne$false-or$afterInput.turnBasedSetting-ne$false){ClosureFail 'the native mode exit was not dispatched exactly once through the exact settings callback'}
  $terminal=ClosureProp $Case 'terminal';$after=ClosureProp $Case 'after'
  if($null-eq$terminal-or$null-eq$after-or$terminal.turnBasedCombat-ne$false-or$after.turnBasedCombat-ne$false-or$after.partyInCombat-ne$true){ClosureFail 'the native controller did not leave turn-based combat inside the live encounter'}
  # Forfeited exactly once: the product observed the exit while mounted (its exit AI lease is armed through both of its
@@ -410,6 +422,32 @@ function Assert-KmcChunk6aClosureReload($Detail,[string]$Where) {
  if($Detail.fixtureReleased-ne$true){$bad+='fixtureReleased'}
  if($bad.Count-ne0){ClosureFail ($Where+' did not complete the real native area reload into the same world without carrying the combat pair: '+($bad -join ', '))}
 }
+function Assert-KmcChunk6aClosureApproachPositioned($Rows) {
+ # The foundation fixture starts the rider inside the Mount approach radius; the cases that observe the pending approach
+ # first move it away with one native ground order and click only once that order has settled.
+ $positioning=(Get-KmcChunk6aClosureKind $Rows 'closure-approach-positioning')[0];$positioned=(Get-KmcChunk6aClosureKind $Rows 'closure-approach-positioned')[0]
+ if([string]$positioning.relationship-cne'Unmounted'-or(ClosureNumber $positioning.detail.destinationMountDistance 'destinationMountDistance')-lt5.5){ClosureFail 'the approach positioning did not aim outside the Mount approach radius'}
+ $pa=$positioned.detail.actual
+ if([string]$positioned.relationship-cne'Unmounted'-or(ClosureNumber $positioned.detail.mountDistance 'mountDistance')-lt5.5-or$pa.unsettledShellOwned-ne$false-or$pa.liveRiderCommandsEmpty-ne$true-or$pa.riderReallyMoving-ne$false-or[string]$pa.relationship-cne'Unmounted'){ClosureFail 'the rider was not settled outside the Mount approach radius before the click'}
+}
+function Assert-KmcChunk6aClosureSingleDetach($Terminal,$Baseline,[string]$RiderId,[string]$MountId,[string]$Where) {
+ # The transition records added since the request baseline must hold exactly one forced detach of the exact pair; any other
+ # added record may only be a forced-detach announcement on the already-detached relationship (no rider, no mount, the same
+ # generation), never a voluntary transition. The native area unload of a combat pair records both shapes.
+ $before=@(ClosureProp $Baseline 'transitionRecords');$now=@(ClosureProp $Terminal 'transitionRecords')
+ if($now.Count-lt$before.Count){ClosureFail ($Where+' lost transition records')}
+ for($i=0;$i-lt$before.Count;$i++){ if([string]$now[$i].identity-cne[string]$before[$i].identity){ClosureFail ($Where+' rewrote the transition ledger')} }
+ $added=@($now|Select-Object -Skip $before.Count)
+ $realIndex=@();for($i=0;$i-lt$added.Count;$i++){ if([string]$added[$i].kind-ceq'ForcedDetach'-and[string]$added[$i].rider-ceq$RiderId-and[string]$added[$i].mount-ceq$MountId){$realIndex+=$i} }
+ if($realIndex.Count-ne1){ClosureFail ($Where+' did not detach the exact pair exactly once ('+$realIndex.Count+' records)')}
+ $real=$added[$realIndex[0]]
+ for($i=0;$i-lt$added.Count;$i++){
+  $r=$added[$i]
+  if([string]$r.kind-cne'ForcedDetach'){ClosureFail ($Where+' recorded a voluntary transition: '+[string]$r.kind)}
+  if($i-eq$realIndex[0]){continue}
+  if(-not[string]::IsNullOrEmpty([string]$r.rider)-or-not[string]::IsNullOrEmpty([string]$r.mount)-or$r.generation-ne$real.generation){ClosureFail ($Where+' recorded a second detach of an attached pair')}
+ }
+}
 function Assert-KmcChunk6aClosurePersistenceEvidence {
  param($Request,$Rows,$GameResult)
  $case=[string](ClosureProp $Request 'persistenceCase');$scenario=[string]$Request.scenario
@@ -449,15 +487,19 @@ function Assert-KmcChunk6aClosurePersistenceEvidence {
    if([string]$terminal.relationship-cne'Mounted'-or[string]$t.relationship-cne'Mounted'-or$t.snapshots-ne3-or$t.failedSaves-ne0-or$t.deferredSaves-ne0-or$t.duplicateFactCount-ne0-or$t.exactFactCount-ne$settled.controls.ExactFactCount-or$t.transitionInFlight-ne$false-or(ClosureDelta $t $sf 'acceptedMount')-ne0-or(ClosureDelta $t $sf 'forcedDetach')-ne0-or(ClosureDelta $t $sf 'castRequests')-ne0){ClosureFail 'the routes left the mounted controls, counters or relationship changed'}
   }
   'combat-mount-unsettled-save' {
-   Assert-KmcChunk6aClosureOrder $rows @('initial','rt-foundation-combat-ready','rt-combat-mount-click','rt-unsettled-save-requested','rt-unsettled-save-deferred','rt-unsettled-save-transition-settled','native-write-complete','unsettled-save-complete')
+   Assert-KmcChunk6aClosureOrder $rows @('initial','rt-foundation-combat-ready','closure-approach-positioning','closure-approach-positioned','rt-combat-mount-click','rt-unsettled-save-requested','rt-unsettled-save-deferred','rt-unsettled-save-transition-settled','native-write-complete','unsettled-save-complete')
+   Assert-KmcChunk6aClosureApproachPositioned $rows
    $requested=(Get-KmcChunk6aClosureKind $rows 'rt-unsettled-save-requested')[0];$deferred=(Get-KmcChunk6aClosureKind $rows 'rt-unsettled-save-deferred')[0]
    $settled=(Get-KmcChunk6aClosureKind $rows 'rt-unsettled-save-transition-settled')[0];$written=(Get-KmcChunk6aClosureKind $rows 'native-write-complete')[0]
-   if([string]$requested.relationship-cne'Unmounted'-or$requested.detail.transitionInFlight-ne$true-or$requested.detail.snapshots-ne0-or$requested.detail.deferredSaves-ne0){ClosureFail 'the save was not requested while the Mount transition was unsettled'}
-   if([string]$deferred.relationship-cne'Unmounted'-or$deferred.detail.deferredSaves-ne1-or$deferred.detail.snapshots-ne0-or$deferred.detail.failedSaves-ne0-or$deferred.detail.nativeSaveWaiting-ne$true-or$deferred.detail.transitionInFlight-ne$true-or$deferred.detail.saveSuspended-ne$false-or$deferred.detail.serializationSuspended-ne$false){ClosureFail 'the product did not truthfully defer the unsettled save before capture'}
+   # The unsettled state a frame can observe is the product's own deferral term: the rider owns the registered, unfinished
+   # Mount shell (the ledger's admit-to-settle window is synchronous inside one call).
+   $rp=ClosureProp $requested.detail 'pendingShell'
+   if([string]$requested.relationship-cne'Unmounted'-or$requested.detail.unsettledShellOwned-ne$true-or$null-eq$rp-or$rp.acted-ne$false-or$rp.finished-ne$false-or$requested.detail.snapshots-ne0-or$requested.detail.deferredSaves-ne0){ClosureFail 'the save was not requested while the Mount transition was unsettled'}
+   if([string]$deferred.relationship-cne'Unmounted'-or$deferred.detail.deferredSaves-ne1-or$deferred.detail.snapshots-ne0-or$deferred.detail.failedSaves-ne0-or$deferred.detail.nativeSaveWaiting-ne$true-or$deferred.detail.unsettledShellOwned-ne$true-or$deferred.detail.saveSuspended-ne$false-or$deferred.detail.serializationSuspended-ne$false){ClosureFail 'the product did not truthfully defer the unsettled save before capture'}
    if([string]$settled.relationship-cne'Mounted'-or$settled.detail.transitionInFlight-ne$false-or$settled.detail.snapshots-ne0-or[string]::IsNullOrEmpty([string]$settled.detail.pairedIdentity)-or(ClosureDelta $settled.detail $clickFoundation 'acceptedMount')-ne1){ClosureFail 'the transition did not settle mounted as one accepted delivery before the capture'}
    $w=$written.detail
    if([string]$written.relationship-cne'Mounted'-or$w.nativeCallback-ne$true-or[string]$w.operation-cne'None'-or[string]$w.nativeType-cne'Manual'-or$w.actual.deferredSaves-ne1-or$w.actual.snapshots-ne1-or$w.actual.failedSaves-ne0-or$w.actual.saveSuspended-ne$false-or$w.actual.serializationSuspended-ne$false-or[string]$w.actual.relationship-cne'Mounted'){ClosureFail 'the deferred save was not captured exactly once after settlement'}
-   if($null-eq(ClosureProp $w 'requested')-or$w.requested.transitionInFlight-ne$true-or$w.requested.snapshots-ne0){ClosureFail 'the write does not carry its unsettled request baseline'}
+   if($null-eq(ClosureProp $w 'requested')-or$w.requested.unsettledShellOwned-ne$true-or$w.requested.snapshots-ne0){ClosureFail 'the write does not carry its unsettled request baseline'}
    Assert-KmcChunk6aClosureSnapshot $w.snapshot $riderId $mountId $Request 'deferred save'
    $leaf=Assert-KmcChunk6aClosureArchive ([string]$Request.runId) $w 'deferred save'
    if($leaf-cne'Manual_300_KMC_P01.zks'){ClosureFail 'the deferred save did not land in the owned manual archive'}
@@ -480,18 +522,22 @@ function Assert-KmcChunk6aClosurePersistenceEvidence {
    if([string]$t.archiveSha256After-cne[string]$t.archiveSha256Before-or[string]$t.archiveSha256Before-cne[string]$written.detail.sha256-or[IO.Path]::GetFileName([string]$t.archivePath)-cne$leaf-or$t.snapshots-ne1-or$t.deferredSaves-ne0-or$t.failedSaves-ne0){ClosureFail 'the combat-mounted archive changed across the area reload'}
    $baseline=ClosureProp $t 'baseline'
    if($null-eq$baseline-or-not(ClosureSameJson $baseline $rq)){ClosureFail 'the completion does not carry its exact request baseline'}
-   # The supported lifecycle at the native area unload of a combat pair is exactly one cleanup (the transfer is
-   # never armed in combat): one fresh forced detach, no voluntary transition, no replayed cast.
-   if((ClosureDelta $t $baseline 'forcedDetach')-ne1-or(ClosureDelta $t $baseline 'acceptedMount')-ne0-or(ClosureDelta $t $baseline 'admittedMount')-ne0-or(ClosureDelta $t $baseline 'acceptedDismount')-ne0-or(ClosureDelta $t $baseline 'castRequests')-ne0-or(ClosureDelta $t $baseline 'dispatchAccepted')-ne0){ClosureFail 'the supported lifecycle cleanup did not run exactly once at the area unload'}
+   # The supported lifecycle at the native area unload of a combat pair is exactly one cleanup (the transfer is never armed in
+   # combat): one forced detach of the exact pair (the companion invalidation of the unload), after which the AreaUnloading
+   # cleanup may only announce on the already-detached relationship; no voluntary transition, no replayed cast. The forced
+   # detach counter is recorded, not bounded: it also counts that announcement (preview.207 stage 12).
+   Assert-KmcChunk6aClosureSingleDetach $t $baseline $riderId $mountId 'the combat area reload'
+   if((ClosureDelta $t $baseline 'forcedDetach')-lt1-or(ClosureDelta $t $baseline 'acceptedMount')-ne0-or(ClosureDelta $t $baseline 'admittedMount')-ne0-or(ClosureDelta $t $baseline 'acceptedDismount')-ne0-or(ClosureDelta $t $baseline 'castRequests')-ne0-or(ClosureDelta $t $baseline 'dispatchAccepted')-ne0){ClosureFail 'the supported lifecycle cleanup was not the only transition at the area unload'}
    if($t.generation-ne$baseline.generation){ClosureFail 'the area reload changed the relationship generation without a transition'}
   }
   'pending-mount-area' {
-   Assert-KmcChunk6aClosureOrder $rows @('initial','rt-foundation-combat-ready','rt-combat-mount-click','pending-mount-approach-observed','pending-mount-area-requested','pending-mount-area-complete')
+   Assert-KmcChunk6aClosureOrder $rows @('initial','rt-foundation-combat-ready','closure-approach-positioning','closure-approach-positioned','rt-combat-mount-click','pending-mount-approach-observed','pending-mount-area-requested','pending-mount-area-complete')
+   Assert-KmcChunk6aClosureApproachPositioned $rows
    $observed=(Get-KmcChunk6aClosureKind $rows 'pending-mount-approach-observed')[0];$requested=(Get-KmcChunk6aClosureKind $rows 'pending-mount-area-requested')[0]
    $o=$observed.detail
-   if([string]$observed.relationship-cne'Unmounted'-or(ClosureNumber $o.riderDisplacement 'displacement')-le0.25-or$o.transitionInFlight-ne$true-or$o.riderReallyMoving-ne$true-or$null-eq(ClosureProp $o 'shell')-or$o.shell.acted-ne$false-or$o.shell.finished-ne$false-or[string]$o.shell.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or[string]$o.shell.executor-cne$riderId-or[string]$o.shell.target-cne$mountId-or$o.snapshots-ne0){ClosureFail 'the area reload was not requested during the measured pending approach of the exact Mount shell'}
+   if([string]$observed.relationship-cne'Unmounted'-or(ClosureNumber $o.riderDisplacement 'displacement')-le0.25-or$o.unsettledShellOwned-ne$true-or$o.riderReallyMoving-ne$true-or$null-eq(ClosureProp $o 'shell')-or$o.shell.acted-ne$false-or$o.shell.finished-ne$false-or[string]$o.shell.abilityGuid-cne'f053faad986631688defa003cd7bda0e'-or[string]$o.shell.executor-cne$riderId-or[string]$o.shell.target-cne$mountId-or$o.snapshots-ne0){ClosureFail 'the area reload was not requested during the measured pending approach of the exact Mount shell'}
    $rq=$requested.detail
-   if([string]$requested.relationship-cne'Unmounted'-or$rq.snapshots-ne0-or$rq.transitionInFlight-ne$true-or$rq.suspensions-ne0-or$rq.fixtureReleased-ne$false){ClosureFail 'the pending-approach reload request differs'}
+   if([string]$requested.relationship-cne'Unmounted'-or$rq.snapshots-ne0-or$rq.unsettledShellOwned-ne$true-or$rq.suspensions-ne0-or$rq.fixtureReleased-ne$false){ClosureFail 'the pending-approach reload request differs'}
    $t=$terminal.detail
    Assert-KmcChunk6aClosureReload $t 'the pending-approach area reload'
    Assert-KmcChunk6aClosureNoResidue $t 'the pending-approach area reload'
