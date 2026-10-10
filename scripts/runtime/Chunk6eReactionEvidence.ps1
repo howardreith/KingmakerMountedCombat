@@ -133,8 +133,10 @@ function Assert-KmcChunk6eReactionRow($Row,[string]$Rider,[string]$Mount,[bool]$
   'hostile-attack-mount' {
    Assert-KmcStagedHostileAttack $step $e.ruleEvents $Row.name $Rider $Mount $why
    Need (@(@($step.costEvents)|Where-Object {$_.state.actor-ceq$Rider-and$_.boundary-cin@('cost-before','cost-after')}).Count-eq0-and@(@($step.events)|Where-Object {$_.kind-clike'cast-*'-or$_.kind-clike'*spend*'}).Count-eq0) 'rider acted during the observed hostile attack'
-   if($Tb){Need (Test-KmcStagedClose $step.after.rider.swift $step.before.rider.swift 'swift') 'rider Swift debt changed at the attack seam without any Swift command'}
-   else {Need ((Get-KmcStagedNumber $step.after.rider.swift 'swift')-le(Get-KmcStagedNumber $step.before.rider.swift 'swift')+.001) 'rider Swift debt rose at the attack seam without any Swift command'}
+   # Native turn-based cooldowns of every unit decay with game time while another unit's command runs (preview.204 unmounted TB,
+   # preview.208 stage 38: the rider's Swift fell 2.000 -> 1.824 across the hostile's attack), so the rule in both modes is the
+   # same: the rider's Swift debt may fall but never rise at the seam without a Swift command.
+   Need ((Get-KmcStagedNumber $step.after.rider.swift 'swift')-le(Get-KmcStagedNumber $step.before.rider.swift 'swift')+.001) 'rider Swift debt rose at the attack seam without any Swift command'
   }
   'hostile-attack-swift' {
    Assert-KmcStagedHostileAttack $step $e.ruleEvents $Row.name $Rider $Mount $why

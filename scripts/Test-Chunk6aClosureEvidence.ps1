@@ -202,6 +202,7 @@ function Set-TurnEndForfeit($c){
 }
 Accept 'turn end accepted' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact) }
 Accept 'turn end native forfeit bookkeeping' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c }) }
+Accept 'turn end native forfeit bookkeeping with the product and engine interruptions' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.interrupts=@($c.interrupts[0],@{boundary='command-interrupt-before';command=777;frame=130;sequence=428}) }) }
 Reject 'turn end acted without the product interruption' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.interrupts=@() }) }
 Reject 'turn end acted with an interrupted result' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.terminalCommand.result='Interrupt' }) }
 Reject 'turn end acted after starting' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.terminalCommand.started=$true }) }

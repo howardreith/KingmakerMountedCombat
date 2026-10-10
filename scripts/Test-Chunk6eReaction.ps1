@@ -124,6 +124,9 @@ $r=New-ReactionRow 'C6E-swift-out-of-turn' $false;$r.evidence.steps[0].primarySh
 # Attack seam facts.
 $r=New-ReactionRow 'C6E-attack-on-mount-observed' $true;$r.evidence.ruleEvents.events=@($r.evidence.ruleEvents.events|Where-Object kind -CNE 'attack-roll');Reject $r 'an attack seam without its native roll is refused'
 $r=New-ReactionRow 'C6E-attack-on-mount-observed' $true;$r.evidence.steps[0].after.rider.swift=6.0;Reject $r 'Swift debt moving at the attack seam without a Swift command is refused'
+# Native turn-based cooldowns decay for every unit while another unit acts (preview.208 stage 38: 2.000 -> 1.824 across the hostile's attack).
+$r=New-ReactionRow 'C6E-attack-on-mount-observed' $true;$r.evidence.steps[0].before.rider.swift=2.0;$r.evidence.steps[0].after.rider.swift=1.824;Accept $r $true;Check $true 'a turn-based attack seam with the rider''s decayed Swift cooldown is accepted'
+$r=New-ReactionRow 'C6E-attack-on-mount-observed' $true;$r.evidence.steps[0].before.rider.swift=2.0;$r.evidence.steps[0].after.rider.swift=2.3;Reject $r 'a turn-based attack seam with a risen Swift cooldown is refused'
 $r=New-ReactionRow 'C6E-attack-on-mount-observed' $true;$r.evidence.ruleEvents.events+=[pscustomobject]@{caseId='C6E-attack-on-mount-observed';kind='saving-throw';identity=904;frame=1003;actor=$Rider;target=$Rider};Reject $r 'a rider check at the attack seam is refused (no feat effect exists)'
 $r=New-ReactionRow 'C6E-attack-on-mount-observed' $true;$r.evidence.ruleEvents.events[1].autoMiss=$true;Reject $r 'a negated attack roll is refused (no feat effect exists)'
 $r=New-ReactionRow 'C6E-attack-on-mount-observed' $true;$r.evidence.steps[0].hostileAttackTerminal.finished=$false;Reject $r 'an unfinished hostile attack is refused'

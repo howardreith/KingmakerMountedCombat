@@ -31,6 +31,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private int chunk4SustainedStage;
         private bool chunk4SustainedControlSent;
         private UnitMoveTo chunk4SustainedSetupMove;
+        private int chunk4SustainedSetupRetries;
         private readonly Dictionary<UnitAttack, JObject> chunk4Routines = new Dictionary<UnitAttack, JObject>();
         private JObject chunk4SustainedEvidence;
         private JArray chunk4SustainedClicks;
@@ -118,8 +119,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 {
                     var plan = new UnitAttack(target); plan.Init(rider);
                     var radius = horse.View.Corpulence + target.View.Corpulence + plan.CreateFullAttack().Min(attack => attack.WeaponRange);
+                    // The beyond-range point must also be reachable from the mount along the native navmesh: a walkable but
+                    // unreachable point ends the setup walk short and leaves the native range undistinguished (preview.208
+                    // stage 106, after the pair had drifted to the area edge across the earlier sub-cases).
                     var point = Chunk4SustainedApproach ? FindWalkablePoint(target.Position,
-                        horse.View.Corpulence + target.View.Corpulence + rider.GetFirstWeapon().Blueprint.AttackRange.Meters + 3f, 0.5f) :
+                        horse.View.Corpulence + target.View.Corpulence + rider.GetFirstWeapon().Blueprint.AttackRange.Meters + 3f, 0.5f,
+                        candidate => Kingmaker.Utility.GeometryUtils.MechanicsDistance(
+                            Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, candidate), candidate) <= 1.0f) :
                         FindNativeAttackFixturePoint(horse, true, horse.Position, 0.25f, Math.Min(radius, 3.5f),
                             "sustained-position-" + Chunk4SustainedId);
                     using (var input = new NativeOrdinaryAttackInput(point)) { input.Predict(); if (!input.Click()) return; }
@@ -137,7 +143,17 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4SustainedEvidence["before"] = CaptureOrdinaryLiveState();
                 chunk4SustainedEvidence["nativeEnoughCloseBefore"] = native.IsUnitEnoughClose;
                 if (native.IsUnitEnoughClose == Chunk4SustainedApproach)
+                {
+                    // A settled setup walk that did not separate the pair from the target (the native move ended short) is
+                    // retried once from the mount's new heading before the precondition is final.
+                    if (Chunk4SustainedApproach && Chunk4SustainedRanged && chunk4SustainedSetupRetries < 1)
+                    {
+                        chunk4SustainedSetupRetries++; chunk4SustainedSetupMove = null;
+                        chunk4SustainedEvidence["setupWalkRetries"] = chunk4SustainedSetupRetries;
+                        ResetLeafClock(); return;
+                    }
                     throw new InvalidOperationException("Native range does not distinguish the requested adjacent/approach condition.");
+                }
                 chunk4Routines.Clear(); chunk4SustainedCompleted = 0;
                 chunk4SustainedProgress = new SustainedRoutineProgress(!Chunk4SustainedRanged);
                 chunk4SustainedClicks = new JArray(); chunk4SustainedSamples = new JArray();
@@ -214,7 +230,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 combatMountRiderAiLease = null; unmountedHorseAiLease = null; unmountedHorseAiSettleRequested = false;
                 observations["subscriptions-after-" + Chunk4SustainedId] = Chunk4SubscriptionSnapshot.Capture();
                 observations["actor-records-after-" + Chunk4SustainedId] = combat.TrackedActorAllocations;
-                chunk4SustainedCase++; chunk4SustainedStage = 0; chunk4SustainedSetupMove = null;
+                chunk4SustainedCase++; chunk4SustainedStage = 0; chunk4SustainedSetupMove = null; chunk4SustainedSetupRetries = 0;
                 ResetLeafClock();
             }
         }
