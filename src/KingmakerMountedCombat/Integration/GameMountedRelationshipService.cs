@@ -41,6 +41,27 @@ namespace KingmakerMountedCombat.Integration
 
         internal long MountedPairGeneration => mountedPairGeneration;
 
+        internal int DiagnosticGenerationInvalidationCount { get; private set; }
+
+        internal string LastDiagnosticGenerationInvalidation { get; private set; }
+
+        // Diagnostics-only (CM02-generation-change): no native path changes the generation while a shell is
+        // pending, so the exact owned stimulus advances the counter by one, only on an idle unmounted
+        // relationship, and records itself. It mounts nothing, prepares nothing and refunds nothing.
+        internal string InvalidateMountedPairGenerationForDiagnostics(string reason)
+        {
+            if (string.IsNullOrWhiteSpace(reason)) throw new ArgumentException("A diagnostic generation invalidation names its reason.", nameof(reason));
+            if (coordinator.State != RelationshipState.Unmounted || runtime.Rider != null || runtime.Mount != null)
+                throw new InvalidOperationException("A diagnostic generation invalidation requires an idle unmounted relationship.");
+            var before = mountedPairGeneration;
+            mountedPairGeneration = checked(mountedPairGeneration + 1);
+            DiagnosticGenerationInvalidationCount++;
+            LastDiagnosticGenerationInvalidation = "reason=" + reason + ";generationBefore=" + before + ";generationAfter=" + mountedPairGeneration +
+                ";count=" + DiagnosticGenerationInvalidationCount;
+            logger.Info("Diagnostic mounted-pair generation invalidation: " + LastDiagnosticGenerationInvalidation + ".");
+            return LastDiagnosticGenerationInvalidation;
+        }
+
         internal KingmakerMountedPairRuntime Runtime => runtime;
 
         internal bool IsExactCapturedView(UnitEntityData unit) => runtime.IsExactCapturedView(unit);

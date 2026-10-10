@@ -333,6 +333,7 @@
     <Compile Include="Integration\MountedChargeAbilityLogic.cs" />
     <Compile Include="Integration\MountedChargeLease.cs" />
     <Compile Include="Integration\MountedChargeAdmissionFault.cs" />
+    <Compile Include="Integration\MountedRelationshipDeliveryFault.cs" />
     <Compile Include="Integration\MountedChargeGeometry.cs" />
     <Compile Include="Integration\MountedCombatController.Charge.cs" />
     <Compile Include="Integration\IMidEncounterAdoptionAuthority.cs" />
@@ -382,6 +383,9 @@
     <Compile Include="Diagnostics\Chunk6aOwnershipChangeScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aEligibilityChangeScenario.cs" />
     <Compile Include="Diagnostics\Chunk6aPendingIncapacityScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6aApproachInvalidationScenario.cs" />
+    <Compile Include="Diagnostics\Chunk6aTurnBoundaryScenario.cs" />
+    <Compile Include="Diagnostics\RuntimePersistenceClosureScenario.cs" />
     <Compile Include="Diagnostics\NativePendingMountFear.cs" />
     <Compile Include="Diagnostics\NativeMountReplacementInputProbe.cs" />
     <Compile Include="Diagnostics\NativeMountStopInputProbe.cs" />

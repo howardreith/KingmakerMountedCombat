@@ -10,7 +10,7 @@ $Scroll='cd635d5720937b044a354dba17abad8d';$Potion='d52566ae8cbe8dc4dae977ef51c2
 $castingLeases=@([pscustomobject]@{blueprint=$Potion;equipped=[pscustomobject]@{item=61;count=1;exactSlot=$true}},[pscustomobject]@{blueprint=$Scroll;equipped=[pscustomobject]@{item=60;count=1;exactSlot=$true}})
 # One StagedState snapshot as the compiled producer records it (CastingState plus the staged facts).
 function New-StagedState([double]$riderStandard,[double]$mountMove,[double]$mountX,[bool]$mountHasMove,[bool]$usedTwo,[int]$scrollCount,[string]$turnActor,[double]$riderSwift=0.0){
- [pscustomobject]@{relationship='Mounted';generation=1;rider=[pscustomobject]@{actor=$Rider;standard=$riderStandard;move=0.0;swift=$riderSwift};mount=[pscustomobject]@{actor=$Mount;standard=0.0;move=$mountMove;swift=0.0}
+ [pscustomobject]@{relationship='Mounted';generation=1;rider=[pscustomobject]@{actor=$Rider;standard=$riderStandard;move=0.0;swift=$riderSwift};mount=[pscustomobject]@{actor=$Mount;standard=0.0;move=$mountMove;swift=0.0;timeMoved=$mountMove;remainingNativeTime=(6.0-$mountMove)}
   riderCommandsEmpty=$true;mountCommandsEmpty=$true;processesSettled=$true;nativeAbilitiesPending=$false;projectilesPending=$false;activePairCommand=$false;pairMovement=$false
   items=@([pscustomobject]@{blueprint=$Potion;item=61;count=2;charges=1;exactSlot=$true},[pscustomobject]@{blueprint=$Scroll;item=60;count=$scrollCount;charges=1;exactSlot=$true})
   slotAvailable=$null;mountUsedOneMove=($mountMove -gt 0);mountUsedTwoMove=$usedTwo;mountHasMove=$mountHasMove;mountMoveRestricted=$false
@@ -18,32 +18,45 @@ function New-StagedState([double]$riderStandard,[double]$mountMove,[double]$moun
   mountPosition=[pscustomobject]@{x=$mountX;y=0.0;z=0.0};riderPosition=[pscustomobject]@{x=$mountX;y=0.0;z=0.0};rejectionCodes=@()}
 }
 function New-Carrier([int]$id){[pscustomobject]@{identity=$id;costIdentity=$id*10;type='UnitMoveTo';executor=$Mount;createdByPlayer=$true;started=$true;acted=$true;finished=$true;result='Success';ignoreCooldown=$false;commandType='Move';timeSinceStart=1.5}}
+# Cost boundaries carry the native trace stamp the compiled trace writes on every event: a monotonic
+# sequence and, in turn-based mode, the turn identity, round, status and current actor.
+$script:costSequence=0
+$script:costTurnBased=$true
+function New-CostEvent([string]$boundary,[int]$command,[string]$actionType,$state,[int]$turn=1){
+ $script:costSequence++
+ if($script:costTurnBased){[pscustomobject]@{sequence=$script:costSequence;boundary=$boundary;command=$command;actionType=$actionType;state=$state;turn=$turn;round=1;turnStatus='Acting';currentActor=$Rider}}
+ else {[pscustomobject]@{sequence=$script:costSequence;boundary=$boundary;command=$command;actionType=$actionType;state=$state;turn=0;round=0;turnStatus=$null;currentActor=$null}}
+}
 function New-MoveLeg([int]$index,$before,$after,[bool]$moves){
+ $costs=@();if($moves){$costs=@((New-CostEvent 'cost-before' ((40+$index)*10) 'Move' $before.mount),(New-CostEvent 'cost-after' ((40+$index)*10) 'Move' $after.mount))}
  $leg=[pscustomobject]@{index=$index;frame=100+$index;probe=$false;requestedDistance=7.0;destination=[pscustomobject]@{x=$after.mountPosition.x;y=0.0;z=0.0};plannedDistance=7.0;before=$before;fiveFootStepMode=$false;singleActionMoveMode=$false;ignoreClick=$false;inputPath='pointer';cursorCycles=0;clicked=$true;inputCount=1
-  carrier=$(if($moves){New-Carrier (40+$index)}else{$null});riderMoveSlot=0;mountMoveSlot=$(if($moves){40+$index}else{0});pairMovementAfterInput=$moves;afterInput=$before;after=$after;terminal=$(if($moves){New-Carrier (40+$index)}else{$null});costEvents=@();events=@()}
+  carrier=$(if($moves){New-Carrier (40+$index)}else{$null});riderMoveSlot=0;mountMoveSlot=$(if($moves){40+$index}else{0});pairMovementAfterInput=$moves;afterInput=$before;after=$after;terminal=$(if($moves){New-Carrier (40+$index)}else{$null});costEvents=$costs;events=@()}
  $leg
 }
 function New-MoveStep([int]$index,[string]$kind,$legs){
- [pscustomobject]@{index=$index;kind=$kind;frame=100;legs=@($legs);after=$legs[-1].after;costEvents=@();events=@();terminal=$legs[-1].terminal;hostileAttackTerminal=$null}
+ [pscustomobject]@{index=$index;kind=$kind;frame=100;legs=@($legs);after=$legs[-1].after;costEvents=@($legs|ForEach-Object {@($_.costEvents)}|Where-Object {$_});events=@();terminal=$legs[-1].terminal;hostileAttackTerminal=$null}
 }
-function New-CastStep([int]$index,$before,$after,[bool]$tb){
+function New-CastStep([int]$index,$before,$after,[bool]$tb,[int]$turn=1){
  $shellIdentity=10+$index;$cost=100+$index
  [pscustomobject]@{index=$index;kind='cast-standard-scroll';frame=200;ability=[pscustomobject]@{identity=5;blueprint=$Clw;caster=$Rider;runtimeActionType='Standard';fullRound=$false;sourceItem=60;sourceItemBlueprint=$Scroll;available=$true;availableForCast=$true}
   target=$Rider;before=$before;turnActor=$Rider;ignoreClick=$false;riderCanAct=$true;selected=$true;resolvedTarget=$Rider;canTarget=$true;clicked=$true;inputCount=1;admittedShellCount=1;shell=[pscustomobject]@{identity=$shellIdentity;executor=$Rider};costShell=$cost;queued=$false;selectionAfter=@($Rider);afterInput=$before;after=$after
   terminal=[pscustomobject]@{identity=$shellIdentity;costIdentity=$cost;type='UnitUseAbility';executor=$Rider;createdByPlayer=$true;started=$true;acted=$true;finished=$true;result='Success';ignoreCooldown=$false;commandType='Standard';timeSinceStart=2.0}
   hostileAttackTerminal=$null
   events=@([pscustomobject]@{kind='action-after';identity=$shellIdentity;actor=$Rider;shell=[pscustomobject]@{ignoreCooldown=$false;timeSinceStart=2.0}},[pscustomobject]@{kind='cast-after';actor=$Rider;ability=[pscustomobject]@{blueprint=$Clw};process=20;spellFailed=$false;arcaneFailed=$false},[pscustomobject]@{kind='item-spend-before';identity=60;actor=$Rider;charges=1;count=$before.items[1].count},[pscustomobject]@{kind='item-spend-after';identity=60;actor=$Rider;charges=1;count=$after.items[1].count;result=$true})
-  costEvents=@([pscustomobject]@{boundary='cost-before';command=$cost;actionType='Standard';state=$before.rider},[pscustomobject]@{boundary='cost-after';command=$cost;actionType='Standard';state=$after.rider})}
+  costEvents=@((New-CostEvent 'cost-before' $cost 'Standard' $before.rider $turn),(New-CostEvent 'cost-after' $cost 'Standard' $after.rider $turn))}
 }
 # Frozen 203: the product admits the mounted rider's ranged click as its RiderRanged pair command.
 function New-RangedStep([int]$index,$before,$after){
  $admitted=[pscustomobject]@{identity=77;costIdentity=770;type='MountedPairAttackCommand';executor=$Rider;createdByPlayer=$true;started=$false;acted=$false;finished=$false;result='None';ignoreCooldown=$false;commandType='Standard';timeSinceStart=0.0}
  $terminal=[pscustomobject]@{identity=77;costIdentity=770;type='MountedPairAttackCommand';executor=$Rider;createdByPlayer=$true;started=$true;acted=$true;finished=$true;result='Success';ignoreCooldown=$false;commandType='Standard';timeSinceStart=1.5}
  [pscustomobject]@{index=$index;kind='attack-ranged';frame=300;before=$before;weapon=[pscustomobject]@{blueprint='sling';ranged=$true};fullAttackMode=$false;ignoreClick=$false;cursorCycles=0;clicked=$true;inputCount=1;admitted=$admitted;rejectionCodes=@();rejectionFeedback='Mounted pair command accepted: RiderRanged.';afterInput=$before;after=$after;terminal=$terminal;hostileAttackTerminal=$null;events=@()
-  costEvents=@([pscustomobject]@{boundary='cost-before';command=770;actionType='Standard';state=$before.rider},[pscustomobject]@{boundary='cost-after';command=770;actionType='Standard';state=$after.rider})}
+  costEvents=@((New-CostEvent 'cost-before' 770 'Standard' $before.rider),(New-CostEvent 'cost-after' 770 'Standard' $after.rider))}
 }
 # Rows with native-shaped numbers: TB additive debt (short leg .7, long leg 2.3), RT absolute debt.
+# Frozen 205 TB double-move-ranged: the retained-Standard scroll cast follows the rider's next native turn,
+# so its boundaries carry a later turn identity; every other step shares the row's turn.
 function New-StagedRow([string]$name,[bool]$tb){
+ $script:costTurnBased=$tb
  $steps=@();$scrollCount=10;$standard=0.0;$move=0.0;$x=0.0;$usedTwo=$false;$hasMove=$true
  function S([double]$st,[double]$mv,[double]$px,[bool]$hm,[bool]$u2,[int]$sc){New-StagedState $st $mv $px $hm $u2 $sc $Rider}
  $before=S $standard $move $x $hasMove $usedTwo $scrollCount
@@ -51,7 +64,7 @@ function New-StagedRow([string]$name,[bool]$tb){
  for($i=0;$i-lt$plan.Count;$i++){
   $kind=$plan[$i]
   switch -CaseSensitive($kind){
-   'cast-standard-scroll' { $b=S $standard $move $x $hasMove $usedTwo $scrollCount; $standard=if($tb){$standard+6.0}else{4.0}; $scrollCount--; $a=S $standard $move $x $hasMove $usedTwo $scrollCount; $steps+=New-CastStep $i $b $a $tb }
+   'cast-standard-scroll' { $b=S $standard $move $x $hasMove $usedTwo $scrollCount; $standard=if($tb){$standard+6.0}else{4.0}; $scrollCount--; $a=S $standard $move $x $hasMove $usedTwo $scrollCount; $castTurn=$(if($tb-and$name-ceq'C6D-double-move-ranged'){2}else{1}); $steps+=New-CastStep $i $b $a $tb $castTurn }
    'attack-ranged' { $b=S $standard $move $x $hasMove $usedTwo $scrollCount; $standard=if($tb){$standard+6.0}else{5.25}; $a=S $standard $move $x $hasMove $usedTwo $scrollCount; $steps+=New-RangedStep $i $b $a; if($tb){$standard=0.0} }
    default {
     $legs=@();$legCount=switch -CaseSensitive($kind){'move-two-moves'{if($tb){2}else{2}} 'move-exhaust'{if($tb){3}else{2}} default{1}}
@@ -85,12 +98,45 @@ $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[0].legs[0].after.m
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[2].legs[0].after.mount.move=3.5;$r.evidence.after.mount.move=3.5;Reject $r 'two short legs exceeding one Move are refused'
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[0].legs[0].after.mountPosition.x=0.0;Reject $r 'an admitted leg that did not displace the mount is refused'
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[0].legs[0].carrier.createdByPlayer=$false;Reject $r 'a non-player carrier is refused'
-$r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.costEvents=@([pscustomobject]@{boundary='prepare-before';command=0;state=$r.evidence.before.mount});Reject $r 'pair preparation replay inside the row is refused'
+$r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.costEvents=@($r.evidence.costEvents)+@([pscustomobject]@{sequence=$script:costSequence+1;boundary='prepare-before';command=0;turn=1;round=1;turnStatus='Acting';currentActor=$Rider;state=$r.evidence.before.mount});Reject $r 'pair preparation replay inside the row is refused'
 # Frozen 204 TB double-move-ranged: the retained-Standard cast after the ranged attack waits for the rider's next
 # native turn; that turn's single pair preparation per actor is native, a further one is still a replay.
-function New-NextTurnPreparation([string]$actor,[int]$turn){@(@('prepare-before','clear-before','clear-after','prepare-after')|ForEach-Object {[pscustomobject]@{boundary=$_;command=0;turn=$turn;state=[pscustomobject]@{actor=$actor}}})}
+function New-NextTurnPreparation([string]$actor,[int]$turn,[long]$startSequence=0){
+ # Native trace sequences are integers; a block of four boundaries follows the given start (or the counter).
+ $k=0
+ $events=@(@('prepare-before','clear-before','clear-after','prepare-after')|ForEach-Object {
+  $k++;$seq=$(if($startSequence-gt0){$startSequence+$k}else{$script:costSequence+$k})
+  [pscustomobject]@{sequence=$seq;boundary=$_;command=0;turn=$turn;round=2;turnStatus='Preparing';currentActor=$actor;state=[pscustomobject]@{actor=$actor}}})
+ if($startSequence-le0){$script:costSequence+=4}
+ $events
+}
 $r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.costEvents=@($r.evidence.costEvents)+(New-NextTurnPreparation $Rider 77)+(New-NextTurnPreparation $Mount 77);Accept $r $true;Check $true 'turn-based row spanning into the rider''s next native turn accepts that turn''s single pair preparation'
 $r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.costEvents=@($r.evidence.costEvents)+(New-NextTurnPreparation $Rider 77)+(New-NextTurnPreparation $Rider 77);Reject $r 'a further pair preparation inside the next native turn is still a replay'
+# Same activation (owner closeout): the mount's Moves and the rider's ranged attack must share one native
+# turn with no turn transition between them; an otherwise valid sequence that crosses into a refreshed
+# turn before the attack never qualifies the retained-Standard claim. The later cast is a separate control.
+# Later steps are shifted by 100 trace sequences so integer boundaries can be traced in the gap before them.
+function Set-StepTurn($row,[int]$step,[int]$turn){foreach($c in @($row.evidence.steps[$step].costEvents)){$c.turn=$turn;$c.sequence=[long]$c.sequence+100}}
+function Get-StepLast($row,[int]$step){[long]((@($row.evidence.steps[$step].costEvents)|ForEach-Object {[long]$_.sequence}|Measure-Object -Maximum).Maximum)}
+function Add-GapPreparation($row,[int]$afterStep,[string]$actor,[int]$turn){
+ $last=Get-StepLast $row $afterStep
+ $gap=@(@($row.evidence.costEvents)|Where-Object {[long]$_.sequence-gt$last-and[long]$_.sequence-lt$last+50}|ForEach-Object {[long]$_.sequence})
+ if($gap.Count-gt0){$last=($gap|Measure-Object -Maximum).Maximum}
+ $row.evidence.costEvents=@($row.evidence.costEvents)+(New-NextTurnPreparation $actor $turn $last)
+}
+$r=New-StagedRow 'C6D-double-move-ranged' $true;Set-StepTurn $r 1 2;Set-StepTurn $r 2 2;Add-GapPreparation $r 0 $Rider 2;Add-GapPreparation $r 0 $Mount 2;Reject $r 'a ranged attack issued on a refreshed native turn after the two Moves does not qualify the retained-Standard claim'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;Set-StepTurn $r 1 2;Set-StepTurn $r 2 2;Reject $r 'a ranged attack whose boundaries carry another turn identity than the Moves is refused even without traced preparation'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;Set-StepTurn $r 1 1;Set-StepTurn $r 2 1;$last=Get-StepLast $r 0;$r.evidence.costEvents=@($r.evidence.costEvents)+@([pscustomobject]@{sequence=$last+1;boundary='turn-end-before';command=0;turn=1;round=1;turnStatus='Ending';currentActor=$Rider;state=$r.evidence.before.rider},[pscustomobject]@{sequence=$last+2;boundary='turn-end-after';command=0;turn=1;round=1;turnStatus='Ended';currentActor=$Rider;state=$r.evidence.before.rider});Reject $r 'a traced turn end between the Moves and the ranged attack is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].before.rider.standard=6.0;$r.evidence.steps[1].before.riderHasStandard=$false;Reject $r 'a ranged attack without the rider''s Standard available immediately before it is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].before.mountUsedTwoMove=$false;$r.evidence.steps[1].before.mount.move=2.0;Reject $r 'a ranged attack that did not follow the mount''s two Moves inside the activation is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $false;Set-StepTurn $r 1 0;Set-StepTurn $r 2 0;$last=Get-StepLast $r 0;$r.evidence.costEvents=@($r.evidence.costEvents)+@([pscustomobject]@{sequence=$last+1;boundary='round-state-before';command=0;turn=0;round=0;turnStatus=$null;currentActor=$null;state=$r.evidence.before.rider},[pscustomobject]@{sequence=$last+2;boundary='round-state-after';command=0;turn=0;round=0;turnStatus=$null;currentActor=$null;state=$r.evidence.before.rider});Reject $r 'a real-time round refresh between the Moves and the ranged attack is refused' $false
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.rowTurnActor=$Mount;Reject $r 'a turn-based row that did not open on the rider''s turn is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;foreach($c in @($r.evidence.steps[1].costEvents)){$c.currentActor=$Mount};Reject $r 'ranged attack boundaries traced on another actor''s turn are refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;Set-StepTurn $r 2 3;Add-GapPreparation $r 1 $Rider 3;Add-GapPreparation $r 1 $Mount 3;Accept $r $true;Check $true 'the later scroll cast on a refreshed turn is a separate control and does not disqualify the same-activation Moves and attack'
+$r=New-StagedRow 'C6D-move-cast-move' $true;Set-StepTurn $r 2 2;Add-GapPreparation $r 1 $Rider 2;Add-GapPreparation $r 1 $Mount 2;Reject $r 'a second leg issued on a refreshed native turn does not continue the same activation'
+$r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[2].legs[0].before.mountUsedOneMove=$false;$r.evidence.steps[2].legs[0].before.mount.move=0.0;$r.evidence.steps[2].legs[0].before.mount.remainingNativeTime=6.0;Reject $r 'a second leg starting from a refreshed mount allocation is refused'
+$r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[2].legs[0].after.mount.remainingNativeTime=$r.evidence.steps[2].legs[0].before.mount.remainingNativeTime;Reject $r 'a second leg that consumed none of the retained native movement time is refused'
+$r=New-StagedRow 'C6D-move-cast-move' $true;foreach($c in @($r.evidence.steps[0].costEvents)){$c.PSObject.Properties.Remove('sequence')};Reject $r 'cost boundaries without their native trace sequence are refused'
 # Cast ownership.
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[1].after.mount.standard=6.0;Reject $r 'mount Standard charged for the rider cast is refused'
 $r=New-StagedRow 'C6D-move-cast-move' $true;$r.evidence.steps[1].ability.sourceItem=59;Reject $r 'scroll cast from another entity is refused'
@@ -107,7 +153,7 @@ $r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].terminal.fi
 $r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].costEvents=@();Reject $r 'a ranged pair command without its single native Standard charge is refused'
 $r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[1].costEvents+=[pscustomobject]@{boundary='cost-after';command=770;actionType='Standard';state=$r.evidence.steps[1].after.mount};Reject $r 'a mount charged for the rider ranged attack is refused'
 $r=New-StagedRow 'C6D-double-move-ranged' $false;$r.evidence.steps[1].costEvents[1].state=(Copy-Staged $r.evidence.steps[1].before.rider);Reject $r 'a real-time ranged pair command without a Standard charge is refused' $false
-$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[2].before.rider.standard=6.0;$r.evidence.steps[2].before.riderHasStandard=$false;Reject $r 'rider Standard lost after the two Moves is refused'
+$r=New-StagedRow 'C6D-double-move-ranged' $true;$r.evidence.steps[2].before.rider.standard=6.0;$r.evidence.steps[2].before.riderHasStandard=$false;Reject $r 'a later scroll cast whose cost pair does not carry the native additive Standard debt is still refused as a cast'
 $r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[1].legs[0].before.mount.move=4.0;Reject $r 'probe that did not start from the spent native move budget is refused'
 $r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[1].legs[0].after.mountPosition.x+=2.0;Reject $r 'exhausted mount that still moved is refused'
 $r=New-StagedRow 'C6D-movement-exhausted' $true;$r.evidence.steps[0].legs[-1].after.mount.move=4.0;Reject $r 'exhaust step that left native move budget is refused'

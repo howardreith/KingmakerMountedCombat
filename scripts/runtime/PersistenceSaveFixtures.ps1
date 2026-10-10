@@ -501,6 +501,12 @@ function Assert-KmcPersistenceScenarioEvidence {
         Assert-KmcChunk6aFoundationPersistenceEvidence $Request $rows $GameResult
         return
     }
+    # The Chunk 6 closeout checkpoints (routes, unsettled save, combat area reload, pending-approach area
+    # reload) have their own complete external reader (one acceptance authority).
+    if($hasCase-and$Request.scenario-ceq'persistence-p04-save'-and(Test-KmcChunk6aClosureCase ([string]$Request.persistenceCase))){
+        Assert-KmcChunk6aClosurePersistenceEvidence $Request $rows $GameResult
+        return
+    }
     if($rows.Count-lt$(if($deathCold-or$eligibilityCold){2}elseif($absentKmc-or$campaignBCold){4}else{6})-or$rows.Count-gt20){throw 'Persistence observation count is invalid.'}
     if($Request.scenario-ceq'persistence-p06-load'){
         Assert-KmcValidationPersistenceEvidence $Request $rows $GameResult

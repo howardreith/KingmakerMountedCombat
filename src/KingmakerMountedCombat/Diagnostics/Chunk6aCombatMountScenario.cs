@@ -38,6 +38,8 @@ namespace KingmakerMountedCombat.Diagnostics
             IsChunk6aAutoUseScenario(scenario) || IsChunk6aDismountEscapeScenario(scenario) || IsChunk6aMountOrderScenario(scenario) ||
             IsChunk6aActionEconomyScenario(scenario) ||
             IsChunk6aRefusedScenario(scenario) ||
+            IsChunk6aInvalidationScenario(scenario) ||
+            IsChunk6aTurnBoundaryScenario(scenario) ||
             string.Equals(scenario, Chunk6aCombatMountRealTimeScenario, StringComparison.Ordinal) ||
             string.Equals(scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             Chunk6aMammothScenarioEngine.IsCombatMountScenario(scenario) ||
@@ -61,7 +63,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool IsChunk6aCombatMount => IsChunk6aCombatMountScenario(request.Scenario);
 
-        private bool Chunk6aTurnBased => Chunk6aMountOrderOnly || Chunk6aActionEconomyOnly ||
+        private bool Chunk6aTurnBased => Chunk6aMountOrderOnly || Chunk6aActionEconomyOnly || Chunk6aTurnEndOnly || Chunk6aModeExitOnly ||
             request.Scenario == Chunk6aMammothScenarioEngine.TurnBasedScenario ||
             string.Equals(request.Scenario, Chunk6aCombatMountTurnBasedScenario, StringComparison.Ordinal) ||
             string.Equals(request.Scenario, Chunk6aCompensationTurnBasedScenario, StringComparison.Ordinal);
@@ -739,7 +741,7 @@ namespace KingmakerMountedCombat.Diagnostics
                     "Starting and cancelling exact native combat Mount target selection performed no transition and charged nothing.",
                     new JObject { ["before"] = chunk6aCancelBefore, ["after"] = cancelAfter });
 
-                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aCombatEndOnly ? 70 : Chunk6aDisableOnly ? 70 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : Chunk6aRiderExhaustOnly ? 50 : 13;
+                chunk6aStage = Chunk6aAutoUseOnly && !Chunk6aAutoUseDismount ? 31 : Chunk6aCompensationOnly ? 11 : Chunk6aRefusedOnly ? 24 : Chunk6aStopOnly ? 22 : Chunk6aCombatEndOnly ? 70 : Chunk6aDisableOnly ? 70 : Chunk6aReplacementOnly ? 34 : Chunk6aRepeatedRequestOnly ? 45 : Chunk6aOwnershipOnly ? 36 : Chunk6aSizeFormOnly ? 38 : Chunk6aLostDirectControlOnly ? 40 : Chunk6aPendingIncapacityOnly ? 43 : Chunk6aInvalidationOnly ? 51 : Chunk6aGeometryOnly ? 16 : Chunk6aObstructionOnly ? 18 : Chunk6aRiderExhaustOnly ? 50 : 13;
                 ResetLeafClock();
                 return;
             }
@@ -922,6 +924,8 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aStage == 38 || chunk6aStage == 39) { TickChunk6aSizeFormChange(); return; }
             if (chunk6aStage >= 40 && chunk6aStage <= 42) { TickChunk6aLostDirectControl(); return; }
             if (chunk6aStage == 43 || chunk6aStage == 44) { TickChunk6aPendingIncapacity(); return; }
+            if (chunk6aStage == 51 || chunk6aStage == 52) { TickChunk6aApproachInvalidation(); return; }
+            if (chunk6aStage == 57) { TickChunk6aModeExit(); return; }
             if (chunk6aStage == 22 || chunk6aStage == 23) { TickChunk6aStopApproach(); return; }
             if (chunk6aStage >= 70 && chunk6aStage <= 74) { TickChunk6aLifecycleBoundary(); return; }
             if (chunk6aStage == 16 || chunk6aStage == 17)
@@ -1029,6 +1033,9 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk6aStage == 2)
             {
                 if (TickChunk6aPausedHold()) return;
+                // CM04-turn-end: the one native End Turn input during the exact measured approach, then this stage
+                // only awaits the pending shell's own retirement; nothing below may claim a positive Mount.
+                if (Chunk6aTurnEndOnly) { TickChunk6aTurnEndApproach(turn); return; }
                 // Sample the approach while Kingmaker's own command still exists. The
                 // command leaves the Move slot before the relationship transition lands, so
                 // the acted/resource-commitment boundary can only be observed here; keeping
@@ -1231,6 +1238,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (Chunk6aDismountEscapeOnly) { BeginChunk6aDismountEscape(mountProof); return; }
                 if (Chunk6aActionEconomyOnly) { FinishChunk6aActionEconomyMount(mountProof); return; }
                 if (Chunk6aMountOrderOnly) { FinishChunk6aMountOrder(mountProof); return; }
+                if (Chunk6aModeExitOnly) { BeginChunk6aModeExit(mountProof); return; }
                 if (request.Scenario == "chunk6a-combat-mount-tb") allocationTrace.ObserveReactionResources = true;
                 chunk6aStage = 3;
                 ResetLeafClock();

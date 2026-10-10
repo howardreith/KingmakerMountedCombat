@@ -702,6 +702,15 @@ namespace KingmakerMountedCombat.Integration
                     return null;
                 }
             }
+            // Diagnostics-only one-shot seam (CM02-generation-change): null in production; an armed hook may only
+            // advance the relationship generation through its guarded diagnostic invalidation, so the stale-shell
+            // refusal below is the only thing it can reach.
+            var diagnosticInvalidation = MountedRelationshipDeliveryFault.FireBeforeShellGenerationCheck();
+            if (diagnosticInvalidation != null)
+            {
+                RecordShellLifecycle(NativeShellStage.Registered, shell.ControlIdentity, "diagnostic-generation-invalidation",
+                    diagnosticInvalidation);
+            }
             if (shell.GenerationAtInit != relationship.MountedPairGeneration)
             {
                 refusal = "The mounted relationship changed after this transition was requested.";

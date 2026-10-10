@@ -142,6 +142,12 @@ namespace KingmakerMountedCombat.Diagnostics
             request.PersistenceAreaTarget.Area : request.Fixture.Working.Area;
         private bool areaContinuation, areaSuspensionObserved;
         private int areaStage, areaFrames, areaRiderView, areaMountView;
+        // Chunk 6 closeout (CM08-area-restoration): the owned movement override component and the relationship
+        // generation before the reload, so the restored pair can be proved a fresh exact re-attachment rather than
+        // retained stale ownership: the old component is gone, exactly one new one owns the rider, the generation
+        // advanced once through the saved-pair restoration, and both command containers are empty.
+        private int areaRiderOverrideBaseline;
+        private long areaGenerationBaseline;
         private Player areaWorld;
         private string areaGoodHash, areaSourceArea, areaAutosaveHash;
         private SavedNativeActor areaRiderDebt, areaMountDebt;
@@ -303,6 +309,8 @@ namespace KingmakerMountedCombat.Diagnostics
             areaWorld = game.Player;
             Check(IsBoundNativeView(rider) && IsBoundNativeView(mount), "P07-area-baseline-native-views-bound");
             areaRiderView = rider.View.GetInstanceID(); areaMountView = mount.View.GetInstanceID();
+            areaRiderOverrideBaseline = relationship.Runtime.MovementAgent == null ? 0 : relationship.Runtime.MovementAgent.GetInstanceID();
+            areaGenerationBaseline = relationship.MountedPairGeneration;
             areaRiderDebt = MountedPersistenceService.CaptureActor(rider);
             areaMountDebt = MountedPersistenceService.CaptureActor(mount);
             areaGameTicks = game.TimeController.GameTime.Ticks;
@@ -367,7 +375,43 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["mountedInvariant"] = mounted ? relationship.Runtime.ValidateMountedInvariants() : null,
                 ["presentation"] = relationship.CapturePresentationObservation(false),
                 ["riderActor"] = AreaActorDetail(areaRiderDebt, areaRiderView, true),
-                ["mountActor"] = AreaActorDetail(areaMountDebt, areaMountView, false)
+                ["mountActor"] = AreaActorDetail(areaMountDebt, areaMountView, false),
+                ["generation"] = relationship.MountedPairGeneration,
+                ["generationBaseline"] = areaGenerationBaseline,
+                ["movementAuthority"] = AreaMovementAuthorityDetail()
+            };
+        }
+
+        // Component identity, movement authority and commands of the live pair, resolved from the native world
+        // so a failed restoration still records what the engine produced. The owned RiderMovementAgent
+        // components are enumerated on both views; while mounted exactly one must own the rider and be the
+        // relationship's own movement agent, the rider's stock agent must be disabled and the mount's stock
+        // agent authoritative. After the native reload the restored component is a new instance.
+        private JObject AreaMovementAuthorityDetail()
+        {
+            var riderActor = areaRiderDebt == null ? null : Game.Instance.State.Units.SingleOrDefault(u => u.UniqueId == areaRiderDebt.Id);
+            var mountActor = areaMountDebt == null ? null : Game.Instance.State.Units.SingleOrDefault(u => u.UniqueId == areaMountDebt.Id);
+            var riderView = riderActor == null ? null : riderActor.View;
+            var mountView = mountActor == null ? null : mountActor.View;
+            var runtimeAgent = relationship.Runtime.MovementAgent;
+            var riderOverrides = riderView == null ? new int[0] : riderView.GetComponents<RiderMovementAgent>().Select(c => c.GetInstanceID()).ToArray();
+            var mountOverrides = mountView == null ? new int[0] : mountView.GetComponents<RiderMovementAgent>().Select(c => c.GetInstanceID()).ToArray();
+            return new JObject {
+                ["riderOverrideBaseline"] = areaRiderOverrideBaseline,
+                ["riderOverrideComponents"] = new JArray(riderOverrides),
+                ["mountOverrideComponents"] = new JArray(mountOverrides),
+                ["runtimeMovementAgent"] = runtimeAgent == null ? 0 : runtimeAgent.GetInstanceID(),
+                ["riderAgentOverride"] = riderView?.AgentOverride == null ? 0 : riderView.AgentOverride.GetInstanceID(),
+                ["riderOverrideIsRuntimeAgent"] = riderView?.AgentOverride != null && runtimeAgent != null && ReferenceEquals(riderView.AgentOverride, runtimeAgent),
+                ["riderStockAgentPresent"] = riderView?.AgentASP != null,
+                ["riderStockAgentEnabled"] = riderView?.AgentASP != null && riderView.AgentASP.enabled,
+                ["mountStockAgentPresent"] = mountView?.AgentASP != null,
+                ["mountStockAgentEnabled"] = mountView?.AgentASP != null && mountView.AgentASP.enabled,
+                ["mountAgentOverride"] = mountView?.AgentOverride == null ? 0 : mountView.AgentOverride.GetInstanceID(),
+                ["riderCommandsEmpty"] = riderActor == null ? (bool?)null : riderActor.Commands.Empty,
+                ["mountCommandsEmpty"] = mountActor == null ? (bool?)null : mountActor.Commands.Empty,
+                ["riderReallyMoving"] = riderView?.AgentASP?.IsReallyMoving ?? false,
+                ["mountReallyMoving"] = mountView?.AgentASP?.IsReallyMoving ?? false
             };
         }
 

@@ -335,6 +335,9 @@ namespace KingmakerMountedCombat.Integration
             {
                 ClearMountTargetSelection();
                 LastRelationshipDispatchAdmission = admission.ToString();
+                // Diagnostics-only one-shot seam (CM04-injected-exception): null in production; an armed hook can
+                // only throw into the fail-closed path below, after admission and before the transition.
+                MountedRelationshipDeliveryFault.FireBeforeMountExecution();
                 var transition = relationship.MountRiderOn(caster, target, admission);
                 accepted = transition.Succeeded;
                 feedbackState.SetOperationFeedback(relationship.LastResult);

@@ -3,7 +3,9 @@ $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 . (Join-Path $repo 'scripts/runtime/RuntimeHarness.Common.ps1')
 $module=Join-Path $PSScriptRoot 'runtime/RuntimeArtifactManifestEvidence.ps1'
 . $module
-$expected=@{'Assert-KmcManifestJsonMembersUnique'='70a5f9b31c425c82e8c528256fbd7d10a898cb07856f8aeeca727638ca616142';'Test-KmcManifestJsonInteger'='3b5b6bd7fc63440d2e9ac1bc7fa922c5df3d21a064beeb2d748570692a60ab02';'Assert-KmcReadOnlyArtifactManifest'='580d67f5ce0ceff5d3fdc3f21fb0501495bfc9f78c03b0a928afb1bc6972979b'}
+# The duplicate-member guard was rewritten as a streaming XmlDictionaryReader pass (chunk6d-preview.206): the DOM
+# walk ran for an hour on a multi-megabyte failed game result. Same objects, member names and refusal text.
+$expected=@{'Assert-KmcManifestJsonMembersUnique'='fe0ce85c59ef1bd61fcb7055cedd9f1f46c929ab40e26c0bd3fb25daf1e3fbeb';'Test-KmcManifestJsonInteger'='3b5b6bd7fc63440d2e9ac1bc7fa922c5df3d21a064beeb2d748570692a60ab02';'Assert-KmcReadOnlyArtifactManifest'='580d67f5ce0ceff5d3fdc3f21fb0501495bfc9f78c03b0a928afb1bc6972979b'}
 $names=[ordered]@{'Assert-KmcManifestJsonMembersUnique'='Assert-NoDuplicateJsonObjectProperties';'Test-KmcManifestJsonInteger'='Test-ExactJsonInteger';'Assert-KmcReadOnlyArtifactManifest'='Assert-RuntimeArtifactManifest'}
 $errors=$null;$tokens=$null;$ast=[Management.Automation.Language.Parser]::ParseFile($module,[ref]$tokens,[ref]$errors);if($errors.Count-ne0){throw 'Shared module syntax invalid'}
 $checks=0

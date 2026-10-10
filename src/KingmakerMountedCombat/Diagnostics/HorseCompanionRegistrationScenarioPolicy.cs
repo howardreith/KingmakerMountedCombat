@@ -56,6 +56,15 @@ namespace KingmakerMountedCombat.Diagnostics
                 string.Equals(scenario, "chunk6a-hotbar-approach", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-obstruction", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-geometry-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-left-area", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-view-agent-lost", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-loading-cutscene", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-generation-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-injected-exception", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-rider-death-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-death-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-turn-end-approach-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mode-exit-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-adoption-compensation-rt", StringComparison.Ordinal) ||
                 string.Equals(scenario, "chunk6a-adoption-compensation-tb", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||

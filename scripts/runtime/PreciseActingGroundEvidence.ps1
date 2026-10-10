@@ -23,4 +23,18 @@ function Assert-KmcPreciseActingGroundInput {
     foreach($axis in @('x','y','z')){
         Need-Precise ([Math]::Abs((Number-Precise $i.targetPoint.$axis)-(Number-Precise $Setup.destination.$axis))-le0.000001) ('native command destination differs: '+$axis)
     }
+    # Closeout candidates carry the order's own route (set_ForcedPath 0600279B): turn-based UnitCommand.TickApproaching
+    # otherwise follows PathVisualizer.CurrentPathForUnit, and frozen 205 stage 35 followed a stale preview toward the
+    # mount. The route must start at the rider and end exactly at the ordered point; the stale preview is recorded.
+    if($null-ne$i.PSObject.Properties['forcedPath']){
+        $f=$i.forcedPath
+        Need-Precise ($null-ne$f-and$f.contract-ceq'forced-path-along-the-verified-straight-route'-and$f.setterToken-ceq'0600279B'-and$f.approachingToken-ceq'060027A6'-and$f.visualizerToken-ceq'0600700F') 'forced route contract differs'
+        $points=@($f.points)
+        Need-Precise ($points.Count-eq2) 'forced route is not the one straight segment'
+        Need-Precise ((Number-Precise $f.startResidual)-le0.000001-and(Number-Precise $f.endResidual)-le0.000001) 'forced route does not join the rider to the ordered point'
+        foreach($axis in @('x','y','z')){
+            Need-Precise ([Math]::Abs((Number-Precise $points[1].$axis)-(Number-Precise $Setup.destination.$axis))-le0.000001) ('forced route end differs: '+$axis)
+        }
+        Need-Precise ($null-ne$i.PSObject.Properties['staleVisualizerPath']-and$null-ne$i.staleVisualizerPath-and$i.staleVisualizerPath.present-is[bool]) 'stale preview observation absent'
+    }
 }

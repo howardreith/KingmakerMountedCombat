@@ -26,7 +26,8 @@ namespace KingmakerMountedCombat.Diagnostics
     internal sealed partial class RuntimePersistenceScenario
     {
         private const int FoundationSettleFrames = 10;
-        private bool RealtimeCombatMount => RealtimeCase && Checkpoint == "combat-mount-rt";
+        // The Chunk 6 closeout checkpoints ride the same combat Mount click flow (RuntimePersistenceClosureScenario).
+        private bool RealtimeCombatMount => RealtimeCase && (Checkpoint == "combat-mount-rt" || RealtimeClosure);
         private bool RealtimeCombatDismount => RealtimeCase && Checkpoint == "combat-dismount-rt";
         private bool RealtimeFoundation => RealtimeCombatMount || RealtimeCombatDismount;
         private bool FoundationCombatMount => CombatCase && Checkpoint == "combat-mount-tb";
@@ -222,6 +223,8 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["actual"] = RealtimeObservation()
             });
             Check((bool)click["clicked"], "RT-foundation-native-click-admitted");
+            if (ClosureUnsettled) { BeginClosureUnsettledSave(); return; }
+            if (ClosurePendingArea) { stage = 83; return; }
             stage = 41;
         }
 
@@ -242,6 +245,7 @@ namespace KingmakerMountedCombat.Diagnostics
             observation["before"] = foundationBefore;
             observation["debt"] = FoundationActorDebt();
             Write(RealtimeCombatMount ? "rt-combat-mount-settled" : "rt-combat-dismount-settled", observation);
+            if (ClosureRoutes) { stage = 82; return; }
             RequestRealtimeSave();
         }
 
