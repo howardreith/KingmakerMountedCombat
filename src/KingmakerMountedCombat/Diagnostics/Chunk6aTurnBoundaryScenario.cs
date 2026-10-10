@@ -208,7 +208,9 @@ namespace KingmakerMountedCombat.Diagnostics
             foreach (var item in chunk6aTurnEndLedgerBefore.Properties())
                 ledgerDelta[item.Name] = (long)ledgerNow[item.Name] - (long)item.Value;
             var noResidue = !playerAction.HasVoluntaryTransitionInFlight && rider.Commands.Empty && horse.Commands.Empty &&
-                nativeControls.NativeRelationshipShellCount == chunk6aTurnEndShellsBefore + 1 &&
+                // The baseline is captured after the click (the 'before' state is "after-click"), so the exact pending shell is
+                // already registered: no further shell may appear through the turn end.
+                nativeControls.NativeRelationshipShellCount == chunk6aTurnEndShellsBefore &&
                 relationship.State == RelationshipState.Unmounted && relationship.Rider == null && relationship.Mount == null &&
                 combat.PairedActivationIdentity == null && combat.PairedPartnerContext == null;
             chunk6aTurnEndEvidence["commandWindow"] = proof;
@@ -225,6 +227,7 @@ namespace KingmakerMountedCombat.Diagnostics
             chunk6aTurnEndEvidence["dispatchAcceptedDelta"] = nativeControls.DispatchAcceptedCount - chunk6aTurnEndDispatchesBefore;
             chunk6aTurnEndEvidence["dispatchRejectedDelta"] = nativeControls.DispatchRejectedCount - chunk6aTurnEndRejectionsBefore;
             chunk6aTurnEndEvidence["relationshipShellsDelta"] = nativeControls.NativeRelationshipShellCount - chunk6aTurnEndShellsBefore;
+            chunk6aTurnEndEvidence["shellBaseline"] = "after-click";
             chunk6aTurnEndEvidence["roundDelta"] = controller.RoundNumber - chunk6aTurnEndRound;
             chunk6aTurnEndEvidence["noResidue"] = noResidue;
             chunk6aTurnEndEvidence["outcome"] = relationship.State == RelationshipState.Mounted ? "delivered" :

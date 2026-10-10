@@ -171,7 +171,8 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             foundationSettled = 0;
             Write("rt-foundation-combat-ready", RealtimeObservation());
-            stage = 40;
+            // The two closure cases that observe the pending approach first move the rider outside the approach radius.
+            stage = RealtimeClosure && (ClosureUnsettled || ClosurePendingArea) ? 38 : 40;
         }
 
         // The native Mount/Dismount availability lawfully requires the exact single rider selection (the

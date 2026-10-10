@@ -270,7 +270,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             if (!command.IsFinished || !Chunk6aIdle) { chunk6aInvalidationSettled = 0; return; }
-            if (Chunk6aInvalidationDeath && !Chunk6aInvalidationDeathSubject.Descriptor.State.IsDead) { chunk6aInvalidationSettled = 0; return; }
+            // The death guard waits for the native life state only until the fixture's own resurrection has been issued;
+            // afterwards the restoration is re-evaluated every frame until UnitLifeController.TickOnUnit (06009162) has
+            // recomputed Conscious: Resurrect (06001F13) clears FinallyDead, the damage and the conditions but never sets
+            // LifeState itself (preview.207 stages 6/7 evaluated the restoration in the resurrection frame and never re-entered).
+            if (Chunk6aInvalidationDeath && !chunk6aInvalidationResurrected && !Chunk6aInvalidationDeathSubject.Descriptor.State.IsDead) { chunk6aInvalidationSettled = 0; return; }
             if (chunk6aInvalidationTerminalFrame < 0)
             {
                 chunk6aInvalidationTerminalFrame = Time.frameCount;
@@ -410,8 +414,8 @@ namespace KingmakerMountedCombat.Diagnostics
             return stimulus;
         }
 
-        // Restores only what this case changed and only through the same native or owned path, once. Death is
-        // not restored in-process (externalRestorationRequired: the next stage reloads the exact fixture).
+        // Restores only what this case changed and only through the same native or owned path, once; a dead subject is
+        // restored in-process through the engine's own resurrection entry after its death was recorded.
         private bool RestoreChunk6aInvalidationStimulus(bool cleanup)
         {
             var game = Game.Instance;

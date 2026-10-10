@@ -202,6 +202,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (stage == 31) { AdvanceCastingContinuation(); return; }
             if (stage == 21) { AdvanceApproachRequest(); return; }
             if (stage == 22) { AdvanceApproachContinuation(); return; }
+            if (stage == 38) { AdvanceClosureApproachPositioning(); return; }
             if (stage == 40) { AdvanceFoundationTransitionRequest(); return; }
             if (stage == 41) { AdvanceFoundationTransitionSettle(); return; }
             if (stage == 20)

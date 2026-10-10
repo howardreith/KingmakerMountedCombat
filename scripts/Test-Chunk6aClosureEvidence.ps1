@@ -189,11 +189,26 @@ Reject 'death acted cast admitted' { Assert-KmcChunk6aApproachInvalidation 'chun
 # ---------------------------------------------------------------------------------------------
 function New-TurnEndArtifact([scriptblock]$Mutate=$null){
  $pending=Cmd 777 $false $false $false 'None'
- $c=@{contract='native-end-turn-during-exact-turn-based-mount-approach';boundary='turn-end';start=@{boundary='positive-pre-click';isAdjacent=$false};before=(Tb 'after-click' @{command=$pending});samples=@();endInputCount=1;trigger=(Trigger $null);beforeEndInput=(Tb 'before-end-input' @{command=$pending});endInput=@{method='TurnBased.Controllers.TurnController.ForceToEnd';token='06000C47';argument=$true;uiCallers=@('06005D30','06003E87');admission='TurnBased.Controllers.TurnController.CanEndTurn';admissionToken='06000C4A';moduleMvid='m';count=1;frame=130;gameTicks=1300};afterEndInput=(Tb 'after-end-input' @{command=$pending});terminal=(Tb 'terminal' @{turnObject=5002;turnActor=$targetId;command=(Cmd 777 $false $false $true 'Interrupt')});terminalCommand=(Cmd 777 $false $false $true 'Interrupt');commandWindow=$null;after=(Tb 'after' @{turnObject=5002;turnActor=$targetId;command=(Cmd 777 $false $false $true 'Interrupt')});allocationEvents=@();allocationTraceComplete=$true;observerHooks=@();interrupts=@();pairCostCallbacks=0;pairPrepareCallbacks=0;ledgerDelta=(Ledger 0 0 0 0 0);generationDelta=0;dispatchAcceptedDelta=0;dispatchRejectedDelta=0;relationshipShellsDelta=1;roundDelta=0;noResidue=$true;outcome='unacted-Interrupt';settledFrames=10;feedback=$null;lastShellRefusal=$null}
+ $c=@{contract='native-end-turn-during-exact-turn-based-mount-approach';boundary='turn-end';start=@{boundary='positive-pre-click';isAdjacent=$false};before=(Tb 'after-click' @{command=$pending});samples=@();endInputCount=1;trigger=(Trigger $null);beforeEndInput=(Tb 'before-end-input' @{command=$pending});endInput=@{method='TurnBased.Controllers.TurnController.ForceToEnd';token='06000C47';argument=$true;uiCallers=@('06005D30','06003E87');admission='TurnBased.Controllers.TurnController.CanEndTurn';admissionToken='06000C4A';moduleMvid='m';count=1;frame=130;gameTicks=1300};afterEndInput=(Tb 'after-end-input' @{command=$pending});terminal=(Tb 'terminal' @{turnObject=5002;turnActor=$targetId;command=(Cmd 777 $false $false $true 'Interrupt')});terminalCommand=(Cmd 777 $false $false $true 'Interrupt');commandWindow=$null;after=(Tb 'after' @{turnObject=5002;turnActor=$targetId;command=(Cmd 777 $false $false $true 'Interrupt')});allocationEvents=@();allocationTraceComplete=$true;observerHooks=@();interrupts=@();pairCostCallbacks=0;pairPrepareCallbacks=0;ledgerDelta=(Ledger 0 0 0 0 0);generationDelta=0;dispatchAcceptedDelta=0;dispatchRejectedDelta=0;relationshipShellsDelta=0;shellBaseline='after-click';roundDelta=0;noResidue=$true;outcome='unacted-Interrupt';settledFrames=10;feedback=$null;lastShellRefusal=$null}
  if($null-ne$Mutate){ & $Mutate $c }
  J @{schemaVersion=30;observations=@{chunk6aTurnEndApproach=$c};rows=@(@{name='CM04-turn-end';status='PASS';evidence=$c})}
 }
+# The engine's turn-end bookkeeping shape: the shell the product interrupted at the End Turn reads acted/Success one frame
+# later (ForceFinishForTurnBased), never started; the product's own interruption record names the exact shell at the End Turn frame.
+function Set-TurnEndForfeit($c){
+ $acted=Cmd 777 $false $true $true 'Success'
+ $c.terminalCommand=$acted;$c.terminal.command=$acted;$c.after.command=$acted;$c.outcome='acted-not-mounted'
+ $c.interrupts=@(@{boundary='command-interrupt-before';command=777;frame=130;sequence=415})
+}
 Accept 'turn end accepted' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact) }
+Accept 'turn end native forfeit bookkeeping' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c }) }
+Reject 'turn end acted without the product interruption' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.interrupts=@() }) }
+Reject 'turn end acted with an interrupted result' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.terminalCommand.result='Interrupt' }) }
+Reject 'turn end acted after starting' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.terminalCommand.started=$true }) }
+Reject 'turn end interruption at another frame' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.interrupts[0].frame=131 }) }
+Reject 'turn end interruption of another shell' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.interrupts[0].command=778 }) }
+Reject 'turn end acted with an unacted outcome label' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) Set-TurnEndForfeit $c;$c.outcome='unacted-Interrupt' }) }
+Reject 'turn end registered another shell' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) $c.relationshipShellsDelta=1 }) }
 Accept 'turn end with one round rollover' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) $c.roundDelta=1 }) }
 Reject 'turn end turn unchanged' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) $c.terminal.turnObject=5001;$c.after.turnObject=5001 }) }
 Reject 'turn end acted terminal' { Assert-KmcChunk6aTurnEnd (New-TurnEndArtifact { param($c) $c.terminalCommand.acted=$true }) }
@@ -241,12 +256,22 @@ Reject 'mode exit residue' { Assert-KmcChunk6aModeExit (New-ModeExitArtifact { p
 function Found([string]$Rel,[int]$Gen,[bool]$InFlight,[int]$Casts,[int]$Accepted,$Counters,$Paired,[int]$Adopt){
  @{relationship=$Rel;generation=$Gen;transitionInFlight=$InFlight;transitionSettlement='';relationshipShells=1;castRequests=$Casts;dispatchAccepted=$Accepted;dispatchRejected=0;transitionCounters=$Counters;pairedIdentity=$Paired;pairedSequence=1;pairedSplit=$false;pairedFinalized=$false;partnerContextActor=$null;adoptionCount=$Adopt;adoptionObservation=$null;initiativeObservation='not-observed';persistenceWorldDiscards=0;lastPersistenceWorldDiscard=$null;riderInCombat=$true;mountInCombat=$true;riderHasMove=$true;riderHasStandard=$true;riderCommandsEmpty=$true;mountCommandsEmpty=$true;riderReallyMoving=$false;mountReallyMoving=$false;riderPosition=@(0.0,0.0,0.0);mountPosition=@(1.0,0.0,0.0);pairDistance=1.0;riderMoveSlot=$null}
 }
+function Rec([string]$Kind,[string]$Identity,$Rider,$Mount,[int]$Gen,$Trigger){ @{kind=$Kind;identity=$Identity;rider=$Rider;mount=$Mount;generation=$Gen;trigger=$Trigger;settled=$true;accepted=$true} }
+# The transition ledger records of the fixture load (one announcement on the unmounted relationship) and, once mounted, the
+# one voluntary Mount.
+function Recs([string]$Rel){ $r=@((Rec 'ForcedDetach' 'cleanup:<none>:<none>:0' $null $null 0 'AreaUnloading')); if($Rel-ceq'Mounted'){ $r+=(Rec 'VoluntaryMount' ('shell:1:mount:'+$riderId) $riderId $mountId 1 $null) }; $r }
+function Pending(){ @{type='UnitUseAbility';abilityGuid=$mountGuid;executor=$riderId;target=$mountId;started=$false;acted=$false;finished=$false;result='None';createdByPlayer=$true} }
 function Clo([string]$Case,[string]$Rel,[hashtable]$Over=@{}){
  $mounted=$Rel-ceq'Mounted'
  $o=Found $Rel $(if($mounted){2}else{1}) $false 1 $(if($mounted){1}else{0}) (Ledger $(if($mounted){1}else{0}) $(if($mounted){1}else{0}) 0 1 1) $(if($mounted){'enc:1'}else{$null}) $(if($mounted){1}else{0})
  foreach($pair in @{case=$Case;frame=100;gameTicks=1000;area=$area;sourceArea=$null;sameWorld=$true;currentMode='Default';loadingInProcess=$false;loadingObserved=$false;loadingFrames=0;suspensions=0;resumes=0;areaRefused=0;areaPending=$false;deferredSaves=0;snapshots=0;failedSaves=0;nativeSaveWaiting=$false;saveSuspended=$false;serializationSuspended=$false;exactFactCount=3;duplicateFactCount=0;managedHotbarSlotCount=2;riderView=11;mountView=22;riderViewBound=$true;mountViewBound=$true;riderOverrideComponents=@();mountOverrideComponents=@();runtimeMovementAgent=0;riderAgentOverride=0;riderStockAgentEnabled=$true;mountStockAgentEnabled=$true;liveRiderCommandsEmpty=$true;liveMountCommandsEmpty=$true;liveRiderInCombat=$true;liveMountInCombat=$true;nativeActorCounts=@{rider=1;mount=1};riderReallyMoving=$false;fixtureReleased=$false;feedback=$null}.GetEnumerator()){ $o[$pair.Key]=$pair.Value }
  if($mounted){ $o['riderOverrideComponents']=@(501);$o['runtimeMovementAgent']=501;$o['riderAgentOverride']=501;$o['riderStockAgentEnabled']=$false }
+ $o['unsettledShellOwned']=$false;$o['pendingShell']=$null;$o['transitionRecords']=@(Recs $Rel)
  foreach($k in $Over.Keys){$o[$k]=$Over[$k]}; $o
+}
+function ApproachRows([string]$Run,[string]$S,[string]$Case){
+ @((Row $Run $S $Case 'closure-approach-positioning' 'Unmounted' @{destination=@(5.0,0.0,4.2);destinationMountDistance=6.5;actual=(Clo $Case 'Unmounted' @{riderReallyMoving=$true})}),
+   (Row $Run $S $Case 'closure-approach-positioned' 'Unmounted' @{mountDistance=6.3;displacement=5.1;actual=(Clo $Case 'Unmounted')}))
 }
 function Snap(){ @{SchemaVersion=2;CampaignId=$gameId;AreaId=$area;GameTimeTicks=1;Policy='rider-principal-distinct-native-v1';RulesId='crpg-transport-v1';Mounted=$true;ProfileId='medium-humanoid-mammoth-v1';Rider=@{Id=$riderId};Mount=@{Id=$mountId};Slots=@();Combat=@{TurnBased=$false}} }
 function Row([string]$RunId,[string]$Scenario,[string]$Case,[string]$Kind,[string]$Rel,$Detail){
@@ -282,10 +307,11 @@ function New-ClosureRows([string]$Case){
    $rows+=(Row $run $s $Case 'routes-complete' 'Mounted' (Clo $Case 'Mounted' @{snapshots=3}))
   }
   'combat-mount-unsettled-save' {
+   $rows=@($rows[0],$rows[1])+(ApproachRows $run $s $Case)+@($rows[2])
    $a=Archive $run 'Manual_300_KMC_P01.zks' ('deferred '+$run)
-   $requested=Clo $Case 'Unmounted' @{transitionInFlight=$true}
+   $requested=Clo $Case 'Unmounted' @{unsettledShellOwned=$true;pendingShell=(Pending);riderReallyMoving=$true}
    $rows+=(Row $run $s $Case 'rt-unsettled-save-requested' 'Unmounted' $requested)
-   $rows+=(Row $run $s $Case 'rt-unsettled-save-deferred' 'Unmounted' (Clo $Case 'Unmounted' @{transitionInFlight=$true;deferredSaves=1;nativeSaveWaiting=$true}))
+   $rows+=(Row $run $s $Case 'rt-unsettled-save-deferred' 'Unmounted' (Clo $Case 'Unmounted' @{unsettledShellOwned=$true;pendingShell=(Pending);riderReallyMoving=$true;deferredSaves=1;nativeSaveWaiting=$true}))
    $rows+=(Row $run $s $Case 'rt-unsettled-save-transition-settled' 'Mounted' (Clo $Case 'Mounted' @{deferredSaves=1}))
    $rows+=(Row $run $s $Case 'native-write-complete' 'Mounted' (WriteDetail $run $a @{actual=(Clo $Case 'Mounted' @{deferredSaves=1;snapshots=1});requested=$requested}))
    $rows+=(Row $run $s $Case 'unsettled-save-complete' 'Mounted' (Clo $Case 'Mounted' @{deferredSaves=1;snapshots=1}))
@@ -298,13 +324,16 @@ function New-ClosureRows([string]$Case){
    $rows+=(Row $run $s $Case 'native-write-complete' 'Mounted' (WriteDetail $run $a @{actual=@{foundation=(Found 'Mounted' 2 $false 1 1 (Ledger 1 1 0 1 1) 'enc:1' 1)}}))
    $requested=Clo $Case 'Mounted' @{snapshots=1}
    $rows+=(Row $run $s $Case 'combat-area-reload-requested' 'Mounted' $requested)
-   $complete=Clo $Case 'Unmounted' @{generation=2;castRequests=1;dispatchAccepted=1;transitionCounters=(Ledger 1 1 0 2 1);snapshots=1;sourceArea=$area;loadingObserved=$true;loadingFrames=5;fixtureReleased=$true;archivePath=$a.path;archiveSha256Before=$a.sha256;archiveSha256After=$a.sha256;baseline=$requested}
+   # The native unload detaches the exact pair once (companion invalidation) and then announces on the detached relationship.
+   $unloadRecords=@(Recs 'Mounted')+@((Rec 'ForcedDetach' ('cleanup:'+$riderId+':'+$mountId+':2') $riderId $mountId 2 'CompanionInvalidated'),(Rec 'ForcedDetach' 'cleanup:<none>:<none>:2' $null $null 2 'AreaUnloading'))
+   $complete=Clo $Case 'Unmounted' @{generation=2;castRequests=1;dispatchAccepted=1;transitionCounters=(Ledger 1 1 0 3 1);transitionRecords=$unloadRecords;snapshots=1;sourceArea=$area;loadingObserved=$true;loadingFrames=5;fixtureReleased=$true;archivePath=$a.path;archiveSha256Before=$a.sha256;archiveSha256After=$a.sha256;baseline=$requested}
    $rows+=(Row $run $s $Case 'combat-area-reload-complete' 'Unmounted' $complete)
   }
   'pending-mount-area' {
-   $observed=Clo $Case 'Unmounted' @{transitionInFlight=$true;riderReallyMoving=$true;riderDisplacement=0.6;shell=@{type='UnitUseAbility';abilityGuid=$mountGuid;executor=$riderId;target=$mountId;started=$false;acted=$false;finished=$false;result='None';createdByPlayer=$true}}
+   $rows=@($rows[0],$rows[1])+(ApproachRows $run $s $Case)+@($rows[2])
+   $observed=Clo $Case 'Unmounted' @{unsettledShellOwned=$true;pendingShell=(Pending);riderReallyMoving=$true;riderDisplacement=0.6;shell=(Pending)}
    $rows+=(Row $run $s $Case 'pending-mount-approach-observed' 'Unmounted' $observed)
-   $requested=Clo $Case 'Unmounted' @{transitionInFlight=$true}
+   $requested=Clo $Case 'Unmounted' @{unsettledShellOwned=$true;pendingShell=(Pending);riderReallyMoving=$true}
    $rows+=(Row $run $s $Case 'pending-mount-area-requested' 'Unmounted' $requested)
    $complete=Clo $Case 'Unmounted' @{transitionCounters=(Ledger 0 0 0 1 2);sourceArea=$area;loadingObserved=$true;loadingFrames=5;fixtureReleased=$true;baseline=$requested}
    $rows+=(Row $run $s $Case 'pending-mount-area-complete' 'Unmounted' $complete)
@@ -320,9 +349,9 @@ function Test-Closure([string]$Case,[scriptblock]$Mutate=$null){
 foreach($case in @(Get-KmcChunk6aClosureCases)){
  Accept ($case+' accepted') { Test-Closure $case }
  Reject ($case+' failure row') { Test-Closure $case { param($r) $r[1].kind='assertion-failed' } }
- Reject ($case+' foreign actor') { Test-Closure $case { param($r) $r[2].mount.Id=$targetId } }
+ Reject ($case+' foreign actor') { Test-Closure $case { param($r) $c=@($r|Where-Object kind -CEQ 'rt-combat-mount-click')[0]; $c.mount.Id=$targetId } }
  Reject ($case+' turn-based row') { Test-Closure $case { param($r) $r[0].native.tbSetting=$true } }
- Reject ($case+' click refused') { Test-Closure $case { param($r) $r[2].detail.click.nativeRefusalDelta=1 } }
+ Reject ($case+' click refused') { Test-Closure $case { param($r) $c=@($r|Where-Object kind -CEQ 'rt-combat-mount-click')[0]; $c.detail.click.nativeRefusalDelta=1 } }
  Reject ($case+' terminal not last') { Test-Closure $case { param($r) $r[-1].kind='rt-foundation-continuation' } }
  Reject ($case+' duplicate control') { Test-Closure $case { param($r) $r[-1].controls.DuplicateFactCount=1 } }
 }
@@ -334,10 +363,18 @@ Reject 'routes dismounted' { Test-Closure 'combat-mount-routes' { param($r) $c=@
 Reject 'routes staged archive differs' { Test-Closure 'combat-mount-routes' { param($r) $c=@($r|Where-Object kind -CEQ 'routes-write-complete'); $c[2].detail.sha256=('0'*64) } }
 Reject 'unsettled save not deferred' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-deferred')[0]; $d.detail.deferredSaves=0;$d.detail.nativeSaveWaiting=$false } }
 Reject 'unsettled save captured early' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-deferred')[0]; $d.detail.snapshots=1 } }
-Reject 'unsettled save requested while settled' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-requested')[0]; $d.detail.transitionInFlight=$false } }
+Reject 'unsettled save requested while settled' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-requested')[0]; $d.detail.unsettledShellOwned=$false } }
+Reject 'unsettled save requested without the pending shell' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-requested')[0]; $d.detail.pendingShell=$null } }
+Reject 'unsettled save without the approach positioning' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'closure-approach-positioned')[0]; $d.detail.mountDistance=1.8 } }
+Reject 'unsettled save clicked while the rider still moved' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'closure-approach-positioned')[0]; $d.detail.actual.riderReallyMoving=$true } }
 Reject 'unsettled save written unmounted' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'native-write-complete')[0]; $d.relationship='Unmounted' } }
-Reject 'area reload without cleanup' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.transitionCounters.forcedDetach=1 } }
-Reject 'area reload cleaned twice' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.transitionCounters.forcedDetach=3 } }
+Reject 'area reload without cleanup' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.transitionCounters.forcedDetach=1;$r[-1].detail.transitionRecords=@($r[-1].detail.transitionRecords|Select-Object -First 2) } }
+Reject 'area reload cleaned twice' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.transitionCounters.forcedDetach=4;$r[-1].detail.transitionRecords=@($r[-1].detail.transitionRecords)+@((Rec 'ForcedDetach' ('cleanup:'+$riderId+':'+$mountId+':3') $riderId $mountId 3 'AreaUnloading')) } }
+Reject 'area reload voluntary transition' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.transitionRecords=@($r[-1].detail.transitionRecords)+@((Rec 'VoluntaryDismount' 'shell:9:dismount:x' $riderId $mountId 2 $null)) } }
+Reject 'area reload announcement on another generation' { Test-Closure 'combat-mount-area-reload' { param($r) $recs=@($r[-1].detail.transitionRecords); $recs[-1].generation=3; $r[-1].detail.transitionRecords=$recs } }
+Reject 'area reload rewrote the ledger' { Test-Closure 'combat-mount-area-reload' { param($r) $recs=@($r[-1].detail.transitionRecords); $recs[0].identity='cleanup:<none>:<none>:9'; $r[-1].detail.transitionRecords=$recs } }
+Reject 'pending approach not positioned' { Test-Closure 'pending-mount-area' { param($r) $d=@($r|Where-Object kind -CEQ 'closure-approach-positioned')[0]; $d.detail.mountDistance=1.8 } }
+Reject 'pending approach observed without the owned shell' { Test-Closure 'pending-mount-area' { param($r) $d=@($r|Where-Object kind -CEQ 'pending-mount-approach-observed')[0]; $d.detail.unsettledShellOwned=$false } }
 Reject 'area reload archive changed' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.archiveSha256After=('1'*64) } }
 Reject 'area reload carried the pair' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.suspensions=1;$r[-1].detail.resumes=1 } }
 Reject 'area reload stale override component' { Test-Closure 'combat-mount-area-reload' { param($r) $r[-1].detail.riderOverrideComponents=@(501);$r[-1].detail.riderAgentOverride=501 } }

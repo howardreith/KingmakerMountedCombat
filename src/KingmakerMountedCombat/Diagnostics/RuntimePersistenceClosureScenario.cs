@@ -5,8 +5,10 @@ using Kingmaker;
 using Kingmaker.EntitySystem.Entities;
 using Kingmaker.EntitySystem.Persistence;
 using Kingmaker.GameModes;
+using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Commands.Base;
+using Kingmaker.Utility;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 using Newtonsoft.Json.Linq;
@@ -36,8 +38,13 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool ClosureAreaReload => Checkpoint == "combat-mount-area-reload";
         private bool ClosurePendingArea => Checkpoint == "pending-mount-area";
         private int closureRouteOrdinal, closureFrames, closureSettled;
-        private bool closureLoadingObserved, closureFixtureReleased, closureClickCaptured;
+        private bool closureLoadingObserved, closureFixtureReleased, closureClickCaptured, closureApproachPositioned;
         private string closureArea, closureArchiveHash, closureArchivePath, closureRiderId, closureMountId;
+        private Vector3 closureApproachOrigin;
+        // The foundation fixture starts the rider about 1.8 m from the mount, inside the 2.85 m Mount approach radius, so the
+        // exact pending shell delivers without any approach; the two cases that observe the pending approach first move the
+        // rider to a walkable point this far from the mount with its own native ground order (preview.207 stages 11 and 13).
+        private const float ClosureApproachMetres = 6.5f;
         private Player closureWorld;
         private Vector3 closureClickPosition;
         private JObject closureBaseline;
@@ -104,6 +111,12 @@ namespace KingmakerMountedCombat.Diagnostics
             observation["riderReallyMoving"] = liveRider?.View?.AgentASP?.IsReallyMoving ?? false;
             observation["fixtureReleased"] = closureFixtureReleased;
             observation["feedback"] = persistence.Feedback;
+            var pendingShell = ClosurePendingShell();
+            observation["pendingShell"] = pendingShell == null ? null : DescribeFoundationCommand(pendingShell);
+            // The product's own save-deferral term for a registered, unfinished Mount shell (the approach included); the
+            // ledger's admit-to-settle window is synchronous inside one call and is never observable from a frame.
+            observation["unsettledShellOwned"] = pendingShell != null && controls.OwnsUnsettledRelationshipShell(pendingShell);
+            observation["transitionRecords"] = ClosureTransitionRecords();
             return observation;
         }
 
@@ -111,6 +124,64 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             var shell = rider?.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
             return shell != null && ReferenceEquals(shell.Spell?.Blueprint, controls.MountAbility) ? shell : null;
+        }
+
+        // Every transition ledger record, so a reader can tell one real forced detach of the exact pair from a later
+        // announcement on the already-detached relationship (the native area unload of a combat pair records both).
+        private JArray ClosureTransitionRecords() => new JArray(controls.RelationshipTransitionLedger.Records.Select(r => new JObject
+        {
+            ["kind"] = r.Kind.ToString(), ["identity"] = r.ControlIdentity, ["rider"] = r.RiderId, ["mount"] = r.MountId,
+            ["generation"] = r.GenerationBefore, ["trigger"] = r.Trigger, ["settled"] = r.Settled, ["accepted"] = r.Accepted
+        }));
+
+        private static JArray ClosurePoint(Vector3 p) => new JArray(p.x, p.y, p.z);
+
+        private Vector3 FindClosureApproachOrigin()
+        {
+            for (var i = 0; i < 16; i++)
+            {
+                var wanted = mount.Position + Quaternion.Euler(0, i * 22.5f, 0) * Vector3.forward * ClosureApproachMetres;
+                var actual = Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(rider.Position, wanted);
+                if (GeometryUtils.MechanicsDistance(actual, wanted) <= 0.25f &&
+                    GeometryUtils.MechanicsDistance(actual, mount.Position) >= ClosureApproachMetres - 0.5f) return actual;
+            }
+            throw new InvalidOperationException("No native walkable point outside the Mount approach radius exists for the closure approach.");
+        }
+
+        // One native ground order (the ClickGroundHandler input a player issues) moves the rider outside the approach
+        // radius; the Mount click follows only after that order has settled, so the shell has a real approach to observe.
+        private void AdvanceClosureApproachPositioning()
+        {
+            var game = Game.Instance;
+            if (!closureApproachPositioned)
+            {
+                if (!rider.Commands.Empty || !mount.Commands.Empty) return;
+                closureApproachOrigin = rider.Position;
+                var destination = FindClosureApproachOrigin();
+                SelectionManager.Instance.SelectUnit(rider.View, true, true, false);
+                game.DefaultPointerController.ClearPointerMode();
+                bool clicked;
+                using (var input = new NativeOrdinaryAttackInput(destination)) clicked = input.Click();
+                Check(clicked, "RT-closure-approach-native-ground-order-admitted");
+                closureApproachPositioned = true;
+                Write("closure-approach-positioning", new JObject
+                {
+                    ["destination"] = ClosurePoint(destination),
+                    ["destinationMountDistance"] = GeometryUtils.MechanicsDistance(destination, mount.Position),
+                    ["actual"] = ClosureObservation()
+                });
+                return;
+            }
+            if (!rider.Commands.Empty || (rider.View?.AgentASP?.IsReallyMoving ?? false)) return;
+            var distance = GeometryUtils.MechanicsDistance(rider.Position, mount.Position);
+            Check(distance >= ClosureApproachMetres - 1.0f, "RT-closure-approach-rider-settled-outside-the-mount-approach-radius");
+            Write("closure-approach-positioned", new JObject
+            {
+                ["mountDistance"] = distance,
+                ["displacement"] = GeometryUtils.MechanicsDistance(closureApproachOrigin, rider.Position),
+                ["actual"] = ClosureObservation()
+            });
+            stage = 40;
         }
 
         // The disposable world references are released only after the boundary has been requested, so the
@@ -128,7 +199,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var game = Game.Instance;
             Check(game.SaveManager.IsSaveAllowed(), "RT-unsettled-native-save-admission-retains-policy");
             var shell = ClosurePendingShell();
-            Check(shell != null && !shell.IsActed && !shell.IsFinished && controls.HasUnsettledRelationshipTransition,
+            // The ledger's admit-to-settle window is synchronous inside one call; the observable unsettled state during the
+            // approach is the product's own deferral term: the rider owns a registered, unfinished Mount shell.
+            Check(shell != null && !shell.IsActed && !shell.IsFinished && controls.OwnsUnsettledRelationshipShell(shell),
                 "RT-unsettled-save-requested-while-the-exact-mount-shell-is-pending");
             closureBaseline = ClosureObservation();
             Write("rt-unsettled-save-requested", ClosureObservation());
@@ -204,8 +277,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
             if (!callback || NativePersistenceIsolation.HasPendingWrites) return;
-            var save = closureRouteDescriptor;
-            if (!save.HasFileOnDisk || save.OperationState != SaveInfo.StateType.None) return;
+            // The native SaveManager lists the written archive under its own SaveInfo; the requested descriptor object is not
+            // updated for a new save (every settled fixture re-queries the manager; preview.207 stage 10 waited on the request).
+            var requested = closureRouteDescriptor;
+            var save = game.SaveManager.FirstOrDefault(s => s.Type == type && s.Name == requested.Name && s.HasFileOnDisk &&
+                s.OperationState == SaveInfo.StateType.None);
+            if (save == null) return;
             var read = NativeMountedSaveStorage.Read(save.Saver);
             Check(read.Kind == MountedSaveReadKind.Current && read.Data.Mounted && read.Data.Combat != null && !read.Data.Combat.TurnBased &&
                 read.Data.Rider.Id == rider.UniqueId && read.Data.Mount.Id == mount.UniqueId &&
@@ -276,7 +353,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("The exact pending Mount shell left its approach before the area reload could be requested.");
             var moved = Vector3.Distance(new Vector3(closureClickPosition.x, 0f, closureClickPosition.z), new Vector3(rider.Position.x, 0f, rider.Position.z));
             if (!(rider.View?.AgentASP?.IsReallyMoving ?? false) || moved <= 0.25f) return;
-            Check(controls.HasUnsettledRelationshipTransition, "RT-pending-mount-approach-observed-before-area-reload");
+            Check(controls.OwnsUnsettledRelationshipShell(shell), "RT-pending-mount-approach-observed-before-area-reload");
             var observed = ClosureObservation();
             observed["riderDisplacement"] = moved;
             observed["shell"] = DescribeFoundationCommand(shell);
