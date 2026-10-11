@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool chunk4SustainedControlSent;
         private UnitMoveTo chunk4SustainedSetupMove;
         private int chunk4SustainedSetupRetries;
+        private readonly JArray chunk4SustainedApproachProbes = new JArray();
         private readonly Dictionary<UnitAttack, JObject> chunk4Routines = new Dictionary<UnitAttack, JObject>();
         private JObject chunk4SustainedEvidence;
         private JArray chunk4SustainedClicks;
@@ -97,9 +98,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 var weapon = rider.GetFirstWeapon();
                 if (weapon == null || weapon.Blueprint.IsRanged != Chunk4SustainedRanged)
                     throw new InvalidOperationException("Sustained fixture does not have the requested native weapon kind.");
-                // Preserve the target service's 3..20 metre spawn guard. A ranged
-                // approach is arranged with a native setup walk after spawning.
-                var distance = Chunk4SustainedApproach ? 9f : 6f;
+                // Preserve the target service's 3..20 metre spawn guard. A ranged approach spawns beyond the rider's own
+                // envelope (longbow 15.24 m plus both corpulences is about 16.84 m), so the pair usually starts outside
+                // native range and the setup walk below is needed only when the engine still reports the target as close;
+                // a melee approach keeps its 9 m spawn because the melee envelope is a fraction of a metre.
+                var distance = Chunk4SustainedApproach ? (Chunk4SustainedRanged ? 18f : 9f) : 6f;
                 BeginTarget(distance, Chunk4SustainedId);
                 ruleProbe.Arm(target, false);
                 chunk4SustainedEvidence = new JObject {
@@ -115,17 +118,21 @@ namespace KingmakerMountedCombat.Diagnostics
             if (chunk4SustainedStage == 1)
             {
                 if (!IsCombatReady(true) || CombatController.IsInTurnBasedCombat()) return;
-                if ((!Chunk4SustainedApproach || Chunk4SustainedRanged) && chunk4SustainedSetupMove == null)
+                // An approach sub-case only needs the pair to stand genuinely outside the rider's native envelope, not at
+                // one fixed cushion beyond it. A walkable point must also be reachable from the mount along the navmesh,
+                // because an unreachable one ends the setup walk short and leaves the native range undistinguished
+                // (preview.208 stage 106). After the earlier sub-cases have drifted the pair, no point at envelope + 3 m
+                // satisfied both in any of the 32 probed directions (preview.210 stage 106, reproduced under a fresh
+                // prefix), so the search now walks outward-to-inward and takes the farthest distance this area offers
+                // while still clearing the envelope by more than the native range tolerance. Every probe is recorded, and
+                // the precondition below still refuses the case if the native range does not actually distinguish it.
+                if ((!Chunk4SustainedApproach || (Chunk4SustainedRanged && Chunk4SustainedApproachWalkRequired())) &&
+                    chunk4SustainedSetupMove == null)
                 {
                     var plan = new UnitAttack(target); plan.Init(rider);
                     var radius = horse.View.Corpulence + target.View.Corpulence + plan.CreateFullAttack().Min(attack => attack.WeaponRange);
-                    // The beyond-range point must also be reachable from the mount along the native navmesh: a walkable but
-                    // unreachable point ends the setup walk short and leaves the native range undistinguished (preview.208
-                    // stage 106, after the pair had drifted to the area edge across the earlier sub-cases).
-                    var point = Chunk4SustainedApproach ? FindWalkablePoint(target.Position,
-                        horse.View.Corpulence + target.View.Corpulence + rider.GetFirstWeapon().Blueprint.AttackRange.Meters + 3f, 0.5f,
-                        candidate => Kingmaker.Utility.GeometryUtils.MechanicsDistance(
-                            Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, candidate), candidate) <= 1.0f) :
+                    var point = Chunk4SustainedApproach ? FindApproachStandingPoint(target,
+                        horse.View.Corpulence + target.View.Corpulence + rider.GetFirstWeapon().Blueprint.AttackRange.Meters) :
                         FindNativeAttackFixturePoint(horse, true, horse.Position, 0.25f, Math.Min(radius, 3.5f),
                             "sustained-position-" + Chunk4SustainedId);
                     using (var input = new NativeOrdinaryAttackInput(point)) { input.Predict(); if (!input.Click()) return; }
@@ -233,6 +240,53 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4SustainedCase++; chunk4SustainedStage = 0; chunk4SustainedSetupMove = null; chunk4SustainedSetupRetries = 0;
                 ResetLeafClock();
             }
+        }
+
+        // The spawn distance already decides most ranged approach cases; the fixture asks the engine rather than assuming.
+        private bool Chunk4SustainedApproachWalkRequired()
+        {
+            var probe = new UnitAttack(target);
+            probe.Init(rider);
+            var required = probe.IsUnitEnoughClose;
+            chunk4SustainedEvidence["approachWalkRequired"] = required;
+            chunk4SustainedEvidence["approachSpawnDistance"] = HorizontalDistance(horse.Position, target.Position);
+            return required;
+        }
+
+        private Vector3 FindApproachStandingPoint(UnitEntityData approachTarget, float envelope)
+        {
+            var clearance = MountedCombatSpatialPolicy.RangeTolerance + 0.25f;
+            InvalidOperationException refusal = null;
+            for (var margin = 3f; margin >= 0.74f; margin -= 0.5f)
+            {
+                var requested = envelope + margin;
+                try
+                {
+                    var found = FindWalkablePoint(approachTarget.Position, requested, 0.5f, candidate =>
+                        HorizontalDistance(candidate, approachTarget.Position) > envelope + clearance &&
+                        Kingmaker.Utility.GeometryUtils.MechanicsDistance(
+                            Kingmaker.View.ObstacleAnalyzer.TraceAlongNavmesh(horse.Position, candidate), candidate) <= 1.0f);
+                    chunk4SustainedApproachProbes.Add(new JObject
+                    {
+                        ["case"] = Chunk4SustainedId, ["envelope"] = envelope, ["requested"] = requested,
+                        ["accepted"] = true, ["targetDistance"] = HorizontalDistance(found, approachTarget.Position),
+                        ["mountDistance"] = HorizontalDistance(found, horse.Position)
+                    });
+                    chunk4SustainedEvidence["approachProbes"] = chunk4SustainedApproachProbes;
+                    return found;
+                }
+                catch (InvalidOperationException exception)
+                {
+                    refusal = exception;
+                    chunk4SustainedApproachProbes.Add(new JObject
+                    {
+                        ["case"] = Chunk4SustainedId, ["envelope"] = envelope, ["requested"] = requested,
+                        ["accepted"] = false, ["refusal"] = exception.Message
+                    });
+                }
+            }
+            chunk4SustainedEvidence["approachProbes"] = chunk4SustainedApproachProbes;
+            throw refusal ?? new InvalidOperationException("No approach standing distance was probed for the sustained case.");
         }
 
         private void ObserveChunk4SustainedRoutines()
