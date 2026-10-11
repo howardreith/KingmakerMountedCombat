@@ -1,4 +1,31 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'ScenarioDispatchEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6cCastingEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6cCastingPersistenceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6dStagedEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6eReactionEvidence.ps1')
+. (Join-Path $PSScriptRoot 'PreciseActingGroundEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeApproachMovementEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeMountApproachPathEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeMountPointerEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aStopEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aReplacementEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aRepeatedRequestEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aOwnershipEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aEligibilityEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aHotbarEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aNativeMammothEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aPausedQueueEvidence.ps1')
+. (Join-Path $PSScriptRoot 'RefusedMountCaseEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aPreCombatPositioningEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativePassiveResourceEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativePreCombatGroundEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aAdditionalEvidence.ps1')
+. (Join-Path $PSScriptRoot 'FullTbDismountEvidence.ps1')
+. (Join-Path $PSScriptRoot 'NativeAutoUseCaseEvidence.ps1')
+. (Join-Path $PSScriptRoot 'RuntimeArtifactManifestEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aFoundationEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6aClosureEvidence.ps1')
 
 function Get-KmcRepositoryRoot {
     $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
@@ -3673,6 +3700,9 @@ function Restore-KmcModsTransaction {
 
 function Get-KmcSaveBackedRuntimeScenarios {
     return @(
+        'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
+        'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
+        'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
         'export-mounted-contracts', 'export-candidate-mount-rigs', 'observe-mount-diagnostic-availability', 'horse-native-asset-audit', 'horse-companion-blueprint-registration', 'horse-companion-unmounted-suite', 'horse-mounted-alpha-suite', 'horse-native-controls-ux-suite',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite', 'phase3d-unified-combat-tb-suite', 'phase3d-horse-presentation-suite',
         'player-action-availability', 'mount-dismount-user-flow',
@@ -3747,6 +3777,37 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'C4-SUSTAINED-TB-mount-exhausted',
         'C4-SUSTAINED-TB-early-end',
         'C4-SUSTAINED-TB-after-early-end',
+        # This list is also the known-subscenario registry Test-RuntimeResult uses,
+        # so a scenario's own name belongs here alongside the rows it emits.
+        'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
+        'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
+        'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
+        'CM01-combat-mount-setup', 'CM01-exploration-dismount-costs-nothing',
+        'CM01-native-mammoth-fixture','CM01-native-mammoth-continuity','CM01-native-mammoth-child-cleanup','CM01-native-mammoth-restoration','CM01-native-mammoth-artifact','CM01-native-mammoth-interrupted','CM06-paused-queue','CM06-combat-mount-requires-qualified-paired-policy','CM02-foreign-companion','CM02-wrong-creature-target','CM06-mount-selected','CM06-multiple-selection','CM06-foreign-selection','CM01-exploration-free', 'CM02-approach-arrival',
+        'CM02-geometry-change', 'CM02-obstruction', 'CM04-stop-during-approach', 'CM04-combat-end', 'CM04-disable-unload', 'CM04-command-replacement', 'CM06-repeated-request', 'CM02-ownership-change', 'CM02-size-form-change', 'CM02-lost-direct-control', 'CM02-rider-incapacitated', 'CM02-mount-incapacitated', 'CM06-hotbar-path', 'CM03-rider-before-mount-slot','CM03-mount-slot-before-rider','CM03-next-round-activation','CM03-early-end-turn','CM05-dismount-survives-feature-policy-disable','CM06-ai-auto-use',
+        'CM01-combat-mount-cancel-costs-nothing', 'CM01-combat-mount-accepted',
+        'CM01-combat-mount-preparing-refused',
+        'CM02-adoption-plan-invalidated', 'CM02-adoption-compensation-releases',
+        'CM02-left-area', 'CM02-view-agent-lost', 'CM02-loading-cutscene', 'CM02-generation-change',
+        'CM04-injected-exception', 'CM04-rider-death', 'CM04-mount-death', 'CM04-turn-end', 'CM04-mode-exit',
+        'CM03-combat-mount-conserves-debt', 'CM03-combat-mount-adoption-preparations',
+        'CM06-combat-mount-repeat-refused', 'CM05-combat-dismount-accepted',
+        'CM05-combat-dismount-conserves-debt', 'CM05-no-duplicate-mount-turn', 'CM05-repeated-input', 'CM05-forced-detach',
+        'CM03-mount-spent-move', 'CM03-mount-spent-standard', 'CM03-mount-spent-all', 'CM03-rider-without-move', 'CM03-rider-other-action', 'CM03-unrelated-candidate-between', 'CM05-after-rider-expenditure', 'CM05-after-mount-expenditure', 'CM05-immediately-after-mount',
+        'C6D-move-cast-move','C6D-cast-then-move','C6D-double-move-ranged','C6D-movement-exhausted','C6D-auto-stop-boundary',
+        'C6E-swift-on-own-turn','C6E-swift-out-of-turn','C6E-attack-on-mount-observed','C6E-reaction-window',
+        'C6C-quickened-self','C6C-standard-self','C6C-standard-friendly','C6C-standard-hostile','C6C-prepared-interrupt-after','C6C-scroll-interrupt-after','C6C-invalid-target','C6C-cancel-before','C6C-interrupt-before','C6C-potion-self','C6C-scroll-friendly','C6C-full-round','C6C-movement-policy','C6C-rider-incapacity','C6C-mount-incapacity','C6C-under-threat',
+        'C6B-CHARGE-default-off', 'C6B-CHARGE-positive', 'C6B-CHARGE-below-minimum',
+        'C6B-CHARGE-beyond-maximum', 'C6B-CHARGE-feature-disabled', 'C6B-CHARGE-dismounted',
+        'C6B-CHARGE-mode-changed', 'C6B-CHARGE-duplicate', 'C6B-CHARGE-new-landing-blocker',
+        'C6B-CHARGE-lease-application-failed', 'C6B-CHARGE-relationship-invalidated', 'C6B-CHARGE-view-replaced',
+        'C6B-CHARGE-mount-dead', 'C6B-CHARGE-rider-dead', 'C6B-CHARGE-child-cleanup',
+        'C6B-CHARGE-spent-standard', 'C6B-CHARGE-stock-rejected',
+        'C6B-CHARGE-interrupted', 'C6B-CHARGE-combat-ended', 'C6B-CHARGE-obstructed-line', 'C6B-CHARGE-cancelled',
+        'C6B-CHARGE-blocked-clearance', 'C6B-CHARGE-exception-cleanup', 'C6B-CHARGE-target-moved',
+        'C6B-CHARGE-action-failed-before-rule', 'C6B-CHARGE-action-failed-after-rule',
+        'C6B-CHARGE-target-lost', 'C6B-CHARGE-rider-incapacitated', 'C6B-CHARGE-mount-incapacitated',
+        'C6B-PATH-straight-arrival', 'C6B-PATH-interrupt-stop',
         'C4-CHARGE-mounted-rider', 'C4-CHARGE-unmounted-rider',
         'C4-CHARGE-mounted-mount', 'C4-CHARGE-unrelated-actor', 'C4-CHARGE-queued-state-change',
         'C01-B', 'C01-C', 'C01-D',
@@ -3815,7 +3876,8 @@ function Get-KmcPhase3dHorseRuntimeRows {
         'phase3d-horse-tranche-cleanup',
         'phase3d-horse-scenario-deadline',
         'phase3d-horse-leaf-deadline',
-        'phase3d-horse-runtime-exception'
+        'phase3d-horse-runtime-exception',
+        'phase3d-horse-host-interrupted'
     )
 }
 
@@ -4688,7 +4750,7 @@ function Assert-KmcKnownRuntimeArtifactsManifested {
     )
     $manifested = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
     foreach ($artifact in @($Manifest.artifacts)) { [void]$manifested.Add([string]$artifact.relativePath) }
-    foreach ($leaf in @('persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','phase3d-horse-scenario-evidence.json')) {
+    foreach ($leaf in @('persistence-observations.jsonl','lifecycle-scenario-evidence.jsonl','movement-telemetry.jsonl','movement-scenario-evidence.jsonl','boundary-scenario-evidence.jsonl','combat-scenario-evidence.jsonl','horse-native-asset-audit.json','horse-companion-blueprint-registration.json','horse-companion-unmounted.json','horse-mounted-alpha.json','horse-native-controls-ux.json','chunk6a-mount-preamble.json','chunk6a-native-mammoth-profile.json','phase3d-horse-scenario-evidence.json')) {
         if ((Test-Path -LiteralPath (Join-Path $EvidenceRoot $leaf) -PathType Leaf) -and -not $manifested.Contains($leaf)) {
             throw "Known runtime artifact exists without a manifest record: $leaf"
         }
@@ -4952,8 +5014,13 @@ function Assert-KmcHorseCompanionBlueprintRegistrationEvidence {
     $scenario = 'horse-companion-blueprint-registration'
     $leaf = 'horse-companion-blueprint-registration.json'
     $kind = 'horse-companion-blueprint-registration'
+    # Only Horse-engine scenarios run HorseCompanionBlueprintRegistrationAuditService (see
+    # HorseCompanionRegistrationScenarioPolicy). The Mammoth-engine roots (chunk6a-mammoth-mount-*
+    # and the four chunk6c-casting-* roots) never manifest this artifact and are not listed; the
+    # chunk6d-staged-* and chunk6e-reaction-* roots run on the same Mammoth engine and are not listed either.
     $isAudit = [string]$Request.scenario -cin @(
         $scenario,
+        'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
         'horse-companion-unmounted-suite',
         'horse-mounted-alpha-suite',
         'horse-native-controls-ux-suite',
@@ -5715,6 +5782,986 @@ function Assert-KmcUnmountedAttackControlRows {
     }
 }
 
+# Chunk 6A voluntary combat Mount/Dismount. The harness re-derives the rider's
+# native Move commitment and both actors' native preparation counts from the
+# recorded samples: the game may not assert its own accounting unchecked.
+function Assert-KmcRelationshipReactionResources {
+    param($Proof, [int]$PartnerPrepares, [string]$IncapacityClearActor=$null)
+    if($Proof.resourceWindow.reactionResources.contract -cne 'native-time-and-declared-partner-preparation-only' -or
+        $Proof.resourceWindow.reactionResources.pass -ne $true){throw 'Reaction resource contract is missing or failed.'}
+    if(-not[string]::IsNullOrEmpty($IncapacityClearActor)) {
+        $actorProperty=$Proof.resourceWindow.reactionResources.PSObject.Properties['incapacityClearActor']
+        if($null-eq$actorProperty-or[string]$actorProperty.Value-cne$IncapacityClearActor){throw 'Reaction resource proof is not bound to the declared incapacity subject.'}
+    }
+    $sequence=[int]$Proof.preClick.allocationSequence
+    foreach($event in $Proof.resourceWindow.events){
+        if(-not(Test-KmcExactJsonInteger $event.sequence) -or [int]$event.sequence -ne ++$sequence){throw 'Reaction event sequence is missing, repeated or reordered.'}
+    }
+    if([int]$Proof.samples[-1].allocationSequence -ne $sequence){throw 'Reaction terminal sequence does not close the exact event window.'}
+    $previous=[int]$Proof.preClick.allocationSequence
+    foreach($sample in $Proof.samples){
+        if(-not(Test-KmcExactJsonInteger $sample.allocationSequence) -or [int]$sample.allocationSequence -lt $previous){throw 'Reaction command samples are reordered.'}
+        $previous=[int]$sample.allocationSequence
+    }
+    function Read-Reaction($state) {
+        foreach($field in @('reactions','reactionCooldown','initiativeCooldown','initiativeOrder','reactionsPerRound')) {
+            if($null -eq $state.$field){throw "Missing reaction field $field."}
+            $number=[double]$state.$field
+            if([double]::IsNaN($number) -or [double]::IsInfinity($number)){throw "Invalid reaction field $field."}
+        }
+        foreach($field in @('reactions','initiativeOrder','reactionsPerRound')) {
+            if(-not(Test-KmcExactJsonInteger $state.$field)){throw "Reaction discrete field $field is not an integer."}
+        }
+        @{allowance=[int]$state.reactions;cooldown=[double]$state.reactionCooldown;initiative=[double]$state.initiativeCooldown;order=[int]$state.initiativeOrder}
+    }
+    function Same-Reaction($a,$b) {
+        $null -ne $a -and $null -ne $b -and $a.allowance -eq $b.allowance -and $a.order -eq $b.order -and
+            [Math]::Abs($a.cooldown-$b.cooldown) -le 0.0001 -and [Math]::Abs($a.initiative-$b.initiative) -le 0.0001
+    }
+    foreach($actor in @('rider','mount')) {
+        $actorId=if($actor -ceq 'rider'){$Proof.identity.casterId}else{$Proof.mountId}
+        $baseline=$Proof.preClick.state.$actor;$current=Read-Reaction $baseline
+        $expectedInitiativeOrder=$current.order
+        $perRound=[int]$baseline.reactionsPerRound
+        $stack=New-Object System.Collections.Stack
+        $timeline=@()
+        foreach($event in @($Proof.resourceWindow.events|Where-Object { $_.state.actor -ceq $actorId })) {
+            $timeline+=@{sequence=[int]$event.sequence;rank=0;value=$event}
+        }
+        foreach($sample in $Proof.samples){$timeline+=@{sequence=[int]$sample.allocationSequence;rank=1;value=$sample}}
+        foreach($item in @($timeline|Sort-Object { $_.sequence },{ $_.rank })) {
+            $value=$item.value;$isEvent=$item.rank -eq 0
+            $state=if($isEvent){$value.state}else{$value.state.$actor}
+            $actual=Read-Reaction $state
+            $boundary=if($isEvent){[string]$value.boundary}else{'sample'}
+            $permitsIncapacityClear=-not[string]::IsNullOrEmpty($IncapacityClearActor)-and$actorId-ceq$IncapacityClearActor
+            $expectedOrder=if($permitsIncapacityClear-and$boundary-ceq'combat-clear-after'){0}else{$expectedInitiativeOrder}
+            if($item.sequence -lt $Proof.preClick.allocationSequence -or $item.sequence -gt $Proof.samples[-1].allocationSequence -or
+                $actual.order-ne$expectedOrder-or[int]$state.reactionsPerRound -ne $perRound){
+                throw "$actor reaction sequence, initiative ordering or per-round allowance changed."
+            }
+            if($permitsIncapacityClear-and$boundary-ceq'combat-clear-before'){
+                if($stack.Count-ne0-or-not(Same-Reaction $actual $current)){throw "$actor native incapacity combat-clear entry changed a resource."}
+                continue
+            }
+            if($permitsIncapacityClear-and$boundary-ceq'combat-clear-after'){
+                $expectedLeave=$current.Clone();$expectedLeave.order=0
+                if($stack.Count-ne0-or-not(Same-Reaction $actual $expectedLeave)){throw "$actor native incapacity combat-clear exit changed more than initiative ordering."}
+                $current=$actual;$expectedInitiativeOrder=$actual.order;continue
+            }
+            $kind=$boundary -creplace '-(before|after)$',''
+            $native=$kind -cin @('cooldown-tick','prepare','clear','opportunity')
+            if($native -and $boundary.EndsWith('-after')) {
+                $entry=if($stack.Count -gt 0){$stack.Pop()}else{$null}
+                if($null -eq $entry -or $entry.kind -cne $kind -or -not(Same-Reaction $actual $entry.expected)) {
+                    throw ("$actor reaction effect differs from the exact native $boundary event: expected="+(ConvertTo-Json $entry -Compress)+"; actual="+(ConvertTo-Json $actual -Compress))
+                }
+                $current=$actual;continue
+            }
+            if($stack.Count -eq 0 -and -not(Same-Reaction $actual $current)){throw "$actor reaction allowance or cooldown changed without an allowed native event at $boundary."}
+            if(-not $native){continue}
+            $expected=$actual.Clone()
+            if($kind -ceq 'cooldown-tick') {
+                $delta=[double]$value.gameDeltaTime
+                if([double]::IsNaN($delta) -or [double]::IsInfinity($delta) -or $delta -lt 0){throw 'Invalid native reaction tick delta.'}
+                if($value.nativeTurnBased -and $state.inCombat) {
+                    if($value.nativePassing) {
+                        if($expected.initiative -gt 0 -and -not $value.nativeSurprised){
+                            $used=[Math]::Min($delta,$expected.initiative);$expected.initiative-=$used;$delta-=$used
+                        }
+                        if($delta -gt 0){$expected.cooldown=[Math]::Max(0.0,$expected.cooldown-$delta)}
+                    }
+                } elseif(-not $value.nativeTurnBased -or $value.nativePassing) {
+                    if($state.waitingInitiative){$expected.initiative=[Math]::Max(0.0,$expected.initiative-$delta)}
+                    else {
+                        $expected.cooldown=[Math]::Max(0.0,$expected.cooldown-$delta)
+                        if($expected.cooldown -le 0 -and $perRound -gt 0 -and $expected.allowance -le $perRound){$expected.allowance=$perRound}
+                    }
+                }
+            } elseif($kind -ceq 'prepare') {
+                if($actor -cne 'mount' -or $PartnerPrepares -ne 1 -or $value.preparingTurn -eq 0){throw 'Undeclared reaction preparation.'}
+                $expected.cooldown=0.0;$expected.initiative=0.0
+                if($perRound -gt 0 -and $expected.allowance -le $perRound){$expected.allowance=$perRound}
+            } elseif($kind -ceq 'clear') {
+                if($permitsIncapacityClear){$expected.initiative=0.0}
+                else {
+                    if($actor -cne 'mount' -or $PartnerPrepares -ne 1 -or @($stack|Where-Object kind -CEQ 'prepare').Count -eq 0){throw 'Undeclared reaction cooldown clear.'}
+                    $expected.cooldown=0.0;$expected.initiative=0.0
+                }
+            }
+            $stack.Push(@{kind=$kind;expected=$expected})
+        }
+        if($stack.Count -ne 0){throw "Missing native reaction callback end for $actor."}
+    }
+}
+
+function Assert-KmcRelationshipGeometryGroundOrder {
+    param($Proof, [long]$ExpectedCommand)
+    $aux=$null
+    if($Proof.PSObject.Properties.Name -ccontains 'auxiliaryGroundOrder'){$aux=$Proof.auxiliaryGroundOrder}
+    if($ExpectedCommand -eq 0) {
+        if($null -ne $aux){throw 'Auxiliary ground order is forbidden in this relationship window.'}
+        return 0L
+    }
+    if($null -eq $aux -or $aux.contract -cne 'declared-rt-unit-move-to-native-no-write' -or
+        $Proof.resourceWindow.inCombat -ne $true -or $Proof.resourceWindow.turnBased -ne $false) {
+        throw 'Geometry ground order requires its declared RT native no-write contract.'
+    }
+    $admission=$aux.admission; $terminal=$aux.atMountTerminal
+    foreach($state in @($admission,$terminal)) {
+        if($null -eq $state -or [long]$state.commandObject -ne $ExpectedCommand -or
+            [long]$state.commandObject -eq [long]$Proof.identity.commandObject -or
+            $state.actorId -cne $Proof.mountId -or $state.commandClass -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or
+            $state.commandType -cne 'Move' -or $state.createdByPlayer -ne $true -or $state.ignoreCooldown -ne $true -or
+            $state.acted -isnot [bool] -or $state.finished -isnot [bool]) {throw 'Geometry ground command identity differs.'}
+    }
+    $approach=@($Proof.samples|Where-Object boundary -CEQ 'approach-start')
+    $acted=@($Proof.samples|Where-Object boundary -CEQ 'acted')
+    if($admission.acted -ne $false -or $admission.finished -ne $false -or $admission.mountActed -ne $false -or
+        $admission.mountFinished -ne $false -or $admission.mountCommandObject -ne $Proof.identity.commandObject -or
+        $approach.Count -ne 1 -or $acted.Count -ne 1 -or
+        [long]$admission.gameTicks -lt [long]$approach[0].gameTicks -or
+        [long]$admission.gameTicks -gt [long]$acted[0].gameTicks) {throw 'Geometry ground admission did not precede the exact Mount acted boundary.'}
+    $events=@($Proof.resourceWindow.events)
+    $admitted=@($events|Where-Object { $_.boundary -ceq 'admission-after' -and $_.command -eq $ExpectedCommand })
+    if($admitted.Count -ne 1 -or $admitted[0].commandActor -cne $Proof.mountId -or
+        $admitted[0].state.actor -cne $Proof.mountId -or $admitted[0].commandType -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or
+        $admitted[0].actionType -cne 'Move' -or $admitted[0].ignoreCooldown -ne $true -or
+        $admitted[0].acted -ne $false -or $admitted[0].finished -ne $false -or
+        [long]$admitted[0].sequence -gt [long]$admission.allocationSequence) {throw 'Geometry ground order omitted its exact native admission.'}
+    $costs=@($events|Where-Object { $_.boundary -cin @('cost-before','cost-after','actor-cost-before','actor-cost-after') -and $_.command -eq $ExpectedCommand })
+    $before=@($costs|Where-Object boundary -CEQ 'cost-before');$after=@($costs|Where-Object boundary -CEQ 'cost-after')
+    $expected=if($terminal.acted){1}else{0}
+    if($before.Count -ne $expected -or $after.Count -ne $expected -or $costs.Count -ne 2*$expected) {
+        throw 'Geometry ground native no-write callback count differs.'
+    }
+    foreach($event in $costs) {
+        if($event.state.actor -cne $Proof.mountId -or $event.commandActor -cne $Proof.mountId -or
+            $event.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or $event.actionType -cne 'Move' -or
+            $event.ignoreCooldown -ne $true -or $event.acted -ne $true -or $event.state.inCombat -ne $true) {
+            throw 'Geometry ground callback belongs to a different actor, command or cost rule.'
+        }
+    }
+    if($expected -eq 1) {
+        if([long]$after[0].sequence -ne [long]$before[0].sequence+1L){throw 'Geometry ground callback sequence differs.'}
+        foreach($field in @('standard','move','swift','initiativeCooldown','initiativeOrder','reactionCooldown','reactions','reactionsPerRound')) {
+            if($null -eq $before[0].state.$field -or $null -eq $after[0].state.$field -or
+                [double]::IsNaN([double]$before[0].state.$field) -or [double]::IsInfinity([double]$before[0].state.$field) -or
+                [double]$before[0].state.$field -ne [double]$after[0].state.$field) {throw "Geometry ground callback wrote $field."}
+        }
+    }
+    $resource=$Proof.resourceWindow.auxiliaryGroundOrder
+    if($resource.contract -cne $aux.contract -or $resource.pass -ne $true -or $resource.commandObject -ne $ExpectedCommand -or
+        $resource.beforeCount -ne $before.Count -or $resource.afterCount -ne $after.Count -or $resource.expectedCountAtMountTerminal -ne $expected) {
+        throw 'Geometry ground producer and external no-write proof differ.'
+    }
+    return $ExpectedCommand
+}
+
+function Assert-KmcRelationshipCommandProof {
+    param($Proof, [bool]$InCombat, [bool]$TurnBased, [int]$PartnerPrepares, [bool]$RequireApproach, [long]$ExpectedAuxiliaryGroundCommand=0, [bool]$RequirePredictionEvidence=$false)
+    foreach ($flag in @('pass','identityComplete','sameCommandAtEveryBoundary','exactActedObserved','nativeTerminal','traceComplete')) {
+        if ($Proof.$flag -isnot [bool] -or -not $Proof.$flag) { throw "Causal command proof lacks true $flag." }
+    }
+    if ($Proof.initCount -ne 1 -or @($Proof.errors).Count -ne 0 -or [string]$Proof.nativeResult -cne 'Success') {
+        throw 'Causal command proof has multiple commands, errors or a non-successful terminal result.'
+    }
+    $identity=$Proof.identity
+    foreach($field in @('commandObject','processObject','contextObject')) {
+        if ($null -eq $identity.$field -or [long]$identity.$field -eq 0) { throw "Causal identity lacks $field." }
+    }
+    foreach($field in @('controlIdentity','casterId','targetId','abilityGuid')) {
+        if ([string]::IsNullOrEmpty([string]$identity.$field)) { throw "Causal identity lacks $field." }
+    }
+    if ([string]$identity.commandType -cne 'Move') { throw 'Relationship command is not a native Move.' }
+    $required=@('init','click-admission','move-slot-installation','acted','cost-before','cost-after','process-binding','deliver','relationship-transition','terminal')
+    if ($RequireApproach) { $required+='approach-start' }
+    $samples=@($Proof.samples)
+    foreach($boundary in $required) {
+        if (@($samples|Where-Object { [string]$_.boundary -ceq $boundary }).Count -ne 1) { throw "Missing or repeated exact $boundary boundary." }
+    }
+    foreach($sample in $samples) {
+        foreach($field in @('commandObject','controlIdentity','casterId','targetId','generationAtInit','commandType','abilityGuid')) {
+            if ($null -eq $sample.identity.$field -or $sample.identity.$field -cne $identity.$field) { throw "Mixed causal identity at $($sample.boundary): $field." }
+        }
+        $early=[string]$sample.boundary -cin @('init','click-admission','move-slot-installation','approach-start')
+        $beforeProcess=$early -and $sample.identity.processObject -eq 0 -and $sample.identity.contextObject -eq 0
+        if (-not $beforeProcess -and ($sample.identity.processObject -ne $identity.processObject -or $sample.identity.contextObject -ne $identity.contextObject)) {
+            throw 'Mixed process/context identity in the causal command proof.'
+        }
+        if ([string]$sample.boundary -cin @('acted','cost-before','cost-after') -and ($sample.acted -isnot [bool] -or -not $sample.acted)) {
+            throw 'Native acted was not observed on this exact command.'
+        }
+        if ([string]$sample.boundary -ceq 'process-binding' -and $sample.nativeProcessBinding -ne $true) { throw 'Exact native process binding was not observed.' }
+        if ([string]$sample.boundary -ceq 'deliver' -and $sample.deliveryContext -ne $identity.contextObject) { throw 'Deliver context differs.' }
+    }
+    $names=@($samples|ForEach-Object { [string]$_.boundary })
+    if ([Array]::IndexOf($names,'acted') -ge [Array]::IndexOf($names,'cost-before') -or
+        [Array]::IndexOf($names,'cost-after') -ge [Array]::IndexOf($names,'deliver')) { throw 'Causal commitment/delivery order differs.' }
+    $terminal=@($samples|Where-Object boundary -CEQ 'terminal')[0]
+    if ($terminal.finished -ne $true -or $terminal.processEnded -ne $true -or [string]$terminal.result -cne 'Success') { throw 'Command/process terminal state is unproved.' }
+    # Archived pre-125 traces remain resource-replay fixtures. Current scenario envelopes
+    # require this new evidence explicitly; no new PASS may omit it.
+    $prediction=if($Proof -is [System.Collections.IDictionary]){$Proof['predictionCommands']}elseif($Proof.PSObject.Properties['predictionCommands']){$Proof.predictionCommands}else{$null}
+    if($RequirePredictionEvidence -or $null -ne $prediction){
+        Assert-KmcNativePredictionCommands $prediction $Proof
+        if($prediction.pass -ne $true){throw 'Native prediction producer refused its evidence.'}
+    }
+    $resource=$Proof.resourceWindow
+    if ($resource.inCombat -ne $InCombat -or $resource.turnBased -ne $TurnBased) { throw 'Resource window mode differs.' }
+    $events=@($resource.events|Where-Object { [string]$_.state.actor -cin @([string]$identity.casterId,[string]$Proof.mountId) })
+    if ([string]::IsNullOrEmpty([string]$Proof.mountId)) { throw 'Resource proof omitted the exact mount identity.' }
+    $auxiliaryCommand=Assert-KmcRelationshipGeometryGroundOrder $Proof $ExpectedAuxiliaryGroundCommand
+    $costEvents=@($events|Where-Object { $_.boundary -cin @('cost-before','cost-after','actor-cost-before','actor-cost-after') -and ($auxiliaryCommand -eq 0 -or $_.command -ne $auxiliaryCommand) })
+    $before=@($costEvents|Where-Object boundary -CEQ 'cost-before'); $after=@($costEvents|Where-Object boundary -CEQ 'cost-after')
+    $nestedBefore=@($costEvents|Where-Object boundary -CEQ 'actor-cost-before'); $nestedAfter=@($costEvents|Where-Object boundary -CEQ 'actor-cost-after')
+    $expectedNested=if($InCombat -and $TurnBased){1}else{0}
+    if ($before.Count -ne 1 -or $after.Count -ne 1 -or $nestedBefore.Count -ne $expectedNested -or $nestedAfter.Count -ne $expectedNested) {
+        throw 'Native cost callback count is not one exact Move sequence.'
+    }
+    foreach($e in @($before)+@($after)+@($nestedBefore)+@($nestedAfter)) {
+        if ($e.command -ne $identity.commandObject -or [string]$e.commandActor -cne [string]$identity.casterId -or
+            [string]$e.state.actor -cne [string]$identity.casterId -or
+            [string]$e.actionType -cne 'Move' -or $e.acted -ne $true) { throw 'A foreign actor, command or action owns a native cost callback.' }
+    }
+    $b=$before[0];$a=$after[0]
+    if ($b.state.inCombat -ne $InCombat -or $a.state.inCombat -ne $InCombat) { throw 'Native cost boundary left its declared combat mode.' }
+    $expected=if(-not $InCombat){[double]$b.state.move}elseif($TurnBased){[double]$b.state.move+3.0}else{3.0-[double]$b.timeSinceStart}
+    if ([Math]::Abs([double]$a.state.move-$expected) -gt 0.0001) { throw 'Exact command native Move cost differs.' }
+    foreach($field in @('standard','swift')) {
+        if ([Math]::Abs([double]$a.state.$field-[double]$b.state.$field) -gt 0.0001) { throw 'Relationship Move wrote another action resource.' }
+    }
+    $prepares=@($events|Where-Object boundary -CEQ 'prepare-before'); $clears=@($events|Where-Object boundary -CEQ 'clear-before')
+    $prepared=@($events|Where-Object boundary -CEQ 'prepare-after'); $cleared=@($events|Where-Object boundary -CEQ 'clear-after')
+    if ($prepares.Count -ne $PartnerPrepares -or $clears.Count -ne $PartnerPrepares -or
+        $prepared.Count -ne $PartnerPrepares -or $cleared.Count -ne $PartnerPrepares -or
+        @($events|Where-Object { [string]$_.boundary -like 'combat-clear*' }).Count -ne 0) { throw 'Unexpected preparation, cooldown clear or reset.' }
+    foreach($e in @($prepares)+@($clears)+@($prepared)+@($cleared)) {
+        if ([string]$e.state.actor -cne [string]$Proof.mountId -or $e.preparingTurn -eq 0) { throw 'Preparation/clear is not the declared partner grant.' }
+    }
+    $first=$Proof.preClick
+    if($null -eq $first -or [long]$first.gameTicks -gt [long]$samples[0].gameTicks){throw 'Missing or late pre-click baseline.'}
+    if(@($first.state.selectedIds).Count -ne 1 -or [string]$first.state.selectedIds[0] -cne [string]$identity.casterId){throw 'Pre-click selection is not the exact single rider.'}
+    if($first.state.generation -ne $identity.generationAtInit){throw 'Pre-click generation differs from Init.'}
+    $tolerance=if($TurnBased -or -not $InCombat){0.0001}else{0.05}
+    $beforeAge=([long]$b.gameTicks-[long]$first.gameTicks)/10000000.0
+    $beforeExpected=if($TurnBased -or -not $InCombat){[double]$first.state.rider.move}else{[Math]::Max(0.0,[double]$first.state.rider.move-$beforeAge)}
+    $movement=if($resource -is [System.Collections.IDictionary]){$resource['nativeApproachMovement']}elseif($resource.PSObject.Properties['nativeApproachMovement']){$resource.nativeApproachMovement}else{$null}
+    $nativeMountApproach=$InCombat -and $TurnBased -and $identity.abilityGuid -ceq 'f053faad986631688defa003cd7bda0e'
+    $hasMovementEvents=@($resource.events|Where-Object boundary -CLike 'approach-movement-*').Count -gt 0
+    if($nativeMountApproach -and ($RequireApproach -or $hasMovementEvents) -and $null -eq $movement){throw 'Missing exact native TB approach movement proof.'}
+    if($nativeMountApproach -and $RequireApproach){
+        $pathProof=if($Proof -is [System.Collections.IDictionary]){$Proof['nativeApproachPath']}elseif($Proof.PSObject.Properties['nativeApproachPath']){$Proof.nativeApproachPath}else{$null}
+        Assert-KmcNativeMountApproachPath $pathProof $Proof
+        Assert-KmcNativeMountPointer $Proof.nativePointerInput $Proof
+    }
+    if($null -ne $movement){
+        if($movement.contract -cne 'normal-native-tb-mount-approach' -or $movement.pass -ne $true -or @($movement.errors).Count -ne 0){throw 'Native approach movement proof is incomplete.'}
+        Assert-KmcNativeMovementEvidence $resource.events $first $b $identity $identity.abilityGuid $InCombat $TurnBased $RequireApproach $movement.observerHooks
+    }
+    if($beforeAge -lt 0 -or ((-not $nativeMountApproach -or $null -eq $movement) -and [Math]::Abs([double]$b.state.move-$beforeExpected) -gt $tolerance)){throw 'Move debt changed before the exact acted cost callback.'}
+    $elapsed=([long]$terminal.gameTicks-[long]$first.gameTicks)/10000000.0
+    if($elapsed -lt 0){throw 'Resource window native clock reversed.'}
+    foreach($actor in @('rider','mount')) {
+        foreach($field in @('standard','move','swift')) {
+            $was=[double]$first.state.$actor.$field;$age=$elapsed
+            if($actor -ceq 'rider' -and $field -ceq 'move'){$was=[double]$a.state.move;$age=([long]$terminal.gameTicks-[long]$a.gameTicks)/10000000.0}
+            if($actor -ceq 'mount' -and $PartnerPrepares -eq 1){
+                $was=[double]$cleared[0].state.$field;$age=([long]$terminal.gameTicks-[long]$cleared[0].gameTicks)/10000000.0
+                if([Math]::Abs($was) -gt 0.0001){throw 'Declared partner Clear did not clear its native action resources.'}
+            }
+            if($age -lt 0){throw 'Resource callback native clock reversed.'}
+            $expected=if($TurnBased -or -not $InCombat){$was}else{[Math]::Max(0.0,$was-$age)}
+            $now=[double]$terminal.state.$actor.$field
+            if([Math]::Abs($now-$expected) -gt $tolerance){throw "Resource window refunded or added $actor $field debt."}
+        }
+    }
+    Assert-KmcRelationshipReactionResources $Proof $PartnerPrepares
+}
+
+function Assert-KmcChunk6aNativeActingSetup {
+    param([AllowNull()]$Setup, [Parameter(Mandatory=$true)]$Proof)
+    if($null -eq $Setup -or $Setup.contract -cne 'native-rider-ground-order-before-mount-baseline') {
+        throw 'TB Mount omitted its native Acting setup.'
+    }
+    $before=$Setup.before; $after=$Setup.after; $rider=[string]$Proof.identity.casterId
+    if($Setup.beforeTurnObject -eq 0 -or $Setup.beforeTurnObject -ne $Setup.afterTurnObject -or
+        $Setup.sameNativeTurn -ne $true -or $before.currentTurnActor -cne $rider -or
+        $after.currentTurnActor -cne $rider -or $before.currentTurnStatus -cne 'Preparing' -or
+        $after.currentTurnStatus -cne 'Acting' -or $before.turnBased -ne $true -or $after.turnBased -ne $true) {
+        throw 'TB setup did not retain the exact rider Preparing-to-Acting turn.'
+    }
+    $admitted=$Setup.admittedCommand; $terminal=$Setup.terminalCommand
+    if($admitted.id -eq 0 -or $admitted.id -ne $terminal.id -or $Setup.createdByPlayer -ne $true -or
+        $admitted.type -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or $terminal.type -cne $admitted.type -or
+        $admitted.executor -cne $rider -or $terminal.executor -cne $rider -or
+        $terminal.finished -ne $true -or $terminal.result -cne 'Success') {
+        throw 'TB setup lost its exact successful native ground command.'
+    }
+    foreach($value in @($Setup.displacement,$Setup.residual,$Setup.placementTolerance)) {
+        if($null -eq $value -or [double]::IsNaN([double]$value) -or [double]::IsInfinity([double]$value)) {
+            throw 'TB setup omitted finite arrival geometry.'
+        }
+    }
+    if([Math]::Abs([double]$Setup.placementTolerance-0.06) -gt 0.000001 -or
+        [double]$Setup.displacement -le 0.1 -or [double]$Setup.residual -lt 0 -or
+        [double]$Setup.residual -gt [double]$Setup.placementTolerance) {throw 'TB setup did not reach its native ground destination.'}
+    if($before.relationshipState -cne 'Unmounted' -or $after.relationshipState -cne 'Unmounted' -or
+        $before.relationshipGeneration -ne $after.relationshipGeneration -or
+        $after.relationshipGeneration -ne $Proof.identity.generationAtInit) {throw 'TB setup changed relationship generation.'}
+    foreach($field in @('dispatchAccepted','dispatchRejected','relationshipShells','transitionLedger',
+        'acceptedMountCount','acceptedDismountCount','forcedDetachCount','adoptionCount')) {
+        if(($before.$field|ConvertTo-Json -Depth 30 -Compress) -cne ($after.$field|ConvertTo-Json -Depth 30 -Compress)) {
+            throw "TB setup changed relationship counter $field."
+        }
+    }
+    foreach($actor in @('rider','mount')) {
+        if($before.$actor.nativePrepareCount -ne $after.$actor.nativePrepareCount) {throw 'TB setup added native preparation.'}
+        foreach($field in @('standard','move','swift')) {
+            $b=[double]$before.$actor.$field; $a=[double]$after.$actor.$field
+            if(($actor -ceq 'rider' -and $field -ceq 'move' -and $a -lt $b-0.0001) -or
+                (($actor -cne 'rider' -or $field -cne 'move') -and [Math]::Abs($a-$b) -gt 0.0001)) {
+                throw "TB setup changed unrelated or refunded $actor $field debt."
+            }
+            if([Math]::Abs($a-[double]$Proof.preClick.state.$actor.$field) -gt 0.0001) {
+                throw "TB Mount did not carry setup $actor $field debt into its baseline."
+            }
+        }
+    }
+    $events=@($Setup.events)
+    if($Setup.traceComplete -ne $true -or $events.Count -eq 0) {throw 'TB setup omitted its complete native allocation trace.'}
+    $admissions=@($events|Where-Object { $_.boundary -ceq 'admission-after' -and $_.command -eq $admitted.id -and $_.commandActor -ceq $rider })
+    if($admissions.Count -ne 1) {throw 'TB setup has no exact native ground admission event.'}
+    foreach($event in $events) {
+        if($event.turn -ne $Setup.beforeTurnObject) {throw 'TB setup allocation trace changed native turn.'}
+        if($event.boundary -cmatch '^(prepare-|clear-|combat-clear-|turn-end-)') {throw 'TB setup trace contains preparation, clear or turn end.'}
+    }
+    $cost=@($Proof.resourceWindow.events|Where-Object boundary -CEQ 'cost-before')
+    if($cost.Count -ne 1 -or $cost[0].turn -ne $Setup.afterTurnObject) {throw 'TB Mount cost belongs to another native setup turn.'}
+}
+
+function Assert-KmcChunk6aGeometryChange {
+    param($Case, $Proof)
+    if($null -eq $Case -or $Case.contract -cne 'native-target-motion-during-exact-mount-approach' -or
+        $Case.noTransitionInFlight -ne $true -or [long]$Case.auxiliaryCommandId -eq 0) {throw 'Geometry case contract or terminal settlement differs.'}
+    if(($Case.commandProof|ConvertTo-Json -Depth 80 -Compress) -cne ($Proof|ConvertTo-Json -Depth 80 -Compress)) {
+        throw 'Geometry case refers to a different command proof.'
+    }
+    $id=$Proof.identity;$trigger=$Case.trigger;$aux=$Proof.auxiliaryGroundOrder
+    foreach($command in @($trigger.command,$trigger.moveSlot)) {
+        if($command.id -ne $id.commandObject -or $command.type -cne 'Kingmaker.UnitLogic.Commands.UnitUseAbility' -or
+            $command.executor -cne $id.casterId -or $command.acted -ne $false -or $command.finished -ne $false) {
+            throw 'Geometry trigger missed the exact unacted Mount in its Move slot.'
+        }
+    }
+    if($trigger.approachObserved -ne $true -or $trigger.riderReallyMoving -ne $true -or
+        [long]$trigger.gameTicks -gt [long]$aux.admission.gameTicks -or
+        [long]$trigger.gameTicks -lt [long]@($Proof.samples|Where-Object boundary -CEQ 'approach-start')[0].gameTicks) {
+        throw 'Geometry trigger lacks observed native approach before the ground order.'
+    }
+    foreach($command in @($Case.auxiliaryAdmission,$Case.auxiliaryTerminal)) {
+        if($command.id -ne $Case.auxiliaryCommandId -or $command.id -ne $aux.admission.commandObject -or
+            $command.type -cne 'Kingmaker.UnitLogic.Commands.UnitMoveTo' -or $command.executor -cne $Proof.mountId) {
+            throw 'Geometry case ground command identity differs.'
+        }
+    }
+    if($Case.auxiliaryAdmission.acted -ne $false -or $Case.auxiliaryAdmission.finished -ne $false -or
+        $Case.auxiliaryTerminal.finished -ne $true -or $Case.auxiliaryTerminal.result -cnotin @('Success','Interrupt')) {
+        throw 'Geometry case ground command has no lawful terminal state.'
+    }
+    function Get-GeometryDistance($From,$To) {
+        foreach($point in @($From,$To)) {foreach($axis in @('x','y','z')) {
+            if($null -eq $point.$axis -or [double]::IsNaN([double]$point.$axis) -or [double]::IsInfinity([double]$point.$axis)) {throw 'Geometry position is not finite.'}
+        }}
+        return [Math]::Sqrt([Math]::Pow(([double]$To.x-[double]$From.x),2)+[Math]::Pow(([double]$To.z-[double]$From.z),2))
+    }
+    $arrival=@($Proof.samples|Where-Object boundary -CEQ 'deliver')[0].state.geometry
+    $terminal=@($Proof.samples|Where-Object boundary -CEQ 'terminal')[0].state
+    $baseline=$Proof.preClick.state
+    foreach($geometry in @($Case.start,$trigger.geometry,$arrival,$baseline.geometry)) {
+        foreach($field in @('centerDistance','horizontalDistance','riderCorpulence','horseCorpulence','legalAdjacencyEnvelope')) {
+            if($null -eq $geometry.$field -or [double]$geometry.$field -lt 0 -or
+                [double]::IsNaN([double]$geometry.$field) -or [double]::IsInfinity([double]$geometry.$field)) {throw 'Geometry measurement is not finite and nonnegative.'}
+        }
+        $distance=Get-GeometryDistance $geometry.riderPosition $geometry.horsePosition
+        $envelope=[double]$geometry.riderCorpulence+[double]$geometry.horseCorpulence+1.5
+        if([Math]::Abs($distance-[double]$geometry.horizontalDistance) -gt 0.0001 -or
+            [Math]::Abs($envelope-[double]$geometry.legalAdjacencyEnvelope) -gt 0.0001 -or
+            $geometry.isAdjacent -isnot [bool] -or $geometry.isAdjacent -ne ([double]$geometry.centerDistance -le $envelope)) {
+            throw 'Geometry measured envelope and native adjacency differ.'
+        }
+    }
+    foreach($actor in @('riderPosition','horsePosition')) {
+        if((Get-GeometryDistance $Case.start.$actor $baseline.geometry.$actor) -gt 0.0001) {throw 'Geometry pre-click baseline changed before its command.'}
+    }
+    if(($Case.arrival|ConvertTo-Json -Depth 20 -Compress) -cne ($arrival|ConvertTo-Json -Depth 20 -Compress)) {
+        throw 'Geometry arrival is not the exact pre-attachment delivery sample.'
+    }
+    $riderDistance=Get-GeometryDistance $Case.start.riderPosition $trigger.geometry.riderPosition
+    $horseDistance=Get-GeometryDistance $Case.start.horsePosition $arrival.horsePosition
+    if($Case.start.isAdjacent -ne $false -or $trigger.geometry.isAdjacent -ne $false -or $baseline.geometry.isAdjacent -ne $false -or
+        $riderDistance -le 0.25 -or $horseDistance -le 0.35 -or
+        [Math]::Abs($riderDistance-[double]$trigger.riderDisplacement) -gt 0.0001 -or
+        [Math]::Abs($horseDistance-[double]$Case.horseDisplacement) -gt 0.0001) {throw 'Geometry did not change during measured non-adjacent approach.'}
+    $delta=$Proof.ledgerDelta
+    foreach($field in @('admittedMount','admittedDismount','acceptedMount','acceptedDismount','forcedDetach','duplicateSuppressed','concurrentSuppressed','refusedVoluntary')) {
+        if([long]$terminal.ledger.$field-[long]$baseline.ledger.$field -ne [long]$delta.$field) {throw 'Geometry window ledger delta differs.'}
+    }
+    if($delta.admittedMount -ne 1 -or $delta.admittedDismount -ne 0 -or $delta.acceptedDismount -ne 0 -or
+        $delta.forcedDetach -ne 0 -or $delta.duplicateSuppressed -ne 0 -or $delta.concurrentSuppressed -ne 0) {throw 'Geometry window contains another relationship operation.'}
+    $accepted=$terminal.relationshipState -ceq 'Mounted' -and $arrival.isAdjacent -eq $true -and
+        [long]$terminal.generation -eq [long]$id.generationAtInit+1 -and $delta.acceptedMount -eq 1 -and $delta.refusedVoluntary -eq 0
+    $refused=$terminal.relationshipState -ceq 'Unmounted' -and [long]$terminal.generation -eq [long]$id.generationAtInit -and
+        $delta.acceptedMount -eq 0 -and $delta.refusedVoluntary -eq 1
+    if((-not $accepted -and -not $refused) -or $Case.acceptedLawfully -ne $accepted -or $Case.refusedWithCommittedCost -ne $refused -or
+        $baseline.relationshipState -cne 'Unmounted' -or $Case.after.relationshipState -cne $terminal.relationshipState -or
+        $Case.after.relationshipGeneration -ne $terminal.generation) {throw 'Geometry terminal relationship did not revalidate lawfully.'}
+}
+
+function Assert-KmcChunk6aUnactedProof {
+    param($Proof)
+    if($Proof.contract -cne 'unacted-native-obstruction-no-cost-or-transition') {throw 'Missing unacted obstruction contract.'}
+    foreach($flag in @('pass','sameCommandAtEveryBoundary','nativeTerminal','traceComplete')) {
+        if($Proof.$flag -ne $true) {throw "Unacted proof lacks true $flag."}
+    }
+    if($Proof.initCount -ne 1 -or @($Proof.errors).Count -ne 0 -or $Proof.nativeResult -cnotin @('Interrupt','Fail')) {throw 'Unacted proof has no truthful native failure terminal.'}
+    $id=$Proof.identity
+    if($id.commandObject -eq 0 -or $id.processObject -ne 0 -or $id.contextObject -ne 0 -or
+        $id.commandType -cne 'Move' -or $id.abilityGuid -cne 'f053faad986631688defa003cd7bda0e' -or
+        $id.targetId -cne $Proof.mountId -or [string]::IsNullOrEmpty($Proof.mountId)) {throw 'Unacted proof has a process or invalid Mount identity.'}
+    foreach($field in @('controlIdentity','casterId','targetId')) {if([string]::IsNullOrEmpty($id.$field)){throw 'Unacted identity is incomplete.'}}
+    $names=@('init','click-admission','move-slot-installation','approach-start','unacted-terminal')
+    $samples=@($Proof.samples)
+    if($samples.Count -ne 5){throw 'Unacted proof must contain exactly five boundaries and no acted, cost or delivery sample.'}
+    $pre=$Proof.preClick
+    if($null -eq $pre -or $pre.gameTicks -gt $samples[0].gameTicks -or @($pre.state.selectedIds).Count -ne 1 -or $pre.state.selectedIds[0] -cne $id.casterId) {throw 'Unacted pre-click selection/baseline is not the exact rider.'}
+    if($pre.state.generation -ne $id.generationAtInit -or $pre.state.relationshipState -cne 'Unmounted') {throw 'Unacted pre-click relationship differs.'}
+    $previous=[long]$pre.gameTicks
+    for($i=0;$i -lt 5;$i++) {
+        $sample=$samples[$i]
+        if($sample.boundary -cne $names[$i] -or $sample.acted -ne $false -or $sample.gameTicks -lt $previous) {throw 'Unacted observation boundary, acted flag or order differs.'}
+        $previous=[long]$sample.gameTicks
+        foreach($field in @('commandObject','controlIdentity','processObject','contextObject','casterId','targetId','generationAtInit','commandType','abilityGuid')) {
+            if($null -eq $sample.identity.$field -or $sample.identity.$field -cne $id.$field){throw "Mixed unacted identity: $field."}
+        }
+        if($sample.state.relationshipState -cne 'Unmounted' -or $sample.state.generation -ne $id.generationAtInit) {throw 'Unacted window changed relationship.'}
+        foreach($field in @($pre.state.ledger.PSObject.Properties.Name)) {
+            if($sample.state.ledger.$field -ne $pre.state.ledger.$field -or $Proof.ledgerDelta.$field -ne 0){throw 'Unacted window changed ledger.'}
+        }
+    }
+    $terminal=$samples[-1]
+    if($terminal.finished -ne $true -or $terminal.result -cne $Proof.nativeResult -or $null -ne $terminal.processEnded) {throw 'Unacted terminal is not a finished process-free native failure.'}
+    foreach($event in @($Proof.resourceWindow.events|Where-Object {$_.state.actor -cin @($id.casterId,$Proof.mountId)})) {
+        if($event.boundary -cmatch '^(cost-|actor-cost-|prepare-|clear-|combat-clear)') {throw 'Unacted window contains native cost, preparation or reset.'}
+    }
+    $elapsed=([long]$terminal.gameTicks-[long]$pre.gameTicks)/10000000.0
+    foreach($actor in @('rider','mount')) {
+        foreach($field in @('standard','move','swift')) {
+            $b=$pre.state.$actor.$field;$a=$terminal.state.$actor.$field
+            if($null -eq $a -or $null -eq $b -or [double]::IsNaN([double]$a) -or [double]::IsInfinity([double]$a) -or
+                [double]::IsNaN([double]$b) -or [double]::IsInfinity([double]$b) -or
+                [Math]::Abs([double]$a-[Math]::Max(0.0,[double]$b-$elapsed)) -gt 0.05) {throw "Unacted window refunded or added $actor $field debt."}
+        }
+    }
+    Assert-KmcRelationshipReactionResources $Proof 0
+}
+
+function Assert-KmcChunk6aPathEvidence {
+    param($Path, [long]$Command, [string]$Actor, [bool]$RequireFailure)
+    if($Path.complete -ne $true -or @($Path.errors).Count -ne 0 -or $Path.commandObject -ne $Command -or $Path.actorId -cne $Actor) {throw 'Native path evidence lost its exact command or instrumentation.'}
+    foreach($token in @('060018A3','060018B9','0600184F','06001850','060027B2')) {
+        $hooks=@($Path.observerHooks|Where-Object token -CEQ $token)
+        if($hooks.Count -ne 1 -or $hooks[0].moduleMvid -cne '07fa1e4d-8618-41b3-9b8d-faa17d3b26f7') {throw 'Native path observer hook installation differs.'}
+    }
+    $events=@($Path.events);$sequence=0;$previous=0L;$requests=@{}
+    foreach($event in $events) {
+        if($event.sequence -ne ++$sequence -or $event.commandObject -ne $Command -or $event.actorId -cne $Actor -or $event.gameTicks -lt $previous) {throw 'Native path event command, actor or sequence differs.'}
+        $previous=[long]$event.gameTicks
+        if($event.boundary -ceq 'path-request') {
+            if($event.pathObject -eq 0 -or $event.requestSequence -le 0 -or $requests.ContainsKey([int]$event.requestSequence)) {throw 'Native path request identity is missing or repeated.'}
+            if($null -ne $event.points -or $null -ne $event.pathError -or $null -ne $event.pathState) {throw 'In-flight native path contents are worker-owned and cannot be evidence.'}
+            $requests[[int]$event.requestSequence]=$event
+        } elseif($event.boundary -cin @('path-complete-before','path-complete-after','path-not-found','movement-interrupted')) {
+            $request=$requests[[int]$event.requestSequence]
+            if($null -eq $request -or $event.pathObject -ne $request.pathObject) {throw 'Native path callback belongs to another request.'}
+        }
+    }
+    if(@($events|Where-Object boundary -CEQ 'command-bound').Count -ne 1 -or $requests.Count -lt 1 -or
+        @($events|Where-Object boundary -CEQ 'path-complete-before').Count -lt 1 -or
+        @($events|Where-Object boundary -CEQ 'path-complete-after').Count -lt 1 -or
+        @($events|Where-Object boundary -CEQ 'command-ended').Count -ne 1) {throw 'Native path lifecycle callbacks are incomplete.'}
+    $ended=@($events|Where-Object boundary -CEQ 'command-ended')[0]
+    if($ended.finished -ne $true){throw 'Native path terminal callback is unfinished.'}
+    if($RequireFailure) {
+        $failed=@($events|Where-Object {$_.boundary -cin @('path-not-found','movement-interrupted')})
+        if($failed.Count -lt 1 -or $ended.acted -ne $false -or $ended.result -cnotin @('Interrupt','Fail') -or
+            @($failed|Where-Object {$_.acted -ne $false -or $_.sequence -ge $ended.sequence}).Count -ne 0) {throw 'No native path failure preceded the exact unacted terminal.'}
+    }
+}
+
+function Assert-KmcChunk6aObstruction {
+    param($Case,$Fixture)
+    if($Case.contract -cne 'closed-native-door-unacted-mount' -or $Case.diagnosticStopIssued -ne $false -or $Case.noResidue -ne $true) {throw 'Obstruction was manufactured by Stop or retained residue.'}
+    $p=$Case.commandProof
+    Assert-KmcChunk6aUnactedProof $p
+    Assert-KmcChunk6aPathEvidence $Case.path $p.identity.commandObject $p.identity.casterId $true
+    $ended=@($Case.path.events|Where-Object boundary -CEQ 'command-ended')[0]
+    if($ended.gameTicks -ne $p.samples[-1].gameTicks -or $Case.terminal.id -ne $p.identity.commandObject -or
+        $Case.terminal.finished -ne $true -or $Case.terminal.acted -ne $false -or $Case.terminal.result -cne $p.nativeResult -or
+        $Case.after.relationshipState -cne 'Unmounted' -or $Case.after.generation -ne $p.identity.generationAtInit) {throw 'Obstruction terminal attribution differs.'}
+    if($Fixture.contract -cne 'native-open-door-crossing-then-closed-cut' -or $Fixture.originalOpen -ne $true -or
+        $Fixture.originalCut -ne $false -or $Fixture.disableNavmeshCutWhenOpen -ne $true -or
+        $Fixture.restoration.exact -ne $true -or $Fixture.restoration.ready -ne $true -or
+        $Fixture.restoration.state.open -ne $Fixture.originalOpen -or $Fixture.restoration.state.enabled -ne $Fixture.originalEnabled -or
+        $Fixture.restoration.state.cutEnabled -ne $Fixture.originalCut) {throw 'Obstruction fixture was not exactly restored.'}
+    foreach($door in @($Fixture.closedReady,$Case.doorAtClick,$Case.doorAtTerminal)) {
+        if($door.open -ne $false -or $door.cutEnabled -ne $true -or $door.clipTime -gt 0 -or $door.clipSpeed -ne -1 -or
+            $door.cutNeedsUpdate -ne $false -or $door.graphUpdatesQueued -ne $false -or $door.frame -le $door.tileUpdateFrame) {throw 'Native closed door animation/cut/tile readiness is unproved.'}
+    }
+    if($Fixture.closedReady.frame -le $Fixture.closedReady.settledFrame -or $Fixture.closedReady.frame -gt $Case.doorAtClick.frame) {throw 'Native closed door lacked a subsequent settled frame before click.'}
+    $cross=$Fixture.openHorseCrossing
+    if($cross.command.finished -ne $true -or $cross.command.result -cne 'Success' -or $cross.command.executor -cne $p.mountId -or
+        $cross.door.open -ne $true -or $cross.door.cutEnabled -ne $false -or $cross.distanceToDestination -gt 1.25) {throw 'Open-door native control did not succeed.'}
+    Assert-KmcChunk6aPathEvidence $cross.path $cross.command.id $p.mountId $false
+    # Recompute crossing from the exact path points, not the producer boolean.
+    $dx=[double]$Fixture.far.x-[double]$Fixture.near.x;$dz=[double]$Fixture.far.z-[double]$Fixture.near.z
+    $length=[Math]::Sqrt($dx*$dx+$dz*$dz);if($length -lt 7){throw 'Door fixture separation is too small.'};$dx/=$length;$dz/=$length
+    $crossed=$false
+    foreach($path in @($cross.path.events|Where-Object boundary -CEQ 'path-complete-after')) {
+        $lo=[double]::MaxValue;$hi=[double]::MinValue;$near=[double]::MaxValue;$previous=$null
+        foreach($point in $path.points) {
+            $x=[double]$point.x-[double]$Fixture.center.x;$z=[double]$point.z-[double]$Fixture.center.z
+            $side=$x*$dx+$z*$dz;$lo=[Math]::Min($lo,$side);$hi=[Math]::Max($hi,$side)
+            if($null -ne $previous) {
+                $sx=[double]$point.x-[double]$previous.x;$sz=[double]$point.z-[double]$previous.z;$square=$sx*$sx+$sz*$sz
+                $px=[double]$previous.x-[double]$Fixture.center.x;$pz=[double]$previous.z-[double]$Fixture.center.z
+                $t=if($square -eq 0){0}else{[Math]::Max(0.0,[Math]::Min(1.0,-($px*$sx+$pz*$sz)/$square))}
+                $near=[Math]::Min($near,[Math]::Sqrt([Math]::Pow($px+$sx*$t,2)+[Math]::Pow($pz+$sz*$t,2)))
+            }
+            $previous=$point
+        }
+        if($lo -lt -0.25 -and $hi -gt 0.25 -and $near -le 2.5){$crossed=$true}
+    }
+    if(-not $crossed){throw 'Native open path did not cross the selected door.'}
+    foreach($field in @('centerDistance','horizontalDistance','riderCorpulence','horseCorpulence','legalAdjacencyEnvelope')) {
+        $value=$Case.start.$field
+        if($null -eq $value -or [double]::IsNaN([double]$value) -or [double]::IsInfinity([double]$value) -or [double]$value -lt 0) {throw 'Obstruction geometry lacks finite measurements.'}
+    }
+    $g=$Case.start;$dx=[double]$g.riderPosition.x-[double]$g.horsePosition.x;$dz=[double]$g.riderPosition.z-[double]$g.horsePosition.z
+    $horizontal=[Math]::Sqrt($dx*$dx+$dz*$dz);$envelope=[double]$g.riderCorpulence+[double]$g.horseCorpulence+1.5
+    if($g.isAdjacent -ne $false -or $g.centerDistance -le $envelope -or $horizontal -le $envelope -or
+        [Math]::Abs($horizontal-[double]$g.horizontalDistance) -gt 0.001 -or [Math]::Abs($envelope-[double]$g.legalAdjacencyEnvelope) -gt 0.0001 -or
+        $Case.closedDoorObservations -lt 1) {throw 'Obstruction did not begin outside the measured transition envelope with a continuously observed closed door.'}
+}
+
+function Assert-KmcChunk6aFullTransaction($Artifact) {
+    if(@($Artifact.observations.PSObject.Properties.Name) -cnotcontains 'chunk6aFullTransactionContract' -or
+        $Artifact.observations.chunk6aFullTransactionContract -cne 'one-positive-mount-and-dismount-with-separate-campaign-support') {
+        throw 'Full Chunk 6A case lacks its isolated transaction contract.'
+    }
+    if(@($Artifact.rows|Where-Object { $_.name -cin @('CM02-obstruction','CM02-geometry-change','CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases') }).Count -ne 0 -or
+        @($Artifact.observations.PSObject.Properties.Name|Where-Object { $_ -cin @('chunk6aDoorFixture','chunk6aObstruction','chunk6aGeometryChange') }).Count -ne 0) {
+        throw 'Full Chunk 6A case inherited another scenario allocation.'
+    }
+}
+
+function Assert-KmcChunk6aCombatMountEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Artifact,
+        [AllowNull()][string]$Status
+    )
+
+    # Exact request/package identity is enforced by the enclosing artifact validator.
+    # Archives through124 predate prediction instrumentation; never attach these
+    # historical claims to125+ or synthesize observations into an archived artifact.
+    $version=if($Artifact -is [System.Collections.IDictionary]){$Artifact['productVersion']}elseif($Artifact.PSObject.Properties['productVersion']){$Artifact.productVersion}else{$null}
+    # Archives through125 predate the exact ground resource/joint-plan evidence.
+    # Current and unknown identities must emit it; supplied new blocks always validate.
+    $requiresEarlyEndEvidence=$true
+    if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 130){$requiresEarlyEndEvidence=$false}
+    $requiresPreciseActingSetup=$true
+    if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 129){$requiresPreciseActingSetup=$false}
+    $requiresGroundEvidence=$true
+    if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 125){$requiresGroundEvidence=$false}
+    $requiresPredictionEvidence=$true
+    if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 124){$requiresPredictionEvidence=$false}
+
+    $autoUseOnly = [string]$Request.scenario -cin @('chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt')
+    $autoUseMountOnly = [string]$Request.scenario -ceq 'chunk6a-auto-use-mount-rt'
+    $orderOnly = [string]$Request.scenario -cin @('chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb')
+    $escapeOnly = [string]$Request.scenario -cin @('chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt')
+    $actionEconomyVariant = Get-KmcActionEconomyVariant ([string]$Request.scenario)
+    $actionEconomyOnly = $null -ne $actionEconomyVariant
+    # Chunk 6 closeout: the seven real-time approach invalidations and the two turn-based boundaries ride the
+    # unchanged exploration and Mount flows; each has its own dedicated reader (Chunk6aClosureEvidence.ps1).
+    $invalidationOnly = Test-KmcChunk6aInvalidationScenario ([string]$Request.scenario)
+    $turnEndOnly = [string]$Request.scenario -ceq 'chunk6a-turn-end-approach-tb'
+    $modeExitOnly = [string]$Request.scenario -ceq 'chunk6a-mode-exit-tb'
+    $turnBased = $orderOnly -or $actionEconomyOnly -or $turnEndOnly -or $modeExitOnly -or [string]$Request.scenario -cin @('chunk6a-combat-mount-tb','chunk6a-adoption-compensation-tb','chunk6a-mammoth-mount-tb')
+    $refusalOnly = [string]$Request.scenario -cin @('chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection')
+    $refusalRow = if($refusalOnly){if([string]$Request.scenario -ceq 'chunk6a-refused-policy-disabled'){'CM06-combat-mount-requires-qualified-paired-policy'}elseif([string]$Request.scenario -ceq 'chunk6a-refused-foreign-companion'){'CM02-foreign-companion'}elseif([string]$Request.scenario -ceq 'chunk6a-refused-wrong-creature-target'){'CM02-wrong-creature-target'}else{'CM06-'+([string]$Request.scenario).Substring('chunk6a-refused-'.Length)}}else{''}
+    $hotbarOnly = [string]$Request.scenario -ceq 'chunk6a-hotbar-approach'
+    $approachOnly = $autoUseOnly -or $orderOnly -or $escapeOnly -or $modeExitOnly -or [string]$Request.scenario -cin @('chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-mount-approach','chunk6a-hotbar-approach')
+    $pausedOnly = [string]$Request.scenario -ceq 'chunk6a-paused-queue'
+    $geometryOnly = [string]$Request.scenario -ceq 'chunk6a-geometry-change'
+    $stopOnly = [string]$Request.scenario -ceq 'chunk6a-stop-approach'
+    $combatEndOnly = [string]$Request.scenario -ceq 'chunk6a-combat-end-approach'
+    $disableOnly = [string]$Request.scenario -ceq 'chunk6a-disable-approach'
+    $lifecycleOnly = $combatEndOnly -or $disableOnly
+    $replacementOnly = [string]$Request.scenario -ceq 'chunk6a-command-replacement'
+    $repeatedRequestOnly = [string]$Request.scenario -ceq 'chunk6a-repeated-mount-request'
+    $ownershipOnly = [string]$Request.scenario -ceq 'chunk6a-ownership-change'
+    $sizeFormOnly = [string]$Request.scenario -ceq 'chunk6a-size-form-change'
+    $lostDirectControlOnly = [string]$Request.scenario -ceq 'chunk6a-lost-direct-control'
+    $riderIncapacityOnly = [string]$Request.scenario -ceq 'chunk6a-rider-incapacitated'
+    $mountIncapacityOnly = [string]$Request.scenario -ceq 'chunk6a-mount-incapacitated'
+    $incapacityOnly = $riderIncapacityOnly -or $mountIncapacityOnly
+    $eligibilityOnly = $sizeFormOnly -or $lostDirectControlOnly -or $incapacityOnly
+    $obstructionOnly = [string]$Request.scenario -ceq 'chunk6a-obstruction'
+    $compensationOnly = [string]$Request.scenario -cin @('chunk6a-adoption-compensation-rt','chunk6a-adoption-compensation-tb')
+    $required = @('CM01-exploration-dismount-costs-nothing','CM01-exploration-free','CM01-combat-mount-cancel-costs-nothing')
+    if ($compensationOnly) {
+        $required += @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases')
+    } elseif ($autoUseMountOnly) {
+        $required += 'CM06-ai-auto-use'
+    } elseif ($refusalOnly) {
+        $required += $refusalRow
+    } elseif ($sizeFormOnly) {
+        $required += 'CM02-size-form-change'
+    } elseif ($lostDirectControlOnly) {
+        $required += 'CM02-lost-direct-control'
+    } elseif ($riderIncapacityOnly) {
+        $required += 'CM02-rider-incapacitated'
+    } elseif ($mountIncapacityOnly) {
+        $required += 'CM02-mount-incapacitated'
+    } elseif ($ownershipOnly) {
+        $required += 'CM02-ownership-change'
+    } elseif ($replacementOnly) {
+        $required += 'CM04-command-replacement'
+    } elseif ($repeatedRequestOnly) {
+        $required += 'CM06-repeated-request'
+    } elseif ($stopOnly) {
+        $required += 'CM04-stop-during-approach'
+    } elseif ($combatEndOnly) {
+        $required += 'CM04-combat-end'
+    } elseif ($disableOnly) {
+        $required += 'CM04-disable-unload'
+    } elseif ($invalidationOnly) {
+        $required += (Get-KmcChunk6aInvalidationRow ([string]$Request.scenario))
+    } elseif ($turnEndOnly) {
+        $required += 'CM04-turn-end'
+    } elseif ($obstructionOnly) {
+        $required += 'CM02-obstruction'
+    } elseif ($geometryOnly) {
+        $required += 'CM02-geometry-change'
+    } elseif ($actionEconomyOnly) {
+        # One isolated action-economy variant: its own row plus the shared Mount rows it produces.
+        $required += [string]$actionEconomyVariant.row
+        if (-not $actionEconomyVariant.riderExhaust) {
+            $required += @('CM01-combat-mount-accepted','CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations')
+            if (-not $actionEconomyVariant.adjacentMount) { $required += 'CM02-approach-arrival' }
+        }
+    } else {
+        $required += @('CM01-combat-mount-accepted','CM02-approach-arrival',
+            'CM03-combat-mount-conserves-debt','CM03-combat-mount-adoption-preparations')
+        if (-not $approachOnly) {
+            $required += @('CM06-combat-mount-repeat-refused','CM05-combat-dismount-accepted',
+                'CM05-combat-dismount-conserves-debt','CM05-no-duplicate-mount-turn')
+            # Fresh geometry/obstruction transactions are bound by the fixed campaign gate.
+        }
+    }
+    if ($pausedOnly) { $required += 'CM06-paused-queue' }
+    if ($orderOnly -and $requiresEarlyEndEvidence) { $required += 'CM03-early-end-turn' }
+    if ($turnBased) { $required += 'CM01-combat-mount-preparing-refused' }
+    if ($hotbarOnly) { $required += 'CM06-hotbar-path' }
+    if ($orderOnly) { $required += @($(if($Request.scenario -ceq 'chunk6a-allocation-rider-first-tb'){'CM03-rider-before-mount-slot'}else{'CM03-mount-slot-before-rider'}),'CM03-next-round-activation') }
+    if ($escapeOnly) { $required += 'CM05-dismount-survives-feature-policy-disable' }
+    if ($autoUseOnly -and -not $autoUseMountOnly) { $required += 'CM06-ai-auto-use' }
+    if ($modeExitOnly) { $required += 'CM04-mode-exit' }
+    $rowNames = @(@($Artifact.rows) | ForEach-Object { [string]$_.name })
+    foreach ($name in $rowNames) {
+        if ($name -cnotin (Get-KmcPhase3dHorseRuntimeRows)) {
+            throw "Chunk 6A evidence declared an unregistered row: $name"
+        }
+    }
+    $observations = $Artifact.observations
+    if ($null -eq $observations.chunk6aCombatMount -or $observations.chunk6aCombatMount -isnot [Array]) {
+        throw 'Chunk 6A evidence omitted its native sample array.'
+    }
+    $configuration = $observations.phase3fActualConfiguration
+    Assert-KmcMountedRuntimeConfiguration $configuration $true 'Chunk 6A actual configuration'
+    if ([string]$Status -cne 'PASS') { return }
+
+    foreach ($name in $required) {
+        $matched = @(@($Artifact.rows) | Where-Object { [string]$_.name -ceq $name })
+        if ($matched.Count -ne 1 -or [string]$matched[0].status -cne 'PASS') {
+            throw "PASS Chunk 6A combat-mount evidence requires exactly one PASS row named $name."
+        }
+    }
+    if (-not ($approachOnly -or $compensationOnly -or $geometryOnly -or $obstructionOnly -or $stopOnly -or $lifecycleOnly -or $replacementOnly -or $repeatedRequestOnly -or $ownershipOnly -or $eligibilityOnly -or $refusalOnly -or $actionEconomyOnly -or $invalidationOnly -or $turnEndOnly)) {
+        Assert-KmcChunk6aFullTransaction $Artifact
+    }
+    $proofs = @($observations.chunk6aCommandProofs)
+    $windows = @('exploration-mount','exploration-dismount')
+    if ($compensationOnly) { $windows += 'compensation' }
+    elseif ($geometryOnly) { $windows += 'geometry-change-mount' }
+    elseif ($repeatedRequestOnly) { $windows += 'positive-mount' }
+    elseif ($actionEconomyOnly) {
+        if (-not $actionEconomyVariant.riderExhaust) { $windows += 'positive-mount' }
+        if ([string]$actionEconomyVariant.dismount -cne 'none') { $windows += 'combat-dismount' }
+    }
+    elseif ($autoUseMountOnly -or $obstructionOnly -or $stopOnly -or $lifecycleOnly -or $replacementOnly -or $ownershipOnly -or $eligibilityOnly -or $refusalOnly -or $invalidationOnly -or $turnEndOnly) { } # Each negative command has its own strict process-free proof.
+    else {
+        $windows += 'positive-mount'
+        if (-not $approachOnly) {
+            $windows += 'combat-dismount'
+
+        }
+    }
+    if ($escapeOnly) { $windows += 'disabled-setting-dismount' }
+    $positiveMountDisposition = $null
+    if ($windows -ccontains 'positive-mount') {
+        $dispositionProperty = $observations.PSObject.Properties['chunk6aAdoptionDisposition']
+        if ($null -eq $dispositionProperty -or $null -eq $dispositionProperty.Value -or
+            $dispositionProperty.Value -is [Array] -or $dispositionProperty.Value -is [string]) {
+            throw 'Positive Mount evidence omitted its declared adoption disposition.'
+        }
+        $positiveMountDisposition = [string]$dispositionProperty.Value.disposition
+        if ($turnBased) {
+            if ($positiveMountDisposition -cnotin @('PreparePartnerThisRound','RetainPartnerParticipation')) {
+                throw "Positive Mount evidence declared an unusable turn-based adoption disposition: $positiveMountDisposition"
+            }
+        } elseif ($positiveMountDisposition -cne 'RealTimeOwnership') {
+            throw 'Positive Mount evidence did not declare RealTimeOwnership for its real-time native command.'
+        }
+    }
+    if ($proofs.Count -ne $windows.Count) { throw 'Chunk 6A command window count differs from its declared scenario.' }
+    foreach ($window in $windows) {
+        $found = @($proofs | Where-Object { [string]$_.window -ceq $window })
+        if ($found.Count -ne 1) { throw "Chunk 6A requires exactly one $window command proof." }
+        $dismount = $window -clike '*dismount'
+        $expectedAbility = if($dismount){'3af2b81f4d72bbb30501fa730fcdf36e'}else{'f053faad986631688defa003cd7bda0e'}
+        $expectedTarget = if($dismount){[string]$found[0].identity.casterId}else{[string]$found[0].mountId}
+        if([string]$found[0].identity.abilityGuid -cne $expectedAbility -or [string]$found[0].identity.targetId -cne $expectedTarget){throw 'Named relationship window has the wrong ability or target identity.'}
+        $isCombat = -not $window.StartsWith('exploration-')
+        $prepares = if ($window -ceq 'positive-mount' -and
+            $positiveMountDisposition -ceq 'PreparePartnerThisRound') { 1 } else { 0 }
+        if ($window -ceq 'geometry-change-mount') {
+            Assert-KmcRelationshipCommandProof $found[0] $true $false 0 $true ([long]$observations.chunk6aGeometryChange.auxiliaryCommandId) $requiresPredictionEvidence
+            Assert-KmcChunk6aGeometryChange $observations.chunk6aGeometryChange $found[0]
+        } else {
+            $requireApproach = ($window -ceq 'positive-mount') -and -not ($actionEconomyOnly -and $actionEconomyVariant.adjacentMount)
+            Assert-KmcRelationshipCommandProof $found[0] $isCombat ($turnBased -and $isCombat) $prepares $requireApproach 0 $requiresPredictionEvidence
+        }
+        if($turnBased -and $window -cin @('positive-mount','compensation')) {
+            # Action-economy variants whose Acting entry is a native attack or five-foot step
+            # prove that entry through their own envelope instead of the ground setup.
+            if(-not ($actionEconomyOnly -and [string]$actionEconomyVariant.riderEntry -cne 'ground')) {
+                Assert-KmcChunk6aNativeActingSetup $observations.chunk6aNativeActingSetup $found[0]
+                if($requiresPreciseActingSetup -or $observations.chunk6aNativeActingSetup.PSObject.Properties['nativeGroundInput']){Assert-KmcPreciseActingGroundInput $observations.chunk6aNativeActingSetup}
+            }
+            Assert-KmcChunk6aPreCombatPositioning $observations.chunk6aPreCombatPositioning $found[0]
+            if($requiresGroundEvidence -or $observations.chunk6aPreCombatPositioning.PSObject.Properties['plan']){
+                Assert-KmcChunk6aGroundSetupEnvelope $observations $found[0]
+            }
+        }
+    }
+    if ($actionEconomyOnly) { Assert-KmcActionEconomyEnvelope $Request $Artifact; return }
+    if ([string]$Request.scenario -ceq 'chunk6a-combat-mount-tb') {
+        $requiresLaterTurnEvidence=$true
+        if([string]$version -cmatch '^0[.]1[.]0-chunk6a-preview[.]([0-9]+)$' -and [long]$Matches[1] -le 130){$requiresLaterTurnEvidence=$false}
+        if($requiresLaterTurnEvidence -or $observations.PSObject.Properties['chunk6aDismountTurn']){Assert-KmcFullTbDismountTurn $Artifact}
+    }
+    if ($autoUseOnly) {
+        Assert-KmcAutoUseEnvelope $Request $Artifact
+        $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
+        if($otherClaims.Count-ne0){throw 'Auto-use case cannot credit another combat allocation.'}
+        if($autoUseMountOnly){return}
+    }
+    if ($orderOnly) { Assert-KmcMountOrderEnvelope $Request $Artifact $requiresEarlyEndEvidence }
+    if ($escapeOnly) { Assert-KmcDismountEscapeEnvelope $Request $Artifact }
+    if ($refusalOnly) {
+        $refusal=$observations.chunk6aRefusedMount
+        if($refusal.scenario -cne [string]$Request.scenario -or $refusal.row -cne $refusalRow){throw 'Refusal case does not match this request.'}
+        $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
+        if($otherClaims.Count -ne 0){throw 'An isolated refusal cannot credit another combat scenario.'}
+        Assert-KmcRefusalCase $refusal
+        Assert-KmcRefusalExploration $refusal $proofs
+        return
+    }
+    if ($hotbarOnly) {
+        $mountProof=@($proofs|Where-Object window -CEQ 'positive-mount')[0]
+        Assert-KmcHotbarInput $observations.chunk6aHotbarInput $mountProof
+        Assert-KmcHotbarUi $observations.chunk6aHotbarUi $observations.chunk6aHotbarInput $mountProof
+    }
+    if ($pausedOnly) {
+        $pausedProof=@($proofs|Where-Object window -CEQ 'positive-mount')[0]
+        if($observations.chunk6aPausedQueue.complete -ne $true){throw 'Paused queue observation did not complete.'}
+        Assert-KmcPausedQueue $observations.chunk6aPausedQueue $pausedProof
+        if(@($Artifact.rows|Where-Object {$_.name -cin @('CM02-geometry-change','CM02-obstruction','CM05-combat-dismount-accepted')}).Count -ne 0){throw 'Paused allocation inherited another transaction.'}
+    }
+    if ($compensationOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @('CM01-combat-mount-accepted','CM02-approach-arrival') }).Count -ne 0) {
+            throw 'A compensation allocation cannot contain a positive Mount.'
+        }
+        return
+    }
+    if (@($Artifact.rows | Where-Object { $_.name -cin @('CM02-adoption-plan-invalidated','CM02-adoption-compensation-releases') }).Count -ne 0) {
+        throw 'A positive allocation cannot inherit compensation.'
+    }
+    if ($eligibilityOnly) {
+        $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
+        if($otherClaims.Count-ne0){throw 'An isolated eligibility allocation cannot credit another combat scenario.'}
+        $case=if($sizeFormOnly){$observations.chunk6aSizeFormChange}elseif($lostDirectControlOnly){$observations.chunk6aLostDirectControl}else{$observations.chunk6aPendingIncapacity}
+        Assert-KmcEligibilityChange ([string]$Request.scenario) $case
+        return
+    }
+    if ($ownershipOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @('CM04-stop-during-approach','CM04-command-replacement','CM01-combat-mount-accepted','CM02-approach-arrival','CM02-geometry-change','CM02-obstruction','CM05-combat-dismount-accepted') }).Count -ne 0) {
+            throw 'An isolated ownership allocation cannot contain another combat relationship scenario.'
+        }
+        Assert-KmcOwnershipChange $observations.chunk6aOwnershipChange
+        return
+    }
+    if ($repeatedRequestOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @('CM04-stop-during-approach','CM04-command-replacement','CM01-combat-mount-accepted','CM02-approach-arrival','CM02-geometry-change','CM02-obstruction','CM05-combat-dismount-accepted') }).Count -ne 0) {
+            throw 'An isolated repeated-request allocation cannot contain another combat relationship scenario.'
+        }
+        Assert-KmcRepeatedMountRequest $observations.chunk6aRepeatedRequest $proofs
+        return
+    }
+    if ($replacementOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @("CM04-stop-during-approach","CM01-combat-mount-accepted","CM02-approach-arrival","CM02-geometry-change","CM02-obstruction","CM05-combat-dismount-accepted") }).Count -ne 0) {
+            throw 'An isolated Replacement allocation cannot contain another combat relationship scenario.'
+        }
+        Assert-KmcReplacementInput $observations.chunk6aReplacementApproach
+        return
+    }
+    if ($lifecycleOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @('CM04-stop-during-approach','CM04-command-replacement','CM01-combat-mount-accepted','CM02-approach-arrival','CM02-geometry-change','CM02-obstruction','CM05-combat-dismount-accepted') }).Count -ne 0) {
+            throw 'An isolated lifecycle-boundary allocation cannot contain another combat relationship scenario.'
+        }
+        Assert-KmcChunk6aLifecycleBoundary ([string]$Request.scenario) $Artifact
+        return
+    }
+    if ($invalidationOnly -or $turnEndOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @('CM04-stop-during-approach','CM04-command-replacement','CM01-combat-mount-accepted','CM02-approach-arrival','CM02-geometry-change','CM02-obstruction','CM05-combat-dismount-accepted','CM04-combat-end','CM04-disable-unload') }).Count -ne 0) {
+            throw 'An isolated approach-invalidation or turn-end allocation cannot contain another combat relationship scenario.'
+        }
+        $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
+        if($otherClaims.Count-ne0){throw 'An isolated closeout allocation cannot credit another combat scenario.'}
+        if ($turnEndOnly) { Assert-KmcChunk6aTurnEnd $Artifact } else { Assert-KmcChunk6aApproachInvalidation ([string]$Request.scenario) $Artifact }
+        return
+    }
+    if ($modeExitOnly) {
+        # The positive turn-based Mount of this allocation is validated below exactly as the approach-only
+        # scenarios are; the exit boundary has its own reader first.
+        $otherClaims=@($Artifact.rows|Where-Object {($_.name -clike 'CM*') -and $_.name -cnotin $required})
+        if($otherClaims.Count-ne0){throw 'An isolated mode-exit allocation cannot credit another combat scenario.'}
+        Assert-KmcChunk6aModeExit $Artifact
+    }
+    if ($stopOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @("CM01-combat-mount-accepted","CM02-approach-arrival","CM02-geometry-change","CM02-obstruction","CM05-combat-dismount-accepted") }).Count -ne 0) {
+            throw 'An isolated Stop allocation cannot contain another combat relationship scenario.'
+        }
+        Assert-KmcStopInput $observations.chunk6aStopApproach
+        return
+    }
+    if ($obstructionOnly) {
+        Assert-KmcChunk6aObstruction $observations.chunk6aObstruction $observations.chunk6aDoorFixture
+    }
+    if ($geometryOnly -or $obstructionOnly) {
+        if (@($Artifact.rows | Where-Object { $_.name -cin @('CM01-combat-mount-accepted','CM02-approach-arrival') }).Count -ne 0) {
+            throw 'An isolated geometry allocation cannot contain a positive Mount.'
+        }
+        return
+    }
+    $samples = @($observations.chunk6aCombatMount)
+    function Get-Chunk6aSample([string]$Kind) {
+        $found = @($samples | Where-Object { [string]$_.kind -ceq $Kind })
+        if ($found.Count -ne 1) { throw "Chunk 6A evidence needs exactly one $Kind sample; found $($found.Count)." }
+        return $found[0]
+    }
+    $mountBefore = Get-Chunk6aSample 'mount-before'
+    $mountAfter = Get-Chunk6aSample 'mount-after'
+    # The narrow approach scenario stops at CM02-approach-arrival, so it never reaches the
+    # combat Dismount and produces no dismount samples. Requiring them there would make the
+    # narrow instrument unusable; the full scenarios still require both halves.
+    $transitionPairs = @(, @($mountBefore, $mountAfter))
+    if (-not $approachOnly) {
+        $dismountBefore = Get-Chunk6aSample 'dismount-before'
+        $dismountAfter = Get-Chunk6aSample 'dismount-after'
+        $transitionPairs = @(@($mountBefore, $mountAfter), @($dismountBefore, $dismountAfter))
+    }
+
+    # Exactly one relationship transition per voluntary control, and exactly one
+    # accepted native delivery per control. Ledger claims are DELTAS across each
+    # control's own window: this scenario performs separate exploration Mount and
+    # Dismount windows before the single combat Mount; compensation is isolated. Thus a
+    # cumulative "acceptedMountCount == 1" would describe an earlier design of the
+    # scenario rather than what the control under test did.
+    if ([long]$mountAfter.relationshipGeneration -ne [long]$mountBefore.relationshipGeneration + 1L) {
+        throw 'Chunk 6A combat Mount did not change the relationship generation exactly once.'
+    }
+    if ([long]$mountAfter.dispatchAccepted -ne [long]$mountBefore.dispatchAccepted + 1L) {
+        throw 'Chunk 6A combat Mount did not produce exactly one accepted native delivery.'
+    }
+    if ([string]$mountAfter.relationshipState -cne 'Mounted') {
+        throw 'Chunk 6A evidence did not record a mounted terminal state for the combat Mount.'
+    }
+    if ([long]$mountAfter.acceptedMountCount -ne [long]$mountBefore.acceptedMountCount + 1L -or
+        [long]$mountAfter.forcedDetachCount -ne [long]$mountBefore.forcedDetachCount) {
+        throw 'Chunk 6A transition ledger did not record exactly one voluntary combat Mount and no forced detach in its own window.'
+    }
+    if (-not $approachOnly) {
+        if ([long]$dismountAfter.dispatchAccepted -ne [long]$dismountBefore.dispatchAccepted + 1L) {
+            throw 'Chunk 6A combat Dismount did not produce exactly one accepted native delivery.'
+        }
+        if ([string]$dismountAfter.relationshipState -cne 'Unmounted') {
+            throw 'Chunk 6A evidence did not record an unmounted terminal state for the combat Dismount.'
+        }
+        if ([long]$dismountAfter.acceptedDismountCount -ne [long]$dismountBefore.acceptedDismountCount + 1L -or
+            [long]$dismountAfter.forcedDetachCount -ne [long]$dismountBefore.forcedDetachCount) {
+            throw 'Chunk 6A transition ledger did not record exactly one voluntary combat Dismount and no forced detach in its own window.'
+        }
+    }
+
+    # Native callback identity, exact native cost and RT/TB endpoints were re-derived
+    # from each command proof above. No cooldown endpoint can stand in for acted.
+    # Adoption performed no principal preparation and at most one partner one.
+    if ([int]$mountAfter.rider.nativePrepareCount -ne [int]$mountBefore.rider.nativePrepareCount) {
+        throw 'Chunk 6A adoption repeated the principal native preparation.'
+    }
+    $partnerDelta = [int]$mountAfter.mount.nativePrepareCount - [int]$mountBefore.mount.nativePrepareCount
+    if ($partnerDelta -lt 0 -or $partnerDelta -gt 1) {
+        throw "Chunk 6A adoption performed $partnerDelta partner native preparations."
+    }
+    $disposition = [string]$Artifact.observations.chunk6aAdoptionDisposition.disposition
+    if ($turnBased) {
+        if ($disposition -cnotin @('PreparePartnerThisRound','RetainPartnerParticipation')) {
+            throw "Chunk 6A turn-based adoption recorded an unusable disposition: $disposition"
+        }
+        $expected = if ($disposition -ceq 'PreparePartnerThisRound') { 1 } else { 0 }
+        if ($partnerDelta -ne $expected) {
+            throw "Chunk 6A $disposition expected $expected partner preparations, observed $partnerDelta."
+        }
+        if ([long]$mountAfter.pairedSequence -ne 1L) {
+            throw 'Chunk 6A turn-based adoption did not take exactly one paired activation sequence.'
+        }
+    }
+    elseif ($disposition -cne 'RealTimeOwnership') {
+        throw "Chunk 6A real-time adoption recorded $disposition instead of RealTimeOwnership."
+    }
+    if ([long]$mountAfter.adoptionCount -ne 1L) {
+        throw 'Chunk 6A recorded more or fewer than one mid-encounter adoption.'
+    }
+    foreach ($sample in $samples) {
+        if ([int]$sample.mountTurnsWhileMounted -ne 0) {
+            throw 'Chunk 6A observed an independent native mount turn while the pair was mounted.'
+        }
+    }
+}
 function Assert-KmcPhase3dHorseScenarioEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -5724,6 +6771,11 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     )
 
     $scenarios = @(
+        'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
+        'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
+        'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb',
+        'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb',
+        'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk6a-mount-spent-move-tb', 'chunk6a-mount-spent-standard-tb', 'chunk6a-mount-spent-all-tb', 'chunk6a-rider-without-move-tb', 'chunk6a-rider-other-action-tb', 'chunk6a-unrelated-candidate-between-tb', 'chunk6a-dismount-after-rider-expenditure-tb', 'chunk6a-dismount-after-mount-expenditure-tb', 'chunk6a-dismount-immediately-after-mount-tb',
         'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite',
         'phase3d-unified-combat-tb-suite',
         'phase3d-horse-presentation-suite')
@@ -5762,8 +6814,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     $phase3dSchemaVersion = if (Test-KmcExactJsonInteger $artifact.schemaVersion) {
         [long]$artifact.schemaVersion
     } else { -1L }
-    if ($phase3dSchemaVersion -notin @(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L, 26L, 27L) -or
-        ($phase3dSchemaVersion -eq 27L -and [string]$Request.scenario -cnotin @('chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt')) -or
+    if (-not (Test-KmcPhase3dSchemaRegistration -SchemaVersion $phase3dSchemaVersion -Scenario ([string]$Request.scenario)) -or
         [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
         $artifact.rows -isnot [Array] -or $null -eq $artifact.observations -or
         $artifact.observations -is [Array] -or $artifact.observations -is [string] -or
@@ -5785,71 +6836,22 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Phase 3D Horse evidence createdAtUtc is invalid.'
     }
 
-    if ($phase3dSchemaVersion -eq 23L -or (Test-KmcChunk4ExtendedScenario ([string]$Request.scenario))) {
-        Assert-KmcChunk4ExtendedEvidence -Request $Request -Artifact $artifact -Status $Status
+    $preambleProperty = $artifact.observations.PSObject.Properties['childEntryPreamble']
+    if ((Test-KmcChildEntryPreambleRequired ([string]$artifact.productVersion)) -or $null -ne $preambleProperty) {
+        if ($null -eq $preambleProperty -or $null -eq $preambleProperty.Value) { throw 'Phase 3D Horse evidence omitted its structured child-entry preamble snapshot.' }
+        Assert-KmcChildEntryPreamble $preambleProperty.Value ([string]$Request.scenario) (Test-KmcChildEntryExpectsMounted ([string]$Request.scenario)) (Test-KmcChildEntryRequiresIdleParty ([string]$Request.scenario))
+        if ([string]$preambleProperty.Value.runId -cne [string]$Request.runId) { throw 'Child entry preamble names another run.' }
+    }
+    $phase3dDispatch=Get-KmcPhase3dEvidenceDispatch -SchemaVersion $phase3dSchemaVersion -Scenario ([string]$Request.scenario)
+    if($null-ne$phase3dDispatch) {
+        & $phase3dDispatch.validator -Request $Request -Artifact $artifact -Status $Status
         $afterFile = Get-Item -LiteralPath $path -Force
         if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 extended evidence changed during validation.'
+            throw $phase3dDispatch.mutationError
         }
         return
     }
-    if ($phase3dSchemaVersion -eq 22L -or (Test-KmcChunk4CoreScenario ([string]$Request.scenario))) {
-        Assert-KmcChunk4CoreEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 core evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -in @(21L,27L) -or [string]$Request.scenario -cin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt','chunk4-sustained-ranged-rt','chunk4-sustained-tb')) {
-        Assert-KmcChunk4PlayEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 sustained evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -in @(18L,19L,20L,24L,25L,26L) -or [string]$Request.scenario -cin @('chunk4-charge-safety-rt','chunk4-charge-safety-tb')) {
-        Assert-KmcChunk4ChargeEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Chunk 4 Charge evidence changed during validation.'
-        }
-        return
-    }
-    if ([string]$Request.scenario -ceq 'ordinary-attack-controls-tb') {
-        Assert-KmcOrdinaryAttackControlsEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Ordinary attack evidence changed during validation.'
-        }
-        return
-    }
-    if (Test-KmcActorAllocationScenario ([string]$Request.scenario)) {
-        Assert-KmcActorAllocationEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Actor allocation evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -in @(9L, 10L) -or [string]$Request.scenario -cin @('phase3h-combat-loop-rt','phase3h-combat-loop-tb')) {
-        Assert-KmcPhase3hLoopEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Phase 3H evidence changed during validation.'
-        }
-        return
-    }
-    if ($phase3dSchemaVersion -eq 8L -or [string]$Request.scenario -cin @('phase3g-native-controls-rt','phase3g-native-controls-tb')) {
-        Assert-KmcPhase3gControlsEvidence -Request $Request -Artifact $artifact -Status $Status
-        $afterFile = Get-Item -LiteralPath $path -Force
-        if ($afterFile.Length -ne $beforeFile.Length -or $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
-            throw 'Phase 3G evidence changed during validation.'
-        }
-        return
-    }
-    $nativeControlScope = $phase3dSchemaVersion -eq 7L
+    $nativeControlScope = $phase3dSchemaVersion -in @(7L,31L)
     if ($nativeControlScope) {
         if ([string]$Request.scenario -cnotin @('chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-horse-presentation-suite')) {
             throw 'Phase 3F native-control evidence cannot qualify a unified-TB scenario.'
@@ -5871,8 +6873,18 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
         throw 'Focused unmounted controls require actual native configuration schema 7.'
     }
     $requiredRows = switch -CaseSensitive ([string]$Request.scenario) {
+        'chunk6a-combat-mount-rt' {
+            @('CM01-combat-mount-accepted','CM05-combat-dismount-accepted')
+            break
+        }
+        'chunk6a-combat-mount-tb' {
+            @('CM01-combat-mount-accepted','CM05-combat-dismount-accepted')
+            break
+        }
         'unmounted-attack-controls-rt' {
-            @('unmounted-stock-attack-control','unmounted-ranged-control')
+            $rows = @('unmounted-stock-attack-control','unmounted-ranged-control')
+            if ($phase3dSchemaVersion -eq 31L) { $rows += 'CM05-repeated-input' }
+            $rows
             break
         }
         'phase3d-horse-presentation-suite' {
@@ -6275,6 +7287,7 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
     elseif ([string]$artifact.status -ceq 'PASS' -and [string]$Request.scenario -ceq 'unmounted-attack-controls-rt') {
         Assert-KmcUnmountedAttackControlRows -Artifact $artifact -RowMap $rowMap
+        if ($phase3dSchemaVersion -eq 31L) { Assert-KmcRepeatedDismountInputEnvelope -Request $Request -Artifact $artifact }
         $readiness = $artifact.observations.rtCombatDismountReadiness
         if ($readiness.gamePaused -ne $false -or $readiness.riderCanActInCombat -ne $true -or
             $readiness.riderHandsBusy -ne $false -or [double]$readiness.riderInitiative -gt 0.000001d) {
@@ -6296,7 +7309,13 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
             $riderAiRestored.states[0].effectiveAiAfter -ne $riderAi.states[0].effectiveAiBefore) {
             throw 'Focused unmounted controls did not isolate and exactly restore native rider AI.'
         }
-        foreach ($row in $rowMap.Values) {
+        $nativeAttackRows = if ($phase3dSchemaVersion -eq 31L) {
+            @($rowMap['unmounted-stock-attack-control'],$rowMap['unmounted-ranged-control'])
+        } else {
+            # Preserve the exact historical schema-7 assertion over every focused row.
+            @($rowMap.Values)
+        }
+        foreach ($row in $nativeAttackRows) {
             if ([string]$row.evidence.commandType -cne 'Kingmaker.UnitLogic.Commands.UnitAttack' -or
                 [long]$row.evidence.preDispatchDamageRules -ne 0L) {
                 throw 'Focused unmounted control did not retain the exact native UnitAttack executor.'
@@ -7204,6 +8223,135 @@ function Assert-KmcPhase3dHorseScenarioEvidence {
     }
 }
 
+
+function Assert-KmcMountPreambleEvidence {
+    param(
+        [Parameter(Mandatory = $true)]$Request,
+        [Parameter(Mandatory = $true)]$Manifest,
+        [AllowNull()][string]$Status,
+        $SubscenarioResults
+    )
+
+    # The narrow save-backed Mount preamble. Its whole claim is one native
+    # selected-ability target click proved through sixteen staged causal assertions, so
+    # its required set is exactly those sixteen plus the ineligible-target control. A
+    # run that produced fewer rows, or that mounted, is not this scenario.
+    $scenario = 'chunk6a-mount-preamble'
+    $leaf = 'chunk6a-mount-preamble.json'
+    $kind = 'chunk6a-mount-preamble'
+    $records = @($Manifest.artifacts | Where-Object {
+        [string]$_.relativePath -ceq $leaf -or [string]$_.kind -ceq $kind
+    })
+    if ([string]$Request.scenario -cne $scenario) {
+        if ($records.Count -ne 0) { throw 'A non-preamble scenario manifested narrow Mount preamble evidence.' }
+        return
+    }
+    if ($records.Count -ne 1 -or [string]$records[0].relativePath -cne $leaf -or [string]$records[0].kind -cne $kind) {
+        throw 'The narrow Mount preamble did not manifest exactly one evidence artifact.'
+    }
+
+    $evidenceRoot = [IO.Path]::GetFullPath([string]$Request.evidenceRoot)
+    $artifactPath = Assert-KmcChildPath (Join-Path $evidenceRoot $leaf) $evidenceRoot 'narrow Mount preamble evidence'
+    if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) { throw 'Narrow Mount preamble evidence is missing.' }
+    Assert-KmcNotReparsePoint $artifactPath 'narrow Mount preamble evidence'
+    Assert-KmcNotHardLink $artifactPath 'narrow Mount preamble evidence'
+    $beforeFile = Get-Item -LiteralPath $artifactPath -Force
+    $artifact = Read-KmcJson $artifactPath
+
+    if (-not (Test-KmcExactJsonInteger $artifact.schemaVersion) -or [long]$artifact.schemaVersion -ne 1 -or
+        [string]$artifact.evidenceKind -cne $kind -or [string]$artifact.status -cnotin @('PASS','FAIL') -or
+        $artifact.assertions -isnot [Array] -or $artifact.errors -isnot [Array] -or
+        [string]$artifact.dllSha256 -cnotmatch '^[0-9a-f]{64}$' -or
+        [string]$artifact.dllMvid -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+        throw 'Narrow Mount preamble schema, status, or DLL identity is invalid.'
+    }
+    foreach ($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {
+        if ([string]$artifact.$name -cne [string]$Request.$name) {
+            throw "Narrow Mount preamble identity mismatch: $name"
+        }
+    }
+
+    $assertionNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    $pass = 0
+    $fail = 0
+    foreach ($assertion in @($artifact.assertions)) {
+        Assert-KmcExactProperties $assertion @('name','status','detail') 'narrow Mount preamble assertion'
+        if ($assertion.name -isnot [string] -or [string]$assertion.name -cnotmatch '^[a-z0-9-]{1,100}$' -or
+            -not $assertionNames.Add([string]$assertion.name) -or [string]$assertion.status -cnotin @('PASS','FAIL') -or
+            $assertion.detail -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$assertion.detail)) {
+            throw 'Narrow Mount preamble contains an invalid or duplicate assertion.'
+        }
+        if ([string]$assertion.status -ceq 'PASS') { $pass++ } else { $fail++ }
+    }
+    if ([long]$artifact.assertionPassCount -ne $pass -or [long]$artifact.assertionFailCount -ne $fail -or
+        ([string]$artifact.status -ceq 'PASS') -ne ($fail -eq 0 -and @($artifact.errors).Count -eq 0)) {
+        throw 'Narrow Mount preamble assertion totals or status do not reconcile.'
+    }
+    if ($null -ne $SubscenarioResults) {
+        $matched = @($SubscenarioResults | Where-Object { [string]$_.name -ceq $scenario })
+        if ($matched.Count -ne 1 -or [string]$matched[0].status -cne [string]$artifact.status -or
+            [long]$matched[0].assertionPassCount -ne $pass -or [long]$matched[0].assertionFailCount -ne $fail) {
+            throw 'Narrow Mount preamble does not reconcile to one exact runtime subscenario.'
+        }
+    }
+
+    if ([string]$artifact.status -ceq 'PASS') {
+        foreach ($required in @(
+            'native-saddle-up-invalid-target',
+            'native-saddle-up-exact-ability-fact',
+            'native-saddle-up-handler-holds-exact-ability',
+            'native-saddle-up-priority-admits-horse',
+            'native-saddle-up-resolved-target-is-exact-horse',
+            'native-saddle-up-click-accepted',
+            'native-saddle-up-native-command-created',
+            'native-saddle-up-command-ability-is-exact',
+            'native-saddle-up-command-executor-is-exact-rider',
+            'native-saddle-up-command-target-is-exact-horse',
+            'native-saddle-up-single-command-no-duplicate',
+            'native-saddle-up-native-provenance',
+            'native-saddle-up-shell-registered-once',
+            'native-saddle-up-shell-identity-exact',
+            'native-saddle-up-one-cast-request-no-refusal',
+            'native-saddle-up-transition-not-yet-delivered',
+            'native-saddle-up-drop-ability-preserves-command')) {
+            if (-not $assertionNames.Contains($required)) {
+                throw "PASS narrow Mount preamble is missing a staged assertion: $required"
+            }
+        }
+        # The preamble stops before mounting. A PASS that carries a mounted row is a
+        # different scenario wearing this name.
+        foreach ($forbidden in @('independent-horse-mounted-profile','horse-pose-calibration',
+            'native-mounted-control-surface','native-dismount-ability','target-selected-mount-action')) {
+            if ($assertionNames.Contains($forbidden)) {
+                throw "PASS narrow Mount preamble carried a row from beyond the preamble: $forbidden"
+            }
+        }
+        $capture = $artifact.observations.nativeMountValidHorse
+        if ($null -eq $capture) { throw 'PASS narrow Mount preamble published no staged click capture.' }
+        # The capture must show both sides of the release, and the relationship must still
+        # be unmounted at the moment the command existed.
+        foreach ($field in @('clicked','moveSlotHoldsUseAbility','abilitySelectedBeforeDrop',
+            'abilitySelectedAfterDrop','sameCommandInstanceAcrossDrop','shellOwnsCommandAfterDrop',
+            'relationshipStateAfterClick','relationshipStateAfterDrop')) {
+            if ($null -eq $capture.PSObject.Properties[$field]) {
+                throw "PASS narrow Mount preamble click capture omits: $field"
+            }
+        }
+        if ([string]$capture.relationshipStateAfterClick -cne 'Unmounted' -or
+            [string]$capture.relationshipStateAfterDrop -cne 'Unmounted') {
+            throw 'PASS narrow Mount preamble reported a mounted relationship around its own click.'
+        }
+        if ($capture.abilitySelectedAfterDrop -ne $false) {
+            throw 'PASS narrow Mount preamble left the stock handler holding a selected ability.'
+        }
+    }
+
+    $afterFile = Get-Item -LiteralPath $artifactPath -Force
+    if ($afterFile.Length -ne $beforeFile.Length -or
+        $afterFile.LastWriteTimeUtc.Ticks -ne $beforeFile.LastWriteTimeUtc.Ticks) {
+        throw 'Narrow Mount preamble evidence changed while being validated.'
+    }
+}
 function Assert-KmcHorseNativeControlsUxEvidence {
     param(
         [Parameter(Mandatory = $true)]$Request,
@@ -7293,7 +8441,26 @@ function Assert-KmcHorseNativeControlsUxEvidence {
             'native-control-disable-reenable',
             'native-control-save-load-presence',
             'native-saddle-up-invalid-target',
-            'native-saddle-up-target-valid-horse',
+            # The valid-Horse preamble is sixteen staged causal assertions, not one
+            # OnClick bool. Each stage names exactly what was observed, and the last
+            # captures the command, slot, shell, process, transition and relationship
+            # state on both sides of SelectedAbilityHandler.DropAbility().
+            'native-saddle-up-exact-ability-fact',
+            'native-saddle-up-handler-holds-exact-ability',
+            'native-saddle-up-priority-admits-horse',
+            'native-saddle-up-resolved-target-is-exact-horse',
+            'native-saddle-up-click-accepted',
+            'native-saddle-up-native-command-created',
+            'native-saddle-up-command-ability-is-exact',
+            'native-saddle-up-command-executor-is-exact-rider',
+            'native-saddle-up-command-target-is-exact-horse',
+            'native-saddle-up-single-command-no-duplicate',
+            'native-saddle-up-native-provenance',
+            'native-saddle-up-shell-registered-once',
+            'native-saddle-up-shell-identity-exact',
+            'native-saddle-up-one-cast-request-no-refusal',
+            'native-saddle-up-transition-not-yet-delivered',
+            'native-saddle-up-drop-ability-preserves-command',
             'native-mounted-control-surface',
             'inventory-horse-preview-no-ik-exception',
             'mounted-turn-based-rider-movement',
@@ -12727,6 +13894,8 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
             ($relative -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
             ($relative -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
             ($relative -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
+            ($relative -ceq 'chunk6a-mount-preamble.json' -and $kind -ceq 'chunk6a-mount-preamble') -or
+            ($relative -ceq 'chunk6a-native-mammoth-profile.json' -and $kind -ceq 'chunk6a-native-mammoth-profile') -or
             ($relative -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
             ($relative -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
         if (-not $seen.Add($relative) -or -not $allowed -or [long]$artifact.length -le 0 -or
@@ -12751,6 +13920,8 @@ function Get-KmcValidatedOrchestrationArtifactManifestHash {
         Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseCompanionUnmountedEvidence -Request $Request -Manifest $manifestValue
         Assert-KmcHorseNativeControlsUxEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcMountPreambleEvidence -Request $Request -Manifest $manifestValue
+        Assert-KmcNativeMammothArtifact -Request $Request -Manifest $manifestValue
         Assert-KmcPhase3dHorseScenarioEvidence -Request $Request -Manifest $manifestValue
     }
     $hash = Get-KmcSha256 $manifestPath
@@ -13018,7 +14189,9 @@ function New-KmcRuntimeResultV2 {
         $fixture = $ValidatedGameResult.fixture
     }
     else {
-        $fallbackName = if (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
+        $fallbackName = if ([string]$Request.scenario -cin @('persistence-p07-save','persistence-p07-load')) {
+            [string]$Request.scenario
+        } elseif (@(Get-KmcSaveBackedRuntimeScenarios | Where-Object { $_ -ceq [string]$Request.scenario }).Count -eq 1 -and
             [string]$Request.scenario -notin @('fixture-intake','persistence-isolation','persistence-p07-save','persistence-p07-load','persistence-p01-save','persistence-p01-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load','lifecycle-suite','combat-lifecycle-suite','chunk4-traversal-core','chunk4-traversal-slope','chunk4-area-cleanup','movement-suite','boundary-suite','presentation-suite')) {
             [string]$Request.scenario
         } else { 'observe-mount-diagnostic-availability' }
@@ -13084,6 +14257,8 @@ function New-KmcRuntimeResultV2 {
 . (Join-Path $PSScriptRoot 'Phase3hLoopEvidence.ps1')
 . (Join-Path $PSScriptRoot 'OrdinaryAttackControlsEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk4ChargeEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6bChargePathEvidence.ps1')
+. (Join-Path $PSScriptRoot 'Chunk6bChargeEvidence.ps1')
 . (Join-Path $PSScriptRoot 'Chunk4PlayEvidence.ps1')
 . (Join-Path $PSScriptRoot 'ActorAllocationEvidence.ps1')
 . (Join-Path $PSScriptRoot 'FixtureRecovery.ps1')

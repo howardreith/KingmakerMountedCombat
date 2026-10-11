@@ -66,8 +66,11 @@ namespace KingmakerMountedCombat.Diagnostics
         }
 
         internal static JObject CaptureFootprint(UnitEntityData actor, Vector3 center)
+            => CaptureFootprint(actor, center, 0.5f);
+
+        internal static JObject CaptureFootprint(UnitEntityData actor, Vector3 center, float minimumRadius)
         {
-            var radius = Math.Max(0.5f, actor.View.Corpulence);
+            var radius = Math.Max(minimumRadius, actor.View.Corpulence);
             var probes = new JArray();
             for (var index = 0; index < 8; index++)
             {

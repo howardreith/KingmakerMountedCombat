@@ -56,6 +56,18 @@ namespace KingmakerMountedCombat.Diagnostics
         internal const string NativeControlsEvidenceFileName = "horse-native-controls-ux.json";
         internal const string NativeControlsEvidenceKind = "horse-native-controls-ux";
 
+        // The narrow save-backed preamble. It reaches legal out-of-combat Mount adjacency,
+        // performs exactly one native selected-ability target click, proves that click
+        // through the sixteen staged causal assertions, and stops. It never mounts, never
+        // enters combat and never exercises the broader native-controls UX surface, so a
+        // preamble regression is attributable on its own instead of only being visible as
+        // a deadline inside a long suite.
+        internal const string PreambleScenarioName = "chunk6a-mount-preamble";
+
+        internal const string PreambleEvidenceKind = "chunk6a-mount-preamble";
+
+        internal const string PreambleEvidenceFileName = "chunk6a-mount-preamble.json";
+
         private const double ScenarioTimeoutSeconds = 180.0;
         private const double MountedScenarioTimeoutSeconds = 300.0;
         private const double LifecycleTimeoutSeconds = 60.0;
@@ -253,6 +265,7 @@ namespace KingmakerMountedCombat.Diagnostics
             return string.Equals(scenario, ScenarioName, StringComparison.Ordinal) ||
                 string.Equals(scenario, MountedScenarioName, StringComparison.Ordinal) ||
                 string.Equals(scenario, NativeControlsScenarioName, StringComparison.Ordinal) ||
+                string.Equals(scenario, PreambleScenarioName, StringComparison.Ordinal) ||
                 Phase3dHorseScenarioTranche.SupportsScenario(scenario);
         }
 
@@ -262,7 +275,15 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private bool IncludesNativeControlsUx =>
             string.Equals(request.Scenario, NativeControlsScenarioName, StringComparison.Ordinal) ||
+            IsMountPreambleOnly ||
             IsPhase3dScenario;
+
+        // The narrow preamble borrows exactly one thing from the native-controls suite:
+        // the stock selected-ability click path. It deliberately skips the pre-mount
+        // control lifecycle, never mounts, and finishes the moment the staged chain is
+        // proved, so its ledger is the preamble and nothing else.
+        private bool IsMountPreambleOnly =>
+            string.Equals(request.Scenario, PreambleScenarioName, StringComparison.Ordinal);
 
         private bool IsPhase3dScenario =>
             Phase3dHorseScenarioTranche.SupportsScenario(request.Scenario);
@@ -299,10 +320,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (request.Scenario == Phase3dHorseScenarioTranche.Phase3gRealTimeScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.Phase3gTurnBasedScenario ||
                     request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargePathScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)
                 {
@@ -314,10 +338,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 originalTurnBased = CombatController.IsInTurnBasedCombat();
                 originalUnsafeExperimentSetting = settings.EnableUnsafeMovementExperiment;
                 originalPairedActivationSetting = settings.EnablePairedActivation;
-                if (Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
+                if (Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargePathScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario ||
                     request.Scenario == "phase3h-combat-loop-rt")
@@ -434,6 +461,9 @@ namespace KingmakerMountedCombat.Diagnostics
                         break;
                     case EngineStep.AwaitMountedReady:
                         AwaitMountedReady();
+                        break;
+                    case EngineStep.AwaitTrancheHandoff:
+                        AwaitTrancheHandoff();
                         break;
                     case EngineStep.AwaitPhase3dTranche:
                         AwaitPhase3dTranche();
@@ -791,7 +821,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The native selection manager selected exactly the unmounted horse.");
             if (failed != 0) { BeginCleanup(); return; }
 
-            if (IncludesNativeControlsUx)
+            if (IncludesNativeControlsUx && !IsMountPreambleOnly)
             {
                 ValidateNativeControlLifecycleBeforeMount();
                 if (failed != 0) { BeginCleanup(); return; }
@@ -1570,15 +1600,37 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            // The child captures the entire disposable party as idle, not just the
+            // pair. Let the parent's native encounter settle before child construction.
+            if (Phase3dHorseScenarioTranche.RequiresIdlePartyHandoff(request.Scenario))
+            {
+                var partyState = new JArray(owner.Group.Select(member => new JObject {
+                    ["actor"] = member.UniqueId, ["inCombat"] = member.IsInCombat,
+                    ["commandsEmpty"] = member.Commands.Empty
+                }));
+                observations["chunk6aPartyHandoff"] = partyState;
+                if (Game.Instance.Player.IsInCombat || owner.Group.Any(member => member.IsInCombat))
+                {
+                    if (clock.Elapsed.TotalSeconds - mountedAlphaAdmissionStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds)
+                        return;
+                    Fail("target-selected-mount-admission-deadline",
+                        "Native parent encounter did not settle to an idle party: " + partyState.ToString(Formatting.None));
+                    BeginCleanup(); return;
+                }
+            }
+
             var availability = playerAction.GetAvailability();
             if (availability.IsVisible && availability.IsEnabled &&
                 availability.Action == MountedPlayerActionKind.Mount)
             {
                 if (request.Scenario == "phase3h-combat-loop-rt" || request.Scenario == "phase3h-combat-loop-tb" ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6bChargePathScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4ChargeScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4PlayScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsChunk4CoreScenario(request.Scenario) ||
                     Phase3dHorseScenarioTranche.IsActorAllocationScenario(request.Scenario) ||
+                    Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario) ||
                     request.Scenario == Phase3dHorseScenarioTranche.OrdinaryAttackControlsScenario ||
                     request.Scenario == Phase3dHorseScenarioTranche.UnmountedAttackControlsScenario)
                 {
@@ -1626,6 +1678,12 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BeginMountedAlpha()
         {
+            if (Phase3dHorseScenarioTranche.IsChunk6aCombatMountScenario(request.Scenario))
+            {
+                // Chunk 6A measures its own exploration Mount and Dismount windows.
+                BeginPhase3dTranche(false);
+                return;
+            }
             mountedAlphaStarted = true;
             settings.EnableUnsafeMovementExperiment = true;
             var selection = SelectionManager.Instance;
@@ -1647,16 +1705,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (failed != 0) { BeginCleanup(); return; }
 
                 var before = nativeControls.CaptureSnapshot();
-                var nativeClicked = TryNativeAbilityTargetClick(
-                    owner,
-                    nativeControls.MountAbility,
-                    horse,
-                    "nativeMountValidHorse");
                 observations["nativeMountDispatchBefore"] = JObject.FromObject(before, JsonSerializer.Create(JsonSettings));
-                Check(nativeClicked,
-                    "native-saddle-up-target-valid-horse",
-                    "The actual Kingmaker selected-ability handler admitted the exact Horse target click and created one native ability command for KMC dispatch.");
+                // The previous evidence for this preamble was a single assertion on
+                // ClickWithSelectedAbilityHandler.OnClick returning true, described as
+                // proof that one native ability command had been created for KMC
+                // dispatch. OnClick's bool was never that proof: nothing observed the
+                // command, its identity, its KMC shell, or what survived the handler
+                // releasing the ability. The click is now staged into sixteen causal
+                // assertions over exactly what was observed, with the command, slot,
+                // shell, process, context, transition and relationship state captured
+                // immediately before and after SelectedAbilityHandler.DropAbility().
+                var capture = CaptureNativeAbilityTargetClick(
+                    owner, nativeControls.MountAbility, horse, "nativeMountValidHorse");
+                AssertNativeMountClickChain(capture);
                 if (failed != 0) { BeginCleanup(); return; }
+                if (IsMountPreambleOnly)
+                {
+                    // The narrow scenario's whole claim is the preamble. It stops here
+                    // rather than waiting for a mounted pair, so the shell it created is
+                    // released by ordinary cleanup and no mounted state is ever asserted.
+                    BeginCleanup();
+                    return;
+                }
                 step = EngineStep.AwaitMountedReady;
                 return;
             }
@@ -1677,6 +1747,265 @@ namespace KingmakerMountedCombat.Diagnostics
                 "The rider armed Mount, clicked the exact KMC horse, and created one exact transient pair through the player-facing target path.");
             if (failed != 0) { BeginCleanup(); return; }
             step = EngineStep.AwaitMountedReady;
+        }
+
+        // Everything the staged Mount preamble observed, in the order the native pipeline
+        // produced it. Members are nullable where the stage could not be
+        // reached, so a stage that never ran can never read as a pass.
+        //
+        // They are PUBLIC AUTO-PROPERTIES deliberately. Newtonsoft serializes only public
+        // properties, so declaring these as fields published an empty observation object
+        // while the in-process assertions still passed -- the behaviour was proved and the
+        // evidence was blank. A source contract pins this shape.
+        private sealed class NativeTargetClickCapture
+        {
+            public int ExactAbilityFactCount { get; set; }
+            public bool AbilityFactActive { get; set; }
+            public bool HandlerPresent { get; set; }
+            public bool TargetViewPresent { get; set; }
+            public bool HandlerHeldExactAbilityAfterSelect { get; set; }
+            public float Priority { get; set; }
+            public bool ResolvedTargetPresent { get; set; }
+            public bool ResolvedTargetIsExactClicked { get; set; }
+            public string ResolvedTargetId { get; set; }
+            public bool Clicked { get; set; }
+
+            public bool MoveSlotHoldsUseAbility { get; set; }
+            public bool CommandAbilityIsExactBlueprint { get; set; }
+            public bool CommandExecutorIsExactCaster { get; set; }
+            public bool CommandSpellCasterIsExecutor { get; set; }
+            public bool CommandTargetIsExactClicked { get; set; }
+            public int MatchingCommandCount { get; set; }
+            public bool CommandCreatedByPlayer { get; set; }
+            public bool CommandHasAiAction { get; set; }
+            public bool CommandStarted { get; set; }
+            public bool CommandFinished { get; set; }
+
+            public long ShellCountDelta { get; set; }
+            public bool ShellOwnsExactCommand { get; set; }
+            public bool ShellDescribed { get; set; }
+            public NativeMountedControlKind ShellKind { get; set; }
+            public string ShellCasterId { get; set; }
+            public string ShellTargetId { get; set; }
+            public long ShellGenerationAtInit { get; set; }
+            public bool ShellProcessBound { get; set; }
+            public long LiveGeneration { get; set; }
+
+            public long CastRequestDelta { get; set; }
+            public long RefusalDelta { get; set; }
+            public long DispatchAcceptedDelta { get; set; }
+            public long DispatchRejectedDelta { get; set; }
+            public long TargetSelectionStartDelta { get; set; }
+            public long TargetSelectionEndDelta { get; set; }
+
+            public string RelationshipStateAfterClick { get; set; }
+            public long AdmittedMountDelta { get; set; }
+            public bool TransitionInFlightAfterClick { get; set; }
+
+            public bool AbilitySelectedBeforeDrop { get; set; }
+            public bool AbilitySelectedAfterDrop { get; set; }
+            public bool SameCommandInstanceAcrossDrop { get; set; }
+            public bool ShellOwnsCommandAfterDrop { get; set; }
+            public bool ProcessPresentBeforeDrop { get; set; }
+            public bool ProcessPresentAfterDrop { get; set; }
+            public long ShellCountDeltaAcrossDrop { get; set; }
+            public long ProcessBindingDeltaAcrossDrop { get; set; }
+            public long CounterDeltaAcrossDrop { get; set; }
+            public string RelationshipStateAfterDrop { get; set; }
+            public long GenerationAfterDrop { get; set; }
+        }
+
+        // Sixteen staged assertions over one native target click. Each stage names exactly
+        // what was observed, so the preamble can no longer claim a command it never looked
+        // at. The pointer-mode IL settles what the last stage means: SetAbility puts the
+        // pointer in Ability mode, and a successful OnClick ends with ClearPointerMode,
+        // which itself calls DropAbility. The explicit DropAbility that follows is
+        // therefore expected to be a no-op, and that is the point -- the created command,
+        // its KMC shell and every counter must survive the release untouched.
+        private void AssertNativeMountClickChain(NativeTargetClickCapture capture)
+        {
+            Check(capture.ExactAbilityFactCount == 1 && capture.AbilityFactActive,
+                "native-saddle-up-exact-ability-fact",
+                "The exact rider carried exactly one active KMC Mount Companion fact, with no duplicate to disambiguate.");
+            if (failed != 0) { return; }
+            Check(capture.HandlerPresent && capture.TargetViewPresent && capture.HandlerHeldExactAbilityAfterSelect,
+                "native-saddle-up-handler-holds-exact-ability",
+                "The live stock ClickWithSelectedAbilityHandler accepted SetAbility and reported that exact AbilityData as its selected ability.");
+            if (failed != 0) { return; }
+            Check(capture.Priority > 0f,
+                "native-saddle-up-priority-admits-horse",
+                "The stock handler returned a positive pointer priority for the exact Horse view, so the native cursor genuinely claimed that click.");
+            if (failed != 0) { return; }
+            Check(capture.ResolvedTargetPresent && capture.ResolvedTargetIsExactClicked,
+                "native-saddle-up-resolved-target-is-exact-horse",
+                "The stock handler resolved the click to exactly the Horse that was clicked, not to a nearby unit and not to a position.");
+            if (failed != 0) { return; }
+            Check(capture.Clicked,
+                "native-saddle-up-click-accepted",
+                "The stock handler accepted the exact Horse target click and returned true rather than refusing the target.");
+            if (failed != 0) { return; }
+            Check(capture.MoveSlotHoldsUseAbility,
+                "native-saddle-up-native-command-created",
+                "Kingmaker created a native UnitUseAbility and ran it into the rider's own Move command slot; the command is observed, not inferred from the click result.");
+            if (failed != 0) { return; }
+            Check(capture.CommandAbilityIsExactBlueprint,
+                "native-saddle-up-command-ability-is-exact",
+                "That native command casts exactly the KMC Mount Companion blueprint.");
+            if (failed != 0) { return; }
+            Check(capture.CommandExecutorIsExactCaster && capture.CommandSpellCasterIsExecutor,
+                "native-saddle-up-command-executor-is-exact-rider",
+                "That native command is executed by the exact rider, and its AbilityData caster is that same unit.");
+            if (failed != 0) { return; }
+            Check(capture.CommandTargetIsExactClicked,
+                "native-saddle-up-command-target-is-exact-horse",
+                "That native command targets exactly the clicked Horse.");
+            if (failed != 0) { return; }
+            Check(capture.MatchingCommandCount == 1,
+                "native-saddle-up-single-command-no-duplicate",
+                "Exactly one such native command exists on the rider; the click created no duplicate and left no earlier shell behind.");
+            if (failed != 0) { return; }
+            Check(!capture.CommandCreatedByPlayer && !capture.CommandHasAiAction,
+                "native-saddle-up-native-provenance",
+                "Native provenance is the exact lifecycle and identity, not a flag: the stock path leaves CreatedByPlayer false and AiAction null, and KMC did not write either.");
+            if (failed != 0) { return; }
+            Check(capture.ShellCountDelta == 1 && capture.ShellOwnsExactCommand,
+                "native-saddle-up-shell-registered-once",
+                "KMC registered exactly one relationship shell, bound to that exact native command and to no other.");
+            if (failed != 0) { return; }
+            Check(capture.ShellDescribed &&
+                    capture.ShellKind == NativeMountedControlKind.MountCompanion &&
+                    string.Equals(capture.ShellCasterId, owner.UniqueId, StringComparison.Ordinal) &&
+                    string.Equals(capture.ShellTargetId, horse.UniqueId, StringComparison.Ordinal) &&
+                    capture.ShellGenerationAtInit == capture.LiveGeneration,
+                "native-saddle-up-shell-identity-exact",
+                "The shell recorded the exact kind, the exact rider, the exact Horse and the live relationship generation at its own Init boundary.");
+            if (failed != 0) { return; }
+            Check(capture.CastRequestDelta == 1 && capture.RefusalDelta == 0 &&
+                    capture.DispatchAcceptedDelta == 0 && capture.DispatchRejectedDelta == 0,
+                "native-saddle-up-one-cast-request-no-refusal",
+                "The click produced exactly one native cast request, no KMC refusal, and no dispatch either way: creation and delivery are separate events.");
+            if (failed != 0) { return; }
+            Check(string.Equals(capture.RelationshipStateAfterClick, RelationshipState.Unmounted.ToString(), StringComparison.Ordinal) &&
+                    capture.AdmittedMountDelta == 0 && !capture.TransitionInFlightAfterClick,
+                "native-saddle-up-transition-not-yet-delivered",
+                "Immediately after the click the pair is still Unmounted with nothing admitted to the transition ledger: the click created a command, it did not perform the transition.");
+            if (failed != 0) { return; }
+            Check(!capture.AbilitySelectedAfterDrop &&
+                    capture.SameCommandInstanceAcrossDrop && capture.ShellOwnsCommandAfterDrop &&
+                    capture.ProcessPresentBeforeDrop == capture.ProcessPresentAfterDrop &&
+                    capture.ShellCountDeltaAcrossDrop == 0 && capture.ProcessBindingDeltaAcrossDrop == 0 &&
+                    capture.CounterDeltaAcrossDrop == 0 &&
+                    string.Equals(capture.RelationshipStateAfterDrop, capture.RelationshipStateAfterClick, StringComparison.Ordinal) &&
+                    capture.GenerationAfterDrop == capture.LiveGeneration,
+                "native-saddle-up-drop-ability-preserves-command",
+                "Releasing the selected ability leaves the handler holding nothing while the identical command instance, its KMC shell binding, its execution process, every counter, the relationship state and the generation are unchanged.");
+        }
+
+        private NativeTargetClickCapture CaptureNativeAbilityTargetClick(
+            UnitEntityData caster,
+            BlueprintAbility blueprint,
+            UnitEntityData clickedTarget,
+            string observationName)
+        {
+            nativeControls.Update();
+            var capture = new NativeTargetClickCapture();
+            var facts = caster?.Descriptor?.Abilities?.Enumerable
+                .Where(item => ReferenceEquals(item.Blueprint, blueprint)).ToList();
+            capture.ExactAbilityFactCount = facts == null ? 0 : facts.Count;
+            var fact = facts != null && facts.Count == 1 ? facts[0] : null;
+            capture.AbilityFactActive = fact != null && fact.Active;
+            var data = fact?.Data;
+            var handler = Game.Instance?.SelectedAbilityHandler;
+            var targetObject = clickedTarget?.View?.gameObject;
+            var targetPosition = clickedTarget?.Position ?? Vector3.zero;
+            capture.HandlerPresent = handler != null;
+            capture.TargetViewPresent = targetObject != null;
+            if (data == null || handler == null || targetObject == null)
+            {
+                observations[observationName] = JObject.FromObject(capture, JsonSerializer.Create(JsonSettings));
+                return capture;
+            }
+
+            var ledger = playerAction.TransitionLedger;
+            var admittedBefore = ledger.AdmittedMountCount;
+            var shellsBefore = nativeControls.NativeRelationshipShellCount;
+            var before = nativeControls.CaptureSnapshot();
+
+            handler.SetAbility(data);
+            capture.HandlerHeldExactAbilityAfterSelect = ReferenceEquals(handler.Ability, data);
+            capture.Priority = handler.GetPriority(targetObject, targetPosition);
+            var resolvedTarget = handler.GetTarget(targetObject, targetPosition, data);
+            capture.ResolvedTargetPresent = resolvedTarget?.Unit != null;
+            capture.ResolvedTargetId = resolvedTarget?.Unit?.UniqueId;
+            capture.ResolvedTargetIsExactClicked = resolvedTarget?.Unit == clickedTarget;
+            capture.Clicked = handler.OnClick(targetObject, targetPosition, 0, false, false);
+
+            // Immediately after the click, before anything else touches the pair.
+            var afterClick = nativeControls.CaptureSnapshot();
+            var slot = caster.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+            capture.MoveSlotHoldsUseAbility = slot != null;
+            capture.CommandAbilityIsExactBlueprint = slot != null && ReferenceEquals(slot.Spell?.Blueprint, blueprint);
+            capture.CommandExecutorIsExactCaster = slot != null && slot.Executor == caster;
+            capture.CommandSpellCasterIsExecutor = slot != null && slot.Spell?.Caster?.Unit == slot.Executor;
+            capture.CommandTargetIsExactClicked = slot != null && slot.Target?.Unit == clickedTarget;
+            capture.MatchingCommandCount = caster.Commands?.Raw.OfType<UnitUseAbility>()
+                .Count(item => ReferenceEquals(item.Spell?.Blueprint, blueprint)) ?? 0;
+            capture.CommandCreatedByPlayer = slot != null && slot.CreatedByPlayer;
+            capture.CommandHasAiAction = slot?.AiAction != null;
+            capture.CommandStarted = slot != null && slot.IsStarted;
+            capture.CommandFinished = slot != null && slot.IsFinished;
+            capture.ShellCountDelta = nativeControls.NativeRelationshipShellCount - shellsBefore;
+            capture.ShellOwnsExactCommand = slot != null && nativeControls.OwnsUnsettledRelationshipShell(slot);
+            var shellKind = NativeMountedControlKind.None;
+            string shellCasterId = null;
+            string shellTargetId = null;
+            var shellGeneration = -1L;
+            var shellProcessBound = false;
+            capture.ShellDescribed = slot != null && nativeControls.TryDescribeRelationshipShell(
+                slot, out shellKind, out shellCasterId, out shellTargetId, out shellGeneration, out shellProcessBound);
+            capture.ShellKind = capture.ShellDescribed ? shellKind : NativeMountedControlKind.None;
+            capture.ShellCasterId = capture.ShellDescribed ? shellCasterId : null;
+            capture.ShellTargetId = capture.ShellDescribed ? shellTargetId : null;
+            capture.ShellGenerationAtInit = capture.ShellDescribed ? shellGeneration : -1L;
+            capture.ShellProcessBound = capture.ShellDescribed && shellProcessBound;
+            capture.LiveGeneration = relationship.MountedPairGeneration;
+            capture.CastRequestDelta = afterClick.NativeCastRequestCount - before.NativeCastRequestCount;
+            capture.RefusalDelta = afterClick.NativeRefusalCount - before.NativeRefusalCount;
+            capture.DispatchAcceptedDelta = afterClick.DispatchAcceptedCount - before.DispatchAcceptedCount;
+            capture.DispatchRejectedDelta = afterClick.DispatchRejectedCount - before.DispatchRejectedCount;
+            capture.TargetSelectionStartDelta = afterClick.TargetSelectionStartCount - before.TargetSelectionStartCount;
+            capture.TargetSelectionEndDelta = afterClick.TargetSelectionEndCount - before.TargetSelectionEndCount;
+            capture.RelationshipStateAfterClick = relationship.State.ToString();
+            capture.AdmittedMountDelta = ledger.AdmittedMountCount - admittedBefore;
+            capture.TransitionInFlightAfterClick = ledger.HasVoluntaryTransitionInFlight;
+            capture.AbilitySelectedBeforeDrop = handler.Ability != null;
+            capture.ProcessPresentBeforeDrop = slot?.ExecutionProcess != null;
+            var shellsAfterClick = nativeControls.NativeRelationshipShellCount;
+            var bindingsAfterClick = nativeControls.NativeRelationshipProcessBindingCount;
+
+            // The explicit release, with the same observations taken again on the far side.
+            handler.DropAbility();
+
+            var afterDrop = nativeControls.CaptureSnapshot();
+            var slotAfterDrop = caster.Commands?.GetCommand(UnitCommand.CommandType.Move) as UnitUseAbility;
+            capture.AbilitySelectedAfterDrop = handler.Ability != null;
+            capture.SameCommandInstanceAcrossDrop = slot != null && ReferenceEquals(slotAfterDrop, slot);
+            capture.ShellOwnsCommandAfterDrop = slotAfterDrop != null &&
+                nativeControls.OwnsUnsettledRelationshipShell(slotAfterDrop);
+            capture.ProcessPresentAfterDrop = slotAfterDrop?.ExecutionProcess != null;
+            capture.ShellCountDeltaAcrossDrop = nativeControls.NativeRelationshipShellCount - shellsAfterClick;
+            capture.ProcessBindingDeltaAcrossDrop =
+                nativeControls.NativeRelationshipProcessBindingCount - bindingsAfterClick;
+            capture.CounterDeltaAcrossDrop =
+                afterDrop.NativeCastRequestCount - afterClick.NativeCastRequestCount +
+                (afterDrop.NativeRefusalCount - afterClick.NativeRefusalCount) +
+                (afterDrop.DispatchAcceptedCount - afterClick.DispatchAcceptedCount) +
+                (afterDrop.DispatchRejectedCount - afterClick.DispatchRejectedCount);
+            capture.RelationshipStateAfterDrop = relationship.State.ToString();
+            capture.GenerationAfterDrop = relationship.MountedPairGeneration;
+
+            observations[observationName] = JObject.FromObject(capture, JsonSerializer.Create(JsonSettings));
+            return capture;
         }
 
         private bool TryNativeAbilityTargetClick(
@@ -1742,7 +2071,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["feedback"] = playerAction.LastFeedback, ["command"] = command?.GetType().Name,
                     ["started"] = command?.IsStarted, ["finished"] = command?.IsFinished,
                     ["result"] = command?.Result.ToString(), ["enoughClose"] = command?.IsUnitEnoughClose,
-                    ["hasCooldown"] = command != null && owner.CombatState.HasCooldownForCommand(command)
+                    ["hasCooldown"] = command != null && owner.CombatState.HasCooldownForCommand(command),
+                    // A relationship shell refusal is raised as a native warning, not
+                    // written to the player-action feedback, so without these the
+                    // deadline names no root at all.
+                    ["relationshipState"] = relationship.State.ToString(),
+                    ["dispatchAccepted"] = nativeControls.DispatchAcceptedCount,
+                    ["dispatchRejected"] = nativeControls.DispatchRejectedCount,
+                    ["nativeRefusals"] = nativeControls.NativeRefusalCount,
+                    ["shellState"] = nativeControls.DescribeRelationshipShellState(owner)
                 };
                 Fail("target-selected-mount-admission-deadline", "Native Mount did not establish a mounted pair within 25 seconds; no attack cases were attempted. " +
                     observations["phase3gMountDeadline"].ToString(Formatting.None));
@@ -1786,7 +2123,7 @@ namespace KingmakerMountedCombat.Diagnostics
 
             if (IsPhase3dScenario)
             {
-                BeginPhase3dTranche(true);
+                BeginTrancheHandoff();
                 return;
             }
 
@@ -1838,6 +2175,53 @@ namespace KingmakerMountedCombat.Diagnostics
             }
 
             BeginMountedRealTimeMovement();
+        }
+
+        private double trancheHandoffStartedAtSeconds;
+
+        private void BeginTrancheHandoff()
+        {
+            trancheHandoffStartedAtSeconds = clock.Elapsed.TotalSeconds;
+            step = EngineStep.AwaitTrancheHandoff;
+            AwaitTrancheHandoff();
+        }
+
+        // The child captures the whole disposable party as idle at entry. Native combat
+        // can linger after the parent's preliminary target is disposed and the mounted
+        // alpha stages run between the admission wait and this point, so the party is
+        // re-checked immediately before the child is created, within the same bounded
+        // admission leaf. The exact state, including the preamble Mount admission mode,
+        // is published on every check and named by the refusal.
+        private void AwaitTrancheHandoff()
+        {
+            var requiresIdleParty = Phase3dHorseScenarioTranche.RequiresIdlePartyHandoff(request.Scenario);
+            var partyState = new JArray(owner.Group.Select(member => new JObject {
+                ["actor"] = member.UniqueId, ["inCombat"] = member.IsInCombat,
+                ["commandsEmpty"] = member.Commands.Empty
+            }));
+            var handoff = new JObject {
+                ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                ["playerInCombat"] = Game.Instance.Player.IsInCombat,
+                ["relationshipState"] = relationship.State.ToString(),
+                ["preambleMountAdmission"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>",
+                ["requiresIdleParty"] = requiresIdleParty,
+                ["waitedSeconds"] = clock.Elapsed.TotalSeconds - trancheHandoffStartedAtSeconds,
+                ["party"] = partyState
+            };
+            observations["chunk6aPartyHandoffAtChild"] = handoff;
+            if (requiresIdleParty &&
+                (Game.Instance.Player.IsInCombat || owner.Group.Any(member => member.IsInCombat)))
+            {
+                if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }
+                if (clock.Elapsed.TotalSeconds - trancheHandoffStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds)
+                    return;
+                Fail("tranche-handoff-idle-party-deadline",
+                    "The disposable party did not leave native combat before the child tranche within the bounded leaf: " +
+                    handoff.ToString(Formatting.None));
+                BeginCleanup();
+                return;
+            }
+            BeginPhase3dTranche(true);
         }
 
         private void BeginPhase3dTranche(bool pairAlreadyMounted)
@@ -3292,6 +3676,18 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            // Retain the child's raw failed prefix before parent cleanup invalidates
+            // its actors, target service or probes. Never certify partial rows as PASS.
+            if (phase3dTranche != null && Phase3dHorseScenarioTranche.IsChunk6bChargeScenario(request.Scenario))
+            {
+                try { phase3dTranche.CaptureChargeHostInterruption(); }
+                catch (Exception exception) { errors.Add("Interrupted charge evidence: " + exception); }
+                foreach (var result in phase3dTranche.Results)
+                    if (!results.Contains(result)) results.Add(result);
+                observations["phase3dTranche"] = phase3dTranche.EvidenceSummary;
+                foreach (var error in phase3dTranche.Errors)
+                    if (!errors.Contains(error)) errors.Add(error);
+            }
             try { combat.Cancel("horse qualification cleanup"); }
             catch (Exception exception) { errors.Add("Mounted combat cleanup: " + exception.Message); }
             if (relationship.State != RelationshipState.Unmounted)
@@ -3610,10 +4006,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var status = failed == 0 ? "PASS" : "FAIL";
             var artifact = new JObject
             {
-                ["schemaVersion"] = IncludesNativeControlsUx ? 8 : 4,
-                ["evidenceKind"] = IncludesNativeControlsUx
-                    ? NativeControlsEvidenceKind
-                    : IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
+                ["schemaVersion"] = IsMountPreambleOnly ? 1 : IncludesNativeControlsUx ? 8 : 4,
+                ["evidenceKind"] = IsMountPreambleOnly
+                    ? PreambleEvidenceKind
+                    : IncludesNativeControlsUx
+                        ? NativeControlsEvidenceKind
+                        : IncludesMountedAlpha ? MountedEvidenceKind : EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
                 ["branch"] = request.Branch,
@@ -3649,9 +4047,11 @@ namespace KingmakerMountedCombat.Diagnostics
         private void WriteArtifact(JObject artifact)
         {
             var root = Path.GetFullPath(request.EvidenceRoot).TrimEnd(Path.DirectorySeparatorChar);
-            var leaf = IncludesNativeControlsUx
-                ? NativeControlsEvidenceFileName
-                : IncludesMountedAlpha ? MountedEvidenceFileName : EvidenceFileName;
+            var leaf = IsMountPreambleOnly
+                ? PreambleEvidenceFileName
+                : IncludesNativeControlsUx
+                    ? NativeControlsEvidenceFileName
+                    : IncludesMountedAlpha ? MountedEvidenceFileName : EvidenceFileName;
             var path = Path.Combine(root, leaf);
             if (!Directory.Exists(root)) { throw new DirectoryNotFoundException("Runtime evidence root is missing."); }
             if (File.Exists(path)) { throw new InvalidOperationException("Horse unmounted evidence artifact already exists."); }
@@ -3747,6 +4147,7 @@ namespace KingmakerMountedCombat.Diagnostics
             AwaitTargetRemoval,
             AwaitMountedAlphaAdmission,
             AwaitMountedReady,
+            AwaitTrancheHandoff,
             AwaitPhase3dTranche,
             AwaitMountedDollRoom,
             AwaitMountedRealTimeMovement,

@@ -29,6 +29,10 @@ namespace KingmakerMountedCombat.Diagnostics
         internal bool UseLegacyUnifiedTurn => EnableUnifiedMountedTurn && !EnablePairedActivation;
         internal bool UsePairedTurnControls => EnablePairedActivation || EnableUnifiedMountedTurn;
 
+        // Chunk 6B increment 6B.2: the pair-owned Mounted Charge. Default off and absent from the action bar
+        // until the Chunk 6B development-exit gate passes; nothing else changes when it is off.
+        public bool EnableMountedCharge { get; set; }
+
         public bool EnableDiagnosticOverlay { get; set; }
 
         public double MaximumAnchorResidualWorldUnits { get; set; }

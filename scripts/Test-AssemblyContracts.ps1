@@ -32,6 +32,143 @@ function Test-MethodIlContainsToken([Reflection.MethodBase]$Method,[int]$Token){
     return $false
 }
 if($Target-eq'Kingmaker'){
+    $modeEnabled=@(Find-Token 'TurnBased.Controllers.CombatController' 0x04000649)
+    Assert-Contract ($modeEnabled.Count-eq1-and$modeEnabled[0].Name-ceq'm_Enabled'-and$modeEnabled[0].FieldType.FullName-ceq'System.Boolean') 'mode refresh reads exact native enabled state'
+    foreach($boundary in @(@(0x06000BE9,0x2C,'Enable'),@(0x06000BEA,0x2D,'Disable'))){
+        $body=$assembly.ManifestModule.ResolveMethod($boundary[0]).GetMethodBody().GetILAsByteArray()
+        $expected=[byte[]]@(0x02,0x7B,0x49,0x06,0x00,0x04,$boundary[1],0x01,0x2A)
+        Assert-Contract (($body[0..8]-join',')-ceq($expected-join',')) ('native '+$boundary[2]+' returns unchanged before any mode mutation')
+    }
+    $activate=$assembly.ManifestModule.ResolveMethod(0x06000BD4)
+    Assert-Contract (Test-MethodIlContainsToken $activate 0x06000BF5) 'native controller activation refreshes current mode without a setting transition'
+    $manualGet=$assembly.ManifestModule.ResolveMethod(0x06009381).GetMethodBody().GetILAsByteArray()
+    $manualSet=$assembly.ManifestModule.ResolveMethod(0x06009382).GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($manualGet-join',')-ceq'2,123,160,94,0,4,42'-and($manualSet-join',')-ceq'2,3,125,160,94,0,4,42') 'manual attack target is exact native intent storage with no resource or turn side effects'
+    $immunity=$assembly.GetType('Kingmaker.UnitLogic.FactLogic.SpecificBuffImmunity',$true)
+    Assert-Contract ($immunity.GetField('Buff').MetadataToken-eq0x04001A01-and
+        $immunity.GetField('Buff').FieldType.FullName-ceq'Kingmaker.UnitLogic.Buffs.Blueprints.BlueprintBuff'-and
+        @($immunity.GetMethods([Reflection.BindingFlags]'Public,NonPublic,Instance,DeclaredOnly')|Where-Object Name -in @('OnTurnOn','OnTurnOff','OnFactActivate','OnFactDeactivate')).Count-eq0-and
+        $immunity.GetMethod('OnEventAboutToTrigger').MetadataToken-eq0x060025F9) 'view fixture immunity components are native rule listeners without an independent activation mutation'
+    foreach($expected in @(
+        @(0x06000BF5,'HandleTurnBasedModeStateChanged','System.Boolean',$true),
+        @(0x06000BED,'HandlePartyCombatStateChanged','System.Boolean',$true),
+        @(0x06000BE6,'RemoveUnit','Kingmaker.EntitySystem.Entities.UnitEntityData',$false),
+        @(0x06000BD1,'Tick','',$true), @(0x06000BD6,'TickTime','',$true)
+    )){
+        $method=@(Find-Token 'TurnBased.Controllers.CombatController' $expected[0])
+        $signature=$method.Count-eq1-and$method[0].Name-ceq$expected[1]-and-not$method[0].IsStatic-and
+            $method[0].ReturnType.FullName-ceq'System.Void'-and$method[0].IsPublic-eq$expected[3]
+        if($signature){$parameters=@($method[0].GetParameters());$signature=if($expected[2]-ceq''){$parameters.Count-eq0}else{$parameters.Count-eq1-and$parameters[0].ParameterType.FullName-ceq$expected[2]}}
+        Assert-Contract $signature ('charge lifecycle exact native boundary '+$expected[1])
+    }
+    $processes=@(Find-Token 'Kingmaker.Controllers.AbilityExecutionController' 0x04005D50)
+    Assert-Contract ($processes.Count-eq1-and$processes[0]-is[Reflection.FieldInfo]-and$processes[0].Name-ceq'm_Abilities'-and
+        $processes[0].FieldType.IsGenericType-and$processes[0].FieldType.GetGenericArguments()[0].FullName-ceq'Kingmaker.Controllers.AbilityExecutionProcess') 'no-DLL observer reads the exact native ability process collection'
+    $nativeAction=$assembly.ManifestModule.ResolveMethod(0x06002737)
+    $nativeCommandTick=$assembly.ManifestModule.ResolveMethod(0x060027A7)
+    Assert-Contract (@($nativeAction.GetMethodBody().ExceptionHandlingClauses|Where-Object Flags -NE ([Reflection.ExceptionHandlingClauseOptions]::Finally)).Count-eq0-and
+        (Test-MethodIlContainsToken $nativeAction 0x2B0004A1)-and(Test-MethodIlContainsToken $nativeAction 0x06002715)) 'native action has only finally handlers and assigns its process after the exact RuleCastSpell trigger'
+    $tickBytes=$nativeCommandTick.GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($tickBytes[0x173..0x185]-join',')-ceq'2,2,111,177,39,0,6,40,91,39,0,6,2,23,40,100,39,0,6') 'native commitment follows OnAction return; exceptions before return cannot synthesize IsActed'
+    $executeBytes=$assembly.ManifestModule.ResolveMethod(0x06008FCA).GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($executeBytes-join',')-ceq'3,115,213,143,0,6,10,2,123,80,93,0,4,6,111,121,51,0,10,6,42') 'native Execute publishes one new process and returns without ticking it or invoking callbacks after registration'
+    foreach($expected in @(@(0x06007431,0x04004C01),@(0x06008FD1,0x04005D52),@(0x06008FD3,0x04005D53))){
+        $getter=$assembly.ManifestModule.ResolveMethod($expected[0]);$body=$getter.GetMethodBody().GetILAsByteArray()
+        Assert-Contract ($body.Length-eq7-and$body[0]-eq2-and$body[1]-eq123-and[BitConverter]::ToInt32($body,2)-eq$expected[1]-and$body[6]-eq42) ('charge process observation is pure exact storage '+$getter.Name)
+    }
+    # Charge buff custody is captured before native insertion/activation. Its residue
+    # proof covers the actual pinned AddStatBonus, AddCondition and AoO listener.
+    foreach($expected in @(
+        @('Kingmaker.UnitLogic.Buffs.BuffCollection',0x060029F9,'CreateFact'),
+        @('Kingmaker.UnitLogic.Buffs.BuffCollection',0x060029F5,'AddBuff'),
+        @('Kingmaker.UnitLogic.Buffs.BuffCollection',0x060029F7,'AddBuffInternal'),
+        @('Kingmaker.UnitLogic.Buffs.Buff',0x060029E4,'StoreFact'),
+        @('Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantmentCollection',0x060099B7,'CreateFact'),
+        @('Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantmentCollection',0x060099B8,'AddEnchantment'),
+        @('Kingmaker.Blueprints.FactCollection',0x06009698,'RemoveFact'),
+        @('Kingmaker.UnitLogic.Mechanics.Actions.ContextActionRemoveBuff',0x06002394,'RunAction'),
+        @('Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment',0x060099AB,'RespawnFx'),
+        @('Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment',0x060099AF,'DestroyFx'),
+        @('Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment',0x060099B1,'Dispose'),
+        @('Kingmaker.Visual.Particles.GameObjectsPool',0x060010BD,'Claim'),
+        @('Kingmaker.Visual.Particles.GameObjectsPool',0x060010BE,'Release'),
+        @('Kingmaker.Visual.Particles.PooledGameObject',0x06001109,'CreateInstance'),
+        @('Kingmaker.Visual.Particles.SnapControllerBase',0x0600111A,'Init'),
+        @('Kingmaker.Visual.Particles.SnapControllerBase',0x06001117,'OnDisable'),
+        @('Kingmaker.UnitLogic.Mechanics.MechanicsContext',0x060021CC,'CloneFor'),
+        @('Kingmaker.UnitLogic.FactLogic.AddStatBonus',0x0600254F,'OnTurnOff'),
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x0600244A,'OnEntityCreated'),
+        @('Kingmaker.UnitLogic.UnitState',0x06001FB7,'AddCondition'),
+        @('Kingmaker.UnitLogic.UnitState',0x06001FB9,'RemoveCondition'),
+        @('Kingmaker.UnitLogic.UnitState',0x06001FBF,'UpdateStatusEffect'),
+        @('Kingmaker.RuleSystem.Rulebook',0x060070D0,'get_Context'),
+        @('Kingmaker.RuleSystem.RulebookEventContext',0x060070E1,'get_EventStack'),
+        @('Kingmaker.Designers.Mechanics.Facts.AttackOfOpportunityAttackBonus',0x060086B9,'OnEventAboutToTrigger'),
+        @('Kingmaker.EntitySystem.Stats.CharacterStats',0x06007EDC,'GetList'),
+        @('Kingmaker.EntitySystem.Stats.ModifiableValue',0x06007EE7,'get_Modifiers'),
+        @('Kingmaker.Blueprints.GameLogicComponent',0x060096B4,'get_IsListeningEvents')
+    )){
+        $method=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($method.Count-eq1-and$method[0].Name-ceq$expected[2]) ('charge ownership native signature '+$expected[0]+'.'+$expected[2])
+    }
+    foreach($expected in @(
+        @('Kingmaker.UnitLogic.Buffs.Buff',0x04001B6D,'m_StoredMods'),
+        @('Kingmaker.UnitLogic.Buffs.Buff',0x04001B6E,'m_StoredFacts'),
+        @('Kingmaker.Blueprints.Facts.Fact',0x0400695A,'m_Components'),
+        @('Kingmaker.Blueprints.Facts.Fact',0x0400695B,'m_ComponentsData'),
+        @('Kingmaker.Blueprints.Facts.Fact',0x04006962,'m_Activating'),
+        @('Kingmaker.Blueprints.Facts.Fact',0x04006963,'m_Deactivating'),
+        @('Kingmaker.Blueprints.Facts.Fact',0x04006964,'m_Recalculating'),
+        @('Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment',0x040068FE,'m_ParentContext'),
+        @('Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment',0x040068FF,'m_CurrentContext'),
+        @('Kingmaker.Visual.Particles.GameObjectsPool',0x04000AA3,'s_PoolRoot'),
+        @('Kingmaker.Visual.Particles.GameObjectsPool',0x04000AA4,'s_Instances'),
+        @('Kingmaker.Visual.Particles.PooledGameObject',0x04000AE3,'Prefab'),
+        @('Kingmaker.Visual.Particles.SnapControllerBase',0x04000B01,'m_RotatableCopy'),
+        @('Kingmaker.Visual.Particles.SnapControllerBase',0x04000B02,'m_IsRotatableCopy'),
+        @('Kingmaker.Visual.Particles.SnapControllerBase',0x04000B12,'s_AllSnapControllers'),
+        @('Kingmaker.Visual.Particles.SnapControllerBase',0x04000AFE,'m_RotationRoot'),
+        @('Kingmaker.Visual.Particles.WeaponParticlesSnapController',0x04000B35,'m_WeaponMap'),
+        @('Kingmaker.Visual.Particles.SnapToLocator',0x04000B2D,'m_Locator'),
+        @('Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier',0x04008C66,'AppliedTo'),
+        @('Kingmaker.EntitySystem.Stats.ModifiableValue+Modifier',0x04008C6A,'Source'),
+        @('Kingmaker.UnitLogic.Mechanics.MechanicsContext',0x04001707,'ParentContext'),
+        @('Kingmaker.UnitLogic.UnitState',0x040015F9,'m_Conditions'),
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x04001908,'Condition')
+    )){
+        $field=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($field.Count-eq1-and$field[0]-is[Reflection.FieldInfo]-and$field[0].Name-ceq$expected[2]) ('charge ownership residue field '+$expected[0]+'.'+$expected[2])
+    }
+    $creation=@(Find-Token 'Kingmaker.UnitLogic.Buffs.BuffCollection' 0x060029F9)
+    $conditionCounter=@(Find-Token 'Kingmaker.UnitLogic.UnitState' 0x040015F9)
+    Assert-Contract ($conditionCounter[0].FieldType.FullName-ceq'System.SByte[]') 'native condition ownership uses a shared signed-byte counter, never a source ledger'
+    foreach($token in @(0x06002448,0x0600244A)){
+        Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod($token) 0x06001FB7) ('native condition addition call site '+$token.ToString('X8'))
+    }
+    Assert-Contract (Test-MethodIlContainsToken $assembly.ManifestModule.ResolveMethod(0x06002449) 0x06001FB9) 'native condition removal uses the single-contribution overload'
+    Assert-Contract ($creation[0].ReturnType.FullName-ceq'Kingmaker.Blueprints.Facts.Fact') 'charge buff creation observer matches exact native return type'
+    foreach($expected in @(
+        @('Kingmaker.View.ObstacleAnalyzer',0x060017B4,'GetNearestNode'),
+        @('Kingmaker.View.ObstacleAnalyzer',0x060017AD,'TraceAlongNavmesh'),
+        @('Kingmaker.Controllers.Combat.UnitCombatCooldownsController',0x0600934A,'TickOnUnit'),
+        @('Kingmaker.Controllers.Combat.UnitCombatCooldownsController',0x06009349,'TickOnUnitTurnBased'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x06009378,'set_AttackOfOpportunityCount'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState',0x06009379,'get_Initiative'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3B4,'get_Initiative'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3BD,'set_AttackOfOpportunity')
+    )){
+        $method=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($method.Count -eq 1 -and $method[0].Name -ceq $expected[2]) ('reaction resource signature '+$expected[0]+'.'+$expected[2])
+    }
+    # Chunk 6A eligibility invalidation uses one owned Frightened Fact and only observes the native fear controller.
+    foreach($expected in @(
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x06002448,'OnTurnOn'),
+        @('Kingmaker.UnitLogic.FactLogic.AddCondition',0x06002449,'OnTurnOff'),
+        @('Kingmaker.Controllers.Units.UnitFearController',0x06009138,'TickOnUnit')
+    )){
+        $method=@(Find-Token $expected[0] $expected[1])
+        Assert-Contract ($method.Count -eq 1 -and $method[0].Name -ceq $expected[2]) ('eligibility native signature '+$expected[0]+'.'+$expected[2])
+    }
     # Read-only steering observations for the mounted/unmounted arrival comparison.
     foreach($expected in @(
         @('Kingmaker.View.UnitMovementAgent',0x04001193,'m_NextPointIndex','System.Int32',$false),
@@ -54,6 +191,7 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD1,'get_IsEnded'),
         @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD3,'get_Context'),
         @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD4,'get_IsEngageUnit'),
+        @('Kingmaker.Controllers.AbilityExecutionProcess',0x06008FD6,'Tick'),
         @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x04001C65,'Ability'),
         @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x06002B6D,'get_AbilityBlueprint'),
         @('Kingmaker.UnitLogic.Abilities.AbilityExecutionContext',0x06002B80,'get_Caster'),
@@ -365,6 +503,34 @@ if($Target-eq'Kingmaker'){
         @('TurnBased.Controllers.CombatController',0x06000BBE,'get_CurrentTurn'),
         @('TurnBased.Controllers.CombatController',0x06000BFF,'get_WaitingForUI'),
         @('TurnBased.Controllers.CombatController',0x04000652,'m_NextUnit'),
+        # Chunk 6A mid-encounter adoption reads these roster observables only.
+        @('TurnBased.Controllers.CombatController',0x06000BBB,'FindUnitInfo'),
+        @('TurnBased.Controllers.CombatController',0x06000BD2,'ChooseNextUnit'),
+        @('TurnBased.Controllers.CombatController',0x06000BD3,'StartRound'),
+        @('TurnBased.Controllers.CombatController',0x06000BE2,'HandleCombatStart'),
+        @('TurnBased.Controllers.CombatController+TBUnitInfo',0x04007069,'Surprised'),
+        @('TurnBased.Controllers.CombatController+TBUnitInfo',0x0400706F,'ActingInSurpriseRound'),
+        @('TurnBased.Controllers.CombatController+TBUnitInfo',0x04007067,'Unit'),
+        # Chunk 6A cost-ownership contract: these are the exact commitment seams.
+        @('Kingmaker.Controllers.Units.UnitActionController',0x0600911E,'TickCommand'),
+        @('Kingmaker.Controllers.Units.UnitActionController',0x06009120,'UpdateCooldowns'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600838F,'UpdateCooldowns'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x0600837F,'HasMoveAction'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008382,'UsedOneMoveAction'),
+        @('Kingmaker.EntitySystem.Entities.UnitEntityData',0x06008383,'UsedTwoMoveAction'),
+        @('Kingmaker.Controllers.Combat.UnitCombatState+Cooldowns',0x0600C3BE,'Clear'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x06002763,'get_IsActed'),
+        @('Kingmaker.UnitLogic.Commands.Base.UnitCommand',0x060027A6,'TickApproaching'),
+        # The exact Deliver-ownership seam. OnAction sets ExecutionProcess from
+        # RuleCastSpell and then returns a TERMINAL result unless
+        # AbilityExecutionProcess.IsEngageUnit, so a relationship command completes and
+        # leaves the Move slot while its process delivers on later frames. That is why
+        # the shell is bound to the exact execution context at this boundary instead of
+        # being rediscovered through the caster's current Move slot at Deliver.
+        # get_ExecutionProcess, get_Context and get_IsEngageUnit are pinned above.
+        @('Kingmaker.UnitLogic.Commands.UnitUseAbility',0x06002737,'OnAction'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityData',0x06002B48,'get_IsAvailable'),
+        @('Kingmaker.UnitLogic.Abilities.AbilityData',0x06002B49,'get_IsAvailableForCast'),
         @('TurnBased.Controllers.CombatController',0x06000BF6,'IsInTurnBasedCombat'),
         @('TurnBased.Controllers.CombatController',0x06000BEA,'Disable'),
         @('TurnBased.Controllers.CombatController',0x06000BE3,'HandleCombatEnd'),
@@ -497,6 +663,9 @@ if($Target-eq'Kingmaker'){
         @('Kingmaker.RuleSystem.Rules.RuleAttackWithWeapon',0x06007185,'get_IsCharge'),
         @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x06007131,'get_Result'),
         @('Kingmaker.RuleSystem.Rules.RuleAttackRoll',0x0600716B,'get_IsHit'),
+        @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073DD,'get_MinHPAfterDamage'),
+        @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073DE,'set_MinHPAfterDamage'),
+        @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073FE,'OnTrigger'),
         @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073D5,'get_AttackRoll'),
         @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073E5,'get_Damage'),
         @('Kingmaker.RuleSystem.Rules.Damage.RuleDealDamage',0x060073ED,'get_IsFake'),
@@ -734,6 +903,21 @@ if($Target-eq'Kingmaker'){
         (Test-MethodIlContainsToken $combatCooldownTick[0] 0x06009349) -and
         (Test-MethodIlContainsToken $combatCooldownTick[0] 0x0600938E)) `
         'combat cooldown exact turn-based early-return gate precedes native initiative decrement'
+    $waitingInitiative=$assembly.ManifestModule.ResolveMethod(0x0600938E)
+    $waitingPrefix=$waitingInitiative.GetMethodBody().GetILAsByteArray()[0..17]
+    Assert-Contract ($waitingInitiative.Name-ceq'get_IsWaitingInitiative' -and
+        $waitingInitiative.ReturnType.FullName-ceq'System.Boolean' -and
+        ($waitingPrefix-join',')-ceq'2,123,150,94,0,4,111,180,195,0,6,34,0,0,0,0,48,31' -and
+        (Test-MethodIlContainsToken $waitingInitiative 0x06000BF6)) `
+        'native waiting initiative first tests positive Initiative; its remaining special case is turn-based only'
+    $nativeTrace=$assembly.ManifestModule.ResolveMethod(0x060017AD)
+    $nativeInside=$assembly.ManifestModule.ResolveMethod(0x060017AC)
+    Assert-Contract ($nativeTrace.IsStatic -and $nativeTrace.ReturnType.FullName-ceq'UnityEngine.Vector3' -and
+        (($nativeTrace.GetParameters()|ForEach-Object {$_.ParameterType.FullName})-join',')-ceq'UnityEngine.Vector3,UnityEngine.Vector3' -and
+        (Test-MethodIlContainsToken $nativeTrace 0x0A000E0D) -and
+        (Test-MethodIlContainsToken $nativeTrace 0x060017B4) -and
+        (Test-MethodIlContainsToken $nativeInside 0x060017B4)) `
+        'native route trace quantizes Vector3 endpoints through Int3 and shares the native nearest-node origin query'
     $disengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x0600939B)
     $shouldAttackOnDisengage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatState' 0x060093A2)
     $opportunityAction=@(Find-Token 'Kingmaker.UnitLogic.Commands.UnitAttackOfOpportunity' 0x06002699)
@@ -848,6 +1032,20 @@ if($Target-eq'Kingmaker'){
     Assert-Contract ($filteredMoveGetter.Count-eq1 -and $filteredMoveGetter[0] -is [Reflection.MethodInfo] -and
         (Test-MethodIlContainsToken $filteredMoveGetter[0] 0x0600275E)) `
         'UnitCommands.Move filters a finished raw Move slot and cannot prove exact lifecycle ownership'
+    $mountInterrupted=@(Find-Token 'Kingmaker.View.UnitEntityView' 0x0600184F)
+    $nativeInterrupt=@(Find-Token 'Kingmaker.UnitLogic.Commands.Base.UnitCommand' 0x060027AC)
+    Assert-Contract ($mountInterrupted.Count-eq1 -and $mountInterrupted[0].Name-ceq'OnMovementInterrupted' -and
+        $mountInterrupted[0].ReturnType.FullName-ceq'System.Void' -and $mountInterrupted[0].GetParameters().Count-eq1 -and
+        $mountInterrupted[0].GetParameters()[0].ParameterType.FullName-ceq'UnityEngine.Vector3' -and
+        (Test-MethodIlContainsToken $mountInterrupted[0] 0x0600269F) -and
+        (Test-MethodIlContainsToken $mountInterrupted[0] 0x060027AC) -and
+        $filteredMoveGetter[0].ReturnType.FullName-ceq'Kingmaker.UnitLogic.Commands.UnitMoveTo') `
+        'native movement interruption addresses only UnitMoveTo and misses a Move-slot UnitUseAbility'
+    Assert-Contract ($nativeInterrupt.Count-eq1 -and
+        (Test-MethodIlContainsToken $nativeInterrupt[0] 0x060027B2) -and
+        -not (Test-MethodIlContainsToken $nativeInterrupt[0] 0x06009120) -and
+        -not (Test-MethodIlContainsToken $nativeInterrupt[0] 0x0600838F)) `
+        'native Interrupt owns the synchronous terminal callback without native action-cost calls'
     $combatJoinTickUnit=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009361)
     $combatShouldEngage=@(Find-Token 'Kingmaker.Controllers.Combat.UnitCombatJoinController' 0x06009362)
     Assert-Contract ($combatJoinTickUnit.Count-eq1 -and $combatJoinTickUnit[0] -is [Reflection.MethodInfo] -and
@@ -909,6 +1107,27 @@ if($Target-eq'Kingmaker'){
         (Test-MethodIlContainsToken $polymorphReplace[0] 0x06007E9D) -and
         (Test-MethodIlContainsToken $polymorphRestore[0] 0x06007E9D)) `
         'Polymorph exact replacement and restoration paths attach stock views through EntityDataBase'
+    Assert-Contract ($attachView[0].ReturnType.FullName-ceq'System.Void' -and
+        -not $attachView[0].IsStatic -and $attachView[0].GetParameters().Count-eq1 -and
+        $attachView[0].GetParameters()[0].Name-ceq'view' -and
+        $attachView[0].GetParameters()[0].ParameterType.FullName-ceq'Kingmaker.View.EntityViewBase') `
+        'view attachment observer binds the exact native instance Void(EntityViewBase view) argument'
+    $restoreViewIl=$polymorphRestore[0].GetMethodBody().GetILAsByteArray()
+    $attachViewIl=$attachView[0].GetMethodBody().GetILAsByteArray()
+    Assert-Contract (($restoreViewIl[0x5e..0x63]-join',')-ceq'20,111,157,126,0,6') `
+        'native Polymorph restoration passes literal null to AttachToViewOnLoad'
+    Assert-Contract (($attachViewIl[0x1d..0x28]-join',')-ceq'2,2,111,158,126,0,6,40,144,126,0,6') `
+        'native null attachment creates and assigns its own view before binding Data'
+    foreach($shape in @(@(0x04005014,'m_PolymoprphHandsEquipmentSet'),@(0x04005015,'m_PolymorphAdditionalLimbs'),
+        @(0x040016D6,'SourceBone'),@(0x040016D7,'BoneReplaced'),@(0x040016D8,'BoneDefault'),
+        @(0x0400156F,'OverrideAsks'),@(0x04001B7C,'Prefab'),@(0x04004C18,'AssetId'))){
+        $field=$assembly.ManifestModule.ResolveField([int]$shape[0])
+        Assert-Contract ($null-ne$field-and$field.Name-ceq$shape[1]) ('charge native view residue field '+$shape[1])
+    }
+    Assert-Contract ((Test-MethodIlContainsToken ($assembly.ManifestModule.ResolveMethod(0x06002A06)) 0x06002A08)-and
+        (Test-MethodIlContainsToken ($assembly.ManifestModule.ResolveMethod(0x06002A07)) 0x06002A09)-and
+        (Test-MethodIlContainsToken ($assembly.ManifestModule.ResolveMethod(0x06002A07)) 0x06007C27)) `
+        'native polymorph fact activation and removal own replacement restoration and body cancellation'
     $turnBasedCombatType=$assembly.GetType('TurnBased.Controllers.CombatController',$false)
     $turnControllerType=$assembly.GetType('TurnBased.Controllers.TurnController',$false)
     $gameTurnController=@(Find-Token 'Kingmaker.Game' 0x040006C2)

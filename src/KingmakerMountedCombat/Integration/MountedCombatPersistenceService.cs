@@ -96,6 +96,18 @@ namespace KingmakerMountedCombat.Integration
                     BlockCombatRestoration("The native turn controller did not become available for the saved combat.");
                 return;
             }
+            if (!data.Combat.TurnBased && !game.Player.IsInCombat)
+            {
+                // The saved real-time combat was captured only while the party was in combat (CaptureCombat
+                // requires Player.IsInCombat). The engine recomputes that non-serialized flag from the group
+                // counters as the restored units re-enter combat during the native load; rebinding earlier let
+                // the paired lifetime maintenance retire the rebound activation as an ended encounter
+                // (preview.154 CM07-mount-load-rt). Wait for the flag exactly as the turn-based branch waits
+                // for the initialised turn controller; after the load has completed, classify the gap exactly.
+                if (restoreLoad.World.NativeCompleted && !Kingmaker.EntitySystem.Persistence.LoadingProcess.Instance.IsLoadingInProcess)
+                    BlockCombatRestoration("The party did not re-enter combat for the saved real-time combat.");
+                return;
+            }
             var actors = new Dictionary<string, UnitEntityData>(StringComparer.Ordinal);
             foreach (var row in data.Combat.Actors)
             {
@@ -115,7 +127,8 @@ namespace KingmakerMountedCombat.Integration
                 unifiedTurn.RestorePersistence(data.Combat, actors);
                 combatRestored = true;
                 Report("Saved native combat roster and paired participation rebound without Prepare/End; round=" +
-                    controller.RoundNumber + "; current=" + (controller.CurrentTurn?.Unit.UniqueId ?? "none") + ".");
+                    controller.RoundNumber + "; current=" + (controller.CurrentTurn?.Unit.UniqueId ?? "none") +
+                    "; activation=" + (unifiedTurn.ActivationIdentity ?? "none") + ".");
             }
             catch (Exception exception)
             {
@@ -145,6 +158,8 @@ namespace KingmakerMountedCombat.Integration
 
         private void BeginLoadHousekeeping()
         {
+            if (!combat.TryDrainChargeOwnership("load world replacement"))
+                throw new InvalidOperationException("Load refused: charge cleanup ownership is unresolved.");
             CancelAreaTransition();
             NativeSaveEffectBoundary.Clear();
             unifiedTurn.DiscardPersistenceWorld();

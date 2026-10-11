@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using Harmony12;
+using Kingmaker.Blueprints;
+using Kingmaker.Blueprints.Facts;
+using Kingmaker.Blueprints.Items.Ecnchantments;
 using Kingmaker.Controllers;
 using Kingmaker.Controllers.Clicks;
 using Kingmaker.Controllers.Combat;
@@ -15,11 +18,15 @@ using Kingmaker.RuleSystem.Rules;
 using Kingmaker.UI.Selection;
 using Kingmaker.UnitLogic.Commands;
 using Kingmaker.UnitLogic.Buffs;
+using Kingmaker.UnitLogic.Buffs.Blueprints;
+using Kingmaker.UnitLogic.Mechanics;
+using Kingmaker.UnitLogic.Mechanics.Actions;
 using Kingmaker.UnitLogic.Commands.Base;
 using Kingmaker.View;
 using Kingmaker.Visual.Animation;
 using Kingmaker.Visual.Animation.Kingmaker;
 using Kingmaker.Visual.CharacterSystem;
+using Kingmaker.Visual.Particles;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Diagnostics;
 using KingmakerMountedCombat.Logging;
@@ -89,6 +96,10 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "HandleCombatEnd", 0x06000BE3, Type.EmptyTypes,
                     nameof(PatchMethods.NativeCombatEndPrefix), nameof(PatchMethods.NativeCombatEndPostfix));
                 PatchExact(typeof(UnitUseAbility), "Init", 0x06002728, new[] { typeof(UnitEntityData) }, null, nameof(PatchMethods.NativeAbilityInitPostfix));
+                PatchExact(typeof(UnitUseAbility), "OnAction", 0x06002737, Type.EmptyTypes, null,
+                    nameof(PatchMethods.NativeAbilityActionPostfix), nameof(PatchMethods.NativeAbilityActionTranspiler));
+                PatchExact(typeof(UnitEntityView), "OnMovementInterrupted", 0x0600184F, new[] { typeof(UnityEngine.Vector3) },
+                    nameof(PatchMethods.NativeMountMovementInterruptedPrefix), nameof(PatchMethods.NativeMountMovementInterruptedPostfix));
                 PatchExact(typeof(Kingmaker.UnitLogic.Abilities.AbilityData), "get_IsSuitableForAutoUse", 0x06002B30,
                     Type.EmptyTypes, null, nameof(PatchMethods.RelationshipControlAutoUsePostfix));
                 PatchExact(typeof(SelectionManager), "SelectUnit", 0x060034F0, new[] { typeof(UnitEntityView), typeof(bool), typeof(bool), typeof(bool) }, nameof(PatchMethods.SelectUnitPrefix));
@@ -142,10 +153,42 @@ namespace KingmakerMountedCombat.Integration
                 PatchExact(typeof(CombatController), "Tick", 0x06000BD1, Type.EmptyTypes, nameof(PatchMethods.CombatControllerTickPrefix), nameof(PatchMethods.CombatControllerTickPostfix));
                 PatchExact(typeof(CombatController), "ChooseNextUnit", 0x06000BD2, Type.EmptyTypes, null, nameof(PatchMethods.ChooseNextUnitPostfix), nameof(PatchMethods.PairedSelectorTranspiler));
                 PatchExact(typeof(CombatController), "HandleCombatStart", 0x06000BE2, new[] { typeof(bool) }, nameof(PatchMethods.PairedEncounterPrefix), nameof(PatchMethods.PairedEncounterPostfix));
+                PatchExact(typeof(CombatController), "HandleTurnBasedModeStateChanged", 0x06000BF5, new[] { typeof(bool) }, nameof(PatchMethods.ChargeModeBoundaryPrefix), nameof(PatchMethods.ChargeModeBoundaryPostfix));
+                PatchExact(typeof(CombatController), "HandlePartyCombatStateChanged", 0x06000BED, new[] { typeof(bool) }, nameof(PatchMethods.ChargeCombatBoundaryPrefix));
                 PatchExact(typeof(CombatController), "Disable", 0x06000BEA, Type.EmptyTypes, nameof(PatchMethods.PairedModeExitPrefix));
                 PatchExact(typeof(CombatController), "RemoveUnit", 0x06000BE6, new[] { typeof(UnitEntityData) }, nameof(PatchMethods.PairedActorRemovalPrefix));
                 PatchExact(typeof(BuffCollection), "Tick", 0x06002A02, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedBuffTimerTranspiler));
-                PatchExact(typeof(CombatController), "TickTime", 0x06000BD6, Type.EmptyTypes, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
+                PatchExact(typeof(BuffCollection), "CreateFact", 0x060029F9, null,
+                    null, nameof(PatchMethods.ChargeBuffCreatedPostfix));
+                PatchExact(typeof(BuffCollection), "AddBuffInternal", 0x060029F7, null,
+                    nameof(PatchMethods.ChargeChildAdmissionPrefix), null, nameof(PatchMethods.ChargeChildAcquisitionTranspiler));
+                PatchExact(typeof(ItemEnchantmentCollection), "AddEnchantment", 0x060099B8, null,
+                    null, null, nameof(PatchMethods.ChargeChildAcquisitionTranspiler));
+                PatchExact(typeof(ItemEnchantmentCollection), "CreateFact", 0x060099B7, null,
+                    null, nameof(PatchMethods.ChargeEnchantmentCreatedPostfix));
+                PatchExact(typeof(FactCollection), "RemoveFact", 0x06009699, new[] { typeof(Fact) }, nameof(PatchMethods.ChargeFactRemovalPrefix));
+                PatchExact(typeof(FactCollection), "RemoveFact", 0x06009698, new[] { typeof(BlueprintFact) }, nameof(PatchMethods.ChargeBlueprintRemovalPrefix));
+                PatchExact(typeof(Fact), "Activate", 0x06009A50, Type.EmptyTypes, nameof(PatchMethods.ChargeFactLifecyclePrefix));
+                PatchExact(typeof(Fact), "Deactivate", 0x06009A52, Type.EmptyTypes, nameof(PatchMethods.ChargeFactLifecyclePrefix));
+                PatchExact(typeof(Fact), "Dispose", 0x06009A5A, Type.EmptyTypes, nameof(PatchMethods.ChargeFactLifecyclePrefix));
+                PatchExact(typeof(ContextActionRemoveBuff), "RunAction", 0x06002394, Type.EmptyTypes, nameof(PatchMethods.ChargeChildRemovalPrefix));
+                PatchExact(typeof(ItemEnchantment), "RespawnFx", 0x060099AB, Type.EmptyTypes,
+                    null, null, nameof(PatchMethods.ChargeFxRespawnTranspiler));
+                PatchExact(typeof(GameObjectsPool), "Claim", 0x060010BD, null, null, null, nameof(PatchMethods.ChargeFxAcquisitionTranspiler));
+                PatchExact(typeof(PooledGameObject), "CreateInstance", 0x06001109, null, null, null, nameof(PatchMethods.ChargeFxAcquisitionTranspiler));
+                PatchExact(typeof(SnapControllerBase), "Init", 0x0600111A, Type.EmptyTypes, null, null, nameof(PatchMethods.ChargeFxAcquisitionTranspiler));
+                PatchExact(typeof(GameObjectsPool), "Release", 0x060010BE, null, null, nameof(PatchMethods.ChargeFxReleasePostfix), nameof(PatchMethods.ChargeFxRespawnTranspiler));
+                PatchExact(typeof(Kingmaker.Blueprints.Items.Ecnchantments.ItemEnchantment), "DestroyFx", 0x060099AF,
+                    Type.EmptyTypes, null, null, nameof(PatchMethods.ChargeFxDestructionTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnTurnOn", 0x06002448, Type.EmptyTypes,
+                    null, null, nameof(PatchMethods.ChargeConditionTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnTurnOff", 0x06002449, Type.EmptyTypes,
+                    null, null, nameof(PatchMethods.ChargeConditionTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.FactLogic.AddCondition), "OnEntityCreated", 0x0600244A, new[] { typeof(UnitEntityData) },
+                    null, null, nameof(PatchMethods.ChargeConditionTranspiler));
+                PatchExact(typeof(Kingmaker.UnitLogic.UnitState), "UpdateStatusEffect", 0x06001FBF,
+                    new[] { typeof(Kingmaker.UnitLogic.UnitCondition), typeof(Buff) }, nameof(PatchMethods.ChargeConditionMutationPrefix));
+                PatchExact(typeof(CombatController), "TickTime", 0x06000BD6, Type.EmptyTypes, nameof(PatchMethods.ChargeTransitionTickPrefix), null, nameof(PatchMethods.PairedReadinessTranspiler));
                 PatchExact(typeof(CombatController).GetNestedType("<>c", BindingFlags.NonPublic), "<HandleCombatStart>b__79_2",
                     0x0600A2BE, null, null, null, nameof(PatchMethods.PairedReadinessTranspiler));
                 PatchExact(typeof(TurnController), "Prepare", 0x06000C3C, Type.EmptyTypes, nameof(PatchMethods.TurnPreparePrefix), nameof(PatchMethods.TurnPreparePostfix), nameof(PatchMethods.PairedPreparationTranspiler));
@@ -311,6 +354,41 @@ namespace KingmakerMountedCombat.Integration
 
         private static class PatchMethods
         {
+            internal static void ChargeBuffCreatedPostfix(BuffCollection __instance, Fact __result)
+            {
+                MountedChargeLease.ObserveChargeBuffCreated(__instance, __result as Buff);
+                MountedChargeBuffChildren.Created(__instance, __result);
+            }
+
+            internal static void ChargeEnchantmentCreatedPostfix(ItemEnchantmentCollection __instance, Fact __result) =>
+                MountedChargeBuffChildren.Created(__instance, __result);
+            internal static void ChargeChildAdmissionPrefix(BuffCollection __instance, BlueprintBuff blueprint, MechanicsContext context) =>
+                MountedChargeBuffChildren.BeforeAddBuff(__instance, blueprint, context);
+            internal static void ChargeFactRemovalPrefix(FactCollection __instance, Fact fact) => MountedChargeBuffChildren.BeforeRemove(__instance, fact);
+            internal static void ChargeBlueprintRemovalPrefix(FactCollection __instance, BlueprintFact blueprint) => MountedChargeBuffChildren.BeforeRemoveBlueprint(__instance, blueprint);
+            internal static void ChargeFactLifecyclePrefix(Fact __instance) => MountedChargeBuffChildren.BeforeFactLifecycle(__instance);
+            internal static bool ChargeChildRemovalPrefix(ContextActionRemoveBuff __instance) => MountedChargeBuffChildren.RemoveAction(__instance);
+            internal static IEnumerable<CodeInstruction> ChargeChildAcquisitionTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
+                MountedChargeBuffChildren.WrapAddFact(instructions, __originalMethod);
+            internal static IEnumerable<CodeInstruction> ChargeFxAcquisitionTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator, MethodBase __originalMethod)
+            {
+                var output = MountedChargeEnchantmentFx.WrapAcquisition(instructions, __originalMethod);
+                return __originalMethod.MetadataToken == 0x0600111A ?
+                    MountedChargeEnchantmentFx.WrapRespawn(output, generator, __originalMethod) : output;
+            }
+            internal static IEnumerable<CodeInstruction> ChargeFxRespawnTranspiler(IEnumerable<CodeInstruction> instructions, ILGenerator generator, MethodBase __originalMethod) =>
+                MountedChargeEnchantmentFx.WrapRespawn(instructions, generator, __originalMethod);
+            internal static void ChargeFxReleasePostfix(UnityEngine.GameObject instance) => MountedChargeEnchantmentFx.ObserveRelease(instance);
+            internal static IEnumerable<CodeInstruction> ChargeFxDestructionTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
+                MountedChargeEnchantmentFx.WrapDestruction(instructions, __originalMethod);
+
+            internal static IEnumerable<CodeInstruction> ChargeConditionTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase __originalMethod) =>
+                MountedChargeConditionObserver.Wrap(instructions, __originalMethod);
+
+            internal static void ChargeConditionMutationPrefix(Kingmaker.UnitLogic.UnitState __instance,
+                Kingmaker.UnitLogic.UnitCondition condition, Buff sourceBuff) =>
+                MountedChargeConditionObserver.ObserveMutation(__instance, condition, sourceBuff);
+
             internal static void ChargeTargetPostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
             {
                 // The installed native-target extension replaces this method in
@@ -342,9 +420,10 @@ namespace KingmakerMountedCombat.Integration
                 return false;
             }
 
-            internal static bool ChargeAdmissionPrefix(UnitCommand cmd) =>
+            internal static bool ChargeAdmissionPrefix(UnitCommands __instance, UnitCommand cmd) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 PatchBridge.Persistence?.ActiveSaveWorkerRunning != true &&
+                (PointerController.SimulatingClick || PatchBridge.Combat?.AdmitChargeCommand(__instance, cmd) != false) &&
                 (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowAdmission(cmd));
 
             // Game.ResetToMainMenu, the only gameplay caller of StopAll. Deferred
@@ -353,9 +432,13 @@ namespace KingmakerMountedCombat.Integration
             internal static bool ResetToMainMenuPrefix(string message, Kingmaker.Blueprints.Area.BlueprintAreaPreset preset) =>
                 PatchBridge.Persistence == null || !PatchBridge.Persistence.DeferResetToMainMenu(message, preset);
 
+            // While a deferred save waits, new actions are held; the registered Mount/Dismount shell the save itself waits for
+            // (SaveEffectsReady: OwnsUnsettledRelationshipShell) must still start, or the hold and the readiness term deadlock
+            // until the bounded wait refuses the save (preview.208 combat-mount-unsettled-save).
             internal static bool SaveCommandStartPrefix(UnitCommand __instance) =>
                 PatchBridge.Persistence?.CombatRestorationPending != true &&
                 (PatchBridge.Persistence?.Enabled != true || NativeSaveEffectBoundary.MayStartDuringWait(__instance) ||
+                 PatchBridge.NativeControls?.OwnsUnsettledRelationshipShell(__instance) == true ||
                  PatchBridge.UnifiedTurn?.MayStartNativePreparationDuringSave(__instance) == true ||
                  !NativeDeferredSave.Waiting(LoadingProcess.Instance)) &&
                 ChargeExecutionPrefix(__instance);
@@ -375,7 +458,8 @@ namespace KingmakerMountedCombat.Integration
                 NativeDeferredSave.AbandonOwned(__instance, error => PatchBridge.Persistence?.ReportAbandonedSave(error));
 
             internal static bool ChargeExecutionPrefix(UnitCommand __instance) =>
-                PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance);
+                (PatchBridge.Combat?.AllowChargeExecution(__instance) != false) &&
+                (PatchBridge.ChargeSafety == null || PatchBridge.ChargeSafety.AllowExecution(__instance));
 
             internal static void NativeMovementUpdatePrefix() => PatchBridge.Service?.BeginNativeMovementUpdate();
 
@@ -407,6 +491,7 @@ namespace KingmakerMountedCombat.Integration
                 // Native TB cursor prediction replaces Unit.Commands temporarily. Its fake orders
                 // must stay entirely native; routing one can cancel a real pair order or move its mount.
                 if (PointerController.SimulatingClick) { return true; }
+                if (PatchBridge.Combat?.AdmitChargeCommand(__instance, cmd) == false) return false;
                 if (PatchBridge.UnifiedTurn?.AdmitNativePreparationCommand(__instance, cmd) == true) return true;
                 if (PatchBridge.Combat != null && !PatchBridge.Combat.TryRouteMountedDoorInteraction(__instance, ref cmd))
                 {
@@ -423,6 +508,45 @@ namespace KingmakerMountedCombat.Integration
             {
                 PatchBridge.NativeControls?.PrepareNativeMountApproach(__instance);
                 PatchBridge.NativeControls?.PrepareNativePrimaryIntentShell(__instance);
+            }
+
+            // The OnAction boundary is where UnitUseAbility sets its ExecutionProcess.
+            // Binding the relationship shell to that exact execution context here is
+            // what lets Deliver prove ownership on a later frame, after the command has
+            // completed and left the Move slot.
+            internal static void NativeAbilityActionPostfix(UnitUseAbility __instance)
+            {
+                PatchBridge.NativeControls?.BindNativeRelationshipProcess(__instance);
+            }
+
+            internal static Action<bool> BeginNativeChargeAction(UnitUseAbility __instance) =>
+                PatchBridge.Combat?.BeginChargeNativeAction(__instance);
+
+            internal static IEnumerable<CodeInstruction> NativeAbilityActionTranspiler(IEnumerable<CodeInstruction> instructions,
+                ILGenerator generator, MethodBase original) => NativeChargeActionBoundary.Wrap(instructions, generator, original,
+                    typeof(PatchMethods).GetMethod(nameof(BeginNativeChargeAction), BindingFlags.Static | BindingFlags.NonPublic),
+                    typeof(PatchMethods).GetMethod(nameof(TriggerNativeChargeRule), BindingFlags.Static | BindingFlags.NonPublic));
+
+            internal static Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell TriggerNativeChargeRule(
+                Kingmaker.RuleSystem.Rules.Abilities.RuleCastSpell rule, UnitUseAbility shell)
+            {
+                var combat = PatchBridge.Combat;
+                var owned = combat?.OwnsChargeNativeAction(shell) == true;
+                if (owned) combat.CaptureChargeNativeRule(shell, rule, Kingmaker.Game.Instance?.AbilityExecutor);
+                if (owned) MountedChargeAdmissionFault.FireNativeAction("before-rule");
+                var result = Kingmaker.RuleSystem.Rulebook.Trigger(rule);
+                if (owned) MountedChargeAdmissionFault.FireNativeAction("after-rule");
+                return result;
+            }
+
+            internal static void NativeMountMovementInterruptedPrefix(UnitEntityView __instance, out UnitUseAbility __state)
+            {
+                __state = PatchBridge.NativeControls?.CaptureNativeMountApproachInterruption(__instance);
+            }
+
+            internal static void NativeMountMovementInterruptedPostfix(UnitEntityView __instance, UnitUseAbility __state)
+            {
+                PatchBridge.NativeControls?.CompleteNativeMountApproachInterruption(__instance, __state);
             }
 
             internal static void RelationshipControlAutoUsePostfix(Kingmaker.UnitLogic.Abilities.AbilityData __instance, ref bool __result)
@@ -526,7 +650,21 @@ namespace KingmakerMountedCombat.Integration
                 return true;
             }
             internal static void PairedEncounterPostfix() => PatchBridge.Persistence?.TryRestoreCombat();
-            internal static bool CombatControllerTickPrefix() => PatchBridge.Persistence?.BeforeCombatTick() ?? true;
+            internal static bool ChargeModeBoundaryPrefix(CombatController __instance, bool enabled, out bool __state)
+            {
+                __state = false;
+                if (!MountedCombatController.NativeModeChanges(__instance, enabled)) return true;
+                __state = PatchBridge.Combat?.AdmitChargeNativeBoundary(__instance, MountedChargeBoundaryKind.Mode, enabled) ?? true;
+                return __state;
+            }
+            internal static void ChargeModeBoundaryPostfix(bool enabled, bool __state)
+            {
+                if (__state) PatchBridge.Combat?.CompleteChargeNativeMode(enabled);
+            }
+            internal static bool ChargeCombatBoundaryPrefix(CombatController __instance, bool inCombat) =>
+                PatchBridge.Combat?.AdmitChargeNativeBoundary(__instance, MountedChargeBoundaryKind.PartyCombat, inCombat) ?? true;
+            internal static bool ChargeTransitionTickPrefix() => PatchBridge.Combat?.ChargeNativeBoundaryPending != true;
+            internal static bool CombatControllerTickPrefix() => ChargeTransitionTickPrefix() && (PatchBridge.Persistence?.BeforeCombatTick() ?? true);
             internal static void PairedWaitingPostfix(TurnController __instance, ref bool __result) =>
                 PatchBridge.UnifiedTurn?.ExtendPairedWaiting(__instance, ref __result);
             internal static void PairedForfeitPrefix(TurnController __instance, bool setCooldowns) => PatchBridge.UnifiedTurn?.ForfeitPairedActivation(__instance, setCooldowns);
@@ -534,7 +672,12 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (PatchBridge.Persistence?.LoadingWorld != true) PatchBridge.UnifiedTurn?.BeforeNativeModeExit(__instance);
             }
-            internal static void PairedActorRemovalPrefix(UnitEntityData unit) => PatchBridge.UnifiedTurn?.BeforePairedActorRemoval(unit);
+            internal static bool PairedActorRemovalPrefix(CombatController __instance, UnitEntityData unit)
+            {
+                if (PatchBridge.Combat?.AdmitChargeActorRemoval(__instance, unit) == false) return false;
+                PatchBridge.UnifiedTurn?.BeforePairedActorRemoval(unit);
+                return true;
+            }
             internal static void PairedTickPrefix(TurnController __instance) => PatchBridge.UnifiedTurn?.TickPairedNativeState(__instance);
             internal static bool PairedInputPredictionPrefix(TurnController __instance) =>
                 PatchBridge.UnifiedTurn?.PrepareNativeInputPrediction(__instance) ?? true;
@@ -891,8 +1034,12 @@ namespace KingmakerMountedCombat.Integration
                         PatchBridge.NativeControls == null ? __result : PatchBridge.NativeControls.WrapSaveRoutine(__result);
             }
 
-            internal static void AreaTransitionPrefix(Kingmaker.Blueprints.Area.BlueprintArea area, SaveInfo saveInfo) =>
+            internal static bool AreaTransitionPrefix(Kingmaker.Blueprints.Area.BlueprintArea area, SaveInfo saveInfo)
+            {
+                if (PatchBridge.Persistence?.AdmitChargeAreaTransition() == false) return false;
                 PatchBridge.Persistence?.BeginAreaTransition(area, saveInfo);
+                return true;
+            }
             internal static void AreaEntitiesReadyPostfix() => PatchBridge.Persistence?.RestoreAreaPair();
 
             internal static bool GameLoadAdmissionPrefix(SaveInfo saveInfo)

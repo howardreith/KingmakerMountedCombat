@@ -16,6 +16,57 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("deferred save cleanup survives wait and native disposal failures", Failures);
             runner.Run("ready save retains native enumeration and completion order", Ready);
             runner.Run("unowned deferred enumeration fails before native serialization", Unowned);
+            runner.Run("charge fence survives deferral and releases once on native completion", ChargeFence);
+            foreach (var boundary in new[] { "ready", "screen", "timeout", "dispose", "unstarted", "inner-dispose" })
+            {
+                var selected = boundary;
+                runner.Run("charge save fence release at " + selected, () => FenceFailure(selected));
+            }
+        }
+
+        private static void ChargeFence()
+        {
+            var writer = new Writer();
+            var debt = true;
+            var fence = false;
+            var releases = 0;
+            var operation = new DeferredSaveEnumerator<object>(writer,
+                () => { fence = true; return !debt; }, () => 0, () => { }, () => { }, () => { }, 30,
+                () => { fence = false; releases++; });
+            operation.Activate(() => TestRunner.True(fence && !debt, "Native writer crossed unresolved charge boundary."));
+            operation.MoveNext();
+            TestRunner.Equal(0, writer.Moves, "Snapshot captured while cleanup debt remains.");
+            TestRunner.True(fence, "Deferral reopened charge admission.");
+            debt = false;
+            operation.MoveNext();
+            TestRunner.True(fence, "Native serialization released charge admission early.");
+            operation.MoveNext(); operation.Dispose();
+            TestRunner.True(!fence, "Terminal operation stranded admission fence.");
+            TestRunner.Equal(1, releases, "Fence release was not exactly once.");
+        }
+
+        private static void FenceFailure(string boundary)
+        {
+            var writer = new Writer { FailDispose = boundary == "inner-dispose" };
+            var fence = false; var releases = 0; var now = 0d;
+            var operation = new DeferredSaveEnumerator<object>(writer, () =>
+            {
+                fence = true;
+                if (boundary == "ready") throw new InvalidOperationException("readiness");
+                return boundary == "screen";
+            }, () => now, () => { }, () => { }, () => { }, 30,
+                () => { fence = false; releases++; });
+            try
+            {
+                if (boundary != "unstarted") operation.Activate(() => { throw new InvalidOperationException("screen"); });
+                if (boundary == "timeout") { now = 31; operation.MoveNext(); }
+                else operation.Dispose();
+            }
+            catch (InvalidOperationException) { }
+            operation.Dispose();
+            TestRunner.True(!fence, "Pre-native failure stranded charge fence.");
+            TestRunner.Equal(1, releases, "Terminal release was skipped or duplicated.");
+            TestRunner.Equal(0, writer.Moves, "Failed pre-native save advanced the native writer.");
         }
 
         private sealed class Writer : IEnumerator<object>

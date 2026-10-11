@@ -16,126 +16,11 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
 
-function Assert-NoDuplicateJsonObjectProperties {
-    param([Parameter(Mandatory = $true)][string]$Path, [Parameter(Mandatory = $true)][string]$Description)
-    Add-Type -AssemblyName System.Runtime.Serialization
-    $reader = $null
-    try {
-        $reader = [Runtime.Serialization.Json.JsonReaderWriterFactory]::CreateJsonReader([IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path)), [Xml.XmlDictionaryReaderQuotas]::Max)
-        $document = New-Object Xml.XmlDocument
-        $document.Load($reader)
-        function Test-JsonObjectNode([Xml.XmlNode]$Node, [string]$Location) {
-            if ($Node.NodeType -eq [Xml.XmlNodeType]::Element -and [string]$Node.Attributes['type'].Value -ceq 'object') {
-                $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-                foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) {
-                    $name = if ($child.LocalName -ceq 'item' -and $null -ne $child.Attributes['item']) { [string]$child.Attributes['item'].Value } else { [string]$child.LocalName }
-                    if (-not $names.Add($name)) { throw "$Description contains duplicate JSON property '$name' at $Location." }
-                }
-            }
-            foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) { Test-JsonObjectNode $child ($Location + '/' + $child.LocalName) }
-        }
-        Test-JsonObjectNode $document.DocumentElement '$'
-    }
-    finally { if ($null -ne $reader) { $reader.Dispose() } }
-}
 
-function Test-ExactJsonInteger {
-    param($Value)
-    return $Value -is [sbyte] -or $Value -is [byte] -or
-        $Value -is [int16] -or $Value -is [uint16] -or
-        $Value -is [int32] -or $Value -is [uint32] -or
-        $Value -is [int64] -or $Value -is [uint64]
-}
 
-function Assert-RuntimeArtifactManifest {
-    param(
-        [Parameter(Mandatory = $true)]$Request,
-        [Parameter(Mandatory = $true)]$ExpectedSha256
-    )
 
-    if ($ExpectedSha256 -isnot [string] -or $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$') {
-        throw 'Runtime game-result evidenceManifestSha256 is not an exact lowercase SHA-256.'
-    }
 
-    if ($Request.evidenceRoot -isnot [string] -or $Request.runId -isnot [string] -or
-        $Request.scenario -isnot [string]) {
-        throw 'Runtime artifact manifest request context must contain exact JSON strings.'
-    }
 
-    $evidenceRoot = [IO.Path]::GetFullPath($Request.evidenceRoot).TrimEnd('\')
-    Assert-KmcNotReparsePoint $evidenceRoot 'runtime evidence root'
-    $manifestPath = Assert-KmcChildPath (Join-Path $evidenceRoot 'runtime-artifacts.json') $evidenceRoot 'runtime artifact manifest'
-    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-        throw 'Runtime artifact manifest is missing.'
-    }
-    Assert-KmcNotReparsePoint $manifestPath 'runtime artifact manifest'
-    Assert-KmcNotHardLink $manifestPath 'runtime artifact manifest'
-    if ((Get-KmcSha256 $manifestPath) -cne $ExpectedSha256) {
-        throw 'Runtime artifact manifest hash does not match the runtime game result.'
-    }
-
-    Assert-NoDuplicateJsonObjectProperties $manifestPath 'runtime artifact manifest'
-    $manifest = Read-KmcJson $manifestPath
-    Assert-KmcExactProperties $manifest @('schemaVersion','runId','scenario','createdAtUtc','artifacts') 'runtime artifact manifest'
-    if (-not (Test-ExactJsonInteger $manifest.schemaVersion) -or [long]$manifest.schemaVersion -ne 1) {
-        throw 'Runtime artifact manifest schemaVersion must be the exact integral value 1.'
-    }
-    if ($manifest.runId -isnot [string] -or $manifest.scenario -isnot [string] -or
-        $manifest.createdAtUtc -isnot [string] -or
-        $manifest.runId -cne [string]$Request.runId -or
-        $manifest.scenario -cne [string]$Request.scenario) {
-        throw 'Runtime artifact manifest identity does not match its request.'
-    }
-    $createdAt = [DateTimeOffset]::MinValue
-    if (-not [DateTimeOffset]::TryParse([string]$manifest.createdAtUtc, [ref]$createdAt)) {
-        throw 'Runtime artifact manifest createdAtUtc is invalid.'
-    }
-    if ($manifest.artifacts -isnot [Array]) {
-        throw 'Runtime artifact manifest artifacts must be an actual JSON array.'
-    }
-
-    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    foreach ($artifact in @($manifest.artifacts)) {
-        if ($null -eq $artifact) { throw 'Runtime artifact manifest contains a null artifact.' }
-        Assert-KmcExactProperties $artifact @('relativePath','kind','length','sha256') 'runtime artifact manifest record'
-        if ($artifact.relativePath -isnot [string] -or $artifact.kind -isnot [string] -or
-            $artifact.sha256 -isnot [string]) {
-            throw 'Runtime artifact manifest record paths, kinds, and hashes must be JSON strings.'
-        }
-        $relativePath = $artifact.relativePath
-        $kind = $artifact.kind
-        if (-not $seen.Add($relativePath)) { throw "Runtime artifact manifest contains duplicate path: $relativePath" }
-
-        $allowed = ($relativePath -ceq 'persistence-observations.jsonl' -and $kind -ceq 'persistence-evidence') -or
-            ($relativePath -ceq 'lifecycle-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
-            ($relativePath -ceq 'movement-telemetry.jsonl' -and $kind -ceq 'telemetry') -or
-            ($relativePath -ceq 'movement-scenario-evidence.jsonl' -and $kind -ceq 'scenario-evidence') -or
-            ($relativePath -ceq 'boundary-scenario-evidence.jsonl' -and $kind -ceq 'boundary-evidence') -or
-            ($relativePath -ceq 'combat-scenario-evidence.jsonl' -and $kind -ceq 'combat-evidence') -or
-            ($relativePath -ceq 'horse-native-asset-audit.json' -and $kind -ceq 'horse-asset-audit') -or
-            ($relativePath -ceq 'horse-companion-blueprint-registration.json' -and $kind -ceq 'horse-companion-blueprint-registration') -or
-            ($relativePath -ceq 'horse-companion-unmounted.json' -and $kind -ceq 'horse-companion-unmounted') -or
-            ($relativePath -ceq 'horse-mounted-alpha.json' -and $kind -ceq 'horse-mounted-alpha') -or
-            ($relativePath -ceq 'horse-native-controls-ux.json' -and $kind -ceq 'horse-native-controls-ux') -or
-            ($relativePath -ceq 'phase3d-horse-scenario-evidence.json' -and $kind -ceq 'phase3d-horse-scenario-evidence') -or
-            ($relativePath -cmatch '^movement-visuals/[A-Za-z0-9._-]+\.png$' -and $kind -ceq 'screenshot')
-        if (-not $allowed) { throw "Runtime artifact manifest record is outside the exact allowlist: $relativePath ($kind)" }
-        if (-not (Test-ExactJsonInteger $artifact.length) -or [long]$artifact.length -le 0 -or
-            $artifact.sha256 -cnotmatch '^[0-9a-f]{64}$') {
-            throw "Runtime artifact manifest record has invalid length or SHA-256: $relativePath"
-        }
-
-        $artifactPath = Assert-KmcChildPath (Join-Path $evidenceRoot $relativePath.Replace('/', '\')) $evidenceRoot 'runtime artifact'
-        if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) { throw "Runtime artifact is missing: $relativePath" }
-        Assert-KmcNotReparsePoint (Split-Path -Parent $artifactPath) "runtime artifact parent $relativePath"
-        Assert-KmcNotReparsePoint $artifactPath "runtime artifact $relativePath"
-        Assert-KmcNotHardLink $artifactPath "runtime artifact $relativePath"
-        $artifactFile = Get-Item -LiteralPath $artifactPath -Force
-        if ([long]$artifactFile.Length -ne [long]$artifact.length -or (Get-KmcSha256 $artifactPath) -cne [string]$artifact.sha256) {
-            throw "Runtime artifact bytes do not match the manifest: $relativePath"
-        }
-    }
-}
 
 function Assert-FixtureEcho {
     param($Actual, $Expected)
@@ -217,18 +102,34 @@ function Assert-SubscenarioResults {
         [int]$Game.assertionPassCount -ne $assertionPass -or [int]$Game.assertionFailCount -ne $assertionFail) {
         throw 'Runtime game-result subscenario totals do not match the named results.'
     }
-    if (@($missionScenarios | Where-Object { $_ -ceq [string]$Game.scenario }).Count -eq 1 -and -not $names.Contains([string]$Game.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
+    # A compound scenario (Get-KmcCompoundRuntimeScenarios) reports child case rows only; its dedicated validator owns the required case set.
+    if (-not (Test-KmcCompoundRuntimeScenario ([string]$Game.scenario)) -and @($missionScenarios | Where-Object { $_ -ceq [string]$Game.scenario }).Count -eq 1 -and -not $names.Contains([string]$Game.scenario)) { throw 'Individual runtime scenario did not report its own named result.' }
 }
 
 & (Join-Path $PSScriptRoot 'Test-RuntimeRequest.ps1') -RequestPath $RequestPath
-Assert-NoDuplicateJsonObjectProperties $GameResultPath 'runtime game result'
+Assert-KmcManifestJsonMembersUnique $GameResultPath 'runtime game result'
 $game = Read-KmcJson $GameResultPath
 $request = Read-KmcJson $RequestPath
 $fingerprint = Read-KmcJson $FingerprintPath
 $schemaVersion = [int]$request.schemaVersion
 $commonRequired = @('schemaVersion','runId','scenario','status','branch','commit','productVersion','dllSha256','dllMvid','transactionToken','startedAtUtc','completedAtUtc','loadedModId','gameVersion','gameAssemblySha256','gameAssemblyMvid','ummVersion','ummSha256','harmony12Version','harmony12Sha256','relationshipState','movementExperimentEnabled','processId','currentGameMode','loadedAreaPresent','saveRequestCount','loadRequestCount','frameCount','elapsedSeconds','errors')
 if ($schemaVersion -eq 1) {
-    Assert-KmcExactProperties $game $commonRequired 'runtime game result v1'
+    # The no-save smoke is purely observational: it changes nothing and publishes the
+    # live state it read, including the defaults the loaded build shipped with. This
+    # list is the exact mirror of ModLoadSmokePolicy.PublishedFields, so a field cannot
+    # be added on the product side and forgotten here.
+    $v1Fields = @(
+        'expectedModId','expectedProductVersion','gamePresent',
+        'shippedMovementExperimentEnabled','shippedPairedActivationEnabled',
+        'shippedUnifiedMountedTurnEnabled','shippedPairedCommandSchedulerEnabled',
+        'shippedDiagnosticOverlayEnabled','settingsMutatedByScenario',
+        'relationshipTransitionInFlight','registeredRelationshipShellCount',
+        'relationshipProcessBindingCount','poisonedExecutionContextCount',
+        'nativeCastRequestCount','dispatchAcceptedCount','dispatchRejectedCount',
+        'pairedActivationPresent','pairedPartnerContextPresent',
+        'managedControlFactCount','duplicateControlFactCount','managedHotbarSlotCount',
+        'overlayObjectPresent','controlServiceSerializationSuspended')
+    Assert-KmcExactProperties $game @($commonRequired + $v1Fields) 'runtime game result v1'
 }
 elseif ($schemaVersion -eq 2) {
     $v2Fields = @('fixture','fixtureIdentityVerified','baselineLoadRequestCount','workingLoadRequestCount','workingSaveRequestCount','suppressedWorkingSaveRequestCount','unauthorizedLoadRequestCount','unauthorizedSaveRequestCount','subscenarioTotal','subscenarioPassCount','subscenarioFailCount','assertionPassCount','assertionFailCount','evidenceManifestSha256','subscenarioResults')
@@ -265,14 +166,62 @@ if ([string]$game.status -ceq 'FAIL' -and @($game.errors).Count -eq 0) {
 if ($RequirePass -and [string]$game.status -cne 'PASS') { throw 'Runtime game result did not qualify as PASS.' }
 
 if ($schemaVersion -eq 1) {
-    if ([string]$game.relationshipState -cne 'Unmounted' -or $game.movementExperimentEnabled -ne $false -or
-        $game.loadedAreaPresent -ne $false -or [int]$game.saveRequestCount -ne 0 -or [int]$game.loadRequestCount -ne 0) { throw 'Runtime game-result safety state is not an unmounted no-save smoke PASS.' }
-    Write-Host 'TOTAL PASS=24 FAIL=0'
+    if ([string]$game.scenario -cne 'mod-load-smoke') { throw 'Schema-v1 evidence names a scenario other than mod-load-smoke.' }
+    # Identity the observation itself carries, independent of the request echo above.
+    if ([string]$game.expectedModId -cne 'KingmakerMountedCombat' -or
+        [string]$game.loadedModId -cne [string]$game.expectedModId -or
+        [string]$game.expectedProductVersion -cne [string]$request.productVersion -or
+        [string]$game.productVersion -cne [string]$game.expectedProductVersion) {
+        throw 'Mod-load smoke evidence does not bind the exact mod id and product version it observed.'
+    }
+    # The smoke changes nothing. This is asserted, not inferred from the absence of code.
+    if ($game.settingsMutatedByScenario -ne $false) { throw 'Mod-load smoke reported mutating a diagnostic setting.' }
+    # The shipped settings are published observations, not gates: either value is lawful.
+    # All five must be recorded as booleans on a PASS so the evidence cannot claim a
+    # default it never read, and the live movement-experiment reading must equal the
+    # shipped one -- an observational smoke has no scope of its own to diverge from.
+    $shippedFields = @('shippedMovementExperimentEnabled','shippedPairedActivationEnabled',
+        'shippedUnifiedMountedTurnEnabled','shippedPairedCommandSchedulerEnabled','shippedDiagnosticOverlayEnabled')
+    # Every forbidden active state, asserted directly rather than through a scoped proxy.
+    $absentFlags = @('loadedAreaPresent','relationshipTransitionInFlight','pairedActivationPresent',
+        'pairedPartnerContextPresent','overlayObjectPresent','controlServiceSerializationSuspended')
+    $zeroCounts = @('saveRequestCount','loadRequestCount','registeredRelationshipShellCount',
+        'relationshipProcessBindingCount','poisonedExecutionContextCount','nativeCastRequestCount',
+        'dispatchAcceptedCount','dispatchRejectedCount','managedControlFactCount',
+        'duplicateControlFactCount','managedHotbarSlotCount')
+    if ([string]$game.status -ceq 'PASS') {
+        if ($game.gamePresent -ne $true) { throw 'Mod-load smoke PASS observed no game singleton.' }
+        if ([string]$game.relationshipState -cne 'Unmounted') { throw 'Mod-load smoke PASS is not unmounted.' }
+        foreach ($name in $shippedFields) {
+            if ($game.$name -isnot [bool]) { throw "Mod-load smoke PASS did not record the shipped setting: $name" }
+        }
+        if ($game.movementExperimentEnabled -ne $game.shippedMovementExperimentEnabled) {
+            throw 'Mod-load smoke PASS reported a live movement-experiment state that differs from the shipped default it published.'
+        }
+        foreach ($name in $absentFlags) {
+            if ($game.$name -isnot [bool] -or $game.$name -ne $false) { throw "Mod-load smoke PASS observed active state: $name" }
+        }
+        foreach ($name in $zeroCounts) {
+            if (-not (Test-KmcManifestJsonInteger $game.$name) -or [long]$game.$name -ne 0) { throw "Mod-load smoke PASS observed a non-zero count: $name" }
+        }
+    }
+    else {
+        # A bootstrap failure never finished building the composition root, so it has no
+        # settings and no services to read. Nulls are lawful there and nowhere else, and
+        # a recorded value must still be of the right type.
+        foreach ($name in ($shippedFields + $absentFlags)) {
+            if ($null -ne $game.$name -and $game.$name -isnot [bool]) { throw "Mod-load smoke FAIL recorded a non-boolean observation: $name" }
+        }
+        foreach ($name in $zeroCounts) {
+            if ($null -ne $game.$name -and -not (Test-KmcManifestJsonInteger $game.$name)) { throw "Mod-load smoke FAIL recorded a non-integral count: $name" }
+        }
+    }
+    Write-Host 'TOTAL PASS=27 FAIL=0'
     return
 }
 
 Assert-FixtureEcho $game.fixture $request.fixture
-Assert-RuntimeArtifactManifest $request $game.evidenceManifestSha256
+Assert-KmcReadOnlyArtifactManifest $request $game.evidenceManifestSha256 -GameResult
 if ([int]$game.loadRequestCount -ne ([int]$game.baselineLoadRequestCount + [int]$game.workingLoadRequestCount + [int]$game.unauthorizedLoadRequestCount) -or
     [int]$game.saveRequestCount -ne ([int]$game.workingSaveRequestCount + [int]$game.suppressedWorkingSaveRequestCount + [int]$game.unauthorizedSaveRequestCount)) { throw 'Save-backed runtime aggregate save/load counters do not reconcile.' }
 Assert-SubscenarioResults $game
@@ -285,6 +234,7 @@ Assert-KmcHorseNativeAssetAuditEvidence -Request $request -Manifest $validatedAr
 Assert-KmcHorseCompanionBlueprintRegistrationEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcHorseCompanionUnmountedEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 Assert-KmcPersistenceScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -GameResult $game
+Assert-KmcNativeMammothArtifact -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status)
 Assert-KmcPhase3dHorseScenarioEvidence -Request $request -Manifest $validatedArtifactManifest -Status ([string]$game.status) -SubscenarioResults $game.subscenarioResults
 if ([string]$game.status -ceq 'PASS') {
     if ($game.fixtureIdentityVerified -ne $true -or [string]$game.relationshipState -cne 'Unmounted') { throw 'Save-backed PASS did not finish with verified fixture identity and an unmounted relationship.' }
@@ -303,8 +253,8 @@ if ([string]$game.status -ceq 'PASS') {
     # the native load, so the authorization prefixes that count loads and
     # writes are not installed: both quotas are exactly zero.
     $absentKmc=$game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'absent-kmc'
-    $expectedNativeWrites = if($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){1} elseif($campaignB){$campaignBWrites} elseif($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'campaign-b'){1} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','serialization-cancel-output','prepare-removal','rider-death','mount-death','rider-size-change')){2}elseif($request.persistenceCase-ceq'disable-during-load'){1}else{3}} elseif($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save')) { 1 } else { 0 }
-    $expectedWorkingLoads = if($absentKmc){0} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('combat-missing','combat-ai')){4} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit')){1}elseif($request.persistenceCase-ceq'cancel-wait'){4}elseif($request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output','disable-reenable','prepare-removal')){1}elseif($campaignB-or$request.persistenceCase-cin @('rider-death','mount-death','rider-size-change')){2}else{3}} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('legacy','schema1','missing-rider','missing-mount','mismatched-profile','failed-area-load')){3} elseif($alternating-and$game.scenario-ceq'persistence-p05-load'){3} elseif ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
+    $expectedNativeWrites = if($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')){1} elseif($campaignB){$campaignBWrites} elseif($game.scenario-ceq'persistence-p07-load'-and$request.persistenceCase-ceq'campaign-b'){1} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('mounted-charge-area','mounted-charge-session','mounted-charge-disable')){0}elseif($request.persistenceCase-ceq'mounted-charge-removal'){2}elseif($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','serialization-cancel-output','prepare-removal','rider-death','mount-death','rider-size-change')){2}elseif($request.persistenceCase-ceq'disable-during-load'){1}else{3}} elseif($alternating){if($game.scenario-ceq'persistence-p05-save'){2}else{1}} elseif ([string]$game.scenario -ceq 'persistence-p05-save') { 3 } elseif ([string]$game.scenario -ceq 'persistence-p04-save' -and [string]$request.persistenceCase -ceq 'combat-mount-routes') { 3 } elseif ([string]$game.scenario -ceq 'persistence-p04-save' -and [string]$request.persistenceCase -ceq 'pending-mount-area') { 0 } elseif ([string]$game.scenario -cin @('persistence-p01-save','persistence-p02-save','persistence-p03-save','persistence-p04-save')) { 1 } else { 0 }
+    $expectedWorkingLoads = if($absentKmc){0} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('combat-missing','combat-ai')){4} elseif($game.scenario-ceq'persistence-p07-save'){if($request.persistenceCase-cin @('area-reload','area-cross-entry','area-cross-exit','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal')){1}elseif($request.persistenceCase-ceq'cancel-wait'){4}elseif($request.persistenceCase-cin @('serialization-cancel','serialization-cancel-output','disable-reenable','prepare-removal')){1}elseif($campaignB-or$request.persistenceCase-cin @('rider-death','mount-death','rider-size-change')){2}else{3}} elseif($game.scenario-ceq'persistence-p06-load'-and$request.persistenceCase-cin @('legacy','schema1','missing-rider','missing-mount','mismatched-profile','failed-area-load')){3} elseif($alternating-and$game.scenario-ceq'persistence-p05-load'){3} elseif ([string]$game.scenario -cin @('mounted-pair-load-safety','boundary-suite')) { 2 } else { 1 }
     if ([int]$game.baselineLoadRequestCount -ne 0 -or [int]$game.unauthorizedLoadRequestCount -ne 0 -or
         [int]$game.unauthorizedSaveRequestCount -ne 0 -or [int]$game.workingLoadRequestCount -ne $expectedWorkingLoads -or
         [int]$game.loadRequestCount -ne $expectedWorkingLoads -or [int]$game.workingSaveRequestCount -ne $expectedNativeWrites) {
@@ -319,7 +269,7 @@ if ([string]$game.status -ceq 'PASS') {
     # engine destroys the old one, fails to build the new one, and then cannot
     # load any archive in that process. For that one case the expectation is
     # INVERTED rather than skipped, so an accidental world would still fail.
-    if ([string]$game.scenario -ceq 'persistence-p06-load' -and [string]$request.persistenceCase -ceq 'failed-area-load') {
+    if (([string]$game.scenario -ceq 'persistence-p06-load' -and [string]$request.persistenceCase -ceq 'failed-area-load') -or ([string]$game.scenario -ceq 'persistence-p07-save' -and [string]$request.persistenceCase -ceq 'mounted-charge-session')) {
         if ($game.movementExperimentEnabled -ne $false -or $game.loadedAreaPresent -ne $false -or
             [string]$game.currentGameMode -cne 'None') {
             throw 'P06 failed-load PASS must end with no loaded world and no active native game mode.'

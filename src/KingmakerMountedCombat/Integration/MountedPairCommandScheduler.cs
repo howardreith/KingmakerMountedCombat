@@ -590,6 +590,13 @@ namespace KingmakerMountedCombat.Integration
             }
         }
 
+        // Whether this exact command still holds a scheduler registration. Compensation asserts its
+        // absence as a postcondition rather than assuming AbandonRegistration worked.
+        internal bool HasRegistration(UnitCommand command)
+        {
+            return OwnsExactLease(command);
+        }
+
         private bool OwnsExactLease(UnitCommand command)
         {
             return lease != null && command != null && ReferenceEquals(lease.Command, command);

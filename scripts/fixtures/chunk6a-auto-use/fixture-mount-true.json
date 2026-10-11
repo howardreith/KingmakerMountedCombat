@@ -1,0 +1,1025 @@
+{
+  "contract": "native-ui-auto-use-and-ai-revalidation-of-explicit-stale-reference",
+  "riderId": "rider",
+  "mountId": "mount",
+  "targetId": "enemy",
+  "riderObject": 101,
+  "mountObject": 102,
+  "targetObject": 103,
+  "mechanicObject": 201,
+  "aiObject": 202,
+  "abilityObject": 301,
+  "abilityGuid": "f053faad986631688defa003cd7bda0e",
+  "ordinaryAbilityObject": 401,
+  "ordinaryAbilityGuid": "ordinary-ability",
+  "contextObject": 203,
+  "slotRegistration": {
+    "managerObject": 204,
+    "ownerObject": 205,
+    "slotObject": 206,
+    "route": "group",
+    "occurrences": 1,
+    "casterId": "rider",
+    "active": true
+  },
+  "before": {
+    "frame": 80,
+    "gameTicks": 9000000,
+    "allocationSequence": 7,
+    "selectedAbilityObject": 0,
+    "paused": true,
+    "turnBased": false,
+    "autoUseObject": 401,
+    "autoUseGuid": "ordinary-ability",
+    "riderCommandsEmpty": true,
+    "mountCommandsEmpty": true,
+    "state": {
+      "rider": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 4,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 4.125,
+        "initiativeOrder": 12,
+        "swift": 3,
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 501,
+        "hasStandard": true,
+        "usedStandard": false
+      },
+      "mount": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 0,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 0,
+        "initiativeOrder": 12,
+        "swift": 0,
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 502
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 1,
+        "acceptedMount": 1,
+        "forcedDetach": 1,
+        "duplicateSuppressed": 1
+      },
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 80,
+        "seconds": 1,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      },
+      "relationshipState": "Unmounted",
+      "generation": 1
+    },
+    "shellCount": 2,
+    "processBindings": 2,
+    "controls": {
+      "Registered": true,
+      "Enabled": true,
+      "NativeCastRequestCount": 2,
+      "TargetSelectionStartCount": 2,
+      "TargetSelectionEndCount": 2,
+      "ActivationRecordCount": 2
+    }
+  },
+  "staleReferenceFixtureDeclared": true,
+  "ordinarySuitable": true,
+  "constructorObserverExecuted": true,
+  "suitable": false,
+  "availableObject": 0,
+  "availableGuid": null,
+  "resources": {
+    "contract": "same-allocation-no-command-cost-with-observed-native-time-only",
+    "turnBased": false,
+    "traceComplete": true,
+    "riderId": "rider",
+    "mountId": "mount",
+    "before": {
+      "frame": 80,
+      "gameTicks": 9000000,
+      "allocationSequence": 7,
+      "rider": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 4,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 4.125,
+        "initiativeOrder": 12,
+        "swift": 3,
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 501,
+        "hasStandard": true,
+        "usedStandard": false
+      },
+      "mount": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 0,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 0,
+        "initiativeOrder": 12,
+        "swift": 0,
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 502
+      }
+    },
+    "after": {
+      "frame": 80,
+      "gameTicks": 9000000,
+      "allocationSequence": 7,
+      "rider": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 4,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 4.125,
+        "initiativeOrder": 12,
+        "swift": 3,
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 501,
+        "hasStandard": true,
+        "usedStandard": false
+      },
+      "mount": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 0,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 0,
+        "initiativeOrder": 12,
+        "swift": 0,
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 502
+      }
+    },
+    "events": [],
+    "observerHooks": [
+      {
+        "token": "06000C3C",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600C3BE",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600934A",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A1",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060093A4",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06009120",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "0600838F",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "060026B2",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      },
+      {
+        "token": "06000C37",
+        "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+      }
+    ],
+    "pass": true
+  },
+  "errors": [],
+  "events": [
+    {
+      "phase": "constructor-control",
+      "kind": "suitability",
+      "receiverObject": 401,
+      "abilityObject": 401,
+      "abilityGuid": "ordinary-ability",
+      "casterId": "rider",
+      "enterOrdinal": 1,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 2,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": true
+    },
+    {
+      "phase": "baseline-ai",
+      "kind": "ai-create",
+      "receiverObject": 202,
+      "abilityObject": 0,
+      "abilityGuid": null,
+      "casterId": "rider",
+      "enterOrdinal": 5,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "contextObject": 203,
+      "targetId": "enemy",
+      "targetObject": 103,
+      "exitOrdinal": 12,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": {
+        "object": 602,
+        "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": "ordinary-ability"
+      }
+    },
+    {
+      "phase": "baseline-ai",
+      "kind": "available",
+      "receiverObject": 101,
+      "abilityObject": 401,
+      "abilityGuid": "ordinary-ability",
+      "casterId": "rider",
+      "enterOrdinal": 6,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 9,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": {
+        "object": 401,
+        "guid": "ordinary-ability"
+      }
+    },
+    {
+      "phase": "baseline-ai",
+      "kind": "suitability",
+      "receiverObject": 401,
+      "abilityObject": 401,
+      "abilityGuid": "ordinary-ability",
+      "casterId": "rider",
+      "enterOrdinal": 7,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 8,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": true
+    },
+    {
+      "phase": "ui-toggle",
+      "kind": "suitability",
+      "receiverObject": 301,
+      "abilityObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "casterId": "rider",
+      "enterOrdinal": 13,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 14,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": false
+    },
+    {
+      "phase": "ui-toggle",
+      "kind": "toggle",
+      "receiverObject": 201,
+      "abilityObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "casterId": "rider",
+      "enterOrdinal": 15,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 18,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": null
+    },
+    {
+      "phase": "ui-toggle",
+      "kind": "suitability",
+      "receiverObject": 301,
+      "abilityObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "casterId": "rider",
+      "enterOrdinal": 16,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 17,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": false
+    },
+    {
+      "phase": "stale-reference",
+      "kind": "available",
+      "receiverObject": 101,
+      "abilityObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "casterId": "rider",
+      "enterOrdinal": 19,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 22,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": {
+        "object": 0,
+        "guid": null
+      }
+    },
+    {
+      "phase": "stale-reference",
+      "kind": "suitability",
+      "receiverObject": 301,
+      "abilityObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "casterId": "rider",
+      "enterOrdinal": 20,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 21,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": false
+    },
+    {
+      "phase": "stale-reference",
+      "kind": "ai-create",
+      "receiverObject": 202,
+      "abilityObject": 0,
+      "abilityGuid": null,
+      "casterId": "rider",
+      "enterOrdinal": 23,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "contextObject": 203,
+      "targetId": "enemy",
+      "targetObject": 103,
+      "exitOrdinal": 28,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": {
+        "object": 603,
+        "type": "Kingmaker.UnitLogic.Commands.UnitAttack",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": null
+      }
+    },
+    {
+      "phase": "stale-reference",
+      "kind": "available",
+      "receiverObject": 101,
+      "abilityObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "casterId": "rider",
+      "enterOrdinal": 24,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 27,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": {
+        "object": 0,
+        "guid": null
+      }
+    },
+    {
+      "phase": "stale-reference",
+      "kind": "suitability",
+      "receiverObject": 301,
+      "abilityObject": 301,
+      "abilityGuid": "f053faad986631688defa003cd7bda0e",
+      "casterId": "rider",
+      "enterOrdinal": 25,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "complete": true,
+      "exitOrdinal": 26,
+      "exitFrame": 80,
+      "exitGameTicks": 9000000,
+      "result": false
+    }
+  ],
+  "constructedAbilityCommands": [
+    {
+      "phase": "constructor-control",
+      "command": {
+        "object": 601,
+        "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": "ordinary-ability"
+      }
+    },
+    {
+      "phase": "baseline-ai",
+      "command": {
+        "object": 602,
+        "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": "ordinary-ability"
+      }
+    }
+  ],
+  "constructorCallbacks": [
+    {
+      "phase": "constructor-control",
+      "ordinal": 3,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "token": "06002727",
+      "command": {
+        "object": 601,
+        "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": "ordinary-ability"
+      }
+    },
+    {
+      "phase": "constructor-control",
+      "ordinal": 4,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "token": "06002726",
+      "command": {
+        "object": 601,
+        "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": "ordinary-ability"
+      }
+    },
+    {
+      "phase": "baseline-ai",
+      "ordinal": 10,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "token": "06002727",
+      "command": {
+        "object": 602,
+        "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": "ordinary-ability"
+      }
+    },
+    {
+      "phase": "baseline-ai",
+      "ordinal": 11,
+      "frame": 80,
+      "gameTicks": 9000000,
+      "token": "06002726",
+      "command": {
+        "object": 602,
+        "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+        "action": "Standard",
+        "executorId": null,
+        "targetId": "enemy",
+        "started": false,
+        "acted": false,
+        "finished": false,
+        "abilityGuid": "ordinary-ability"
+      }
+    }
+  ],
+  "afterUi": {
+    "frame": 80,
+    "gameTicks": 9000000,
+    "allocationSequence": 7,
+    "selectedAbilityObject": 0,
+    "paused": true,
+    "turnBased": false,
+    "autoUseObject": 401,
+    "autoUseGuid": "ordinary-ability",
+    "riderCommandsEmpty": true,
+    "mountCommandsEmpty": true,
+    "state": {
+      "rider": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 4,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 4.125,
+        "initiativeOrder": 12,
+        "swift": 3,
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 501,
+        "hasStandard": true,
+        "usedStandard": false
+      },
+      "mount": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 0,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 0,
+        "initiativeOrder": 12,
+        "swift": 0,
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 502
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 1,
+        "acceptedMount": 1,
+        "forcedDetach": 1,
+        "duplicateSuppressed": 1
+      },
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 80,
+        "seconds": 1.001,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      },
+      "relationshipState": "Unmounted",
+      "generation": 1
+    },
+    "shellCount": 2,
+    "processBindings": 2,
+    "controls": {
+      "Registered": true,
+      "Enabled": true,
+      "NativeCastRequestCount": 2,
+      "TargetSelectionStartCount": 2,
+      "TargetSelectionEndCount": 2,
+      "ActivationRecordCount": 2
+    }
+  },
+  "afterLease": {
+    "frame": 80,
+    "gameTicks": 9000000,
+    "allocationSequence": 7,
+    "selectedAbilityObject": 0,
+    "paused": true,
+    "turnBased": false,
+    "autoUseObject": 301,
+    "autoUseGuid": "f053faad986631688defa003cd7bda0e",
+    "riderCommandsEmpty": true,
+    "mountCommandsEmpty": true,
+    "state": {
+      "rider": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 4,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 4.125,
+        "initiativeOrder": 12,
+        "swift": 3,
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 501,
+        "hasStandard": true,
+        "usedStandard": false
+      },
+      "mount": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 0,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 0,
+        "initiativeOrder": 12,
+        "swift": 0,
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 502
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 1,
+        "acceptedMount": 1,
+        "forcedDetach": 1,
+        "duplicateSuppressed": 1
+      },
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 80,
+        "seconds": 1.002,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      },
+      "relationshipState": "Unmounted",
+      "generation": 1
+    },
+    "shellCount": 2,
+    "processBindings": 2,
+    "controls": {
+      "Registered": true,
+      "Enabled": true,
+      "NativeCastRequestCount": 2,
+      "TargetSelectionStartCount": 2,
+      "TargetSelectionEndCount": 2,
+      "ActivationRecordCount": 2
+    }
+  },
+  "afterAi": {
+    "frame": 80,
+    "gameTicks": 9000000,
+    "allocationSequence": 7,
+    "selectedAbilityObject": 0,
+    "paused": true,
+    "turnBased": false,
+    "autoUseObject": 301,
+    "autoUseGuid": "f053faad986631688defa003cd7bda0e",
+    "riderCommandsEmpty": true,
+    "mountCommandsEmpty": true,
+    "state": {
+      "rider": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 4,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 4.125,
+        "initiativeOrder": 12,
+        "swift": 3,
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 501,
+        "hasStandard": true,
+        "usedStandard": false
+      },
+      "mount": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 0,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 0,
+        "initiativeOrder": 12,
+        "swift": 0,
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 502
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 1,
+        "acceptedMount": 1,
+        "forcedDetach": 1,
+        "duplicateSuppressed": 1
+      },
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 80,
+        "seconds": 1.003,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      },
+      "relationshipState": "Unmounted",
+      "generation": 1
+    },
+    "shellCount": 2,
+    "processBindings": 2,
+    "controls": {
+      "Registered": true,
+      "Enabled": true,
+      "NativeCastRequestCount": 2,
+      "TargetSelectionStartCount": 2,
+      "TargetSelectionEndCount": 2,
+      "ActivationRecordCount": 2
+    }
+  },
+  "afterRestoration": {
+    "frame": 80,
+    "gameTicks": 9000000,
+    "allocationSequence": 7,
+    "selectedAbilityObject": 0,
+    "paused": true,
+    "turnBased": false,
+    "autoUseObject": 401,
+    "autoUseGuid": "ordinary-ability",
+    "riderCommandsEmpty": true,
+    "mountCommandsEmpty": true,
+    "state": {
+      "rider": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 4,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 4.125,
+        "initiativeOrder": 12,
+        "swift": 3,
+        "actor": "rider",
+        "actorObject": 101,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 501,
+        "hasStandard": true,
+        "usedStandard": false
+      },
+      "mount": {
+        "reactions": 1,
+        "initiative": 0,
+        "standard": 0,
+        "reactionCooldown": 0,
+        "reactionsPerRound": 1,
+        "initiativeCooldown": 0,
+        "move": 0,
+        "initiativeOrder": 12,
+        "swift": 0,
+        "actor": "mount",
+        "actorObject": 102,
+        "inCombat": true,
+        "grantSequence": 1,
+        "waitingInitiative": false,
+        "nativePrepareCount": 1,
+        "nativeTurnObject": 502
+      },
+      "selectedIds": [
+        "rider"
+      ],
+      "ledger": {
+        "admittedMount": 1,
+        "acceptedMount": 1,
+        "forcedDetach": 1,
+        "duplicateSuppressed": 1
+      },
+      "geometry": {
+        "boundary": "command-boundary",
+        "frame": 80,
+        "seconds": 1.004,
+        "riderPosition": {
+          "x": 1,
+          "y": 2,
+          "z": 3
+        },
+        "horsePosition": {
+          "x": 5,
+          "y": 2,
+          "z": 3
+        },
+        "centerDistance": 4,
+        "command": null
+      },
+      "relationshipState": "Unmounted",
+      "generation": 1
+    },
+    "shellCount": 2,
+    "processBindings": 2,
+    "controls": {
+      "Registered": true,
+      "Enabled": true,
+      "NativeCastRequestCount": 2,
+      "TargetSelectionStartCount": 2,
+      "TargetSelectionEndCount": 2,
+      "ActivationRecordCount": 2
+    }
+  },
+  "observerHooks": [
+    {
+      "token": "06002B30",
+      "method": "Kingmaker.UnitLogic.Abilities.AbilityData.get_IsSuitableForAutoUse",
+      "prefix": "SuitableBefore",
+      "postfix": "SuitableAfter",
+      "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+    },
+    {
+      "token": "06002F5F",
+      "method": "Kingmaker.UI.UnitSettings.MechanicActionBarSlotAbility.OnAutoUseToggle",
+      "prefix": "ToggleBefore",
+      "postfix": "ToggleAfter",
+      "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+    },
+    {
+      "token": "06008370",
+      "method": "Kingmaker.EntitySystem.Entities.UnitEntityData.GetAvailableAutoUseAbility",
+      "prefix": "AvailableBefore",
+      "postfix": "AvailableAfter",
+      "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+    },
+    {
+      "token": "06009434",
+      "method": "Kingmaker.Controllers.Brain.Blueprints.BlueprintAiAttack.CreateCommand",
+      "prefix": "AiBefore",
+      "postfix": "AiAfter",
+      "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+    },
+    {
+      "token": "06002726",
+      "method": "Kingmaker.UnitLogic.Commands.UnitUseAbility..ctor",
+      "prefix": null,
+      "postfix": "Constructed",
+      "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+    },
+    {
+      "token": "06002727",
+      "method": "Kingmaker.UnitLogic.Commands.UnitUseAbility..ctor",
+      "prefix": null,
+      "postfix": "Constructed",
+      "moduleMvid": "07fa1e4d-8618-41b3-9b8d-faa17d3b26f7"
+    }
+  ],
+  "constructorControl": {
+    "object": 601,
+    "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+    "action": "Standard",
+    "executorId": null,
+    "targetId": "enemy",
+    "started": false,
+    "acted": false,
+    "finished": false,
+    "abilityGuid": "ordinary-ability"
+  },
+  "baselineAi": {
+    "object": 602,
+    "type": "Kingmaker.UnitLogic.Commands.UnitUseAbility",
+    "action": "Standard",
+    "executorId": null,
+    "targetId": "enemy",
+    "started": false,
+    "acted": false,
+    "finished": false,
+    "abilityGuid": "ordinary-ability"
+  },
+  "aiWithStaleReference": {
+    "object": 603,
+    "type": "Kingmaker.UnitLogic.Commands.UnitAttack",
+    "action": "Standard",
+    "executorId": null,
+    "targetId": "enemy",
+    "started": false,
+    "acted": false,
+    "finished": false,
+    "abilityGuid": null
+  }
+}

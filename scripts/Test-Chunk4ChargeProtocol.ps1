@@ -2,6 +2,16 @@ $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
 $passed=0
+$parent=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/HorseCompanionUnmountedScenarioEngine.cs')
+# The idle-party wait is keyed on the tranche's handoff set, which must still name the charge family.
+$tranche=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/Phase3dHorseScenarioTranche.cs')
+$handoffSet=[regex]::Match($tranche,'(?s)internal static bool RequiresIdlePartyHandoff\(string scenario\).*?\n        \}').Value
+if(-not$handoffSet.Contains('IsChunk4ChargeScenario(scenario)')){throw 'Charge must be in the idle-party handoff set'};$passed++
+$gate=[regex]::Match($parent,'(?s)if \(Phase3dHorseScenarioTranche.RequiresIdlePartyHandoff\(request.Scenario\)\).*?var availability = playerAction.GetAvailability\(\);').Value
+foreach($required in @('Game.Instance.Player.IsInCombat || owner.Group.Any(member => member.IsInCombat)','mountedAlphaAdmissionStartedAtSeconds <= MountedAlphaAdmissionTimeoutSeconds','BeginCleanup(); return;')){if(-not$gate.Contains($required)){throw 'Charge must use bounded native idle-party handoff before child admission'};$passed++}
+if($gate.Contains('LeaveCombat(')){throw 'Charge party handoff must wait for native settlement'};$passed++
+$fixture=Get-Content -Raw (Join-Path $PSScriptRoot '../src/KingmakerMountedCombat/Diagnostics/ActorAllocationScenarios.cs')
+foreach($required in @('if (member.IsInCombat)','observations["fixturePartyAdmissionRefusal"] = refusal;','["actor"] = member.UniqueId','["group"] = member.GroupId','["frame"] = Time.frameCount','["playerInCombat"] = Game.Instance.Player.IsInCombat','refusal.ToString(Newtonsoft.Json.Formatting.None)')){if(-not$fixture.Contains($required)){throw 'Idle fixture refusal lost exact native diagnostic'};$passed++}
 function New-ChargePauseProof {
     param([string]$ActorId='rider')
     $actors=@{rider=@{id='rider';standard=0;move=0;swift=0;position=@(1,2,3)}
@@ -245,5 +255,39 @@ foreach($mode in @('RT','TB')) {
             }
         }
     }
+}
+function New-OriginWalk([string]$Actor){
+ $destination=@{x=2.5;y=0;z=0};$probes=@(0..7|ForEach-Object {
+  $angle=$_*[Math]::PI/4;$point=@{x=2.5+[Math]::Sin($angle)*0.5;y=0;z=[Math]::Cos($angle)*0.5}
+  @{point=$point;trace=$point;residual=0.0}
+ })
+ @{contract='native-origin-walk-clear-route';actorId=$Actor;origin=@{x=0;y=0;z=0};corpulence=0.5;clearanceRadius=0.5;
+  occupants=@(@{actorId='bystander';position=@{x=1;y=0;z=3};corpulence=0.5});
+  candidates=@(@{point=$destination;projection=$destination;routeEnd=$destination;routeResidual=0.0;probes=$probes;blockers=@();eligible=$true});
+  destination=$destination;positionAfter=$destination;nativeOriginProjectionAfter=$destination;distance=2.5;
+  command=@{id=99;type='Kingmaker.UnitLogic.Commands.UnitMoveTo';executor=$Actor;finished=$true;result='Success'}}
+}
+foreach($mode in @('RT','TB')){
+ $a=New-ChargeEnvelope $mode 26;$a.schemaVersion=41
+ $a.observations|Add-Member -NotePropertyName 'originWalk-C4-CHARGE-unmounted-rider' -NotePropertyValue (New-OriginWalk 'rider')
+ $a.observations|Add-Member -NotePropertyName 'originWalk-C4-CHARGE-unrelated-actor' -NotePropertyValue (New-OriginWalk 'unrelated')
+ $request=@{scenario='chunk4-charge-safety-'+$mode.ToLowerInvariant()}
+ Assert-KmcChunk4ChargeEvidence $request $a 'PASS';$passed++
+}
+foreach($mutation in @(
+ {param($p)$p.occupants[0].position.z=0.0},
+ {param($p)$p.occupants[0].position=@{x=3;y=0;z=0}},
+ {param($p)$p.candidates[0].routeEnd=@{x=1;y=0;z=0}},
+ {param($p)$p.candidates[0].probes[0].trace=@{x=2.5;y=0;z=0.1}},
+ {param($p)$p.command.result='Interrupt'},
+ {param($p)$p.command.executor='foreign'},
+ {param($p)$p.nativeOriginProjectionAfter=@{x=2.52;y=0;z=0}},
+ {param($p)$p.distance=0.1},
+ {param($p)$p.candidates[0].blockers=@('bystander')},
+ {param($p)$p.occupants+=@($p.occupants[0])}
+)){
+ $p=New-OriginWalk 'rider'|ConvertTo-Json -Depth 30|ConvertFrom-Json;& $mutation $p
+ $rejected=$false;try{Assert-KmcChargeOriginWalk $p 'rider'}catch{$rejected=$true}
+ if(-not$rejected){throw 'Invalid native origin walk accepted'};$passed++
 }
 Write-Host "CHUNK 4 CHARGE PROTOCOL PASS=$passed FAIL=0"

@@ -32,6 +32,7 @@ namespace KingmakerMountedCombat.Integration
             this.unifiedTurn = unifiedTurn ?? throw new ArgumentNullException(nameof(unifiedTurn));
             this.persistence = persistence ?? throw new ArgumentNullException(nameof(persistence));
             subscription = EventBus.Subscribe(this);
+            combat.ChargeNativeModeResumed += CompleteNativeModeObservation;
         }
 
         public void HandleUnitJoinCombat(UnitEntityData unit)
@@ -75,6 +76,13 @@ namespace KingmakerMountedCombat.Integration
         }
 
         public void HandleTurnBasedModeStateChanged(bool enabled)
+        {
+            // CombatController's exact outer prefix owns admission and its postfix
+            // completes this notification. EventBus subscriber order cannot move
+            // these observations before an unresolved charge boundary.
+        }
+
+        private void CompleteNativeModeObservation(bool enabled)
         {
             combat.Cancel("real-time/turn-based mode changed");
             service.ObserveNativeTurnBasedModeChanged(enabled);
@@ -147,6 +155,11 @@ namespace KingmakerMountedCombat.Integration
 
         public void HandleUnitDestroyed(UnitEntityData entityData)
         {
+            combat.RetainDestroyedActorBoundary(entityData, () => CompleteUnitDestroyed(entityData));
+        }
+
+        private void CompleteUnitDestroyed(UnitEntityData entityData)
+        {
             unifiedTurn.RetireDestroyedActor(entityData);
             if (IsPairUnit(entityData)) { Cleanup(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed", CleanupTrigger.ViewDetached); }
             else if (IsCandidatePairUnit(entityData)) { Observe(NativeLifecycleBoundary.ViewDetachedOrUnitDestroyed, "IUnitHandler.HandleUnitDestroyed(candidate pair)"); }
@@ -195,6 +208,7 @@ namespace KingmakerMountedCombat.Integration
 
         internal bool HandleModDisable()
         {
+            if (combat.ChargeAdmissionFenced || !combat.TryDrainChargeOwnership("mod disable")) return false;
             unifiedTurn.EndPairedServiceParticipation();
             return Cleanup(NativeLifecycleBoundary.ModDisable, "UnityModManager.ModEntry.OnToggle(false)/shutdown", CleanupTrigger.ModDisabled);
         }
@@ -213,6 +227,7 @@ namespace KingmakerMountedCombat.Integration
         {
             if (disposed) { return; }
             subscription.Dispose();
+            combat.ChargeNativeModeResumed -= CompleteNativeModeObservation;
             disposed = true;
         }
 

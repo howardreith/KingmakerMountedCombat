@@ -50,7 +50,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal RuntimeSubscenarioResult Result { get; private set; }
         private bool SlotCase => request.Scenario == "persistence-p05-save" || request.Scenario == "persistence-p05-load";
         private int completedSlotWrites;
-        private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load";
+        private bool RealtimeCase => request.Scenario == "persistence-p04-save" || request.Scenario == "persistence-p04-load" || ChargeLifecycleCase;
         private bool Cold => request.Scenario == "persistence-p07-load" || ValidationCase || request.Scenario == "persistence-p05-load" || request.Scenario == "persistence-p01-load" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-load" || request.Scenario == "persistence-p04-load";
         private bool CombatCase => request.Scenario == "persistence-p02-save" || request.Scenario == "persistence-p02-load" || request.Scenario == "persistence-p03-save" || request.Scenario == "persistence-p03-load";
         private readonly MountedCombatController combat;
@@ -67,6 +67,7 @@ namespace KingmakerMountedCombat.Diagnostics
             this.persistence = persistence; this.combat = combat; this.settings = settings; this.logger = logger;
             this.removal = removal; this.horseCompanion = horseCompanion; this.integrationDetached = integrationDetached;
             evidence = Path.Combine(request.EvidenceRoot, "persistence-observations.jsonl");
+            BindChargePersistence();
             if (RealtimeCase && (RealtimeApproach || RealtimeCasting) && !Cold) persistence.SaveSnapshotStaged += ObserveApproachSnapshot;
             if (CrossAreaCase) persistence.SaveSnapshotStaged += ObserveAreaTransitionSnapshot;
         }
@@ -74,7 +75,7 @@ namespace KingmakerMountedCombat.Diagnostics
         internal void Update()
         {
             if (Completed) return;
-            try { if (IntegrationAbsentCase) AdvanceAbsentLoad(); else if (CampaignBColdCase) AdvanceCampaignBCold(); else if (EligibilityColdCase) AdvanceEligibilityCold(); else if (EligibilityCase && stage > 0) AdvanceEligibility(); else if (DeathColdCase) AdvanceDeathCold(); else if (DeathCase && stage > 0) AdvanceDeath(); else if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (CampaignBCase && stage > 0 && !recoveryContinuation) AdvanceCampaignB(); else if (RemovalCase && stage > 0 && !recoveryContinuation) AdvanceRemoval(); else if (DisableLoadCase && stage > 0 && !recoveryContinuation) AdvanceDisableLoad(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (DisableCase && stage > 0 && !recoveryContinuation) AdvanceDisable(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
+            try { if (CastingBaselinePersistence) AdvanceCastingBaselinePersistence(); else if (IntegrationAbsentCase) AdvanceAbsentLoad(); else if (CampaignBColdCase) AdvanceCampaignBCold(); else if (EligibilityColdCase) AdvanceEligibilityCold(); else if (EligibilityCase && stage > 0) AdvanceEligibility(); else if (DeathColdCase) AdvanceDeathCold(); else if (DeathCase && stage > 0) AdvanceDeath(); else if (AreaCase && stage > 0 && !areaContinuation) AdvanceArea(); else if (CampaignBCase && stage > 0 && !recoveryContinuation) AdvanceCampaignB(); else if (RemovalCase && stage > 0 && !recoveryContinuation) AdvanceRemoval(); else if (DisableLoadCase && stage > 0 && !recoveryContinuation) AdvanceDisableLoad(); else if (WorkerDrainCase && stage > 0 && !recoveryContinuation) AdvanceWorkerDrain(); else if (DisableCase && stage > 0 && !recoveryContinuation) AdvanceDisable(); else if (RecoveryCase && stage > 0 && !recoveryContinuation) AdvanceRecovery(); else if (FailedLoadCase && !validationContinuation) AdvanceFailedLoad(); else if (ValidationCombatCase && !validationContinuation) AdvanceInvalidCombat(); else if (ValidationCase && !validationContinuation) AdvanceValidation(); else if (ValidationCombatCase) AdvanceCombat(); else if (AlternatingCase && !alternatingContinuation) AdvanceAlternating(); else if (RealtimeCase) AdvanceRealtime(); else if (ConditionCase) AdvanceCondition(); else if (CombatCase) AdvanceCombat(); else Advance(); }
             catch (Exception exception)
             {
                 var errors = new List<string> { exception.GetType().Name + ": " + exception.Message };
@@ -508,6 +509,8 @@ namespace KingmakerMountedCombat.Diagnostics
         public void Dispose()
         {
             if (disposed) return;
+            DisposeChargePersistence();
+            DisposeCastingBaseline();
             recoveryFault?.Dispose(); recoveryFault = null;
             recoveryArchiveLock?.Dispose(); recoveryArchiveLock = null;
             // A held worker must never outlive its scenario, including a failure.

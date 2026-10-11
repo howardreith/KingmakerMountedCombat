@@ -48,7 +48,10 @@ namespace KingmakerMountedCombat.Integration
             TargetWrapper target)
         {
             var service = NativeMountedAbilityBridge.Service;
-            if (service != null && service.TryDispatch(Kind, context?.Caster, target?.Unit))
+            // The exact execution context is the binding Deliver owns: the command that
+            // created it has usually already completed by now, so ownership cannot be
+            // rediscovered through the caster's current Move slot.
+            if (service != null && service.TryDispatch(Kind, context?.Caster, target?.Unit, context))
             {
                 yield return new AbilityDeliveryTarget(target);
             }

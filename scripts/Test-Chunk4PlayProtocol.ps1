@@ -159,6 +159,20 @@ function New-RangedTailEnvelope {
 }
 $tailRequest=@{scenario='chunk4-sustained-ranged-rt'}
 Assert-KmcChunk4PlayEvidence $tailRequest (New-RangedTailEnvelope) 'PASS';$passed++
+# Frozen preview.211: the pair firing at maximum range stood 16.8558 m against a 16.84 m envelope, so a delivery sitting
+# millimetres outside its nominal envelope is accepted while one past the native tolerance is still refused.
+$e=New-RangedTailEnvelope
+foreach($row in @($e.rows|Where-Object {$_.name.Contains('-approach-')})){
+    foreach($routine in @($row.evidence.routines|Where-Object {$_.actor -ceq 'rider'})){ $routine.nativeRangeRejection.rangeOriginDistance=17.02 }
+}
+Assert-KmcChunk4PlayEvidence $tailRequest $e 'PASS';$passed++
+$e=New-RangedTailEnvelope
+foreach($row in @($e.rows|Where-Object {$_.name.Contains('-approach-')})){
+    foreach($routine in @($row.evidence.routines|Where-Object {$_.actor -ceq 'rider'})){ $routine.nativeRangeRejection.rangeOriginDistance=17.3 }
+}
+$rejectedDrift=$false
+try{Assert-KmcChunk4PlayEvidence $tailRequest $e 'PASS'}catch{$rejectedDrift=$true}
+if(!$rejectedDrift){throw 'A delivered ranged attack beyond its envelope and the native tolerance was accepted.'};$passed++
 foreach($mutate in @(
     {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.targetDead=$true},
     {param($e) $e.rows[2].evidence.routines[0].nativeRangeRejection.targetInState=$false},

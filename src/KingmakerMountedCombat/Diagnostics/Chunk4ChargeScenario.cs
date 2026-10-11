@@ -355,7 +355,12 @@ namespace KingmakerMountedCombat.Diagnostics
                 chunk4ChargePlacementOrigin = chunk4ChargeActor.Position;
                 var clearance = Math.Max(0.5f, chunk4ChargeActor.View.Corpulence);
                 var candidates = new JArray();
+                var occupants = Game.Instance.State.Units.Where(unit => unit != chunk4ChargeActor && unit.IsInState && unit.View != null).ToArray();
                 var originWalk = new JObject {
+                    ["contract"] = "native-origin-walk-clear-route", ["actorId"] = chunk4ChargeActor.UniqueId,
+                    ["origin"] = CapturePosition(chunk4ChargePlacementOrigin), ["corpulence"] = chunk4ChargeActor.View.Corpulence,
+                    ["occupants"] = new JArray(occupants.Select(unit => new JObject {
+                        ["actorId"] = unit.UniqueId, ["position"] = CapturePosition(unit.Position), ["corpulence"] = unit.View.Corpulence })),
                     ["before"] = CaptureOrdinaryLiveState(),
                     ["nativeOriginProjection"] = CapturePosition(ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, chunk4ChargeActor.Position)),
                     ["clearanceRadius"] = clearance, ["candidates"] = candidates
@@ -368,6 +373,15 @@ namespace KingmakerMountedCombat.Diagnostics
                     var probes = new JArray();
                     var candidateProjection = ObstacleAnalyzer.TraceAlongNavmesh(point, point);
                     var eligible = HorizontalDistance(candidateProjection, point) < 0.001f;
+                    var routeEnd = ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargePlacementOrigin, point);
+                    var routeResidual = HorizontalDistance(routeEnd, point);
+                    var blockers = new JArray(occupants.Where(unit =>
+                        NativeGroundFixturePolicy.DistanceToRoute(
+                            new PoseVector3(chunk4ChargePlacementOrigin.x, chunk4ChargePlacementOrigin.y, chunk4ChargePlacementOrigin.z),
+                            new PoseVector3(point.x, point.y, point.z),
+                            new PoseVector3(unit.Position.x, unit.Position.y, unit.Position.z)) <
+                        chunk4ChargeActor.View.Corpulence + unit.View.Corpulence + 0.05f).Select(unit => unit.UniqueId));
+                    eligible &= routeResidual < 0.001f && blockers.Count == 0;
                     for (var index = 0; index < 8; index++)
                     {
                         var sample = point + Quaternion.Euler(0f, index * 45f, 0f) * Vector3.forward * clearance;
@@ -378,7 +392,8 @@ namespace KingmakerMountedCombat.Diagnostics
                         eligible &= residual < 0.001f;
                     }
                     candidates.Add(new JObject { ["point"] = CapturePosition(point),
-                        ["projection"] = CapturePosition(candidateProjection), ["probes"] = probes, ["eligible"] = eligible });
+                        ["projection"] = CapturePosition(candidateProjection), ["probes"] = probes, ["eligible"] = eligible,
+                        ["routeEnd"] = CapturePosition(routeEnd), ["routeResidual"] = routeResidual, ["blockers"] = blockers });
                     return eligible;
                 });
                 originWalk["destination"] = CapturePosition(destination);
@@ -394,6 +409,7 @@ namespace KingmakerMountedCombat.Diagnostics
             var projection = ObstacleAnalyzer.TraceAlongNavmesh(chunk4ChargeActor.Position, chunk4ChargeActor.Position);
             var evidence = (JObject)observations["originWalk-" + Chunk4ChargeId];
             evidence["after"] = CaptureOrdinaryLiveState();
+            evidence["positionAfter"] = CapturePosition(chunk4ChargeActor.Position);
             evidence["nativeOriginProjectionAfter"] = CapturePosition(projection);
             evidence["command"] = CaptureOrdinaryCommand(chunk4ChargePlacementMove);
             evidence["distance"] = HorizontalDistance(chunk4ChargeActor.Position, chunk4ChargePlacementOrigin);

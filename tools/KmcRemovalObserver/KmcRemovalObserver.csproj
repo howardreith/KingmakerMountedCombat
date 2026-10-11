@@ -78,6 +78,7 @@
     <Compile Include="ObserverRequest.cs" />
     <Compile Include="NativeSaveRouting.cs" />
     <Compile Include="RemovalObserverSession.cs" />
+    <Compile Include="ChargeAbsenceProbe.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

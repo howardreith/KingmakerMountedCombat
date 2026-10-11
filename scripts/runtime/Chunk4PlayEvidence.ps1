@@ -97,11 +97,17 @@ function Assert-KmcChunk4SustainedRow {
                     $range.nativeMeleeTailRangeRejected -ne $true -or $range.mountCorpulence -lt 0 -or $range.targetCorpulence -lt 0 -or
                     $range.rangeOriginDistance -le $range.pairApproachRadius -or @($range.plan).Count -ne $routine.planned){throw 'Ranged tail termination lacks its exact native range observation.'}
                 if(@($events|Where-Object {$_.boundary -ceq 'target-invalid' -and $_.completed -eq $routine.completed}).Count -lt 1){throw 'Ranged termination lacks a native UpdateTarget rejection event.'}
+                # The pair fires at whatever distance the native approach stops it, which is the weapon envelope itself, and
+                # it drifts millimetres between a delivery and the terminal tick. Both comparisons therefore carry the same
+                # 0.05 m tolerance the product's own reach terms use (MountedCombatSpatialPolicy.RangeTolerance): a
+                # delivered attack must be inside its envelope plus that tolerance, and a remaining attack must be outside
+                # it by more than that tolerance. Frozen preview.211 measured 16.8558 m against a 16.84 m longbow envelope.
+                $reachTolerance=0.05
                 for($i=0;$i -lt $range.plan.Count;$i++){
                     if($range.plan[$i].ranged -ne ($i -lt $routine.completed)){throw 'Ranged termination skipped an eligible ranged attack or misclassified its prefix.'}
                     $radius=$range.mountCorpulence+$range.targetCorpulence+$range.plan[$i].weaponRange
-                    if(($i -lt $routine.completed -and $range.rangeOriginDistance -gt $radius) -or
-                        ($i -ge $routine.completed -and $range.rangeOriginDistance -le $radius)){throw 'Ranged terminal changed an individual native weapon reach.'}
+                    if(($i -lt $routine.completed -and $range.rangeOriginDistance -gt $radius+$reachTolerance) -or
+                        ($i -ge $routine.completed -and $range.rangeOriginDistance -le $radius+$reachTolerance)){throw 'Ranged terminal changed an individual native weapon reach.'}
                 }
             }elseif($routine.completed -ne $routine.planned -or $command.result -cne 'Success'){throw 'Incomplete interrupted routine was counted as complete.'}
             if($routine.actor -ceq $rider){$complete++;if($tail){$tailRider++}else{$fullRider++}}else{$fullMount++}

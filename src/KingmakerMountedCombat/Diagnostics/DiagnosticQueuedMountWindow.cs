@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using Harmony12;
 using Kingmaker.EntitySystem.Entities;
+using Kingmaker.UnitLogic.Abilities;
 using KingmakerMountedCombat.Domain;
 using KingmakerMountedCombat.Integration;
 
@@ -32,11 +33,19 @@ namespace KingmakerMountedCombat.Diagnostics
             try
             {
                 var flags = BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static;
-                harmony.Patch(typeof(NativeMountedControlService).GetMethod("TryDispatch", flags),
+                harmony.Patch(ResolveDispatchMethod(),
                     new HarmonyMethod(typeof(DiagnosticQueuedMountWindow).GetMethod("Before", flags)),
                     new HarmonyMethod(typeof(DiagnosticQueuedMountWindow).GetMethod("After", flags)));
             }
             catch { Dispose(); throw; }
+        }
+
+        internal static MethodInfo ResolveDispatchMethod()
+        {
+            // Deliver invokes the context-bearing overload; the three-argument adapter is not this boundary.
+            return typeof(NativeMountedControlService).GetMethod("TryDispatch", BindingFlags.Instance | BindingFlags.NonPublic,
+                null, new[] { typeof(NativeMountedControlKind), typeof(UnitEntityData), typeof(UnitEntityData), typeof(AbilityExecutionContext) }, null)
+                ?? throw new MissingMethodException("Exact context-bearing Mount dispatch boundary is absent.");
         }
 
         private static void Before(NativeMountedControlService __instance, NativeMountedControlKind kind,

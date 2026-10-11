@@ -56,6 +56,37 @@ public static class KmcNativePatchProbe {
     throw new InvalidOperationException("Turn evidence changed the observed legacy configuration.");
   }
   Console.WriteLine("TURN PRINCIPAL EVIDENCE SERIALIZATION PASS=3 FAIL=0; original evidence builder, no game operation");
+  // The active sampler uses Unity ECalls, so inspect the compiled entry guard:
+  // cleanupStarted must return before any game or disposed-trace access.
+  var diagnosticFlags=BindingFlags.Instance|BindingFlags.Public|BindingFlags.NonPublic;
+  var tranche=candidate.GetType("KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche",true);
+  var liveness=tranche.GetMethod("ObserveChunk6aEncounterLiveness",diagnosticFlags).GetMethodBody().GetILAsByteArray();
+  var cleanupToken=tranche.GetField("cleanupStarted",diagnosticFlags).MetadataToken;
+  if(liveness.Length<10 || liveness[0]!=0x02 || liveness[1]!=0x7b ||
+     BitConverter.ToInt32(liveness,2)!=cleanupToken || liveness[6]!=0x2c ||
+     liveness[7]!=1 || liveness[8]!=0x2a)
+   throw new InvalidOperationException("Released Chunk 6A liveness observer does not return before native access.");
+  Console.WriteLine("CHUNK6A RELEASED OBSERVER CONTRACT PASS=1 FAIL=0; exact compiled entry guard, no Unity invocation");
+  // Exercise the actual diagnostic endpoint helper with the timer decay that
+  // rejected c6a-cleanup-a-approach. Committed windows also require the separate
+  // complete native event proof, pinned by the source contract.
+  var jObject=json.GetType("Newtonsoft.Json.Linq.JObject",true);
+  var parse=jObject.GetMethod("Parse",new[]{typeof(string)});
+  var held=tranche.GetMethod("Chunk6aResourcesHeld",BindingFlags.NonPublic|BindingFlags.Static);
+  var baseline="{\"standard\":0,\"move\":0,\"swift\":0,\"initiative\":5.336399,\"initiativeCooldown\":5.336399,\"initiativeOrder\":2,\"reactionCooldown\":0,\"attackOfOpportunity\":0,\"reactions\":1,\"reactionsPerRound\":1}";
+  var decayed=baseline.Replace("5.336399","4.12132454");
+  var endpointChecks=0;
+  foreach(var probe in new[]{
+    new object[]{decayed,false,true},
+    new object[]{decayed,true,false},
+    new object[]{baseline.Replace("\"initiativeOrder\":2","\"initiativeOrder\":3"),false,false},
+    new object[]{baseline.Replace("\"reactions\":1","\"reactions\":0"),false,false},
+    new object[]{baseline.Replace("\"reactionCooldown\":0","\"reactionCooldown\":1"),false,false}}) {
+   var result=(bool)held.Invoke(null,new[]{parse.Invoke(null,new object[]{baseline}),parse.Invoke(null,new[]{probe[0]}),probe[1],new string[0]});
+   if(result!=(bool)probe[2]) throw new InvalidOperationException("Chunk 6A endpoint conflates initiative ordering/timer or overlooks reaction change; case="+endpointChecks);
+   endpointChecks++;
+  }
+  Console.WriteLine("CHUNK6A RESOURCE FIELD CONTRACT PASS="+endpointChecks+" FAIL=0; actual diagnostic helper");
   // Native movement deliberately ignores the command-slot cooldown. Its real
   // debit is made by the movement controller; this is not an attack exemption.
   var move=native.GetType("Kingmaker.UnitLogic.Commands.UnitMoveTo",true);
@@ -155,6 +186,52 @@ public static class KmcNativePatchProbe {
    var adapterAfter=Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod("PairedConfusionAfter",BindingFlags.Static|BindingFlags.NonPublic)});
    patch.Invoke(harmony,new object[]{conditionAdapter.GetMethod("Prepare",BindingFlags.Static|BindingFlags.NonPublic),adapterBefore,adapterAfter,null});
    Console.WriteLine("CONDITION ADAPTER OBSERVER CONSTRUCTION PASS=1 FAIL=0; no actor or game method invoked");
+   var causal=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeRelationshipCommandProbe+Hooks",true);
+   var service=candidate.GetType("KingmakerMountedCombat.Integration.NativeMountedControlService",true);
+   var causalFlags=BindingFlags.Static|BindingFlags.Instance|BindingFlags.NonPublic|BindingFlags.Public;
+   var targets=new MethodBase[]{service.GetMethod("PrepareNativeMountApproach",causalFlags),service.GetMethod("BindNativeRelationshipProcess",causalFlags),
+    service.GetMethod("TryDispatch",causalFlags,null,new[]{candidate.GetType("KingmakerMountedCombat.Domain.NativeMountedControlKind",true),native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true),native.GetType("Kingmaker.EntitySystem.Entities.UnitEntityData",true),native.GetType("Kingmaker.UnitLogic.Abilities.AbilityExecutionContext",true)},null),
+    native.ManifestModule.ResolveMethod(0x060027A6),native.ManifestModule.ResolveMethod(0x060027A7),native.ManifestModule.ResolveMethod(0x06008FD6)};
+   var beforeNames=new string[]{null,null,"DeliverBefore","ApproachBefore","TickBefore",null};
+   var afterNames=new string[]{"InitAfter","BindAfter","DeliverAfter",null,"TickAfter","ProcessTickAfter"};
+   for(var i=0;i<targets.Length;i++) {
+    if(targets[i]==null)throw new InvalidOperationException("Missing exact causal observer boundary.");
+    var before=beforeNames[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{causal.GetMethod(beforeNames[i],causalFlags)});
+    var after=afterNames[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{causal.GetMethod(afterNames[i],causalFlags)});
+    Console.WriteLine("stage: causal observer "+targets[i].DeclaringType.FullName+"."+targets[i].Name);
+    try { patch.Invoke(harmony,new object[]{targets[i],before,after,null});
+     Console.WriteLine("PASS causal observer wrapper construction "+targets[i].Name);
+    } catch(TargetInvocationException e) {
+     if(!(e.InnerException is System.Security.SecurityException) || e.InnerException.Message!="ECall methods must be packaged into a system module.") throw;
+     Console.WriteLine("DEFER - EVIDENCED: desktop CLR cannot construct Unity ECall wrapper "+targets[i].Name+"; construction/delivery required in native runtime.");
+    }
+   }
+   Console.WriteLine("RELATIONSHIP CAUSAL OBSERVER SIGNATURE PASS=6 FAIL=0; native construction and callback delivery remain runtime gates");
+   foreach(var token in new[]{0x0600934A,0x060093A1}) {
+    var resourceTarget=native.ManifestModule.ResolveMethod(token);
+    var beforeName=token==0x0600934A?"CooldownTickBefore":"OpportunityBefore";
+    var afterName=token==0x0600934A?"CooldownTickAfter":"OpportunityAfter";
+    var before=Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod(beforeName,causalFlags)});
+    var after=Activator.CreateInstance(harmonyMethod,new object[]{observer.GetMethod(afterName,causalFlags)});
+    patch.Invoke(harmony,new object[]{resourceTarget,before,after,null});
+    Console.WriteLine("PASS reaction observer wrapper construction "+resourceTarget.Name);
+   }
+   Console.WriteLine("REACTION OBSERVER CONSTRUCTION PASS=2 FAIL=0; callbacks still require Unity execution");
+   var queuedType=candidate.GetType("KingmakerMountedCombat.Diagnostics.DiagnosticQueuedMountWindow",true);
+   var queuedResolver=queuedType.GetMethod("ResolveDispatchMethod",BindingFlags.Static|BindingFlags.NonPublic);
+   var queuedTarget=queuedResolver==null?null:(MethodInfo)queuedResolver.Invoke(null,null);
+   if(queuedTarget==null || queuedTarget.Name!="TryDispatch" || queuedTarget.IsStatic ||
+      queuedTarget.DeclaringType.FullName!="KingmakerMountedCombat.Integration.NativeMountedControlService" ||
+      queuedTarget.GetParameters().Length!=4 ||
+      queuedTarget.GetParameters()[3].ParameterType.FullName!="Kingmaker.UnitLogic.Abilities.AbilityExecutionContext")
+    throw new InvalidOperationException("Queued Mount fixture must resolve the actual context-bearing dispatch despite the adapter overload.");
+   Console.WriteLine("PASS queued Mount fixture resolves exact four-argument dispatch overload");
+   var engage=native.ManifestModule.ResolveMethod(0x0600935A);
+   if(engage.DeclaringType.FullName!="Kingmaker.Controllers.Combat.UnitEngagementExtension" || engage.Name!="IsEngage" ||
+      !engage.IsStatic || engage.GetParameters().Length!=2 ||
+      Array.Exists(engage.GetParameters(),p=>p.ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData"))
+    throw new InvalidOperationException("Pinned read-only native engagement query differs.");
+   Console.WriteLine("PASS exact native IsEngage observation signature 0600935A");
    var removal=native.ManifestModule.ResolveMethod(0x06000BE6);
    if(removal.Name!="RemoveUnit" || removal.GetParameters().Length!=1 || removal.GetParameters()[0].Name!="unit" ||
       removal.GetParameters()[0].ParameterType.FullName!="Kingmaker.EntitySystem.Entities.UnitEntityData" ||
@@ -198,6 +275,111 @@ public static class KmcNativePatchProbe {
      throw new InvalidOperationException("Native physical movement observation contract changed.");
     Console.WriteLine("PASS native movement observation signature "+original.Name);
    }
+   var interruptedTarget=native.ManifestModule.ResolveMethod(0x0600184F);
+   var interruptedBefore=Activator.CreateInstance(harmonyMethod,new object[]{hooks.GetMethod("NativeMountMovementInterruptedPrefix",causalFlags)});
+   var interruptedAfter=Activator.CreateInstance(harmonyMethod,new object[]{hooks.GetMethod("NativeMountMovementInterruptedPostfix",causalFlags)});
+   patch.Invoke(harmony,new object[]{interruptedTarget,interruptedBefore,interruptedAfter,null});
+   Console.WriteLine("MOUNT INTERRUPTION WRAPPER PASS=1 FAIL=0; exact native boundary, callback execution remains a Unity gate");
+   var pathHooks=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeCommandPathProbe+Hooks",true);
+   var pathTokens=new[]{0x060018A3,0x060018B9,0x0600184F,0x06001850,0x060027B2,0x060027B2};
+   var pathNames=new[]{"PathTo","OnPathComplete","OnMovementInterrupted","OnPathNotFound","OnEnded","OnEnded"};
+   var pathBefore=new string[]{null,"CompleteBefore","InterruptedBefore","NotFoundBefore",null,null};
+   var pathAfter=new string[]{"PathAfter","CompleteAfter",null,null,"EndedAfter","UnactedEndedAfter"};
+   var requested=native.GetType("Kingmaker.View.UnitMovementAgent",true).GetField("m_RequestedPath",causalFlags);
+   if(requested.MetadataToken!=0x0400118E || requested.FieldType.FullName!="Pathfinding.Path") throw new InvalidOperationException("Requested path field changed.");
+   for(var i=0;i<pathTokens.Length;i++) {
+    var original=native.ManifestModule.ResolveMethod(pathTokens[i]);
+    if(original.Name!=pathNames[i]) throw new InvalidOperationException("Native path observer token changed.");
+    var owner=i==5?causal:pathHooks;
+    var before=pathBefore[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(pathBefore[i],causalFlags)});
+    var after=pathAfter[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(pathAfter[i],causalFlags)});
+    try {patch.Invoke(harmony,new object[]{original,before,after,null}); Console.WriteLine("PASS native obstruction observer wrapper "+pathNames[i]+" "+pathAfter[i]);}
+    catch(TargetInvocationException e) {
+     if(!(e.InnerException is System.Security.SecurityException) || e.InnerException.Message!="ECall methods must be packaged into a system module.") throw;
+     Console.WriteLine("DEFER - EVIDENCED: desktop CLR cannot construct Unity ECall wrapper "+pathNames[i]+"; native installation and callback still required.");
+    }
+   }
+   var approachHooks=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeMountApproachPathProbe+Hooks",true);
+   var approachTokens=new[]{0x060027A6,0x0600700F,0x060018B6,0x060018A3,0x06000C37};
+   var approachNames=new[]{"TickApproaching","CurrentPathForUnit","FollowPrecomputedPath","PathTo","TickMovement"};
+   var approachBefore=new string[]{"ApproachBefore",null,"PrecomputedBefore","RequestedBefore","ApproachMovementBefore"};
+   var approachAfter=new string[]{"ApproachAfter","PreviewAfter","PrecomputedAfter",null,"ApproachMovementAfter"};
+   var approachConstructed=0;var approachDeferred=0;
+   for(var i=0;i<approachTokens.Length;i++) {
+    var original=native.ManifestModule.ResolveMethod(approachTokens[i]);
+    if(original.Name!=approachNames[i]) throw new InvalidOperationException("Native consumed-path/movement observer token changed.");
+    var owner=i==4?observer:approachHooks;
+    var before=approachBefore[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(approachBefore[i],causalFlags)});
+    var after=approachAfter[i]==null?null:Activator.CreateInstance(harmonyMethod,new object[]{owner.GetMethod(approachAfter[i],causalFlags)});
+    try {patch.Invoke(harmony,new object[]{original,before,after,null}); approachConstructed++;Console.WriteLine("PASS native Mount consumed-path/movement wrapper "+approachNames[i]);}
+    catch(TargetInvocationException e) {
+     if(!(e.InnerException is System.Security.SecurityException) || e.InnerException.Message!="ECall methods must be packaged into a system module.") throw;
+     approachDeferred++;Console.WriteLine("DEFER - EVIDENCED: desktop CLR cannot construct Unity ECall wrapper "+approachNames[i]+"; native installation and callback still required.");
+    }
+   }
+   Console.WriteLine("MOUNT CONSUMED PATH/MOVEMENT WRAPPERS PASS="+approachConstructed+" FAIL=0 DEFER="+approachDeferred+"; no native gameplay execution");
+   var pathProbe=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeCommandPathProbe",true);
+   var contentsMethod=pathProbe.GetMethod("CapturePathContents",causalFlags);
+   if(contentsMethod==null) throw new InvalidOperationException("Path contents boundary contract is missing.");
+   var pathType=requested.FieldType.Assembly.GetType("Pathfinding.ABPath",true);
+   var samplePath=System.Runtime.Serialization.FormatterServices.GetUninitializedObject(pathType);
+   var vectorType=native.GetType("Kingmaker.View.UnitMovementAgent",true).GetMethod("PathTo").GetParameters()[1].ParameterType;
+   var points=(System.Collections.IList)Activator.CreateInstance(typeof(System.Collections.Generic.List<>).MakeGenericType(vectorType));
+   points.Add(Activator.CreateInstance(vectorType,new object[]{1f,2f,3f}));
+   requested.FieldType.GetField("vectorPath").SetValue(samplePath,points);
+   foreach(var boundary in new[]{"path-request","command-bound","command-ended","unknown"}) {
+    var captured=contentsMethod.Invoke(null,new object[]{samplePath,boundary});
+    // Serialization normalizes a null-valued String token to JSON null. Check
+    // the live tokens consumed by the in-process ground evidence validator.
+    foreach(var field in new[]{"pathError","pathState","points"}) {
+     var token=captured.GetType().GetProperty("Item",new[]{typeof(string)}).GetValue(captured,new object[]{field});
+     if(token==null || token.GetType().GetProperty("Type").GetValue(token,null).ToString()!="Null")
+      throw new InvalidOperationException("In-flight path token must be Null before serialization: "+boundary+" "+field);
+    }
+    var encoded=(string)serialize.Invoke(null,new[]{captured});
+    if(encoded!="{\"pathError\":null,\"pathState\":null,\"points\":null}")
+     throw new InvalidOperationException("Worker-owned path contents exposed at "+boundary);
+   }
+   var completed=contentsMethod.Invoke(null,new object[]{samplePath,"path-complete-before"});
+   var completedText=(string)serialize.Invoke(null,new[]{completed});
+   if(completedText.IndexOf("\"points\":[",StringComparison.Ordinal)<0) throw new InvalidOperationException("Completed path points absent.");
+   points.Clear(); points.Add(Activator.CreateInstance(vectorType,new object[]{9f,8f,7f}));
+   if((string)serialize.Invoke(null,new[]{completed})!=completedText) throw new InvalidOperationException("Native pool reuse mutated the completed snapshot.");
+   Console.WriteLine("PATH CONTENTS BOUNDARY PASS=17 FAIL=0; twelve live Null tokens, request contents absent, completed snapshot immutable");
+   var consumedProbe=candidate.GetType("KingmakerMountedCombat.Diagnostics.NativeMountApproachPathProbe",true);
+   var snapshotMethod=consumedProbe.GetMethod("SnapshotConsumedPath",causalFlags);
+   if(snapshotMethod==null)throw new InvalidOperationException("Consumed path snapshot seam absent.");
+   points.Clear();points.Add(Activator.CreateInstance(vectorType,new object[]{1f,2f,3f}));
+   points.Add(Activator.CreateInstance(vectorType,new object[]{4f,8f,7f}));
+   var snapshot=snapshotMethod.Invoke(null,new object[]{samplePath});
+   var snapshotText=(string)serialize.Invoke(null,new[]{snapshot});
+   if(snapshotText.IndexOf("\"horizontalLength\":5.0",StringComparison.Ordinal)<0 ||
+      snapshotText.IndexOf("\"points\":[{\"x\":1.0,\"y\":2.0,\"z\":3.0},{\"x\":4.0,\"y\":8.0,\"z\":7.0}]",StringComparison.Ordinal)<0)
+    throw new InvalidOperationException("Consumed path snapshot lost exact points or horizontal length.");
+   points.Clear();points.Add(Activator.CreateInstance(vectorType,new object[]{900f,800f,700f}));
+   if((string)serialize.Invoke(null,new[]{snapshot})!=snapshotText)throw new InvalidOperationException("Pooled native path reuse mutated consumed snapshot.");
+   requested.FieldType.GetField("vectorPath").SetValue(samplePath,null);
+   var missingPoints=(string)serialize.Invoke(null,new[]{snapshotMethod.Invoke(null,new object[]{samplePath})});
+   if(missingPoints.IndexOf("\"points\":null",StringComparison.Ordinal)<0 || missingPoints.IndexOf("\"horizontalLength\":null",StringComparison.Ordinal)<0)
+    throw new InvalidOperationException("Missing native points became invented geometry.");
+   var missingPath=(string)serialize.Invoke(null,new[]{snapshotMethod.Invoke(null,new object[]{null})});
+   if(missingPath!="{\"pathObject\":0,\"pathType\":null,\"pathState\":null,\"pathError\":null,\"points\":null,\"horizontalLength\":null}")
+    throw new InvalidOperationException("Missing native preview became invented path.");
+   Console.WriteLine("CONSUMED PATH SNAPSHOT PASS=4 FAIL=0; exact completed geometry, immutable copy, null points and null path");
+
+   try {
+    var disposable=(IDisposable)Activator.CreateInstance(pathProbe,BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{null},null);
+    disposable.Dispose();
+    Console.WriteLine("PASS actual native path observer constructor/disposal without actor execution");
+   } catch(TargetInvocationException e) {
+    var context=e.InnerException as InvalidOperationException;
+    if(context==null || context.Message.IndexOf("Kingmaker.View.UnitMovementAgent.PathTo token=060018A3; installed=[]",StringComparison.Ordinal)<0 ||
+       !(context.InnerException is System.Security.SecurityException)) throw;
+    Console.WriteLine("PASS actual constructor retains the first deferred PathTo wrapper and empty installed-hook receipt");
+   }
+   if(pathProbe.GetField("active",causalFlags).GetValue(null)!=null) throw new InvalidOperationException("Path observer constructor/disposal retained an active observer.");
+   Console.WriteLine("PASS path observer constructor/disposal releases its active observer");
+   Console.WriteLine("OBSTRUCTION OBSERVER SIGNATURE PASS=6 FAIL=0; native execution still required");
    // These bodies call Unity ECalls which cannot be JIT-constructed in this
    // isolated CLR. Actual patch installation is required in the native scenario.
    Console.WriteLine("MOVEMENT OBSERVER SIGNATURE PASS=2 FAIL=0; runtime construction still required");

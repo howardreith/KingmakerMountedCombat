@@ -94,6 +94,23 @@ namespace KingmakerMountedCombat.Domain
                 riderDistance >= MinimumDiagnosticSpawnDistance && riderDistance <= MaximumDiagnosticSpawnDistance;
         }
 
+        // A ranged attack the engine already delivered counts as within reach when the current pair-to-target distance
+        // sits inside the weapon envelope plus the same tolerance the out-of-reach comparison for the remaining melee
+        // attacks uses. The pair drifts by millimetres between a native delivery and the terminal tick, and the native
+        // approach stops it exactly at the envelope boundary: on frozen preview.209 the sustained ranged approach case
+        // stood at 16.84816 m against a 16.84 m envelope, and that 8 mm overshoot turned a legitimate ranged-tail
+        // termination into a cancelled intent, so repeated fire stopped after one routine.
+        public static bool DeliveredAttackWithinReach(
+            float distance,
+            float bodyRadius,
+            float weaponRange)
+        {
+            RequireFiniteNonNegative(distance, nameof(distance));
+            RequireFiniteNonNegative(bodyRadius, nameof(bodyRadius));
+            RequireFiniteNonNegative(weaponRange, nameof(weaponRange));
+            return distance <= bodyRadius + weaponRange + RangeTolerance;
+        }
+
         public static bool IsBoundedDiagnosticTargetDistance(
             float stoppingRadius,
             float actualDistance)
@@ -436,18 +453,32 @@ namespace KingmakerMountedCombat.Domain
                  currentUnitIsExactRider && (riderTurnIsPreparing || riderTurnIsActing));
         }
 
+        // The acting-turn form, unchanged, for every delegator that is not the pair own charge.
         public static bool CanDelegateMountMovement(
             bool exactMountedPair,
             bool turnBasedCombat,
             bool currentUnitIsExactRider,
             bool riderTurnIsActing,
-            bool movingAgentIsExactMount)
+            bool movingAgentIsExactMount) =>
+            CanDelegateMountMovement(exactMountedPair, turnBasedCombat, currentUnitIsExactRider,
+                riderTurnIsActing, movingAgentIsExactMount, false, false);
+
+        // Compatibility overload for the frozen experiment. Both forms now require Acting;
+        // preview.176 did not qualify Preparing-turn charge delivery.
+        public static bool CanDelegateMountMovement(
+            bool exactMountedPair,
+            bool turnBasedCombat,
+            bool currentUnitIsExactRider,
+            bool riderTurnIsActing,
+            bool movingAgentIsExactMount,
+            bool riderTurnIsPreparing,
+            bool exactOwnedChargeTransactionDelegating)
         {
             return exactMountedPair &&
                 turnBasedCombat &&
                 currentUnitIsExactRider &&
-                riderTurnIsActing &&
-                movingAgentIsExactMount;
+                movingAgentIsExactMount &&
+                riderTurnIsActing;
         }
 
         public static bool CanDriveRiderGroundMovement(

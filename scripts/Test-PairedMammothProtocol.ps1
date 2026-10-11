@@ -16,12 +16,31 @@ function Sample($key,$activation,$grant,$standard=0) {
         riderPreparations=$grant;mountPreparations=$grant;rider=@{actor='rider';standard=0;move=0;prepared=$true}
         mount=@{actor='mount';standard=$standard;move=0;prepared=$true}}
 }
+function Add-Resources($s,$actor,$grant){
+    foreach($entry in @{actorObject=$(if($actor-ceq'rider'){11}else{12});grantSequence=$grant;standard=0;move=0;swift=0;
+        reactionCooldown=0;initiativeCooldown=0;initiativeOrder=$(if($actor-ceq'rider'){15}else{7});
+        reactions=1;reactionsPerRound=1;prepared=$true;inCombat=$true;preparingPairedActor=$false}.GetEnumerator()){$s[$entry.Key]=$entry.Value}
+}
 function Prepare($activation) {
-    foreach($actor in @('rider','mount')) {foreach($boundary in @('prepare-before','clear-after','round-state-after','prepare-after')) {
-        $null=Add-Event $boundary $actor $activation
+    $grant=[int]$activation.Substring($activation.Length-1);$frame=$script:sequence+1
+    foreach($actor in @('rider','mount')) {foreach($boundary in @('prepare-before','clear-before','clear-after','round-state-after','prepare-after')) {
+        $event=Add-Event $boundary $actor $activation
+        $event.frame=$frame;$event.gameTicks=$frame*100;$event.encounter='encounter';$event.session=91;$event.controller=92
+        $event.turn=100+$grant;$event.preparingTurn=$(if($actor-ceq'rider'){100+$grant}else{200+$grant})
+        $event.nativeTurnBased=$true;$event.nativePassing=$false
+        if($boundary-ceq'prepare-before'-and$actor-ceq'rider'){$event.activationIdentity=$identity+':'+($grant-1)}
+        Add-Resources $event.state $actor $grant
     }}
 }
 $before=Sample 'before' $null 0
+foreach($actor in @('rider','mount')){
+ foreach($boundary in @('clear-before','clear-after')){
+  $event=Add-Event $boundary $actor ($identity+':0') $null
+  $event.frame=2;$event.gameTicks=200;$event.encounter='encounter';$event.session=91;$event.controller=92
+  $event.turn=0;$event.preparingTurn=0;$event.nativeTurnBased=$true;$event.nativePassing=$false;$event.round=1;$event.roundStartTicks=200
+  Add-Resources $event.state $actor 0;$event.state.pairedGrantIdentity=$identity+':0'
+ }
+}
 Prepare ($identity+':1')
 $first=Sample 'first' ($identity+':1') 1
 $attack=Sample 'attack' ($identity+':1') 1 6
@@ -32,6 +51,9 @@ foreach($actor in @('rider','mount')) {foreach($boundary in @('turn-end-before',
 $visit=Add-Event 'mammoth-turn-observed' 'friendly' ($identity+':1') 'friendly'
 Prepare ($identity+':2')
 $last=Sample 'next' ($identity+':2') 2
+foreach($sample in @($first,$last)){
+ foreach($actor in @('rider','mount')){Add-Resources $sample[$actor] $actor $sample.riderPreparations}
+}
 $record=@{schemaVersion=57;scenario='mounted-mammoth-primary-hit-tb';riderId='rider';mountId='mount'
     pairedActivation=@{level='NATIVE INTEGRATION';passed=$true;outsideCombat=$true;enablePairedActivation=$true
         enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;rider='rider';mount='mount'
@@ -48,6 +70,26 @@ function Check($name,[scriptblock]$mutation,$reject) {
     if($caught -eq $reject){$script:passed++}else{$script:failed++;Write-Host "FAIL $name"}
 }
 Check 'valid original envelope only' {} $false
+Check 'native initial Clear omitted for both actors' {param($r)$r.pairedActivation.trace.events=@($r.pairedActivation.trace.events|Where-Object {$_.boundary-cnotlike'clear-*'-or$_.state.grantSequence-ne0})} $false
+Check 'orphan initial Clear' {param($r)$r.pairedActivation.trace.events=@($r.pairedActivation.trace.events|Where-Object sequence -NE 2)} $true
+Check 'missing one initial actor' {param($r)$r.pairedActivation.trace.events=@($r.pairedActivation.trace.events|Where-Object {$_.boundary-cnotlike'clear-*'-or$_.state.actor-cne'mount'-or$_.state.grantSequence-ne0})} $true
+Check 'duplicate initial Clear' {param($r)$r.pairedActivation.trace.events+=@($r.pairedActivation.trace.events[1])} $true
+foreach($field in @('standard','move','swift','reactionCooldown','initiativeCooldown')){
+ Check ('initial debt erased '+$field) {param($r)$r.pairedActivation.trace.events[1].state.$field=1} $true
+}
+foreach($field in @('reactions','reactionsPerRound','initiativeOrder')){
+ Check ('initial discrete change '+$field) {param($r)$r.pairedActivation.trace.events[2].state.$field++} $true
+}
+foreach($field in @('turn','preparingTurn','frame','gameTicks','session','controller','round')){
+ Check ('initial context changed '+$field) {param($r)$r.pairedActivation.trace.events[2].$field++} $true
+}
+Check 'late initial clear' {param($r)$r.pairedActivation.trace.events[2].sequence=999} $true
+Check 'initial wrong activation' {param($r)$r.pairedActivation.trace.events[2].activationIdentity=$r.pairedActivation.firstGrant.identity} $true
+Check 'initial wrong object' {param($r)$r.pairedActivation.trace.events[2].state.actorObject++} $true
+Check 'per-turn clear absent' {param($r)$r.pairedActivation.trace.events=@($r.pairedActivation.trace.events|Where-Object {$_.boundary-cne'clear-before'-or$_.state.grantSequence-ne1})} $true
+Check 'per-turn clear wrong context' {param($r)@($r.pairedActivation.trace.events|Where-Object {$_.boundary-ceq'clear-after'-and$_.state.grantSequence-eq1})[0].preparingTurn++} $true
+Check 'per-turn Clear reaction consumption' {param($r)@($r.pairedActivation.trace.events|Where-Object {$_.boundary-ceq'clear-after'-and$_.state.grantSequence-eq1})[0].state.reactions--} $true
+Check 'missing round effect' {param($r)$r.pairedActivation.trace.events=@($r.pairedActivation.trace.events|Where-Object boundary -CNE 'round-state-after')} $true
 Check 'old scheduler' {param($r)$r.pairedActivation.enablePairedCommandScheduler=$true} $true
 Check 'wrong profile scenario' {param($r)$r.scenario='mounted-mammoth-primary-hit-rt'} $true
 Check 'detached sample' {param($r)$r.pairedActivation.firstGrant.traceSequence=999} $true

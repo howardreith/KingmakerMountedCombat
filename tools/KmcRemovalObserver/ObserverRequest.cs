@@ -34,6 +34,21 @@ namespace KmcRemovalObserver
         [JsonProperty("dllMvid")] public string DllMvid { get; set; }
     }
 
+    public sealed class ObserverChargeSource
+    {
+        [JsonProperty("runId")] public string RunId { get; set; }
+        [JsonProperty("observationsSha256")] public string ObservationsSha256 { get; set; }
+        [JsonProperty("riderId")] public string RiderId { get; set; }
+        [JsonProperty("mountId")] public string MountId { get; set; }
+        [JsonProperty("chargeBuffGuid")] public string ChargeBuffGuid { get; set; }
+
+        internal Newtonsoft.Json.Linq.JObject CaptureEvidence() => new Newtonsoft.Json.Linq.JObject
+        {
+            ["runId"] = RunId, ["observationsSha256"] = ObservationsSha256,
+            ["riderId"] = RiderId, ["mountId"] = MountId, ["chargeBuffGuid"] = ChargeBuffGuid
+        };
+    }
+
     // Written by the launcher next to the run's evidence; bound to the process
     // by the command-line token and SHA-256 of its exact bytes.
     public sealed class ObserverRequest
@@ -53,6 +68,7 @@ namespace KmcRemovalObserver
         [JsonProperty("candidate")] public ObserverCandidate Candidate { get; set; }
         [JsonProperty("observer")] public ObserverPackage Observer { get; set; }
         [JsonProperty("timeoutSeconds")] public int TimeoutSeconds { get; set; }
+        [JsonProperty("chargeSource")] public ObserverChargeSource ChargeSource { get; set; }
 
         private static readonly Regex Sha = new Regex("^[0-9a-f]{64}$");
         private static readonly Regex BlueprintGuid = new Regex("^[0-9a-f]{32}$");
@@ -61,7 +77,13 @@ namespace KmcRemovalObserver
         public List<string> Validate()
         {
             var errors = new List<string>();
-            if (SchemaVersion != 1) errors.Add("Unknown observer request schema.");
+            if (SchemaVersion != (ChargeSource == null ? 1 : 2)) errors.Add("Unknown observer request schema or charge-source binding.");
+            if (ChargeSource != null && (ChargeSource.RunId == null || !RunIdShape.IsMatch(ChargeSource.RunId) ||
+                ChargeSource.ObservationsSha256 == null || !Sha.IsMatch(ChargeSource.ObservationsSha256) ||
+                string.IsNullOrWhiteSpace(ChargeSource.RiderId) || ChargeSource.RiderId.Length > 120 ||
+                string.IsNullOrWhiteSpace(ChargeSource.MountId) || ChargeSource.MountId.Length > 120 ||
+                ChargeSource.RiderId == ChargeSource.MountId || ChargeSource.ChargeBuffGuid == null ||
+                !BlueprintGuid.IsMatch(ChargeSource.ChargeBuffGuid))) errors.Add("Charge source identity is incomplete.");
             if (RunId == null || !RunIdShape.IsMatch(RunId)) errors.Add("Run id is invalid.");
             if (TransactionToken == null || !Sha.IsMatch(TransactionToken)) errors.Add("Transaction token is invalid.");
             foreach (var pair in new[] { new KeyValuePair<string, string>("evidenceRoot", EvidenceRoot),

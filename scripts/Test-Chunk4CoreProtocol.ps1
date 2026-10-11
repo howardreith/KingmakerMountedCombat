@@ -1,6 +1,7 @@
 $ErrorActionPreference='Stop'
 Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'runtime/RuntimeHarness.Common.ps1')
+. (Join-Path $PSScriptRoot 'runtime/NativeForcedDetachFixture.ps1')
 
 $passed=0
 # Parser fixtures only. These envelopes never substitute for native gameplay.
@@ -108,12 +109,33 @@ function New-CoreEnvelope([string]$root) {
         }
         $rows+=@{name=$id;status='PASS';evidence=$e}
     }
-    return (@{schemaVersion=22;status='PASS';rows=$rows;errors=@();subscenarioPassCount=$rows.Count;subscenarioFailCount=0;
-        observations=@{phase3fActualConfiguration=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false};
-            ordinaryAttackTrace=@{dropped=0;events=@()}}}|ConvertTo-Json -Depth 30|ConvertFrom-Json)
+    $observations=@{phase3fActualConfiguration=@{enablePairedActivation=$true;enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false};
+        ordinaryAttackTrace=@{dropped=0;events=@()}}
+    $schema=22
+    if(Test-KmcChunk4NativeLifeScenario $root){
+        # Schema 32: the forced-detach window opens at the native life damage baseline and is a slice of the life row's trace.
+        $life=$rows[0].evidence
+        $forced=New-KmcForcedDetachFixture -Scenario $root -BeforeFrame $life.beforeDamage.frame -BeforeSequence $life.allocationSequenceBeforeDamage -AllocationEvents @($life.allocationTrace.events)
+        $observations.chunk6aForcedDetach=$forced
+        $rows+=@{name='CM05-forced-detach';status='PASS';evidence=$forced}
+        $schema=32
+    }
+    return (@{schemaVersion=$schema;scenario=$root;status='PASS';rows=$rows;errors=@();subscenarioPassCount=$rows.Count;subscenarioFailCount=0;
+        observations=$observations}|ConvertTo-Json -Depth 30|ConvertFrom-Json)
 }
-function Add-CoreNativeSurvivorTurn($envelope) {
+# Schema 32 fixtures carry the forced-detach window as an exact slice of the life row's trace; re-sync after a trace rewrite.
+function Sync-CoreForcedDetach($envelope) {
+    if(-not $envelope.observations.PSObject.Properties['chunk6aForcedDetach']){return}
+    $forced=$envelope.observations.chunk6aForcedDetach;$life=$envelope.rows[0].evidence
+    $slice=@($life.allocationTrace.events|Where-Object {$_.sequence -gt $forced.before.allocationSequence -and $_.sequence -le $forced.after.allocationSequence})
+    $copy=(ConvertTo-Json -InputObject $slice -Depth 30)|ConvertFrom-Json
+    $forced.allocationEvents=@($copy|ForEach-Object {$_})
+    $row=@($envelope.rows|Where-Object {$_.name -ceq 'CM05-forced-detach'})[0]
+    $row.evidence=(ConvertTo-Json -InputObject $forced -Depth 30)|ConvertFrom-Json
+}
+function Add-CoreNativeSurvivorTurn($envelope,[switch]$RetainedIdentity) {
     $e=$envelope.rows[0].evidence
+    $identity=if($RetainedIdentity){'activation'}else{$null}
     $e.eligibleRosterBeforeDamage=@('mount','other2','rider','other1');$e.principalRosterIndex=2
     $e.successorOrderBefore=@('other1','mount','other2')
     $turn=$e.successorTurns[0]|ConvertTo-Json -Depth 15|ConvertFrom-Json
@@ -123,9 +145,10 @@ function Add-CoreNativeSurvivorTurn($envelope) {
     $e.successorTurns[2].round=3;$e.successorTurns[2].state.round=3;$e.unrelatedTurns[1].round=3
     foreach($state in @($e.finalLife,$e.nativeEncounterExit,$e.afterPolicyRestore)){$state.mountGrants=3}
     $e.allocationTrace.events=@(New-CoreNativeTurnEnd 'other1' 11 2 22 1)+@(0..1|ForEach-Object {
-        [pscustomobject]@{sequence=($_+3);boundary=$(if($_ -eq 0){'prepare-before'}else{'prepare-after'});round=3;frame=24;turn=13;preparingTurn=13;currentActor='mount';activationIdentity=$null;simulatingClick=$false;
-            state=[pscustomobject]@{actor='mount';grantSequence=3;pairedGrantIdentity=$null;prepared=$true;canAct=$true}}
+        [pscustomobject]@{sequence=($_+3);boundary=$(if($_ -eq 0){'prepare-before'}else{'prepare-after'});round=3;frame=24;turn=13;preparingTurn=13;currentActor='mount';activationIdentity=$identity;simulatingClick=$false;
+            state=[pscustomobject]@{actor='mount';grantSequence=3;pairedGrantIdentity=$identity;prepared=$true;canAct=$true}}
     })+@(New-CoreNativeTurnEnd 'mount' 13 3 27 5)
+    Sync-CoreForcedDetach $envelope
 }
 function New-CoreNativeTurnEnd($actor,$turn,$round,$frame,$sequence) {
     return @(0..1|ForEach-Object {
@@ -142,6 +165,7 @@ function Add-CoreNativeEnemyTurn($envelope) {
     $e.enemyBeforeDamage|Add-Member -NotePropertyName effectiveAiEnabled -NotePropertyValue $true -Force
     $e.successorTurns[0].endInput=$false
     $e.allocationTrace.events=New-CoreNativeTurnEnd 'other1' 11 2 25 1
+    Sync-CoreForcedDetach $envelope
 }
 foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chunk4-mount-death-tb','chunk4-targeting-rider-rt',
     'chunk4-targeting-area-unmounted-rt','chunk4-targeting-mount-rt','chunk4-horse-strike-comparison-rt','chunk4-ranged-native-control-rt')){
@@ -262,10 +286,31 @@ foreach($root in @('chunk4-rider-incapacitation-tb','chunk4-rider-death-tb','chu
                 try{Assert-KmcChunk4CoreEvidence $request $changed 'PASS'}catch{$rejected=$true}
                 if(!$rejected){throw "Invalid callback-qualified area envelope accepted for $root"};$passed++
             }
+        }elseif($case -ceq 'CM05-forced-detach'){
+            # Its mutations are appended once per native life root below.
         }else{
             $mutations+=@({param($e) $hostile=@($e.rows|Where-Object {$_.name.EndsWith('-hostile')})[0].evidence;$hostile.hostileCommand.acted=$false},
                 {param($e) $hostile=@($e.rows|Where-Object {$_.name.EndsWith('-hostile')})[0].evidence;$hostile.nativeRules.attacks[0].resolved=$false})
         }
+    }
+    if(Test-KmcChunk4NativeLifeScenario $root){
+        $mutations+=@(
+            {param($e) $e.schemaVersion=22},
+            {param($e) $e.rows=@($e.rows|Where-Object {$_.name -cne 'CM05-forced-detach'});$e.subscenarioPassCount--},
+            {param($e) $e.observations.chunk6aForcedDetach.after.ledger.acceptedDismount=1},
+            {param($e) $e.rows[1].evidence.after.ledger.forcedDetach=2},
+            {param($e) $e.observations.chunk6aForcedDetach.before.allocationSequence=1},
+            {param($e) $e.rows[0].evidence.allocationTrace.events[0].boundary='cost-before'},
+            {param($e) $other=if([string]$e.scenario -ceq 'chunk4-mount-death-tb'){'chunk4-rider-death-tb'}else{'chunk4-mount-death-tb'};$e.rows[1].evidence.scenario=$other;$e.observations.chunk6aForcedDetach.scenario=$other}
+        )
+        $historical=New-CoreEnvelope $root;$historical.schemaVersion=22
+        $historical.rows=@($historical.rows|Where-Object {$_.name -cne 'CM05-forced-detach'});$historical.subscenarioPassCount=1
+        $historical.observations.PSObject.Properties.Remove('chunk6aForcedDetach')
+        $historical|Add-Member -NotePropertyName productVersion -NotePropertyValue '0.1.0-chunk6a-preview.145' -Force
+        Assert-KmcChunk4CoreEvidence $request $historical 'PASS';$passed++
+        $historical.productVersion='0.1.0-chunk6a-preview.146';$rejected=$false
+        try{Assert-KmcChunk4CoreEvidence $request $historical 'PASS'}catch{$rejected=$true}
+        if(!$rejected){throw "Current native life identity accepted without the forced-detach row for $root"};$passed++
     }
     foreach($mutation in $mutations){
         $changed=New-CoreEnvelope $root; & $mutation $changed; $rejected=$false
@@ -331,6 +376,30 @@ foreach($mutation in $survivorMutations){
     if(!$rejected){throw "Invalid survivor preparation envelope accepted: $mutation"};$passed++
 }
 Write-Host "COMPONENT with native survivor-order fixture TOTAL PASS=$passed FAIL=0"
+
+# Preview.148 c6a-forced-detach148-n-rider-incap-2: a non-lethal incapacitation retains the split paired identity until
+# roster removal, so the surviving Horse's new-round Prepare carries exactly that identity. Any other identity, a mixed
+# pair, or a retained identity without the split state still rejects.
+$root='chunk4-rider-incapacitation-tb';$native=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $native -RetainedIdentity
+Assert-KmcChunk4CoreEvidence @{scenario=$root} $native 'PASS';$passed++
+$native=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $native
+Assert-KmcChunk4CoreEvidence @{scenario=$root} $native 'PASS';$passed++
+$retainedMutations=@(
+    {param($e) $e.allocationTrace.events[2].activationIdentity='other-activation'},
+    {param($e) $e.allocationTrace.events[3].state.pairedGrantIdentity='other-activation'},
+    {param($e) $e.allocationTrace.events[3].activationIdentity=$null;$e.allocationTrace.events[3].state.pairedGrantIdentity=$null},
+    {param($e) $e.allocationTrace.events[2].state.pairedGrantIdentity=$null},
+    {param($e) $e.successorTurns[1].state.split=$false},
+    {param($e) $e.successorTurns[1].state.identity='other-activation'},
+    {param($e) $e.beforeDamage.identity='other-activation'}
+)
+foreach($mutation in $retainedMutations){
+    $changed=New-CoreEnvelope $root;Add-CoreNativeSurvivorTurn $changed -RetainedIdentity
+    & $mutation $changed.rows[0].evidence;$rejected=$false
+    try{Assert-KmcChunk4CoreEvidence @{scenario=$root} $changed 'PASS'}catch{$rejected=$true}
+    if(!$rejected){throw "Invalid retained-identity survivor envelope accepted: $mutation"};$passed++
+}
+Write-Host "COMPONENT with retained-identity survivor fixture TOTAL PASS=$passed FAIL=0"
 
 # AG's first unrelated actor was the native enemy, whose turn ended without
 # player input. Its actual TurnController ending callbacks remain required.

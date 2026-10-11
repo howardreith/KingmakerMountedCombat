@@ -12,6 +12,9 @@ namespace KingmakerMountedCombat.Tests
         private static int Main()
         {
             var runner = new TestRunner();
+            ObserverIdentityTests.Register(runner);
+            CastingFixtureSlotSnapshotTests.Register(runner);
+            CastingSummonResidueTests.Register(runner);
             runner.Run("diagnostic settings defaults are safe", DiagnosticSettingsDefaultsAreSafe);
             runner.Run("request accepts no-save smoke", RequestAcceptsNoSaveSmoke);
             runner.Run("request rejects valued save", RequestRejectsValuedSave);
@@ -92,6 +95,7 @@ namespace KingmakerMountedCombat.Tests
             MountedCombatDomainTests.Register(runner);
             ActorAllocationLifetimeTests.Register(runner);
             PairedActivationTests.Register(runner);
+            Chunk6aCombatMountTests.Register(runner);
             ManualReviewBoundaryGuardTests.Register(runner);
             runner.Run("persistence isolation accepts only the qualified disposable fixture", () =>
             {
@@ -138,7 +142,7 @@ namespace KingmakerMountedCombat.Tests
             });
             runner.Run("P04 requires a declared RT boundary and actual cold archive", () =>
             {
-                foreach (var name in new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" })
+                foreach (var name in new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting", "combat-mount-rt", "combat-dismount-rt" })
                 {
                     var request = ValidSaveBackedRequest(); var fixture = request.Fixture.Working;
                     request.Scenario = "persistence-p04-save"; request.PersistenceCase = name;
@@ -515,6 +519,11 @@ namespace KingmakerMountedCombat.Tests
             MountedRiderGroundingPolicyTests.Register(runner);
             MountedStabilizationPolicyTests.Register(runner);
             NativeMountedControlPolicyTests.Register(runner);
+            NativeShellBindingPolicyTests.Register(runner);
+            RelationshipCommandEvidenceTests.Register(runner);
+            ChargeCohortTests.Register(runner);
+            InterruptedEvidenceFinalizerTests.Register(runner);
+            ModLoadSmokePolicyTests.Register(runner);
             UnifiedMountedTurnPolicyTests.Register(runner);
             PairedCommandSchedulerTests.Register(runner);
             MountedStockAttackPolicyTests.Register(runner);
@@ -537,6 +546,17 @@ namespace KingmakerMountedCombat.Tests
                 }
             });
             MountedChargeSafetyTests.Register(runner);
+            MountedChargePolicyTests.Register(runner);
+            MountedChargeApplicationTransactionTests.Register(runner);
+            MountedChargeCompensationTests.Register(runner);
+            MountedChargeOwnershipTests.Register(runner);
+            MountedChargeBoundaryTests.Register(runner);
+            MountedChargeFactOwnershipTests.Register(runner);
+            MountedChargeVisualOwnershipTests.Register(runner);
+            MountedChargeConditionOwnershipTests.Register(runner);
+            MountedChargeRevalidationTests.Register(runner);
+            MountedChargeTransactionSequenceTests.Register(runner);
+            MountedChargeCleanupLedgerTests.Register(runner);
             MountedRangedRoutineCompletionTests.Register(runner);
             OptionalPublicPropertyReaderTests.Register(runner);
             ReactiveBooleanValueReaderTests.Register(runner);

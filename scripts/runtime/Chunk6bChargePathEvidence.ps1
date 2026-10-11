@@ -1,0 +1,160 @@
+Set-StrictMode -Version Latest
+# Chunk 6B increment 6B.1: the pair forced-path measurement (chunk6b-charge-path-rt / -tb). The
+# compiled scenario records facts and checks its own structure only; this reader is the one acceptance
+# authority for the two measurement rows. Read-only over the immutable artifact; no runtime mutation.
+#
+# Preview.158 rules (from the preview.156 and preview.157 measurements): the forced path runs under the pair's
+# own admitted delegated ground move on the mount (the carrier), the measurement re-forces the path whenever the
+# agent leaves force mode, every leased value is restored exactly, the force mode latched by the stock Stop() is
+# recorded after the stop and must be cleared by the next lawful pair path (the residue probe), the pair never
+# delivers a non-opportunity attack of its own while native attacks of opportunity are recorded and allowed, and
+# in turn-based mode the carrier is the rider turn's first movement so the turn had not moved before the path.
+function Get-KmcChunk6bChargePathScenarios { @('chunk6b-charge-path-rt','chunk6b-charge-path-tb') }
+function Get-KmcChunk6bChargePathRows { @('C6B-PATH-straight-arrival','C6B-PATH-interrupt-stop') }
+function Test-KmcChunk6bChargePathScenario([string]$Scenario) { [string]$Scenario -cin (Get-KmcChunk6bChargePathScenarios) }
+function ChargePathProp($Object,[string]$Name) { if($null-ne$Object-and$null-ne$Object.PSObject.Properties[$Name]){$Object.$Name}else{$null} }
+function ChargePathFail([string]$Message) { throw ('Chunk 6B charge path: '+$Message) }
+function ChargePathNumber($Value) { if($null-eq$Value){return $false}; try{$d=[double]$Value}catch{return $false}; -not([double]::IsNaN($d)-or[double]::IsInfinity($d)) }
+function Assert-KmcChunk6bChargePathRow($Row,[string]$Mode) {
+    $e=$Row.evidence
+    if($null-eq$e){ChargePathFail ('row '+$Row.name+' has no evidence')}
+    if([string](ChargePathProp $e 'level')-cne'NATIVE MEASUREMENT'-or[string](ChargePathProp $e 'mode')-cne$Mode-or[string](ChargePathProp $e 'case')-cne[string]$Row.name){ChargePathFail ('row '+$Row.name+' level, mode or case differs')}
+    if((ChargePathProp $e 'mounted')-ne$true){ChargePathFail ('row '+$Row.name+' was not the mounted pair')}
+    if((ChargePathProp $e 'riderCommandsEmptyThroughout')-ne$true-or(ChargePathProp $e 'mountOnlyCarrierThroughout')-ne$true){ChargePathFail ('row '+$Row.name+' a command other than the carrier appeared during the path')}
+    $g=ChargePathProp $e 'geometry';$carrier=ChargePathProp $e 'carrier';$lease=ChargePathProp $e 'lease';$stop=ChargePathProp $e 'stop';$after=ChargePathProp $e 'after';$restoration=ChargePathProp $e 'restoration';$costs=ChargePathProp $e 'costs';$reach=ChargePathProp $e 'reach';$before=ChargePathProp $e 'before';$probe=ChargePathProp $e 'residueProbe'
+    foreach($part in @($g,$carrier,$lease,$stop,$after,$restoration,$costs,$reach,$before,$probe)){ if($null-eq$part){ChargePathFail ('row '+$Row.name+' lacks a measurement section')} }
+    # The fixture must be a lawful charge geometry read from the mount's origin: straight, clear, inside the
+    # stock minimum and maximum range for the mount's speed and corpulence.
+    foreach($name in @('distance3D','minimumRange','maximumRange','mountCorpulence','targetCorpulence','mountCombatSpeedMps')){ if(-not(ChargePathNumber (ChargePathProp $g $name))){ChargePathFail ('row '+$Row.name+' geometry '+$name+' is not a finite number')} }
+    if((ChargePathProp $g 'straightRoute')-ne$true-or(ChargePathProp $g 'customCanTarget')-ne$true-or(ChargePathProp $g 'landingBlocked')-ne$false){ChargePathFail ('row '+$Row.name+' geometry is not a straight clear admissible charge line')}
+    if([double]$g.distance3D-lt[double]$g.minimumRange-or[double]$g.distance3D-gt[double]$g.maximumRange){ChargePathFail ('row '+$Row.name+' distance is outside the charge range')}
+    if([Math]::Abs([double]$g.maximumRange-[double]$g.mountCombatSpeedMps*6)-gt0.001){ChargePathFail ('row '+$Row.name+' maximum range is not six times the mount combat speed')}
+    # The carrier is the pair's own admitted delegated ground move: a player-created native command executed by
+    # the mount, admitted by the native ground click, moving, and ended by the measurement itself.
+    if([string](ChargePathProp $carrier 'kind')-cne'delegated-ground-move'-or(ChargePathProp $carrier 'admitted')-ne$true-or[string](ChargePathProp $carrier 'executor')-cne'mount'){ChargePathFail ('row '+$Row.name+' the carrier is not the mount-executed admitted delegated ground move')}
+    $carrierInput=ChargePathProp $carrier 'input'
+    if($null-eq$carrierInput-or(ChargePathProp $carrierInput 'clicked')-ne$true-or[string](ChargePathProp $carrierInput 'kind')-cne'ground'){ChargePathFail ('row '+$Row.name+' the carrier was not created by a native ground click')}
+    if((ChargePathProp $carrier 'startedMoving')-ne$true-or(ChargePathProp $carrier 'interruptedByMeasurement')-ne$true){ChargePathFail ('row '+$Row.name+' the carrier never moved or was not ended by the measurement')}
+    # The lease applied exactly the stock calls on the mount agent and nothing else; the forced path was
+    # applied at least once and re-applied only while the carrier lived.
+    if((ChargePathProp $lease 'forcePathApplied')-ne$true-or(ChargePathProp $lease 'chargingApplied')-ne$true-or-not(ChargePathNumber (ChargePathProp $lease 'speedOverrideApplied'))){ChargePathFail ('row '+$Row.name+' lease did not apply the forced path, the charging flag and the speed override')}
+    if([double]$lease.speedOverrideApplied-lt([double]$g.mountCombatSpeedMps*2-0.001)){ChargePathFail ('row '+$Row.name+' speed override is below twice the mount combat speed')}
+    if((ChargePathProp $lease 'riderAgentTouched')-ne$false){ChargePathFail ('row '+$Row.name+' touched the rider agent')}
+    if((ChargePathProp $lease 'forceModeAfterApply')-ne$true){ChargePathFail ('row '+$Row.name+' the mount agent did not enter force mode on the first forced path')}
+    $forcePaths=@(ChargePathProp $lease 'forcePaths')
+    if($forcePaths.Count-lt1-or[string]$forcePaths[0].reason-cne'initial'-or[long](ChargePathProp $stop 'reforces')-ne$forcePaths.Count){ChargePathFail ('row '+$Row.name+' forced-path applications are not recorded exactly')}
+    $samples=@(ChargePathProp $e 'samples')
+    # The arrival row runs long enough for three samples; the interrupt row is designed to stop within 0.4 s,
+    # so two samples are the most the sampling can yield and are enough to observe the path while it moved.
+    $minimumSamples=if([string]$Row.name-ceq'C6B-PATH-interrupt-stop'){2}else{3}
+    if($samples.Count-lt$minimumSamples){ChargePathFail ('row '+$Row.name+' recorded fewer than '+$minimumSamples+' samples')}
+    $previousForced=-1.0
+    foreach($s in $samples){
+        if((ChargePathProp $s 'riderCommandsEmpty')-ne$true-or(ChargePathProp $s 'mountOnlyCarrier')-ne$true){ChargePathFail ('row '+$Row.name+' a command other than the carrier appeared during the path')}
+        if((ChargePathProp $s 'charging')-ne$true){ChargePathFail ('row '+$Row.name+' the mount agent lost its charging flag during the path')}
+        if($Mode-ceq'TB'){
+            $forced=ChargePathProp $s 'turnTimeForced'
+            if(-not(ChargePathNumber $forced)-or[double]$forced-lt$previousForced){ChargePathFail ('row '+$Row.name+' forced turn time is missing or decreased')}
+            $previousForced=[double]$forced
+        }
+    }
+    # The measurement is not an action of its own: neither actor may be charged a standard action, and the mount
+    # may never be charged for carrying the rider. The carrier is an ordinary pair ground move, so in turn-based
+    # mode it lawfully spends the rider turn's own movement, which is recorded rather than refused; in real time
+    # there is no turn budget and every delta must be zero.
+    foreach($name in @('riderStandardDelta','mountStandardDelta','mountMoveDelta')){ $v=ChargePathProp $costs $name; if(-not(ChargePathNumber $v)-or[Math]::Abs([double]$v)-gt0.0001){ChargePathFail ('row '+$Row.name+' charged a native cooldown: '+$name)} }
+    $riderMove=ChargePathProp $costs 'riderMoveDelta'
+    if(-not(ChargePathNumber $riderMove)-or[double]$riderMove-lt-0.0001){ChargePathFail ('row '+$Row.name+' refunded the rider move action')}
+    if($Mode-cne'TB'-and[double]$riderMove-gt0.0001){ChargePathFail ('row '+$Row.name+' charged a native cooldown: riderMoveDelta')}
+    # Exact restoration of every leased value; the carrier ended and the mount's container emptied.
+    if((ChargePathProp $restoration 'chargingRestored')-ne$true-or(ChargePathProp $restoration 'speedOverrideRestored')-ne$true){ChargePathFail ('row '+$Row.name+' did not restore the lease exactly')}
+    if((ChargePathProp $restoration 'carrierFinished')-ne$true-or(ChargePathProp $restoration 'mountCommandsEmpty')-ne$true){ChargePathFail ('row '+$Row.name+' the carrier did not end or left a command behind')}
+    if((ChargePathProp $restoration 'forceModeAfterStop')-isnot[bool]){ChargePathFail ('row '+$Row.name+' the force mode after the stop was not recorded')}
+    if((ChargePathProp $after 'mountMoving')-ne$false-or(ChargePathProp $after 'charging')-ne$false-or(ChargePathProp $after 'descriptorCharging')-ne$false){ChargePathFail ('row '+$Row.name+' left movement or a charging state behind')}
+    # The stock Stop() latches force mode until the next OnPathComplete; the residue probe (the next lawful
+    # pair path, mount-executed) must observe it cleared at its first movement.
+    if((ChargePathProp $probe 'admitted')-ne$true-or[string](ChargePathProp $probe 'executor')-cne'mount'){ChargePathFail ('row '+$Row.name+' the residue probe was not an admitted mount-executed pair path')}
+    $firstMove=ChargePathProp $probe 'firstMove'
+    if($null-eq$firstMove-or(ChargePathProp $firstMove 'forceMode')-ne$false){ChargePathFail ('row '+$Row.name+' the next lawful path did not clear the latched force mode')}
+    if((ChargePathProp $probe 'timedOut')-ne$false-or-not(ChargePathNumber (ChargePathProp $probe 'movedDistance'))-or[double]$probe.movedDistance-le0.25){ChargePathFail ('row '+$Row.name+' the residue probe did not move the pair')}
+    # Turn-based: Kingmaker leaves no remaining movement in a turn that moved in force mode, so the next
+    # lawful pair path necessarily lives in the rider's next turn. The measurement must have reached it
+    # through exactly one native End Turn input, with the latch still set when that turn ended.
+    if($Mode-ceq'TB'){
+        $advance=ChargePathProp $probe 'turnAdvance'
+        if($null-eq$advance){ChargePathFail ('row '+$Row.name+' the turn-based residue probe recorded no native turn advance')}
+        $riderId=[string](ChargePathProp (ChargePathProp $before 'rider') 'id')
+        if([string]::IsNullOrWhiteSpace($riderId)){ChargePathFail ('row '+$Row.name+' recorded no rider identity')}
+        foreach($field in @('endedTurnUnit','nextTurnUnit')){ if([string](ChargePathProp $advance $field)-cne$riderId){ChargePathFail ('row '+$Row.name+' the turn advance did not end and resume the rider turn: '+$field)} }
+        $advanceInput=ChargePathProp $advance 'input'
+        if([string](ChargePathProp $advanceInput 'method')-cne'Kingmaker.Game.PauseBind'){ChargePathFail ('row '+$Row.name+' the turn advance was not the native End Turn input')}
+        if([long](ChargePathProp $advanceInput 'count')-ne1){ChargePathFail ('row '+$Row.name+' the turn advance was not exactly one native End Turn input')}
+        foreach($field in @('forceModeAtEnd','forceModeAtNextTurn')){ if((ChargePathProp $advance $field)-isnot[bool]){ChargePathFail ('row '+$Row.name+' the turn advance did not record '+$field)} }
+        if((ChargePathProp $advance 'forceModeAtNextTurn')-ne(ChargePathProp $probe 'forceModeBefore')){ChargePathFail ('row '+$Row.name+' the force mode changed between the rider next turn and the residue probe')}
+        if(-not(ChargePathNumber (ChargePathProp $advance 'waitedSeconds'))){ChargePathFail ('row '+$Row.name+' the turn advance recorded no elapsed time')}
+    } elseif($null-ne(ChargePathProp $probe 'turnAdvance')){ChargePathFail ('row '+$Row.name+' a real-time residue probe advanced a turn')}
+    # The compiled probe counts only rules the rider or the mount initiated against the armed target. A native
+    # attack of opportunity is the engine's own reflex, observed and recorded and never suppressed; a
+    # non-opportunity pair attack would mean the measurement delivered an attack of its own, which it must not.
+    foreach($name in @('attackRules','attackRulesOpportunity','attackRulesNonOpportunity')){ if(-not(ChargePathNumber (ChargePathProp $e $name))){ChargePathFail ('row '+$Row.name+' attack-rule count '+$name+' is missing')} }
+    if([long]$e.attackRules-ne([long]$e.attackRulesOpportunity+[long]$e.attackRulesNonOpportunity)){ChargePathFail ('row '+$Row.name+' attack-rule counts do not reconcile')}
+    if([long]$e.attackRulesOpportunity-lt0-or[long]$e.attackRulesNonOpportunity-lt0){ChargePathFail ('row '+$Row.name+' attack-rule counts are negative')}
+    if([long]$e.attackRulesNonOpportunity-ne0){ChargePathFail ('row '+$Row.name+' the measurement delivered a pair attack of its own')}
+    $ruleEvidence=ChargePathProp $e 'attackRuleEvidence'
+    if($null-eq$ruleEvidence-or$null-eq(ChargePathProp $ruleEvidence 'pairNonOpportunityAttackRules')){ChargePathFail ('row '+$Row.name+' lacks the compiled attack-rule evidence')}
+    foreach($name in @('movedDistance','maximumLateralDeviation','elapsedSeconds','peakSpeedMps','distanceToTarget','settleSeconds')){ if(-not(ChargePathNumber (ChargePathProp $stop $name))){ChargePathFail ('row '+$Row.name+' stop '+$name+' is not a finite number')} }
+    if([double]$stop.maximumLateralDeviation-gt0.75){ChargePathFail ('row '+$Row.name+' left the straight line by more than 0.75 m')}
+    if($Mode-ceq'TB'){
+        $bt=ChargePathProp $before 'turn';$at=ChargePathProp $after 'turn'
+        if($null-eq$bt-or$null-eq$at-or(ChargePathProp $bt 'isRider')-ne$true-or(ChargePathProp $at 'isRider')-ne$true){ChargePathFail ('row '+$Row.name+' did not run on the rider turn')}
+        # The carrier is the rider turn's first movement, which is also the stock charge precondition: the stock
+        # CanTarget requires CurrentTurn.TimeMoved == 0 on the caster's own turn. A five-foot-step entry would
+        # have spent the pair's one granted movement for the activation (measured on preview.157).
+        if(-not(ChargePathNumber (ChargePathProp $bt 'timeMoved'))-or[double]$bt.timeMoved-gt0.0001){ChargePathFail ('row '+$Row.name+' the rider turn had already moved before the path')}
+        # Preview.158 measured that the pair's delegated carrier is accounted by the mod's own paired movement
+        # state, not by TurnController.TimeMoved: KMC's movement override replaces the stock turn-based movement
+        # gate for the mount, so the turn counters stay at zero while the paired state tracks the mount's time.
+        # That is the Chunk 6A-qualified paired accounting, so the turn counters are recorded as facts and the
+        # paired observation is what must be present, advancing, and free of any cost to the mount.
+        foreach($name in @('timeMoved','timeMovedInForceMode')){ if(-not(ChargePathNumber (ChargePathProp $at $name))){ChargePathFail ('row '+$Row.name+' the rider turn did not record '+$name)} }
+        $paired=@($samples|ForEach-Object {[string](ChargePathProp $_ 'pairMovement')}|Where-Object {-not[string]::IsNullOrWhiteSpace($_)-and$_-cne'not-observed'})
+        if($paired.Count-lt1){ChargePathFail ('row '+$Row.name+' recorded no paired movement observation for the turn-based carrier')}
+        if(@($paired|Where-Object {$_-match'mountTime=([0-9.]+)'-and[double]$Matches[1]-gt0}).Count-lt1){ChargePathFail ('row '+$Row.name+' the paired movement observation never advanced the mount time')}
+    }
+    switch -CaseSensitive ([string]$Row.name) {
+        'C6B-PATH-straight-arrival' {
+            if([string](ChargePathProp $stop 'reason')-cne'arrival'-or(ChargePathProp $reach 'arrivalWithinReach')-ne$true){ChargePathFail 'the straight path did not arrive within the pair reach'}
+            if([double]$stop.movedDistance-lt1.0){ChargePathFail 'the straight path moved less than one metre'}
+            if([double]$stop.peakSpeedMps-lt([double]$g.mountCombatSpeedMps*1.2)){ChargePathFail 'the straight path never exceeded the mount walking combat speed'}
+        }
+        'C6B-PATH-interrupt-stop' {
+            if([string](ChargePathProp $stop 'reason')-cne'interrupt'-or(ChargePathProp $reach 'arrivalWithinReach')-ne$false){ChargePathFail 'the interrupted path was not stopped before arrival'}
+            if([double]$stop.movedDistance-le0.0){ChargePathFail 'the interrupted path recorded no movement before the stop'}
+            if([double]$stop.settleSeconds-gt1.5){ChargePathFail 'the interrupted path did not settle within 1.5 s'}
+        }
+        default { ChargePathFail ('unknown row '+$Row.name) }
+    }
+}
+function Assert-KmcChunk6bChargePathEvidence {
+    param($Request,$Artifact,[AllowNull()][string]$Status)
+    if([long]$Artifact.schemaVersion-ne33-or-not(Test-KmcChunk6bChargePathScenario ([string]$Request.scenario))){ChargePathFail 'requires schema 33 and a chunk6b-charge-path scenario'}
+    $mode=if([string]$Request.scenario-ceq'chunk6b-charge-path-tb'){'TB'}else{'RT'}
+    $measurement=ChargePathProp $Artifact.observations 'chunk6bChargePath'
+    if($null-eq$measurement-or[string](ChargePathProp $measurement 'contract')-cne'chunk6b-pair-forced-path-measurement'-or[string](ChargePathProp $measurement 'mode')-cne$mode-or[string](ChargePathProp $measurement 'carrier')-cne'delegated-ground-move'){ChargePathFail 'the measurement contract, mode or carrier is absent or differs'}
+    $required=Get-KmcChunk6bChargePathRows
+    $failureOnly=@('phase3d-horse-tranche-cleanup','phase3d-horse-scenario-deadline','phase3d-horse-leaf-deadline','phase3d-horse-runtime-exception')
+    $names=New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::Ordinal)
+    $pass=0;$fail=0
+    foreach($row in @($Artifact.rows)){
+        if([string]$row.name-cnotin($required+$failureOnly)-or-not$names.Add([string]$row.name)-or[string]$row.status-cnotin@('PASS','FAIL')){ChargePathFail ('invalid or duplicate row '+$row.name)}
+        if([string]$row.status-ceq'FAIL'){$fail++;continue}
+        $pass++
+        if([string]$row.name-cin$failureOnly){ChargePathFail ('failure-only row claimed PASS: '+$row.name)}
+        Assert-KmcChunk6bChargePathRow $row $mode
+    }
+    if($Status-ceq'PASS'){
+        foreach($name in $required){ if(-not$names.Contains($name)){ChargePathFail ('required row absent: '+$name)} }
+        if($fail-ne0){ChargePathFail 'a PASS artifact carries a failed row'}
+    }
+    if([long]$Artifact.subscenarioPassCount-ne$pass-or[long]$Artifact.subscenarioFailCount-ne$fail){ChargePathFail 'row counts differ from the artifact summary'}
+}

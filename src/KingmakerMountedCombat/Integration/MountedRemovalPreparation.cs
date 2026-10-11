@@ -93,7 +93,8 @@ namespace KingmakerMountedCombat.Integration
             HorseCompanionBlueprintService.UnitGuid, HorseCompanionBlueprintService.FeatureGuid,
             HorseCompanionBlueprintService.UpgradeGuid, HorseCompanionBlueprintService.PortraitGuid,
             NativeMountedControlService.MountAbilityGuid, NativeMountedControlService.DismountAbilityGuid,
-            NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid
+            NativeMountedControlService.RiderPrimaryAbilityGuid, NativeMountedControlService.MountPrimaryAbilityGuid,
+            NativeMountedControlService.MountedChargeAbilityGuid
         };
 
         // Inspection only: nothing is dismounted, saved or mutated here. The
@@ -113,14 +114,14 @@ namespace KingmakerMountedCombat.Integration
                 {
                     facts.PartyInCombat = game.Player.IsInCombat;
                     facts.AnyPartyMemberInCombat = game.Player.Party.Any(u => u != null && u.IsInCombat);
-                    facts.ActiveMountedCommand = combat.HasActiveCommand;
+                    facts.ActiveMountedCommand = combat.HasActiveCommand || combat.HasChargeOwnership;
                     facts.StockAttackIntent = combat.HasStockAttackIntent;
                     facts.PairedActivation = !string.IsNullOrEmpty(combat.PairedActivationIdentity);
                     facts.CombatRestorationPending = persistence.CombatRestorationPending;
                     facts.LoadInFlight = persistence.LoadInFlight;
                     facts.LoadingWorld = persistence.LoadingWorld;
                     facts.LoadingProcess = LoadingProcess.Instance.IsLoadingInProcess;
-                    facts.SaveSuspended = persistence.SaveSuspended;
+                    facts.SaveSuspended = persistence.SaveSuspended || combat.ChargeAdmissionFenced;
                     facts.ActiveSaveScope = persistence.HasActiveSaveScope;
                     facts.SaveDraining = persistence.SaveDraining;
                     facts.WorldHoldReleasePending = persistence.WorldHoldReleasePending;

@@ -9,6 +9,8 @@ namespace KingmakerMountedCombat.Tests
         {
             runner.Run("relationship valid mount transition", ValidMountTransition);
             runner.Run("saved attachment does not unlock voluntary combat mounting", SavedAttachmentKeepsMountGuard);
+            runner.Run("relationship admission modes are separate and complete", AdmissionModesAreSeparate);
+            runner.Run("restore admission cannot authorize a voluntary mount", RestoreCannotAuthorizeVoluntaryMount);
             runner.Run("saved attachment retains current life and size guards", SavedAttachmentKeepsValidityGuards);
             runner.Run("relationship invalid same-unit pair", InvalidSameUnitPair);
             runner.Run("relationship invalid dead rider", InvalidDeadRider);
@@ -69,10 +71,71 @@ namespace KingmakerMountedCombat.Tests
             var candidate = ValidCandidate(); candidate.PartyIsInCombat = true;
             var runtime = new FakeRuntime();
             var coordinator = new MountedRelationshipCoordinator(runtime);
-            TestRunner.True(!coordinator.Mount(candidate).Succeeded, "Voluntary combat mount accepted.");
+            TestRunner.True(!coordinator.Mount(candidate).Succeeded,
+                "The exploration transition accepted a live encounter.");
             TestRunner.True(coordinator.RestoreSaved(candidate).Succeeded, "Dedicated saved pair rejected.");
             TestRunner.True(!coordinator.RestoreSaved(candidate).Succeeded, "Duplicate domain attachment accepted.");
             TestRunner.Equal(1, runtime.AcquireCalls, "Restoration acquired twice.");
+        }
+
+        private static void AdmissionModesAreSeparate()
+        {
+            var inCombat = ValidCandidate(); inCombat.PartyIsInCombat = true;
+            var outOfCombat = ValidCandidate();
+
+            TestRunner.Equal("Private-alpha mounting is available only outside combat.",
+                inCombat.Validate(MountedRelationshipAdmission.Exploration),
+                "Exploration admitted a live encounter.");
+            TestRunner.Equal(null, inCombat.Validate(MountedRelationshipAdmission.VoluntaryCombat),
+                "Voluntary combat refused an eligible in-combat pair.");
+            TestRunner.Equal(null, inCombat.Validate(MountedRelationshipAdmission.SavedRestore),
+                "Saved restore refused an in-combat archive.");
+
+            TestRunner.Equal(null, outOfCombat.Validate(MountedRelationshipAdmission.Exploration),
+                "Exploration refused an eligible out-of-combat pair.");
+            TestRunner.Equal("Voluntary combat mounting requires a live encounter.",
+                outOfCombat.Validate(MountedRelationshipAdmission.VoluntaryCombat),
+                "Voluntary combat stood in for the free exploration transition.");
+            TestRunner.Equal(null, outOfCombat.Validate(),
+                "The default Validate() overload changed its exploration meaning.");
+
+            // Every non-combat guard stays intact under the voluntary combat mode.
+            var dead = ValidCandidate(); dead.PartyIsInCombat = true; dead.MountIsAliveAndConscious = false;
+            TestRunner.True(dead.Validate(MountedRelationshipAdmission.VoluntaryCombat) != null,
+                "Voluntary combat admitted a dead mount.");
+            var small = ValidCandidate(); small.PartyIsInCombat = true;
+            small.MountSizeOrdinal = small.RiderSizeOrdinal;
+            TestRunner.True(small.Validate(MountedRelationshipAdmission.VoluntaryCombat) != null,
+                "Voluntary combat admitted an undersized mount.");
+            var noAgent = ValidCandidate(); noAgent.PartyIsInCombat = true;
+            noAgent.MountStockAgentEnabled = false;
+            TestRunner.True(noAgent.Validate(MountedRelationshipAdmission.VoluntaryCombat) != null,
+                "Voluntary combat admitted a disabled movement agent.");
+            var foreign = ValidCandidate(); foreign.PartyIsInCombat = true;
+            foreign.ExactReciprocalCompanionRelationship = false;
+            TestRunner.True(foreign.Validate(MountedRelationshipAdmission.VoluntaryCombat) != null,
+                "Voluntary combat admitted a non-reciprocal companion.");
+            var mode = ValidCandidate(); mode.PartyIsInCombat = true; mode.SafeMovementMode = false;
+            TestRunner.True(mode.Validate(MountedRelationshipAdmission.VoluntaryCombat) != null,
+                "Voluntary combat admitted an unsafe game mode.");
+        }
+
+        private static void RestoreCannotAuthorizeVoluntaryMount()
+        {
+            var candidate = ValidCandidate(); candidate.PartyIsInCombat = true;
+            var runtime = new FakeRuntime();
+            var coordinator = new MountedRelationshipCoordinator(runtime);
+            var refused = coordinator.Mount(candidate, MountedRelationshipAdmission.SavedRestore);
+            TestRunner.True(!refused.Succeeded, "The restore mode authorized a voluntary mount.");
+            TestRunner.Equal(0, runtime.AcquireCalls, "A refused admission acquired movement authority.");
+            TestRunner.Equal(RelationshipState.Unmounted, coordinator.State,
+                "A refused admission left the coordinator mid-transition.");
+
+            var accepted = coordinator.Mount(candidate, MountedRelationshipAdmission.VoluntaryCombat);
+            TestRunner.True(accepted.Succeeded, "Voluntary combat mount refused: " +
+                string.Join(" ", System.Linq.Enumerable.ToArray(accepted.Errors)));
+            TestRunner.Equal(1, runtime.AcquireCalls, "Voluntary combat mount acquired authority twice.");
+            TestRunner.Equal(1, runtime.AttachCalls, "Voluntary combat mount attached presentation twice.");
         }
 
         private static void SavedAttachmentKeepsValidityGuards()

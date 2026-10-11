@@ -48,9 +48,40 @@ namespace KingmakerMountedCombat.Domain
 
         public bool CombatTurnEligible { get; set; }
 
+        // The exact reason the turn is not eligible, so the Preparing boundary is
+        // refused with its own message instead of the generic wrong-turn one.
+        public string CombatTurnIneligibilityReason { get; set; }
+
         public bool RiderHasMoveAction { get; set; }
 
+        // Native turn-based action economy: a unit that has used its Standard action has used its
+        // one Move as soon as any movement is charged (UnitEntityData.HasMoveAction is
+        // !UsedOneMoveAction once UsedStandardAction), so an approach-bearing Move-typed Mount can
+        // never start after a Standard action; only an already adjacent rider may mount then.
+        public bool TurnBasedCombat { get; set; }
+
+        public bool RiderUsedStandardAction { get; set; }
+
         public bool NativeMoveActionShellAdmitted { get; set; }
+
+        // A KMC-owned voluntary relationship transition is already in flight. A
+        // second native control must not be offered, so repeated input cannot
+        // create a second committed Move shell.
+        public bool RelationshipTransitionInFlight { get; set; }
+
+        // In combat the paired lifecycle must be able to take over the running
+        // encounter unambiguously. When it cannot, the transition is refused
+        // before any native commitment rather than guessed at.
+        public bool PairedAdoptionAvailable { get; set; } = true;
+
+        public string PairedAdoptionUnavailableReason { get; set; }
+
+        // Combat Mount is supported only on the accepted architecture: paired
+        // activation live and both retired turn authorities off. One typed policy
+        // decides it for prediction and for execution-time admission alike.
+        public bool CombatMountAuthorityQualified { get; set; } = true;
+
+        public string CombatMountAuthorityReason { get; set; }
 
         public bool PairAdjacent { get; set; }
 
@@ -71,16 +102,33 @@ namespace KingmakerMountedCombat.Domain
             MountedPlayerActionKind action,
             string label,
             IReadOnlyList<string> unavailableReasons)
+            : this(visible, enabled, action, label, unavailableReasons, Array.Empty<string>())
+        {
+        }
+
+        public MountedPlayerActionAvailability(
+            bool visible,
+            bool enabled,
+            MountedPlayerActionKind action,
+            string label,
+            IReadOnlyList<string> unavailableReasons,
+            IReadOnlyList<string> transitionDeferredReasons)
         {
             IsVisible = visible;
             IsEnabled = enabled;
             Action = action;
             Label = label ?? string.Empty;
             UnavailableReasons = unavailableReasons ?? throw new ArgumentNullException(nameof(unavailableReasons));
+            TransitionDeferredReasons = transitionDeferredReasons ??
+                throw new ArgumentNullException(nameof(transitionDeferredReasons));
         }
 
         public bool IsVisible { get; }
 
+        /// <summary>
+        /// APPROACH admission: the control may be offered, armed and targeted, and
+        /// Kingmaker may create its own Move-typed command. Distance is not part of this.
+        /// </summary>
         public bool IsEnabled { get; }
 
         public MountedPlayerActionKind Action { get; }
@@ -89,13 +137,36 @@ namespace KingmakerMountedCombat.Domain
 
         public IReadOnlyList<string> UnavailableReasons { get; }
 
-        public string Feedback => UnavailableReasons.Count == 0
-            ? (Action == MountedPlayerActionKind.Mount ? "Ready to mount." : "Mounted relationship is active.")
-            : string.Join(" ", UnavailableReasons);
+        /// <summary>
+        /// Conditions that block the relationship TRANSITION but are lawfully resolved by
+        /// the native approach itself. Only distance belongs here; it is deferred, never
+        /// waived, and is revalidated at delivery against live state.
+        /// </summary>
+        public IReadOnlyList<string> TransitionDeferredReasons { get; }
+
+        /// <summary>
+        /// TRANSITION admission: approach-admissible and every deferred condition resolved.
+        /// </summary>
+        public bool TransitionReady => MountedAdmissionPolicy.Admits(
+            MountedAdmissionPhase.Transition, UnavailableReasons.Count, TransitionDeferredReasons.Count) && IsEnabled;
+
+        public string Feedback
+        {
+            get
+            {
+                if (UnavailableReasons.Count != 0) { return string.Join(" ", UnavailableReasons); }
+                if (TransitionDeferredReasons.Count != 0) { return string.Join(" ", TransitionDeferredReasons); }
+                return Action == MountedPlayerActionKind.Mount ? "Ready to mount." : "Mounted relationship is active.";
+            }
+        }
     }
 
     public static class MountedPlayerActionEvaluator
     {
+        public static string DescribeSpentStandardApproachRefusal(string mountName) =>
+            "The rider spent its Standard action this turn; its remaining Move cannot both approach " +
+            mountName + " and mount, so the pair must already be adjacent.";
+
         public static MountedPlayerActionAvailability Evaluate(MountedPlayerActionContext context)
         {
             if (context == null)
@@ -122,9 +193,15 @@ namespace KingmakerMountedCombat.Domain
                 }
 
                 var dismountReasons = new List<string>();
+                if (context.RelationshipTransitionInFlight)
+                {
+                    dismountReasons.Add("A mounted transition is already in flight.");
+                }
                 if (context.InCombat && !context.CombatTurnEligible)
                 {
-                    dismountReasons.Add("Dismount during turn-based combat belongs to the rider-led current turn.");
+                    dismountReasons.Add(string.IsNullOrWhiteSpace(context.CombatTurnIneligibilityReason)
+                        ? "Dismount during turn-based combat belongs to the rider-led current turn."
+                        : context.CombatTurnIneligibilityReason);
                 }
                 if (context.InCombat && !context.RiderHasMoveAction &&
                     !context.NativeMoveActionShellAdmitted)
@@ -153,12 +230,19 @@ namespace KingmakerMountedCombat.Domain
             }
 
             var reasons = new List<string>();
+            // Conditions the native approach itself resolves. Distance is the only member;
+            // MountedAdmissionPolicy exists so a second one cannot be added silently.
+            var transitionDeferred = new List<string>();
             var mountName = string.IsNullOrWhiteSpace(context.MountDisplayName)
                 ? "supported mount"
                 : context.MountDisplayName;
             if (!context.FeatureEnabled)
             {
                 reasons.Add("Enable the private-alpha mounted movement feature in this mod's settings.");
+            }
+            if (context.RelationshipTransitionInFlight)
+            {
+                reasons.Add("A mounted transition is already in flight.");
             }
 
             if (!context.ExactlyOneRiderSelected)
@@ -208,24 +292,48 @@ namespace KingmakerMountedCombat.Domain
             {
                 reasons.Add("Mounting is blocked during loading, area transitions, and cutscenes.");
             }
-            if (context.InCombat)
+            if (context.InCombat && !context.CombatMountAuthorityQualified)
             {
-                // MountedPairCandidate currently forbids combat mounting. Native
-                // availability must not advertise a Move shell that cannot create a pair.
-                reasons.Add("Mount Companion is available only outside combat in this preview.");
+                reasons.Add(string.IsNullOrWhiteSpace(context.CombatMountAuthorityReason)
+                    ? "Mounting during combat requires the qualified paired authority."
+                    : context.CombatMountAuthorityReason);
             }
+            if (context.InCombat && !context.PairedAdoptionAvailable)
+            {
+                // The paired lifecycle could not dispose of this round's
+                // participation unambiguously. Availability must not advertise a
+                // Move shell whose delivery would have to guess.
+                reasons.Add(string.IsNullOrWhiteSpace(context.PairedAdoptionUnavailableReason)
+                    ? "The mounted pair cannot take over this encounter's activation yet."
+                    : context.PairedAdoptionUnavailableReason);
+            }
+            // Distance is DEFERRED, not waived. It blocks the relationship transition and
+            // is revalidated at delivery, but it must never block approach admission:
+            // Kingmaker's own Move-typed command is what closes the distance, so refusing
+            // to create that command because the distance is not yet closed is circular and
+            // is exactly what made CM02-approach-arrival unreachable.
             if (context.InCombat && !context.PairAdjacent)
             {
-                reasons.Add("Rider and " + mountName + " must be adjacent to mount during combat.");
+                transitionDeferred.Add(MountedAdmissionPolicy.DescribeDeferredDistance(mountName));
             }
             if (context.InCombat && !context.CombatTurnEligible)
             {
-                reasons.Add("Mount Companion during turn-based combat belongs to the rider's current turn.");
+                reasons.Add(string.IsNullOrWhiteSpace(context.CombatTurnIneligibilityReason)
+                    ? "Mount Companion during turn-based combat belongs to the rider's current turn."
+                    : context.CombatTurnIneligibilityReason);
             }
             if (context.InCombat && !context.RiderHasMoveAction &&
                 !context.NativeMoveActionShellAdmitted)
             {
                 reasons.Add("The rider has no Move action available to mount.");
+            }
+            // Refused before any shell exists: Kingmaker charges the rider's one remaining Move at the
+            // first approach tick and then interrupts the unstarted Mount through this very
+            // availability (preview.152 CM03-rider-other-action), so the approach must not be admitted.
+            if (context.InCombat && context.TurnBasedCombat && context.RiderUsedStandardAction &&
+                !context.PairAdjacent && !context.NativeMoveActionShellAdmitted)
+            {
+                reasons.Add(DescribeSpentStandardApproachRefusal(mountName));
             }
             if (!context.SafeGameMode)
             {
@@ -246,10 +354,12 @@ namespace KingmakerMountedCombat.Domain
 
             return new MountedPlayerActionAvailability(
                 true,
-                reasons.Count == 0,
+                MountedAdmissionPolicy.Admits(
+                    MountedAdmissionPhase.Approach, reasons.Count, transitionDeferred.Count),
                 MountedPlayerActionKind.Mount,
                 "Mount",
-                reasons);
+                reasons,
+                transitionDeferred);
         }
 
         private static MountedPlayerActionAvailability Hidden()
@@ -295,13 +405,47 @@ namespace KingmakerMountedCombat.Domain
             return true;
         }
 
+        // A relationship transition in turn-based combat requires the exact rider's
+        // turn to be ACTING, not merely Preparing.
+        //
+        // Kingmaker's TurnController runs Prepare() at the actor's own initiative
+        // slot and only then advances the turn to Acting; a player command is
+        // delivered by UnitCommands.Tick inside Acting. Admitting a transition
+        // while the turn is still Preparing would settle the transition ledger and
+        // the adopted paired grant against a turn whose native preparation has not
+        // finished, and there is no exact native evidence that no callback or
+        // ledger step is skipped in that window. Preparing is therefore refused
+        // rather than retained on an assumption.
         public static bool IsTurnEligible(
+            bool turnBasedCombat,
+            bool currentTurnIsExactRider,
+            bool turnActing)
+        {
+            return !turnBasedCombat || currentTurnIsExactRider && turnActing;
+        }
+
+        // The exact reason a turn-based transition is not eligible, so the Preparing
+        // boundary is refused with its own message instead of the generic one.
+        public static string DescribeTurnIneligibility(
+            string actionName,
             bool turnBasedCombat,
             bool currentTurnIsExactRider,
             bool turnPreparing,
             bool turnActing)
         {
-            return !turnBasedCombat || currentTurnIsExactRider && (turnPreparing || turnActing);
+            if (IsTurnEligible(turnBasedCombat, currentTurnIsExactRider, turnActing))
+            {
+                return null;
+            }
+            if (!currentTurnIsExactRider)
+            {
+                return actionName + " during turn-based combat belongs to the rider's current turn.";
+            }
+            if (turnPreparing)
+            {
+                return actionName + " waits until the rider's turn has finished preparing.";
+            }
+            return actionName + " requires the rider's turn to be acting.";
         }
 
         public static bool IsAdjacent(
