@@ -7,7 +7,7 @@ param(
     [ValidateSet('Debug','Release')][string]$Configuration = 'Release',
     [switch]$SkipBuild,
     [ValidateSet('Both','Kingmaker','Wrath')][string]$AssemblyTarget='Both',
-    # Compatibility input; historical replay is explicit -Focused or FULL only.
+    # Retained for a clear refusal; historical replay takes its own parameters.
     [string]$LabRoot = ''
 )
 # Three explicit verification tiers for Chunk 6 development (owner workflow amendment,
@@ -23,12 +23,34 @@ param(
 #   FULL       at a milestone, at final qualification, or when a shared foundation change affects
 #              the whole repository: the complete umbrella (scripts/Test.ps1).
 #
-# The frozen-candidate cycle itself (package, suite, purity proof, native campaign) is unchanged.
+# docs/VALIDATION-POLICY.md also governs package/suite/purity/native work:
+# those are explicit frozen-candidate/release operations, not checkpoint gates.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $started = [DateTime]::UtcNow
 $results = @()
+$focusedScripts = @($Focused | ForEach-Object { $_ -split ',' } |
+    ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
+if ($PSBoundParameters.ContainsKey('Focused') -and $focusedScripts.Count -eq 0) {
+    throw '-Focused requires at least one real test script; omit it to run the tier defaults.'
+}
+if ($Tier -eq 'Full' -and $focusedScripts.Count -gt 0) {
+    throw 'Full runs the complete umbrella and does not accept -Focused; use Fast or Candidate for selected checks.'
+}
+if (-not [string]::IsNullOrWhiteSpace($LabRoot)) {
+    throw '-LabRoot is not consumed by this selector. Invoke the intended historical replay explicitly with its supported parameters.'
+}
+if ($Tier -eq 'Fast' -and $PSBoundParameters.ContainsKey('AssemblyTarget')) {
+    throw '-AssemblyTarget applies to Candidate or Full, which run assembly contracts.'
+}
+foreach ($selected in $focusedScripts) {
+    if ($selected -notmatch '^Test-[A-Za-z0-9-]+\.ps1$' -or
+        -not (Test-Path -LiteralPath (Join-Path $PSScriptRoot $selected) -PathType Leaf)) {
+        throw "Focused test script is missing or invalid: $selected"
+    }
+}
+$invokedTests = @{}
 function Invoke-Tiered([string]$Name, [scriptblock]$Body) {
     $sw = [Diagnostics.Stopwatch]::StartNew()
     $ok = $true; $detail = ''
@@ -39,6 +61,7 @@ function Invoke-Tiered([string]$Name, [scriptblock]$Body) {
     if (-not $ok) { throw ('Tier step failed: ' + $Name) }
 }
 function Invoke-TestScript([string]$Name, [string[]]$Extra = @()) {
+    if ($invokedTests.ContainsKey($Name)) { return }
     $path = Join-Path $PSScriptRoot $Name
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw ('Test script is missing: ' + $Name) }
     $takesConfiguration = (Get-Command $path).Parameters.ContainsKey('Configuration')
@@ -47,9 +70,12 @@ function Invoke-TestScript([string]$Name, [string[]]$Extra = @()) {
     if ($Extra.Count -gt 0) { $arguments += $Extra }
     & powershell.exe @arguments | ForEach-Object { Write-Host ('    ' + $_) }
     if ($LASTEXITCODE -ne 0) { throw ($Name + ' exited ' + $LASTEXITCODE) }
+    $invokedTests[$Name] = $true
 }
-if ($Tier -ceq 'Full') {
-    Invoke-Tiered 'FULL umbrella (scripts/Test.ps1)' { Invoke-TestScript 'Test.ps1' }
+if ($Tier -eq 'Full') {
+    $fullArguments = @('-AssemblyTarget', $AssemblyTarget)
+    if ($SkipBuild) { $fullArguments += '-SkipBuild' }
+    Invoke-Tiered 'FULL umbrella (scripts/Test.ps1)' { Invoke-TestScript 'Test.ps1' $fullArguments }
 } else {
     if (-not $SkipBuild) {
         Invoke-Tiered 'build' {
@@ -72,18 +98,18 @@ if ($Tier -ceq 'Full') {
     }
     foreach ($testScript in $fast) { Invoke-Tiered ('FAST ' + $testScript) { Invoke-TestScript $testScript } }
     # A -File invocation passes a comma-joined list as one string; accept both spellings.
-    $focusedScripts = @($Focused | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique)
-    foreach ($testScript in $focusedScripts) { Invoke-Tiered ('FOCUSED ' + $testScript) { Invoke-TestScript $testScript } }
-    if ($Tier -ceq 'Candidate') {
+    foreach ($testScript in $focusedScripts) {
+        if ($testScript -eq 'Validate-Source.ps1' -or ($Tier -eq 'Candidate' -and
+            $testScript -in @('Test-Harness.ps1','Test-PairedActivationContracts.ps1','Test-RuntimeArtifactManifestContract.ps1','Test-AssemblyContracts.ps1'))) { continue }
+        Invoke-Tiered ('FOCUSED ' + $testScript) { Invoke-TestScript $testScript }
+    }
+    if ($Tier -eq 'Candidate') {
         $candidate = @('Test-Harness.ps1','Test-PairedActivationContracts.ps1','Test-RuntimeArtifactManifestContract.ps1')
         foreach ($testScript in $candidate) { Invoke-Tiered ('CANDIDATE ' + $testScript) { Invoke-TestScript $testScript } }
         Invoke-Tiered ('CANDIDATE assembly '+$AssemblyTarget) { Invoke-TestScript 'Test-AssemblyContracts.ps1' @('-Target',$AssemblyTarget) }
         # Affected registration/readers/ledger checks are explicit -Focused inputs.
         # Historical archives and immutable replays remain under FULL; LabRoot
         # alone never adds unrelated native-evidence interpretation.
-        if (-not [string]::IsNullOrWhiteSpace($LabRoot)) {
-            Write-Host 'LabRoot retained for compatibility; historical replays require an explicit focused check or FULL.'
-        }
     }
 }
 $elapsed = [Math]::Round(([DateTime]::UtcNow - $started).TotalMinutes, 2)
