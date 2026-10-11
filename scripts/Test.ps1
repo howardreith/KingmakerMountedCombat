@@ -2,7 +2,8 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [ValidateSet('Both','Kingmaker','Wrath')][string]$AssemblyTarget = 'Both'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -141,7 +142,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'Test-PairedMammothProtocol.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-& (Join-Path $PSScriptRoot 'Test-AssemblyContracts.ps1')
+& (Join-Path $PSScriptRoot 'Test-AssemblyContracts.ps1') -Target $AssemblyTarget
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # Native injections are constructed in a separate process and always unpatched.

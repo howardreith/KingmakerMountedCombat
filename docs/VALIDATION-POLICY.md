@@ -1,0 +1,89 @@
+# Validation policy
+
+Owner directive of October 11, 2026. This document governs validation frequency
+for development, review, packaging, runtime wrappers and release work. Earlier
+mission/handoff chronology describes its original campaign; it cannot silently
+select a broad campaign for an ordinary checkpoint.
+
+1. Ordinary fixes end at a reviewable development checkpoint: inspect the diff,
+   compile affected production code when needed, and test changed behavior and
+   actual dependencies. State the focused pass's limits. Documentation changes
+   need relevant text/link checks, without a DLL, package or acceptance ledger.
+2. Review the coherent change before broad qualification. A review correction
+   gets the failing reproduction and affected neighbors first. Batch related
+   corrections before an expensive candidate build. Broaden only for an
+   identified shared dependency, unresolved regression risk, or selected release
+   or milestone qualification.
+3. Full compatibility, historical replay, whole-roster persistence, live-lab
+   purity and release reproducibility belong to a frozen candidate or justified
+   broad task. They are not prerequisites for every edit, commit or review.
+   Inspect nested child calls; a wrapper must not silently broaden the scope.
+4. Build an unchanged candidate once and reuse its verified artifact. Distinguish
+   product source, DLL/package hashes, harness/reader/fixture versions, environment
+   and documentation provenance. Keep evidence bound to its original inputs;
+   never label old PASS as execution on changed bytes. Documentation updates
+   preserve a qualified artifact, using its frozen worktree when identity guards
+   require it, rather than rebuilding to stamp a newer documentation HEAD.
+5. A reader-only correction may re-evaluate immutable raw evidence only when all
+   needed observations exist. Retain old and new verdicts. A changed observer or
+   fixture needs its affected native scenario again. Observer/diagnostic code
+   compiled into the product changes the binary identity.
+6. Preserve per-transaction locks, current installation and save protection,
+   package validation, controlled staging, rollback and exact restoration. Never
+   kill an active transaction or omit cleanup for a time budget. Safety changes
+   need focused positive and negative behavior checks before live use.
+7. Ordinary validation has a 15-minute planning target and 30-minute ceiling,
+   excluding necessary safe completion/restoration already in progress. If a
+   selected check will exceed the ceiling, do not automatically launch broad work.
+   Report useful evidence and the precise remaining check. Explicit release campaigns have
+   separately declared budgets. These are workflow limits, not measured speeds.
+8. Prefer behavior and stable contracts; reuse existing infrastructure. Add tests
+   for concrete risks, not implementation text, cosmetic edits, arbitrary counts
+   or prose wording unless wording is the contract. Reject zero-test selections.
+   Reproduce a suspected baseline failure once under matched conditions, classify
+   it accurately and retain it. Do not repeatedly rerun unrelated suites or
+   convert known failures to PASS.
+9. Use one supervised invocation with captured logs and a concise completion
+   summary; preserve required child-process isolation and resumable receipts for
+   unchanged inputs. Avoid repeated polling/restarts. Report tier/scope, changes,
+   actual commands/durations, pass/fail counts, deferred release coverage and
+   artifact identity where relevant. A focused pass is not full qualification.
+
+## Selected entry points
+
+```powershell
+# Ordinary implementation: builds production/components and selected neighbors.
+.\scripts\Test-Tiers.ps1 -Tier Fast -Focused Test-Chunk6cCasting.ps1
+# After review, when freezing a native candidate, choose Candidate instead of Fast.
+.\scripts\Test-Tiers.ps1 -Tier Candidate -AssemblyTarget Kingmaker -Focused Test-Chunk6cCasting.ps1
+# Explicit milestone/final offline qualification only:
+.\scripts\Test-Tiers.ps1 -Tier Full -AssemblyTarget Kingmaker
+```
+
+Candidate contains Fast; never run both for unchanged inputs. Full forwards the
+assembly target, configuration and build choice through Test.ps1. Unsupported
+combinations are refused before expensive work. Selected scripts are deduplicated
+against the tier's built-in checks. Documentation or external-reader work may
+invoke its relevant reader directly, without a product build.
+
+Package creation, suite freeze, launcher purity, the cross-feature native campaign
+and final persistence/acceptance ledgers are explicit candidate/release operations,
+not requirements for a development checkpoint. Choose native cases by risk:
+movement/attack/mount changes need affected RT/TB behavior and unmounted controls;
+shared paired-turn/action budgets need both initiative arrangements and complete
+activation/spending; persistence/lifecycle/disable/removal needs its actual
+cold-load/removal path. Reader fixes use existing immutable re-evaluation with
+positive/negative checks and old/new verdicts; run native again when observations
+are missing or observer/fixture bytes changed.
+
+Live safety and reader identity paths remain intact. Dependency-scoped purity
+reuse and narrower reader identities require a separately bounded follow-up with
+dependency-bound proof and bounded filesystem tests. This patch does not bypass
+live guards, weaken the completion validator or redesign the ledger.
+
+Preview.211 final acceptance remains pending: 24 campaign stages PASS, stopped
+by the owner at stage 25 of 109, and no complete ledger for that binary. The
+109-stage campaign and 105-row Chunk 5 matrix remain explicit final qualification
+requirements. Their historical handoff is not a current instruction to launch
+them during ordinary work. Snapshot the actual human installation for restoration;
+never copy a historical preview pin into a current transaction.

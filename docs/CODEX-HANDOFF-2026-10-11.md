@@ -1,3 +1,8 @@
+> Current owner directive, October 11, 2026: docs/VALIDATION-POLICY.md governs
+> validation frequency. The campaign below remains pending final qualification,
+> not this workflow repair's first task or a requirement for ordinary review.
+> Preserve all historical evidence and actual current installation protection.
+
 # Handoff to Codex — 2026-10-11
 
 You are taking over the Kingmaker Mounted Combat mod after the Chunk 6 closeout. Read
@@ -14,10 +19,10 @@ envelope boundary). The released candidate preview.211 adds the second of those 
 produces the last missing row, but **its acceptance campaign was stopped at stage 25 of 109 on the owner's instruction**,
 so no ledger yet describes the released binary.
 
-## Your first task: close the acceptance gate on preview.211
+## Pending final qualification: acceptance gate on preview.211
 
 The candidate is already frozen, its purity proof already passed, and the stage bindings already exist. Nothing needs
-rebuilding. Run the campaign, then the Chunk 5 matrix, then the ledgers.
+rebuilding. When final qualification is explicitly selected, run the campaign, then the Chunk 5 matrix, then the ledgers.
 
 Lab root: `C:\Dev\KingmakerMountedCombatLab`. Pipeline directory:
 `analysis-cache\chunk6-continuation\20261005-6br` (referred to below as `$lab`).
