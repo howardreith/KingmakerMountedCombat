@@ -1,3 +1,61 @@
+## 2026-10-11 - Chunk 6 closeout merged to main and released as v0.1.0-chunk6-preview.211 (Claude)
+
+CHUNK 6 CLOSEOUT ENGINEERING COMPLETE ON THE NAMED SCOPE; FINAL ACCEPTANCE GATE NOT RE-RUN ON THE RELEASED CANDIDATE.
+Merged and released at the owner's explicit instruction of 2026-10-11, which also instructed that the running verification
+be stopped and the remaining stages be assumed to pass. `docs/CHUNK6-CLOSEOUT-SUMMARY.md` separates what was observed from
+what was assumed; `docs/CODEX-HANDOFF-2026-10-11.md` is the handoff and gives the exact commands to close the gate.
+
+Released candidate 0.1.0-chunk6d-preview.211: source a0d70fa41f25498aa2f31dfdfebc1ad29750f4a6, DLL
+11e993093d2042f615cfc9d6aecc33d630d2e41e8125dd680656b6a1057a48ea, MVID 0aa68ba0-f293-480e-8ecb-d7bdaeca73d0, package
+e89f431ae1303b217e987b2ff12171a05bac434d97809962c3596e2942874039, freeze candidate211-freeze.json 272507c6..., plan
+final-plan211.json 8707079d... (109 stages), purity p1 PASS exit 0 in 126.9 min (receipt b912089a...). All fourteen offline
+gates observed exit 0 at that commit over 697 tracked inputs with a clean worktree. Its campaign ran 24 PASS stages with
+nothing retained before it was stopped at stage 25 of 109.
+
+Supported: 6A legal combat Mount/Dismount (both modes, the rider's single native Move, paired participation, forced detach,
+persistence through save/load, area reload, cold load, disable and removal readiness); 6B pair-owned Mounted Charge (real
+time supported, turn-based delivery DEFER - EVIDENCED); 6C ordinary mounted spellcasting and item use (mounted and
+unmounted, both modes, 15 rows each); 6D staged move-cast-move and double-move ranged action on one native activation (both
+modes). 6E: FEASIBILITY COMPLETE - DEFENSIVE FEAT DEFERRED; NOT IMPLEMENTED - no Mounted Combat feat, reaction command,
+negated attack roll or Ride check exists in the product; the native limitation observed is bounded, not a proof that every
+design is impossible (owner authorization of 2026-10-08).
+
+Closeout candidates 206 through 211, each closed with its own retained records and no PASS carried between binaries:
+preview.206 stages 1-15 (closure ca12e57d...); preview.207 70 stages, 63 PASS / 7 FAIL, purity 97.5 min; preview.208 109
+stages, 105 PASS / 4 FAIL (closure 666b883a...), purity 101.9 min; preview.209 109 stages plan a 102 PASS plus 7 plan b
+re-runs (closures cce64ae5... and bcaf523b...), purity 108.5 min, Chunk 5 matrix 105 rows with one flake cleared on a
+fresh prefix; preview.210 109 stages, 106 PASS / 3 retained, purity 126.9 min; preview.211 as above.
+
+Most complete validated acceptance state, preview.209, now also in the repository: docs/chunk6a-ledger-preview209.json
+994137026a6d7616cbbec1121cbdaed1fb976e00fd8897a9378657b0129aa0df (86 PASS / 0 FAIL / 1 BLOCKED, record checks 87/87, 40
+retained failures bound, built under reader commit 7f24c685 and valid only under that harness identity) and
+docs/chunk5-ledger-preview209.json 942612ff5e4388cab880bb0d247f432e1ae32da2040590f805c4c1c00691571e (106 entries, 105 PASS,
+1 non-mandatory NOT RUN, record checks 106/106, COMPLETION GATE PASS on all 105 mandatory behaviours). Against the accepted
+preview.205 ledger of 68 PASS / 18 BLOCKED / 1 FAIL, that closes the fifteen previously unimplemented 6A ids,
+CM03-mount-spent-standard, CM08-area-restoration and both composites. The one blocked id was CM08-sustained-rt, whose
+ranged approach-repeat row a preview.211 development run produced for the first time on any candidate (native PASS 65/0,
+all four rows PASS, reader accepted) - a development run, not campaign evidence.
+
+Two product defects were found by running these cases and fixed: preview.209 stopped a deferred native save from holding
+the start of the relationship shell its own readiness term waited for (the hold and the term deadlocked into the 30-second
+bound and a refused save); preview.210 keeps a ranged attack the engine already delivered in reach across the millimetre
+drift the native approach leaves, so a mounted ranged full attack at the envelope boundary reports its ranged-tail
+completion and retains the sustained intent instead of cancelling it. Harness-only corrections, product untouched: the
+closure settled-row capture rule, the 6E refused-Swift never-rises rule in both modes, the 6C partner clear nested in its
+own later native Prepare, and the chunk4 ranged-tail reach tolerance; each was proven against retained immutable evidence
+before commit, and the harness evaluations show they move only the rows they target.
+
+Outstanding: re-run the 109-stage campaign and the 105-row Chunk 5 matrix on preview.211 and rebuild both ledgers (no
+ledger describes the released binary); docs/chunk6a-ledger.json remains the accepted preview.205 artifact and its harness
+identity is stale, so Test-Chunk6aLedger.ps1 and the FULL tier fail until it is rebuilt (a condition that predates this
+closeout); HUMAN PLAY acceptance not performed and not inferable from automation; four known intermittents documented with
+their signatures and recovery.
+
+External state: every stage and matrix row restored its own transaction (Mods, protected saves, baseline immutability,
+working fixture, save allowlist); the interrupted preview.211 stage also recorded restored, and the owner's installation was
+verified afterwards to hold the human 0.1.0-chunk5-preview.105 build with its original timestamps and no runtime locks. No
+protected save was written; the pinned game installation, UMM and settings were untouched.
+
 ## 2026-09-29T14:32:35.5235669Z - preview.132 complete offline PASS
 
 IN PROGRESS. Complete mandatory umbrella PASS, actual exit0 in 17.81 minutes. Log C:/Dev/KingmakerMountedCombatLab/logs/c6a-132-integrated-fourth-offline.log, SHA256 eb84dd8672268d0477eef34b47eb6552cfaa5695abd8a51384b6406aa66a92e3. DLL 693ced5ce45aac53c3313820af9fe3929c136ab51b9704319c875ad9f4adbcb0 / MVID 7bfe0272-642d-4624-94eb-540dd31684aa, 5123584 bytes. This is offline evidence only. The three earlier failed132 umbrellas remain retained with their real exit1 and original logs.
