@@ -602,7 +602,7 @@ namespace KingmakerMountedCombat.Integration
                 AllAttacks.Skip(completed).All(item => !item.Weapon.Blueprint.IsRanged &&
                     distance > bodyRadius + item.WeaponRange + MountedCombatSpatialPolicy.RangeTolerance),
                 NativeCommandLineOfSightClear && AllAttacks.Take(completed).All(item =>
-                    distance <= bodyRadius + item.WeaponRange));
+                    MountedCombatSpatialPolicy.DeliveredAttackWithinReach(distance, bodyRadius, item.WeaponRange)));
         }
 
         internal bool PreservesApproachParent(UnitCommands commands, CommandType type, bool interruptPaired)

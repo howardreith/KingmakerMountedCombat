@@ -10,6 +10,7 @@ namespace KingmakerMountedCombat.Tests
         {
             runner.Run("approach admits only its exact live mount Standard and empty Move without foreign slots or queue", ApproachOwnership);
             runner.Run("a complete native full attack retains recovery after its final rule", FullAttackRecovery);
+            runner.Run("a delivered ranged attack keeps its reach across the millimetre drift the native approach leaves", DeliveredRangedReach);
             runner.Run("mount partial movement and native Standard conversion share one allowance", MountMovementAllowance);
             runner.Run("mounted step and forced movement retain independent actor state across Stop", MountStepState);
             runner.Run("mounted rider melee uses rider actor and rider resource ownership", RiderMeleeOwnership);
@@ -75,6 +76,20 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("mounted pair liveness preserves every in-flight gate", PairLivenessPreservesEveryGate);
             runner.Run("mounted pair liveness reports exact changed gates", PairLivenessReportsExactFailures);
             runner.Run("mounted pair liveness admits target incapacitation only after exact child start", PairLivenessAdmitsPostAttackIncapacitation);
+        }
+
+        private static void DeliveredRangedReach()
+        {
+            // Mount corpulence 0.9 + target corpulence 0.7 + longbow 15.24 = a 16.84 m envelope; the native approach
+            // stops the pair at that boundary, and frozen preview.209 observed 16.84816 m at the terminal tick.
+            TestRunner.Equal(true, MountedCombatSpatialPolicy.DeliveredAttackWithinReach(16.84816f, 1.6f, 15.24f),
+                "The millimetre overshoot the native approach leaves must not reject an attack the engine already delivered.");
+            TestRunner.Equal(true, MountedCombatSpatialPolicy.DeliveredAttackWithinReach(16.84f, 1.6f, 15.24f),
+                "A delivery exactly at the weapon envelope is within reach.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.DeliveredAttackWithinReach(16.9f, 1.6f, 15.24f),
+                "A delivery past the envelope and its tolerance is not within reach.");
+            TestRunner.Equal(false, MountedCombatSpatialPolicy.DeliveredAttackWithinReach(20f, 1.6f, 15.24f),
+                "A delivery far beyond the envelope is not within reach.");
         }
 
         private static void ApproachOwnership()
