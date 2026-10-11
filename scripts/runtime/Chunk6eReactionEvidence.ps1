@@ -64,8 +64,10 @@ function Assert-KmcStagedSwiftCast($Swift,$After,$StepEvents,$StepCosts,[string]
  Need ($RequireAdmission-eq$false) 'the rider''s own-turn Swift cast was refused'
  if($neverStarted){Need ($null-ne$Swift.shell-and$Swift.shell.executor-ceq$Rider-and$Terminal.executor-ceq$Rider-and$Terminal.identity-eq$Swift.shell.identity-and$null-ne$Terminal.acted) 'never-started Swift shell is not the exact admitted rider shell'}
  Need (($null-eq$Swift.shell-or$neverStarted)-and$riderCosts.Count-eq0-and$cast.Count-eq0-and$spend.Count-eq0) 'refused Swift input still committed, cast or spent'
- if($Tb){Need (Test-KmcStagedClose $After.rider.swift $before.rider.swift 'swift') 'refused Swift input changed Swift debt'}
- else {Need ((Get-KmcStagedNumber $After.rider.swift 'swift')-le(Get-KmcStagedNumber $before.rider.swift 'swift')+.001) 'refused Swift input increased Swift debt'}
+ # Native turn-based cooldowns of every unit decay with game time while another unit acts (preview.209 stage 38: the rider's
+ # Swift fell 4.000 -> 3.824 across the hostile's turn while its out-of-turn input was refused), so the refused path uses the
+ # same rule in both modes: the rider's Swift debt may fall but never rise without an admitted Swift command.
+ Need ((Get-KmcStagedNumber $After.rider.swift 'swift')-le(Get-KmcStagedNumber $before.rider.swift 'swift')+.001) 'refused Swift input increased Swift debt'
  Need ($After.slotAvailable-eq$true) 'refused Swift input spent the memorized slot'
  return 'refused'
 }

@@ -154,6 +154,25 @@ $r=New-CastingRow 'C6C-rider-incapacity' $true $true;$r.evidence.costEvents=@($r
 $r=New-CastingRow 'C6C-rider-incapacity' $true $true;@($r.evidence.costEvents|Where-Object {$_.boundary-ceq'turn-end-before'-and$_.state.actor-ceq'mount'})[0].state.standard=3.0;Reject $r 'mount charged before the paired turn end refused' $true
 $r=New-CastingRow 'C6C-rider-incapacity' $true $true;$r.evidence.after.mount.standard=6.5;Reject $r 'settled mount debt above the paired turn-end value refused' $true
 $r=New-CastingRow 'C6C-mount-incapacity' $true $true;Accept $r $true;Check $true 'turn-based mount incapacity row accepts the native paired turn end'
+# Preview.209 stage 42 (unmounted TB): the separately turned mount's own native Prepare of its next turn, with the Cooldowns.Clear
+# it nests, landed inside the rider's incapacity window; the engine's turn ownership is accepted, while a partner clear nested
+# anywhere else (its combat-exit window, a bare clear, a Prepare replayed on the row's own turn) stays refused.
+function Add-PartnerClear($r,[string]$nest,[bool]$laterTurn){
+ $m=Copy-CastingFixture $r.evidence.before.mount;$t=$(if($laterTurn){'next-turn'}else{$null})
+ function Ev([string]$b){[pscustomobject]@{boundary=$b;command=0;turn=$t;state=$m}}
+ $ev=@()
+ switch($nest){ 'prepare' {$ev+=Ev 'prepare-before'} 'combat' {$ev+=Ev 'combat-clear-before'} }
+ $ev+=Ev 'clear-before';$ev+=Ev 'clear-after'
+ switch($nest){ 'prepare' {$ev+=Ev 'prepare-after'} 'combat' {$ev+=Ev 'combat-clear-after'} }
+ $r.evidence.costEvents=@($r.evidence.costEvents)+$ev;$r
+}
+function RejectWhy($row,[string]$why,[string]$expected,[bool]$tb,[bool]$mounted){$msg='';try{Accept $row $tb $mounted}catch{$msg=$_.Exception.Message};Check ($msg-clike('*'+$expected+'*')) $why}
+foreach($mounted in @($false,$true)){
+ $r=Add-PartnerClear (New-CastingRow 'C6C-rider-incapacity' $true $mounted) 'prepare' $true;Accept $r $true $mounted;Check $true ('turn-based partner clear nested in its own later native Prepare is the engine''s turn ownership mounted='+$mounted)
+ $r=Add-PartnerClear (New-CastingRow 'C6C-rider-incapacity' $true $mounted) 'combat' $true;RejectWhy $r ('turn-based partner clear nested in a combat-exit window is residue mounted='+$mounted) 'partner cooldowns cleared during the subject incapacity' $true $mounted
+ $r=Add-PartnerClear (New-CastingRow 'C6C-rider-incapacity' $true $mounted) 'none' $true;Reject $r ('turn-based bare partner clear is refused mounted='+$mounted) $true
+ $r=Add-PartnerClear (New-CastingRow 'C6C-rider-incapacity' $true $mounted) 'prepare' $false;RejectWhy $r ('turn-based partner clear nested in a Prepare on the row''s own turn is a replay mounted='+$mounted) 'pair preparation replayed in cast window' $true $mounted
+}
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.after.shell.finished=$false;Reject $r 'lost spell cannot leave its shell live'
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.after.items[1].count=10;Reject $r 'lost scroll charge must decrement the exact stack in place'
 $r=New-CastingRow 'C6C-rider-incapacity' $false $true;$r.evidence.events+=[pscustomobject]@{kind='cast-after';identity=11;actor='rider';process=1;spellFailed=$false;arcaneFailed=$false;ability=[pscustomobject]@{blueprint='5590652e1c2225c4ca30c4a699ab3649'}};Reject $r 'lost spell cannot also deliver a cast'

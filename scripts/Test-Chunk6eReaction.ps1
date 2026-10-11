@@ -117,6 +117,13 @@ $r=New-ReactionRow 'C6E-swift-on-own-turn' $true;$r.evidence.steps[0].swift.abil
 $r=New-ReactionRow 'C6E-swift-on-own-turn' $true;$r.evidence.steps[0].costEvents+=[pscustomobject]@{boundary='cost-after';command=999;actionType='Swift';state=$r.evidence.before.rider};$r.evidence.costEvents=$r.evidence.steps[0].costEvents;Reject $r 'rider debt outside a shell the row admitted is refused'
 # Out-of-turn facts.
 $r=New-ReactionRow 'C6E-swift-out-of-turn' $true;$r.evidence.steps[0].after.rider.swift=6.0;Reject $r 'a refused out-of-turn input that still changed Swift debt is refused'
+# Preview.209 stage 38 (TB): the rider's Swift cooldown decays across the hostile's turn while the out-of-turn input is refused
+# natively (4.000 -> 3.824); the refused path tolerates the decay in both rows and still refuses a rise.
+foreach($name in @('C6E-swift-out-of-turn','C6E-reaction-window')){
+ $actor=$(if($name-ceq'C6E-reaction-window'){$Rider}else{$Hostile})
+ $r=New-ReactionRow $name $true;$s=$r.evidence.steps[0];$b=New-ReactionState 4.0 0.0 $Hostile $null;$s.swift.before=$b;if($null-ne$s.PSObject.Properties['before']){$s.before=$b;$s.afterInput=$b};$s.after=New-ReactionState 3.824 0.0 $actor $true;$r.evidence.after=$s.after;Accept $r $true;Check $true ('turn-based refused Swift input accepts the decayed cooldown '+$name)
+ $r=New-ReactionRow $name $true;$s=$r.evidence.steps[0];$b=New-ReactionState 4.0 0.0 $Hostile $null;$s.swift.before=$b;if($null-ne$s.PSObject.Properties['before']){$s.before=$b;$s.afterInput=$b};$s.after=New-ReactionState 4.3 0.0 $actor $true;$r.evidence.after=$s.after;Reject $r ('turn-based refused Swift input that raised the cooldown is refused '+$name)
+}
 $r=New-ReactionRow 'C6E-swift-out-of-turn' $true;$r.evidence.steps[0].foreignTurnActor=$Rider;$r.evidence.steps[0].swift.turnActor=$Rider;Reject $r 'an out-of-turn row issued on the rider''s own turn is refused'
 $r=New-ReactionRow 'C6E-swift-out-of-turn' $true;$r.evidence.steps[0].after.slotAvailable=$false;Reject $r 'a refused Swift input that spent the slot is refused'
 $r=New-ReactionRow 'C6E-swift-out-of-turn' $true $true;$r.evidence.steps[0].costEvents=@();$r.evidence.costEvents=@();Reject $r 'an admitted out-of-turn Swift command without its native charge is refused'
