@@ -84,13 +84,6 @@ Set-StrictMode -Version Latest
 . (Join-Path $PSScriptRoot 'PersistenceProfileProtection.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceSaveFixtures.ps1')
 . (Join-Path $PSScriptRoot 'PersistenceValidationFixtures.ps1')
-$KmcFrozenProductContext=$null
-$frozenParameters=@('FrozenSourceRoot','FrozenSourceFreezePath','ExpectedFrozenSourceFreezeSha256')
-$boundFrozen=@($frozenParameters | Where-Object {$PSBoundParameters.ContainsKey($_)})
-if($boundFrozen.Count -ne 0) {
-    if($boundFrozen.Count -ne 3) { throw 'Frozen product execution requires the complete source and original-freeze pin set.' }
-    $KmcFrozenProductContext=Get-KmcFrozenProductSource -RepositoryRoot (Get-KmcRepositoryRoot) -SourceRoot $FrozenSourceRoot -FreezePath $FrozenSourceFreezePath -ExpectedFreezeSha256 $ExpectedFrozenSourceFreezeSha256
-}
 if($PSBoundParameters.ContainsKey('PersistenceCase') -and $Scenario -cnotin @('persistence-p07-save','persistence-p07-load','persistence-p02-save','persistence-p02-load','persistence-p03-save','persistence-p03-load','persistence-p04-save','persistence-p04-load','persistence-p05-save','persistence-p05-load','persistence-p06-load')) { throw 'PersistenceCase is restricted to the exact combat scenarios.' }
 if($Scenario -cin @('persistence-p05-save','persistence-p05-load')){
     $slotCases=if($Scenario-ceq'persistence-p05-load'){@('manual','quick','auto','manual-renamed','alternating','queued')}else{@('manual','quick','auto','alternating','queued')}
@@ -130,6 +123,13 @@ if($isObserver-and[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'The
 if(-not$isObserver-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case takes the removal-observer package.'}
 $requestedWhatIf=[bool]$WhatIfPreference
 $WhatIfPreference=$false
+$KmcFrozenProductContext=$null
+$frozenParameters=@('FrozenSourceRoot','FrozenSourceFreezePath','ExpectedFrozenSourceFreezeSha256')
+$boundFrozen=@($frozenParameters | Where-Object {$PSBoundParameters.ContainsKey($_)})
+if($boundFrozen.Count -ne 0) {
+    if($boundFrozen.Count -ne 3) { throw 'Frozen product execution requires the complete source and original-freeze pin set.' }
+    $KmcFrozenProductContext=Get-KmcFrozenProductSource -RepositoryRoot (Get-KmcRepositoryRoot) -SourceRoot $FrozenSourceRoot -FreezePath $FrozenSourceFreezePath -ExpectedFreezeSha256 $ExpectedFrozenSourceFreezeSha256
+}
 $repoRoot=Get-KmcRepositoryRoot
 $labRoot=Get-KmcLabRoot
 $intake=Get-Content -Raw -LiteralPath (Join-Path $labRoot 'environment-intake.json')|ConvertFrom-Json

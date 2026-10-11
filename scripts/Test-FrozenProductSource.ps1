@@ -68,6 +68,27 @@ Check 'archived production retains its identity under a later clean harness' {
     if($actual.source -cne $commit -or $actual.harnessHead -ceq $commit -or $actual.branch -cne 'codex/product') { throw 'Product and harness identities were conflated.' }
 }
 $context=Get-KmcFrozenProductSource @pins
+$entryAst=[Management.Automation.Language.Parser]::ParseFile((Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1'),[ref]$tokens,[ref]$parseErrors)
+$entryStatements=@()
+foreach($statement in $entryAst.EndBlock.Statements) {
+    if($statement -is [Management.Automation.Language.AssignmentStatementAst] -and $statement.Left.Extent.Text -ceq '$repoRoot') { break }
+    if(($statement -is [Management.Automation.Language.AssignmentStatementAst] -and $statement.Left.Extent.Text -cin @('$requestedWhatIf','$WhatIfPreference','$KmcFrozenProductContext','$frozenParameters','$boundFrozen')) -or
+       ($statement -is [Management.Automation.Language.IfStatementAst] -and $statement.Clauses[0].Item1.Extent.Text -ceq '$boundFrozen.Count -ne 0')) { $entryStatements+=@($statement.Extent.Text) }
+}
+if($parseErrors.Count -ne 0 -or $entryStatements.Count -ne 6) { throw 'Actual frozen-source entry boundary was not selected exactly.' }
+$entryPrefix=@'
+[CmdletBinding(SupportsShouldProcess=$true)]
+param([string]$FrozenSourceRoot,[string]$FrozenSourceFreezePath,[string]$ExpectedFrozenSourceFreezeSha256)
+function Get-KmcRepositoryRoot { $repo }
+'@
+$entryScript=[scriptblock]::Create($entryPrefix+"`n"+($entryStatements -join "`n")+"`n"+'[pscustomobject]@{requestedWhatIf=$requestedWhatIf;readOnlyPreference=$WhatIfPreference;context=$KmcFrozenProductContext}')
+Check 'actual WhatIf entry validates archived bytes and preserves the later ShouldProcess request' {
+    $entry=& $entryScript -WhatIf -FrozenSourceRoot $source -FrozenSourceFreezePath $freezePath -ExpectedFrozenSourceFreezeSha256 $pins.ExpectedFreezeSha256
+    if($entry.requestedWhatIf -ne $true -or $entry.readOnlyPreference -ne $false -or $entry.context.source -cne $commit) { throw 'WhatIf preflight either skipped hashing or lost its no-mutation request.' }
+}
+Refuses 'actual WhatIf entry still rejects an incorrect original-freeze hash' {
+    & $entryScript -WhatIf -FrozenSourceRoot $source -FrozenSourceFreezePath $freezePath -ExpectedFrozenSourceFreezeSha256 ('0'*64)
+} 'record changed'
 $packageArguments=@{Context=$context;Manifest=([pscustomobject]$manifest);PackagePath=$package;ManifestPath=$manifestPath;Generator='scripts/Package.ps1';RepositoryRoot=$repo}
 Check 'package admission rechecks the archived product without relabeling it' {
     $actual=Assert-KmcFrozenProductManifest @packageArguments
