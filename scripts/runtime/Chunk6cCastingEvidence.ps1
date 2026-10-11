@@ -39,6 +39,24 @@ function Get-KmcChunk6cPairReplayCount($Costs,[string]$Rider,[string]$Mount) {
  }
  $replays
 }
+# Cooldown clears of the partner of an incapacitated subject that are not nested in the partner's own native preparation
+# of a later turn (prepare-before .. prepare-after under a turn identity other than the row's first event): the engine
+# prepares the separately turned partner itself; every other partner clear inside the window is the residue this reader refuses.
+function Get-KmcChunk6cPartnerClearResidueCount($Costs,[string]$Actor) {
+ $all=@($Costs);if($all.Count-eq0){return 0}
+ $rowTurn=Get-KmcChunk6cEventTurn $all[0];$nativeOpen=$false;$residue=0
+ foreach($c in $all) {
+  if([string]$c.state.actor-cne$Actor){continue}
+  $laterTurn=(Get-KmcChunk6cEventTurn $c)-cne$rowTurn
+  switch -CaseSensitive([string]$c.boundary) {
+   'prepare-before' {$nativeOpen=$laterTurn}
+   'prepare-after' {$nativeOpen=$false}
+   'clear-before' {if(-not$nativeOpen){$residue++}}
+   'clear-after' {if(-not$nativeOpen){$residue++}}
+  }
+ }
+ $residue
+}
 function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$Tb,[bool]$Mounted,$Items=$null) {
  function Need([bool]$ok,[string]$why){if(-not$ok){throw ('6C '+$Row.name+': '+$why)}}
  function Number($v){if($v-isnot[int]-and$v-isnot[long]-and$v-isnot[single]-and$v-isnot[double]-and$v-isnot[decimal]){throw '6C number missing'};$x=[double]$v;if([double]::IsNaN($x)-or[double]::IsInfinity($x)){throw '6C nonfinite number'};$x}
@@ -87,7 +105,10 @@ function Assert-KmcChunk6cCastingRow($Row,[string]$Rider,[string]$Mount,[bool]$T
  Need ((Get-KmcChunk6cPairReplayCount $costs $Rider $Mount)-eq0) 'pair preparation replayed in cast window'
  if($life) {
   $partner=if($Row.name-ceq'C6C-rider-incapacity'){$Mount}else{$Rider}
-  Need (@($costs|Where-Object {$_.state.actor-ceq$partner-and$_.boundary-like'*clear*'}).Count-eq0) 'partner cooldowns cleared during the subject incapacity'
+  # A partner clear nested in the partner's own native Prepare of a later turn is the engine's turn ownership, not residue
+  # (preview.209 stage 42, unmounted TB: the separately turned mount received its native Prepare, and the Cooldowns.Clear it
+  # nests, two frames after the rider's turn ended inside the incapacity window; the product wrote nothing).
+  Need ((Get-KmcChunk6cPartnerClearResidueCount $costs $partner)-eq0) 'partner cooldowns cleared during the subject incapacity'
  } else {
   Need (@($costs|Where-Object {$_.state.actor-cin@($Rider,$Mount)-and$_.boundary-like'*clear*'}).Count-eq0) 'pair cooldowns cleared in a settled cast window'
  }

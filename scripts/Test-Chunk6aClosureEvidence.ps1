@@ -364,6 +364,9 @@ Reject 'routes dismounted' { Test-Closure 'combat-mount-routes' { param($r) $c=@
 Reject 'routes staged archive differs' { Test-Closure 'combat-mount-routes' { param($r) $c=@($r|Where-Object kind -CEQ 'routes-write-complete'); $c[2].detail.sha256=('0'*64) } }
 Reject 'unsettled save not deferred' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-deferred')[0]; $d.detail.deferredSaves=0;$d.detail.nativeSaveWaiting=$false } }
 Reject 'unsettled save captured early' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-deferred')[0]; $d.detail.snapshots=1 } }
+# Preview.209 stage 11: the deferred save captured the settled pair inside the settlement frame (settled row snapshots 1).
+Accept 'unsettled save captured in the settlement frame' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-transition-settled')[0]; $d.detail.snapshots=1 } }
+Reject 'unsettled save captured twice at settlement' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-transition-settled')[0]; $d.detail.snapshots=2 } }
 Reject 'unsettled save requested while settled' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-requested')[0]; $d.detail.unsettledShellOwned=$false } }
 Reject 'unsettled save requested without the pending shell' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'rt-unsettled-save-requested')[0]; $d.detail.pendingShell=$null } }
 Reject 'unsettled save without the approach positioning' { Test-Closure 'combat-mount-unsettled-save' { param($r) $d=@($r|Where-Object kind -CEQ 'closure-approach-positioned')[0]; $d.detail.mountDistance=1.8 } }
