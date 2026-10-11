@@ -251,9 +251,20 @@ namespace KingmakerMountedCombat.Diagnostics
             this.horse = horse ?? throw new ArgumentNullException(nameof(horse));
         }
 
+        // Scenarios whose child entry captures the entire disposable party as idle
+        // (CaptureIdleFixturePartyForCleanup) and therefore require the parent to hand
+        // off only after native combat has ended for every member, behind an
+        // exploration preamble Mount. Pinned by Test-ParentHandoffIdleParty.ps1.
+        internal static bool RequiresIdlePartyHandoff(string scenario)
+        {
+            return IsChunk6StagedFamilyScenario(scenario) || IsChunk6cCastingScenario(scenario) || IsChunk6bChargeScenario(scenario) || IsChunk6bChargePathScenario(scenario) || IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) ||
+                IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) ||
+                string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal);
+        }
+
         internal static bool SupportsScenario(string scenario)
         {
-            return IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
+            return IsChunk6StagedFamilyScenario(scenario) || IsChunk6cCastingScenario(scenario) || IsChunk6bChargeScenario(scenario) || IsChunk6bChargePathScenario(scenario) || IsChunk4ChargeScenario(scenario) || IsChunk4PlayScenario(scenario) || IsChunk4CoreScenario(scenario) || IsActorAllocationScenario(scenario) || IsChunk6aCombatMountScenario(scenario) || string.Equals(scenario, RealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, UnmountedAttackControlsScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gRealTimeScenario, StringComparison.Ordinal) ||
                 string.Equals(scenario, Phase3gTurnBasedScenario, StringComparison.Ordinal) ||
@@ -302,10 +313,20 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 throw new InvalidOperationException("Loaded game, selection, and exact Horse pair bodies are required.");
             }
-            if (!pairAlreadyMounted)
+            if (!pairAlreadyMounted && !IsChunk6aCombatMount && !IsCastingFixtureFamily)
             {
                 throw new InvalidOperationException(
                     "Phase 3D Horse qualification requires the exact Horse pair already mounted through the parent native out-of-combat flow.");
+            }
+            // A preamble Mount admitted while native combat was already running adopted
+            // that encounter and paid a combat Move; it is not the out-of-combat flow
+            // this child requires, so the mismatch is refused here with its exact reason
+            // instead of surfacing later as an idle-party refusal.
+            if (pairAlreadyMounted && RequiresIdlePartyHandoff(request.Scenario) &&
+                string.Equals(playerAction.LastRelationshipDispatchAdmission, "VoluntaryCombat", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "Phase 3D Horse qualification requires an exploration preamble Mount; the parent's last native Mount dispatch was admitted as VoluntaryCombat.");
             }
 
             originalPause = game.IsPaused;
@@ -346,7 +367,19 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["overlayPresent"] = playerAction.OverlayPresent
             };
             observations["initialSelection"] = new JArray(originalSelection.Select(item => item.UniqueId));
+            observations["parentPreambleMountAdmission"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>";
+            // The structured handoff snapshot replaces the bare admission string as the
+            // child's qualification evidence. The producer checks only its internal integrity;
+            // which admission mode and party state a child requires is the external validator's.
+            var childEntryPreamble = CaptureChildEntryPreamble(pairAlreadyMounted);
+            observations["childEntryPreamble"] = childEntryPreamble;
+            ChildEntryPreambleEvidence.AssertStructure(childEntryPreamble, request.Scenario, pairAlreadyMounted);
 
+            if (IsChunk6aCombatMount) { BeginChunk6aCombatMount(); return; }
+            if (IsChunk6cCasting) { BeginChunk6cCasting(); return; }
+            if (IsChunk6StagedFamily) { BeginChunk6Staged(); return; }
+            if (IsChunk6bCharge) { BeginChunk6bCharge(); return; }
+            if (IsChunk6bChargePath) { BeginChunk6bChargePath(); return; }
             if (IsChunk4Charge) { BeginChunk4Charge(); return; }
             if (IsChunk4Sustained) { BeginChunk4Sustained(); return; }
             if (IsChunk4PairedPlay) { BeginChunk4PairedPlay(); return; }
@@ -387,6 +420,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (IsUnmountedAttackControls)
             {
                 CaptureIdleFixturePartyForCleanup();
+                BeginChunk6aRepeatedDismountObservation();
                 BeginTarget(TargetDistance, "unmounted-control-dismount");
                 BeginRtCombatDismount();
                 return;
@@ -421,7 +455,11 @@ namespace KingmakerMountedCombat.Diagnostics
                             ? horseAttack.NativeSequenceStarted ? "-horse-strike-recovery" : "-horse-approach"
                             : "-rider") : null) : step.ToString());
                 targetService?.ObserveTargetLifeState();
-                targetService?.RefreshBidirectionalCombatMemoryLease();
+                // The refresh result used to be discarded. It is the only thing keeping the
+                // diagnostic encounter alive, and a Chunk 6A run lost combat mid-scenario with
+                // nothing recording why, so the outcome is now observed rather than assumed.
+                var combatMemoryRefreshed = targetService?.RefreshBidirectionalCombatMemoryLease();
+                if (IsChunk6aCombatMount) { ObserveChunk6aEncounterLiveness(combatMemoryRefreshed); }
                 var scenarioBudget = IsActorAllocation ? 600.0d : IsOrdinaryAttackControls ? OrdinaryScenarioDeadlineSeconds : ScenarioDeadlineSeconds;
                 if (!cleanupStarted && clock.Elapsed.TotalSeconds > scenarioBudget)
                 {
@@ -431,14 +469,20 @@ namespace KingmakerMountedCombat.Diagnostics
                 else if (!cleanupStarted && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     observations["leafDeadlineProgress"] = CaptureLeafDeadlineProgress();
-                    FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
+                    if (!CaptureChunk6aStopDeadline() && !CaptureChunk6aLifecycleBoundaryDeadline() && !CaptureChunk6aReplacementDeadline() && !CaptureChunk6aRepeatedRequestDeadline() && !CaptureChunk6aOwnershipDeadline() && !CaptureChunk6aApproachInvalidationDeadline() && !CaptureChunk6aTurnBoundaryDeadline() && !CaptureChunk6aEligibilityDeadline() && !CaptureChunk6aObstructionDeadline())
+                        FailCurrent("phase3d-horse-leaf-deadline", "Phase 3D Horse tranche leaf exceeded 30 seconds at " + step + ".");
                     BeginCleanup();
                 }
 
                 switch (step)
                 {
                     case Phase3dHorseStep.Phase3gControls:
-                        if (IsChunk4Charge) TickChunk4Charge();
+                        if (IsChunk6aCombatMount) TickChunk6aCombatMount();
+                        else if (IsChunk6cCasting) TickChunk6cCasting();
+                        else if (IsChunk6StagedFamily) TickChunk6Staged();
+                        else if (IsChunk6bCharge) TickChunk6bCharge();
+                        else if (IsChunk6bChargePath) TickChunk6bChargePath();
+                        else if (IsChunk4Charge) TickChunk4Charge();
                         else if (IsChunk4Sustained) TickChunk4Sustained();
                         else if (IsChunk4PairedPlay) TickChunk4PairedPlay();
                         else if (IsChunk4NativeLife) TickChunk4NativeLife();
@@ -648,7 +692,14 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception)
             {
                 logger.Exception("Phase 3D Horse tranche", exception);
-                FailCurrent("phase3d-horse-runtime-exception", exception.GetType().Name + ": " + exception.Message);
+                if (observations["firstRuntimeException"] == null)
+                {
+                    observations["firstRuntimeException"] = new JObject { ["exception"] = exception.ToString(),
+                        ["step"] = step.ToString(), ["cleanupStarted"] = cleanupStarted, ["frame"] = frame,
+                        ["commandObserver"] = chunk6aCommandWindow?.Capture(), ["pathObserver"] = chunk6aPath?.Capture(),
+                        ["approachPathObserver"] = chunk6aApproachPath?.Capture() };
+                }
+                FailCurrent(Chunk6aObstructionActive ? "CM02-obstruction" : "phase3d-horse-runtime-exception", exception.GetType().Name + ": " + exception.Message);
                 BeginCleanup();
             }
         }
@@ -694,6 +745,28 @@ namespace KingmakerMountedCombat.Diagnostics
                 controller?.WaitingForUI?.GuardCount ?? -1;
             combatMountNativeTickLastCurrentTurnUnitId = turn?.Unit?.UniqueId;
             combatMountNativeTickLastCurrentTurnStatus = turn?.Status.ToString();
+        }
+
+        private readonly InterruptedEvidenceFinalizer interruptedEvidence = new InterruptedEvidenceFinalizer();
+
+        internal void CaptureChargeHostInterruption()
+        {
+            if (!IsChunk6bCharge || completed || disposed) return;
+            interruptedEvidence.Capture(
+                () => AddRow("phase3d-horse-host-interrupted", false,
+                    "The host interrupted this charge cohort before its selected rows completed.", new JObject {
+                        ["step"] = step.ToString(), ["caseIndex"] = chunk6bChargeCase,
+                        ["case"] = chunk6bChargeCase < Chunk6bChargeCases.Length ? Chunk6bChargeCaseId : null,
+                        ["chargeStage"] = chunk6bChargeStage, ["elapsedSeconds"] = clock.Elapsed.TotalSeconds,
+                        ["lastInput"] = chunk6bChargeInput?.DeepClone(),
+                        ["samples"] = chunk6bChargeSamples.DeepClone(),
+                        ["completeRows"] = rows.Count, ["cleanupProven"] = false }),
+                BestEffortCleanup,
+                exception => AddCleanupError("interrupted child cleanup", exception),
+                WriteEvidence);
+            // Terminal FAILED evidence, not a claim that asynchronous cleanup completed.
+            // The production charge owner remains responsible for every unresolved step.
+            completed = true;
         }
 
         public void Dispose()
@@ -808,7 +881,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 throw new InvalidOperationException("Phase 3D target lease is already active.");
             }
             targetService = new DiagnosticCombatTargetService(
-                logger, repeatedNativeSequences: IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
+                logger, repeatedNativeSequences: IsCastingFixtureFamily || IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsPairedAllocation || IsPhase3hLoop && !Phase3gTurnBased);
             var point = position ?? FindWalkablePoint(rider.Position, distance, distance >= 10f ? 1.0f : 0.5f);
             target = targetService.Spawn(rider, horse, point, request.RunId + "-" + suffix, true, true);
             if (IsPairedAllocation) PreparePairedReactionTarget();
@@ -1971,8 +2044,13 @@ namespace KingmakerMountedCombat.Diagnostics
                 return;
             }
 
+            if (IsUnmountedAttackControls && !ObserveChunk6aRepeatedDismountCancellation()) return;
             rtCombatDismountBefore = combat.CaptureUnifiedTurnSnapshot();
-            if (!TryNativeAbilityTargetClick(nativeControls.DismountAbility, rider, "rt-combat-dismount"))
+            BeginChunk6aRepeatedDismountCommand();
+            var dismountClicked = TryNativeAbilityTargetClick(
+                nativeControls.DismountAbility, rider, "rt-combat-dismount");
+            ObserveChunk6aRepeatedDismountClick(dismountClicked);
+            if (!dismountClicked)
             {
                 FailCurrent("unmounted-stock-attack-control", "Native Dismount was not admitted before unmounted stock controls.");
                 BeginCleanup();
@@ -1986,6 +2064,12 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (relationship.State != RelationshipState.Unmounted || !rider.Commands.Empty || !horse.Commands.Empty)
             {
+                return;
+            }
+            if (IsUnmountedAttackControls && chunk6aCommandWindow?.Terminal != true) return;
+            if (!FinishChunk6aRepeatedDismountObservation())
+            {
+                BeginCleanup();
                 return;
             }
             observations["rtCombatDismountCompletion"] = new JObject
@@ -4746,6 +4830,8 @@ namespace KingmakerMountedCombat.Diagnostics
         private JToken CaptureLeafDeadlineProgress()
         {
             if (IsChunk4Sustained) return CaptureChunk4SustainedProgress();
+            if (IsChunk6cCasting) return CaptureChunk6cCastingDeadlineProgress();
+            if (IsChunk6StagedFamily) return CaptureChunk6StagedDeadlineProgress();
             if (step == Phase3dHorseStep.AwaitNextRiderTurnForMountPrimaryTb ||
                 step == Phase3dHorseStep.AwaitNextRiderTurnForStockMeleeTb ||
                 step == Phase3dHorseStep.AwaitNextRiderTurnForRangedTb ||
@@ -5415,6 +5501,14 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private bool IsDiagnosticRiderAiIsolationScenario()
+        {
+            return string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) ||
+                IsActorAllocation || IsOrdinaryAttackControls || IsUnmountedAttackControls ||
+                IsCastingFixtureFamily || IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge ||
+                IsChunk4Play || IsChunk4Core || IsChunk6aCombatMount;
+        }
+
         private bool PrepareCombatMountRiderAiIsolation()
         {
             try
@@ -5422,8 +5516,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (combatMountRiderAiLease == null)
                 {
                     var selected = SelectionManager.Instance?.SelectedUnits;
-                    if ((!string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal) &&
-                         !IsActorAllocation && !IsOrdinaryAttackControls && !IsUnmountedAttackControls && !IsChunk4Charge && !IsChunk4Play && !IsChunk4Core) ||
+                    if (!IsDiagnosticRiderAiIsolationScenario() ||
                         rider?.Commands == null || horse?.Commands == null || !rider.Commands.Empty ||
                         !horse.Commands.Empty || rider.Group == null || rider.Group != horse.Group ||
                         !rider.IsDirectlyControllable || !IsExactDiagnosticAiIsolationRelationship() ||
@@ -5500,7 +5593,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private bool IsExactDiagnosticAiIsolationRelationship()
         {
             return relationship.State == RelationshipState.Unmounted ||
-                (IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsActorAllocation || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
+                (IsCastingFixtureFamily || IsChunk6bCharge || IsChunk6bChargePath || IsChunk4Charge || IsChunk4Play || IsChunk4Core || IsActorAllocation || IsChunk6aCombatMount || string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal)) &&
                 relationship.State == RelationshipState.Mounted &&
                 relationship.Rider == rider && relationship.Mount == horse;
         }
@@ -5655,10 +5748,58 @@ namespace KingmakerMountedCombat.Diagnostics
             };
         }
 
+        private JObject CaptureNativeInputActor(UnitEntityData actor)
+        {
+            if (actor == null) return null;
+            var result = CaptureOrdinaryActor(actor);
+            var cooldown = actor.CombatState.Cooldown;
+            result["object"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(actor);
+            result["inCombat"] = actor.IsInCombat;
+            result["prepared"] = actor.CombatState.Prepared;
+            result["canAct"] = actor.Descriptor.State.CanAct;
+            result["canActInCombat"] = actor.CombatState.CanActInCombat;
+            result["hasMove"] = actor.HasMoveAction();
+            result["hasStandard"] = actor.HasStandardAction();
+            result["reactions"] = actor.CombatState.AttackOfOpportunityCount;
+            result["reactionsPerRound"] = actor.CombatState.AttackOfOpportunityPerRound;
+            result["reactionCooldown"] = cooldown.AttackOfOpportunity;
+            result["initiativeCooldown"] = cooldown.Initiative;
+            result["initiativeOrder"] = actor.CombatState.Initiative;
+            return result;
+        }
+
+        private JObject CaptureNativeAbilityInputState(BlueprintAbility blueprint)
+        {
+            var game = Game.Instance; var controller = game.TurnBasedCombatController; var turn = controller?.CurrentTurn;
+            var selected = SelectionManager.Instance?.SelectedUnits;
+            var kind = ReferenceEquals(blueprint, nativeControls.MountAbility) ? NativeMountedControlKind.MountCompanion :
+                ReferenceEquals(blueprint, nativeControls.DismountAbility) ? NativeMountedControlKind.Dismount : NativeMountedControlKind.None;
+            var availability = kind == NativeMountedControlKind.None ? null : nativeControls.Evaluate(kind, rider);
+            return new JObject {
+                ["frame"] = Time.frameCount, ["gameTicks"] = game.TimeController.GameTime.Ticks,
+                ["mode"] = game.CurrentMode.ToString(), ["paused"] = game.IsPaused,
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["playerInCombat"] = game.Player.IsInCombat,
+                ["relationshipState"] = relationship.State.ToString(), ["generation"] = relationship.MountedPairGeneration,
+                ["rider"] = CaptureNativeInputActor(rider), ["mount"] = CaptureNativeInputActor(horse),
+                ["selected"] = selected == null ? null : new JArray(selected.Select(unit => new JObject {
+                    ["id"] = unit?.UniqueId, ["object"] = unit == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(unit) })),
+                ["exactSingleRider"] = selected != null && selected.Count == 1 && ReferenceEquals(selected[0], rider),
+                ["controlKind"] = kind.ToString(), ["visible"] = availability?.IsVisible,
+                ["enabled"] = availability?.IsEnabled, ["availabilityReason"] = availability?.Reason,
+                ["round"] = controller?.RoundNumber, ["turnActor"] = turn?.Unit?.UniqueId,
+                ["turnObject"] = turn == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(turn),
+                ["turnStatus"] = turn?.Status.ToString(), ["timeMoved"] = turn?.TimeMoved,
+                ["remainingNativeTime"] = turn?.GetRemainingTime(),
+                ["waitingForUi"] = controller != null && (bool)controller.WaitingForUI,
+                ["pendingNextUnit"] = controller == null ? null : GetPendingNextUnit(controller)?.UniqueId
+            };
+        }
+
         private bool TryNativeAbilityTargetClick(
             BlueprintAbility blueprint,
             UnitEntityData clickedTarget,
-            string observationName)
+            string observationName,
+            Func<JObject> afterSetAbilityObservation = null)
         {
             nativeControls.Update();
             var fact = rider.Descriptor.Abilities.GetAbility(blueprint);
@@ -5666,6 +5807,9 @@ namespace KingmakerMountedCombat.Diagnostics
             var handler = Game.Instance.SelectedAbilityHandler;
             var targetObject = clickedTarget?.View?.gameObject;
             var position = clickedTarget?.Position ?? Vector3.zero;
+            var preInput = CaptureNativeAbilityInputState(blueprint);
+            preInput["abilityAvailableForCast"] = data?.IsAvailableForCast;
+            observations[observationName + "-before-input"] = preInput;
             if (data == null || handler == null || targetObject == null)
             {
                 observations[observationName] = new JObject
@@ -5681,6 +5825,7 @@ namespace KingmakerMountedCombat.Diagnostics
             lastNativeAbilityShell = null;
             var before = nativeControls.CaptureSnapshot();
             handler.SetAbility(data);
+            var afterSetAbility = afterSetAbilityObservation?.Invoke();
             var priority = handler.GetPriority(targetObject, position);
             var resolvedTarget = handler.GetTarget(targetObject, position, data);
             var clicked = handler.OnClick(targetObject, position, 0, false, false);
@@ -5694,7 +5839,7 @@ namespace KingmakerMountedCombat.Diagnostics
             {
                 lastNativeAbilityShell = shell;
             }
-            observations[observationName] = new JObject
+            var inputEvidence = new JObject
             {
                 ["abilityGuid"] = blueprint.AssetGuid,
                 ["clickedTargetId"] = clickedTarget.UniqueId,
@@ -5712,6 +5857,11 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["nativePrimaryShellObservation"] = after.LastNativePrimaryShellObservation,
                 ["nativeShell"] = CaptureNativeAbilityShell(shell)
             };
+            if (afterSetAbility != null)
+            {
+                inputEvidence["afterSetAbility"] = afterSetAbility;
+            }
+            observations[observationName] = inputEvidence;
             handler.DropAbility();
             return clicked;
         }
@@ -5993,6 +6143,22 @@ namespace KingmakerMountedCombat.Diagnostics
             });
         }
 
+        private bool castingFamilyPauseRestored;
+        private void RestoreCastingFamilyPause()
+        {
+            if (castingFamilyPauseRestored) return;
+            castingFamilyPauseRestored = true;
+            var game = Game.Instance;
+            observations["castingCleanupPauseRestore"] = new JObject {
+                ["frame"] = frame, ["pausedBefore"] = game.IsPaused, ["originalPause"] = originalPause,
+                ["nativeControllerInitialized"] = game.TurnBasedCombatController.Initialized,
+                ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(), ["playerInCombat"] = game.Player.IsInCombat,
+                ["partyGroupInCombat"] = (bool)rider.Group.IsInCombat, ["currentMode"] = game.CurrentMode.ToString() };
+            if (game.IsPaused != originalPause) game.IsPaused = originalPause;
+        }
+        private static bool FixtureNativeEncounterPending(bool casting, bool obstruction,
+            bool playerInCombat, bool controllerInitialized, bool turnBased) =>
+            (casting || obstruction) && (playerInCombat || controllerInitialized || turnBased);
         private void BeginCleanup()
         {
             if (cleanupStarted)
@@ -6008,12 +6174,70 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void BestEffortCleanup()
         {
+            if (IsChunk6bCharge)
+            {
+                MountedChargeAdmissionFault.AfterQueue = null;
+                MountedChargeAdmissionFault.BeforeCleanupStep = null;
+                try { CleanupChargeFixturePositioning(); }
+                catch (Exception exception) { AddCleanupError("Chunk 6B native fixture return", exception); }
+                try { RestoreChunk6bChargeSetting(); }
+                catch (Exception exception) { AddCleanupError("Chunk 6B owned setting/condition/mode", exception); }
+            }
+            try { CleanupChunk6aPreCombatPositioning(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A pre-combat ground fixture", exception); }
+            try { CleanupChunk6aNativePointer(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A native pointer input", exception); }
+            try { CleanupChunk6aHotbar(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A hotbar input/UI lease", exception); }
+            // The Chunk 6A diagnostic adoption fault is scenario-owned and must be
+            // disarmed on every abort path so it can never outlive its own row.
+            try
+            {
+                if (chunk6aApproachPath != null) observations["chunk6aApproachPath"] = chunk6aApproachPath.Capture();
+                chunk6aApproachPath?.Dispose(); chunk6aApproachPath = null;
+            }
+            catch (Exception exception) { errors.Add("Chunk 6A approach path observer cleanup: " + exception.Message); }
+            // An ownership abort records its failure first, then owns interruption of only its exact pending command and native reattachment.
+            try { CleanupChunk6aOwnershipChange(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A ownership restoration", exception); }
+            try { CleanupChunk6aEligibilityChanges(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A eligibility-change restoration", exception); }
+            // The approach-invalidation stimuli (in-game flag, authored view lease, cutscene mode, both diagnostic
+            // seams, the death policy lease) are scenario-owned and restored or disarmed on every abort path.
+            try { CleanupChunk6aApproachInvalidation(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A approach-invalidation restoration", exception); }
+            try { CleanupChunk6aTurnBoundary(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A turn-boundary mode restoration", exception); }
+            try { chunk6aCommandWindow?.Dispose(); chunk6aCommandWindow = null; }
+            catch (Exception exception) { errors.Add("Chunk 6A command observer cleanup: " + exception.Message); }
+            try { CleanupChunk6aAutoUse(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A auto-use observer/UI/pause", exception); }
+            try { CleanupChunk6aDismountEscape(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A Dismount escape settings", exception); }
+            try { CleanupChunk6aRefusalInput(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A refusal observer", exception); }
+            try { CleanupChunk6aReplacementInput(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A replacement input observer", exception); }
+            try { CleanupChunk6aStopInput(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A Stop input observer", exception); }
+            try { CleanupChunk6aLifecycleBoundary(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A lifecycle boundary services", exception); }
+            try { CleanupChunk6aObstruction(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A obstruction fixture", exception); }
+            try { Chunk6aDisposeAdoptionFault(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A adoption fault", exception); }
             try { pairedModeProbe?.Dispose(); pairedModeProbe = null; }
             catch (Exception exception) { AddCleanupError("paired mode restoration", exception); }
             try { combat.Cancel("Phase 3D Horse tranche cleanup"); }
             catch (Exception exception) { AddCleanupError("combat", exception); }
             try { combatMountAdjacencyCommand?.Interrupt(); }
             catch (Exception exception) { AddCleanupError("combat Mount adjacency movement", exception); }
+            // The two Chunk 6A approach cases order the Horse away from the rider through its
+            // own ground input, so either order can still be in flight on an abort path.
+            try { chunk6aSeparationCommand?.Interrupt(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A approach separation movement", exception); }
+            try { chunk6aGeometryChangeCommand?.Interrupt(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A geometry-change movement", exception); }
             try { movementCommand?.Interrupt(); }
             catch (Exception exception) { AddCleanupError("movement", exception); }
             try { unmountedCommand?.Interrupt(); }
@@ -6090,8 +6314,16 @@ namespace KingmakerMountedCombat.Diagnostics
             catch (Exception exception) { AddCleanupError("Chunk 4 native character window", exception); }
             try { CleanupChunk4HorseCamera(); }
             catch (Exception exception) { AddCleanupError("Chunk 4 Horse camera", exception); }
+            try { RestoreChunk6aDismountTurn(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A later-turn Dismount observation", exception); }
+            try { RestoreChunk6aMountOrderFixture(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A pre-encounter initiative inputs", exception); }
             try { CleanupActorAllocation(); }
             catch (Exception exception) { AddCleanupError("Actor allocation fixture", exception); }
+            // The unrelated candidate is a disposable party member whose encounter state the
+            // allocation cleanup restores; its initiative lease is released only after that.
+            try { RestoreChunk6aActionEconomyFixture(); }
+            catch (Exception exception) { AddCleanupError("Chunk 6A action-economy fixture", exception); }
             try { pairedAutomaticEndProbe?.Dispose(); pairedAutomaticEndProbe = null; }
             catch (Exception exception) { AddCleanupError("Automatic End input preference", exception); }
             if (ordinaryAttackTrace != null)
@@ -6135,10 +6367,44 @@ namespace KingmakerMountedCombat.Diagnostics
                 AddCleanupError("cleanup poll", exception);
             }
 
-            var obstructionEncounterPending = IsChunk4Obstruction &&
-                (Game.Instance.Player.IsInCombat || Game.Instance.TurnBasedCombatController.Initialized ||
-                 CombatController.IsInTurnBasedCombat());
-            if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored || obstructionEncounterPending ||
+            if (IsCastingFixtureFamily)
+            {
+                try {
+                    if (!(IsChunk6StagedFamily ? DrainStagedFixture() : DrainCastingFixture())) {
+                        observations["castingCleanupPending"] = CastingState();
+                        if (leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds) {
+                            AddRow("phase3d-horse-tranche-cleanup-deadline", false,
+                                "Native casting cleanup remains incomplete; owners retained.", observations["castingCleanupPending"]);
+                            WriteEvidence(); completed = true;
+                        }
+                        return;
+                    }
+                }
+                catch (Exception exception) {
+                    AddCleanupError("Casting fixture drain", exception);
+                    if (leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds) {
+                        AddRow("phase3d-horse-tranche-cleanup-deadline", false,
+                            "Casting drain threw through its bounded retry; exact owners retained.", new JObject { ["error"] = exception.ToString() });
+                        WriteEvidence(); completed = true;
+                    }
+                    return;
+                }
+            }
+            // Turn-based casting-family cleanup (frozen 203/204): with the mode preference restored and the
+            // hostile destroyed, the party stayed in combat for the whole bounded wait. The native join
+            // controller recomputes Player.IsInCombat and the leave controller advances the group's leave
+            // timer only while the default game mode ticks (pinned IL 0x06009360/0x06009366); a pause left by
+            // the turn-based input wait keeps both frozen. The fixture restores the pause state it captured
+            // at setup (the restoration the Mammoth engine performs at Finish) once its own restorations are
+            // done, and the pending record below carries the exact native facts.
+            if (IsCastingFixtureFamily && modeRestored && targetCleanupComplete) RestoreCastingFamilyPause();
+            var chunk6aDoorRestored = true;
+            try { chunk6aDoorRestored = RestoreChunk6aDoor(); }
+            catch (Exception exception) { chunk6aDoorRestored = false; AddCleanupError("Chunk 6A door restoration", exception); }
+            var obstructionEncounterPending = FixtureNativeEncounterPending(IsCastingFixtureFamily, IsChunk4Obstruction,
+                Game.Instance.Player.IsInCombat, Game.Instance.TurnBasedCombatController.Initialized,
+                CombatController.IsInTurnBasedCombat());
+            if (frame <= cleanupFrame || !targetCleanupComplete || !modeRestored || obstructionEncounterPending || !chunk6aDoorRestored ||
                 !unmountedHorseAiLeaseRestored || !combatMountRiderAiLeaseRestored ||
                 relationship.State != RelationshipState.Unmounted)
             {
@@ -6149,12 +6415,24 @@ namespace KingmakerMountedCombat.Diagnostics
                     ["playerInCombat"] = Game.Instance.Player.IsInCombat,
                     ["nativeControllerInitialized"] = Game.Instance.TurnBasedCombatController.Initialized,
                     ["nativeTurnBased"] = CombatController.IsInTurnBasedCombat(),
+                    ["gamePaused"] = Game.Instance.IsPaused, ["originalPause"] = originalPause,
+                    ["currentMode"] = Game.Instance.CurrentMode.ToString(),
+                    ["gameTicks"] = Game.Instance.TimeController.GameTime.Ticks,
+                    ["gameDeltaTime"] = Game.Instance.TimeController.GameDeltaTime,
+                    ["partyGroupInCombat"] = (bool)rider.Group.IsInCombat,
+                    ["partyLeaveCombatTimer"] = rider.Group.LeaveCombatTimer,
+                    ["nativePassing"] = CombatController.IsPassing(),
+                    ["nativeHasEnemyInCombat"] = Game.Instance.TurnBasedCombatController.HasEnemyInCombat,
+                    ["nativeHadEnemyAtSomePoint"] = Game.Instance.TurnBasedCombatController.HadEnemyAtSomePoint,
+                    ["unitsInCombat"] = new JArray(Game.Instance.State.Units.Where(u => u.IsInCombat).Take(12).Select(u => new JObject {
+                        ["actor"] = u.UniqueId, ["group"] = u.GroupId, ["controllable"] = u.IsDirectlyControllable, ["inState"] = u.IsInState })),
+                    ["pauseRestore"] = observations["castingCleanupPauseRestore"]?.DeepClone(),
                     ["mountAiRestored"] = unmountedHorseAiLeaseRestored,
                     ["riderAiRestored"] = combatMountRiderAiLeaseRestored,
                     ["relationship"] = relationship.State.ToString(),
                     ["mountCommandsEmpty"] = horse.Commands.Empty, ["riderCommandsEmpty"] = rider.Commands.Empty,
                     ["mountControllable"] = horse.IsDirectlyControllable, ["riderControllable"] = rider.IsDirectlyControllable };
-                if ((IsPairedAllocation || IsChunk4NativeLife || IsChunk4Obstruction) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
+                if ((IsPairedAllocation || IsChunk4NativeLife || IsChunk4Obstruction || IsChunk6aCombatMount || IsChunk6bCharge || IsCastingFixtureFamily) && leafClock.Elapsed.TotalSeconds > LeafDeadlineSeconds)
                 {
                     cleanupError = true;
                     if (IsChunk4NativeLife)
@@ -6240,8 +6518,13 @@ namespace KingmakerMountedCombat.Diagnostics
         {
             if (motionEvidence != null)
             {
-                motionEvidence.Dispose();
-                observations["phase3fMotionFrames"] = motionEvidence.Snapshot();
+                try {
+                    motionEvidence.Dispose();
+                    observations["phase3fMotionFrames"] = motionEvidence.Snapshot();
+                }
+                catch (Exception exception) {
+                    AddCleanupError("motion evidence closure", exception);
+                }
             }
             if (string.Equals(request.Scenario, TurnBasedScenario, StringComparison.Ordinal))
             {
@@ -6254,7 +6537,7 @@ namespace KingmakerMountedCombat.Diagnostics
             }
             var artifact = new JObject
             {
-                ["schemaVersion"] = IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
+                ["schemaVersion"] = IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,
                 ["evidenceKind"] = EvidenceKind,
                 ["runId"] = request.RunId,
                 ["scenario"] = request.Scenario,
@@ -6376,6 +6659,78 @@ namespace KingmakerMountedCombat.Diagnostics
                 NativeFixtureSelectionRestoration.Expected(originalSelection, NativeLifeFinalDeathSubject).Where(item => item.View != null)
                     .Select(item => item.View),
                 false);
+        }
+
+        // Read-only snapshot of the parent-to-child handoff, captured once at child entry.
+        private JObject CaptureChildEntryPreamble(bool pairAlreadyMounted)
+        {
+            var game = Game.Instance;
+            var controller = game?.TurnBasedCombatController;
+            var ledger = playerAction.TransitionLedger;
+            var mountGuid = nativeControls.MountAbility?.AssetGuid;
+            var dismountGuid = nativeControls.DismountAbility?.AssetGuid;
+            Func<UnitEntityData, int> relationshipCommands = actor => actor.Commands?.Raw == null ? 0 : actor.Commands.Raw.OfType<UnitUseAbility>()
+                .Count(item => item.Spell?.Blueprint?.AssetGuid == mountGuid || item.Spell?.Blueprint?.AssetGuid == dismountGuid);
+            Func<UnitEntityData, JObject> actorState = actor =>
+            {
+                var cooldown = actor.CombatState?.Cooldown;
+                return new JObject
+                {
+                    ["id"] = actor.UniqueId, ["object"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(actor),
+                    ["standard"] = cooldown?.StandardAction ?? 0f, ["move"] = cooldown?.MoveAction ?? 0f, ["swift"] = cooldown?.SwiftAction ?? 0f,
+                    ["initiative"] = cooldown?.Initiative ?? 0f, ["reactionCooldown"] = cooldown?.AttackOfOpportunity ?? 0f,
+                    ["reactions"] = actor.CombatState?.AttackOfOpportunityCount ?? 0, ["prepared"] = actor.CombatState?.Prepared == true,
+                    ["inCombat"] = actor.IsInCombat, ["canAct"] = actor.Descriptor?.State?.CanAct == true,
+                    ["hasMove"] = actor.HasMoveAction(), ["hasStandard"] = actor.HasStandardAction(),
+                    ["commandRunning"] = actor.Commands != null && actor.Commands.IsRunning(),
+                    ["handsBusy"] = actor.AreHandsBusyWithAnimation
+                };
+            };
+            var moveSlot = rider.Commands?.GetCommand(UnitCommand.CommandType.Move);
+            var members = Enumerable.Range(0, rider.Group.Count).Select(index => rider.Group[index]).ToArray();
+            return new JObject
+            {
+                ["contract"] = ChildEntryPreambleEvidence.Contract,
+                ["parentScenario"] = IsCastingFixtureFamily ? request.Scenario : HorseCompanionUnmountedScenarioEngine.ScenarioName,
+                ["parentEngine"] = IsCastingFixtureFamily ? typeof(Chunk6aMammothScenarioEngine).FullName : typeof(HorseCompanionUnmountedScenarioEngine).FullName,
+                ["childScenario"] = request.Scenario, ["childTranche"] = GetType().FullName, ["runId"] = request.RunId,
+                ["sessionObject"] = game?.Player == null ? 0 : System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(game.Player),
+                ["areaGuid"] = game?.CurrentlyLoadedArea?.AssetGuidThreadSafe,
+                ["frame"] = Time.frameCount, ["gameTicks"] = game?.TimeController?.GameTime.Ticks ?? 0L,
+                ["capturedAtUtc"] = DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture),
+                ["riderId"] = rider.UniqueId, ["riderObject"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(rider),
+                ["mountId"] = horse.UniqueId, ["mountObject"] = System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(horse),
+                ["pairAlreadyMounted"] = pairAlreadyMounted,
+                ["relationshipState"] = relationship.State.ToString(), ["relationshipGeneration"] = relationship.MountedPairGeneration,
+                ["relationshipRiderId"] = relationship.Rider?.UniqueId, ["relationshipMountId"] = relationship.Mount?.UniqueId,
+                ["admissionMode"] = playerAction.LastRelationshipDispatchAdmission ?? "<none>",
+                ["admissionModeExplicit"] = playerAction.LastRelationshipDispatchAdmission != null,
+                ["commands"] = new JObject
+                {
+                    ["riderCommandsEmpty"] = rider.Commands.Empty, ["mountCommandsEmpty"] = horse.Commands.Empty,
+                    ["riderRelationshipCommands"] = relationshipCommands(rider), ["mountRelationshipCommands"] = relationshipCommands(horse),
+                    ["riderMoveSlot"] = moveSlot == null ? null : moveSlot.GetType().FullName
+                },
+                ["control"] = new JObject
+                {
+                    ["transitionInFlight"] = nativeControls.HasUnsettledRelationshipTransition,
+                    ["riderOwnsUnsettledShell"] = moveSlot != null && nativeControls.OwnsUnsettledRelationshipShell(moveSlot),
+                    ["shellCount"] = nativeControls.NativeRelationshipShellCount, ["processBindings"] = nativeControls.NativeRelationshipProcessBindingCount,
+                    ["dispatchAccepted"] = nativeControls.DispatchAcceptedCount, ["dispatchRejected"] = nativeControls.DispatchRejectedCount,
+                    ["transitionLedger"] = ledger.Describe(), ["acceptedMountCount"] = ledger.AcceptedMountCount, ["acceptedDismountCount"] = ledger.AcceptedDismountCount,
+                    ["forcedDetachCount"] = ledger.ForcedDetachCount, ["refusedVoluntaryCount"] = ledger.RefusedVoluntaryCount
+                },
+                ["actors"] = new JObject { ["rider"] = actorState(rider), ["mount"] = actorState(horse) },
+                ["party"] = new JObject
+                {
+                    ["playerInCombat"] = game?.Player?.IsInCombat == true, ["members"] = members.Length,
+                    ["membersInCombat"] = members.Count(member => member.IsInCombat),
+                    ["idle"] = members.All(member => member.Commands.Empty),
+                    ["memberIds"] = new JArray(members.Select(member => member.UniqueId))
+                },
+                ["turnBased"] = CombatController.IsInTurnBasedCombat(), ["currentTurnActor"] = controller?.CurrentTurn?.Unit?.UniqueId,
+                ["paused"] = game?.IsPaused == true
+            };
         }
 
         private void AddCleanupError(string scope, Exception exception)
@@ -6645,6 +7000,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private UnitEntityData expectedTarget;
         private bool forcePairHit;
         private bool disposed;
+        internal event Action<string, RuleAttackWithWeapon> NativeAttackObserved;
 
         internal Phase3dCombatRuleProbe(UnitEntityData rider, UnitEntityData mount)
         {
@@ -6778,6 +7134,8 @@ namespace KingmakerMountedCombat.Diagnostics
 
         public void OnEventAboutToTrigger(RuleAttackWithWeapon evt)
         {
+            if (evt?.Target == expectedTarget && (evt.Initiator == rider || evt.Initiator == mount))
+                NativeAttackObserved?.Invoke("attack-before", evt);
         }
 
         public void OnEventDidTrigger(RuleAttackWithWeapon evt)
@@ -6836,6 +7194,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 ["attacksCount"] = evt.AttacksCount,
                 ["weaponGuid"] = evt.Weapon?.Blueprint?.AssetGuid
             });
+            NativeAttackObserved?.Invoke("attack-after", evt);
         }
 
         public void OnEventAboutToTrigger(RuleAttackWithWeaponResolve evt) { }
@@ -6843,8 +7202,10 @@ namespace KingmakerMountedCombat.Diagnostics
         public void OnEventDidTrigger(RuleAttackWithWeaponResolve evt)
         {
             if (evt?.Target != expectedTarget || evt.AttackWithWeapon.IsAttackOfOpportunity) { return; }
+            if (evt.Initiator != rider && evt.Initiator != mount) return;
             if (evt.Initiator == rider) { RiderResolvedCount++; }
             if (evt.Initiator == mount) { MountResolvedCount++; }
+            NativeAttackObserved?.Invoke("attack-resolved", evt.AttackWithWeapon);
         }
 
         public void OnEventAboutToTrigger(RuleAttackRoll evt)

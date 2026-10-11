@@ -23,7 +23,18 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-companion-unmounted-suite",
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
-            "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb", "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-ground-arrival-rt", "chunk4-horse-strike-comparison-rt", "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb", "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb", "chunk4-charge-safety-rt", "chunk4-charge-safety-tb", "actor-allocation-rider-first-tb", "actor-allocation-mount-first-tb", "actor-allocation-rider-first-unmounted-tb", "actor-allocation-mount-first-unmounted-tb", "ordinary-attack-controls-tb", "unmounted-attack-controls-rt", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
+            "chunk6a-mount-preamble",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb",
+            "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
+            "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
+            "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",
+            "chunk6a-mammoth-mount-rt", "chunk6a-mammoth-mount-tb", "chunk6a-paused-queue", "chunk6a-refused-policy-disabled","chunk6a-refused-foreign-companion","chunk6a-refused-wrong-creature-target","chunk6a-refused-mount-selected","chunk6a-refused-multiple-selection","chunk6a-refused-foreign-selection", "chunk6a-mount-approach", "chunk6a-geometry-change", "chunk6a-obstruction", "chunk6a-stop-approach", "chunk6a-combat-end-approach", "chunk6a-disable-approach", "chunk6a-command-replacement", "chunk6a-repeated-mount-request", "chunk6a-ownership-change", "chunk6a-size-form-change", "chunk6a-lost-direct-control", "chunk6a-rider-incapacitated", "chunk6a-mount-incapacitated", "chunk6a-hotbar-approach", "chunk6a-allocation-rider-first-tb","chunk6a-allocation-mount-first-tb","chunk6a-dismount-feature-disabled-rt","chunk6a-dismount-policy-disabled-rt","chunk6a-auto-use-mount-rt","chunk6a-auto-use-dismount-rt",
+            "chunk6a-adoption-compensation-rt", "chunk6a-adoption-compensation-tb",
+            "chunk6a-left-area", "chunk6a-view-agent-lost", "chunk6a-loading-cutscene", "chunk6a-generation-change",
+            "chunk6a-injected-exception", "chunk6a-rider-death-approach", "chunk6a-mount-death-approach",
+            "chunk6a-turn-end-approach-tb", "chunk6a-mode-exit-tb",
+            "chunk6a-mount-spent-move-tb", "chunk6a-mount-spent-standard-tb", "chunk6a-mount-spent-all-tb", "chunk6a-rider-without-move-tb", "chunk6a-rider-other-action-tb", "chunk6a-unrelated-candidate-between-tb", "chunk6a-dismount-after-rider-expenditure-tb", "chunk6a-dismount-after-mount-expenditure-tb", "chunk6a-dismount-immediately-after-mount-tb",
+            "chunk6a-combat-mount-rt", "chunk6a-combat-mount-tb", "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb", "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-ground-arrival-rt", "chunk4-horse-strike-comparison-rt", "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb", "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb", "chunk4-charge-safety-rt", "chunk4-charge-safety-tb", "actor-allocation-rider-first-tb", "actor-allocation-mount-first-tb", "actor-allocation-rider-first-unmounted-tb", "actor-allocation-mount-first-unmounted-tb", "ordinary-attack-controls-tb", "unmounted-attack-controls-rt", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
             "phase3d-unified-combat-tb-suite",
             "phase3d-horse-presentation-suite",
             "player-action-availability",
@@ -131,6 +142,13 @@ namespace KingmakerMountedCombat.Diagnostics
 
         // Cross-area cases declare their destination up front so the isolated
         // save authority can pin post-transition writes to that exact area.
+        internal static bool IsChargeLifecycleCase(string persistenceCase) => Array.IndexOf(new[] {
+            "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal" }, persistenceCase) >= 0;
+
+        // Chunk 6 closeout P04 checkpoints on the real-time combat Mount foundation flow (RuntimePersistenceClosureScenario).
+        internal static bool IsClosurePersistenceCase(string persistenceCase) => Array.IndexOf(new[] {
+            "combat-mount-routes", "combat-mount-unsettled-save", "combat-mount-area-reload", "pending-mount-area" }, persistenceCase) >= 0;
+
         internal static bool IsCrossAreaCase(string persistenceCase) =>
             persistenceCase == "area-cross-entry" || persistenceCase == "area-cross-exit";
 
@@ -318,19 +336,19 @@ namespace KingmakerMountedCombat.Diagnostics
             var p03 = Scenario == "persistence-p03-save" || Scenario == "persistence-p03-load";
             var p05 = Scenario == "persistence-p05-save" || Scenario == "persistence-p05-load";
             var p04 = Scenario == "persistence-p04-save" || Scenario == "persistence-p04-load";
-            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "absent-kmc", "removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
+            if (p07 ? Array.IndexOf(new[] { "timeout", "cancel-wait", "locked-replace", "serialization-cancel", "serialization-cancel-output", "disable-reenable", "campaign-b", "prepare-removal", "disable-during-load", "mounted-charge-area", "mounted-charge-session", "mounted-charge-disable", "mounted-charge-removal", "absent-kmc", "removal-no-dll", "mounted-charge-removal-no-dll", "rider-death", "mount-death", "rider-size-change", "area-reload", "area-cross-entry", "area-cross-exit", "area-cross-entry-auto", "area-cross-exit-auto" }, PersistenceCase) < 0 :
                 p06 ? Array.IndexOf(new[] { "legacy", "schema1", "future", "malformed", "profile", "campaign", "foreign-header-campaign", "missing-rider", "missing-mount", "mismatched-profile", "policy", "combat-missing", "combat-ai", "failed-area-load" }, PersistenceCase) < 0 :
                 p05 ? Array.IndexOf(Scenario == "persistence-p05-load" ?
                 new[] { "manual", "quick", "auto", "manual-renamed", "alternating", "queued" } : new[] { "manual", "quick", "auto", "alternating", "queued" }, PersistenceCase) < 0 :
-                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
+                p04 ? Array.IndexOf(new[] { "unmounted-spent", "mounted-spent", "unmounted-attack", "mounted-attack", "unmounted-projectile", "mounted-projectile", "unmounted-approach", "mounted-approach", "unmounted-casting", "mounted-casting", "mounted-casting-items", "combat-mount-rt", "combat-dismount-rt", "mounted-charge-pending", "mounted-charge-settled", "mounted-charge-cancelled", "mounted-charge-failed", "mounted-charge-drained", "combat-mount-routes", "combat-mount-unsettled-save", "combat-mount-area-reload", "pending-mount-area" }, PersistenceCase) < 0 : p03 ? Array.IndexOf(new[] { "step", "conversion", "round-effect", "reaction", "condition", "condition-preparing", "suspended" }, PersistenceCase) < 0 :
                 PersistenceCase != null && (Scenario != "persistence-p02-save" && Scenario != "persistence-p02-load" ||
-                Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end" }, PersistenceCase) < 0))
+                Array.IndexOf(new[] { "partial-movement", "rider-spent", "between-partner-orders", "exhausted", "explicit-end", "combat-mount-tb", "casting-items" }, PersistenceCase) < 0))
                 errors.Add("Persistence case is outside its exact combat checkpoint contract.");
             // Removal preparation and disable-during-load write and probe a live
             // world; the integration-absent case only ever opens a cleanup archive.
-            if (Scenario == "persistence-p07-load" && (PersistenceCase == "prepare-removal" || PersistenceCase == "disable-during-load"))
+            if (Scenario == "persistence-p07-load" && (PersistenceCase == "prepare-removal" || PersistenceCase == "disable-during-load" || IsChargeLifecycleCase(PersistenceCase)))
                 errors.Add("A removal or disable-during-load case is save-only.");
-            if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll"))
+            if (Scenario == "persistence-p07-save" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll")))
                 errors.Add("The integration-absent and no-DLL cases are cold-load only.");
             if (Scenario == "persistence-p07-load" || Scenario == "persistence-p01-load" || Scenario == "persistence-p02-load" || Scenario == "persistence-p03-load" || Scenario == "persistence-p04-load" || Scenario == "persistence-p05-load" || p06)
             {
@@ -341,7 +359,7 @@ namespace KingmakerMountedCombat.Diagnostics
                         IsTransitionAutoCase(PersistenceCase);
                     // The integration-absent cold load opens the cleanup archive a
                     // prepare-removal run wrote, under that archive's own name.
-                    var cleanup = Scenario == "persistence-p07-load" && (PersistenceCase == "absent-kmc" || PersistenceCase == "removal-no-dll");
+                    var cleanup = Scenario == "persistence-p07-load" && (PersistenceCase == "absent-kmc" || (PersistenceCase == "removal-no-dll" || PersistenceCase == "mounted-charge-removal-no-dll"));
                     // A death cold load opens the no-pair archive a death run wrote.
                     var death = Scenario == "persistence-p07-load" && IsDeathCase(PersistenceCase);
                     // An eligibility cold load opens the no-pair archive a size-change run wrote.
@@ -695,6 +713,15 @@ namespace KingmakerMountedCombat.Diagnostics
             "C4-SUSTAINED-TB-mount-exhausted",
             "C4-SUSTAINED-TB-early-end",
             "C4-SUSTAINED-TB-after-early-end",
+            "C6D-move-cast-move", "C6D-cast-then-move", "C6D-double-move-ranged", "C6D-movement-exhausted", "C6D-auto-stop-boundary",
+            "C6E-swift-on-own-turn", "C6E-swift-out-of-turn", "C6E-attack-on-mount-observed", "C6E-reaction-window",
+            "C6C-quickened-self", "C6C-standard-self", "C6C-standard-friendly", "C6C-standard-hostile", "C6C-prepared-interrupt-after", "C6C-scroll-interrupt-after", "C6C-invalid-target", "C6C-cancel-before", "C6C-interrupt-before", "C6C-potion-self", "C6C-scroll-friendly", "C6C-full-round", "C6C-movement-policy", "C6C-rider-incapacity", "C6C-mount-incapacity", "C6C-under-threat",
+            "C6B-CHARGE-default-off", "C6B-CHARGE-positive", "C6B-CHARGE-below-minimum",
+            "C6B-CHARGE-spent-standard", "C6B-CHARGE-stock-rejected",
+            "C6B-CHARGE-interrupted", "C6B-CHARGE-combat-ended", "C6B-CHARGE-obstructed-line", "C6B-CHARGE-cancelled",
+            "C6B-CHARGE-blocked-clearance", "C6B-CHARGE-exception-cleanup", "C6B-CHARGE-target-moved",
+            "C6B-CHARGE-target-lost", "C6B-CHARGE-rider-incapacitated", "C6B-CHARGE-mount-incapacitated",
+            "C6B-PATH-straight-arrival", "C6B-PATH-interrupt-stop",
             "C4-CHARGE-mounted-rider", "C4-CHARGE-unmounted-rider",
             "C4-CHARGE-mounted-mount", "C4-CHARGE-unrelated-actor", "C4-CHARGE-queued-state-change",
             "C01-B", "C01-C", "C01-D",
@@ -710,7 +737,30 @@ namespace KingmakerMountedCombat.Diagnostics
             "horse-companion-unmounted-suite",
             "horse-mounted-alpha-suite",
             "horse-native-controls-ux-suite",
-            "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb", "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-ground-arrival-rt", "chunk4-horse-strike-comparison-rt", "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb", "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb", "chunk4-charge-safety-rt", "chunk4-charge-safety-tb", "actor-allocation-rider-first-tb", "actor-allocation-mount-first-tb", "actor-allocation-rider-first-unmounted-tb", "actor-allocation-mount-first-unmounted-tb", "ordinary-attack-controls-tb", "unmounted-attack-controls-rt", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
+            "chunk6a-mount-preamble",
+            "chunk6c-casting-rt", "chunk6c-casting-tb", "chunk6c-casting-unmounted-rt", "chunk6c-casting-unmounted-tb",
+            "chunk6d-staged-rt", "chunk6d-staged-tb", "chunk6e-reaction-rt", "chunk6e-reaction-tb",
+            "chunk6b-charge-rt","chunk6b-charge-core-rt","chunk6b-charge-interruption-rt","chunk6b-charge-lifecycle-rt", "chunk6b-charge-tb",
+            "chunk6b-charge-path-rt", "chunk6b-charge-path-tb",
+            "chunk6a-mammoth-mount-rt", "chunk6a-mammoth-mount-tb", "chunk6a-paused-queue", "chunk6a-refused-policy-disabled","chunk6a-refused-foreign-companion","chunk6a-refused-wrong-creature-target","chunk6a-refused-mount-selected","chunk6a-refused-multiple-selection","chunk6a-refused-foreign-selection", "chunk6a-mount-approach", "chunk6a-geometry-change", "chunk6a-obstruction", "chunk6a-stop-approach", "chunk6a-combat-end-approach", "chunk6a-disable-approach", "chunk6a-command-replacement", "chunk6a-repeated-mount-request", "chunk6a-ownership-change", "chunk6a-size-form-change", "chunk6a-lost-direct-control", "chunk6a-rider-incapacitated", "chunk6a-mount-incapacitated", "chunk6a-hotbar-approach", "chunk6a-allocation-rider-first-tb","chunk6a-allocation-mount-first-tb","chunk6a-dismount-feature-disabled-rt","chunk6a-dismount-policy-disabled-rt","chunk6a-auto-use-mount-rt","chunk6a-auto-use-dismount-rt",
+            "chunk6a-adoption-compensation-rt", "chunk6a-adoption-compensation-tb",
+            "chunk6a-left-area", "chunk6a-view-agent-lost", "chunk6a-loading-cutscene", "chunk6a-generation-change",
+            "chunk6a-injected-exception", "chunk6a-rider-death-approach", "chunk6a-mount-death-approach",
+            "chunk6a-turn-end-approach-tb", "chunk6a-mode-exit-tb",
+            "chunk6a-mount-spent-move-tb", "chunk6a-mount-spent-standard-tb", "chunk6a-mount-spent-all-tb", "chunk6a-rider-without-move-tb", "chunk6a-rider-other-action-tb", "chunk6a-unrelated-candidate-between-tb", "chunk6a-dismount-after-rider-expenditure-tb", "chunk6a-dismount-after-mount-expenditure-tb", "chunk6a-dismount-immediately-after-mount-tb",
+            "chunk6a-combat-mount-rt", "chunk6a-combat-mount-tb", "chunk4-rider-incapacitation-tb", "chunk4-rider-death-tb", "chunk4-mount-death-tb", "chunk4-targeting-rider-rt", "chunk4-targeting-mount-rt", "chunk4-ground-arrival-rt", "chunk4-horse-strike-comparison-rt", "chunk4-targeting-area-unmounted-rt", "chunk4-obstruction-ranged-rt", "chunk4-ranged-native-control-rt", "chunk4-interrupt-melee-rt", "chunk4-interrupt-ranged-rt", "chunk4-inspection-rt", "chunk4-session-rt", "chunk4-session-tb", "chunk4-sustained-melee-rt", "chunk4-sustained-ranged-rt", "chunk4-sustained-tb", "chunk4-charge-safety-rt", "chunk4-charge-safety-tb", "actor-allocation-rider-first-tb", "actor-allocation-mount-first-tb", "actor-allocation-rider-first-unmounted-tb", "actor-allocation-mount-first-unmounted-tb", "ordinary-attack-controls-tb", "unmounted-attack-controls-rt", "phase3h-combat-loop-rt", "phase3h-combat-loop-tb", "phase3g-native-controls-rt", "phase3g-native-controls-tb", "phase3d-unified-combat-rt-suite",
+            "CM01-combat-mount-setup", "CM01-exploration-dismount-costs-nothing",
+            "CM01-native-mammoth-fixture", "CM01-native-mammoth-continuity", "CM01-native-mammoth-child-cleanup",
+            "CM01-native-mammoth-restoration", "CM01-native-mammoth-artifact", "CM01-native-mammoth-interrupted",
+            "CM06-paused-queue", "CM06-combat-mount-requires-qualified-paired-policy","CM02-foreign-companion","CM02-wrong-creature-target","CM06-mount-selected","CM06-multiple-selection","CM06-foreign-selection", "CM01-exploration-free", "CM02-approach-arrival",
+            "CM02-geometry-change", "CM02-obstruction", "CM04-stop-during-approach", "CM04-combat-end", "CM04-disable-unload", "CM04-command-replacement", "CM06-repeated-request", "CM02-ownership-change", "CM02-size-form-change", "CM02-lost-direct-control", "CM02-rider-incapacitated", "CM02-mount-incapacitated", "CM06-hotbar-path", "CM03-rider-before-mount-slot","CM03-mount-slot-before-rider","CM03-next-round-activation","CM05-dismount-survives-feature-policy-disable","CM06-ai-auto-use",
+            "CM01-combat-mount-cancel-costs-nothing", "CM01-combat-mount-accepted",
+            "CM03-combat-mount-conserves-debt", "CM03-combat-mount-adoption-preparations",
+            "CM06-combat-mount-repeat-refused", "CM05-combat-dismount-accepted",
+            "CM05-combat-dismount-conserves-debt", "CM05-no-duplicate-mount-turn", "CM05-forced-detach",
+            "CM02-left-area", "CM02-view-agent-lost", "CM02-loading-cutscene", "CM02-generation-change",
+            "CM04-injected-exception", "CM04-rider-death", "CM04-mount-death", "CM04-turn-end", "CM04-mode-exit",
+            "CM03-mount-spent-move", "CM03-mount-spent-standard", "CM03-mount-spent-all", "CM03-rider-without-move", "CM03-rider-other-action", "CM03-unrelated-candidate-between", "CM05-after-rider-expenditure", "CM05-after-mount-expenditure", "CM05-immediately-after-mount",
             "T01-native-allocation-trace", "A05-native-preparation-callbacks", "T02-native-exhaustion-refresh-trace", "3g-rider-longbow-ordinary", "3g-rider-longbow-primary", "3g-rider-melee-ordinary", "3g-rider-melee-primary",
             "3g-horse-bite-ordinary", "3g-horse-bite-primary", "3g-paused-dismount", "3g-paused-mount-stop",
             "3g-paused-mount-execute", "3g-paused-control-failure",
@@ -770,6 +820,7 @@ namespace KingmakerMountedCombat.Diagnostics
             "phase3d-horse-scenario-deadline",
             "phase3d-horse-leaf-deadline",
             "phase3d-horse-runtime-exception",
+            "phase3d-horse-host-interrupted",
             "player-action-availability",
             "mount-dismount-user-flow",
             "mounted-pair-create-and-clear",

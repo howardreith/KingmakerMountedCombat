@@ -14,6 +14,28 @@ $runtimeEvidenceTestRoot = Assert-KmcChildPath (Join-Path $runtimeEvidenceParent
 $passed = 0
 $failed = 0
 
+# From preview.150 every tranche artifact carries the structured child-entry preamble snapshot;
+# synthetic current-version Phase 3D artifacts carry a consistent synthetic snapshot for their
+# scenario (Chunk 6A children start unmounted, every other child mounted behind an exploration
+# preamble Mount; the disposable party idle; no command, shell, process or dispatch in flight).
+function New-TestChildEntryPreamble([string]$Scenario,[string]$RunId) {
+    $mounted = -not ($Scenario -clike 'chunk6a-*')
+    $actor = { param([string]$Id,[int]$Object) [ordered]@{id=$Id;object=$Object;standard=0.0;move=0.0;swift=0.0;initiative=0.0;reactionCooldown=0.0;reactions=1;prepared=$false;inCombat=$false;canAct=$true;hasMove=$true;hasStandard=$true;commandRunning=$false;handsBusy=$false} }
+    [ordered]@{
+        contract='structured-child-entry-preamble-snapshot';parentScenario='horse-companion-unmounted-suite';parentEngine='KingmakerMountedCombat.Diagnostics.HorseCompanionUnmountedScenarioEngine'
+        childScenario=$Scenario;childTranche='KingmakerMountedCombat.Diagnostics.Phase3dHorseScenarioTranche';runId=$RunId
+        sessionObject=4242;areaGuid='0123456789abcdef0123456789abcdef';frame=120;gameTicks=5000000;capturedAtUtc='2026-10-02T00:00:00.0000000Z'
+        riderId='rider';riderObject=101;mountId='horse';mountObject=102;pairAlreadyMounted=$mounted
+        relationshipState=$(if($mounted){'Mounted'}else{'Unmounted'});relationshipGeneration=3;relationshipRiderId=$(if($mounted){'rider'}else{$null});relationshipMountId=$(if($mounted){'horse'}else{$null})
+        admissionMode=$(if($mounted){'Exploration'}else{'<none>'});admissionModeExplicit=$mounted
+        commands=[ordered]@{riderCommandsEmpty=$true;mountCommandsEmpty=$true;riderRelationshipCommands=0;mountRelationshipCommands=0;riderMoveSlot=$null}
+        control=[ordered]@{transitionInFlight=$false;riderOwnsUnsettledShell=$false;shellCount=2;processBindings=2;dispatchAccepted=2;dispatchRejected=0;transitionLedger='admittedMount=1;acceptedMount=1';acceptedMountCount=1;acceptedDismountCount=$(if($mounted){0}else{1});forcedDetachCount=0;refusedVoluntaryCount=0}
+        actors=[ordered]@{rider=(& $actor 'rider' 101);mount=(& $actor 'horse' 102)}
+        party=[ordered]@{playerInCombat=$false;members=6;membersInCombat=0;idle=$true;memberIds=@('rider','horse','a','b','c','d')}
+        turnBased=$false;currentTurnActor=$null;paused=$false
+    }
+}
+
 function Invoke-HarnessTest {
     param([string]$Name, [scriptblock]$Body)
     try {
@@ -47,6 +69,50 @@ Invoke-HarnessTest 'runtime scenario orchestrator parses before any transaction'
     Assert-Test ($cases.Count-eq1) 'Runtime case parameter has no unique bounded set.'
     foreach($case in @('step','conversion','round-effect','reaction','condition','condition-preparing','suspended')){
         Assert-Test ($cases[0].ValidValues-ccontains$case) ('Runtime parameter rejects declared P03 case: '+$case)
+    }
+}
+
+# Found by running it: chunk6a-combat-mount-rt reached the game, produced 43
+# assertion passes and one real failure, and then the RESULT VALIDATOR rejected the
+# whole run as an unknown subscenario - masking the real failure behind a registry
+# omission. The scenario name had been registered in the save-backed list, the
+# evidence-suite scope and the required-rows switch, but not in the one list
+# Test-RuntimeResult uses as its known-subscenario registry.
+#
+# The guard is the invariant that was actually violated, and it is statically
+# decidable: a scenario the Horse-companion tranche handles reports ITS OWN NAME as a
+# subscenario, so every scenario that tranche accepts must be registered in the one
+# list Test-RuntimeResult uses as its known-subscenario registry. Suite scenarios are
+# deliberately out of scope - they expand into individual row names and never report
+# the suite name itself.
+Invoke-HarnessTest 'every tranche-handled scenario is a registered known subscenario' {
+    $policyPath = Join-Path $PSScriptRoot '..\src\KingmakerMountedCombat\Diagnostics\HorseCompanionRegistrationScenarioPolicy.cs'
+    Assert-Test (Test-Path -LiteralPath $policyPath) 'The tranche scenario policy source is missing.'
+    $policyText = [IO.File]::ReadAllText($policyPath)
+    $handled = @([Regex]::Matches($policyText, 'scenario,\s*"([A-Za-z0-9._-]+)"') | ForEach-Object { $_.Groups[1].Value })
+    Assert-Test ($handled.Count -gt 20) ('The tranche scenario policy yielded too few names: ' + $handled.Count)
+    # The validator's known set is a union of its own literal and the rows list, and
+    # that split is exactly what let a scenario reach the game unregistered. The test
+    # reconstructs the same union, so it fails if either half drifts.
+    $validatorPath = Join-Path $PSScriptRoot 'runtime\Test-RuntimeResult.ps1'
+    $validatorText = [IO.File]::ReadAllText($validatorPath)
+    $literalBlock = [Regex]::Match($validatorText, '(?s)\$missionScenarios = @\((.*?)\r?\n    \)')
+    Assert-Test $literalBlock.Success 'The runtime result validator no longer declares its mission scenario literal.'
+    $literalNames = @([Regex]::Matches($literalBlock.Groups[1].Value, "'([A-Za-z0-9._-]+)'") | ForEach-Object { $_.Groups[1].Value })
+    Assert-Test ($literalNames.Count -gt 40) ('The validator literal yielded too few names: ' + $literalNames.Count)
+    $known = @(Get-KmcPhase3dHorseRuntimeRows) + $literalNames
+    $missing = @($handled | Where-Object { $known -cnotcontains $_ })
+    Assert-Test ($missing.Count -eq 0) ('Tranche scenarios missing from the known-subscenario registry: ' + ($missing -join ', '))
+    $command = Get-Command (Join-Path $PSScriptRoot 'runtime/Invoke-KingmakerRuntimeScenario.ps1')
+    $declared = @($command.Parameters['Scenario'].Attributes | Where-Object { $_ -is [Management.Automation.ValidateSetAttribute] })
+    Assert-Test ($declared.Count -eq 1) 'Runtime scenario parameter has no unique bounded set.'
+    foreach ($scenario in $handled) {
+        Assert-Test ($declared[0].ValidValues -ccontains $scenario) ('Tranche scenario is not accepted by the orchestrator: ' + $scenario)
+    }
+    foreach ($scenario in @('chunk6a-combat-mount-rt','chunk6a-combat-mount-tb')) {
+        Assert-Test ($handled -ccontains $scenario) ('Chunk 6A scenario is not handled by the tranche policy: ' + $scenario)
+        Assert-Test ($known -ccontains $scenario) ('Chunk 6A scenario is not a known subscenario: ' + $scenario)
+        Assert-Test (@(Get-KmcSaveBackedRuntimeScenarios) -ccontains $scenario) ('Chunk 6A scenario is not save-backed: ' + $scenario)
     }
 }
 
@@ -4871,22 +4937,68 @@ try {
             'production synthesizes mounted opportunities or patches broad engagement ownership despite the default-off stretch disposition'
     }
 
-    Invoke-HarnessTest 'basic mounted charge feature remains absent and default-off' {
-        $productionSource = @(
-            Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' |
-                Sort-Object FullName |
-                ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
+    Invoke-HarnessTest 'mounted charge remains scoped and default-off with retained cleanup ownership' {
+        $productionFiles = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'src\KingmakerMountedCombat') -Recurse -File -Filter '*.cs' | Sort-Object FullName)
+        $productionSource = @($productionFiles | ForEach-Object { [IO.File]::ReadAllText($_.FullName) }) -join "`n"
         $patchSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPatchController.cs'))
         # Native identity inspection and safe refusal are authorized in Chunk 4.
-        # This scope guard still forbids manufacturing Charge execution/state;
-        # the new native scenarios, not this source inventory, qualify behavior.
+        # Chunk 6B increment 6B.2 (owner decision of 2026-10-02, section F; mission disposition
+        # PROCEED - BOUNDED) implements the pair-owned charge, so this guard no longer asserts that no charge
+        # surface exists. It asserts the three things that still must hold: the charge surface lives only in
+        # its own dedicated files, the feature is default-off, and the stock charge is never constructed,
+        # patched or replaced. Behaviour is qualified by the native charge rows, never by this inventory.
+        $leaseFiles = @($productionFiles | Where-Object { $_.Name -ceq 'MountedChargeLease.cs' })
+        $pathFiles = @($productionFiles | Where-Object { $_.Name -ceq 'Chunk6bChargePathScenario.cs' })
+        Assert-Test ($leaseFiles.Count -eq 1 -and $leaseFiles[0].DirectoryName.EndsWith('\Integration', [StringComparison]::Ordinal) -and
+            $pathFiles.Count -eq 1 -and $pathFiles[0].DirectoryName.EndsWith('\Diagnostics', [StringComparison]::Ordinal)) 'the Chunk 6B charge lease and measurement files are not exactly one each'
+        $leaseSource = [IO.File]::ReadAllText($leaseFiles[0].FullName)
+        $pathSource = [IO.File]::ReadAllText($pathFiles[0].FullName)
+        $commandSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Integration\MountedPairAttackCommand.cs'))
+        $settingsSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\DiagnosticSettings.cs'))
+        $leasePolicySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\NativeMountedControl.cs'))
+        $safetySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Domain\MountedChargeSafetyPolicy.cs'))
+        # The stock charge component is never constructed, patched or replaced.
         Assert-Test (-not $productionSource.Contains('new AbilityCustomCharge') -and
-            -not $productionSource.Contains('IsCharge = true') -and
-            -not $productionSource.Contains('ChargeBuff') -and
-            -not $productionSource.Contains('IsCharging = true') -and
             -not $patchSource.Contains('PatchExact(typeof(UnitAttack), "set_IsCharge"') -and
-            -not $patchSource.Contains('PatchExact(typeof(AbilityCustomCharge)')) `
-            'production enables a charge surface or patches stock charge ownership despite the default-off stretch disposition'
+            -not $patchSource.Contains('PatchExact(typeof(AbilityCustomCharge)') -and
+            -not $patchSource.Contains('PatchExact(typeof(UnitAttack), "set_IsFullAttack"')) `
+            'production constructs or patches stock charge ownership'
+        # The stock Charge stays rejected while mounted, keyed on the exact stock blueprint and component.
+        Assert-Test ($safetySource.Contains('ChargeBlueprintId = "c78506dd0e14f7c45a599990e4e65038"') -and
+            $safetySource.Contains('exactNativeChargeLogic') -and
+            $safetySource.Contains('state == RelationshipState.Mounted && belongsToPair')) `
+            'the Chunk 4 mounted stock-Charge rejection changed'
+        # The native charge rule flag is stamped in exactly one place, the qualified pair transaction, and only
+        # in charge mode.
+        $chargeFlagFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'IsCharge = true')).Count -gt 0 } | ForEach-Object Name)
+        Assert-Test ((@($chargeFlagFiles) -join '|') -ceq 'MountedPairAttackCommand.cs' -and
+            ([regex]::Matches($commandSource, 'IsCharge = true')).Count -eq 1 -and
+            $commandSource.Contains('if (chargeMode)') -and
+            $commandSource.Contains('chargeLease.Restore();')) `
+            'the native charge rule flag is stamped outside the one charge-mode pair transaction'
+        # Charge buff references stay in the exact lease/lifetime adapters and diagnostics.
+        # Charging-state writes remain restricted to the lease and the restored path measurement.
+        $buffFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'ChargeBuff')).Count -gt 0 } | ForEach-Object Name)
+        $chargingFiles = @($productionFiles | Where-Object { ([regex]::Matches([IO.File]::ReadAllText($_.FullName), 'IsCharging = true')).Count -gt 0 } | ForEach-Object Name | Sort-Object)
+        Assert-Test ((@($buffFiles | Sort-Object) -join '|') -ceq 'Chunk6bChargeLifecycleScenario.cs|Chunk6bChargeScenario.cs|MountedChargeBuffChildren.cs|MountedChargeBuffSurface.cs|MountedChargeEnchantmentFx.cs|MountedChargeLease.cs|MountedPatchController.cs|RuntimePersistenceChargeScenario.cs' -and
+            (@($chargingFiles) -join '|') -ceq 'Chunk6bChargePathScenario.cs|MountedChargeLease.cs' -and
+            ([regex]::Matches($leaseSource, 'IsCharging = true')).Count -eq 2 -and
+            ([regex]::Matches($pathSource, 'IsCharging = true')).Count -eq 1) `
+            'charge buff references or charging-state writes escaped their exact owned surfaces'
+        # The lease restores exactly what it set and refunds nothing.
+        Assert-Test ($leaseSource.Contains('TryRestoreChargingCounter(agent, chargingCounterBefore, ref chargingReleaseObserved)') -and
+            $leaseSource.Contains('agent.IsCharging = false;') -and
+            $leaseSource.Contains('released && (int)ChargingCounterField.GetValue(agent) == before') -and
+            $leaseSource.Contains('agent.MaxSpeedOverride = speedOverrideBefore;') -and
+            $leaseSource.Contains('appliedRiderState.IsCharging = riderChargingBefore;') -and
+            -not $leaseSource.Contains('Cooldown.StandardAction =') -and
+            -not $leaseSource.Contains('Cooldown.MoveAction =')) `
+            'the Chunk 6B charge lease does not restore exactly, or writes a native cooldown'
+        # Default-off: the setting is never initialized true and the control is not leased without it.
+        Assert-Test (-not $settingsSource.Contains('EnableMountedCharge = true') -and
+            $settingsSource.Contains('public bool EnableMountedCharge { get; set; }') -and
+            $leasePolicySource.Contains('return mountedChargeEnabled && unitIsRider;')) `
+            'the Chunk 6B charge is not default-off behind its own setting'
     }
 
     Invoke-HarnessTest 'lifecycle evidence is a durable pre-mount gate with bounded cleanup observation' {
@@ -4926,6 +5038,17 @@ try {
         Assert-Test ((Get-KmcSha256 $manifestPath) -ceq [string]$final.evidenceManifestSha256) 'fallback result did not bind the independently created orchestration manifest'
         $manifest = Read-KmcJson $manifestPath
         Assert-Test ($manifest.artifacts -is [Array] -and @($manifest.artifacts).Count -eq 0) 'fallback orchestration manifest is not an exact empty artifact array'
+    }
+
+    Invoke-HarnessTest 'P07 observer rejection retains exact scenario and original failure without a fabricated game result' {
+        foreach($scenario in @('persistence-p07-save','persistence-p07-load')) {
+            $fallbackEvidence = Join-Path $runtimeEvidenceTestRoot ('observer-fallback-'+$scenario)
+            $fallbackRequest=[pscustomobject]@{runId=('fallback-'+$scenario);scenario=$scenario;branch='codex/mounted-combat-feasibility';commit=('0'*40);productVersion=$currentProductVersion;dllSha256=('a'*64);dllMvid=[Guid]::Empty.ToString();transactionToken=('b'*64);evidenceRoot=$fallbackEvidence;fixture=[ordered]@{baseline=[ordered]@{};working=[ordered]@{};writeAuthorization=[ordered]@{}}}
+            $errorText='Charge persistence: no-DLL process resumed a charge or changed source identity'
+            $final=New-KmcRuntimeResultV2 -Request $fallbackRequest -ValidatedGameResult $null -StartedAtUtc ([DateTimeOffset]::UtcNow) -ModsRestored $true -BaselineImmutable $true -WorkingRestored $true -SaveWriteAllowlistPassed $true -RestoredSaveInventoryDigest ('c'*64) -GameResultSha256 $null -Errors @($errorText)
+            Assert-Test ($final.status-ceq'FAIL'-and$final.subscenarioTotal-eq1-and$final.subscenarioResults[0].name-ceq$scenario-and$final.assertionPassCount-eq0-and$final.assertionFailCount-eq1-and$final.errors[0]-ceq$errorText-and[string]::IsNullOrEmpty($final.gameResultSha256)) 'P07 fallback relabeled, masked or normalized the missing/failed observer result'
+            Assert-Test (-not(Test-Path (Join-Path $fallbackEvidence 'runtime-game-result.json'))) 'P07 fallback fabricated a native game result'
+        }
     }
 
     Invoke-HarnessTest 'combat fallback preserves original launcher error without weakening strict evidence validation' {
@@ -4979,7 +5102,7 @@ try {
         & (Join-Path $PSScriptRoot 'Validate-Package.ps1') -PackagePath $validPackage
     }
     foreach ($sizeCase in @(
-        @{name='DLL';leaf='KingmakerMountedCombat.dll';limit=5MB},
+        @{name='DLL';leaf='KingmakerMountedCombat.dll';limit=8MB},
         @{name='Info';leaf='Info.json';limit=4MB}
     )) {
         Invoke-HarnessTest ("package validator retains the {0} entry size boundary" -f $sizeCase.name) {
@@ -5072,18 +5195,188 @@ try {
     $harmonyAssembly = @($fingerprint.kingmaker.files | Where-Object role -eq 'harmony')[0]
     $gameResultPath = Join-Path $testRoot 'runtime-game-result.json'
     $gameStarted = [DateTimeOffset]::UtcNow.AddSeconds(-2)
+    # The mod-load smoke is OBSERVATIONAL: it changes nothing and publishes the live
+    # state it read. The clean fixture therefore reports the product's real shipped
+    # default for the movement experiment (ENABLED) as both the live and the shipped
+    # value, and asserts the absence of gameplay state field by field.
     $gameResult = [ordered]@{
         schemaVersion=1; runId=$request.runId; scenario=$request.scenario; status='PASS'; branch=$request.branch; commit=$request.commit
         productVersion=$request.productVersion; dllSha256=$request.dllSha256; dllMvid=$request.dllMvid; transactionToken=$request.transactionToken
         startedAtUtc=$gameStarted.ToString('o'); completedAtUtc=[DateTimeOffset]::UtcNow.ToString('o'); loadedModId='KingmakerMountedCombat'
         gameVersion=[string]$fingerprint.kingmaker.displayVersion; gameAssemblySha256=[string]$gameAssembly.sha256; gameAssemblyMvid=[string]$gameAssembly.mvid
         ummVersion='0.28.2.0'; ummSha256=[string]$ummAssembly.sha256; harmony12Version='1.2.0.1'; harmony12Sha256=[string]$harmonyAssembly.sha256
-        relationshipState='Unmounted'; movementExperimentEnabled=$false; processId=$PID; currentGameMode='None'; loadedAreaPresent=$false
+        relationshipState='Unmounted'; movementExperimentEnabled=$true; processId=$PID; currentGameMode='None'; loadedAreaPresent=$false
+        expectedModId='KingmakerMountedCombat'; expectedProductVersion=$request.productVersion; gamePresent=$true
+        shippedMovementExperimentEnabled=$true; shippedPairedActivationEnabled=$false
+        shippedUnifiedMountedTurnEnabled=$false; shippedPairedCommandSchedulerEnabled=$false
+        shippedDiagnosticOverlayEnabled=$false; settingsMutatedByScenario=$false
+        relationshipTransitionInFlight=$false; registeredRelationshipShellCount=0
+        relationshipProcessBindingCount=0; poisonedExecutionContextCount=0
+        nativeCastRequestCount=0; dispatchAcceptedCount=0; dispatchRejectedCount=0
+        pairedActivationPresent=$false; pairedPartnerContextPresent=$false
+        managedControlFactCount=0; duplicateControlFactCount=0; managedHotbarSlotCount=0
+        overlayObjectPresent=$false; controlServiceSerializationSuspended=$false
         saveRequestCount=0; loadRequestCount=0; frameCount=10; elapsedSeconds=1.0; errors=@()
     }
     Write-KmcJsonAtomic $gameResultPath $gameResult
-    Invoke-HarnessTest 'runtime game result accepts exact platform and no-save state' {
+    $invokeGameResult = {
         & (Join-Path $PSScriptRoot 'runtime\Test-RuntimeGameResult.ps1') -GameResultPath $gameResultPath -RequestPath $requestPath -FingerprintPath $fingerprintPath -ExpectedProcessId $PID -NotBeforeUtc $gameStarted.AddSeconds(-1)
+    }
+    $assertGameResultRejected = {
+        param($because)
+        $rejected = $false
+        try { & $invokeGameResult | Out-Null } catch { $rejected = $true }
+        if (-not $rejected) { throw ('A mod-load smoke result was accepted despite ' + $because + '.') }
+    }
+    Invoke-HarnessTest 'runtime game result accepts exact platform and no-save state' {
+        & $invokeGameResult
+    }
+    # Regression for the latent defect a real run exposed, now inverted. The smoke used
+    # to force every experiment off and assert they were off, which meant the run
+    # produced its own result and could not describe the product's real defaults. It now
+    # publishes what it read, so a live reading that DIFFERS from the published shipped
+    # default is a false claim: an observational smoke has no scope of its own.
+    Invoke-HarnessTest 'runtime game result rejects a smoke whose live reading contradicts its shipped claim' {
+        $gameResult.movementExperimentEnabled = $false
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        & $assertGameResultRejected 'a live movement-experiment reading that contradicts its published shipped default'
+        $gameResult.movementExperimentEnabled = $true
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    Invoke-HarnessTest 'runtime game result rejects a smoke that omits any observation field' {
+        foreach ($omitted in @('shippedPairedActivationEnabled','shippedDiagnosticOverlayEnabled',
+            'settingsMutatedByScenario','pairedPartnerContextPresent','managedHotbarSlotCount','expectedModId')) {
+            $without = [ordered]@{}
+            foreach ($entry in $gameResult.GetEnumerator()) {
+                if ($entry.Key -cne $omitted) { $without[$entry.Key] = $entry.Value }
+            }
+            Write-KmcJsonAtomic $gameResultPath $without
+            & $assertGameResultRejected ("the omitted observation " + $omitted)
+        }
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    Invoke-HarnessTest 'runtime game result rejects a smoke that invents an extra field' {
+        $extra = [ordered]@{}
+        foreach ($entry in $gameResult.GetEnumerator()) { $extra[$entry.Key] = $entry.Value }
+        $extra['scopedExperimentsOff'] = $true
+        Write-KmcJsonAtomic $gameResultPath $extra
+        & $assertGameResultRejected 'an invented extra observation field'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    Invoke-HarnessTest 'runtime game result rejects every forbidden active state in a smoke' {
+        foreach ($flag in @('loadedAreaPresent','relationshipTransitionInFlight','pairedActivationPresent',
+            'pairedPartnerContextPresent','overlayObjectPresent','controlServiceSerializationSuspended',
+            'settingsMutatedByScenario')) {
+            $gameResult[$flag] = $true
+            Write-KmcJsonAtomic $gameResultPath $gameResult
+            & $assertGameResultRejected ("the active state " + $flag)
+            $gameResult[$flag] = $false
+        }
+        foreach ($counter in @('saveRequestCount','loadRequestCount','registeredRelationshipShellCount',
+            'relationshipProcessBindingCount','poisonedExecutionContextCount','nativeCastRequestCount',
+            'dispatchAcceptedCount','dispatchRejectedCount','managedControlFactCount',
+            'duplicateControlFactCount','managedHotbarSlotCount')) {
+            $gameResult[$counter] = 1
+            Write-KmcJsonAtomic $gameResultPath $gameResult
+            & $assertGameResultRejected ("the non-zero counter " + $counter)
+            $gameResult[$counter] = 0
+        }
+        $gameResult.relationshipState = 'Mounted'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        & $assertGameResultRejected 'a mounted relationship'
+        $gameResult.relationshipState = 'Unmounted'
+        $gameResult.gamePresent = $false
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        & $assertGameResultRejected 'a missing game singleton'
+        $gameResult.gamePresent = $true
+        $gameResult.expectedModId = 'SomeOtherMod'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+        & $assertGameResultRejected 'a mod identity other than the exact one'
+        $gameResult.expectedModId = 'KingmakerMountedCombat'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    # A bootstrap failure never finished building the composition root, so it has no
+    # settings and no services to read. NOT OBSERVED is lawful there and only there.
+    Invoke-HarnessTest 'runtime game result accepts unobserved fields only on a bootstrap FAIL' {
+        $bootstrap = [ordered]@{}
+        foreach ($entry in $gameResult.GetEnumerator()) { $bootstrap[$entry.Key] = $entry.Value }
+        $bootstrap.status = 'FAIL'
+        $bootstrap.errors = @('System.InvalidOperationException: synthetic bootstrap failure')
+        $bootstrap.frameCount = 0
+        $bootstrap.elapsedSeconds = 0.0
+        foreach ($name in @('shippedMovementExperimentEnabled','shippedPairedActivationEnabled',
+            'shippedUnifiedMountedTurnEnabled','shippedPairedCommandSchedulerEnabled',
+            'shippedDiagnosticOverlayEnabled','relationshipTransitionInFlight',
+            'registeredRelationshipShellCount','relationshipProcessBindingCount',
+            'poisonedExecutionContextCount','nativeCastRequestCount','dispatchAcceptedCount',
+            'dispatchRejectedCount','pairedActivationPresent','pairedPartnerContextPresent',
+            'managedControlFactCount','duplicateControlFactCount','managedHotbarSlotCount',
+            'overlayObjectPresent','controlServiceSerializationSuspended')) {
+            $bootstrap[$name] = $null
+        }
+        Write-KmcJsonAtomic $gameResultPath $bootstrap
+        & $invokeGameResult
+        # The same nulls on a PASS are not acceptable: a PASS must have observed everything.
+        $bootstrap.status = 'PASS'
+        $bootstrap.errors = @()
+        $bootstrap.frameCount = 10
+        $bootstrap.elapsedSeconds = 1.0
+        Write-KmcJsonAtomic $gameResultPath $bootstrap
+        & $assertGameResultRejected 'unobserved fields on a PASS'
+        Write-KmcJsonAtomic $gameResultPath $gameResult
+    }
+    # The published JSON schema is the fourth consumer of the mod-load smoke field set,
+    # after the typed policy, the emitted result and the validator. It used to drift
+    # silently -- its v1 branch still pinned productVersion to the original feasibility
+    # build and required movementExperimentEnabled to be false -- so it is now compared
+    # against the other three rather than trusted as prose.
+    Invoke-HarnessTest 'the mod-load smoke schema, policy and validator describe one field set' {
+        $schema = Read-KmcJson (Join-Path $repoRoot 'schemas\runtime-game-result.schema.json')
+        $noSaveV1 = $schema.definitions.noSaveV1
+        $schemaProperties = @($noSaveV1.properties.PSObject.Properties.Name)
+        $schemaRequired = @($noSaveV1.required)
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject ($schemaRequired | Sort-Object))) {
+            throw 'The schema v1 branch declares a property it does not require, or requires one it does not declare.'
+        }
+        if ($noSaveV1.additionalProperties -ne $false) { throw 'The schema v1 branch admits additional properties.' }
+        # Every field the typed policy publishes must be in the schema.
+        $policySource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\Diagnostics\ModLoadSmokeObservation.cs'))
+        $policyBlock = [Regex]::Match($policySource, '(?s)public static readonly string\[\] PublishedFields =\s*\{(.*?)\};')
+        if (-not $policyBlock.Success) { throw 'The typed policy no longer publishes an explicit field set.' }
+        $policyFields = @([Regex]::Matches($policyBlock.Groups[1].Value, '"([a-zA-Z0-9]+)"') | ForEach-Object { $_.Groups[1].Value })
+        if ($policyFields.Count -lt 23) { throw 'The typed policy publishes fewer observation fields than the smoke records.' }
+        foreach ($field in $policyFields) {
+            if ($schemaProperties -notcontains $field) { throw "The schema v1 branch omits a published observation: $field" }
+        }
+        # And the validator's own v1 list must be exactly the schema's set minus the common fields.
+        $validatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
+        $validatorBlock = [Regex]::Match($validatorSource, "(?s)\`$v1Fields = @\((.*?)\)\r?\n")
+        if (-not $validatorBlock.Success) { throw 'The runtime game-result validator no longer declares an explicit v1 field list.' }
+        $validatorFields = @([Regex]::Matches($validatorBlock.Groups[1].Value, "'([a-zA-Z0-9]+)'") | ForEach-Object { $_.Groups[1].Value })
+        if ($null -ne (Compare-Object -ReferenceObject ($policyFields | Sort-Object) -DifferenceObject ($validatorFields | Sort-Object))) {
+            throw 'The validator v1 field list and the typed policy field set have drifted apart.'
+        }
+        $commonBlock = [Regex]::Match($validatorSource, "(?s)\`$commonRequired = @\((.*?)\)\r?\n")
+        $commonFields = @([Regex]::Matches($commonBlock.Groups[1].Value, "'([a-zA-Z0-9]+)'") | ForEach-Object { $_.Groups[1].Value })
+        if ($null -ne (Compare-Object -ReferenceObject ($schemaProperties | Sort-Object) -DifferenceObject (($commonFields + $validatorFields) | Sort-Object))) {
+            throw 'The schema v1 property set is not exactly the validator common set plus its v1 fields.'
+        }
+        # The stale absolutes are gone: a real result must be admissible.
+        $readConst = {
+            param($property)
+            $member = $property.PSObject.Properties['const']
+            if ($null -eq $member) { return $null }
+            return $member.Value
+        }
+        if ($false -eq (& $readConst $noSaveV1.properties.movementExperimentEnabled)) {
+            throw 'The schema still requires the mod-load smoke to report the movement experiment as disabled.'
+        }
+        if ([string](& $readConst $noSaveV1.properties.productVersion) -ceq '0.0.1-feasibility') {
+            throw 'The schema still pins the mod-load smoke to the original feasibility product version.'
+        }
+        if ($false -ne (& $readConst $noSaveV1.properties.settingsMutatedByScenario)) {
+            throw 'The schema does not forbid the mod-load smoke from mutating a setting.'
+        }
     }
     Invoke-HarnessTest 'runtime game result rejects platform mutation' {
         $gameResult.gameAssemblySha256 = ('00' * 32)
@@ -5139,7 +5432,7 @@ try {
     Invoke-HarnessTest 'P04 requires an explicit RT case and exact owned cold descriptor' {
         try{
             $f=$v2Request.fixture.working
-            foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){
+            foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt')){
                 $v2Request.scenario='persistence-p04-save';$v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
@@ -5540,7 +5833,7 @@ try {
     Invoke-HarnessTest 'P02 checkpoints are bounded parameters and do not relax fixture authority' {
         try {
             $v2Request.scenario='persistence-p02-save'
-            foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end')){
+            foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb')){
                 $v2Request['persistenceCase']=$case
                 Write-KmcJsonAtomic $v2RequestPath $v2Request
                 & (Join-Path $PSScriptRoot 'runtime/Test-RuntimeRequest.ps1') -RequestPath $v2RequestPath
@@ -9858,6 +10151,7 @@ try {
         $runtimeRequestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeRequest.ps1'))
         $runtimeGameResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeGameResult.ps1'))
         $runtimeResultValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\Test-RuntimeResult.ps1'))
+        $runtimeManifestValidatorSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'scripts\runtime\RuntimeArtifactManifestEvidence.ps1'))
         $projectSource = [IO.File]::ReadAllText((Join-Path $repoRoot 'src\KingmakerMountedCombat\KingmakerMountedCombat.csproj'))
 
         Assert-Test ($patchSource.Contains('PatchExact(typeof(UnitAnimationManager), "Tick", 0x06001605, Type.EmptyTypes, nameof(PatchMethods.AnimationTickPrefix));') -and
@@ -9933,7 +10227,18 @@ try {
             $horseScenarioSource.Contains('mountedRiderOutcome,') -and
             $horseScenarioSource.Contains('IncludesNativeControlsUx);') -and
             $horseScenarioSource.Contains('if (includeAnimation)') -and
-            $horseScenarioSource.Contains('["schemaVersion"] = IncludesNativeControlsUx ? 8 : 4') -and
+            # The historical schemas are unchanged: the unmounted suite still emits 4 and
+            # the native-controls suite still emits 8. The narrow Mount preamble is a
+            # third, separate evidence kind at schema 1, so it cannot be mistaken for
+            # either of them and cannot silently alter their output.
+            $horseScenarioSource.Contains('["schemaVersion"] = IsMountPreambleOnly ? 1 : IncludesNativeControlsUx ? 8 : 4') -and
+            $horseScenarioSource.Contains('internal const string PreambleEvidenceKind = "chunk6a-mount-preamble";') -and
+            $horseScenarioSource.Contains('? PreambleEvidenceFileName') -and
+            $runtimeLauncherSource.Contains("'chunk6a-mount-preamble'") -and
+            $runtimeRequestValidatorSource.Contains("'chunk6a-mount-preamble'") -and
+            $runtimeManifestValidatorSource.Contains('($relativePath -ceq ''chunk6a-mount-preamble.json'' -and $kind -ceq ''chunk6a-mount-preamble'')') -and
+            $runtimeGameResultValidatorSource.Contains('Assert-KmcReadOnlyArtifactManifest $request $game.evidenceManifestSha256 -GameResult') -and
+            $runtimeResultValidatorSource.Contains('Assert-KmcReadOnlyArtifactManifest $request $result.evidenceManifestSha256') -and
             $horseScenarioSource.Contains('"legacy-overlay-default-hidden"') -and
             $horseScenarioSource.Contains('"legacy-overlay-debug-fallback"') -and
             $horseScenarioSource.Contains('DollRoomSimpleAvatarField.MetadataToken == 0x04002F58') -and
@@ -9942,8 +10247,7 @@ try {
             $runtimeRequestValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeGameResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
             $runtimeResultValidatorSource.Contains("'horse-native-controls-ux-suite'") -and
-            $runtimeGameResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')') -and
-            $runtimeResultValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')')) `
+            $runtimeManifestValidatorSource.Contains('($relativePath -ceq ''horse-native-controls-ux.json'' -and $kind -ceq ''horse-native-controls-ux'')')) `
             'focused Horse UX scenario bypasses the native selected-ability path, lacks bounded overlay/DollRoom observation, changes historical schema-v4 output, or is missing from an independent runtime/artifact allowlist'
     }
 
@@ -10177,7 +10481,8 @@ try {
             $unmountedEngineSource.Contains('var availability = playerAction.GetAvailability();') -and
             $unmountedEngineSource.Contains('availability.Action == MountedPlayerActionKind.Mount') -and
             $unmountedEngineSource.Contains('"target-selected-mount-admission-deadline"') -and
-            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }'))).Count -eq 5 -and
+            # Five bounded waits plus the tranche handoff re-check (AwaitTrancheHandoff) unpause while waiting; no other site may.
+            ([regex]::Matches($unmountedEngineSource, [regex]::Escape('if (Game.Instance.IsPaused) { Game.Instance.IsPaused = false; }'))).Count -eq 6 -and
             ([regex]::Matches($unmountedEngineSource, [regex]::Escape('horse.Commands.InterruptAll(false);'))).Count -ge 2 -and
             $unmountedEngineSource.Contains('var nativeTurn = controller.CurrentTurn;') -and
             $unmountedEngineSource.Contains('turnBasedNativeTurnStableFrames++') -and
@@ -10597,7 +10902,15 @@ try {
             'original-horse-portrait-and-icon','legacy-overlay-default-hidden','legacy-overlay-debug-fallback',
             'native-mount-ability-present-no-slot-overwrite',
             'native-control-disable-reenable','native-control-save-load-presence',
-            'native-saddle-up-invalid-target','native-saddle-up-target-valid-horse',
+            'native-saddle-up-invalid-target',
+            'native-saddle-up-exact-ability-fact','native-saddle-up-handler-holds-exact-ability',
+            'native-saddle-up-priority-admits-horse','native-saddle-up-resolved-target-is-exact-horse',
+            'native-saddle-up-click-accepted','native-saddle-up-native-command-created',
+            'native-saddle-up-command-ability-is-exact','native-saddle-up-command-executor-is-exact-rider',
+            'native-saddle-up-command-target-is-exact-horse','native-saddle-up-single-command-no-duplicate',
+            'native-saddle-up-native-provenance','native-saddle-up-shell-registered-once',
+            'native-saddle-up-shell-identity-exact','native-saddle-up-one-cast-request-no-refusal',
+            'native-saddle-up-transition-not-yet-delivered','native-saddle-up-drop-ability-preserves-command',
             'native-mounted-control-surface','inventory-horse-preview-no-ik-exception',
             'mounted-turn-based-rider-movement','human-input-tb-rider-primary-rider-turn',
             'human-input-tb-target-click-admitted','human-input-tb-horse-primary-horse-turn',
@@ -10753,6 +11066,147 @@ try {
         Assert-Test $threw 'Horse native-controls UX validator accepted a missing TB Horse animation handle'
     }
 
+    Invoke-HarnessTest 'narrow Mount preamble validator binds the staged click and refuses a widened run' {
+        $preambleRoot = Join-Path $runtimeEvidenceTestRoot 'chunk6a-mount-preamble-validator'
+        New-Item -ItemType Directory -Path $preambleRoot -Force | Out-Null
+        $preambleRequest = [pscustomobject]@{
+            runId='chunk6a-mount-preamble-validator';scenario='chunk6a-mount-preamble'
+            branch='codex/mounted-combat-phase3f-playable-core';commit=('e'*40)
+            productVersion=$currentProductVersion;dllSha256=('f'*64)
+            dllMvid='44444444-5555-6666-7777-888888888888';evidenceRoot=$preambleRoot
+        }
+        $preambleStages = @(
+            'native-saddle-up-invalid-target',
+            'native-saddle-up-exact-ability-fact','native-saddle-up-handler-holds-exact-ability',
+            'native-saddle-up-priority-admits-horse','native-saddle-up-resolved-target-is-exact-horse',
+            'native-saddle-up-click-accepted','native-saddle-up-native-command-created',
+            'native-saddle-up-command-ability-is-exact','native-saddle-up-command-executor-is-exact-rider',
+            'native-saddle-up-command-target-is-exact-horse','native-saddle-up-single-command-no-duplicate',
+            'native-saddle-up-native-provenance','native-saddle-up-shell-registered-once',
+            'native-saddle-up-shell-identity-exact','native-saddle-up-one-cast-request-no-refusal',
+            'native-saddle-up-transition-not-yet-delivered','native-saddle-up-drop-ability-preserves-command')
+        $newPreambleArtifact = {
+            [ordered]@{
+                schemaVersion=1;evidenceKind='chunk6a-mount-preamble'
+                runId=$preambleRequest.runId;scenario=$preambleRequest.scenario
+                branch=$preambleRequest.branch;commit=$preambleRequest.commit
+                productVersion=$preambleRequest.productVersion
+                dllSha256=$preambleRequest.dllSha256;dllMvid=$preambleRequest.dllMvid
+                createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o');status='PASS'
+                assertions=@($preambleStages | ForEach-Object {
+                    [ordered]@{name=$_;status='PASS';detail="Synthetic staged preamble contract for $_."}
+                })
+                observations=[ordered]@{
+                    nativeMountValidHorse=[ordered]@{
+                        clicked=$true;moveSlotHoldsUseAbility=$true
+                        abilitySelectedBeforeDrop=$false;abilitySelectedAfterDrop=$false
+                        sameCommandInstanceAcrossDrop=$true;shellOwnsCommandAfterDrop=$true
+                        relationshipStateAfterClick='Unmounted';relationshipStateAfterDrop='Unmounted'
+                    }
+                }
+                assertionPassCount=$preambleStages.Count;assertionFailCount=0;errors=@()
+            }
+        }
+        $preamblePath = Join-Path $preambleRoot 'chunk6a-mount-preamble.json'
+        $publishPreamble = {
+            param($Artifact)
+            Write-KmcJsonAtomic -Path $preamblePath -Value $Artifact
+            $record = [ordered]@{
+                relativePath='chunk6a-mount-preamble.json';kind='chunk6a-mount-preamble'
+                length=(Get-Item -LiteralPath $preamblePath).Length;sha256=(Get-KmcSha256 $preamblePath)
+            }
+            [void](New-TestArtifactManifest -EvidenceRoot $preambleRoot -RunId $preambleRequest.runId -Scenario $preambleRequest.scenario -Artifacts @($record))
+            return Read-KmcJson (Join-Path $preambleRoot 'runtime-artifacts.json')
+        }
+        $validatePreamble = {
+            param($Manifest, $Artifact)
+            $subresult = [pscustomobject]@{
+                name='chunk6a-mount-preamble';status=[string]$Artifact.status
+                assertionPassCount=[int]$Artifact.assertionPassCount
+                assertionFailCount=[int]$Artifact.assertionFailCount;errors=@()
+            }
+            Assert-KmcMountPreambleEvidence -Request $preambleRequest -Manifest $Manifest -Status ([string]$Artifact.status) -SubscenarioResults @($subresult)
+        }
+        $assertPreambleRejected = {
+            param($Artifact, [string]$because)
+            $manifest = & $publishPreamble $Artifact
+            $threw = $false
+            try { & $validatePreamble $manifest $Artifact } catch { $threw = $true }
+            Assert-Test $threw ('Narrow Mount preamble validator accepted ' + $because)
+        }
+
+        $clean = & $newPreambleArtifact
+        $cleanManifest = & $publishPreamble $clean
+        & $validatePreamble $cleanManifest $clean
+
+        # Every staged assertion is mandatory: dropping any one is a refusal.
+        foreach ($omitted in @('native-saddle-up-click-accepted','native-saddle-up-shell-identity-exact',
+            'native-saddle-up-drop-ability-preserves-command','native-saddle-up-invalid-target')) {
+            $short = & $newPreambleArtifact
+            $short.assertions = @($short.assertions | Where-Object { [string]$_.name -cne $omitted })
+            $short.assertionPassCount = @($short.assertions).Count
+            & $assertPreambleRejected $short ("a run missing the stage " + $omitted)
+        }
+
+        # The preamble stops before mounting. A row from beyond it means a different run.
+        foreach ($beyond in @('independent-horse-mounted-profile','native-dismount-ability',
+            'target-selected-mount-action')) {
+            $widened = & $newPreambleArtifact
+            $widened.assertions = @($widened.assertions) + @([ordered]@{
+                name=$beyond;status='PASS';detail="Synthetic row from beyond the preamble: $beyond."
+            })
+            $widened.assertionPassCount = @($widened.assertions).Count
+            & $assertPreambleRejected $widened ("a run widened past the preamble with " + $beyond)
+        }
+
+        # The published capture is part of the claim, not decoration.
+        $mounted = & $newPreambleArtifact
+        $mounted.observations.nativeMountValidHorse.relationshipStateAfterClick = 'Mounted'
+        & $assertPreambleRejected $mounted 'a capture that was already mounted at its own click'
+
+        $mountedAfter = & $newPreambleArtifact
+        $mountedAfter.observations.nativeMountValidHorse.relationshipStateAfterDrop = 'Mounting'
+        & $assertPreambleRejected $mountedAfter 'a capture that transitioned across the release'
+
+        $stillSelected = & $newPreambleArtifact
+        $stillSelected.observations.nativeMountValidHorse.abilitySelectedAfterDrop = $true
+        & $assertPreambleRejected $stillSelected 'a handler still holding a selected ability after the release'
+
+        foreach ($field in @('clicked','moveSlotHoldsUseAbility','sameCommandInstanceAcrossDrop',
+            'shellOwnsCommandAfterDrop','abilitySelectedBeforeDrop')) {
+            $trimmed = & $newPreambleArtifact
+            $capture = [ordered]@{}
+            foreach ($entry in $trimmed.observations.nativeMountValidHorse.GetEnumerator()) {
+                if ($entry.Key -cne $field) { $capture[$entry.Key] = $entry.Value }
+            }
+            $trimmed.observations.nativeMountValidHorse = $capture
+            & $assertPreambleRejected $trimmed ("a capture omitting " + $field)
+        }
+
+        $noCapture = & $newPreambleArtifact
+        $noCapture.observations = [ordered]@{}
+        & $assertPreambleRejected $noCapture 'a run that published no staged click capture'
+
+        # The wrong evidence kind or schema is not this scenario.
+        $wrongKind = & $newPreambleArtifact
+        $wrongKind.evidenceKind = 'horse-native-controls-ux'
+        & $assertPreambleRejected $wrongKind 'an artifact wearing another evidence kind'
+
+        $wrongSchema = & $newPreambleArtifact
+        $wrongSchema.schemaVersion = 8
+        & $assertPreambleRejected $wrongSchema 'an artifact at the native-controls schema version'
+
+        # A truthful FAIL is preserved: incomplete staging is exactly what a FAIL reports.
+        $failed = & $newPreambleArtifact
+        $failed.status = 'FAIL'
+        $failed.assertions = @($failed.assertions | Select-Object -First 5)
+        $failed.assertions[4].status = 'FAIL'
+        $failed.assertionPassCount = 4
+        $failed.assertionFailCount = 1
+        $failedManifest = & $publishPreamble $failed
+        & $validatePreamble $failedManifest $failed
+    }
+
     Invoke-HarnessTest 'paired condition schema reaches the strict native evidence validator' {
         $phase3dRoot=Join-Path $runtimeEvidenceTestRoot 'paired-condition-schema'
         New-Item -ItemType Directory -Path $phase3dRoot -Force | Out-Null
@@ -10766,7 +11220,8 @@ try {
             createdAtUtc=[DateTime]::UtcNow.ToString('o');status='FAIL'
             rows=@([ordered]@{name='phase3d-horse-runtime-exception';status='FAIL';detail='Synthetic guarded failure.'})
             observations=[ordered]@{phase3fActualConfiguration=[ordered]@{enablePairedActivation=$true
-                enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}}
+                enableUnifiedMountedTurn=$false;enablePairedCommandScheduler=$false;enableDiagnosticOverlay=$false;overlayPresent=$false}
+                childEntryPreamble=(New-TestChildEntryPreamble 'actor-allocation-rider-first-tb' 'paired-condition-schema')}
             subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic guarded failure.')}
         foreach($name in @('runId','scenario','branch','commit','productVersion','dllSha256','dllMvid')) {$artifact[$name]=$phase3dRequest.$name}
         $path=Join-Path $phase3dRoot 'phase3d-horse-scenario-evidence.json'
@@ -11300,6 +11755,7 @@ try {
                     }
                 }
             }
+            $observations['childEntryPreamble'] = New-TestChildEntryPreamble $phase3dScenario $phase3dRequest.runId
             $phase3dArtifact = [ordered]@{
                 schemaVersion=$(if($phase3dScenario -ceq 'phase3d-unified-combat-tb-suite'){6}else{1})
                 evidenceKind='phase3d-horse-scenario-evidence';runId=$phase3dRequest.runId
@@ -11365,6 +11821,7 @@ try {
                                 $unmountedRequest = $phase3dRequest | ConvertTo-Json -Depth 100 | ConvertFrom-Json
                                 $unmountedRequest.scenario = 'unmounted-attack-controls-rt'
                                 $unmountedArtifact.scenario = $unmountedRequest.scenario
+                                $unmountedArtifact.observations.childEntryPreamble.childScenario = $unmountedRequest.scenario
                                 $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $true
                                 if ($unmountedMutation -ceq 'paired-path') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = $false }
                                 if ($unmountedMutation -ceq 'paired-type') { $unmountedArtifact.observations.phase3fActualConfiguration.enablePairedActivation = 'true' }
@@ -11754,7 +12211,7 @@ try {
             productVersion=$failureRequest.productVersion;dllSha256=$failureRequest.dllSha256
             dllMvid=$failureRequest.dllMvid;createdAtUtc=[DateTimeOffset]::UtcNow.ToString('o')
             status='FAIL';rows=@($failureRow)
-            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress}
+            observations=[ordered]@{riderId='rider';horseId='horse';leafDeadlineProgress=$progress;childEntryPreamble=(New-TestChildEntryPreamble $failureRequest.scenario $failureRequest.runId)}
             subscenarioPassCount=0;subscenarioFailCount=1;errors=@('Synthetic combat-Mount admission deadline.')
         }
         $failurePath = Join-Path $failureRoot 'phase3d-horse-scenario-evidence.json'
@@ -11849,6 +12306,7 @@ try {
             status='FAIL';rows=@($failureRow)
             observations=[ordered]@{
                 riderId='rider';horseId='horse';leafDeadlineProgress=$progress
+                childEntryPreamble=(New-TestChildEntryPreamble $failureRequest.scenario $failureRequest.runId)
                 'tb-combat-mount'=[ordered]@{
                     abilityGuid='mount-ability';clickedTargetId='horse';resolvedTargetId='horse'
                     priority='2';clicked=$true;targetSelectionStartDelta=1;targetSelectionEndDelta=1
@@ -12313,7 +12771,7 @@ try {
             $phase3dHorseSource.Contains('["commandAiActionPresent"] = commandPresent && command.AiAction != null') -and
             $phase3dHorseSource.Contains('["createdByPlayer"] = command.CreatedByPlayer') -and
             $phase3dHorseSource.Contains('["aiActionPresent"] = command.AiAction != null') -and
-            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 26 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
+            $phase3dHorseSource.Contains('["schemaVersion"] = IsChunk6cCasting ? 44 : IsChunk6dStaged ? 45 : IsChunk6eReaction ? 46 : IsChunk6bCharge ? 43 : IsChunk6bChargePath ? 33 : IsUnmountedAttackControls ? 31 : IsChunk4NativeLife ? 32 : IsChunk6aCombatMount ? 30 : IsChunk4Extended ? 23 : IsChunk4Core ? 22 : IsChunk4Sustained ? 27 : IsChunk4Play ? 21 : IsChunk4Charge ? 41 : IsPairedAllocation ? 17 : IsOrdinaryAttackControls ? 1 : IsPhase3hLoop ? (Phase3gTurnBased ? 9 : 10) : IsPhase3gControls ? 8 : IsPhase3fNativeControlScope ? 7 : 6,') -and
             $phase3dHorseSource.Contains('explicitPrimaryLedgerBefore = combat.CaptureUnifiedTurnSnapshot();') -and
             $phase3dHorseSource.Contains('var pairedScheduler = combat.CapturePairedCommandSchedulerSnapshot();') -and
             $phase3dHorseSource.Contains('pairedScheduler.CleanupReason == "native terminal slot removal"') -and
@@ -12325,7 +12783,8 @@ try {
             $preMountedRiderPrimaryIndex -gt $preMountedTrackerIndex -and
             $nativeValidMountIndex -ge 0 -and $parentAwaitMountedIndex -gt $nativeValidMountIndex -and
             $parentMountedTrancheIndex -gt $parentAwaitMountedIndex -and
-            -not $horseEngineSource.Contains('BeginPhase3dTranche(false);') -and
+            ([regex]::Matches($horseEngineSource, [regex]::Escape('BeginPhase3dTranche(false);')).Count -eq 1) -and
+            ($horseEngineSource -match '(?s)if \(Phase3dHorseScenarioTranche\.IsChunk6aCombatMountScenario\(request\.Scenario\)\)\s*\{\s*(?://[^\r\n]*\r?\n\s*)*BeginPhase3dTranche\(false\);\s*return;\s*\}') -and
             -not $turnBasedAdmissionBody.Contains('StartTurn(')) `
             'Phase 3E Horse TB diagnostic lost native pre-mount setup, reversible AI isolation, natural rider-turn admission, or retained stock Mount-shell observation'
         $traversalIndex = $phase3dHorseSource.IndexOf(

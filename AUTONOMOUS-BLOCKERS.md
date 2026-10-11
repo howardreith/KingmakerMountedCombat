@@ -1,3 +1,1161 @@
+## 2026-10-09 - Chunk 6 final consolidation on frozen preview.205: 6C/6D/6E qualified, 6F executed, final 6A ledger 68 PASS / 18 BLOCKED / 1 FAIL (Claude)
+
+ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING for 6C, 6D and 6E on the frozen preview.205 candidate
+(source 558e6f93b6e21c12b6d5dc15eb44f6deb57302df, package cbb35b50..., DLL 10fbb85c..., MVID 0c9fd64d-89be-494a-b985-3ac1c1bd91e2,
+suite 20261009-chunk6de-staged-q, purity p1 PASS exit 0 99.0 min). 6B stays IMPLEMENTATION STABLE (RT supported,
+TB delivery DEFER - EVIDENCED). 6F consolidation executed in full on that candidate; the combined 6A ledger is NOT complete.
+Twelve-stage batch (preview205-campaign-closure.json 0d5eb988...): the four 6C stages 15/15 rows external PASS each (mounted
+and unmounted, RT and TB), the two 6D stages 5/5, the four persistence pairs PASS; the two 6E stages passed natively
+(every row produced, restored) and their swift rows were refused only by the frozen 6E reader. Final consolidation
+(final205b-campaign-closure.json f0f9c6bb..., 26 PASS runs bound; final205c-campaign-closure.json db07d84b..., 58 stages,
+50 PASS): every implemented 6A/6B/chunk 4/persistence scenario ran once on the same candidate. Retained failures: six 6A
+turn-based stages (allocation rider/mount first, rider-other-action, unrelated-candidate-between, dismount after rider
+expenditure, dismount immediately after mount) passed natively and were refused by the stale forward-route bound of the
+positioning reader; chunk6a-mount-spent-standard-tb failed natively (the action-economy ground order issued on a Preparing
+turn never settled on the same Acting turn; its stalled post-run worker was stopped by the executor after the evidence and
+restoration were complete); chunk4-area-cleanup failed natively (no native AreaUnloading delivery within 45 s after the
+real Game.ReloadArea, so the cleanup trigger never fired and the rider kept its movement-agent component). Also retained:
+the superseded first final plan (182 reference matrix ran the whole RT charge matrix in one 300-second stage), the
+no-DLL cold load refused until the removal observer was bound (candidate205b-freeze.json), the stale lock recovery, the
+zero-size achievements.dat leaf on 204 stage 8. No production casting/action/resource/turn/cleanup defect was established.
+Harness-only corrections after the native work (commits d4c76cf5... and 71d25ecf..., product unchanged): 6E never-started
+turn-based Swift shells are the native refusal and the real-time Swift charge is read at the cost boundary; the 6A positioning
+reader measures the v2 reciprocal origin-boundary proof like the producer; the positioning reader's refusals join the
+re-evaluation contract; the forced-detach contract test follows the moved dispatch module. Harness evaluation over all three
+closures (reader206-preview205-harness-evaluation3.json c2b7d69e...): the five 6E swift rows and the six positioning
+refusals become PASS, nothing else changes. FULL once on the final harness: preview206-full3 PASS 24.5 min (full1 stopped
+by the executor before the last harness edit, full2 FAIL on the stale forced-detach anchors; both retained). Gates
+(preview206-offline-gates.json): components 719/0, compiled observer 204/0, 6C 287/0, 6D 83/0, 6E 82/0, positioning 37/0,
+FAST 12/0, CANDIDATE 16/0, FULL 1/0.
+Final combined 6A ledger (docs/chunk6a-ledger.json, built by Build-FinalLedger.ps1 over candidate205-freeze.json with
+native-plan205.json, final-plan205b-bound.json and final-plan205c.json; record checks 87/0, 40 retained failures bound):
+68 PASS (eight through the re-evaluation contract), 18 BLOCKED (the 15 owner-known unimplemented ids CM02-left-area,
+CM02-view-agent-lost, CM02-loading-cutscene, CM02-generation-change, CM04-turn-end, CM04-mode-exit,
+CM04-area-session-transition, CM04-rider-death, CM04-mount-death, CM04-injected-exception, CM07-cold-load,
+CM07-save-slot-routes, CM07-unsettled-save-deferred, CM07-area-reload, CM07-schema-unchanged; CM03-mount-spent-standard on
+the native fixture failure; CM08-persistence-suite on its CM07 members; CM08-disable-removal-readiness on the unbound
+Chunk 5 persistence ledger), 1 FAIL (CM08-area-restoration). The -Completion gate therefore does not pass; owner decision or
+implementation is required for those ids. Restoration: every stage restored (Mods, protected saves, baseline, working
+fixture, allowlist); human preview.105 and the human installation untouched; no merge, PR, tag, release, permanent install,
+protected-save write or HUMAN PLAY acceptance.
+
+## 2026-10-09 - preview204 closed (twelve stages; 6C RT twice and 6D RT qualified); coherent205 turn-based fixture, record and cleanup corrections (Claude)
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS (mounted/unmounted RT qualified on 203 and
+again on 204); 6D IN PROGRESS (RT qualified on 204, 5/5); 6E IN PROGRESS (every row produced natively
+twice, no qualified stage); 6F incomplete. Frozen 204 source 0e45a832cfe9056e808873596c0ce4c73a507c5a
+is closed (preview204-campaign-closure.json 613ec6aa33a58553fa5d6934e82e38a80a3679e888bc8c4d300099df4e18848d;
+purity p1 PASS exit 0, 91.8 min). Stage 1/3 (6C RT): native 17/0, 15/15 external PASS, envelope PASS,
+restored. Stage 9 (6D RT): native 7/0, 5/5 external PASS, envelope PASS, restored. Stage 2 (6C mounted
+TB): 14/15 (under-threat: the deferred hostile attack was never issued because the rider was already
+engaged). Stage 4 (6C unmounted TB): 13/15 (rider-incapacity: the separately-turned mount's Standard
+decayed 4.00 -> 3.76 against the exact TB rule; mount-incapacity: the prone rider's cast was interrupted
+at admission by the native stand-up that spent the Move action). Stage 10 (6D TB): 4/5
+(double-move-ranged: the retained-Standard cast waited for the next native turn whose pair preparation
+the replay rule counted). Stages 11/12 (6E RT/TB): 1/4 each (every swift record lost its cast facts:
+a keyed JObject re-assigned to its own owner is stored as a clone). Every TB casting-family stage again
+ended in the cleanup deadline (player in combat with the mode restored, controller deinitialised) and
+the Mammoth paired-activation restoration refused in combat. Stages 5-7 PASS; Stage 8: attempts 1-2
+refused (the worktree was dirtied by the next candidate's edits; the stash rewrote LF reader bytes),
+attempt 3 native PASS, outer FAIL on a zero-size achievements.dat profile leaf. No production defect.
+Working 205 (one coherent tranche): TB threat readiness requires the hostile attack issued on the
+hostile's turn; the unmounted TB rider stands up through one bounded native ground order before the
+row; keyed swift records are reused in place; the casting-family cleanup restores the captured pause
+before judging the native encounter and records pause/mode/ticks/group guard/leave timer/units-in-combat
+facts at the deadline (pinned IL: the join controller recomputes Player.IsInCombat and the leave
+controller advances the group's leave timer only while the default mode ticks); the 6C reader admits
+TB mount cooldown decay without a paired turn end; the shared replay rule is scoped by turn identity.
+Reader-only corrections evaluated against the immutable 204 evidence (reader205-preview204-evaluation1.json
+c7270fadfd0a30a284a3058ae6a4421e9bbdbf3055b594818b77c59ff7ca923a: Stage 4 rider-incapacity and Stage 10
+double-move-ranged FAIL -> PASS; fixture-dependent rows stay FAIL). Observed gates
+(preview205-offline-gates.json): build/source 147/0, components 719/0, compiled observer 204/0, casting
+reader 287/0, 6D reader 83/0, 6E reader 72/0, FAST 11/0, CANDIDATE 15/0 (harness 271/0, assembly 701/0);
+the first reader gate receipts failed on a mis-expanded path and are retained. No 205 package/suite/purity/
+native credit yet.
+Next: guarded publication, package (chunk6de-staged-q)/suite/freeze 205, one orphaned purity, the 12-stage
+batch (TB stages first: 2, 4, 10, 12, then 9, 11, 1, 3, 5-8), then 6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+## 2026-10-09 - preview203 closed (twelve stages ran; the first two qualified 6C stages); coherent204 turn-based and 6D/6E corrections (Claude)
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS (mounted/unmounted RT qualified on203);
+6D/6E ran natively once (every row produced; readers and fixtures corrected); 6F incomplete.
+Frozen203 source10f681cb67e6e55b69081295bcb486bcecc4bbc5 is closed (preview203-campaign-closure.json
+dae0e17a6fcdc3e10725cc084cba4d4f18c1cac637b19ed2ba7de8f1eff17296; purity o1 PASS exit0, 91.1 min).
+6C mounted RT and unmounted RT: native17/0, 15/15 rows external PASS, envelope PASS, restored (the
+threatened cast at the mount reached the native defensive check at ~1.5 s; rider-incapacity reproduced
+the native lost-spell spend; the full-round summon was released before the next row). 6C mounted TB:
+rows1-12 PASS, rider-incapacity external FAIL (the paired turn end marks the mount's actions spent and
+the native action controller charges the force-finished shell its Standard), then the remount after the
+life row was refused on the Preparing turn, leaf and cleanup deadlines; unmounted TB: artifact-less
+300-second in-process deadline (no game log retained). Persistence pairs PASS. 6D RT/TB: all5 rows
+produced; the reader compared the settled state instead of the cost boundary, expected a stock refusal
+where the product admits its RiderRanged pair command, and treated HasMoveAction false as exhaustion
+(the native budget is the6 s move cooldown). 6E RT/TB: all4 rows produced; the swift record lost its
+instrument/rod keys, rows lacked hostileActor, Entangle beside the pair made it save, and in TB the hostile
+attack never started inside the step. Every TB casting-family stage ended in a cleanup deadline (the
+party stays in TB combat until a turn ends). No production defect established.
+Working204 (one coherent tranche): 6C reader models the TB lost-spell Standard charge and the paired
+turn-end mount debt; the leaf clock restarts at most16 times per row on turn changes; the TB remount
+after a life row reaches an Acting rider turn through one native ground order before the Mount click;
+the threat attack is issued on the hostile's own TB turn; cleanup ends idle fixture turns (bounded) until
+the party leaves combat. 6D: charge read at the cost boundary, RT cooldown decay admitted, the product's
+RiderRanged pair command, exhaustion on the6 s move cooldown (up to8 legs), Standard/Swift steps wait for
+a rider turn holding the action, ranged lease release recorded after the shared cleanup. 6E: swift record
+keeps its instrument/rod facts, rows name the hostile, the ground instrument is cast beyond the hostile
+away from the pair, hostile attacks are issued on the hostile's TB turn. Reader-only corrections
+evaluated against the immutable203 evidence (reader204-preview203-evaluation2.json 70f353ab...:
+mounted TB rider-incapacity and the four 6D RT rows FAIL->PASS; fixture-dependent rows stay FAIL).
+Observed gates (preview204-offline-gates.json): build/source147/0, components719/0, compiled
+observer201/0, casting reader281/0, 6D reader81/0, 6E reader72/0, FAST11/0, CANDIDATE15/0
+(harness271/0, assembly701/0); the first FAST and two first reader receipts predate the last reader
+adjustment and are retained. No204 package/suite/purity/native credit yet.
+Next: guarded publication, package (chunk6de-staged-p)/suite/freeze204, one orphaned purity, the
+12-stage batch (6C mounted TB first, unmounted TB, RT, persistence, then 6D/6E), then6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+## 2026-10-09 - preview202 closed (eight stages ran); coherent203: 6C corrections + 6D staged/6E reaction families (Claude)
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D/6E offline-ready (native NOT RUN); 6F incomplete.
+Frozen202 source1f1cecb686fdf0ca68784c1f62da422f27b8b4c0 is closed (preview202-campaign-closure.json
+e02aa6e5f3f3a31709c8fe27226d2fbacb428df57b9182578d5dac2448b988cd): purity n1 ABORTED (tool-host
+low-memory kill, no verdict), n2 PASS exit0 (92.6 min, orphaned controller). Stages1/3 (mounted/
+unmounted RT): native PASS17/0, external13/15 rows, envelope FAIL on C6C-rider-incapacity (native
+concentration-failure spend unmodelled) and C6C-under-threat (self-targeted scroll acts at ~0.55 s,
+before the native one-second defensive window). Stages2/4 (TB): rows1-11 PASS, then the fixture
+refused End Turn on a foreign actor at case12 (live full-round summon inside the leased party),
+cleanup deadline, outer FAIL. Stages5-8 (settled persistence with casting items): PASS. 0 qualified
+6C stages; every result retained; no product defect. Native facts (pinned IL, MVID07fa1e4d):
+UnitUseAbility.OnTick opens the casting-defensively window only for a Standard shell still running
+after one second while engaged (TryCastingDefensively exempts wand sources only); damage inside a
+running cast reaches MakeConcentrationCheck and a failed check makes FailIfConcentrationCheckFailed
+force-finish the shell and spend the spell (scroll charge, then slot) with no cast and no cost; TB
+charges at the action frame; a converted summon joins the party group and owns its own TB turn.
+Working203 (one coherent tranche): C6C-under-threat targets the mount (touch cast ~1.5 s inside the
+window); the reader models the native lost-spell path (one spend, no cast, no cost, shell
+force-finished) for the threatened and rider-incapacity rows and requires the row-end summon release;
+the full-round row releases its exact native summons before the next row (CastingSummonResidue,
+component-tested, compiled call-order check). Reader-only correction evaluated against the immutable
+202 Stage1/3 evidence (reader203-preview202-evaluation1.json 14abe5a7...: rider-incapacity
+FAIL->PASS; under-threat/full-round FAIL for the new requirements). 6D staged (move-cast-move,
+cast-then-move, double-move-ranged, movement-exhausted, auto-stop-boundary; schema45) and 6E reaction
+(swift-on-own-turn, swift-out-of-turn, attack-on-mount-observed, reaction-window; schema46) run on
+the casting fixture with native remaining movement; no synthetic movement/action grants,
+cooldown/TimeMoved writes, second preparation or movement replay; roots chunk6d-staged-rt/tb and
+chunk6e-reaction-rt/tb.
+Observed gates (preview203-offline-gates.json 635090ca...): build/source147/0, components719/0,
+compiled observer197/0, casting reader274/0, 6D reader76/0, 6E reader70/0, FAST11/0, CANDIDATE15/0
+(harness271/0, assembly701/0); three reader1 receipts retained as wrapper launch-argument failures
+(no test ran). No203 package/suite/purity/native credit yet.
+Next: guarded publication, package (chunk6de-staged-o)/suite/freeze203, one orphaned purity, the
+12-stage batch (6C mounted RT first, TB, unmounted RT/TB, persistence pairs, then 6D/6E roots), then6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+## 2026-10-09 - preview201 closed (fixture-setup FAIL); coherent202 disposable stacks on the exact equipped unit
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen201 source0c5c8d3f9dbcf3dd794ac72b5f544e54e9352a37 is immutable: purity m1 PASS exit0
+(90.4 min detached); Stage1 mountedRT FAILED natively inside fixture setup before any row
+("Native equip did not retain the exact fixture item", NativeCastingItemLease.Acquire count10),
+producer2 rows1/1, worker1/game0, transaction restored exactly; stages2-4 BLOCKED-unrun, 5-8 NOT RUN
+(preview201-campaign-closure.json). Native facts (pinned IL): ItemSlot.InsertItem splits every
+stackable to one unit before taking slot ownership (Split(1) keeps identity only at count1);
+SpendCharges decrements a slot stack in place (count-1, charges back to1) but removes a single unit
+through the one-bool ItemSlot.RemoveItem that the installed BagOfTricks refill patch intercepts -
+frozen200 Stage1 shows that refill moving ORIGINAL items (another member's potion, the rider's
+original scroll) into the disposable slots, leaving the potion double-referenced with a null
+HoldingSlot. No production casting/resource/concentration defect.
+Working202: the lease equips the exact single unit first and builds the bounded stack on that
+entity (scroll x10, potion x2 so the one measured drink never removes it); every item row resolves
+its ability through ExactCastingItemAbility (exact equipped entity, at least two units, ability
+sources that entity); original-slot restoration now requires holding-slot linkage and relinks a
+dangling original through the same native removal/insertion; the first release snapshot is kept;
+the reader pins each item row to the exact equipped lease entity, in-place stack decrements,
+unchanged stacks on refusals and stack conservation (requested count minus observed spends).
+PASS build/source146/0, components714/0, compiled observer154/0, casting reader252/0,
+FAST12/0, CANDIDATE16/0 (harness271/0, assembly701/0). No202 package/suite/purity/native credit yet.
+Next: guarded publication, package/suite/freeze, one purity, failed mountedRT first.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+## 2026-10-09 - preview200 closed (producer PASS, external FAIL); coherent201 casting instruments and reader rules
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen200 source3542dc0c211eb5e0ce47b74ace4127b3e9f48f67 is immutable: purity l1 ABORTED
+(tool-host memory kill, exit UNKNOWN), l2 PASS exit0; Stage1 mountedRT ran natively with
+producer PASS17/0 (all15 rows reached, rider/mount incapacity and under-threat settled; the
+AI-lease ordering repair worked), external FAIL at the generic registration-audit list,
+worker1/game0, transaction restored exactly; stages2-4 BLOCKED-unrun, 5-8 NOT RUN.
+Offline external row evaluation8 PASS/7 FAIL: Guidance is natively uncastable for the fixture
+Druid (no memorized orison; AbilityData.IsAvailable=false; OnAction fails before RuleCastSpell;
+Spellbook.Memorize sets Available=false until rest), and the incapacitated actor's native
+combat-exit Cooldowns.Clear tripped the pair-replay rule. No production casting defect.
+Working201: spellbook rows use the three memorized slots (quickened CLW, Snowball, summon
+conversion); every other cast uses the exact native CLW scroll stack (count10, same lease);
+C6C-prepared-interrupt-after becomes C6C-scroll-interrupt-after (historical name stays
+registered); the reader pins IsAvailable, exact instruments and single scroll spends, counts a
+clear only outside the actor's own combat-exit window, and the four Mammoth-engine6C roots leave
+the registration-audit list, now held equal to the compiled policy by source validation.
+PASS build/source146/0, components712/0, compiled observer150/0, casting reader228/0,
+FAST12/0, CANDIDATE16/0 (harness271/0, assembly701/0). No201 package/suite/purity/native credit yet.
+Next: guarded publication, package/suite/freeze, one purity, failed mountedRT first.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+## 2026-10-08 - preview199 closed; coherent200 fixture AI-lease ordering and reader repair
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen199 source85186ae3af3fac0a3aa466625188fa53f64d6f71 and its closed campaign
+(4 PASS/1 fixture FAIL/3 BLOCKED-unrun) remain immutable; Claude continues the
+owner's Chunk6 mission from the published4a840a0 takeover checkpoint.
+Working200 acquires both reversible fixture AI leases BEFORE the exploration Mount:
+the199 lease captured already-disabled mount AI, so the forced rider-incapacity
+Dismount restored enabled AI and ordinary Mammoth attacks blocked settlement
+(frozen evidence: lease rawAiBefore=false; two native round attacks at the deadline).
+It adds a bounded6C leaf-deadline capture and reads compound6C envelopes (child
+case rows, no self-named aggregate) in both generic readers through one pure
+registry; individual scenarios keep the exactly-once rule. No production casting/
+action/resource/turn/cleanup/save policy change; same15 rows/eight stages/schema44.
+PASS build/source145/0, components712/0, compiled observer146/0, casting reader212/0,
+dispatch56/0, FAST12/0, CANDIDATE16/0 (harness271/0, assembly701/0). The corrected reader reaches the
+immutable Stage1 native FAIL (14/1 leaf deadline) and never promotes it; bytes unchanged.
+No200 package/suite/purity/native credit at this source checkpoint.
+Next: guarded publication, package/suite/freeze, one purity, failed mountedRT first.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+## 2026-10-08 - Codex closed preview199; owner-requested Claude handoff
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS; 6D-6F incomplete.
+Frozen199 source85186ae3af3fac0a3aa466625188fa53f64d6f71 is preserved.
+Campaign closed4 PASS/1 fixture FAIL/3 shared-fixture BLOCKED-unrun. Both settled
+RT/TB casting/item save-cold pairs pass. All5 transactions restored exactly,
+worker exits observed, game exits0, empty restoration/observation errors.
+Human105/275 protected saves/358 Mods unchanged; no game or transaction remains.
+The capped rider-incapacity stimulus worked; native mount attacks continued
+during settlement. Exact AI-lease ordering is a hypothesis for the next repair,
+not implemented. A separate compound-envelope reader defect is also recorded.
+No production casting patch or complete baseline qualification is claimed.
+Owner requested stopping Codex development and transferring to Claude. No new
+candidate, proof, source repair or native launch follows this closed boundary.
+Read [active continuation](docs/CHUNK6-CONTINUATION.md) and
+[Claude takeover prompt](docs/CLAUDE-CHUNK6-TAKEOVER-2026-10-08.md).
+Final HEAD/tree and complete evidence bindings are in the lab handoff
+analysis-cache/chunk6-continuation/CODEX-CHUNK6-HANDOFF-TO-CLAUDE-2026-10-08.md.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+
+
+## 2026-10-08 - preview198 closed; bounded199 lifecycle fixture repair
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery remains
+DEFER - EVIDENCED with its cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen198 closed4 PASS/1 fixture FAIL/3 BLOCKED-unrun. All5 transactions restored
+exactly, game exits0, empty errors; human105/275 saves/358 Mods unchanged.
+Working199 adds a checked native damage cap for the disposable Druid lifecycle
+row, keeps unclamped main-character damage refused, and waits for native command/
+combat settlement before fixture restoration. No production casting/action patch.
+Focused135/0, reader158/0, persistence79/0, FAST12/0 and CANDIDATE16/0 pass.
+Exact identities, failures and next step: [active continuation](docs/CHUNK6-CONTINUATION.md).
+One mutator; no merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY.
+## 2026-10-08 - preview197 closed; bounded198 native movement fixture repair
+
+6B IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery DEFER -
+EVIDENCED with its qualified cost-free refusal. Refusal is not delivery.
+6C IN PROGRESS;6D-6F incomplete. Frozen197 source
+b91204f9f81057e95a234f732344fd994080dfd5 remains immutable:4 PASS/1 fixture
+FAIL/3 BLOCKED-unrun. Purity PASS95.13673min. All5 transactions restored,
+game exits0, empty restoration/observation errors; human105/275 protected saves/
+358 Mods unchanged. Both RT/TB settled casting/item save-cold pairs PASS.
+No game or runtime transaction remains.
+
+The corrected refusal completed. Eleven native structural baseline rows receive
+no complete external-stage qualification. The motion row never requested a cast:
+it awaited UnitMoveTo.IsRunning (post-approach startup) while native movement had
+already carried the pair~6m; RT also incorrectly required a TB-only ground owner.
+Working198 fixes only fixture readiness: exact live player Move carrier/executor/
+slot plus observed native movement, TB paired owner only when applicable.
+One raw movement-before-cast fact is checked by the sole external validator.
+Same15 rows/four baselines/eight stages/schema44, unchanged deadlines/thresholds.
+No product casting/action/resource/turn/preparation/movement/cleanup/save policy patch.
+
+PASS198: build/source145/0, components710/0, compiled observer95/0, reader153/0,
+persistence79/0, safety271/0, assembly698/0, FAST12/0 and CANDIDATE16/0.
+685 gate inputs unchanged. Observer1/2 test reflection/terminal-stimulus FAILs
+remain retained; observer3 PASS. No198 package/suite/purity/native credit yet.
+197 closure467281e7a50b4b227eda349fec670984b7a0c5a4300208398267b0ca870d8477;
+cost4163088bace0a2872aed02400070775ea94100c4e767f4089ea28b9708dd1dcb.
+Latest full checkpoint: lab analysis-cache/chunk6-continuation/
+CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-08-PREVIEW197-CLOSED-198-REPAIR.md.
+Next: coherent guarded publication, one198 freeze/purity and failed mountedRT first
+in the ready6C batch. Continue6C then6D-6F. No6B replay or newTB experiment.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod change/
+HUMAN PLAY acceptance. One mutating executor.
+## 2026-10-08 - preview196 closed; bounded197 native refusal fixture repair
+
+6B remains IMPLEMENTATION STABLE: RT supported/default-off Charge; TB delivery
+DEFER - EVIDENCED with its qualified cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen196 source a9ba8f629aa3bce6a1d2239c112f01c81a2759c1 remains immutable:
+4 qualified PASS /1 fixture/setup FAIL /3 BLOCKED-unrun. All5 transactions restored,
+empty restorationErrors, observed game exits0; human105,275 protected saves and
+358 Mods unchanged. No game or mutable runtime transaction remains.
+Purity PASS95.35307min; both settled RT/TB casting/item save-cold pairs pass.
+The failed baseline completed five native structural rows, which do not receive
+complete external stage qualification. Its intended Guidance-on-enemy refusal
+instead admitted an unstarted native shell and hit the unchanged30-second leaf.
+Native CanTarget permits that target; the fixture assumption was wrong.
+
+Working197 uses the native unit-only spell's empty-ground target refusal.
+Ordinary unit input is retained. No product casting/action/resource/turn/cleanup/
+save or substantive acceptance-policy change, schema44 and existing eight stages
+unchanged. Actual compiled/native boundary regression84/0, casting reader151/0,
+persistence reader79/0 and FAST12/0 pass;685 inputs unchanged.
+First build197-1 and observer probes1/2/3 remain failed immutable evidence.
+CANDIDATE1 PASS16/0, including components710/0, source145/0, safety271/0 and
+assembly698/0;685 inputs unchanged. No197 package/suite/purity/native credit.
+Closure27ccb2ca3752f696fe686fdc4c1978150fc716cdad0bb8e381505131ba735f00;
+exact receipts/costs under lab analysis-cache/chunk6-continuation/20261005-6br.
+Next: CANDIDATE, coherent guarded publication, one freeze/proof and ready6C batch.
+Continue6C then6D-6F. No merge/PR/tag/release/permanent install/protected-save write/
+foreign-mod change/HUMAN PLAY acceptance. One mutating executor.
+## 2026-10-08 - preview195 closed; bounded196 full fixture admission repair
+
+6B remains implementation stable: RT supported/default-off Charge; TB delivery
+DEFER - EVIDENCED with its qualified cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen195 source9d5eb700a7b62f2851336a94d961c68625551326 remains immutable:
+4 qualified PASS /1 fixture/setup FAIL /3 BLOCKED-unrun; all5 actual transactions
+restored exactly, empty restorationErrors, game exits0. Human105,275 protected
+saves and358 Mods are unchanged; no game or runtime transaction remains.
+Both RT and TB settled casting/item save-cold pairs pass on195. Four persistence
+runs have exact whole-profile audit receipts; the short failed baseline has none.
+No additional whole-profile claim is made for that short transaction.
+
+The first baseline stopped at stage0 before any casting row: the outer pre-target
+rider AI scenario list omitted6C even though the nested exact-pair check allowed it.
+All four baselines share that guard, so three dependent launches were not repeated.
+Working196 adds6C to that exact scenario admission, tests its compiled decisions,
+and verifies the full compiled native fixture guard calls the tested gate.
+Other native preconditions, exact pair checks and AI lease/restoration are unchanged.
+No product casting/action/resource/turn/cleanup/save or acceptance-policy change.
+Focused build1 PASS; observer/admission65/0, casting151/0, persistence79/0.
+FAST1 PASS12/0;CANDIDATE1 PASS16/0,685 inputs unchanged. Components710/0,
+source145/0, safety harness271/0 and assembly698/0 pass.
+No196 package/suite/purity/native credit.
+Closure11f27b27ff850e21833e1c83f79e4dfb4779cd85316019f8cc3235d6ee9e501d:
+lab analysis-cache/chunk6-continuation/20261005-6br/preview195-campaign-closure.json.
+Next: targeted gates, coherent guarded publication, one compiled freeze/proof;
+failed mounted RT baseline first, then the same existing eight-stage6C scope.
+No188 or TB-Charge replay; continue6C-6F. No merge/PR/tag/release/permanent
+install/protected-human-save write/foreign-mod mutation/HUMAN PLAY acceptance.
+## 2026-10-08 - preview194 closed; coherent195 fixture and reader repair
+
+6B remains implementation stable: RT supported/default-off Charge, TB delivery
+DEFER - EVIDENCED with its qualified cost-free refusal. 6C IN PROGRESS;6D-6F incomplete.
+Frozen194 source69946c89217d9625b04756899babe050454461f8 remains immutable:
+0 qualified PASS /3 FAIL /5 BLOCKED-unrun; all3 transactions restored exactly,
+empty restorationErrors, game exits0, human105 and275 saves/358 Mods unchanged.
+RT native7/0 proved the activation cleanup repair. Its original reader FAIL remains;
+complete immutable envelope re-evaluation now PASS under a separately hashed reader.
+Mounted RT failed before use at omitted6C exact-pair AI admission (2/1); TB source
+timed out before use because rider readiness blocked another actor's End Turn (6/1).
+Working195 repairs those diagnostic paths and the reader's pre-Mount/empty-RT-pair
+assumptions. Native action, spending, cleanup, turn and save policy are unchanged.
+Focused observer57/0, casting151/0, persistence79/0 and build1 pass. FAST1 PASS12/0;CANDIDATE1 PASS16/0,685 inputs unchanged.
+No195 package/suite/purity/native verdict yet. See docs/CHUNK6-CONTINUATION.md.
+Next: coherent guarded publication, one new compiled freeze/proof,
+same reviewed runner/eight stages; failed RT source first. No188 or TB-Charge replay.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
+## 2026-10-08 - 6C preview193 closed; coherent194 native fixture repair
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification deferred to Chunk6 consolidation. 6C IN PROGRESS;6D-6F incomplete.
+Frozen193 source9b0223d92188c18350822bed4ef93ab85c6da3ce is preserved.
+Purity actual0 PASS,94.36min. Campaign closed0 qualified PASS/1 fixture FAIL/7 BLOCKED-unrun.
+Source casting, potion, save and continuation ran; retained rod activation failed cleanup.
+Worker1/game0; human105,275 saves,358 Mods/UMM/settings/profile restored exactly,
+empty errors, no recovery/game/transaction. Closure834d24d990146ba737429e8de4453563bb9e33eed9ee495583555d19dbb2a7bc.
+Native disposal leaves IsOn unchanged. Working194 uses the exact owned rod's normal
+native toggle before unequip; every prior item/activation/buff/slot postcondition remains.
+The scroll declaration now matches the original native fixture AssetGuid.
+No production casting/action/turn/resource/relationship/persistence policy change.
+Focused regression preserves exact disposal bodies and disposed-state assertions;
+only inaccessible Unity boundaries and a clock read are mocked in the detached host.
+The rejected test edit did not execute. Six failed probe attempts remain immutable.
+FAST PASS12/0;CANDIDATE PASS16/0 with unchanged inputs: components710/0,
+observer33/0, casting151/0, settled72/0, source145/0, harness271/0, assembly698/0.
+No194 package/suite/purity/native credit at this source checkpoint.
+Next: coherent guarded publication, one194 freeze/proof, same8 stages with failed
+RT source first, then continue6C-6F. Exact receipts: docs/CHUNK6-CONTINUATION.md.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod mutation/HUMAN PLAY.
+## 2026-10-08 - 6C preview192 closed; coherent193 shared-slot fixture repair
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification deferred to Chunk6 consolidation. 6C IN PROGRESS;6D-6F incomplete.
+Frozen192 source39b1e102e9aa09b6cf3eb7edcdaf20eb5e45b557 is preserved.
+Purity PASS with actual child0; controller typo1 is retained separately.
+Campaign closed0 qualified PASS/1 fixture FAIL/7 BLOCKED-unrun. Worker1/game0;
+human105,275 saves,358 Mods/settings/profile restored exactly, empty errors,
+no recovery/game/transaction. The consumed fixture potion was absent, while an
+original potion from another actor occupied its slot. Native two-bool rod removal passed.
+Working193 captures original native owner containers once before item acquisition,
+releases all created items, then restores exact original placements. Owners remain
+until postconditions pass. No casting/action/turn/resource/acceptance policy change.
+Three regressions cover the observed shared-owner and cohort-order defects.
+FAST PASS6/0;CANDIDATE PASS16/0 with unchanged inputs: components710/0,
+compiled observer26/0, casting151/0, persistence72/0, source145/0, assembly698/0.
+Two initial build failures (version stamp and evidence type) remain immutable.
+No193 package/suite/purity/native credit at this checkpoint. Exact receipts and
+next action: docs/CHUNK6-CONTINUATION.md. Guarded publication, one193 freeze/proof,
+same8 stages with failed RT source first, then continue6C-6F.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod mutation/HUMAN PLAY.
+
+## 2026-10-07 - 6C preview191 closed; coherent192 native fixture cleanup
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification is deferred to Chunk6 consolidation. Frozen188 is unchanged.
+6C IN PROGRESS;6D-6F incomplete. Frozen191 source5abca28b80e25c8292b929c95ba9fb22163d06a7
+is preserved. Purity PASS, actual exit0; one native FAIL7/1 and7 BLOCKED-unrun.
+Its worker exited1/game0; human105,275 protected saves,358 Mods and profile bytes
+restored exactly, empty restorationErrors, no recovery or active game/transaction.
+The failure proves native auto-replacement of the consumed fixture potion and
+rod re-equipping during cleanup. The installed auto-fill wrapper targets only
+RemoveItem(bool). Working192 pins the exact native two-argument removal (equipment
+events retained) and restores captured original quick-slot placements. No action,
+resource, casting, relationship, persistence or acceptance policy changed.
+FAST2 PASS6/0;CANDIDATE1 PASS16/0: components707/0, compiled observer23/0,
+casting151/0, settled persistence72/0, source145/0, harness271/0, assembly698/0.
+FAST1's private-overload compile error and all earlier failures are retained.
+Native qualification remains required. Details and exact receipts: docs/CHUNK6-CONTINUATION.md.
+Next: coherent guarded publication, immutable192 package/suite, one required purity,
+then the same8 ready6C stages with the failed RT save first. Continue6C then6D-6F.
+No merge/PR/tag/release/permanent install/protected-save write/foreign-mod change/HUMAN PLAY.
+## 2026-10-07 - 6C preview190 closed; coherent191 diagnostic repair
+
+6B remains IMPLEMENTATION STABLE - RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification is deferred to Chunk6 consolidation. Frozen188 stays closed.
+6C IN PROGRESS; 6D-6F incomplete. Published190 source78a20c2338444016f34a86732d42fc1a8db6bcbd,
+tree2f33a448d36e3037a13d16bec917497346d01fb0 and all frozen bytes remain preserved.
+190 purity PASS, actual exit0. Campaign closed0 qualified PASS / 2 FAIL / 6 BLOCKED-unrun.
+Stage1 ran older CM01/02/03 because the6A classifier reused a wider engine allowlist.
+Stage5 separately observed quickened Snowball, potion, a native disposable save and
+ordinary continuation; its exact item-cleanup postcondition then failed. No6C
+stability or cold-load credit. Both workers exited1, both games exited0; exact
+human105,275 protected saves and358 Mods restored, empty restorationErrors, no recovery.
+No live game/transaction. Closure e689f34c2364aa1f32d7bbd580c2819decb3834e06dcc1734c781a21c68bb62a
+under lab analysis-cache/chunk6-continuation/20261005-6br/preview190-campaign-closure.json.
+
+Working191 separates engine routing from the Mount/Dismount behavior family;
+its actual compiled regression fails on190 and passes21/0 on the repair. Fixture
+unequip disables native auto-merge, retains exact owners and attempts independent
+item cleanup; a failed postcondition records its exact collection/slot/residency.
+The native cause still requires the next focused run; offline success is not proof.
+Casting reader151/0 and settled reader72/0 pass. FAST191-1 retained an orchestration
+FAIL solely from an added nonexistent test filename; its actual affected checks passed.
+No production casting/action/turn/resource/persistence policy or acceptance change.
+No191 package/suite/purity/native verdict yet. Original190 artifacts remain immutable.
+
+CANDIDATE191-1 PASS16/0 (including FAST), components699/0, casting151/0, settled72/0, compiled observer/dispatch21/0, source145/0, harness271/0 and Kingmaker assembly698/0; actual child exit0. Receipt: lab20261005-6br/6c-candidate191-1-process.json.
+
+Next: coherent commit/guarded
+push/equality/clean check, then one191 package/suite/proof. Run the failed settled RT
+case first, then affected cold and mounted/unmounted RT/TB baselines. Continue6C-6F.
+Use the existing parameterized runner/probe; no188 replay, TB experiment or new matrix.
+No merge/PR/tag/release/permanent install/protected-human-save write/foreign-mod change/
+HUMAN PLAY acceptance. Direct disposable-archive enumeration was rejected by automatic
+approval review and was not retried or bypassed; runtime facts and pinned IL are used.
+## 2026-10-07 — 6C launcher registration repaired; preview190 ready
+
+6B remains IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification is deferred to Chunk 6 consolidation. Its frozen188 evidence
+and all28 passing stages remain closed and unchanged. 6C is IN PROGRESS.
+
+Frozen189 source f8717c53667b296b4031379ea143dcbc501aca56 and package/suite
+are immutable. Its first WhatIf child exited1 before launcher entry because the
+Scenario ValidateSet omitted the four implemented6C scenarios: ABORTED — NO
+PURITY VERDICT; native0, no game/transaction or external-state mutation.
+The failed proof, logs, freeze and original parameterized helpers are retained.
+
+Working 0.1.0-chunk6c-preview.190 adds only those four launcher registrations,
+actual parameter-binder/registry regressions, and coherent version stamps.
+There is no production casting, action, cleanup, fixture or acceptance-policy
+change. The same four15-row mounted/unmounted RT/TB baselines and two settled
+save/cold pairs remain the ready eight-stage batch. No rod is yet created.
+
+Focused casting151/0 passes, including13 actual launcher-binding checks.
+CANDIDATE190-1 PASS16/0: components699/0, source145/0, compiled observer11/0,
+settled reader72/0, preamble215/0, harness271/0 and Kingmaker assembly698/0.
+All five gate inputs remained byte-identical. Lab receipt:
+20261005-6br/6c-candidate190-1-process.json.
+No190 package, suite, purity or native verdict exists at this source checkpoint.
+
+Next: coherent guarded publication; exact190 package and suite; reuse the
+unchanged18/0 entry probe, run190 WhatIf purity, then the eight native stages.
+Do not alter189 or repeat188. Continue6C–6F with stock native behavior first.
+One mutating executor; no active game/runtime transaction. No merge/PR/tag/
+release/permanent install/protected-human-save write/foreign-mod change/HUMAN PLAY.
+Candidate receipt SHA256 9ea40ef54fb30745065042b0edbded99bfb649a78089b67da98cd1f8fbbf5cfb.
+
+## 2026-10-07 — 6C native baseline ready for qualification
+
+6B remains IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
+final qualification remains deferred to Chunk 6 consolidation. Frozen188 and
+all 28 passing stages/29 restored transactions remain immutable.
+
+Working 0.1.0-chunk6c-preview.189 adds bounded normal-input diagnostics and one
+external casting/item validator; it changes no production casting, spending,
+concentration, charge, movement-budget or turn policy. The original Druid/Mammoth
+fixture gains native-created Lesser Quicken rod, potion and scroll only inside
+guarded disposable runs. The rod is not yet created. Four RT/TB mounted/unmounted
+15-row baselines and two settled spell/item save/cold-load pairs are ready.
+The cold process reads the saved rod and spent spell slot; it cannot provision
+items, replay casting or Mount, or continue an in-flight process.
+
+Focused PASS: components699/0, casting138/0, settled persistence72/0,
+compiled observer11/0, preamble215/0, parent handoff30/0, persistence contracts187/0,
+profile protection53/0, source145/0. FAST2 passed11/0; CANDIDATE3 passed16/0
+(shared harness271/0, Kingmaker assembly698/0), with exact input bytes unchanged.
+Lab receipt: 20261005-6br/6c-candidate3-process.json,
+SHA30674368c8545eead5342207b35ebf589680f24c1b3c6a6c1b6956569656fd83.
+Earlier build, fixture, reader, FAST and CANDIDATE failures remain retained;
+reader variable collisions and stale schema/caller pins were corrected offline.
+These counts are not native gameplay qualification. No189 package/suite/purity
+or game run exists at this source checkpoint; 6C remains IN PROGRESS.
+
+FAST now runs build/components and explicit affected gates; CANDIDATE adds the
+common safety/manifest and affected assembly checks. Historical 6A archives and
+ledgers remain under FULL or an explicit dependency-driven check. The existing
+native worker/exit observer has a manifest-parameterized successor in the lab;
+original helpers are preserved, and focused process/read probes precede use.
+No large extraction or acceptance-framework rewrite is required.
+
+Next: coherent guarded publication, exact189 package/suite, required WhatIf
+purity, then the eight-stage native baseline/settled persistence batch.
+No source mutation while frozen. Native defects are not yet established;
+prefer stock behavior and fix only attributable observations. Continue6C–6F.
+No merge/PR/tag/release/permanent install/protected-human-save write/foreign-mod
+change/HUMAN PLAY acceptance. One mutating executor; no active game/transaction.
+
+## 2026-10-07 - 6B implementation stable; 6C native baseline next
+
+CHUNK 6B IMPLEMENTATION STABLE — RT SUPPORTED; TB DELIVERY DEFERRED;
+FINAL QUALIFICATION DEFERRED TO CHUNK 6 CONSOLIDATION. Owner acceptance pending.
+Frozen188 source bc98a9cdf0d1e65b30eaabac517b58479efd3520, tree
+ def5cf512bae42a27a892d98ccac208ef75998de: all28 required stages PASS1031/0,
+zero blocked/unrun. All29 actual guarded transactions restored human105,
+protected saves, Mods/foreign Mods, UMM and settings; empty restorationErrors.
+The original Stage15 game-exit observation remains UNKNOWN and immutable;
+only15 was rerun, with independently observed worker/game exits0. First14 retained.
+Native achievement/analytics cache churn at24/25 passed the unchanged Chunk5
+policy; the whole profile was not byte-identical. No game/transaction remains.
+
+Charge stays default-off. RT delivery and the agreed cleanup/persistence matrix
+are qualified; TB has the exact cost-free refusal, not delivery. No TB experiment
+is reopened. No extra confirmation campaign is required. Full final6F and HUMAN
+PLAY remain pending. Lab closure SHA256 bb8d505912ef16113c4f9c86151a3aa0c126979923d41854b55817764f6601fb.
+Exact ledger, identities, retained failures and receipt-derived costs are in
+analysis-cache/chunk6-continuation/CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-6B-STABLE.md.
+
+After campaign closure, pure schema/reader dispatch moved into
+scripts/runtime/ScenarioDispatchEvidence.ps1 under the existing reader identity.
+Protected Common remains excluded; launcher, save, restoration, exact identity
+and artifact-byte guards are unchanged. Focused PASS: dispatch35/0, charge502/0,
+carrier142/0, shared harness271/0. No version bump, product rebuild, purity replay
+or native replay was made for this external interpretation separation.
+
+Continue directly6C: normal mounted RT/TB casting/items first, authorized native
+Lesser Quicken rod only in the disposable Druid fixture, exact new fixture proof.
+No casting production patch without an observed defect. Rod is not yet created.
+Then6D/6E/6F under the owner's charter. No merge/PR/tag/release/permanent install,
+protected-human-save write, foreign-mod change or HUMAN PLAY acceptance.
+## 2026-10-07 - preview187 closed; bounded188 envelope repair
+
+Phase6B IN PROGRESS;6C-6F incomplete. Frozen187 closed24 PASS/1 FAIL/3 BLOCKED-unrun;
+all25 native transactions restored exactly, empty errors, no active game/transaction.
+All five persistence pairs and area/session/disable/removal/noDLL passed. Charge
+schema43 was refused by the stale outer42 parser; no product defect is established.
+Working188 fixes only that registration and adds full-envelope regressions.
+Focused reader502/0, components699/0, FAST26/0 and CANDIDATE38/0 pass.
+No product action/cleanup or acceptance-policy change; original failures retained.
+See docs/CHUNK6-CONTINUATION.md and the closed187 lab handoff for exact identities.
+No6B stable claim or6C rod before the complete successor campaign. Continue6B-6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
+## 2026-10-07 - preview186 closed; coherent187 observer repair
+
+Phase6B IN PROGRESS;6C-6F incomplete. Frozen186 closed14 PASS/2 FAIL/12 BLOCKED-unrun;
+all16 native transactions restored exactly, empty errors, no game/transaction.
+Shared hash-identity ambiguity stopped the campaign; native RestoreView(null) also
+exposed a scoped observer defect. Preview187 retains exact references until trace
+closure and separately records null view arguments/native-created views. No change
+to product charge/action/cleanup policy or acceptance limits. Historical failures
+remain immutable. Components699/0, compiled observer13/0, charge441/0,
+continuation50/0, FAST26/0 and CANDIDATE38/0 pass. No187 native credit or6B stability.
+See docs/CHUNK6-CONTINUATION.md and the lab closed186 handoff for full identities,
+restoration and the exact next command. One coherent freeze/purity/28-stage campaign
+follows CANDIDATE and guarded publication. No rod until6B closes; then continue6C-6F.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
+## 2026-10-07 - preview185 closed; coherent preview186 qualification repairs
+
+Phase 6B IN PROGRESS; 6C-6F incomplete. Frozen185 remains immutable:
+16 PASS / 4 FAIL / 8 BLOCKED-unrun; all 20 actual transactions restored exactly,
+empty restorationErrors, normal game exits, no live game or runtime transaction.
+Closure d25e2eea841c3fc356713b3ae34899ee4bd36de47ea85289cb78ccfa8c42e1bc.
+Starting HEAD928589f659c2193859f66a4560ddc1e5a9e79dc4 remains fetched and remote-equal;
+intentional preview186 source is dirty. No186 package/suite/purity/native verdict.
+
+The coherent tranche corrects per-actor continuation acceptance (native initiative,
+mount ordinary attacks, and native cost after first delivery), directly observes
+the exact native view-attachment call, and records reciprocal native ground traces
+for an origin-edge fixture failure. Existing clearance/arrival/resource thresholds
+and production charge/action/cleanup policies remain unchanged. Reverse-trace
+planning is a bounded hypothesis pending native proof; it does not move an actor.
+Schema42 requires the new observer evidence; no historical result is requalified.
+Focused PASS: components687/0, continuation38/0, charge reader434/0, persistence159/0,
+ground plan317/0 and joint ground156/0. FAST1 passed26/0 before the compatibility repair.
+CANDIDATE1 retained FAIL34/1 at legacy ground evidence. The forward-only legacy path
+is restored: focused ledger record checks87/0 and literal assertions7/0 pass.
+CANDIDATE2 PASS38/0 includes the final FAST26/0; all inputs stayed unchanged.
+
+Next: coherent commit and direct guarded push, fetch/equality/clean checks, then
+Invoke-Artifact186-v2.ps1 / Record-Freeze186-v2.ps1, one new purity and the28-stage native batch.
+Do not execute historical Publish-Preview185-v2 commands. Full185 closure handoff:
+analysis-cache/chunk6-continuation/CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-PREVIEW185-CLOSED.md.
+TB delivery remains DEFER - EVIDENCED with qualified185 cost-free refusal. No6B
+stability claim or rod before6B closes. Continue6B then6C-6F. No merge/PR/tag/release,
+permanent install, protected-human-save write, foreign-mod change or HUMAN PLAY.
+
+## 2026-10-07 - preview184 closed; preview185 qualification repairs
+
+Phase 6B IN PROGRESS. Frozen184 source a72b685391a3300b3616434ca59a0827fef6fecd
+and all evidence remain immutable: 20 PASS / 4 FAIL / 2 BLOCKED dependencies,
+24 native transactions; no claim that all26 native stages completed. Human105,
+protected saves, settings, UMM and foreign Mods restored with empty errors. One
+native achievements-cache rewrite passed the unchanged Chunk5 cache policy;
+that profile cache was not byte-identical. No game or runtime transaction remains.
+
+The coherent185 tranche changes fixtures, observation and external acceptance:
+three fixed RT cohorts retain every required row within unchanged deadlines;
+interrupted hosts retain partial FAILED evidence; stock origin walks record native
+route and actor clearance; P04 continuation records actual native float cooldown,
+round, cost and attack callbacks instead of a rounded GameTime prediction.
+Product action/cleanup policy is unchanged. TB delivery remains DEFER - EVIDENCED;
+the exact cost-free refusal passed on184. No185 native credit or phase stability.
+
+Offline185: components687/0, charge reader423/0, continuation26/0, persistence159/0,
+stock safety reader484/0, source145/0, ownership111/0, compiled fixture8/0,
+FAST22/0 with unchanged inputs. CANDIDATE1 stopped at a stale schema pin (harness270/1);
+the exact pin is corrected and all9 focused assertions pass. CANDIDATE2 PASS34/0
+with unchanged inputs (harness271/0, assembly717/0).
+No185 package/suite/purity yet; the failed attempt remains immutable.
+Exact closure, failures, hashes and cache exception are in the active continuation
+and lab handoff CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-07-PREVIEW184-CLOSED.md.
+Next command: powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6-continuation/20261005-6br/Publish-Preview185-v2.ps1
+Continue6B then6C-6F; no rod before6B closes. No merge/PR/tag/release/permanent
+install/protected-save write/foreign-mod change/HUMAN PLAY acceptance.
+
+## 2026-10-06 - preview183 closed 22 PASS / 4 FAIL; coherent184 fixture/observer repair
+
+Phase6B IN PROGRESS. Frozen183 source672ea70f2cab947651c1906227cd90f1c7a18048,
+tree27428f1aaa756401a2327c8f11603a740ca753f8, purity PASS, all26 stages terminal.
+All26 transactions restored byte-identically with empty restorationErrors;
+human105,275 protected save files and358 Mods unchanged, no game/transaction live.
+Five independent P04 save/cold pairs PASS; area, disable and removal PASS. TB exact
+cost-free refusal PASS64/0; delivery remains DEFER - EVIDENCED. RT full-stage FAIL
+is accumulated fixture geometry; ordinary TB setup prematurely requests Dismount;
+session observer reads a disposed actor; no-DLL observer source JSON gains $id.
+The coherent184 repair is source-complete: normal native return movement isolates
+RT rows; ordinary controls wait for native availability; disposed session actors
+are not re-read; observer3 emits the exact source identity without serializer metadata.
+Product action/cleanup policy is unchanged. No phase stable or184 native credit yet.
+Offline184 PASS: components682/0, charge reader407/0, persistence reader159/0,
+fixture reader30/0, compiled fixture contracts8/0, ownership111/0, source144/0,
+FAST21/0 and CANDIDATE33/0. Both tier receipts prove inputs unchanged.
+Closure e8c65ed6e7f777aa482bc011abb4d1467bdf8b62830eefb73025e86b763f3531;
+full receipts: lab analysis-cache/chunk6-continuation/20261005-6br/.
+Handoff: CODEX-CHUNK6-CONTINUATION-HANDOFF-2026-10-06-PREVIEW183-CLOSED.md
+under lab analysis-cache/chunk6-continuation. Earlier183 freeze gates682/0 components,
+404/0 reader,111/0 ownership,FAST18/0,CANDIDATE30/0 are historical exact183 gates.
+Next: guarded publication, exact184/observer3 freeze, new suite/purity and the ready
+26-stage native batch. Continue6B then6C-6F; no rod before6B closes.
+No merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
+## 2026-10-06 - frozen182 campaign closed; preview183 producer/fixture repair IN PROGRESS
+
+Frozen182 source220ed73b9f17e86e564ae8277bbed8bfa2594ec0 remains preserved.
+Campaign:1 qualified PASS,1 FAIL,24 NOT RUN at the owner's shared-observer stop.
+Stage1 was rerun because its original child exits were unobserved; rerun63/0 and
+worker/observer/game exits0. RT charge failed its shared activation identity and
+maximum-range fixture setup. All3 transactions restored exactly, empty errors,
+human105 and275 saves/358 Mods unchanged. No live game or transaction remains.
+Current183 working changes repair the missing charge GUID and bounded range-only
+fixture placement; product action/cleanup policy is unchanged. Native qualification
+is still required; no phase stability claim. All failures/helpers/evidence retained.
+See [the active continuation](docs/CHUNK6-CONTINUATION.md) for exact receipts.
+Offline183 gates PASS: components682/0, reader404/0, ownership111/0, FAST18/0,
+CANDIDATE30/0. Next: coherent guarded publication, new183 freeze/purity/native
+campaign; no further182 launch or evidence reinterpretation.
+Continue6B then6C-6F under the owner's mission. No rod before6B closes. One mutator;
+no merge/PR/tag/release/permanent install/protected-save write/HUMAN PLAY acceptance.
+
+## 2026-10-06 - preview182 exceptional native action cleanup IN PROGRESS
+
+Published181 HEAD beb42edc05e95cb54cadb4cb12e7d8619e200f15/tree
+2dbe350450015bae12910e5171001a7feec3c743 is preserved, remote equal at intake.
+181 remains immutable UNQUALIFIED: purity ABORTED - NO VERDICT, native0/26.
+The actual native/Harmony12 exception probe stranded its action fence. Closure
+23e36ae6c81d86a6449a832dd6586276f1514d6aac3ebaa49366adcf529607ce
+proved275 saves/358 Mods unchanged, human105 intact, no process/transaction,
+empty restorationErrors and no recovery. All prior failed evidence is retained.
+
+Candidate182 source closes the pinned native OnAction scope in finally. The existing
+charge owner retains the exact rule, original executor, shell and registered
+process through exceptions before native field assignment. Observation failure
+remains retryable debt; delivery retires before native completion. No action,
+turn, preparation or native process state is fabricated. Real compiled native
+exception/return and process-registration fault probes pass ownership105/0;
+components681/0, affected assembly693/0 and charge reader401/0 pass. FAST18/0 and CANDIDATE30/0 pass; candidate gate includes affected Both assembly717/0, harness270/0, persistence reader156/0 and source144/0. Final gate completed 2026-10-06T11:39:58.9555535Z. No182 package/suite/purity/run.
+
+The native Tick commits IsActed and charges cooldowns AFTER OnAction returns.
+Two new RT fault rows therefore require zero pre-commit cost, exact registered
+process ownership where applicable, terminal drain and no later attack. Existing
+post-queue failure/P04 save-cold rows retain their separate post-commit contract.
+Ready batch:26 stages,29 RT charge rows, exact TB refusal; no extra TB experiment.
+Lab detail: analysis-cache/chunk6-continuation/20261005-6br/
+PREVIEW182-ACTION-EXIT-REPAIR-20261006.md. Next: coherent
+guarded publication, one182 freeze/purity, entire ready6B native batch, then6C-6F.
+All phase exits remain incomplete. Authorized native Lesser Quicken rod for the
+disposable6C Druid remains uncreated. No merge/PR/tag/release/permanent install,
+protected-save write, foreign-mod mutation or HUMAN PLAY acceptance. One mutator.
+
+## Previous preview181 source checkpoint
+## 2026-10-06 - attributable180 mode refresh and fixture defects
+
+180 loaded successfully in six runs, resolving the179 startup boundary. Campaign
+closed4 PASS/2 FAIL/20 NOT RUN after a shared6B-R mode refresh canceled ordinary
+commands. All restoration passed.181 preserves native unchanged-mode no-ops;
+the behavioral regression fails on180 and passes on181. Exact manual-target
+ownership closes a product residue gap; no AI-isolation rewrite was needed.
+Request identity, blocker timing and loaded view-surface evidence are repaired.
+FAST18/0 and CANDIDATE30/0 pass; the earlier stale schema-pin failure is retained.
+Native requalification remains open. No human-only blocker or active runtime
+transaction. Next: one coherent181 freeze/purity and all26 ready6B stages.
+
+## Previous preview180 source checkpoint
+
+Two fully restored launches crashed before rows at the same Mono address. Native
+results are absent; no Charge behavior verdict is inferred. No further179 launch.
+Exact IL and behavior independently prove a dispatch defect: the wrappers invoke
+derived overrides instead of the native nonvirtual base, recursively reentering
+acquisition.180 repairs only that dispatch. Regression/surface55/0, components681/0
+and FAST18/0/CANDIDATE30/0 pass; no native load has yet confirmed crash repair. This remains
+safely actionable within the mission, not a human-only blocker. All6B lifecycle/
+persistence gates and later phases remain incomplete. Exact retained crash and
+restoration identities are in the newest resume. No guard or rule was weakened.
+
+## Previous preview179 source checkpoint
+
+Frozen178 purity PASS, native NOTRUN: installed enabled COTW expands ChargeBuff
+beyond its base-only guard. Working179 handles the exact inspected child facts,
+enchantments and FX lifetimes inside the existing lease/debt owner. It retains
+partial acquisition/removal debt and guards pooled generations against stale
+native references. The new RT child-cleanup row requires actual native effects.
+Build/components681/0, compiled surface47/0, charge reader360/0, persistence155/0,
+assembly705/0 and assets45/0 pass. FAST179-2 passed18/0 before the final narrow
+uncertain-custody observer guard. CANDIDATE179-2 passed30/0. Final capacity fencing
+reserves slots across nested native callbacks; final CANDIDATE179-3 passed30/0
+at2026-10-06T05:11:54.7490982Z, binding the complete source tranche.
+No human-only blocker, no native game/transaction, no external mutation. Full6B
+native lifecycle/persistence qualification remains required before stability.
+Retained179 failures include FAST1 version-metadata mismatch, surface8 probe
+MethodBase cast, surface4 detached Unity ECall restriction, source1 registration,
+and build2/4/8/9. CANDIDATE1's exact source inventory and surface10/11's detached
+Unity copy-body failure are also retained. Corrections preserve every safety rule.
+
+## 2026-10-05 - attributable preview177 buff assumption, replacement178 in progress
+
+Exact installed ChargeBuff has AddStatBonus, AddCondition(StealthForbidden40)
+and AttackOfOpportunityAttackBonus. Frozen177 accepts only AddStatBonus and
+cannot qualify. It never ran natively; its owned read-only purity was ABORTED,
+all bytes restored/unchanged, no active worker/transaction. Working178 retains
+exact native add/remove observations, never rewrites or replays shared condition
+debt, and waits for current game-thread rule dispatch settlement. Focused checks,
+FAST17/0 andCANDIDATE29/0 pass; freeze/purity/native qualification follow. This repair is
+within the owner's authority; no human-only boundary has been encountered.
+Native safety and the complete6B phase exit remain unproven, not stable.
+
+## 2026-10-05 - authorized 6B ownership repair: native qualification pending
+
+The owner's continuation mission supersedes the earlier stop-at-persistence
+instruction for this repair. Preview.177 source now retains exact charge ownership,
+drains postconditions and fences the active save path before enumeration/capture.
+Focused fault coverage and components662/0 pass; CANDIDATE4 passed28/0.
+The ready RT/lifecycle/persistence/removal fixtures and external readers are included.
+No new native charge or persistence run has occurred; the blocker is not claimed
+natively resolved. Package/suite/purity and the full ready6B batch are next.
+TB delivery remains DEFER - EVIDENCED with the exact refusal restored in source;
+native refusal qualification is pending. See docs/CHUNK6-CONTINUATION.md.
+All failed attempts remain immutable. No major phase is complete or stable.
+
+## 2026-10-05 - preview.176 continuation audit
+
+**BLOCKED — CRITICAL for pending-charge persistence.** At frozen preview.176/source40c40e4,
+SavePrefix bypasses the legacy SaveRequest cleanup when persistence is active; BeforeNativeHeader has
+no production charge-cleanup subscriber. Absence of custom charge fields does not establish safe native
+buff/command serialization. Ordinary Cancel clears activeCommand before interruption; terminal sweeping
+does not gate on charge debt; the retry method has no caller. Dismount catches subscriber exceptions and
+continues. A relationship cleanup PASS cannot establish the required charge ownership postconditions.
+
+The owner explicitly required stopping at an unproven persistence boundary. No pending-charge native
+write/cold load or speculative source repair across that boundary was attempted. Resolve one synchronous
+barrier and retained cleanup-debt owner with behavioral fault coverage and exact native ordering first.
+The separate TB experiment failed delivery: rider6/3 spent,0.169m,zero attacks; subsequent refusal rows
+had fresh native turns. No further TB experiment is inferred. Frozen176 is5PASS/1FAIL; WhatIf separately
+PASS. All six transactions restored exactly, errors empty, human105 and protected saves unchanged.
+See [the audit](docs/CHUNK6B-PREVIEW176-CONTINUATION-AUDIT.md) for evidence and the complete boundary matrix.
+Existing passing offline tests do not remove this blocker. Chunk6B remains IN PROGRESS, not stable.
+
+## 2026-09-29T14:32:35.5235669Z - preview.132 complete offline PASS
+
+IN PROGRESS. Complete mandatory umbrella PASS, actual exit0 in 17.81 minutes. Log C:/Dev/KingmakerMountedCombatLab/logs/c6a-132-integrated-fourth-offline.log, SHA256 eb84dd8672268d0477eef34b47eb6552cfaa5695abd8a51384b6406aa66a92e3. DLL 693ced5ce45aac53c3313820af9fe3929c136ab51b9704319c875ad9f4adbcb0 / MVID 7bfe0272-642d-4624-94eb-540dd31684aa, 5123584 bytes. This is offline evidence only. The three earlier failed132 umbrellas remain retained with their real exit1 and original logs.
+
+Source132 closes the known pre-combat target/ground-step contradiction and includes the bounded observer, pause, foreign-owner and evidence-reader repairs documented below. The third failed umbrella exposed archived105 instrumentation missing nativeTurnBased; its historical outcome and the original131 overall FAIL remain intact. Current parser regressions explicitly reject those originals, use clearly named synthetic modern envelopes, and remove their synthetic transaction files. Focused reader47/0, row22/0 and full-ledger7/0 passed before this complete umbrella. No native132 run or current qualification exists. Historical131 remains8 accepted/10 failed/69 unqualified,39 retained failures,22 exactly restored transactions. All87 mandatory IDs are inventoried;42 registered paths/45 missing exact6A implementations. Fourteen new mandatory IDs were attempted in the preceding131 campaign; none during this offline interval. Area uses an obsolete clean-dismount fixture and still needs current P07 restoration binding. No product reaction defect is established.
+
+Next: coherent commit and guarded branch publication, immutable132 package from clean HEAD, new suite and required unchanged purity proof, then FULL TB FIRST. Run the repaired and independent ready cases before changing the frozen source again. No repeated old passing prefix. Final87-row acceptance remains separate; no6B before it. Goal ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge/tag/release/PR/permanent install/HUMAN PLAY inference.
+
+## 2026-09-29 - preview.130 complete offline gate
+
+**IN PROGRESS.** The complete source130 offline umbrella finished with actual exit 0 at 2026-09-29T04:11:50.0344050Z. Receipt: analysis-cache/chunk6a-causal/offline-process-preview130-integrated.json; log SHA-256 3b28ab83067f7f358dc536f65e9d9fab373e833ae7a3c45a0f15d38f0c80252e. Exact built DLL remains 1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e / MVID eb59ff96-ce01-4262-ada2-6a95d094d65c, 5,092,864 bytes under the unchanged 5 MiB limit. Focused precise Acting input 104/0, causal 241/0, history 1094/0, order envelope 84/0 and the complete offline gates PASS; native execution is still required.
+
+All seven preview.129 runs and original proof have been independently reconciled by campaign-reconciliation-preview129.json. Each transaction restored all five external-state checks. Historical ledger remains 10 PASS / 1 FAIL / 76 unqualified with 26 retained failures. No previous PASS qualifies source130. The fullTB129 setup failure and all original assertion text, artifacts and payload identities remain intact.
+
+Local/published parent c5c99f162bf67e08535b94b1c8ba830af7654e97 retains accepted f05a265 ancestry. Actual Steam guard PASS: sole client 1920, session 2026-09-27T10:45:18.2578304Z, offline 10:45:24Z, current-session cloud evidence 2026-09-29T03:32:46Z. Kingmaker closed; human preview.105 restored. C: has about 130 GiB free after owner cleanup.
+
+Next: coherent commit and guarded publication; immutable preview.130 package (chunk6a-precision-a), new suite and one fresh unchanged proof; then positive, isolated compensation RT/TB, geometry, obstruction, full RT/fresh TB and remaining mandatory cases. No 6B until all 87 mandatory 6A rows PASS on one frozen candidate. Target ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING. No merge, tag, release, PR, permanent installation or HUMAN PLAY inference.
+
+## 2026-09-29 - preview129 closure and source130 precise Acting fixture
+
+**IN PROGRESS.** Branch codex/mounted-combat-phase3f-playable-core; published/local parent c5c99f162bf67e08535b94b1c8ba830af7654e97 preserves f05a265. Source130 is unqualified and supersedes129. No native130 run, package or proof exists.
+
+Preview129's original purity passed exit0 at2026-09-29T03:15:32.9960627Z; logSHA bf803c5fcee0315c7eadf85a6d3261ae6ea746b7cbc00064f12c0eae3a408eda. Never repeat it. Package acda9bb0e6d2894b030a05abf2a91f482245def26d1b6c3cb142ca4d18a6d3a8; manifest7c792cd58deaa2e5d5d1fb814497753c9477faab21e8ae62f59f55a03a47f470; DLL2c1b23c6c170d5ad4e37eb0d1a8b2a42a180f481994dcaa4087c475d4864c2cb/MVID5e4cecda-893f-4a1f-bafb-6ef9c2a8b944; suite20260929-chunk6a-preparation-a/SHA00b5ec62949b6bfd5856240a300866d8f2845c8e0bea4ad242d1949b1f3f15f1 remain immutable.
+
+Seven native runs restored all five external-state checks. Positive c6a-preparation-a-approach passed48/0, compensation RT46/0 and TB47/0, geometry45/0, obstruction45/0, fullRT52/0. The positive combat request1922459136/process803058816/context-699568768/shell3/gen1 approached6.43669176m to2.82846713m inside2.9m, observed all eleven boundaries once, all six hooks, acted/one native Move/Success. Independent exploration windows and both actors' action/reaction proofs passed; carried forcedDetach1 and duplicateSuppressed1 each added zero.
+
+FullTB c6a-preparation-a-full-tb failed44/2 before combat Mount. Native ground setup command-1948939776 reached Success on the same rider turn645278592, Preparing to Acting, but stopped0.285911083m from its destination under native0.3m approach, exceeding unchanged0.06m fixture tolerance. It carried actual Move debt0.1982034. GameSHA a1517d501a2df749b066b08dd2788431686256305e7ad271f1641ae052ca8e05; artifactSHA5bbf0a8693a73d9bfeae41d182ce83ff756893092ae8fa82eec957dd6b139282. Original assertions and all payload identities remain in docs/chunk6a-evidence-history.json and ledger. Historical129 ledger10PASS/1FAIL/76unqualified,26 retained failures; no provisional fullTB PASS credit. The129 partner-preparation repair was not exercised by this failed allocation.
+
+Pinned native ground input accepts a commandRunner callback. Source130 uses that native selected-ground route and a diagnostic UnitMoveTo with0.03m approach, preserving0.06m terminal tolerance, exact single rider/turn/destination, all native path/movement/cost ownership and carried debt. Producer and external reader bind the exact callback command and observed admission/terminal/agent radii. Historical129-and-earlier evidence retains its original strict arrival checks;130 and unknown identities require the new block. No production resource writes, transition redesign or guard relaxation.
+
+Source130 also integrates separately tested command-replacement, paired-policy refusal and area-restoration evidence. Build/source128/0 PASS; initial DLL1333265f2b55eaa6a1fc02ffaa80fa2a5fbe7a65da9851b71ab20947cc493b4e/MVIDeb59ff96-ce01-4262-ada2-6a95d094d65c,5092864bytes below unchanged5MiB. Focused precise input104/0, causal241/0, order envelope84/0 and history1094/0 PASS. Initial parser/reflection and history projection failures remain in lab logs; literal edit application, one-argument reflection invocation and artifact/row projection were corrected. No original evidence changed.
+
+Next: complete offline umbrella; preserve actual exit receipt; coherent guarded publication; new immutable130 package/suite and fresh unchanged purity; corrected positive, isolated compensation RT/TB, geometry, obstruction, fullRT/freshTB and remaining mandatory87. Kingmaker closed; actual Steam safety passed before each129 guarded launch, human preview.105 restored. No6B before all mandatory6A rows PASS on one frozen candidate. Target ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING. No merge/tag/release/PR/permanent install/HUMAN PLAY inference.
+
+## 2026-09-29 — preview.129 complete offline gate
+
+**IN PROGRESS.** The complete source129 offline umbrella passed with actual exit 0 at 2026-09-29T02:00:25.1510596Z. Receipt: analysis-cache/chunk6a-causal/offline-process-preview129-integrated-retry1.json; log SHA-256 0c84bf22b03f4aa04b2086f91d1a917dbd194c1d3bafcd2253143c5d1d4bed61. The separate original disk-full attempt remains FAIL with its original receipt and log. The owner freed 132 GiB; temporary synthetic-copy recovery is verified, and native evidence/backups were untouched.
+
+The product repair removes the duplicate partner-preparation reservation from AdoptRunningEncounter; the existing native prefix owns the grant, and adoption requires completion. The compiled regression fails on the exact preview.128 DLL and passes **16/0** on preview.129. Components **553/0**, source **128/0**, history **980/0**, foreign-companion case **702/0**, and the complete reader/ledger/causal/resource umbrella pass. The prepared campaign generator separately passes **213/0** synthetic checks; it creates no qualification evidence.
+
+Source parent and published head remain aec84a95cf058b32aec10bb14718ecde63fd2e6b on codex/mounted-combat-phase3f-playable-core, preserving accepted f05a265. Built DLL SHA-256 2c1b23c6c170d5ad4e37eb0d1a8b2a42a180f481994dcaa4087c475d4864c2cb, MVID 5e4cecda-893f-4a1f-bafb-6ef9c2a8b944, 5,073,408 bytes, within the unchanged 5 MiB limit.
+
+Preview.128 is superseded. Its package, suite, completed purity proof and seven native results retain their identities; all seven restoration records pass 5/5. Its historical ledger is 10 PASS / 1 FAIL / 76 unqualified with 25 retained mandatory failures. Preview.129 has **0/87 native qualification** and no package or proof yet. Actual Steam safety passed against client 1920 with current-session offline/cloud evidence; Kingmaker is closed.
+
+Next: coherent commit and guarded publication, immutable preview.129 package and new suite, one fresh unchanged purity proof, then positive approach, isolated compensation RT/TB, geometry, obstruction, full RT/fresh TB and the remaining mandatory 6A matrix. No 6B before all 87 mandatory rows pass on one frozen candidate. Target remains **ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING**. No merge, release, tag, PR, permanent installation or HUMAN PLAY acceptance.
+
+
+## 2026-09-29 - preview128 closure and source129 preparation ownership repair
+
+**IN PROGRESS.** Branch codex/mounted-combat-phase3f-playable-core; published parent aec84a95cf058b32aec10bb14718ecde63fd2e6b preserves f05a265. Source129 supersedes frozen128 and has no native qualification. Original128 purity PASS exit0 at2026-09-29T00:37:04.3208987Z, logSHA d0528188c1b5cc9e764edd35a90e5c2c02ad189bbde08ca3554af00b2dee2c45. Never repeat that proof. Package00557bbb35fab7249755e8f710884ccad2dc74a7ae990f10a03a83e9848e084a, manifestbdeef2dc8536ad3cbca555a853f34e85781f999d741cde22200859140bfbd988, DLL75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a/MVID225893fb-b686-433b-a3ad-3e46c8db77e9 and suite20260928-chunk6a-token-a/SHA9b96a040215153f8e40a9e859123381234886516d4864fffc4ce17ac2bacbd61 remain immutable.
+
+Seven native transactions restored all five external-state checks. Positive c6a-token-a-approach PASS48/0: one combat command-70198272/process-1789597440/context297400320/shell3/generation1,6.374983m to2.83447075m within2.9m, all eleven boundaries once and all six Unity hooks, actual acted/one Move/nativeSuccess. Separate exploration Mount and Dismount action/reaction windows PASS; carried forcedDetach=1 and duplicateSuppressed=1 each added zero. Isolated compensationRT46/0 and TB47/0, geometry45/0, obstruction45/0 and fullRT52/0 PASS. The ledger retained ten mandatory PASS only from those overall-PASS transactions.
+
+FullTB c6a-token-a-full-tb FAIL46/6 stopped the queue before remaining cases. Native gameSHAfdb25bf53c4a688c9f805c007a74d752eb99bc4d7155d8b5fe5d4e7df20fa15b; scenario artifactSHA55257492878e6debbc67e60205ff1399cce2424b5a4a511f002afdd8fa547122. Exact failures: CM01-combat-mount-accepted, CM03-combat-mount-conserves-debt and CM02-approach-arrival; complete original assertion text and payload identities are in the evidence history. Command1092947712/shell5/process1103652992/context-1102034816 reached every causal boundary and nativeSuccess, but partner prepare-before/after had no Clear and preserved initiativeCooldown4.49999952. Reaction replay reported "mount reaction effect differs from the exact native prepare-after event." Historical ledger10PASS/1FAIL/76unqualified,25 retained mandatory failures plus the associated exact native debt failure. No provisional PASS from that run is credited. Initial pending ledger attribution failures remain in lab logs; no ledger guard changed.
+
+Source investigation found AdoptRunningEncounter reserved the partner grant before calling its private native TurnController.Prepare. BeginPairedPreparation then attempted that reservation again, returned false, and the Harmony prefix suppressed native preparation. Native Prepare06000C3C (pinned engineMVID07fa1e4d-8618-41b3-9b8d-faa17d3b26f7, IL SHA27c769eb310f4bccfa9db38e06a921260696b4d95c382586bea04e2f091af408) calls Cooldowns.Clear once. The narrow repair leaves reservation with the existing native prefix and requires observed partner completion on return. No production cooldown/reaction write, forced preparation of the rider, resource assertion relaxation or accepted positive/compensation scenario redesign.
+
+The compiled-caller/domain regression fails on exact128 with "Native Prepare prefix rejected partner: adoption caller already reserved the same grant (observed caller reservations=1)" and passes16/0 on source129. Release build/source128/0 PASS; DLL2c1b23c6c170d5ad4e37eb0d1a8b2a42a180f481994dcaa4087c475d4864c2cb/MVID5e4cecda-893f-4a1f-bafb-6ef9c2a8b944,5073408bytes under unchanged5MiB. Initial source validation caught the stale BuildIdentity version; that failed log remains, and all three version declarations now agree.
+
+Source129 also integrates the separately tested foreign-companion refusal case and fixed CM08 regression/pointer qualification bindings. These keep every original native body, manifest, candidate, suite, overall-PASS and restoration gate. Foreign ownership is observed without mutation. Integrated focused tests and complete offline umbrella remain pending; no new package, proof or native run exists. Game closed, all128 transactions reconciled. Next finish gates, coherent commit/guarded publish, new129 immutable candidate/suite/fresh proof, then the required ordered native campaign. No6B before87 mandatory PASS on one frozen candidate. Target ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge/tag/release/PR/permanent installation/HUMAN PLAY inference.
+
+## 2026-09-28T23:20:44Z — complete source128 offline gate PASS
+
+**IN PROGRESS.** The complete source128 offline retry ended exit0 at2026-09-28T23:20:44.3984388Z, wrapper5544/child6384. Log c6a-128-integrated-offline-retry1.log SHA256824823740de4f61d9a8db281eca752a2cbe5993039128f585da7bb4179c35094. The original failed umbrella and both focused manifest-location diagnostic logs remain intact. The only retry correction bound the Horse UX source test to both callers of the unchanged canonical manifest guard and its original allowlist clauses. No runtime guard body or product behavior changed.
+
+Release DLL75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a/MVID225893fb-b686-433b-a3ad-3e46c8db77e9,5069312bytes under the unchanged5MiB cap. Source127/0; live path contents17/0; native patch construction30/0; auto-use3796/0,case848/0,envelope60/0; primary claim1148/0; shared manifest11/0; legacy reader47/0,row22/0,fullledger7/0; history864/0 and historical ledger87/0 with23bound failures PASS. Both actions and reactions remain event-backed. All six auto-use observer signatures/IL and desktop wrappers PASS; actual Unity execution is still required.
+
+Branch codex/mounted-combat-phase3f-playable-core, parent/publishedc47bfbc9b6edba1c2fb97c6cfa77e1eccf49f68b preserves acceptedf05a265. Source128 is unpackaged and has no native qualification. Preview127's original proof and three restored native runs remain immutable; its4PASS/1FAIL/82unqualified never transfer. Game closed. Next coherent commit/guarded publication, new immutable128 package/suite/fresh unchanged purity, positive approach, isolated compensationRT/TB,geometry,obstruction,fullRT/freshTB and remaining mandatory6A. No6B before87PASS on one frozen candidate. Target ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING.
+## 2026-09-28T21:34:35.318Z — preview127 closure and source128 diagnostic repairs
+
+**IN PROGRESS.** Parent/published HEAD c47bfbc9b6edba1c2fb97c6cfa77e1eccf49f68b on codex/mounted-combat-phase3f-playable-core preserves f05a265. Frozen127 is superseded by source128. Original127 purity PASS exit0 at2026-09-28T21:07:11.2549094Z, logSHA095f36fd14340247ceabf277771ad7859f73f0d67134f7249b8e6fd906455daa; never rerun it. Package77e3a990975afd44eb1bcdc8b3db9d684e3814d0ef8879b5c86bcde61c49bdf6, manifestb972f1eaa3f366675f45eec21b1f7e066d722d392cb20ea2129c1d5350b46879, DLLa57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3/MVID4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa, suite20260928-chunk6a-skip-a/SHA425bf7c3e0c6a24cd1340e0ba57c5976ed6f0d0a9266093a93229e236a1fa451 remain immutable.
+
+127 positive c6a-skip-a-approach PASS48/0 (gameSHAe183247ab67d973f411797e79afe18c668e20812e788701323cf0640ba2f86f9), RT compensation PASS46/0 (gameSHAe87f6576bf4238f2a82abc14f3742cd5cc24d68eadfe3c60dd668eef9d56deef), TB compensation FAIL43/2 (gameSHA8863856759cd45d851fb8631144a89565036189e491748c30875b6f4f6d547b9, artifactSHAbaf6d2d1661f8c68fb442b1f1677dea9f67de4b09ce2c1905955274995acb384). All five restoration checks PASS for all three runs. The ordered queue stopped before geometry. Historical ledger4PASS/1FAIL/82unqualified;23 original failures retained with exact assertions. No failed-run provisional PASS credited. Positive exact command833457920/process-146811392/context-500697088,6.251725m to2.82768822m within2.9m; all eleven boundaries once, actual acted and one native Move cost. All six Unity observers executed. Separate exploration Mount/Dismount action/reaction windows PASS. Carried forcedDetach=1 and duplicateSuppressed=1 each added zero in the positive window.
+
+TB fixture failed before any combat allocation/adoption: phase3d-horse-runtime-exception, exact assertion InvalidOperationException: Native ground plan: in-flight path content read. Ground command1386049024 succeeded within0.0380457677m; actual eligibility callbacks148before/148after and action/reaction resourceWindow passed. Exact127 DLL reproduction showed pathState is a null-valued String JToken, serialized as null. Source128 constructs JValue.CreateNull for unavailable pathState. Strict path validation and all deadlines/thresholds remain. New direct in-memory regression FAIL on oldDLL, PASS on newDLL; serialization-only coverage had missed this distinction. Original failure remains unchanged.
+
+Source128 also integrates mandatory CM06-ai-auto-use fixtures as separate fresh RT Mount/Dismount transactions, six read-only native UI/AI/constructor observers, exact resource/reference/UI restoration, canonical unchanged artifact-manifest guards, strict legacy JSONL projection and primary-claim binding. Unsupported mandatory claims cannot borrow unrelated PASS rows. Existing accepted compensation/positive stages are unchanged. Initial source guard failure retained; read-only stage comparison proved all prior dispatch semantics unchanged before exact route spelling was updated. No production resource write, new content, guard weakening or acceptance inference.
+
+Release build/source127/0 PASS; DLL75a8972ed1d6ef88b10e704f86ccbe5d741a0d014b7b7b97d643b891616b662a/MVID225893fb-b686-433b-a3ad-3e46c8db77e9. New source remains unpackaged and unqualified. Focused gates and complete offline umbrella pending. Game closed, no proof/native process active. Steam guard exactclient1920/current-sessionofflinecloud PASS. Next finish gates, coherent commit/guarded publication, new immutable128 package/suite and fresh unchanged proof, then positive, isolated RT/TB compensation, geometry, obstruction, fullRT/freshTB and remaining mandatory6A. No6B before87/87 on one frozen candidate. Target ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING.
+
+## 2026-09-28T19:40:46Z — complete source127 offline PASS
+
+The original complete offline suite ended with real exit0 at2026-09-28T19:40:46.2270373Z (wrapper19292, child18540). Log logs/c6a-127-skip-offline.log SHA25614d8921de280dd1324af214522e7ba3f1ed2c47484e237d03f49410a7e61b362. The exact DLL remains a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3 / MVID4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa,5028352bytes. Source126/0, ground574/0, plan292/0, transaction416/0, joint156/0, ground envelope60/0, history814/0 and ledger87/0 PASS. All existing umbrella gates passed, including continuation240/0, order536/0, terminal bridge616/0, Dismount442/0, complete order84/0 and escape62/0. The pinned native eligibility body and desktop wrapper passed; Unity execution is still pending.
+
+Source parent b41ee8d8698dd9fe41f8a9b7257614cab7176015 is preserved. Preview126's three native transactions and completed proof remain immutable; its historical ledger4PASS/1FAIL/82unqualified with22retained failures does not qualify127. Kingmaker is closed. Next coherent guarded publication, immutable127 package and suite, fresh proof, then required native order. No6B or owner acceptance inferred.
+## 2026-09-28T19:29:28.177Z — preview126 native results and source127 cooldown-skip observer
+
+**IN PROGRESS.** Branch codex/mounted-combat-phase3f-playable-core; published/local parent b41ee8d8698dd9fe41f8a9b7257614cab7176015 preserves accepted f05a265. Preview126's one unchanged purity proof ended exit0 at2026-09-28T19:06:48.1937691Z, logSHA31add1371bd4c2b6bfbcfd30f3fb553b1fd7a24cc1fc085570f0a38e2eeb5695. Package f6befdcbcdab1f11f0923075db5ded5a4c4dc853a954d623ea2025a4a2f591cf, DLL e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162/MVIDd09b6ccd-3e48-42e7-9b4a-36769782a3a4 and suite8fa6406c367452dc4f128055dfdd75c50fb0bb889038733a92452e08922527f1 remain immutable. Never repeat that completed proof.
+
+Native126 positive c6a-allocation-a-approach PASS48/0, exact gameSHA58bd28cda45813389b64584b2c8d128708406488bd9a6bb320d2a7cfc6fabb30: one combat command-831995392/process1348955776/context-2061568000/shell3/generation1,6.37210655m to2.83600855m within2.9m, actual acted/one Move cost/terminal Success and all six Unity hooks observed. Exploration Mount and Dismount have separate complete action/reaction windows. Carried forcedDetach=1 and duplicateSuppressed=1 each added zero in the positive window. IsolatedRT compensation PASS46/0. Both are followed by isolatedTB FAIL43/2, gameSHA2834f78a19efab2cb29c63d286a69892748ed39ab624b22eb55346b2a90400d8, scenario artifactSHA49ad0675647749ddd7dfc464b20c39a76100c85872a0048999b76f540214f492. Every run restored all five external-state checks. No combat Mount occurred in the failedTB fixture. Ordered campaign stopped before geometry; all failed rows/identities/assertions retained. Historical126 ledger4PASS/1FAIL/82unqualified;22retainedfailures,87/0 consistency only. No game remains active.
+
+The ground command1815142400 succeeded with0.0407645032m residual. The first failed resource assertion was “Passive native resources: elapsed window has no native tick observation for an actor”. Pinned BaseUnitCombatController.ShouldTickOnUnit06009343 returns false outside combat; IL SHA768ca06c90b9d6989de327f8f8537d30aae9e92e3fef922a78929a5407b215cc. BaseUnitController.TickUnit0600910C then skips TickOnUnit. Source127 records the actual eligibility prefix/postfix for the exact cooldown controller and each actor. Ground proof requires paired same-clock callbacks, a false native eligibility result, complete unchanged action/reaction/preparation resources and no cooldown tick. Actual absent callbacks still fail; original126 evidence is not repaired retroactively. No gameplay resource/path/position/readiness/preparation write or guard relaxation.
+
+Source127 Release build/source126/0 PASS, DLL a57d9832aaea961e746afa84094467baf0f18cde01987013763f7041648490d3/MVID4cbf2c5f-97d8-44f6-82a7-f19a61cce0fa,5028352bytes under unchanged5MiB. Focused ground572/0, transaction416/0, joint156/0, ground envelope60/0, order envelope84/0 and Dismount envelope62/0 PASS. New wrapper constructs on desktop; its actual Unity execution remains a gate. Initial broader synthetic fixtures incorrectly assigned the ground command to eligibility callbacks and decremented resources during skipped ticks; those failed logs remain, and only the fixtures were corrected. Source127 remains unpackaged,0/87 native qualification. Next finish focused pinned/archived checks, coherent checkpoint and complete offline umbrella, guarded publication, new immutable candidate/suite/fresh proof and required native order. No6B until87 mandatory PASS on one payload. Target remains ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING.
+
+## 2026-09-28T17:51:36.240Z — complete source126 offline gate PASS
+
+The integrated offline umbrella ended exit0 at 2026-09-28T17:50:21.3492243Z, wrapper11248/child18204. Original log logs/c6a-126-cases-offline.log SHA256 bfb566fb9353d89780bf4ce081a300f0b0141aa0d5b13ed3c4c570cab82ffec1; prior failed ground umbrella remains unchanged. Source126/0, history764/0, supporting52/0, ledger consistency87/0 and literal assertions7/0 PASS. New focused gates also pass inside this complete run: continuation240/0, order536/0, terminal bridge616/0, disabled-setting Dismount442/0, complete order envelope84/0, complete escape envelope62/0, registration47/0, pre-encounter admission260/0 and observer members10/0; both completion wrappers constructed. Ground resource292/0, plan292/0, transaction416/0, joint156/0 and envelope60/0 retained. Desktop Unity ECall deferrals remain native gates.
+
+DLL e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162 / MVID d09b6ccd-3e48-42e7-9b4a-36769782a3a4,5024768bytes, unchanged. Local parent4949408541872abc042730f94354c78ca12e306b preserves published026d2c2 and acceptedf05a265. Next coherent integration commit and guarded publication, immutable preview126 package/suite with durable exit receipt, exact reconciliation and fresh unchanged purity. Then required native order and all remaining6A. Game closed; no native/proof process active; no126 qualification. Preview125 stays17PASS/2FAIL/68unqualified,21 original failures retained; completed125 proof must never rerun. No6B or owner acceptance inferred.
+
+## 2026-09-28T17:32:31.503Z — exact native order and disabled-setting Dismount integration
+
+**IN PROGRESS.** Branch codex/mounted-combat-phase3f-playable-core; local parent4949408 preserves37aa423 and published026d2c2. Unpackaged source126 now registers two fresh TB order cases and separate feature-disabled/policy-disabled RT Dismount transactions. End Turn is one normal Game.PauseBind input. Read-only observers bind native ForceToEnd/End to exact contexts and allocation resources through the next paired round; condition-forfeit cannot masquerade as ordinary completion. Only pre-encounter initiative input BaseValue is temporarily leased and exactly restored after leaving combat. Dismount retains its exact ability, setting lease, wait resource window and terminal bridges. Both external envelopes revalidate the complete ordinary command proofs and full trace slices. Combined ledger claims require both separate restored variants on one frozen candidate.
+
+Release build/source126/0 PASS: DLL e32b4e88b366acc487e64e9d1d21aa8d00df666ec36e6c138fb283f721cc4162, MVID d09b6ccd-3e48-42e7-9b4a-36769782a3a4,5024768bytes under unchanged5MiB. Focused synthetic producer/external: continuation240/0, order536/0, terminal bridge616/0, escape442/0; complete order envelope60/0 and escape62/0; registration47/0; pinned pre-encounter admission260/0; both native completion wrappers construct on desktop without invoking gameplay. Additional outer negative cases and complete offline umbrella are next. Unity callback execution remains mandatory. No native126 qualification or package/proof exists.
+
+Actual Steam guard PASS on sole client1920, started2026-09-27T10:45:18.2578304Z; offline10:45:24Z and current-session cloud2026-09-28T15:43:56Z; appmanifestSHA f54331abc14b9d6612f48843a9c29bdc4892cb3ddfa1662185cd773f467214d9. Game closed. Preview125 all16 restored transactions, original failures and completed purity remain unchanged; ledger17PASS/2FAIL/68unqualified,21 retained failures. Never relaunch/reprove125 or transfer its PASS to126. Next final gates, coherent commit/guarded push, immutable candidate/suite/fresh proof, then positive/compRT/compTB/geometry/obstruction/fullRT/freshTB/new cases and remaining mandatory87. No6B or acceptance inference.
+
+## 2026-09-28T17:18:34.846Z — ground offline checkpoint PASS
+
+The complete source126 ground offline retry ended exit0 at 2026-09-28T17:15:33.7847933Z; log SHA256 3a14db6481b778e23288058d22fe427653fb3a8da73876980bf2a9903c19cbe7. The original failed umbrella, archived native evidence and the exact archive/counter regressions remain retained. DLL adcefccb7ee296c8d2600910f567f0eb3f9de8d0175e4d734265345f317db555 / MVID 0e43ceff-c973-48b1-97f2-da561b6b93bc is unchanged. This is an offline checkpoint, not native qualification. Preview125 remains frozen at17PASS/2FAIL/68unqualified with21 failures retained; its completed proof must not be rerun.
+
+Actual local parent37aa42354062b476b4fd07a1a05e22b1ff7f8a9f and remote026d2c265c86252b2d7ad977f8bdd324041806a3 were verified; legitimate history is preserved. Kingmaker remains closed. Next: coherent local ground commit, finish order and disabled-setting Dismount registration and full external envelopes, final focused/offline gates, guarded publication, new immutable candidate/suite/fresh proof, then native qualification in the authorized order. Lab order additional envelope60/0 and terminal bridge616/0 are synthetic only. No6B before87 mandatory PASS on one frozen candidate. Target remains ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING.
+
+## 2026-09-28T16:59:35.927Z — offline failure retained; exact archive and counter corrections
+
+The first source126 ground umbrella ended FAIL (exit1) at2026-09-28T16:52:28.6832764Z. Original log logs/c6a-126-ground-offline.log SHA256c05a61929e88edcffceff6f43a438f0fdc1bd3ac163ead9c75980f245b894009 and offline-process-preview126-ground.json are immutable. Historical ledger replay reached an archived pre126 positioning record without moverId; those payloads never emitted the new ground proof. Enclosing package/version identities remain exact. Archives through125 retain their original ground contract;126+, unknown identities and any supplied new ground block must pass the new complete validator. No archived byte or qualification claim changed.
+
+A separate regression against immutable125 MammothTB artifact941b1e0c2f9e4026c7706c64c9be352e5fa293165fa51f0b6964256dd9c86246 reproduced the new validator's counter-shape mistake: NativeActorAllocationTrace.observationErrors is integer0, not an array. Before/after logs retain the exact FAIL then PASS. Both producer counters must now be integers equal0; arrays and string0 fail. Full ground envelope60/0, causal236/0, historical ledger87/0 and literal assertions7/0 PASS. Ledger125 remains17PASS/2FAIL/68unqualified,21 failures retained. No source126 native qualification.
+
+Source HEAD remains37aa423 with owned ground changes. DLLadcefccb7ee296c8d2600910f567f0eb3f9de8d0175e4d734265345f317db555/MVID0e43ceff-c973-48b1-97f2-da561b6b93bc is unchanged. Next run the separate source126 ground offline retry; do not rerun completed125 purity. Future terminal bridges compile in joint-ground-draft and pass616/0; disabled-setting Dismount with both bridges442/0 and additional full-trace envelope62/0 are lab-only, not registered or qualified. Order full-envelope and remaining scenario integration remain ahead of final candidate/proof/native campaign.
+
+## 2026-09-28T16:38:34.003Z — bounded ground fixture source checkpoint
+
+**IN PROGRESS.** Branch codex/mounted-combat-phase3f-playable-core; local HEAD37aa42354062b476b4fd07a1a05e22b1ff7f8a9f, published parent026d2c265c86252b2d7ad977f8bdd324041806a3. Source preview.126 now includes the paused-order observation repair and a bounded pre-combat Horse fixture repair. It is unpackaged and has no native qualification. Preview.125's completed proof and all16 restored runs remain immutable; its ledger remains17PASS/2FAIL/68unqualified with21 original failures. Kingmaker is closed; no native transaction or proof is active.
+
+The fixture retains the original72 rejected rider proposals. A read-only joint search admits at most72 Horse proposals, each with at most72 rider proposals (5256 joint candidates;5400 including the original and final rider searches). It preserves2–2.65m nominal separation,0.25–4m ground travel, route/footprint thresholds,30-second command deadlines and0.06m arrival. One exact selected Horse ground command must finish successfully before the original rider search is recomputed from actual geometry. Each ground command has independently replayed native action/reaction events and path callbacks; the two windows must join at the same frame, time, allocation sequence and resources. Cleanup restores observation state and interrupts only an owned pending ground command. No production actor, path, resource, preparation or readiness write was added.
+
+Release build/source126/0 PASS. DLL SHA256adcefccb7ee296c8d2600910f567f0eb3f9de8d0175e4d734265345f317db555; MVID0e43ceff-c973-48b1-97f2-da561b6b93bc;4966400bytes, below the unchanged5MiB limit. Focused synthetic checks: ground resources292/0, planning292/0, exact transaction416/0, joint envelope156/0, full external envelope/source bindings55/0; existing causal protocol229/0. Logs are under lab logs/c6a-126-*. These establish offline contracts only. Full offline umbrella is next.
+
+Order/continuation and disabled-setting Dismount scenarios remain separate unqualified lab work; complete their envelope/bridge/registration/composite integration before freezing the next candidate. After final offline gates, publish coherently through the guarded helper, create a new immutable candidate/suite and obtain its fresh unchanged proof. Then positive approach, isolated compensationRT/TB,geometry,obstruction,fullRT/freshTB and the remaining87-row6A matrix. No6B before one frozen candidate passes every mandatory6A row. The completion target remains ENGINEERING COMPLETE — OWNER ACCEPTANCE PENDING.
+
+## 2026-09-28T15:50:48.005Z - active6A IN PROGRESS
+
+Two125 failures remain exact historical evidence: HorseTB pre-encounter staging had no eligible route/clearance; paused proof rejected same-frame callbacks despite later native clock/events. The latter has a tested observational source repair awaiting new-candidate native proof; Horse staging repair remains required. Frozen12517/87 mandatoryPASS does not qualify source126. All16 external restorations PASS. Remaining case implementation/qualification is ordinary mission work, not a proven critical hard stop. See [active report](docs/CHUNK6A-COMBAT-MOUNT.md).
+
+## 2026-09-28T05:23:06.885Z - Complete preview.122 offline gate
+
+PASS: source116/0, components552/0, harness270/0, causal220/0, supporting52/0, history422/0, assembly629/0, command ownership24/0, compiled fields5/0, interruption wrapper1/0, path snapshot5/0, patch construction30/0. Umbrella57557 exited0. Raw logSHA 187c13300a504b8b7a245d2cf8f2f94579bbe05f4812fd9c511fd9f50113c848; DLL 598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa / MVID 44829661-73db-41b4-9c60-c51d5d37f466. Historical ledger consistency87/0 verifies1218PASS/2FAIL/77unqualified with13retained failures; it is not completion. Source122 has0native qualification. Next guarded publication, new immutable122/suite/fresh unchanged proof, then required native sequence and remaining87. Completed121 proof and seven restored results retained; never rerun121proof. No game/proofactive.
+
+## 2026-09-28T05:16:45.475Z - preview.122 fixture and campaign evidence repair
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserving published parent df849fa5913009508f3afb211db46dd46f280a5c and accepted f05a265 ancestry. Preview.121's completed purity and all seven native results are immutable; never rerun its completed proof. Its five isolated cases PASS, full RT FAIL52/2 and fresh TB FAIL44/2; every run restored all five external checks. Historical ledger: 8 PASS / 2 FAIL / 77 unqualified, thirteen retained failures. Source122 has no native qualification.
+
+The full RT fixture tried a native door close during combat; the pinned interaction policy refused it. Full native Mount/Dismount now ends after its own measured transitions. Geometry and obstruction remain mandatory fresh transactions, enforced by a fixed ordered campaign gate before CM05 RT/TB or Horse TB ledger credit. This gate binds exact package/manifest/suite, native and overall results, all five restoration flags, transaction/inventory continuity and original artifact hashes. It rejects omitted roles, shared runs, wrong payload/suite, failed runs and changed restoration. The standalone obstruction's native door policy remains intact.
+
+Full TB failed before a combat Mount click because its short native setup destination search exhausted its candidates. The old artifact did not record rejected candidates, so their exact navigation failure is unknown. Source122 generates bounded steps relative to measured pair geometry, retains the original travel/separation/arrival bounds, checks the native route, rider footprint and actor clearance, and records each rejected proposal before admission. The live repair remains unproven. Native command, acted, cost, reaction and selection logic is unchanged.
+
+Focused build/source116/0, components552/0, causal220/0 and history422/0 PASS. Expanded supporting-run regressions and complete offline umbrella pending. No game or proof active. Next finish focused gates, complete offline, guarded publication, immutable122 package/suite/fresh proof, then positive, isolated compensation RT/TB, geometry, obstruction, full RT/fresh TB and remaining87. No6B before every mandatory6A row passes one frozen candidate. Mission target remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge, tag, PR, release, permanent installation or inferred HUMAN PLAY acceptance.
+
+---
+
+## 2026-09-28T03:23:07.787Z - preview.121 external envelope repair
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserving published31ed92abadd1491b9aa177eacd43a5dea4a08550. Completed120 purity and five native runs remain immutable; never rerun its proof. Positive48/0, isolatedRT46/0, TB47/0 and geometry45/0 PASS. Obstruction is overallFAIL0/1 despite nativePASS45/0; all five external restoration checks passed. The native interruption repair executed correctly, but the external obstruction validator used +1.0m instead of the frozen +1.5m reach. Source121 corrects that formula with before/after regression and preserves all thresholds and production behavior. Focused build/source114/0, causal216/0, history362/0 PASS. Ledger120 remains8/1/78 with eleven retained failures; source1210/87.
+
+Exact payloads, original assertions, native callback evidence and restoration: [Chunk6A report](docs/CHUNK6A-COMBAT-MOUNT.md), [history](docs/chunk6a-evidence-history.json), and lab analysis-cache/chunk6a-causal/ACTIVE.json. Next complete offline umbrella, guarded publication, new immutable121/suite/fresh proof, then the required native sequence. No6B until all87 mandatory6A rows pass one frozen candidate. Mission target ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING; no merge/release/tag/PR/permanent install/HUMAN PLAY inference. No game or proof active.
+
+---
+
+## 2026-09-28T01:48:01.223Z - preview.120 interruption repair
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core, preserved published parent aba6b3bf1ae15a678397ee58ee51ca07d8bd3f57. Preview119 proof and five native runs are retained exactly; never restart its completed proof. Its ledger is8 PASS /1 FAIL /78 unqualified with ten retained mandatory failures. CM02-obstruction directly observed a native interruption leaving the exact unacted Mount pending. Source120 fixes only the native handler's UnitMoveTo-only accessor gap by retiring the exact captured Mount shell and calling native Interrupt. No resource writes. Focused build/source113/0, command ownership24/0, assembly629/0, wrapper1/0 PASS; Unity execution still required. Source120 has0/87 native qualification.
+
+Exact payloads, failed assertion, cause and restoration records: [Chunk6A report](docs/CHUNK6A-COMBAT-MOUNT.md), [history](docs/chunk6a-evidence-history.json), and lab analysis-cache/chunk6a-causal/ACTIVE.json. Next complete offline umbrella, guarded publication, new immutable120/suite/fresh proof, then positive, isolatedRT/TB, geometry, obstruction, fullRT/freshTB and remaining87. No6B before all87 pass one frozen candidate. Mission remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING. No active runtime/proof; Kingmaker closed, actual Steam guardPASS. No merge/release/tag/PR/permanent installation/HUMAN PLAY inference.
+
+---
+
+## 2026-09-27T23:57:09.604Z - preview.119 path observation and fixture repair
+
+IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core, published parent4322f7f89a84027a80320ab1d53411468a62e60a preserved. Preview118 completed its unchanged purity proof (exit0, raw log SHA2566561d40dde73bead1a9e8ef292a0a312a13d1459fbdb5cf9c14d8201c5114933); never rerun it. Candidate package1fa293f66b34f5f34db43ffa3871fee7fa0cc6d9d12f5184c33db2e68de4f991, DLL39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a/MVID44696e8f-fa25-4ee3-a77e-d682a094874a, suite20260927-chunk6a-obstruction-a/SHA2632085ec7c422dda81702aa70605f0f8e2b00243184e07d499097fdbfa48e89.
+
+Positive c6a-obstruction-a-approach PASS48/0; compensation c6a-obstruction-a-rt PASS46/0 and c6a-obstruction-a-tb PASS47/0. All exact command/action/reaction windows and all five external restoration checks passed. Ledger118 has7/87 mandatoryPASS.
+
+Geometry c6a-obstruction-a-geometry remains FAIL43/2. Its exact mandatory CM02-approach-arrival assertion starts "Pre-encounter native separation did not succeed:" and includes the complete captured command/geometry JSON; the full original string is retained verbatim in docs/chunk6a-evidence-history.json and the ledger, bound to runtime-game-result SHA8f0204a00754d1b347406d108fbb4fec3aa72ee7d0193e040cf2c3874f30c909. The setup Horse UnitMoveTo486617088 ended Interrupt0.526910067m from its destination (native approach0.3m). No combat allocation or combatMount request existed. The recorded endpoint alone cannot identify the exact route failure. Do not rerun unchanged or credit the provisional exploration rows.
+
+Independent obstruction diagnostic c6a-obstruction-a-obstruction remains FAIL43/2. Exact CM02-obstruction assertion: "InvalidOperationException: Native door setup did not prove terminal arrival and its required open-door crossing: riderNearArrival". Runtime-game-result SHAd5562910f8a03af5d627cc9a60eff44015c0e860180d7481ed8db96c4aeb5d51. All five new wrappers installed in Unity, including previously deferred PathTo. Horse crossed the open door with nativeSuccess; rider also arrived with nativeSuccess. The request-time observer enumerated the worker-owned vectorPath and threw "Collection was modified; enumeration operation may not execute." No closed-door Mount was attempted. This is instrumentation failure, not a product obstruction outcome. Door and all five external restoration checks passed; Kingmaker closed. Exact five settled runs and checkpoint-preview118-after-obstruction.json remain in the lab; nine failed mandatory rows retained.
+
+Source119 records only path object/request/command/destination at PathTo and reads contents at completed callbacks. External validation rejects request-time contents. Compiled producer regression requires absent contents at four unsafe boundaries and immutable completion snapshots after list reuse. Bounded ground setup additionally requires native route reachability, the Horse's full endpoint footprint and actor clearance, and now records its exact path callbacks. Original nativeSuccess requirement,30-second bounds, positive identity/cost checks and selection-before-baseline remain intact. This strengthens fixture selection; it does not claim the old separation cause is proven or alter production movement/resources.
+
+Focused component551/0, causal211/0, snapshot5/0, source112/0; buildPASS. Next final build and complete offline umbrella, guarded publication, new immutable119/suite/fresh unchanged proof. Then positive, separate compensationRT/TB, geometry, obstruction, fullRT/freshTB and remaining87. Source119 has0 native qualification. No6B before all mandatory6A pass one frozen candidate. Final mission target ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING. No merge/tag/release/PR/permanent installation/HUMAN PLAY inference.
+
+---
+
+
+## Preview.118 obstruction source ? IN PROGRESS
+
+Published parent a3b6061 preserved. Exact117 ledger8/87 and four overall PASS runs/restorations are historical; completed117 proof will not rerun. New118 source uses a real native door/path failure and a separate strict unacted action/reaction contract. PathTo wrapper remains DEFER ? EVIDENCED until Unity installation executes. No critical external blocker is established and no production repair has been made. First draft full offline PASS; final wrapper-failure context correction requires final full offline gate before publication/new immutable candidate/fresh proof. No6B until87/87.
+
+# Chunk 6A - 2026-09-27T18:50:25.941Z
+
+**IN PROGRESS.** Published44de499 preserved. Preview.115 positive48/0, compensationRT46/0 and compensationTB47/0 PASS; all exact causal/action/reaction windows and all external restorations PASS. Seven of87 mandatory rows qualified only on115. Preview.116 now implements the isolated exact geometry case with pre-acted approach and pre-attachment delivery, declaring only the exact native RT Horse ground order with independently checked no-write callbacks. No production resource writes. Build/source110/0 and focused149/0 PASS; final offline umbrella PASS. New source supersedes115 for subsequent qualification; completed115 proof/results remain immutable. [Current report](docs/CHUNK6A-COMBAT-MOUNT.md). Live state: lab analysis-cache/chunk6a-causal/ACTIVE.json. Next final offline gates, guarded publication/new116 candidate/suite/fresh proof, positive/RT/TB then geometry, genuine obstruction and remaining matrix. No6B before87/87 on one candidate.
+
+Final preview.116 complete offline umbrella PASS, exit0, 2026-09-27T18:56:40.942Z. Source110/0, causal151/0; all umbrella gates PASS. Log logs/c6a-geometry-offline.log SHA-256 86702e1bb4df1aacdc2fa37651ef83e77817edf06faf0aa943374e581661bb6e. Built DLL d2174612810c784f716f1768c7a8085dda698216074950c24dafeb40d16965e8 / MVID d6568315-9f9b-44f4-80f4-4ca671b44b63. These are offline checks; new-candidate native qualification remains0/87. Next coherent commit, guarded publication, immutable package/suite and fresh unchanged purity, then positive/RT/TB/geometry in order.
+
+
+---
+
+## Historical checkpoints
+
+# Chunk 6A - 2026-09-27T16:49:58.738Z
+
+**IN PROGRESS.** Published parent 707d98302f13ba752fe517e49338cf71b1c5f1ae preserved. Preview.114 positive PASS 48/0 and compensation RT PASS 46/0; compensation TB FAIL 44/2 before Mount because the diagnostic ended the Preparing rider. All restoration PASS. Preview.115 uses a bounded native rider ground order to enter Acting on the same turn, then carries its measured debt into the exact Mount baseline. No resource writes or deadline extension. The first passive-wait draft was rejected after pinned Tick inspection; its offline PASS is not final-source validation. Final build and full offline umbrella PASS; source109/0 and causal114/0. [Current report](docs/CHUNK6A-COMBAT-MOUNT.md); exact live state in lab analysis-cache/chunk6a-causal/ACTIVE.json. Next final offline gates, publication, new immutable candidate/suite/fresh proof, positive and both compensation modes. No 6B before 87/87 on one candidate.
+
+Final preview.115 build and complete offline umbrella PASS (exit 0), 2026-09-27T17:13:30.187Z. Source109/0, causal114/0, all umbrella gates PASS. Log logs/c6a-rider-turn-offline-final.log SHA-256 372f3c2f41097714ec13c438461ad3976ce6d3866ba7d15822e408b108a45f49. DLL 7e5933fecc46d337ccb938d179b236f069cb2c12198ba68d02d17d31c5f62740 / MVID 298ea405-3015-48bb-9ea8-f8d3ee68288f. Exact receipt in lab analysis-cache/chunk6a-causal/offline-receipt-preview115.json. No native115 qualification. Next coherent commit, guarded push, immutable chunk6a-rider-turn-a package/suite and fresh unchanged purity; then positive and isolated RT/TB.
+
+---
+
+## Historical checkpoints
+
+# Chunk 6A - 2026-09-27T15:30:12.538Z
+
+**IN PROGRESS.** Published parent `747fd48d04e5a0bc0efeb242f4eb0332b94ec67f` preserved; preview.114 diagnostic setup correction pending. Preview.113 positive approach PASS 48/0, isolated compensation RT and TB each FAIL 43/2 before combat at the unnecessary separation Move. All three external restorations PASS. Four mandatory IDs qualified only on frozen preview.113; preview.114 has no native qualification yet.
+
+[Current evidence and next action](docs/CHUNK6A-COMBAT-MOUNT.md). Exact live state: lab `analysis-cache/chunk6a-causal/ACTIVE.json`. Next: complete offline umbrella, guarded publication, new immutable candidate/suite and fresh unchanged purity, then positive and isolated compensation. Preserve accepted causal structures and all failures. No 6B before all 87 rows on one candidate.
+
+---
+
+## Historical checkpoints
+
+## 2026-09-27 - preview.112 diagnostic cleanup repair
+
+## 2026-09-27 ? preview.112 native evidence and preview.113 assertion repair
+
+**IN PROGRESS.** Published head remains `275cbfeb8cdb1d1d269104cbf872c166be003f20` on `codex/mounted-combat-phase3f-playable-core`; current uncommitted source version is preview.113. Preserve the accepted causal flow and preview.112's immutable proof and run.
+
+The unchanged preview.112 purity proof PASSed (exit 0; log SHA-256 `aaf23d1096a2859386889ab15777d5071fecf24ecd683aa614e251990ddeef94`). Actual Steam safety PASSed. Guarded run `c6a-cleanup-a-approach` exported all six installed observer hooks, including TryDispatch and TickApproaching, and their exact native callback boundaries. All three command windows independently pass the external identity, acted/cost, terminal and reaction-resource validator. This establishes that the instrumentation executes in Unity; it does not qualify an overall failed run.
+
+The run remains **FAIL (47 assertion PASS / 2 FAIL; one underlying failed CM row)**. Exact row: `CM03-combat-mount-conserves-debt`. Assertion: ?The exact combat Mount charged one rider Move, observed no other native action cost, and conserved debt on the native clock except for the declared partner preparation.? The legacy endpoint helper mistook the initiative timer for discrete order, rejecting observed native timer decay: rider 0.336399257 ? 0, mount 5.336399 ? 4.12132454; initiative order stayed 19 / 2. The complete event-backed resource window PASSed. Original evidence SHA-256: `e23573b6a1056c741c77c98fe0c3489828cb0f9e7b09e48df11ec1b6ba4fe015`. Exact package, DLL, MVID and all original assertions are retained in `docs/chunk6a-evidence-history.json` and the lab checkpoint.
+
+All external restoration checks PASS; transaction restored at 13:56:14.6810858 UTC and orchestration at 13:56:19.7556115 UTC. Kingmaker is closed. No PASS row from this run enters qualification; all 87 mandatory rows remain unqualified on the next candidate.
+
+The narrow diagnostic correction makes committed Mount and compensation conservation use the existing event-backed proof and separates initiative ordering from its cooldown in the remaining endpoint helper. No production resource writes or transition changes. The actual compiled-helper regression rejects preview.112 and passes the corrected source (5 cases). Causal protocol PASS 91/0, including immutable native replay and reaction-only corruptions; history PASS 107/0; source PASS 105/0. Complete offline umbrella PASS (exit 0), recorded 2026-09-27T14:08:05.642Z: logs/c6a-clock-offline.log, SHA-256 27f768aff1efbc11b8d1d4ef742ded664dc779b64492c5b74625525c0ea09133. Source 105/0; components 549/0; harness 270/0; assembly contracts 627/0; causal protocol 91/0; immutable history 107/0; compiled field regression 5/0; native patch construction 30/0. Built DLL b27e25430c88867c845aa3f89a925cea4d81723bf828122e2890f73e7faf7acc, MVID d5c9b744-dfd4-4937-bf57-705452a37376. Qualification remains 0/87. Next: guarded publication, new immutable preview.113 candidate/suite, fresh unchanged purity proof, then isolated positive approach. Continue the owner's run order only after overall PASS with exact CM01/CM02 rows. No 6B until all 87 mandatory 6A rows pass one frozen candidate.
+
+
+Status: IN PROGRESS. Branch codex/mounted-combat-phase3f-playable-core; published parent8823da8183f0bff98ecdfb917985b65f94032c39 preserved. Own preview.112 source/tests/records pending. The accepted scenario, selection, command identity and resource structures remain unchanged.
+
+Preview.111 unchanged purity PASS is preserved. Native c6a-reaction-a-approach FAILed at its300-second deadline after a post-cleanup diagnostic sampled a released allocation trace. All external restoration checks PASS; installed preview.105 and game closure verified. No mandatory CM row was exported and no qualification is credited (0/87). The source now stops that observer when cleanup starts and retains first-exception details. Source104/0, history97/0 and compiled early-return regression PASS; complete offline umbrella PASS (exact receipt below).
+
+Exact payloads, assertions, hashes, restoration and diagnosis: [Chunk 6A report](docs/CHUNK6A-COMBAT-MOUNT.md) and docs/chunk6a-evidence-history.json. Live continuation: C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6a-causal/ACTIVE.json. Next: guarded publication, new immutable package/suite/ledger and fresh unchanged proof, then isolated positive approach. No6B before all87 mandatory6A rows on one frozen candidate; no merge/tag/release/PR/permanent install or HUMAN PLAY inference.
+
+Complete offline umbrella PASS, exit0, 2026-09-27T12:40:03.309Z: logs/c6a-cleanup-offline.log, SHA256 642c52f7809b4ceaa9a05756a9452a41e4215331d157fedd1c054644f114a75a. Source104/0; components549/0; harness270/0; assembly627/0; causal80/0; immutable history97/0; cleanup compiled-entry1/0; native patch construction30/0. Built DLL4e7254591121ef2d9f76bc29b1639836fd44856746ffc5def79e652feb105b41, MVID0b86365d-ef85-4518-8de2-a23ccddf1a02. These are offline gates; native qualification remains0/87. Next: guarded publication, immutable preview.112/chunk6a-cleanup-a package, fresh exact suite/ledger and unchanged purity proof, then isolated positive approach.
+
+---
+
+# Chunk 6A reaction proof ? IN PROGRESS
+
+Final offline umbrella PASS (exit0), 2026-09-27T11:15:59.551Z: logs/c6a-reaction-offline-final.log, SHA-256 b779f2f8d3515ba33106dd93e89e7a51d50c2f4e64034c0a9696bc3ef26b92b5. Source103/0, components549/0, harness270/0, assembly627/0, causal protocol80/0, evidence history88/0; two reaction observer wrappers constructed. Built DLL b717a0e7af14e91a8676c41990ee618b331a9fa938bde4b12193ac430be6831a, MVID53d72b8b-31ae-42db-a92f-84256ff6dae5. Final source validation103/0 and ledger record consistency87/0. These are offline gates; native qualification remains0/87. Next: guarded publication, immutable preview.111/chunk6a-reaction-a package, fresh exact suite/ledger and unchanged purity proof, then positive approach.
+
+Preserved published parent f05a26521273298f20057a805cd2651d10ae1bf9; preview.111 source/schema30 pending commit. Preview.110's verified purity proof was reused for c6a-causal-a-approach. That run FAILed at the idle-party handoff before observer construction; every restoration gate PASS. The exact failure is retained in docs/chunk6a-evidence-history.json.
+
+Current source repairs the bounded handoff and adds event-backed reaction accounting for both actors without changing the accepted command flow or adding resource writes. Native observer callbacks and all87 mandatory6A rows remain unqualified. Authoritative report: [docs/CHUNK6A-COMBAT-MOUNT.md](docs/CHUNK6A-COMBAT-MOUNT.md). Live package/proof/run receipts and exact next command: C:/Dev/KingmakerMountedCombatLab/analysis-cache/chunk6a-causal/AUTONOMOUS-RESUME.md.
+
+Next: final offline umbrella, guarded publication, new immutable candidate/suite/ledger and fresh unchanged proof, then isolated positive approach. No6B until all87 mandatory6A rows pass one frozen candidate. No release/merge/tag/PR/permanent install or HUMAN PLAY inference.
+
+---
+
+## Historical records
+
+# Chunk 6A causal qualification repair ? IN PROGRESS
+
+As of 2026-09-27T03:42:13.876Z, intake HEAD 14966a7c65921797395ecbc4a5b7f9c0c631f991; preview.110 source pending commit. Current implementation and exact next command: [AUTONOMOUS-RESUME.md](AUTONOMOUS-RESUME.md). Qualification is 0/87: 3 historical failures remain FAIL and 84 behaviors remain unqualified. The four prior PASS claims are rejected; their evidence remains immutable. The complete offline umbrella passed with exit 0. Native execution awaits guarded publication, a new clean-HEAD package and fresh unchanged purity proof. Human preview.105 remains the restoration target.
+
+---
+
+## Historical records below (superseded for current status)
+
+# BLOCKED: Chunk 6A remediation complete offline, native qualification still unproven - 2026-09-26 UTC
+
+**Status: IMPLEMENTATION CANDIDATE - NATIVE QUALIFICATION BLOCKED. 0 of 87 mandatory behaviors PASS (0 PASS / 1 FAIL / 86 BLOCKED; completion fails 87/87).** Charter section 4 is complete and published; nothing native has been run since, so nothing that was BLOCKED has become PASS and `CM01-exploration-free` remains FAIL.
+
+**The preamble defect is no longer unexplained.** Its root is established from read-only inspection of the installed assembly: `UnitUseAbility.OnAction` (`0x06002737`) sets `ExecutionProcess` from `RuleCastSpell.ExecutionProcess` and then returns a **terminal** result unless `AbilityExecutionProcess.IsEngageUnit` (`0x06008FD4`), so a relationship command completes and leaves the native Move slot while its `AbilityExecutionProcess` delivers on later frames. Rediscovering the shell from that slot at `Deliver` therefore had no owner left to find. **A deterministic blocker is established from installed IL and repaired in the implementation candidate; the repair passes offline gates and awaits exact native proof.** It is not natively proven. The earlier two disproved mechanisms (unconditional `UnitCommands.Run` slot assignment, and `Init` preceding that store) stay disproved and were never blamed.
+
+**What charter section 4 delivered, all offline.**
+
+- **4.1** One typed Dismount escape (`NativeMountedControlPolicy.IsDismountEscape`) ahead of every feature gate in leasing and in availability; targeting inherits it through availability, and delivery admits through an evaluator branch that never consults the movement feature. Before this, switching the feature off left a mounted rider a visible but **disabled** Dismount, stranding the pair. The escape defeats the feature gate and nothing else: without a Move action, outside the rider's own turn, or with a transition in flight the Dismount is still refused, and for the resource or the turn rather than for the feature.
+- **4.2** `NativeShellBindingPolicy` is one pure typed decision over the two bindings, in a fixed order: poisoned context first (before the Move slot is consulted at all), then disagreement, which poisons the execution and retires both shells, then the authoritative execution context, then the narrow synchronous Move slot admitted only when its own process created *this* context. Proved offline by an exhaustive sweep over every combination.
+- **4.3** One terminal delivery attempt per shell, set in a `finally` so a business refusal or an exception cannot leave a reusable shell behind. No committed native cost is refunded on any path.
+- **4.4** Authority timing corrected in the document. Unqualified at **prediction** costs nothing, because Kingmaker never creates a command. Unqualified at **delivery** is different and is now said so: the Move is already committed, the relationship does not form, the shell becomes terminal, and KMC refunds nothing. The adoption refusal is no longer described as happening "before any native commitment".
+- **4.5** `mod-load-smoke` is purely observational. It mutates no `DiagnosticSettings`, publishes all five shipped defaults verbatim, is excluded from forced legacy-overlay creation, and asserts the absence of gameplay state field by field. A field the run never observed refuses instead of reading as clean, so a bootstrap failure publishes NOT OBSERVED rather than claiming defaults it never read. The typed policy, the emitted v1 result, the bootstrap-failure result, the validator and the published JSON schema are compared against each other.
+- **4.6** The overclaimed `native-saddle-up-target-valid-horse` row - one assertion on `OnClick` returning true, reported as proof that a native command had been created - is replaced by **sixteen staged causal assertions**, with command, slot, shell, process, transition and relationship state captured immediately before and after `SelectedAbilityHandler.DropAbility()`. The IL settles what that last stage means: `SetAbility` puts the pointer in Ability mode and a successful `OnClick` ends with `ClearPointerMode`, which itself calls `DropAbility`, so the explicit release must be a provable no-op.
+- **4.7** `chunk6a-mount-preamble` is a bounded save-backed scenario whose entire claim is that preamble. It stops at the staged click, carries its own evidence kind at schema 1, and is validated by `Assert-KmcMountPreambleEvidence` with every staged row mandatory and any row from beyond the preamble refused.
+
+**Charter section 5 - the evidence model is reconciled.** The mandatory list is 87 and nothing was removed or relabelled. The ledger now carries an immutable `retainedFailures` collection holding the campaign-c `CM01-exploration-free` failure with its run, scenario, observed payload, evidence hash, exact failing row and that row's own assertion text. The required retained records are fixed in `Test-Chunk6aLedger.ps1` itself, so a real failure cannot be dropped by editing the ledger, and every behaviour that is currently FAIL must already be retained. When a later candidate passes this behaviour the live entry flips to PASS on that new frozen payload and the retained record stays exactly as it is.
+
+**Offline gates on `c406f37`:** source contracts 83/0, harness 270/0, assembly-backed 620/0, unit tests 536/0, ledger record checks 87/0 with the completion gate correctly failing 87/87.
+
+**Publication.** `c406f373a39af297fb6bbb4181a8fc917e40e7a6` is published on the integration branch: pushed through the guarded helper, then `git ls-remote` observed equal to the local head. `main` is untouched at `4cc591aa`. No candidate is installed, merged, tagged or released.
+
+**What would unblock it.** Free enough memory for one background `-WhatIf` purity proof - in practice restarting or quitting Steam's web helper, which the owner can do and this mission cannot - then build a new uniquely qualified package from clean `HEAD`, prove purity, run the narrow `chunk6a-mount-preamble` scenario first, and only then `chunk6a-combat-mount-rt` and `-tb` case by case.
+
+# BLOCKED: Chunk 6A native qualification - one unexplained Mount preamble defect, plus a host memory limit on the purity proof - 2026-09-25 UTC
+
+**Status: IMPLEMENTATION CANDIDATE - NATIVE QUALIFICATION BLOCKED. 0 of 85 mandatory behaviors PASS.** The six review findings are repaired, the starting payload the previous run reported as its blocker is registered with the owner's authorization, the qualification suite exists, and the campaign ran. Nothing is complete.
+
+**What the campaign achieved.** `mod-load-smoke` PASS on `-campaign-c`: the game launched, this exact DLL loaded against the pinned `Assembly-CSharp` `3b6450ff...`, UMM 0.28.2.0, Harmony12 1.2.0.1, zero save and zero load requests. Qualification suite `20260925-chunk6a-suite001` created. `chunk6a-combat-mount-rt` reached gameplay, loaded and identity-verified the Working fixture, ran 3,050 frames over 68.6 s and produced **43 assertion passes against one failure**, with `horse-companion-blueprint-registration` PASS. `chunk6a-combat-mount-tb` was never attempted.
+
+**Blocker 1 - the open defect.** The out-of-combat native Mount that every tranche scenario performs as its preamble did not establish a mounted pair within its 25-second bound. The deadline recorded mode `Default`, no pause, feedback "Ready to mount.", `command` null, `hasCooldown` false. It is **unexplained** and **not attributed**. Two mechanisms were checked against the installed assembly and both disproved: `UnitCommands.Run` (`0x060026B3`) stores `m_Commands[cmd.Type] = cmd` unconditionally with no combat check, so an out-of-combat Move-typed ability does occupy the Move slot; and `Init` runs before that store while the shell is keyed on the command object rather than the slot. What is true and narrower: the relationship shell gate requiring a delivery to own its caster's native Move command is new in the Chunk 6A line and has never completed a live delivery, because preview.107 never ran. It is a suspect, not a finding.
+
+**Blocker 2 - a host resource limit.** The diagnostic candidate `-campaign-d` (`7968297`, DLL `1b130b28...`) was built specifically to name that root: every `ResolveDeliveringShell` refusal is recorded, and the deadline now carries relationship state, dispatch accepted/rejected, native refusals, last shell refusal, service enabled/registered/suspended, whether the rider holds the Mount ability fact, registered shell count, and the Move slot's type, shell presence and started/finished state. It was **not launched**, because its required pre-launch `-WhatIf` purity proof was killed three times by the host under system-wide low memory while `steamwebhelper` held about 12.5 GB of the machine's 32.5 GB. That is Steam's own process, which this mission may not kill and which the game needs anyway. The proof was not narrowed and the candidate was not launched without it.
+
+**What would unblock it.** Free enough memory for one ~55-minute background `-WhatIf` purity proof - in practice, restarting or quitting Steam's web helper, which the owner can do and this mission cannot - then: run `c6a-r4-whatif` on `-campaign-d`, launch `chunk6a-combat-mount-rt`, read the `shellState` field in the deadline observation, which will name the exact refusal or prove the delivery was never dispatched. Fix that, then run `-rt` and `-tb` case by case.
+
+**Four latent defects were found and repaired, each only visible by running it:** the no-save run transaction binding; the registry gating every live scenario rather than only save-backed ones; the no-save smoke failing on a shipped default; and a tranche scenario being able to reach the game and then be rejected as an unknown subscenario. Each has a regression. Harness 262 -> 265.
+
+**External state is clean.** Installed preview.105 `Info.json` `917523483b...` and DLL `8e231c38...` byte-identical, seven mod directories, 275 protected saves, `Assembly-CSharp` unchanged, no Kingmaker process, no runtime lock. All six guarded run transactions reached `phase=restored`. No candidate is installed, merged or released.
+
+# BLOCKED: Chunk 6A native qualification needs the owner's current installation registered as a starting payload - 2026-09-25 UTC
+
+**This is the one open Chunk 6A blocker.** Status is IMPLEMENTATION CANDIDATE - NATIVE QUALIFICATION BLOCKED: the action contract is frozen, the implementation is built and gated offline, the runtime scenarios and the 82-id acceptance ledger exist, and every offline gate passes. That is not completion. The completion ledger stands at 0 of 82 mandatory behaviors PASS, so no part of Chunk 6A may be called complete or accepted.
+
+**What the gate needs.** A save-backed runtime scenario requires a qualification-suite snapshot. `scripts/runtime/New-KmcQualificationSuiteSnapshot.ps1` refuses to create one and throws `Existing KMC tree differs from the exact registered starting payload.` from `scripts/runtime/QualificationSuiteContinuity.ps1:63`.
+
+**Why.** `Assert-KmcRegisteredStartingPayload` holds a fixed registry of accepted starting installations, keyed by the installed `Info.json` hash. It has six entries; the newest is Chunk 5's starting payload preview.54 (`Info.json` `1224394f59ec598895a0d6ffd1db05527d04f334a063461a019c11f98ddbe528`, DLL `2203a68ca13dfebd1fc52be7c15521f3c2503c98cd53a891dd210ba0611019e9`). The owner's current installation is the accepted preview.105 alpha: `Info.json` `917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476`, DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`. That hash is not registered, so no pin set is selected. The installed tree also holds only **two** entries, `Info.json` and the DLL, with no UMM loader cache, because the guarded deployment replaced the DLL and the game has not been run since; every registered pin set describes a **three**-entry tree including that cache, so the entry-count comparison fails before any hash is checked.
+
+**Why it is not taken autonomously.** Registering a new accepted starting installation is an identity-guard change, and the Chunk 6A mission explicitly withholds authority to broaden identity exceptions to make a run pass. It is also substantively the owner's decision: that registry is the record of which installations the owner has accepted as a qualification starting point, and the three preceding entries were each added under the mission that accepted them.
+
+**What would unblock it, with no guard weakened.** Register the already-accepted preview.105 installation exactly as preview.13, preview.37 and preview.54 were registered: keyed on `Info.json` `917523483b5850ac53ab8bd39ab9a34caaacfa0abfeae64b6d111fcdf7a71476` with DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, and with the entry-count expectation matching a two-entry tree that carries no loader cache yet. Its provenance is already recorded: guarded deployment receipt `runtime-state/deployment-operations/20260925T0200587550503Z-94de251601b24a04a1f5394f57a92f64.json`, SHA-256 `8029c975a087d9307f143bec3dcdd4b24dcf6f2074fbf38b7be9abdd58e0c92a`. Nothing else changes: the frozen candidate `0.1.0-chunk6a-preview.107` needs no rebuild, and the next step is one suite snapshot followed by `chunk6a-combat-mount-rt` and `chunk6a-combat-mount-tb`.
+
+**Separately retained, and unresolved.** One `-WhatIf` purity proof failed after 54 minutes with `WhatIf purity failed: an external tree changed`, naming neither the root nor the entry. Measured since: no file in the four lab trees had a modification time inside the window; `runtime-state`, the live `Mods` root, `runtime-evidence` and `runtime-backups` are each byte-stable across two consecutive manifest passes; and `Test-Harness.ps1`, the whole `Test.ps1` umbrella and every persistence gate leave `runtime-evidence`, `runtime-staging` and `runtime-backups` unchanged in path and length. Which manifest differed, and why, is **not** established and is not attributed to any component. The proof now names the root and up to forty differing entries so a recurrence is locatable; the comparison itself is unchanged and still rehashes every byte of all five roots.
+
+---
+# Active Chunk 6A: legal combat Mount/Dismount - 2026-09-24 UTC
+
+**IN PROGRESS.** The owner's Chunk 6A mission newly authorizes implementing legal voluntary combat Mount, requalifying voluntary combat Dismount through normal native controls, freezing the remaining Chunk 6 action contract, mapping the later native seams read-only, coherent commits on `codex/mounted-combat-phase3f-playable-core`, guarded publication to that integration branch, private diagnostic packaging with new identities, and bounded guarded native runtime campaigns on the existing isolated machinery. The stale statement that Chunk 6 implementation is not authorized is superseded for this bounded 6A scope only; it is preserved below as history.
+
+This mission does **not** authorize merging to `main`, a release PR or tag, a public release, permanently replacing the owner's current preview.105 installation, writing to human campaigns or protected saves, weakening any guard or threshold, force-push, or erasing failed evidence. It does not implement mounted Charge, mounted casting or item use, staged moving actions, or the Mounted Combat feat; those are mapped only.
+
+Verified intake for this mission: local and remote integration head `747156adfa5101579ad5f8b9c6dcbfc21c0bee30`, `origin/main` `4cc591aa7dfc0ba7fb4a6d88575bd7a9381f9f6f`, clean worktree, no unknown local work. **The current human installation is preview.105** (`Mods/KingmakerMountedCombat/KingmakerMountedCombat.dll` SHA256 `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`), seven mod directories including the deliberate SkipIntro, no game process and no runtime transaction lock. Every native transaction restores **that** installation; the preview.54 tree under `runtime-backups/deployment-management` is a rollback backup and is never the restoration target.
+
+Required configuration is unchanged: paired activation enabled for the supported pair, both legacy turn authorities and the diagnostic overlay off, one active pair, Horse and Mammoth profiles, C# 7.3 / .NET Framework 4.7 / Harmony12 against the exact installed Kingmaker contract (`Assembly-CSharp.dll` SHA256 `3b6450ffec440e296e586f71c711b195aed144b28d53e1cbb29406d18fef5afb`, MVID `07fa1e4d-8618-41b3-9b8d-faa17d3b26f7`).
+
+The frozen product and action contract is [planning/CHUNK6-ACTION-CONTRACT.md](planning/CHUNK6-ACTION-CONTRACT.md), with the superseding disposition in [planning/COMBAT-MOUNT-DISMOUNT-CONTRACT.md](planning/COMBAT-MOUNT-DISMOUNT-CONTRACT.md). In one sentence: Kingmaker's native Move shell is the sole cost owner and commits at the command's acted transition, after approach and before KMC's delivery; `TurnController.Prepare` is the per-round grant and no relationship transition may call it; a pair created mid-encounter adopts the rider's already running native turn through bookkeeping alone and disposes of the partner's transition round from the exact positional observable in `ChooseNextUnit`, refusing the transition outright when that disposition cannot be resolved.
+
+---
 # Owner-approved local installation - 2026-09-25 UTC
 
 **PASS - exact preview.105 installed for the owner's alpha test.** The owner authorized installing the accepted Chunk 5 alpha into local UMM after its merge and prerelease. The deterministic build reproduces the qualified DLL byte for byte at the documentation-only HEAD `10e32e00ab68239464ebc984bfc479e53b99e263`, so the install package was built there (ZIP SHA256 `70dac23c6ca16c4f9b0a73181418cc62031614f2eecd2e91ea5195103698fdc0`, manifest bound to that commit) with `Info.json` and `KingmakerMountedCombat.dll` byte-identical to the released package (ZIP `35b7c82808ab8ecf264be0d511f24735c070374ca73b8259e544eee0d6200113`; DLL `8e231c388540cee50087ae47a2843bff06c69b6bf668b4a35f0ddfc3844f61a2`, MVID `638259af-9d31-4738-be8a-2784135d4235`); the deployment guard's exact commit binding held without any policy change.
@@ -1471,3 +2629,47 @@ RT attempt `20260816T164500Z-mammoth-primary-rt-passA` is preserved uncredited `
 ### Mammoth-primary terminal durability repair - 2026-08-16T17:26:52Z
 
 RT attempt `20260816T170000Z-mammoth-primary-rt-passA` is preserved uncredited `FAIL` `48/3`. It proves the target-placement repair, exact Mammoth ownership, one native natural critical hit for 29 damage, Mammoth-only Standard cost, unchanged rider resources, zero duplicate/AoO/charge/repath, healthy accepted pose, and exact external restoration. The stock one-HP disposable target became `FinallyDead` before terminal animation completion; terminal native teardown also cleared the late planned-weapon reference, and target death made the former combined stationarity assertion ambiguous. No liveness, ownership, resource, restoration, or safety gate is weakened. A Mammoth-only 128-temporary-HP diagnostic lease with exact zero-state restoration, retained terminal weapon identity, outcome-time life capture, and three independently bounded displacements is implemented under schema v22/v23 while schema v20/v21 remains immutable valid history. Complete offline gates pass `21/204/17/174/236`. No critical blocker is active; guarded publication, clean packaging, WhatIf, and fresh RT/TB A/B remain required.
+
+
+## 2026-09-27T20:24:29.262Z - preview.117 geometry observer repair
+
+**IN PROGRESS.** Published parent 0a70c9ef0ba01bcabbc669449cdc00ace693d08d on codex/mounted-combat-phase3f-playable-core is preserved. Preview.116 completed its unchanged purity proof (log SHA-256 9e3543a7ef563914e31613d32c014af9c561aa4a835de593d048693c96428c64), positive approach PASS48/0, isolated RT compensation PASS46/0, and isolated TB compensation PASS47/0. All exact identity/action/reaction windows and all five external restoration checks passed. Its separate geometry run c6a-geometry-a-geometry remains FAIL44/2; no provisional PASS from it qualifies a row. Exact original artifacts and assertions are retained in docs/chunk6a-evidence-history.json and lab settled records.
+
+The failed mandatory CM02-geometry-change assertion was: "The ground order missed the exact uncommitted non-adjacent Mount approach." Evidence SHA-256 8e7011393575a44b355388fc5aac30571dd1e1e984a535bc85da1c64c9c28257. The rider was actually approaching outside the 2.9m envelope (distance6.183507m, command -702943232, unacted/unfinished). The diagnostic used UnitCommands.Move, a UnitMoveTo-only convenience getter; Mount occupies the Move slot as UnitUseAbility. The existing positive probe already uses GetCommand(CommandType.Move).
+
+Preview.117 makes that same accessor correction and records the exact trigger/slot before refusing. No production behavior or resource write changes. A detached pinned-native component reproduces the accessor behavior, and its compiled caller check fails116 then passes117 (6/0). This is an offline regression, not Unity qualification. The accepted selection, causal identity, exploration windows and action/reaction accounting structures remain intact.
+
+Kingmaker is closed; actual Steam guard passed client1920 with current-session offline/cloud evidence. Completed116 proof and all four native runs were rehashed and retained. Ledger116 records7PASS/1FAIL/79unqualified and seven retained mandatory failures; it qualifies only116. Source117 supersedes116 for further qualification and has0/87 native rows. Next full offline umbrella, guarded publication, immutable117 candidate/suite/fresh unchanged proof, then positive, isolated RT/TB and geometry before actual obstruction/fullRT/freshTB/remaining87. No6B before every mandatory6A row on one frozen candidate. No merge/release/tag/PR/permanent install/HUMAN PLAY inference. Final mission target remains ENGINEERING COMPLETE - OWNER ACCEPTANCE PENDING.
+
+Final118 complete offline umbrella PASS exit0 2026-09-27T22:29:20.314Z; source110/0, components550/0, harness270/0, causal208/0, history227/0, assembly627/0, slot6/0, field5/0, patch30/0; all gates PASS. LogSHA 0144686f58124eb50a31498cd40d586eb668bec29d0ab52ebe4ec92a38412b44; DLL 39206e1e05f6de41e3ec76cb0195276d862203d0c12fc3f34b13757338c50c5a/MVID44696e8f-fa25-4ee3-a77e-d682a094874a. PathTo desktop construction remains a declared Unity gate. Native118 qualification0/87. Next guarded publication/new immutablecandidate/suite/freshproof; completed117 proof never rerun.
+
+
+## 2026-09-28T07:59:05.791Z - preview.122 native campaign and preview.123 observation
+
+IN PROGRESS on codex/mounted-combat-phase3f-playable-core. Published HEAD b31ec93ad11365b375ae7d4dc59948fd4f1a6574 and accepted f05a265 ancestry are preserved. Preview.123 is a diagnostic source change with no native qualification. The exact preview.122 ledger is retained separately: 10 PASS / 1 FAIL / 76 unqualified, fourteen historical failures. No provisional row from the failed full TB run is credited.
+
+Preview.122 completed unchanged purity recovery1 on 2026-09-28T06:59:33.9442049Z, exit0; log SHA256 619a072ac747b8c3090a456bdc425ef9097e4657a7105fe318471d81a605bc6b. The interrupted first attempt remains INCOMPLETE. Neither attempt is rewritten, and the completed proof will not be rerun. Package 1f2667fe297f13566964b2d3544f0b38c07efb46714093a893d0ca3c008bfc12; manifest 10ba5233e5847ee2a28fa9ef293eb219f9726f125fa5b06247fe24f74ce3773e; DLL 598d269a55a8eac916d67cd7796fed8d8fc359d35489583308dfb434a8af68fa / MVID 44829661-73db-41b4-9c60-c51d5d37f466; suite 20260928-chunk6a-fixtures-a / SHA256 575e5a15920ab3108cd87803e8561a2bca4e688678a6f057fea44bf3b0a9dd40.
+
+The seven c6a-fixtures-a runs are retained with every original artifact hash in docs/chunk6a-evidence-history.json: approach PASS48/0; isolated RT compensation PASS46/0; isolated TB compensation PASS47/0; geometry PASS45/0; obstruction PASS45/0; full RT PASS52/0; fresh full TB FAIL45/2. All seven restored Mods, protected saves, immutable baseline, working save and write allowlist (5/5 PASS each). The actual Steam client1920 guard passed before each launch; Kingmaker is closed.
+
+Full TB failed mandatory context CM01-horse-tb at exact row phase3d-horse-leaf-deadline: "Phase 3D Horse tranche leaf exceeded 30 seconds at Phase3gControls." Original runtime-game-result SHA256 0d76978fae8dac1a86d3bf09b7356a5c80f1e2687812d1166c5b7c6c59b37cb5. Native setup UnitMoveTo -1196052480 succeeded on rider turn756067200, retaining Move0.330535. One positive Mount was admitted in the native Move slot at distance6.49705553m, then moved away beyond13.97m without acting or binding a process before the unchanged30s deadline. The consumed path was not observed. A stale native UI preview is a hypothesis, not a proven production defect.
+
+Preview.123 adds read-only observers for the exact Mount TickApproaching, CurrentPathForUnit, FollowPrecomputedPath and PathTo boundaries. Completed preview and consumed-path geometry are copied; worker-owned request contents are never enumerated. Native TurnController.TickMovement before/after callbacks record the accepted ref delta, exact turn and command, separating native approach movement from the required exactly-once acted cost. Both producer and independent external replay reject unexplained debt, refunds, missing callbacks, wrong identities and unrelated action/reaction writes. The accepted selection, single-command, reaction, compensation and exploration structures remain intact. No native path, resource, deadline or gameplay behavior is changed.
+
+Focused checks: source119/0; movement producer/external114/0; causal220/0; consumed-path protocol45/0; compiled snapshot4/0; new wrapper construction3 PASS and2 DEFER - EVIDENCED for Unity ECalls (TickApproaching and PathTo). Native installation and callback execution remain required. Complete offline umbrella is next, then coherent guarded publication, a new immutable123 package/suite and fresh unchanged proof. Required native order remains positive, isolated compensation RT/TB, geometry, obstruction, full RT/fresh TB and remaining mandatory rows. No6B until all87 pass one frozen candidate. No merge, tag, PR, release, permanent install or inferred HUMAN PLAY acceptance.
+
+## 2026-09-28T10:09:32.703Z — Chunk6A124 continuation
+
+IN PROGRESS. Frozen123 has6/87 mandatory PASS, two retained TB setup FAILs and16 historical failures; all external restoration passed. Source124 adds bounded native pre-combat positioning/origin observations and isolated Stop/hotbar/paused/native-Mammoth cases. No new native qualification. The122 TB consumed-path cause remains unobserved; no production path/resource/deadline repair is claimed. See CURRENT.md, docs/CHUNK6A-COMBAT-MOUNT.md and original history hashes. Next complete offline umbrella, guarded publication, immutable124/suite/fresh proof, then required native order. No6B or owner acceptance inference.
+
+## 2026-09-28T12:18:55.417Z — source125 diagnostic repairs
+
+IN PROGRESS. Frozen124 historical12PASS/3FAIL/72unqualified, nineteen original failures retained. Exact stale TB preview, native CreatedByPlayer semantic mismatch and Mammoth legacy-overlay registration failures are diagnosed in CURRENT.md and the bound checkpoint. All eleven transactions restored. Source125 zero native qualification; no resource/path/position/deadline writes or threshold changes. Full gates and new immutable candidate/proof required.
+
+## 2026-09-29 — source129 offline storage failure and recovery
+
+The original complete offline run ended exit1 at2026-09-29T01:32:11.7872782Z: Test-Chunk6aRegressionReader could not copy its synthetic archive because C: was full. Exact log SHA1a8ede8bd3e5bc4961abcac2bf85077790fccb1ce9549623d5f725261f7880c7 and offline-process-preview129-integrated.json are retained; this is not a native product or qualification result. No package/proof/native129 exists. The owner freed132GiB; storage-recovery-complete129.json verifies all132 synthetic pilot files and restoration of the one temporary byte-identical duplicate. Native evidence and backups were never changed.
+
+Resumed read-only identity checks verified published/local aec84a95cf058b32aec10bb14718ecde63fd2e6b with accepted f05a265 ancestry, original128 package/manifest/DLL/MVID/suite/purity hashes, and all seven128 transaction restoration records (5/5 each). Actual Steam1920/current-session offline/cloud guard PASS; Kingmaker closed. Source129 DLL2c1b23c6c170d5ad4e37eb0d1a8b2a42a180f481994dcaa4087c475d4864c2cb/MVID5e4cecda-893f-4a1f-bafb-6ef9c2a8b944 remains unchanged. The admission guard correctly refuses the dirty129 worktree; historical byte checks are not runtime admission.
+
+Next: RUN-OFFLINE-PREVIEW129-RETRY1.ps1; preserve its distinct process/log/exit receipt. No source edits during this retry. Settle-Offline129-Retry1 then coherent guarded publication, new candidate/suite and one fresh proof. Prepared freeze generator's stale suite date was corrected to the actual new suite identity; no guard weakened. Never repeat128 proof or transfer its qualification.

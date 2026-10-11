@@ -11,10 +11,13 @@ namespace KingmakerMountedCombat.Tests
             runner.Run("player action reports exact selection requirement", ReportsSelectionRequirement);
             runner.Run("player action accepts a complete eligible pair", AcceptsEligiblePair);
             runner.Run("player action reports every material pair rejection", ReportsMaterialPairRejections);
-            runner.Run("player action reflects the domain restriction on combat Mount", RejectsUnavailableCombatMount);
+            runner.Run("player action admits an eligible combat Mount", AdmitsEligibleCombatMount);
+            runner.Run("player action refuses combat Mount when paired adoption is ambiguous", RefusesCombatMountWithoutAdoption);
+            runner.Run("player action refuses a second transition while one is in flight", RefusesSecondTransitionInFlight);
             runner.Run("player action reports exact combat Mount gates", ReportsCombatMountGates);
+            runner.Run("player action refuses a turn-based approach after a spent Standard action", RefusesSpentStandardApproach);
             runner.Run("player action charges combat Dismount only on rider turn with Move", GatesCombatDismount);
-            runner.Run("native Move commitment preserves Dismount but cannot authorize combat Mount", AdmitsCommittedNativeMoveShell);
+            runner.Run("native Move commitment admits both combat Mount and Dismount delivery", AdmitsCommittedNativeMoveShell);
             runner.Run("admitted native Move shell preserves non-resource combat gates", CommittedNativeMoveShellPreservesOtherGates);
             runner.Run("combat mount adjacency includes both native corpulence radii", UsesNativeAdjacencyEnvelope);
             runner.Run("native Mount approach stops inside its execution envelope", MountApproachMatchesExecution);
@@ -103,9 +106,14 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.True(feedback.Contains("conflicting"), "Relationship-conflict reason missing.");
             TestRunner.True(feedback.Contains("Polymorphed"), "Polymorph reason missing.");
             TestRunner.True(feedback.Contains("loading"), "Lifecycle-boundary reason missing.");
-            TestRunner.True(feedback.Contains("adjacent") && feedback.Contains("current turn") &&
-                    feedback.Contains("no Move action"),
+            // Distance is DEFERRED to the native approach, so it is not a blocking reason.
+            // Every other combat gate still blocks admission outright.
+            TestRunner.True(feedback.Contains("current turn") && feedback.Contains("no Move action"),
                 "Combat Mount gate reasons missing.");
+            TestRunner.True(!feedback.Contains("approach"),
+                "Distance was reported as a blocking reason instead of a deferred one.");
+            TestRunner.True(string.Join(" ", result.TransitionDeferredReasons.ToArray()).Contains("approach"),
+                "Distance was not deferred to the native approach.");
             TestRunner.True(feedback.Contains("ordinary exploration"), "Game-mode reason missing.");
             TestRunner.True(feedback.Contains("views and stock movement agents"), "View/agent reason missing.");
             TestRunner.True(feedback.Contains("enabled before mounting"), "Stock-agent readiness reason missing.");
@@ -124,7 +132,7 @@ namespace KingmakerMountedCombat.Tests
             TestRunner.Equal("Dismount", result.Label, "Mounted action label is unclear.");
         }
 
-        private static void RejectsUnavailableCombatMount()
+        private static void AdmitsEligibleCombatMount()
         {
             var context = EligibleContext();
             context.InCombat = true;
@@ -132,8 +140,54 @@ namespace KingmakerMountedCombat.Tests
             context.RiderHasMoveAction = true;
             context.PairAdjacent = true;
             var result = MountedPlayerActionEvaluator.Evaluate(context);
-            TestRunner.True(!result.IsEnabled && result.Feedback.Contains("outside combat"),
-                "Mount UI advertised combat admission that the relationship domain rejects.");
+            TestRunner.True(result.IsEnabled && result.Action == MountedPlayerActionKind.Mount,
+                "An eligible combat Mount was refused: " + result.Feedback);
+            TestRunner.Equal(0, result.UnavailableReasons.Count,
+                "An eligible combat Mount retained rejection reasons: " + result.Feedback);
+        }
+
+        private static void RefusesCombatMountWithoutAdoption()
+        {
+            var context = EligibleContext();
+            context.InCombat = true;
+            context.CombatTurnEligible = true;
+            context.RiderHasMoveAction = true;
+            context.PairAdjacent = true;
+            context.PairedAdoptionAvailable = false;
+            context.PairedAdoptionUnavailableReason =
+                "The companion's own turn in this round cannot be resolved; mount on a later round.";
+            var result = MountedPlayerActionEvaluator.Evaluate(context);
+            TestRunner.True(!result.IsEnabled && result.Feedback.Contains("own turn in this round"),
+                "Combat Mount was advertised while the paired disposition was ambiguous.");
+
+            var exploration = EligibleContext();
+            exploration.PairedAdoptionAvailable = false;
+            exploration.PairedAdoptionUnavailableReason = "should not be consulted outside combat";
+            TestRunner.True(MountedPlayerActionEvaluator.Evaluate(exploration).IsEnabled,
+                "The out-of-combat transition was gated on a combat-only adoption predicate.");
+        }
+
+        private static void RefusesSecondTransitionInFlight()
+        {
+            var mountContext = EligibleContext();
+            mountContext.InCombat = true;
+            mountContext.CombatTurnEligible = true;
+            mountContext.RiderHasMoveAction = true;
+            mountContext.PairAdjacent = true;
+            mountContext.RelationshipTransitionInFlight = true;
+            var mount = MountedPlayerActionEvaluator.Evaluate(mountContext);
+            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("already in flight"),
+                "A second combat Mount shell was offered while one transition was in flight.");
+
+            var dismountContext = EligibleContext();
+            dismountContext.RelationshipState = RelationshipState.Mounted;
+            dismountContext.InCombat = true;
+            dismountContext.CombatTurnEligible = true;
+            dismountContext.RiderHasMoveAction = true;
+            dismountContext.RelationshipTransitionInFlight = true;
+            var dismount = MountedPlayerActionEvaluator.Evaluate(dismountContext);
+            TestRunner.True(!dismount.IsEnabled && dismount.Feedback.Contains("already in flight"),
+                "A second Dismount shell was offered while one transition was in flight.");
         }
 
         private static void ReportsCombatMountGates()
@@ -145,9 +199,45 @@ namespace KingmakerMountedCombat.Tests
             context.PairAdjacent = false;
             var result = MountedPlayerActionEvaluator.Evaluate(context);
             TestRunner.True(!result.IsEnabled, "Ineligible combat Mount was admitted.");
-            TestRunner.True(result.Feedback.Contains("adjacent"), "Combat adjacency reason missing.");
             TestRunner.True(result.Feedback.Contains("current turn"), "Combat turn reason missing.");
             TestRunner.True(result.Feedback.Contains("no Move action"), "Combat Move-action reason missing.");
+            // Distance is deferred, so it is reported as such rather than as a gate. It
+            // still keeps the TRANSITION closed.
+            TestRunner.True(!result.TransitionReady, "A non-adjacent pair was reported transition-ready.");
+            TestRunner.True(string.Join(" ", result.TransitionDeferredReasons.ToArray()).Contains("approach"),
+                "Combat adjacency was neither blocked nor deferred.");
+        }
+
+        // Native turn-based action economy: once the Standard is used, any movement charges the one
+        // remaining Move (HasMoveAction is !UsedOneMoveAction), so an approach-bearing Mount can never
+        // start; preview.152 CM03-rider-other-action observed the engine interrupting the admitted shell
+        // at its first displacement through this very availability. The refusal must precede the shell.
+        private static void RefusesSpentStandardApproach()
+        {
+            var context = EligibleContext();
+            context.InCombat = true;
+            context.TurnBasedCombat = true;
+            context.RiderUsedStandardAction = true;
+            context.PairAdjacent = false;
+            var expected = MountedPlayerActionEvaluator.DescribeSpentStandardApproachRefusal(context.MountDisplayName);
+            var refused = MountedPlayerActionEvaluator.Evaluate(context);
+            TestRunner.True(!refused.IsEnabled && refused.UnavailableReasons.Contains(expected),
+                "A non-adjacent spent-Standard Mount was not refused up front: " + refused.Feedback);
+            context.PairAdjacent = true;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "An adjacent spent-Standard Mount was refused.");
+            context.PairAdjacent = false;
+            context.TurnBasedCombat = false;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "A real-time spent-Standard approach was refused.");
+            context.TurnBasedCombat = true;
+            context.RiderUsedStandardAction = false;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "An approach with the Standard unspent was refused.");
+            context.RiderUsedStandardAction = true;
+            context.NativeMoveActionShellAdmitted = true;
+            TestRunner.True(!MountedPlayerActionEvaluator.Evaluate(context).UnavailableReasons.Contains(expected),
+                "The admitted shell's own re-evaluation was refused.");
         }
 
         private static void GatesCombatDismount()
@@ -172,8 +262,16 @@ namespace KingmakerMountedCombat.Tests
             mountContext.RiderHasMoveAction = false;
             mountContext.NativeMoveActionShellAdmitted = true;
             var mount = MountedPlayerActionEvaluator.Evaluate(mountContext);
-            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("outside combat"),
-                "A native Move shell bypassed the current relationship's combat Mount restriction.");
+            TestRunner.True(mount.IsEnabled,
+                "An exact native Mount shell was rejected after Kingmaker committed its Move resource: " +
+                mount.Feedback);
+
+            var uncommitted = EligibleContext();
+            uncommitted.InCombat = true;
+            uncommitted.RiderHasMoveAction = false;
+            var refused = MountedPlayerActionEvaluator.Evaluate(uncommitted);
+            TestRunner.True(!refused.IsEnabled && refused.Feedback.Contains("no Move action"),
+                "Combat Mount was offered without a rider Move action and without a committed native shell.");
 
             var dismountContext = EligibleContext();
             dismountContext.RelationshipState = RelationshipState.Mounted;
@@ -194,9 +292,15 @@ namespace KingmakerMountedCombat.Tests
             mountContext.PairAdjacent = false;
             mountContext.CombatTurnEligible = false;
             var mount = MountedPlayerActionEvaluator.Evaluate(mountContext);
-            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("adjacent") &&
-                    mount.Feedback.Contains("current turn") && !mount.Feedback.Contains("no Move action"),
+            // The admitted shell suppresses only the stale Move-resource predicate. The
+            // turn gate still blocks admission, and distance still keeps the transition
+            // closed even though it no longer blocks the approach.
+            TestRunner.True(!mount.IsEnabled && mount.Feedback.Contains("current turn") &&
+                    !mount.Feedback.Contains("no Move action"),
                 "Native Mount delivery bypassed a non-resource combat gate.");
+            TestRunner.True(!mount.TransitionReady &&
+                    string.Join(" ", mount.TransitionDeferredReasons.ToArray()).Contains("approach"),
+                "An admitted Move shell erased the deferred distance condition.");
 
             var dismountContext = EligibleContext();
             dismountContext.RelationshipState = RelationshipState.Mounted;

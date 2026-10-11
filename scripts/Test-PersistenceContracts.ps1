@@ -167,7 +167,7 @@ public static class KmcPersistenceContractProbe
         var restored=0; var failures=0;
         Func<DisposeProbe,object> wrap=inner=>constructor.Invoke(new object[]{inner,
             new Func<bool>(()=>false),new Func<double>(()=>0),new Action(()=>{}),new Action(()=>{}),
-            new Action(()=>restored++),30d});
+            new Action(()=>restored++),30d,null});
         var current=wrap(currentInner);var next=wrap(queuedInner);
         wrapperType.GetMethod("Activate",flags).Invoke(current,new object[]{new Action(()=>{})});
         var record=Activator.CreateInstance(queuedType,true);process.SetValue(record,current);
@@ -195,7 +195,7 @@ public static class KmcPersistenceContractProbe
         var tick=adapter.GetMethod("MoveNext",BindingFlags.Static|BindingFlags.NonPublic);
         var now=0d; var timeoutInner=new DisposeProbe(); var timeoutRestored=0;
         var timeout=constructor.Invoke(new object[]{timeoutInner,new Func<bool>(()=>false),
-            new Func<double>(()=>now),new Action(()=>{}),new Action(()=>{}),new Action(()=>timeoutRestored++),30d});
+            new Func<double>(()=>now),new Action(()=>{}),new Action(()=>{}),new Action(()=>timeoutRestored++),30d,null});
         wrapperType.GetMethod("Activate",flags).Invoke(timeout,new object[]{new Action(()=>{})}); now=31;
         var failedRecord=Activator.CreateInstance(queuedType,true);process.SetValue(failedRecord,timeout);
         var callback=new Action(()=>{throw new Exception("Failed save callback must never run");});
@@ -210,7 +210,7 @@ public static class KmcPersistenceContractProbe
             now=0;object iterator=inner;
             if(phase!="foreign") {
                 iterator=constructor.Invoke(new object[]{inner,new Func<bool>(()=>phase=="serialized"),
-                    new Func<double>(()=>now),new Action(()=>{}),new Action(()=>{}),new Action(()=>{}),30d});
+                    new Func<double>(()=>now),new Action(()=>{}),new Action(()=>{}),new Action(()=>{}),30d,null});
                 wrapperType.GetMethod("Activate",flags).Invoke(iterator,new object[]{new Action(()=>{})});
                 now=31;
             }
@@ -230,7 +230,7 @@ public static class KmcPersistenceContractProbe
                 BindingFlags.Instance|BindingFlags.NonPublic,null,new object[]{"completed failed worker"},null);
             var inner=new DisposeProbe {MoveException=marker,FailDispose=cleanupFails};
             var operation=constructor.Invoke(new object[]{inner,new Func<bool>(()=>true),
-                new Func<double>(()=>0),new Action(()=>{}),new Action(()=>{}),new Action(()=>{}),30d});
+                new Func<double>(()=>0),new Action(()=>{}),new Action(()=>{}),new Action(()=>{}),30d,null});
             wrapperType.GetMethod("Activate",flags).Invoke(operation,new object[]{new Action(()=>{})});
             var entry=Activator.CreateInstance(queuedType,true);process.SetValue(entry,operation);
             callbackField.SetValue(entry,callback);ownerType.GetField("m_CurrentProcess",flags).SetValue(owner,entry);
@@ -279,6 +279,20 @@ public static class KmcPersistenceContractProbe
         var saveScope=service.GetNestedType("SaveScope",BindingFlags.NonPublic);
         var scope=Activator.CreateInstance(saveScope,true);
         var track=service.GetMethod("TrackNativeSave",BindingFlags.Static|BindingFlags.NonPublic);
+        var beforeStep=saveScope.GetField("BeforeNativeStep",flags);
+        var writerProbe=new DisposeProbe(); var barrierVisits=0;
+        beforeStep.SetValue(scope,new Action(()=>{
+            barrierVisits++;
+            if(barrierVisits==2) throw new InvalidOperationException("charge barrier refused");
+            Check(writerProbe.Moves==0,"charge barrier precedes first native save step");
+        }));
+        var fenced=(System.Collections.Generic.IEnumerator<object>)track.Invoke(null,new object[]{writerProbe,scope});
+        Check(fenced.MoveNext() && writerProbe.Moves==1,"settled charge barrier permits one native step");
+        var fenceRefused=false;
+        try{fenced.MoveNext();}catch(InvalidOperationException error){fenceRefused=error.Message=="charge barrier refused";}finally{fenced.Dispose();}
+        Check(fenceRefused && barrierVisits==2 && writerProbe.Moves==1 && writerProbe.Disposals==1,
+            "later charge barrier refuses outside native catch without advancing the writer and disposes once");
+        scope=Activator.CreateInstance(saveScope,true);
         var empty=new object[0];
         var tracked=(System.Collections.Generic.IEnumerator<object>)track.Invoke(null,new object[]{
             ((System.Collections.Generic.IEnumerable<object>)empty).GetEnumerator(),scope});
@@ -457,6 +471,22 @@ public static class KmcPersistenceContractProbe
         activeField.SetValue(bare,idleScope);
         Check(teardown.Invoke(bare,new object[]{50}).Equals(verdict("Settled")) && (bool)releasedField.GetValue(idleScope),
             "teardown finalizes a scope whose enumeration never started a worker without waiting");
+
+        var yieldedScope=Activator.CreateInstance(saveScope,true);
+        saveScope.GetField("Began",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(yieldedScope,true);
+        activeField.SetValue(bare,yieldedScope);
+        Check(teardown.Invoke(bare,new object[]{0}).Equals(verdict("Refused")) && !(bool)releasedField.GetValue(yieldedScope),
+            "a begun iterator before worker creation refuses teardown and retains its scope");
+        workerField.SetValue(yieldedScope,settledTask.Task);
+        Check(teardown.Invoke(bare,new object[]{0}).Equals(verdict("Refused")) && !(bool)releasedField.GetValue(yieldedScope),
+            "a completed worker cannot retire a still resumable native iterator");
+        saveScope.GetField("EnumerationRetired",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(yieldedScope,true);
+        Check(teardown.Invoke(bare,new object[]{0}).Equals(verdict("Settled")) && (bool)releasedField.GetValue(yieldedScope),
+            "retired iterator and settled worker release the exact scope");
+        var saveBarrier=service.GetMethod("RequireChargeSaveBarrier",BindingFlags.Instance|BindingFlags.NonPublic);
+        var retiredRefused=false;
+        try{saveBarrier.Invoke(bare,new[]{yieldedScope});}catch(TargetInvocationException error){retiredRefused=error.InnerException is InvalidOperationException && error.InnerException.Message.Contains("retired save");}
+        Check(retiredRefused,"released operation cannot reacquire admission or resume native serialization");
 
         // The ordinary failure report is keyed to the RETIRED operation and
         // decided at the commit boundary. Two saves queued to different slots: a

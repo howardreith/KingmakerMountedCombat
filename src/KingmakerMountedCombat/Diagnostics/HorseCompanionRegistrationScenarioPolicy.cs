@@ -6,7 +6,68 @@ namespace KingmakerMountedCombat.Diagnostics
     {
         internal static bool SupportsScenario(string scenario)
         {
-            return string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||
+            // The Chunk 6A rows are named literally here: this policy is shared
+            // with the component test project, which cannot compile the runtime
+            // tranche because that type binds Kingmaker assemblies.
+            return Chunk6bChargeCohorts.Select(scenario) != null ||
+                string.Equals(scenario, "chunk6b-charge-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6b-charge-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6b-charge-path-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6b-charge-path-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-combat-mount-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-combat-mount-tb", StringComparison.Ordinal) ||
+                // The narrow save-backed Mount preamble: one native selected-ability
+                // click, sixteen staged causal assertions, no mount and no combat.
+                string.Equals(scenario, "chunk6a-mount-preamble", StringComparison.Ordinal) ||
+                // The narrow real-time non-adjacent native-approach scenario.
+                string.Equals(scenario, "chunk6a-paused-queue", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-policy-disabled", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-foreign-companion", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-wrong-creature-target", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-mount-selected", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-multiple-selection", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-refused-foreign-selection", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-stop-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-combat-end-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-disable-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-command-replacement", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-repeated-mount-request", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-ownership-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-size-form-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-lost-direct-control", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-rider-incapacitated", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-incapacitated", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-allocation-rider-first-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-allocation-mount-first-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-spent-move-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-spent-standard-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-spent-all-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-rider-without-move-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-rider-other-action-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-unrelated-candidate-between-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-after-rider-expenditure-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-after-mount-expenditure-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-immediately-after-mount-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-auto-use-mount-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-auto-use-dismount-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-feature-disabled-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-dismount-policy-disabled-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-hotbar-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-obstruction", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-geometry-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-left-area", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-view-agent-lost", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-loading-cutscene", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-generation-change", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-injected-exception", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-rider-death-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mount-death-approach", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-turn-end-approach-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-mode-exit-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-adoption-compensation-rt", StringComparison.Ordinal) ||
+                string.Equals(scenario, "chunk6a-adoption-compensation-tb", StringComparison.Ordinal) ||
+                string.Equals(scenario, "horse-companion-blueprint-registration", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-companion-unmounted-suite", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-mounted-alpha-suite", StringComparison.Ordinal) ||
                 string.Equals(scenario, "horse-native-controls-ux-suite", StringComparison.Ordinal) ||

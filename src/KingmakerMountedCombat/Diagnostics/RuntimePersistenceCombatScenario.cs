@@ -42,6 +42,7 @@ namespace KingmakerMountedCombat.Diagnostics
         private JObject CombatObservation() => new JObject
         {
             ["checkpoint"] = Checkpoint,
+            ["foundation"] = FoundationObservation(),
             ["round"] = Game.Instance.TurnBasedCombatController.RoundNumber,
             ["current"] = Game.Instance.TurnBasedCombatController.CurrentTurn?.Unit.UniqueId,
             ["turn"] = Game.Instance.TurnBasedCombatController.CurrentTurn == null ? null :
@@ -59,7 +60,9 @@ namespace KingmakerMountedCombat.Diagnostics
 
         private void AdvanceCombat()
         {
-            if (clock.Elapsed.TotalSeconds > 150)
+            // The combat-mount-tb foundation continuation spends one more native round (the rider turn is ended
+            // after the save and the attack waits for the next rider turn).
+            if (clock.Elapsed.TotalSeconds > (FoundationCombatMount ? 240 : 150))
                 throw new InvalidOperationException("P02 " + Checkpoint + " stage timed out: " + stage + "; " + persistence.Feedback);
             var game = Game.Instance;
             if (LoadingProcess.Instance.IsLoadingInProcess || persistence.CombatRestorationPending) return;
@@ -103,7 +106,10 @@ namespace KingmakerMountedCombat.Diagnostics
                         combat.PairedActivationIdentity == data.Combat.Paired.Activation.EncounterId + ":" +
                             data.Combat.Paired.Activation.Sequence, "P02-same-round-boundary-and-grant");
                     ValidateCheckpoint(data);
-                    if (Checkpoint != "explicit-end" && !ReactionCase && !SuspendedCase)
+                    if (FoundationCombatMount)
+                        Check((data.Combat.Paired?.Partner == null) == (combat.PairedPartnerContext == null),
+                            "P02-combat-mount-tb-partner-context-restored-as-saved");
+                    else if (Checkpoint != "explicit-end" && !ReactionCase && !SuspendedCase)
                     {
                         var movement = data.Combat.Allocations.Single(a => a.ActorId == mount.UniqueId).Movement;
                         Check(combat.PairedPartnerContext != null &&
@@ -120,7 +126,9 @@ namespace KingmakerMountedCombat.Diagnostics
                     controls.Update(); beforeControls = controls.CaptureSnapshot();
                     Check(beforeControls.ExactFactCount == 3 && beforeControls.DuplicateFactCount == 0 &&
                         beforeControls.ManagedHotbarSlotCount == data.Slots.Length, "P02-cold-controls-once");
-                    Write(ValidationCombatCase ? "validation-combat-retry-initial" : "initial", CombatObservation());
+                    var initialObservation = CombatObservation();
+                    if (FoundationCombatMount) initialObservation["snapshot"] = JObject.FromObject(data, MountedSaveCodec.CreateSerializer());
+                    Write(ValidationCombatCase ? "validation-combat-retry-initial" : "initial", initialObservation);
                     if (HasRoundEffectFixture) ObserveColdRoundEffects();
                     if (ReactionCase) ObserveColdReaction();
                     ContinueSavedCheckpoint(); return;
@@ -129,9 +137,18 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (!relationship.TryResolveAutomationPair(out selectedRider, out selectedMount, out error))
                     throw new InvalidOperationException(error);
                 rider = selectedRider; mount = selectedMount;
-                Check(!game.Player.IsInCombat && relationship.MountRiderOn(rider, mount).Succeeded,
-                    "P02-mounted-before-native-combat");
-                controls.Update(); BindOwnedControlSlots(); beforeControls = controls.CaptureSnapshot();
+                if (FoundationCombatMount)
+                {
+                    Check(!game.Player.IsInCombat && relationship.State == RelationshipState.Unmounted,
+                        "P02-unmounted-before-native-combat-mount");
+                    controls.Update(); beforeControls = controls.CaptureSnapshot();
+                }
+                else
+                {
+                    Check(!game.Player.IsInCombat && relationship.MountRiderOn(rider, mount).Succeeded,
+                        "P02-mounted-before-native-combat");
+                    controls.Update(); BindOwnedControlSlots(); beforeControls = controls.CaptureSnapshot();
+                }
                 if (HasRoundEffectFixture) InstallRoundEffects();
                 if (SuspendedCase) InstallDelayFixture();
                 targetService = new DiagnosticCombatTargetService(logger);
@@ -146,6 +163,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 if (turn == null || turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
                 if (turn.Unit != rider) { EndFixtureTurn(turn); return; }
                 if (!PairIdle) return;
+                if (FoundationCombatMount) { BeginFoundationActingEntry(turn); return; }
                 Check(CombatController.IsInTurnBasedCombat() && combat.PairedPartnerContext != null &&
                     rider.CombatState.Cooldown.StandardAction == 0 && mount.CombatState.Cooldown.MoveAction == 0,
                     "P02-fresh-native-paired-boundary");
@@ -178,6 +196,7 @@ namespace KingmakerMountedCombat.Diagnostics
                 else { BeginCombatAttack(rider, "setup-rider-attack"); stage = 20; }
                 return;
             }
+            if (stage >= 50 && stage <= 52) { AdvanceFoundationTurn(turn); return; }
             if (stage == 20 || stage == 21)
             {
                 if (!FinishCombatAttack()) return;
@@ -243,6 +262,34 @@ namespace KingmakerMountedCombat.Diagnostics
                 Write("movement-completed", CombatObservation());
                 BeginCombatAttack(Checkpoint == "rider-spent" ? mount : rider, "attack");
                 stage = 8; return;
+            }
+            if (stage == 60)
+            {
+                // The Mount charged the only Move of the rider turn; a same-turn attack that must approach is
+                // unlawful (preview.154 CM07-mount-save-tb: the delegated approach exhausted its repath allowance
+                // with NoPath). End the rider turn natively and attack on the next rider turn with a fresh Move
+                // and Standard; the later-activation count is re-baselined from that turn. The cold load follows
+                // the same continuation from its restored rider turn.
+                if (turn == null) return;
+                if (ReferenceEquals(turn, savedBoundary))
+                {
+                    var alreadyEnded = ReferenceEquals(endedBoundary, turn);
+                    EndFixtureTurn(turn);
+                    if (!alreadyEnded && ReferenceEquals(endedBoundary, turn)) Write("combat-mount-turn-ended", CombatObservation());
+                    return;
+                }
+                if (turn.Status != TurnController.TurnStatus.Preparing && !turn.IsActing) return;
+                if (turn.Unit == mount) throw new InvalidOperationException("P02 partner received a duplicate independent activation.");
+                if (turn.Unit != rider) { EndFixtureTurn(turn); return; }
+                if (!PairIdle) return;
+                Check(combat.PairedActivationSequence == savedSequence + 1 && combat.PairedPartnerContext != null &&
+                    rider.CombatState.Cooldown.StandardAction == 0 && rider.CombatState.Cooldown.MoveAction == 0 &&
+                    mount.CombatState.Cooldown.StandardAction == 0 && mount.CombatState.Cooldown.MoveAction == 0,
+                    "P02-combat-mount-tb-next-rider-turn-fresh-activation");
+                savedBoundary = turn; savedSequence = combat.PairedActivationSequence;
+                savedRound = game.TurnBasedCombatController.RoundNumber;
+                Write("combat-mount-next-rider-turn", CombatObservation());
+                BeginCombatAttack(rider, "attack"); stage = 8; return;
             }
             if (stage == 8)
             {
@@ -319,6 +366,12 @@ namespace KingmakerMountedCombat.Diagnostics
             var saved = data.Combat;
             Check(saved?.Paired?.Activation != null && saved.Round >= 1 && saved.Paired.Activation.Sequence >= 1,
                 "P02-snapshot-has-native-round-and-participation");
+            if (FoundationCombatMount)
+            {
+                Check(data.Mounted && saved.Current?.ActorId == data.Rider.Id && data.Rider.Move > 0,
+                    "P02-actual-snapshot-matches-combat-mount-tb");
+                return;
+            }
             if (SuspendedCase) { ValidateSuspendedCheckpoint(data); return; }
             var riderSpent = data.Rider.Standard > 0;
             var mountSpent = data.Mount.Standard > 0;
@@ -375,6 +428,7 @@ namespace KingmakerMountedCombat.Diagnostics
             if (CommitmentCase) { ContinueCommitment(); return; }
             if (RoundEffectCase) { ContinueRoundEffects(); return; }
             if (ReactionCase) { ContinueReaction(); return; }
+            if (FoundationCombatMount) { stage = 60; return; }
             if (Checkpoint == "explicit-end") { stage = 32; return; }
             if (Checkpoint == "partial-movement" || Checkpoint == "rider-spent") { stage = 6; return; }
             BeginRejectedWork();
@@ -505,7 +559,10 @@ namespace KingmakerMountedCombat.Diagnostics
                 turn.Unit.Group != rider.Group || !turn.Unit.Commands.Empty ||
                 turn.Unit.AreHandsBusyWithAnimation || !turn.CanEndTurnAndNoActing() ||
                 Game.Instance.TurnBasedCombatController.WaitingForUI) return;
-            Check(turn.Unit != mount, "P02-partner-never-owns-an-independent-native-turn");
+            // The combat-mount-tb foundation case starts Unmounted by contract: until the Mount the horse is
+            // an ordinary independent combatant and lawfully owns its own native turn (preview.152 CM07-mount-save-tb).
+            if (!(FoundationCombatMount && relationship.State == RelationshipState.Unmounted))
+                Check(turn.Unit != mount, "P02-partner-never-owns-an-independent-native-turn");
             Game.Instance.PauseBind();
             endedBoundary = turn;
         }

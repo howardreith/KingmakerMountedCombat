@@ -26,7 +26,7 @@ namespace KingmakerMountedCombat.Integration
         HandledRejected
     }
 
-    internal sealed class MountedCombatController : IDisposable
+    internal sealed partial class MountedCombatController : IDisposable
     {
         private readonly GameMountedRelationshipService relationship;
         private readonly DiagnosticSettings settings;
@@ -74,6 +74,7 @@ namespace KingmakerMountedCombat.Integration
                 throw new ArgumentNullException(nameof(pairedCommandScheduler));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             relationship.Dismounting += HandleDismounting;
+            relationship.ChargeCleanupBarrier = trigger => TryDrainChargeOwnership("relationship cleanup " + trigger);
         }
 
         public MountedCombatActionKind ArmedAction { get; private set; }
@@ -149,9 +150,28 @@ namespace KingmakerMountedCombat.Integration
         internal bool PairedActivationSplit => unifiedTurn.ActivationSplit;
         internal bool PairedActivationFinalized => unifiedTurn.ActivationFinalized;
         internal long PairedActivationSequence => unifiedTurn.ActivationSequence;
+        internal string PairedInitiativeObservation => unifiedTurn.LastInitiativeObservation;
+        internal long PersistenceWorldDiscardCount => unifiedTurn.PersistenceWorldDiscardCount;
+        internal string LastPersistenceWorldDiscardObservation => unifiedTurn.LastPersistenceWorldDiscardObservation;
+        internal long PairedLifetimeRetirementCount => unifiedTurn.PairedLifetimeRetirementCount;
+        internal long PairedLifetimeRetirementDeferredCount => unifiedTurn.PairedLifetimeRetirementDeferredCount;
+        internal string LastPairedLifetimeRetirement => unifiedTurn.LastPairedLifetimeRetirement;
+        internal string LastPairedMovementObservation => unifiedTurn.LastMovementObservation;
         internal bool IsPreparingPairedActor(UnitEntityData actor) => unifiedTurn.IsPreparingPairedActor(actor);
         internal bool PairedActorEnded(UnitEntityData actor) => unifiedTurn.PairedActorEnded(actor);
         internal bool MayStartNativePreparationDuringSave(UnitCommand command) => unifiedTurn.MayStartNativePreparationDuringSave(command);
+        internal MidEncounterAdoption ResolveMidEncounterAdoption(
+            UnitEntityData rider, UnitEntityData mount, out string refusal) =>
+            unifiedTurn.ResolveMidEncounterAdoption(rider, mount, out refusal);
+        internal long MidEncounterAdoptionCount => unifiedTurn.MidEncounterAdoptionCount;
+        internal string LastPairedAdoptionObservation => unifiedTurn.LastAdoptionObservation;
+        internal long AdoptionPlanCount => unifiedTurn.AdoptionPlanCount;
+        internal long AdoptionRevalidationFailureCount => unifiedTurn.AdoptionRevalidationFailureCount;
+        internal long AdoptionRollbackCount => unifiedTurn.AdoptionRollbackCount;
+        internal long AdoptionFaultConsumedCount => unifiedTurn.AdoptionFaultConsumedCount;
+        internal string LastAdoptionPlanObservation => unifiedTurn.LastAdoptionPlanObservation;
+        internal IDisposable ArmMidEncounterAdoptionFault(UnitEntityData rider, UnitEntityData mount) =>
+            unifiedTurn.ArmMidEncounterAdoptionFault(rider, mount);
         internal TurnController PairedPartnerContext => unifiedTurn.PartnerContext;
         internal bool PairedPartnerCanGetUp => unifiedTurn.PartnerCanGetUp;
 
@@ -503,7 +523,7 @@ namespace KingmakerMountedCombat.Integration
                 logger.Info("Rejected mounted overlay action activation: action=" + action + "; feedback=" + LastFeedback);
                 return false;
             }
-            if (HasActiveCommand || HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending)
+            if (HasActiveCommand || HasFaultedChargeCleanupOwner || HasActiveGroundMovement || riderTurnGroundMoveAdmissionPending)
             {
                 LastFeedback = "A mounted pair command is already active.";
                 logger.Info("Rejected mounted overlay action activation: action=" + action + "; feedback=" + LastFeedback);
@@ -805,7 +825,7 @@ namespace KingmakerMountedCombat.Integration
             SweepRiderTurnGroundMovement();
             if (activeCommand != null && activeCommand.IsFinished)
             {
-                activeCommand = null;
+                if (!activeCommand.ChargeMode) activeCommand = null;
             }
             if (relationship.State != RelationshipState.Mounted)
             {
@@ -828,14 +848,16 @@ namespace KingmakerMountedCombat.Integration
             {
                 return;
             }
+            if (chargeOwner != null && !TryDrainChargeOwnership(reason))
+                throw new InvalidOperationException("Mounted charge cleanup remains owned: " + ChargeCleanupStatus);
             ClearStockAttackIntent(reason, true);
             ClearObservedStockRequest();
             ArmedAction = MountedCombatActionKind.None;
             ClearProjectedNativeMountTurnGroundMove();
             overlayWorldInputGuard.Clear();
             var command = activeCommand;
-            activeCommand = null;
-            if (command != null && !command.IsFinished)
+            if (command == null || !command.ChargeMode) activeCommand = null;
+            if (command != null && !command.ChargeMode && !command.IsFinished)
             {
                 pairedCommandScheduler.ObserveExternalInterrupt(command, reason);
                 command.Interrupt();
@@ -1194,7 +1216,12 @@ namespace KingmakerMountedCombat.Integration
                     CombatController.IsInTurnBasedCombat(),
                     turn?.Unit == relationship.Rider,
                     turn != null && turn.IsActing,
-                    agent.Unit.EntityData == relationship.Mount);
+                    agent.Unit.EntityData == relationship.Mount,
+                    turn != null && turn.Status == TurnController.TurnStatus.Preparing,
+                    // The exact owned charge transaction, live, is the only delegator a preparing
+                    // rider turn admits - and the command proves that itself. A door approach or a
+                    // finished charge still requires an acting turn.
+                    attackApproachActive && activeCommand.ChargeTransactionDelegating);
             if (!movementAdmitted)
             {
                 return false;
@@ -1435,7 +1462,9 @@ namespace KingmakerMountedCombat.Integration
                 return;
             }
             Cancel("controller disposal");
+            if (ChargeAdmissionFenced) throw new InvalidOperationException("Controller teardown retained a native boundary or serialization fence.");
             relationship.Dismounting -= HandleDismounting;
+            relationship.ChargeCleanupBarrier = null;
             disposed = true;
         }
 
@@ -1516,7 +1545,7 @@ namespace KingmakerMountedCombat.Integration
                         mountPrimary.AdditionalLimbIndex,
                         mountPrimary.Weapon.Blueprint.IsNatural,
                         mountPrimary.Weapon.Blueprint.IsRanged),
-                TransactionIdle = (!HasActiveCommand || HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand)) &&
+                TransactionIdle = !HasFaultedChargeCleanupOwner && (!HasActiveCommand || HasStockAttackIntent && ReferenceEquals(activeCommand, stockIntentCommand)) &&
                     !HasActiveGroundMovement && !riderTurnGroundMoveAdmissionPending,
                 LoadingOrLifecycleBoundary = Game.Instance == null ||
                     !MountedGameModePolicy.CanQueueMountedAction(Game.Instance.CurrentMode.ToString()),
@@ -1546,6 +1575,7 @@ namespace KingmakerMountedCombat.Integration
             MountedPairAttackCommand command,
             MountedPairAttackOutcome outcome)
         {
+            if (ReferenceEquals(chargeOwner?.Command, command)) chargeOwner.Ownership.Retire();
             pairedCommandScheduler.ObserveTerminal(
                 command,
                 outcome?.Result,
@@ -1557,7 +1587,7 @@ namespace KingmakerMountedCombat.Integration
             }
             LastOutcome = outcome;
             finishedCommandPendingSweep = command;
-            if (activeCommand == command)
+            if (activeCommand == command && !command.ChargeMode)
             {
                 activeCommand = null;
             }
@@ -1570,6 +1600,7 @@ namespace KingmakerMountedCombat.Integration
                 "; reason=" + (outcome.TerminalReason ?? "<none>") +
                 "; childAttacks=" + outcome.ChildAttackStartCount +
                 "; repaths=" + outcome.RepathCount +
+                "; repathObservations=" + (string.IsNullOrEmpty(outcome.RepathObservations) ? "<none>" : outcome.RepathObservations) +
                 "; rejectionCodes=" + string.Join(",", LastRejectionCodes.Select(code => code.ToString()).ToArray()) +
                 "; feedback=" + LastFeedback);
             if (stockIntentOwned && !outcome.NativeRangedTailTermination &&
@@ -1608,6 +1639,11 @@ namespace KingmakerMountedCombat.Integration
         private void SweepFinishedCommand()
         {
             var command = finishedCommandPendingSweep;
+            if (command != null && command.ChargeMode)
+            {
+                if (command.IsFinished) TryDrainChargeOwnership("terminal sweep");
+                return;
+            }
             if (command == null || !command.IsFinished)
             {
                 return;

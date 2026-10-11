@@ -55,14 +55,35 @@ namespace KingmakerMountedCombat.Integration
             // Movement/approach intent is transient; its position and accrued
             // native debt are captured at the real header barrier. A running
             // action or undelivered projectile must first resolve natively.
+            //
+            // The two relationship-transition terms are exact queries, not an
+            // argument from game-thread atomicity: an unsettled Mount/Dismount shell
+            // defers the save even while it is only queued, and the transition
+            // ledger's own admit-to-settle window defers it as well. Together they
+            // make the documented claim true by construction rather than by
+            // reasoning about when a frame boundary can be observed.
             return !unifiedTurn.HasUnsettledPreparation &&
+                !controls.HasUnsettledRelationshipTransition &&
                 !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
                     .Any(NativeSaveEffectBoundary.CommandNeedsSettlement)) &&
+                !game.State.Units.Any(u => u.Commands.Raw.Concat(u.Commands.Queue)
+                    .Any(controls.OwnsUnsettledRelationshipShell)) &&
                 !NativeSaveEffectBoundary.HasUnresolvedProjectiles() &&
                 !NativeSaveEffectBoundary.HasUnresolvedAbilities();
         }
 
-        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault)
+        private void RequireChargeSaveBarrier(SaveScope scope)
+        {
+            if (scope.Released || scope.EnumerationRetired)
+                throw new InvalidOperationException("A retired save operation cannot resume native serialization.");
+            // After this exact scope captured its header, queued lifecycle notifications
+            // must wait for serialization to finish. They must not abort its worker or
+            // start cleanup against the live graph. New captures still require no queue.
+            if (!(scope.Json == null ? combat.AcquireChargeSaveFence(scope) : combat.ContinueChargeSaveFence(scope)))
+                throw new InvalidOperationException("Save deferred: charge cleanup ownership is unresolved.");
+        }
+
+        private IEnumerator<object> DeferNativeSave(IEnumerator<object> routine, SaveWaitFault fault, SaveScope scope)
         {
             var timer = Stopwatch.StartNew();
             Player world = null;
@@ -80,7 +101,7 @@ namespace KingmakerMountedCombat.Integration
             {
                 if (world != null && !ReferenceEquals(Game.Instance?.Player, world))
                     throw new InvalidOperationException("Save was not written: its native world was replaced.");
-                return fault?.Active != true && SaveEffectsReady();
+                return combat.AcquireChargeSaveFence(scope) && fault?.Active != true && SaveEffectsReady();
             };
             return new DeferredSaveEnumerator<object>(routine, ready, () => timer.Elapsed.TotalSeconds,
                 () =>
@@ -93,7 +114,13 @@ namespace KingmakerMountedCombat.Integration
                 {
                     if (restorePause && ReferenceEquals(Game.Instance?.Player, world)) Game.Instance.IsPaused = true;
                     world = null;
-                }, 30d);
+                }, 30d, () =>
+                {
+                    // ready() precedes the inner scope's begin. Cancellation/timeout there
+                    // still releases this exact operation's fence. A started worker retains it
+                    // through ReleaseSaveScope/the existing deferred-worker drain.
+                    if (!scope.Began) combat.ReleaseChargeSaveFence(scope);
+                });
         }
 
         // The ordinary completion path's failure report. What is said depends on

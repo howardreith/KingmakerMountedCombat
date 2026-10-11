@@ -117,6 +117,15 @@ namespace KingmakerMountedCombat.Integration
         public bool HasPresentationAttachmentResidue => riderAttachmentLease.IsAcquired || positionAnchorObject != null || positionAnchor != null ||
             poseAdapter != null || poseComponentOwned;
 
+        // Read-only residue observation. After a compensated combat mount nothing
+        // owned may remain: no configured movement authority or presentation, no
+        // borrowed lease, no installed override, no anchor and no pose adapter.
+        public bool NoPreparedPairResidue => !movementAuthorityConfigured && !presentationConfigured &&
+            !mountAiLeaseOwned && !avoidanceLeaseOwned && !riderForbidRotationLeaseOwned &&
+            !overrideInstalled && !overrideComponentOwned && !riderAttachmentLease.IsAcquired &&
+            positionAnchorObject == null && positionAnchor == null && poseAdapter == null &&
+            !poseComponentOwned;
+
         public bool PoseConfigured => poseAdapter != null && poseAdapter.IsConfigured;
 
         public bool PoseHealthy => poseAdapter != null && poseAdapter.IsHealthy;

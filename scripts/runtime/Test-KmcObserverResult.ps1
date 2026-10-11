@@ -27,19 +27,26 @@ function Assert-NoDuplicateJsonObjectProperties {
     $reader = $null
     try {
         $reader = [Runtime.Serialization.Json.JsonReaderWriterFactory]::CreateJsonReader([IO.File]::ReadAllBytes([IO.Path]::GetFullPath($Path)), [Xml.XmlDictionaryReaderQuotas]::Max)
-        $document = New-Object Xml.XmlDocument
-        $document.Load($reader)
-        function Test-JsonObjectNode([Xml.XmlNode]$Node, [string]$Location) {
-            if ($Node.NodeType -eq [Xml.XmlNodeType]::Element -and [string]$Node.Attributes['type'].Value -ceq 'object') {
-                $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-                foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) {
-                    $name = if ($child.LocalName -ceq 'item' -and $null -ne $child.Attributes['item']) { [string]$child.Attributes['item'].Value } else { [string]$child.LocalName }
-                    if (-not $names.Add($name)) { throw "$Description contains duplicate JSON property '$name' at $Location." }
+        # One streaming pass (a name set per open object, no DOM, no recursion); same objects and names as the DOM walk.
+        $names = New-Object 'System.Collections.Generic.Stack[System.Collections.Generic.HashSet[string]]'
+        $objects = New-Object 'System.Collections.Generic.Stack[bool]'
+        $locations = New-Object 'System.Collections.Generic.Stack[string]'
+        while ($reader.Read()) {
+            if ($reader.NodeType -eq [Xml.XmlNodeType]::Element) {
+                $item = $reader.GetAttribute('item')
+                $name = if ($reader.LocalName -ceq 'item' -and $null -ne $item) { [string]$item } else { [string]$reader.LocalName }
+                $location = if ($locations.Count -eq 0) { '$' } else { $locations.Peek() + '/' + $reader.LocalName }
+                if ($objects.Count -gt 0 -and $objects.Peek() -and -not $names.Peek().Add($name)) { throw "$Description contains duplicate JSON property '$name' at $($locations.Peek())." }
+                if (-not $reader.IsEmptyElement) {
+                    $objects.Push(([string]$reader.GetAttribute('type')) -ceq 'object')
+                    $names.Push([Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal))
+                    $locations.Push($location)
                 }
             }
-            foreach ($child in @($Node.ChildNodes | Where-Object NodeType -eq ([Xml.XmlNodeType]::Element))) { Test-JsonObjectNode $child ($Location + '/' + $child.LocalName) }
+            elseif ($reader.NodeType -eq [Xml.XmlNodeType]::EndElement) {
+                [void]$objects.Pop(); [void]$names.Pop(); [void]$locations.Pop()
+            }
         }
-        Test-JsonObjectNode $document.DocumentElement '$'
     }
     finally { if ($null -ne $reader) { $reader.Dispose() } }
 }
@@ -49,7 +56,7 @@ Assert-NoDuplicateJsonObjectProperties $ObserverResultPath 'observer result'
 $result = Read-KmcJson $ObserverResultPath
 $request = Read-KmcJson $RequestPath
 $observerRequest = Read-KmcJson $ObserverRequestPath
-if ([string]$request.scenario -cne 'persistence-p07-load' -or [string]$request.persistenceCase -cne 'removal-no-dll') { throw 'The observer result belongs only to the no-DLL removal case.' }
+if ([string]$request.scenario -cne 'persistence-p07-load' -or [string]$request.persistenceCase -cnotin @('removal-no-dll','mounted-charge-removal-no-dll')) { throw 'The observer result belongs only to the no-DLL removal case.' }
 Assert-KmcExactProperties $result @('schemaVersion','evidenceKind','runId','transactionToken','processId','startedAtUtc','completedAtUtc','status',
     'observerVersion','observerAssembly','requestSha256','stage','checks','checkPassCount','checkFailCount','errors','observations') 'observer result'
 $started = [DateTimeOffset]::MinValue; $completed = [DateTimeOffset]::MinValue
@@ -86,7 +93,16 @@ else {
     if ($names.Count -ne $required.Count) { throw 'Observer PASS carries checks outside its declared set.' }
     $checks++
     $o = $result.observations
-    Assert-KmcExactProperties $o @('routing','absence','descriptor','world','movement','archive','log') 'observer observations'
+    $chargeAbsent=$request.persistenceCase-ceq'mounted-charge-removal-no-dll'
+    $observationFields=@('routing','absence','descriptor','world','movement','archive','log')
+    if($chargeAbsent){$observationFields+=@('chargeLoaded','chargeSettled')}
+    Assert-KmcExactProperties $o $observationFields 'observer observations'
+    if($chargeAbsent){
+        Assert-KmcChargeAbsentFacts $observerRequest $o
+        $proof=Get-KmcChargeRemovalSourceProof $observerRequest.chargeSource.runId $request.persistenceLoad.sha256 $request.commit $request.dllSha256
+        if((ConvertTo-KmcChargeCanonical ([pscustomobject]$proof))-cne(ConvertTo-KmcChargeCanonical $observerRequest.chargeSource)){throw 'No-DLL charge proof differs from its exact immutable source.'}
+        $checks++
+    }
     $a = $o.absence
     if ($a.kmcAssemblyLoaded -ne $false -or $a.kmcModsDirectoryPresent -ne $false -or @($a.kmcModsDirectories).Count -ne 0 -or @($a.kmcDllFiles).Count -ne 0 -or
         @($a.kmcAssemblies).Count -ne 0 -or @($a.kmcModEntries).Count -ne 0 -or $a.observerModEntryPresent -ne $true -or @($a.kmcHarmonyOwners).Count -ne 0 -or

@@ -58,7 +58,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture} 'Unrecognized sa
 if((Get-KmcSha256 $path)-cne$hash){throw 'Read-only source inspection mutated archive'};$passes++
 $snapshot=[pscustomobject]@{Rider=[pscustomobject]@{Id='r';Standard=0};Mount=[pscustomobject]@{Standard=0;Move=0.5};Combat=[pscustomobject]@{
     Round=1;Current=[pscustomobject]@{ActorId='r'};Paired=[pscustomobject]@{Activation=[pscustomobject]@{Sequence=1;Ending=$false}}}}
-foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end')){
+foreach($case in @('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb')){
     $snapshot.Rider.Standard=if($case-cin @('rider-spent','exhausted','explicit-end')){6}else{0}
     $snapshot.Mount.Standard=if($case-cin @('between-partner-orders','exhausted','explicit-end')){6}else{0}
     $snapshot.Mount.Move=if($snapshot.Mount.Standard-gt0){3}else{0.5}
@@ -156,7 +156,7 @@ Must-Reject {Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase alter
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase manual -Alternate} 'Alternate escaped its case'
 Must-Reject {Get-KmcPersistenceSource $sourceId $alternateHash $fixture -NativeCase alternating} 'Primary accepted alternate hash'
 if((Get-KmcSha256 $path)-cne$hash-or(Get-KmcSha256 $alternatePath)-cne$alternateHash){throw 'Alternating source inspection changed inputs'};$passes++
-foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){
+foreach($case in @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','combat-mount-rt','combat-dismount-rt')){
     $result.scenario='persistence-p04-save';Write-KmcJsonAtomic $resultPath $result
     Write-KmcJsonAtomic (Join-Path $root 'owner.json') ([ordered]@{runId=$sourceId;scenario='persistence-p04-save';persistenceCase=$case;transactionToken=('a'*64)})
     $rt=Get-KmcPersistenceSource $sourceId $hash $fixture -NativeCase $case

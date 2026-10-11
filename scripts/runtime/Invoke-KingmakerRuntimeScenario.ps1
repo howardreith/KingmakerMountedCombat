@@ -2,7 +2,9 @@
 param(
     [ValidateSet(
         'mod-load-smoke','export-mounted-contracts','export-candidate-mount-rigs','observe-mount-diagnostic-availability','horse-native-asset-audit','horse-companion-blueprint-registration','horse-companion-unmounted-suite','horse-mounted-alpha-suite','horse-native-controls-ux-suite',
-        'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-unified-combat-tb-suite','phase3d-horse-presentation-suite',
+        'chunk6c-casting-rt','chunk6c-casting-tb','chunk6c-casting-unmounted-rt','chunk6c-casting-unmounted-tb',
+        'chunk6d-staged-rt','chunk6d-staged-tb','chunk6e-reaction-rt','chunk6e-reaction-tb',
+        'chunk6b-charge-rt','chunk6b-charge-core-rt','chunk6b-charge-interruption-rt','chunk6b-charge-lifecycle-rt', 'chunk6b-charge-tb', 'chunk6b-charge-path-rt', 'chunk6b-charge-path-tb', 'chunk6a-combat-mount-rt', 'chunk6a-combat-mount-tb', 'chunk6a-mount-preamble', 'chunk6a-mammoth-mount-rt','chunk6a-mammoth-mount-tb','chunk6a-paused-queue','chunk6a-refused-policy-disabled','chunk6a-refused-foreign-companion','chunk6a-refused-wrong-creature-target','chunk6a-refused-mount-selected','chunk6a-refused-multiple-selection','chunk6a-refused-foreign-selection','chunk6a-mount-approach','chunk6a-geometry-change','chunk6a-obstruction','chunk6a-stop-approach','chunk6a-combat-end-approach','chunk6a-disable-approach','chunk6a-command-replacement','chunk6a-repeated-mount-request','chunk6a-ownership-change','chunk6a-size-form-change','chunk6a-lost-direct-control','chunk6a-rider-incapacitated','chunk6a-mount-incapacitated','chunk6a-hotbar-approach','chunk6a-allocation-rider-first-tb','chunk6a-allocation-mount-first-tb','chunk6a-mount-spent-move-tb','chunk6a-mount-spent-standard-tb','chunk6a-mount-spent-all-tb','chunk6a-rider-without-move-tb','chunk6a-rider-other-action-tb','chunk6a-unrelated-candidate-between-tb','chunk6a-dismount-after-rider-expenditure-tb','chunk6a-dismount-after-mount-expenditure-tb','chunk6a-dismount-immediately-after-mount-tb','chunk6a-dismount-feature-disabled-rt','chunk6a-dismount-policy-disabled-rt','chunk6a-auto-use-mount-rt','chunk6a-auto-use-dismount-rt', 'chunk6a-adoption-compensation-rt', 'chunk6a-adoption-compensation-tb', 'chunk6a-left-area', 'chunk6a-view-agent-lost', 'chunk6a-loading-cutscene', 'chunk6a-generation-change', 'chunk6a-injected-exception', 'chunk6a-rider-death-approach', 'chunk6a-mount-death-approach', 'chunk6a-turn-end-approach-tb', 'chunk6a-mode-exit-tb', 'chunk4-rider-incapacitation-tb', 'chunk4-rider-death-tb', 'chunk4-mount-death-tb', 'chunk4-targeting-rider-rt', 'chunk4-targeting-mount-rt', 'chunk4-ground-arrival-rt', 'chunk4-horse-strike-comparison-rt', 'chunk4-targeting-area-unmounted-rt', 'chunk4-obstruction-ranged-rt', 'chunk4-ranged-native-control-rt', 'chunk4-interrupt-melee-rt', 'chunk4-interrupt-ranged-rt', 'chunk4-inspection-rt', 'chunk4-session-rt', 'chunk4-session-tb', 'chunk4-sustained-melee-rt', 'chunk4-sustained-ranged-rt', 'chunk4-sustained-tb', 'chunk4-charge-safety-rt', 'chunk4-charge-safety-tb', 'actor-allocation-rider-first-tb', 'actor-allocation-mount-first-tb', 'actor-allocation-rider-first-unmounted-tb', 'actor-allocation-mount-first-unmounted-tb', 'ordinary-attack-controls-tb', 'unmounted-attack-controls-rt', 'phase3h-combat-loop-rt', 'phase3h-combat-loop-tb', 'phase3g-native-controls-rt', 'phase3g-native-controls-tb', 'phase3d-unified-combat-rt-suite','phase3d-unified-combat-tb-suite','phase3d-horse-presentation-suite',
         'player-action-availability','mount-dismount-user-flow',
         'mounted-pair-create-and-clear','mounted-pair-double-mount-rejected','mounted-pair-invalid-pair-rejected',
         'mounted-pair-cleanup-idempotent','mounted-pair-death-cleanup','mounted-pair-combat-start-cleanup',
@@ -44,7 +46,7 @@ param(
     # The genuine no-DLL cleanup-save observation: the removal observer package
     # (a separate minimal UMM mod) is staged in place of KMC for that one run.
     [string]$ObserverPackagePath,
-    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign')][string]$PersistenceCase,
+    [ValidateSet('partial-movement','rider-spent','between-partner-orders','exhausted','explicit-end','combat-mount-tb','casting-items','step','conversion','round-effect','reaction','condition','condition-preparing','suspended','manual','quick','auto','manual-renamed','alternating','queued','unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto','failed-area-load','foreign-header-campaign','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')][string]$PersistenceCase,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaEnterPoint,
     [ValidatePattern('^[0-9a-f]{32}$')][string]$PersistenceAreaTargetArea,
     [ValidatePattern('^[0-9a-f]{64}$')][string]$ExpectedPackageSha256,
@@ -85,8 +87,8 @@ if($Scenario -cin @('persistence-p05-save','persistence-p05-load')){
     if($PersistenceCase-cnotin $slotCases){throw 'P05 requires its exact native slot category.'}
 }elseif($PersistenceCase-cin @('manual','quick','auto','manual-renamed','alternating','queued')){throw 'P05 slot category cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p04-save','persistence-p04-load')){
-    if($PersistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 requires its exact native RT checkpoint.'}
-}elseif($PersistenceCase-cin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting')){throw 'P04 checkpoint cannot run under another scenario.'}
+    if($PersistenceCase-cnotin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')){throw 'P04 requires its exact native RT checkpoint.'}
+}elseif($PersistenceCase-cin @('unmounted-spent','mounted-spent','unmounted-attack','mounted-attack','unmounted-projectile','mounted-projectile','unmounted-approach','mounted-approach','unmounted-casting','mounted-casting','mounted-casting-items','combat-mount-rt','combat-dismount-rt','mounted-charge-pending','mounted-charge-settled','mounted-charge-cancelled','mounted-charge-failed','mounted-charge-drained','combat-mount-routes','combat-mount-unsettled-save','combat-mount-area-reload','pending-mount-area')){throw 'P04 checkpoint cannot run under another scenario.'}
 if($Scenario -cin @('persistence-p03-save','persistence-p03-load')){
     if($PersistenceCase-cnotin @('step','conversion','round-effect','reaction','condition','condition-preparing','suspended')){throw 'P03 requires its exact step/conversion/round-effect checkpoint.'}
 }elseif($PersistenceCase-cin @('step','conversion','round-effect','reaction','condition','condition-preparing','suspended')){throw 'P03 checkpoint cannot run under another scenario.'}
@@ -97,11 +99,11 @@ if($Scenario-ceq'persistence-p05-load'-and$PersistenceCase-ceq'alternating'){
 }elseif(-not[string]::IsNullOrEmpty($ExpectedPersistenceAlternateSha256)){throw 'Only alternating P05 cold loads and the foreign-header P06 load may select a second archive.'}
 if(-not[string]::IsNullOrEmpty($PersistenceForeignSourceRunId)-and-not($Scenario-ceq'persistence-p06-load'-and$PersistenceCase-ceq'foreign-header-campaign')){throw 'Only the foreign-header P06 load takes campaign B own archive.'}
 if($Scenario -cin @('persistence-p07-save','persistence-p07-load')){
-    if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
-    if($PersistenceCase-cin @('prepare-removal','disable-during-load')-and$Scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
+    if($PersistenceCase-cnotin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'P07 requires its exact owned recovery case.'}
+    if($PersistenceCase-cin @('prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal')-and$Scenario-cne'persistence-p07-save'){throw 'A removal or disable-during-load case is save-only.'}
     if($PersistenceCase-ceq'absent-kmc'-and$Scenario-cne'persistence-p07-load'){throw 'The integration-absent case is cold-load only.'}
-    if($PersistenceCase-ceq'removal-no-dll'-and$Scenario-cne'persistence-p07-load'){throw 'The no-DLL removal case is cold-load only.'}
-}elseif($PersistenceCase-cin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','absent-kmc','removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'Recovery faults require the exact P07 scenario.'}
+    if($PersistenceCase-cin @('removal-no-dll','mounted-charge-removal-no-dll')-and$Scenario-cne'persistence-p07-load'){throw 'The no-DLL removal case is cold-load only.'}
+}elseif($PersistenceCase-cin @('timeout','cancel-wait','locked-replace','serialization-cancel','serialization-cancel-output','disable-reenable','campaign-b','prepare-removal','disable-during-load','mounted-charge-area','mounted-charge-session','mounted-charge-disable','mounted-charge-removal','absent-kmc','removal-no-dll','mounted-charge-removal-no-dll','rider-death','mount-death','rider-size-change','area-reload','area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){throw 'Recovery faults require the exact P07 scenario.'}
 if($PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry-auto','area-cross-exit-auto')){
     if($PersistenceCase-cin @('area-cross-entry-auto','area-cross-exit-auto')-and$Scenario-cne'persistence-p07-load'){throw 'A transition autosave case is cold-load only.'}
     if([string]::IsNullOrEmpty($PersistenceAreaEnterPoint)-or[string]::IsNullOrEmpty($PersistenceAreaTargetArea)){
@@ -113,7 +115,7 @@ if($PersistenceCase-cin @('area-cross-entry','area-cross-exit','area-cross-entry
 if($Scenario-ceq'persistence-p06-load'){
     if($PersistenceCase-cnotin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load','foreign-header-campaign')){throw 'P06 requires its exact validation variant.'}
 }elseif($PersistenceCase-cin @('legacy','schema1','future','malformed','profile','campaign','missing-rider','missing-mount','mismatched-profile','policy','combat-missing','combat-ai','failed-area-load','foreign-header-campaign')){throw 'Validation variants require the exact P06 scenario.'}
-$isObserver=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-ceq'removal-no-dll'
+$isObserver=$Scenario-ceq'persistence-p07-load'-and$PersistenceCase-cin @('removal-no-dll','mounted-charge-removal-no-dll')
 if($isObserver-and[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'The no-DLL removal case requires the removal-observer package.'}
 if(-not$isObserver-and-not[string]::IsNullOrWhiteSpace($ObserverPackagePath)){throw 'Only the no-DLL removal case takes the removal-observer package.'}
 $requestedWhatIf=[bool]$WhatIfPreference
@@ -252,8 +254,30 @@ if(-not $PSCmdlet.ShouldProcess('Steam App 640820, exact live Kingmaker Mods, an
         (Get-KmcDirectoryManifest $runtimeStaging),(Get-KmcDirectoryManifest $runtimeEvidence),
         (Get-KmcDirectoryManifest $liveMods)
     )
+    # A purity failure must name the tree and the exact entries that differ. The
+    # comparison itself is unchanged: every byte of every root is still rehashed
+    # and any difference still fails closed.
     for($index=0;$index-lt$afterRoots.Count;$index++){
-        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){throw 'WhatIf purity failed: an external tree changed.'}
+        if($afterRoots[$index].digest-cne$beforeRoots[$index].digest){
+            $purityBefore=$beforeRoots[$index]; $purityAfter=$afterRoots[$index]
+            $purityBeforeEntries=@{}; foreach($entry in $purityBefore.entries){$purityBeforeEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityAfterEntries=@{}; foreach($entry in $purityAfter.entries){$purityAfterEntries[($entry.kind+'|'+$entry.path)]=([string]$entry.length+'|'+[string]$entry.sha256)}
+            $purityDetails=New-Object 'System.Collections.Generic.List[string]'
+            foreach($key in $purityBeforeEntries.Keys){
+                if(-not$purityAfterEntries.ContainsKey($key)){$purityDetails.Add('removed '+$key)}
+                elseif($purityAfterEntries[$key]-cne$purityBeforeEntries[$key]){$purityDetails.Add('changed '+$key+' : '+$purityBeforeEntries[$key]+' -> '+$purityAfterEntries[$key])}
+                if($purityDetails.Count-ge20){break}
+            }
+            foreach($key in $purityAfterEntries.Keys){
+                if(-not$purityBeforeEntries.ContainsKey($key)){$purityDetails.Add('added '+$key)}
+                if($purityDetails.Count-ge40){break}
+            }
+            throw ('WhatIf purity failed: an external tree changed: '+$purityAfter.root+
+                ' (files '+$purityBefore.fileCount+'->'+$purityAfter.fileCount+
+                ', directories '+$purityBefore.directoryCount+'->'+$purityAfter.directoryCount+
+                ', bytes '+$purityBefore.totalBytes+'->'+$purityAfter.totalBytes+')'+
+                $(if($purityDetails.Count-eq0){''}else{[Environment]::NewLine+($purityDetails-join[Environment]::NewLine)}))
+        }
     }
     if((Get-KmcSaveMetadataInventory $saveRoot).digest-cne$beforeSaves.digest){throw 'WhatIf purity failed: save metadata changed.'}
     Assert-KmcNoGameProcesses
@@ -353,10 +377,20 @@ try{
             -After $lockedContinuity.saveMetadata `
             -Description 'runtime locked fixture-continuity save metadata'
     }
+    # The no-save mode must bind NO suite argument, not an empty one: the
+    # receiving parameters are ValidatePattern-guarded, so an explicitly passed
+    # empty string is rejected before the function's own completeness check
+    # ('exactly three for a suite mode, exactly none otherwise') can run. The
+    # save-backed binding is unchanged and still always supplies all three.
+    $suiteBinding=@{}
+    if($isSaveBacked){
+        $suiteBinding['QualificationSuiteSnapshotPath']=$QualificationSuiteSnapshotPath
+        $suiteBinding['QualificationSuiteId']=$ExpectedQualificationSuiteId
+        $suiteBinding['QualificationSuiteSnapshotSha256']=$ExpectedQualificationSuiteSnapshotSha256
+    }
     $combinedStatePath=New-KmcRunTransactionState -Lock $lock -Mode $(if($isSaveBacked){'save-backed-v3-suite'}else{'no-save-v1'}) `
         -LiveModsRoot $liveMods -SaveRoot $saveRoot -StateRoot $runtimeState -ModsBefore $beforeMods -SavesBefore $beforeSaves `
-        -QualificationSuiteSnapshotPath $QualificationSuiteSnapshotPath -QualificationSuiteId $ExpectedQualificationSuiteId `
-        -QualificationSuiteSnapshotSha256 $ExpectedQualificationSuiteSnapshotSha256
+        @suiteBinding
     if($isSaveBacked){
         [void](Assert-KmcRuntimeLockOwner $lock)
         Assert-KmcNoGameProcesses
@@ -388,6 +422,9 @@ try{
                     Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $producing -ArtifactRole transition-auto -ExpectedArea $committed
                 }
                 elseif($sourceCase-cin @('area-cross-entry','area-cross-exit')){Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase $sourceCase -ExpectedArea $PersistenceAreaTargetArea}
+                elseif($sourceCase-ceq'mounted-charge-removal-no-dll'){
+                    Get-KmcPersistenceSource -SourceRunId $PersistenceSourceRunId -ExpectedSha256 $ExpectedPersistenceSourceSha256 -Fixture $fixturePayload -NativeCase mounted-charge-removal -ArtifactRole cleanup-manual
+                }
                 elseif($sourceCase-cin @('absent-kmc','removal-no-dll')){
                     # The cleanup archive a prepare-removal run wrote, under its
                     # own name, is what the integration-absent process opens.
@@ -467,11 +504,15 @@ try{
             profileRoot=$profileRoot;modsRoot=$liveMods;kmcModId='KingmakerMountedCombat';observerModId='KmcRemovalObserver'
             kmcHarmonyIds=@('KingmakerMountedCombat.Feasibility','KingmakerMountedCombat.PersistenceIsolation','KingmakerMountedCombat.Diagnostics.QueuedMountWindow','KingmakerMountedCombat.Diagnostics.ActorAllocation','KingmakerMountedCombat.Diagnostics.OrdinaryAttackTrace')
             archive=$request.persistenceLoad
-            kmcBlueprintGuids=@('4016c7db400ab721ff125aef9e65e202','7db7c50677e39f09feef56f3831fc723','98e651899e6278d938de77af1d69bd32','6874a165bf8bda3531ee4e2abc10c899')
+            kmcBlueprintGuids=@('4016c7db400ab721ff125aef9e65e202','7db7c50677e39f09feef56f3831fc723','98e651899e6278d938de77af1d69bd32','6874a165bf8bda3531ee4e2abc10c899','f053faad986631688defa003cd7bda0e','3af2b81f4d72bbb30501fa730fcdf36e','27364df661b3c121eabb97a31aa73a83','f88a50d6fdbebbd709c3e323d2f52f5e','d79eaec224a7a832e738eb81baef9d49')
             mammothBlueprintGuid='e7aa96d15a45238438ae4cfb476f6bb9'
             candidate=[ordered]@{commit=[string]$manifest.commit;productVersion=[string]$manifest.version;dllSha256=[string]$manifest.dllSha256;dllMvid=[string]$manifest.dllMvid}
             observer=[ordered]@{version=[string]$observerManifest.version;packageSha256=[string]$observerManifest.packageSha256;dllSha256=[string]$observerManifest.dllSha256;dllMvid=[string]$observerManifest.dllMvid}
             timeoutSeconds=300
+        }
+        if($PersistenceCase-ceq'mounted-charge-removal-no-dll'){
+            $observerRequest.schemaVersion=2
+            $observerRequest.chargeSource=Get-KmcChargeRemovalSourceProof $PersistenceSourceRunId $ExpectedPersistenceSourceSha256 $request.commit $request.dllSha256
         }
         Write-KmcJsonAtomic $observerRequestPath $observerRequest
     }
@@ -611,11 +652,12 @@ try{
         $validatedGameResult=Read-KmcJson $gameResultPath
         $gamePassed=[string]$validatedGameResult.status -ceq 'PASS'
         $compareRealtime=$Scenario-ceq'persistence-p04-load'-and(
+            (Test-KmcChargePersistenceCase $PersistenceCase)-or
             $PersistenceCase.EndsWith('-projectile',[StringComparison]::Ordinal)-or
             $PersistenceCase.EndsWith('-approach',[StringComparison]::Ordinal)-or
             $PersistenceCase.EndsWith('-casting',[StringComparison]::Ordinal))
         $compareCondition=$Scenario-ceq'persistence-p03-load'-and$PersistenceCase-cin @('condition','condition-preparing','suspended')
-        if($gamePassed-and($compareRealtime-or$compareCondition)){
+        if($gamePassed-and($compareRealtime-or$compareCondition-or($Scenario-cin@('persistence-p02-load','persistence-p04-load')-and$PersistenceCase-cin@('casting-items','mounted-casting-items')))){
             Assert-KmcRealtimeColdSource -SourceRunId $PersistenceSourceRunId -Request $request
         }
         if(-not$gamePassed){$errors.Add('Game reported FAIL: '+(@($validatedGameResult.errors) -join '; '))}
